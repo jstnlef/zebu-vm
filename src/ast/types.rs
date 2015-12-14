@@ -1,128 +1,250 @@
 extern crate std;
 
-pub type MuID = usize;
+use std::collections::HashMap;
+use std::sync::RwLock;
+
+pub type MuID  = usize;
+pub type MuTag = &'static str;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum MuType {
     /// int <length>
-    MuInt          (usize),
+    Int          (usize),
     /// float
-    MuFloat,
+    Float,
     /// double
-    MuDouble,
+    Double,
     
     /// ref<T>
-    MuRef          (Box<MuType>),    // Box is needed for non-recursive enum
+    Ref          (Box<MuType>),    // Box is needed for non-recursive enum
     /// iref<T>: internal reference
-    MuIRef         (Box<MuType>),
+    IRef         (Box<MuType>),
     /// weakref<T>
-    MuWeakRef      (Box<MuType>),
+    WeakRef      (Box<MuType>),
     
     /// uptr<T>: unsafe pointer
-    MuUPtr         (Box<MuType>),
+    UPtr         (Box<MuType>),
     
     /// struct<T1 T2 ...>
-    MuStruct       (MuID),
+    Struct       (MuTag),
     
     /// array<T length>
-    MuArray        (Box<MuType>, usize),
+    Array        (Box<MuType>, usize),
     
     /// hybrid<F1 F2 ... V>: a hybrid of fixed length parts and a variable length part
-    MuHybrid       (Vec<Box<MuType>>, Box<MuType>),
+    Hybrid       (Vec<Box<MuType>>, Box<MuType>),
     
     /// void
-    MuVoid,
+    Void,
     
     /// threadref
-    MuThreadRef,
+    ThreadRef,
     /// stackref
-    MuStackRef,
+    StackRef,
     
     /// tagref64: hold a double or an int or an ref<void>
-    MuTagref64,
+    Tagref64,
     
     /// vector<T length>
-    MuVector       (Box<MuType>, usize),
+    Vector       (Box<MuType>, usize),
     
     /// funcref<@sig>
-    MuFuncRef      (MuFuncSig),
+    FuncRef      (MuFuncSig),
     
     /// ufuncptr<@sig>
-    MuUFuncPtr     (MuFuncSig),
+    UFuncPtr     (MuFuncSig),
+}
+
+lazy_static! {
+    /// storing a map from MuTag to StructType_
+    static ref STRUCT_TAG_MAP : RwLock<HashMap<MuTag, StructType_>> = RwLock::new(HashMap::new());
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct MuStructType_ {
+pub struct StructType_ {
     tys: Vec<Box<MuType>>
 }
 
-impl MuStructType_ {
+impl StructType_ {
     pub fn set_tys(&mut self, list: Vec<&MuType>) {
+        self.tys.clear();
         self.tys.append(&mut list.into_iter().map(|t| Box::new(t.clone())).collect());
     }
 }
 
 impl MuType {
-    // constructors
     pub fn int(len: usize) -> MuType {
-        MuType::MuInt(len)
+        MuType::Int(len)
     }
     pub fn float() -> MuType {
-        MuType::MuFloat
+        MuType::Float
     }
     pub fn double() -> MuType {
-        MuType::MuDouble
+        MuType::Double
     }
     pub fn muref(referent: &MuType) -> MuType {
-        MuType::MuRef(Box::new(referent.clone()))
+        MuType::Ref(Box::new(referent.clone()))
     }
     pub fn muref_void() -> MuType {
-        MuType::MuRef(Box::new(MuType::void()))
+        MuType::Ref(Box::new(MuType::void()))
     }
     pub fn iref(referent: &MuType) -> MuType {
-        MuType::MuIRef(Box::new(referent.clone()))
+        MuType::IRef(Box::new(referent.clone()))
     }
     pub fn weakref(referent: &MuType) -> MuType {
-        MuType::MuWeakRef(Box::new(referent.clone()))
+        MuType::WeakRef(Box::new(referent.clone()))
     }
     pub fn uptr(referent: &MuType) -> MuType {
-        MuType::MuUPtr(Box::new(referent.clone()))
+        MuType::UPtr(Box::new(referent.clone()))
     }
-    pub fn mustruct_empty(id: MuID) -> (MuType, MuStructType_) {
-        (MuType::MuStruct(id), MuStructType_{tys: vec![]})
+    pub fn mustruct_empty(tag: MuTag) -> MuType {
+        let struct_ty_ = StructType_{tys: vec![]};
+        STRUCT_TAG_MAP.write().unwrap().insert(tag, struct_ty_);
+
+        MuType::Struct(tag)
     }
-    pub fn mustruct(id: MuID, list: Vec<&MuType>) -> (MuType, MuStructType_) {
-        (MuType::MuStruct(id), MuStructType_{tys: list.into_iter().map(|t| Box::new(t.clone())).collect()})  
+    pub fn mustruct(tag: MuTag, list: Vec<&MuType>) -> MuType {
+        let struct_ty_ = StructType_{tys: list.into_iter().map(|t| Box::new(t.clone())).collect()};
+
+        // if there is an attempt to use a same tag for different struct,
+        // we panic
+        match STRUCT_TAG_MAP.read().unwrap().get(tag) {
+            Some(old_struct_ty_) => {
+                if struct_ty_ != *old_struct_ty_ {
+                    panic!(format!(
+                            "trying to insert {:?} as {}, while the old struct is defined as {:?}",
+                            struct_ty_, tag, old_struct_ty_))
+                }
+            },
+            None => {}
+        }
+        // otherwise, store the tag
+        STRUCT_TAG_MAP.write().unwrap().insert(tag, struct_ty_);
+
+        MuType::Struct(tag)
     }
     pub fn array(ty: &MuType, len: usize) -> MuType {
-        MuType::MuArray(Box::new(ty.clone()), len)
+        MuType::Array(Box::new(ty.clone()), len)
     }
-    pub fn hybrid(fix_tys: Vec<&MuType>, var_tys: &MuType) -> MuType {
-        MuType::MuHybrid(
+    pub fn hybrid(fix_tys: Vec<&MuType>, var_ty: &MuType) -> MuType {
+        MuType::Hybrid(
             fix_tys.into_iter().map(|t| Box::new(t.clone())).collect(),
-            Box::new(var_tys.clone())
+            Box::new(var_ty.clone())
         )
     }
     pub fn void() -> MuType {
-        MuType::MuVoid
+        MuType::Void
     }
     pub fn threadref() -> MuType {
-        MuType::MuThreadRef
+        MuType::ThreadRef
     }
     pub fn stackref() -> MuType {
-        MuType::MuStackRef
+        MuType::StackRef
     }
     pub fn tagref64() -> MuType {
-        MuType::MuTagref64
+        MuType::Tagref64
     }
     pub fn vector(ty: &MuType, len: usize) -> MuType {
-        MuType::MuVector(Box::new(ty.clone()), len)
+        MuType::Vector(Box::new(ty.clone()), len)
     }
     pub fn funcref(sig: MuFuncSig) -> MuType {
-        MuType::MuFuncRef(sig)
+        MuType::FuncRef(sig)
     }
     pub fn ufuncptr(sig: MuFuncSig) -> MuType {
-        MuType::MuUFuncPtr(sig)
+        MuType::UFuncPtr(sig)
+    }
+}
+
+/// is a type floating-point type?
+pub fn is_fp(ty: &MuType) -> bool {
+    match *ty {
+        MuType::Float | MuType::Double => true,
+        _ => false
+    }
+}
+
+/// is a type raw pointer?
+pub fn is_ptr(ty: &MuType) -> bool {
+    match *ty {
+        MuType::UPtr(_) | MuType::UFuncPtr(_) => true,
+        _ => false
+    }
+}
+
+/// is a type scalar type?
+pub fn is_scalar(ty: &MuType) -> bool {
+    match *ty {
+        MuType::Int(_)
+        | MuType::Float
+        | MuType::Double
+        | MuType::Ref(_)
+        | MuType::IRef(_)
+        | MuType::WeakRef(_)
+        | MuType::FuncRef(_)
+        | MuType::UFuncPtr(_)
+        | MuType::ThreadRef
+        | MuType::StackRef
+        | MuType::Tagref64
+        | MuType::UPtr(_) => true,
+        _ => false
+    }
+}
+
+/// is a type traced by the garbage collector?
+/// Note: An aggregated type is traced if any of its part is traced. 
+pub fn is_traced(ty: &MuType) -> bool {
+    match *ty {
+        MuType::Ref(_) => true,
+        MuType::IRef(_) => true,
+        MuType::WeakRef(_) => true,
+        MuType::Array(ref elem_ty, _)
+        | MuType::Vector(ref elem_ty, _) => is_traced(elem_ty),
+        MuType::ThreadRef
+        | MuType::StackRef
+        | MuType::Tagref64 => true,
+        MuType::Hybrid(ref fix_tys, ref var_ty) => {
+            is_traced(var_ty) ||
+            fix_tys.into_iter().map(|ty| is_traced(ty))
+                .fold(false, |ret, this| ret || this) 
+            },
+        MuType::Struct(tag) => {
+            let map = STRUCT_TAG_MAP.read().unwrap();
+            let struct_ty = map.get(tag).unwrap();
+            let ref field_tys = struct_ty.tys;
+            
+            field_tys.into_iter().map(|ty| is_traced(&ty))
+                .fold(false, |ret, this| ret || this)
+        },
+        _ => false
+    }
+}
+
+/// is a type native safe?
+/// Note: An aggregated type is native safe if all of its parts are native safe.
+pub fn is_native_safe(ty: &MuType) -> bool {
+    match *ty {
+        MuType::Int(_) => true,
+        MuType::Float => true,
+        MuType::Double => true,
+        MuType::Void => true,
+        MuType::Array(ref elem_ty, _)
+        | MuType::Vector(ref elem_ty, _) => is_native_safe(elem_ty),
+        MuType::UPtr(_) => true,
+        MuType::UFuncPtr(_) => true,
+        MuType::Hybrid(ref fix_tys, ref var_ty) => {
+            is_native_safe(var_ty) && 
+            fix_tys.into_iter().map(|ty| is_native_safe(&ty))
+                .fold(true, |ret, this| ret && this)
+        },
+        MuType::Struct(tag) => {
+            let map = STRUCT_TAG_MAP.read().unwrap();
+            let struct_ty = map.get(tag).unwrap();
+            let ref field_tys = struct_ty.tys;
+            
+            field_tys.into_iter().map(|ty| is_native_safe(&ty))
+                .fold(true, |ret, this| ret && this)
+        },
+        _ => false
     }
 }
 
@@ -153,6 +275,7 @@ impl MuFuncSig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::STRUCT_TAG_MAP;
     
     macro_rules! assert_type (
         ($test:expr, $expect: expr) => (
@@ -166,91 +289,176 @@ mod tests {
         )  
     );
     
-    #[test]
-    #[allow(unused_variables)]
-    fn test_type_constructors() {
+    /// create one of each MuType
+    fn create_types() -> Vec<Box<MuType>> {
         let mut types = vec![];
         
         let t0 = MuType::int(8);
         types.push(Box::new(t0));
-        assert_type!(*types[0], "MuInt(8)");
         
         let t1 = MuType::float();
         types.push(Box::new(t1));
-        assert_type!(*types[1], "MuFloat");
         
         let t2 = MuType::double();
         types.push(Box::new(t2));
-        assert_type!(*types[2], "MuDouble");
         
         let t3 = MuType::muref(&types[0]);
         types.push(Box::new(t3));
-        assert_type!(*types[3], "MuRef(MuInt(8))");
         
         let t4 = MuType::iref(&types[0]);
         types.push(Box::new(t4));
-        assert_type!(*types[4], "MuIRef(MuInt(8))");
         
         let t5 = MuType::weakref(&types[0]);
         types.push(Box::new(t5));
-        assert_type!(*types[5], "MuWeakRef(MuInt(8))");
         
         let t6 = MuType::uptr(&types[0]);
         types.push(Box::new(t6));
-        assert_type!(*types[6], "MuUPtr(MuInt(8))");
         
-        let (t7, t7_struct) = MuType::mustruct(0, vec![&types[0], &types[1]]);
+        let t7 = MuType::mustruct("MyStructTag1", vec![&types[0], &types[1]]);
         types.push(Box::new(t7));
-        assert_type!(*types[7], "MuStruct(0)");
-        assert_type!(t7_struct, "MuStructType_ { tys: [MuInt(8), MuFloat] }");
         
         let t8 = MuType::array(&types[0], 5);
         types.push(Box::new(t8));
-        assert_type!(*types[8], "MuArray(MuInt(8), 5)");
         
         let t9 = MuType::hybrid(vec![&types[7], &types[1]], &types[0]);
         types.push(Box::new(t9));
-        assert_type!(*types[9], "MuHybrid([MuStruct(0), MuFloat], MuInt(8))");
         
         let t10 = MuType::void();
         types.push(Box::new(t10));
-        assert_type!(*types[10], "MuVoid");
         
         let t11 = MuType::threadref();
         types.push(Box::new(t11));
-        assert_type!(*types[11], "MuThreadRef");
         
         let t12 = MuType::stackref();
         types.push(Box::new(t12));
-        assert_type!(*types[12], "MuStackRef");
         
         let t13 = MuType::tagref64();
         types.push(Box::new(t13));
-        assert_type!(*types[13], "MuTagref64");
         
         let t14 = MuType::vector(&types[0], 5);
         types.push(Box::new(t14));
-        assert_type!(*types[14], "MuVector(MuInt(8), 5)");
         
         let sig = MuFuncSig::new(vec![&types[10]], vec![&types[0], &types[0]]);
         
         let t15 = MuType::funcref(sig.clone());
         types.push(Box::new(t15));
-        assert_type!(*types[15], "MuFuncRef(MuFuncSig { ret_tys: [MuVoid], args_tys: [MuInt(8), MuInt(8)] })");
         
         let t16 = MuType::ufuncptr(sig.clone());
         types.push(Box::new(t16));
-        assert_type!(*types[16], "MuUFuncPtr(MuFuncSig { ret_tys: [MuVoid], args_tys: [MuInt(8), MuInt(8)] })");
+        
+        types
+    }
+    
+    #[test]
+    #[allow(unused_variables)]
+    fn test_type_constructors() {
+        let types = create_types();
+        
+        assert_type!(*types[0], "Int(8)");
+        assert_type!(*types[1], "Float");
+        assert_type!(*types[2], "Double");
+        assert_type!(*types[3], "Ref(Int(8))");
+        assert_type!(*types[4], "IRef(Int(8))");
+        assert_type!(*types[5], "WeakRef(Int(8))");
+        assert_type!(*types[6], "UPtr(Int(8))");
+        assert_type!(*types[7], "Struct(\"MyStructTag1\")");
+        {
+            let map = STRUCT_TAG_MAP.read().unwrap();
+            let t7_struct_ty = map.get("MyStructTag1").unwrap();
+            assert_type!(t7_struct_ty, "StructType_ { tys: [Int(8), Float] }");
+        }
+        assert_type!(*types[8], "Array(Int(8), 5)");
+        assert_type!(*types[9], "Hybrid([Struct(\"MyStructTag1\"), Float], Int(8))");
+        assert_type!(*types[10], "Void");
+        assert_type!(*types[11], "ThreadRef");
+        assert_type!(*types[12], "StackRef");
+        assert_type!(*types[13], "Tagref64");
+        assert_type!(*types[14], "Vector(Int(8), 5)");
+        assert_type!(*types[15], "FuncRef(MuFuncSig { ret_tys: [Void], args_tys: [Int(8), Int(8)] })");
+        assert_type!(*types[16], "UFuncPtr(MuFuncSig { ret_tys: [Void], args_tys: [Int(8), Int(8)] })");
     }
     
     #[test]
     fn test_cyclic_struct() {
         // .typedef @cyclic_struct_ty = struct<ref<@cyclic_struct_ty> int<32>>
-        let (ty, mut struct_ty) = MuType::mustruct_empty(0);
+        let ty = MuType::mustruct_empty("MyStructTag2");
         let ref_ty = MuType::muref(&ty);
         let i32_ty = MuType::int(32);
-        struct_ty.set_tys(vec![&ref_ty, &i32_ty]);
         
-        assert_type!(struct_ty, "MuStructType_ { tys: [MuRef(MuStruct(0)), MuInt(32)] }");
+        {
+            STRUCT_TAG_MAP.write().unwrap().
+                get_mut("MyStructTag2").unwrap().set_tys(vec![&ref_ty, &i32_ty]);
+        }
+        
+        let map = STRUCT_TAG_MAP.read().unwrap();
+        let struct_ty = map.get("MyStructTag2").unwrap();
+        assert_type!(struct_ty, "StructType_ { tys: [Ref(Struct(\"MyStructTag2\")), Int(32)] }");
+    }
+    
+    #[test]
+    fn test_is_traced() {
+        let types = create_types();
+        
+        assert_eq!(is_traced(&types[0]), false);
+        assert_eq!(is_traced(&types[1]), false);
+        assert_eq!(is_traced(&types[2]), false);
+        assert_eq!(is_traced(&types[3]), true);
+        assert_eq!(is_traced(&types[4]), true);
+        assert_eq!(is_traced(&types[5]), true);
+        assert_eq!(is_traced(&types[6]), false);
+        assert_eq!(is_traced(&types[7]), false);
+        let struct3 = MuType::mustruct("MyStructTag3", vec![&types[3], &types[0]]);
+        assert_eq!(is_traced(&struct3), true);
+        let struct4 = MuType::mustruct("MyStructTag4", vec![&types[3], &types[4]]);
+        assert_eq!(is_traced(&struct4), true);
+        assert_eq!(is_traced(&types[8]), false);
+        let ref_array = MuType::array(&types[3], 5);
+        assert_eq!(is_traced(&ref_array), true);
+        assert_eq!(is_traced(&types[9]), false);
+        let fix_ref_hybrid = MuType::hybrid(vec![&types[3], &types[0]], &types[0]);
+        assert_eq!(is_traced(&fix_ref_hybrid), true);
+        let var_ref_hybrid = MuType::hybrid(vec![&types[0], &types[1]], &types[3]);
+        assert_eq!(is_traced(&var_ref_hybrid), true);
+        assert_eq!(is_traced(&types[10]), false);
+        assert_eq!(is_traced(&types[11]), true);
+        assert_eq!(is_traced(&types[12]), true);
+        assert_eq!(is_traced(&types[13]), true);
+        assert_eq!(is_traced(&types[14]), false);
+        assert_eq!(is_traced(&types[15]), false);
+        assert_eq!(is_traced(&types[16]), false);
+    }
+    
+    #[test]
+    fn test_is_native_safe() {
+        let types = create_types();    
+        
+        assert_eq!(is_native_safe(&types[0]), true);
+        assert_eq!(is_native_safe(&types[1]), true);
+        assert_eq!(is_native_safe(&types[2]), true);
+        assert_eq!(is_native_safe(&types[3]), false);
+        assert_eq!(is_native_safe(&types[4]), false);
+        assert_eq!(is_native_safe(&types[5]), false);
+        assert_eq!(is_native_safe(&types[6]), true);
+        assert_eq!(is_native_safe(&types[7]), true);
+        let struct3 = MuType::mustruct("MyStructTag3", vec![&types[3], &types[0]]);
+        assert_eq!(is_native_safe(&struct3), false);
+        let struct4 = MuType::mustruct("MyStructTag4", vec![&types[3], &types[4]]);
+        assert_eq!(is_native_safe(&struct4), false);
+        assert_eq!(is_native_safe(&types[8]), true);
+        let ref_array = MuType::array(&types[3], 5);
+        assert_eq!(is_native_safe(&ref_array), false);
+        assert_eq!(is_native_safe(&types[9]), true);
+        let fix_ref_hybrid = MuType::hybrid(vec![&types[3], &types[0]], &types[0]);
+        assert_eq!(is_native_safe(&fix_ref_hybrid), false);
+        let var_ref_hybrid = MuType::hybrid(vec![&types[0], &types[1]], &types[3]);
+        assert_eq!(is_native_safe(&var_ref_hybrid), false);
+        assert_eq!(is_native_safe(&types[10]), true);
+        assert_eq!(is_native_safe(&types[11]), false);
+        assert_eq!(is_native_safe(&types[12]), false);
+        assert_eq!(is_native_safe(&types[13]), false);
+        assert_eq!(is_native_safe(&types[14]), true);
+        assert_eq!(is_native_safe(&types[15]), false);    // funcref is not native safe
+                                                          // and not traced either
+        assert_eq!(is_native_safe(&types[16]), true);
     }
 }
