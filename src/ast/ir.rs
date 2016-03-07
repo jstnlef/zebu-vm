@@ -1,5 +1,8 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
+use ast::ptr::P;
 use ast::types::*;
-use std::sync::Arc;
 
 pub type WPID  = usize;
 pub type MuID  = usize;
@@ -8,9 +11,15 @@ pub type Address = usize; // TODO: replace this with Address(usize)
 
 #[derive(Clone)]
 pub struct SSAVar {
-    id: MuID,
-    tag:Option<MuTag>,
-    ty: Arc<MuType_>
+    pub id: MuID,
+    pub tag: MuTag,
+    pub ty: P<MuType_>
+}
+
+#[derive(Clone)]
+pub enum Value {
+    SSAVar(SSAVar),
+    Constant(MuConstant)
 }
 
 #[derive(Copy, Clone)]
@@ -24,18 +33,6 @@ pub enum MemoryOrder {
     SeqCst
 }
 
-#[derive(Clone)]
-pub enum Literal {
-    LitInt(usize, Arc<MuType_>),
-    
-    LitFP(f64, Arc<MuType_>),
-    LitFPNaN(Arc<MuType_>),
-    LitFPInfPos(Arc<MuType_>),
-    LitFPInfNeg(Arc<MuType_>),
-    
-    LitNull(Arc<MuType_>)
-}
-
 #[derive(Copy, Clone)]
 pub enum CallConvention {
     Mu,
@@ -47,54 +44,64 @@ pub enum ForeignFFI {
     C
 }
 
-#[derive(Clone)]
 pub struct CallData {
-    func: SSAVar,
-    args: Vec<SSAVar>,
-    convention: CallConvention
+    pub func: P<SSAVar>,
+    pub args: Vec<P<Value>>,
+    pub convention: CallConvention
 }
 
-#[derive(Clone)]
-pub struct Block<'func> {
-    args: Vec<SSAVar>,
-    body: Vec<Instruction>,
-    exit: Terminal<'func>,
-    keepalives: Vec<SSAVar>
+pub struct Block {
+    label: MuTag,
+    content: Option<BlockContent>
 }
 
-#[derive(Clone)]
-pub struct TerminationData<'func> {
-    normal_dest: Destination<'func>,
-    exn_dest: Destination<'func>
+impl Block {
+    pub fn new(label: MuTag) -> Block {
+        Block{label: label, content: None}
+    }
+    
+    pub fn set_content(&mut self, v: BlockContent) {
+        self.content = Some(v);
+    }
 }
 
-#[derive(Clone)]
+pub struct BlockContent {
+    pub args: Vec<P<Value>>,
+    pub body: Vec<Instruction>,
+    pub exit: Terminal,
+    pub keepalives: Option<Vec<P<SSAVar>>>    
+}
+
+pub struct TerminationData {
+    normal_dest: Destination,
+    exn_dest: Destination
+}
+
 pub enum DestArg {
-    Normal(SSAVar),
+    Normal(P<Value>),
     Freshbound(usize)
 }
 
-#[derive(Clone)]
-pub struct Destination<'func> {
-    block: &'func Block<'func>,
-    args: Vec<DestArg>
+pub struct Destination {
+    pub target: MuTag,
+    pub args: Vec<DestArg>
 }
 
 #[derive(Clone)]
-pub enum Value {
+pub enum Constant {
     Int(usize, usize),
-    IRef(Arc<MuType_>, Address),
+    IRef(P<MuType_>, Address),
     FloatV(f32),
     DoubleV(f64),
-    VectorV(Vec<Value>),
+    VectorV(Vec<Constant>),
     FuncRefV(Address),
     UFuncRefV(Address)
 }
 
-#[derive(Clone)]
 pub enum Expression {
-    BinOp(BinOp, SSAVar, SSAVar), 
-    Value(Value),
+    BinOp(BinOp, P<Value>, P<Value>), 
+    CmpOp(CmpOp, P<Value>, P<Value>),
+    Constant(P<Constant>),
     
     // memory operations
     
@@ -103,136 +110,136 @@ pub enum Expression {
         is_strong: bool,
         success_order: MemoryOrder,
         fail_order: MemoryOrder,
-        mem_loc: SSAVar,
-        expected_value: SSAVar,
-        desired_value: SSAVar
+        mem_loc: P<SSAVar>,
+        expected_value: P<Value>,
+        desired_value: P<Value>
     },
     
     AtomicRMW{
         is_iref: bool, // T for iref, F for ptr
         order: MemoryOrder,
         op: AtomicRMWOp,
-        mem_loc: SSAVar,
-        value: SSAVar // operand for op
+        mem_loc: P<Value>,
+        value: P<Value> // operand for op
     },
     
     Fence(MemoryOrder),
     
     // allocation operations
     
-    New(Arc<MuType_>),
-    AllocA(Arc<MuType_>),
+    New(P<MuType_>),
+    AllocA(P<MuType_>),
     NewHybrid{    // hybrid type, var part length
-        ty: Arc<MuType_>, 
-        var_len: SSAVar
+        ty: P<MuType_>, 
+        var_len: P<Value>
     },  
     AllocAHybrid{
-        ty: Arc<MuType_>, 
-        var_len: SSAVar
+        ty: P<MuType_>, 
+        var_len: P<Value>
     },
     NewStack{
-        func: SSAVar
+        func: P<Value>
     },
     NewThread{
-        stack: SSAVar,
-        args: Vec<SSAVar>
+        stack: P<Value>,
+        args: Vec<P<Value>>
     },
     NewThreadExn{   // NewThreadExn SSAVar (* stack id *) SSAVar (* exception value *) ???
-        stack: SSAVar,
-        exn: SSAVar
+        stack: P<Value>,
+        exn: P<Value>
     },
     
     PushFrame{
-        stack: SSAVar,
-        func: SSAVar
+        stack: P<Value>,
+        func: P<Value>
     },
     PopFrame{
-        stack: SSAVar
+        stack: P<Value>
     }
 }
 
-#[derive(Clone)]
 pub enum Instruction {
     Assign{
-        left: Vec<SSAVar>,
+        left: Vec<P<Value>>,
         right: Expression
     },
     Load{
-        dest: SSAVar,
+        dest: P<SSAVar>,
         is_iref: bool,
-        mem_loc: SSAVar,
+        mem_loc: P<Value>,
         order: MemoryOrder
     },
     Store{
-        src: SSAVar,
+        src: P<SSAVar>,
         is_iref: bool,
-        mem_loc: SSAVar,
+        mem_loc: P<Value>,
         order: MemoryOrder        
     }
 }
 
-#[derive(Clone)]
-pub enum Terminal<'func> {
-    Return(Vec<SSAVar>),
+pub enum Terminal {
+    Return(Vec<P<Value>>),
     ThreadExit,
-    Throw(Vec<SSAVar>),
+    Throw(Vec<P<Value>>),
     TailCall(CallData),
-    Branch1(Destination<'func>),
+    Branch1(Destination),
     Branch2{
-        cond: SSAVar,
-        true_dest: Destination<'func>,
-        false_dest: Destination<'func>
+        cond: P<Value>,
+        true_dest: Destination,
+        false_dest: Destination
     },
     Watchpoint, // TODO: Watchpoint ((wpid # destination) option) termination_data
     WPBranch{
         wp: WPID, 
-        disable_dest: Destination<'func>, 
-        enable_dest: Destination<'func>
+        disable_dest: Destination,
+        enable_dest: Destination
     },
     Call{
         data: CallData,
-        normal_dest: Destination<'func>,
-        exn_dest: Destination<'func>
+        normal_dest: Destination,
+        exn_dest: Option<Destination>
     },
     SwapStack{
-        stack: SSAVar,
-        args: Vec<SSAVar>,
-        normal_dest: Destination<'func>,
-        exn_dest: Destination<'func>
+        stack: P<Value>,
+        args: Vec<P<Value>>,
+        normal_dest: Destination,
+        exn_dest: Destination
     },
     Switch{
-        cond: SSAVar,
-        default: Destination<'func>,
-        branches: Vec<(Value, Destination<'func>)>
+        cond: P<Value>,
+        default: Destination,
+        branches: Vec<(P<Constant>, Destination)>
     },
     ExnInstruction{
         inner: Expression,
-        term: TerminationData<'func>
+        term: TerminationData
     }
 }
 
 #[derive(Clone)]
-pub enum Declaration<'global> {
-    ConstDecl{
-        const_name: MuTag, 
-        ty: Arc<MuType_>, 
-        val: Value
-    },
-    TypeDef{
-        type_name: MuTag, 
-        ty: Arc<MuType_>
-    },
-    FunctionSignature{
-        sig_name: MuTag, 
-        ret_tys: Vec<Arc<MuType_>>, 
-        arg_tys: Vec<Arc<MuType_>>
-    },
-    FuncDef{
-        fn_name: MuTag,
-        sig_name: MuTag,
-        label: MuTag, // ?
-        blocks: Vec<(MuTag, Block<'global>)>
-    }
+pub struct MuConstant{
+    ty: P<MuType_>, 
+    val: Constant
+}
+
+pub struct MuFunction {
+    pub fn_name: MuTag,
+    pub sig: P<MuFuncSig>,
+    pub entry: MuTag,
+    pub blocks: Vec<(MuTag, Block)>
+}
+
+pub fn declare_const(const_name: MuTag, ty: P<MuType_>, val: Constant) -> Value {
+    Value::Constant(MuConstant{ty: ty, val: val})
+}
+pub fn declare_type(type_name: MuTag, ty: P<MuType_>) -> P<MuType_> {
+    ty
+}
+pub fn declare_func_sig(sig_name: MuTag, ret_tys: Vec<P<MuType_>>, arg_tys: Vec<P<MuType_>>) -> MuFuncSig {
+    MuFuncSig::new(ret_tys, arg_tys)
+}
+pub fn declare_func (fn_name: MuTag, sig: P<MuFuncSig>, entry: MuTag, blocks: Vec<(MuTag, Block)>) -> MuFunction {
+    MuFunction{fn_name: fn_name, sig: sig, entry: entry, blocks: blocks}
 }
 
 #[derive(Copy, Clone)]
