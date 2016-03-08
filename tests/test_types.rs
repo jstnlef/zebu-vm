@@ -1,7 +1,7 @@
 extern crate mu;
 
 #[cfg(test)]
-mod tests {
+mod test_types {
     use mu::ast::ptr::*;
     use mu::ast::types::*;
     
