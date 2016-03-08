@@ -5,10 +5,18 @@ mod test_ir {
     use mu::ast::types::*;
     use mu::ast::ir::*;
     use mu::ast::ptr::*;
+    use mu::vm::context::*;
     
     #[test]
     #[allow(unused_variables)]
-    fn factorial() {
+    fn test_factorial() {
+        let vm = factorial();
+    }
+    
+    #[allow(unused_variables)]
+    fn factorial() -> VMContext {
+        let mut vm = VMContext::new();
+        
         // .typedef @int_64 = int<64>
         // .typedef @int_1 = int<1>
         // .typedef @float = float
@@ -16,19 +24,19 @@ mod test_ir {
         // .typedef @void = void
         // .typedef @int_8 = int<8>
         // .typedef @int_32 = int<32>
-        let type_def_int64 = declare_type("int_64", P(MuType_::int(64)));
-        let type_def_int1  = declare_type("int_1", P(MuType_::int(1)));
-        let type_def_float = declare_type("float", P(MuType_::float()));
-        let type_def_double = declare_type("double", P(MuType_::double()));
-        let type_def_void  = declare_type("void", P(MuType_::void()));
-        let type_def_int8  = declare_type("int8", P(MuType_::int(8)));
-        let type_def_int32 = declare_type("int32", P(MuType_::int(32)));
+        let type_def_int64 = vm.declare_type("int_64", P(MuType_::int(64)));
+        let type_def_int1  = vm.declare_type("int_1", P(MuType_::int(1)));
+        let type_def_float = vm.declare_type("float", P(MuType_::float()));
+        let type_def_double = vm.declare_type("double", P(MuType_::double()));
+        let type_def_void  = vm.declare_type("void", P(MuType_::void()));
+        let type_def_int8  = vm.declare_type("int8", P(MuType_::int(8)));
+        let type_def_int32 = vm.declare_type("int32", P(MuType_::int(32)));
         
         // .const @int_64_1 <@int_64> = 1
-        let const_def_int64_1 = P(declare_const("int64_1", type_def_int64.clone(), Constant::Int(64, 1)));
+        let const_def_int64_1 = vm.declare_const("int64_1", type_def_int64.clone(), Constant::Int(64, 1));
         
         // .funcsig @fac_sig = (@int_64) -> (@int_64)
-        let fac_sig = P(declare_func_sig("fac_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]));
+        let fac_sig = vm.declare_func_sig("fac_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
         
         // .funcdef @fac VERSION @fac_v1 <@fac_sig>
         let fac_func_ref = P(MuType_::funcref(fac_sig.clone()));
@@ -148,12 +156,14 @@ mod test_ir {
         blk_1_cont.set_content(blk_1_cont_content);
         
         // wrap into a function
-        let func_fac = declare_func("fac", fac_sig.clone(), "blk_0", vec![
+        vm.declare_func("fac", fac_sig.clone(), "blk_0", vec![
                 ("blk_0", blk_0),
                 ("blk_1", blk_1),
                 ("blk_1_cont", blk_1_cont),
                 ("blk_2", blk_2)
             ]
         );
+        
+        vm
     }
 }

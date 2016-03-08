@@ -255,12 +255,6 @@ macro_rules! is_type (
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct MuFuncSig {
-    ret_tys : Vec<P<MuType_>>,
-    arg_tys: Vec<P<MuType_>>
-}
-
-impl MuFuncSig {
-    pub fn new(ret_tys: Vec<P<MuType_>>, arg_tys: Vec<P<MuType_>>) -> MuFuncSig {
-        MuFuncSig {ret_tys : ret_tys, arg_tys: arg_tys}
-    }
+    pub ret_tys : Vec<P<MuType_>>,
+    pub arg_tys: Vec<P<MuType_>>
 }

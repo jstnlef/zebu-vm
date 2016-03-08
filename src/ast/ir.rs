@@ -218,8 +218,8 @@ pub enum Terminal {
 
 #[derive(Clone)]
 pub struct MuConstant{
-    ty: P<MuType_>, 
-    val: Constant
+    pub ty: P<MuType_>, 
+    pub val: Constant
 }
 
 pub struct MuFunction {
@@ -227,19 +227,6 @@ pub struct MuFunction {
     pub sig: P<MuFuncSig>,
     pub entry: MuTag,
     pub blocks: Vec<(MuTag, Block)>
-}
-
-pub fn declare_const(const_name: MuTag, ty: P<MuType_>, val: Constant) -> Value {
-    Value::Constant(MuConstant{ty: ty, val: val})
-}
-pub fn declare_type(type_name: MuTag, ty: P<MuType_>) -> P<MuType_> {
-    ty
-}
-pub fn declare_func_sig(sig_name: MuTag, ret_tys: Vec<P<MuType_>>, arg_tys: Vec<P<MuType_>>) -> MuFuncSig {
-    MuFuncSig::new(ret_tys, arg_tys)
-}
-pub fn declare_func (fn_name: MuTag, sig: P<MuFuncSig>, entry: MuTag, blocks: Vec<(MuTag, Block)>) -> MuFunction {
-    MuFunction{fn_name: fn_name, sig: sig, entry: entry, blocks: blocks}
 }
 
 #[derive(Copy, Clone)]

@@ -39,7 +39,6 @@
 use std::fmt::{self, Display, Debug};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
-use std::ptr;
 
 /// An owned smart pointer.
 pub struct P<T> {
