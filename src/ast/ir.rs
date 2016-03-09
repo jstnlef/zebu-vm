@@ -72,9 +72,9 @@ pub struct BlockContent {
     pub keepalives: Option<Vec<P<SSAVar>>>    
 }
 
-pub struct TerminationData {
-    normal_dest: Destination,
-    exn_dest: Destination
+pub struct ResumptionData {
+    pub normal_dest: Destination,
+    pub exn_dest: Destination
 }
 
 pub enum DestArg {
@@ -188,7 +188,15 @@ pub enum Terminal {
         true_dest: Destination,
         false_dest: Destination
     },
-    Watchpoint, // TODO: Watchpoint ((wpid # destination) option) termination_data
+    Watchpoint{ // Watchpoint NONE ResumptionData
+                //   serves as an unconditional trap. Trap to client, and resume with ResumptionData
+                // Watchpoint (WPID dest) ResumptionData
+                //   when disabled, jump to dest
+                //   when enabled, trap to client and resume
+        id: Option<WPID>,
+        disable_dest: Option<Destination>,
+        resume: ResumptionData
+    }, 
     WPBranch{
         wp: WPID, 
         disable_dest: Destination,
@@ -196,14 +204,13 @@ pub enum Terminal {
     },
     Call{
         data: CallData,
-        normal_dest: Destination,
-        exn_dest: Option<Destination>
+        resume: ResumptionData
     },
     SwapStack{
         stack: P<Value>,
+        is_exception: bool,
         args: Vec<P<Value>>,
-        normal_dest: Destination,
-        exn_dest: Destination
+        resume: ResumptionData
     },
     Switch{
         cond: P<Value>,
@@ -212,7 +219,7 @@ pub enum Terminal {
     },
     ExnInstruction{
         inner: Expression,
-        term: TerminationData
+        resume: ResumptionData
     }
 }
 

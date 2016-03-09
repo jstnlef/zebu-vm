@@ -111,11 +111,16 @@ mod test_ir {
                 args: vec![blk_1_v50.clone()],
                 convention: CallConvention::Mu
             },
-            normal_dest: Destination {
-                target: "blk_1_cont", 
-                args: vec![DestArg::Normal(blk_1_n_3.clone()), DestArg::Freshbound(0)]
-            },
-            exn_dest: None
+            resume: ResumptionData {
+                normal_dest: Destination {
+                    target: "blk_1_cont", 
+                    args: vec![DestArg::Normal(blk_1_n_3.clone()), DestArg::Freshbound(0)]
+                },
+                exn_dest: Destination {
+                    target: "blk_1_cont",
+                    args: vec![DestArg::Normal(blk_1_n_3.clone()), DestArg::Freshbound(0)]
+                } 
+            }
         };
         
         let blk_1_content = BlockContent {
