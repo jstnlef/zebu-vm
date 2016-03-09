@@ -101,10 +101,31 @@ pub enum Constant {
 pub enum Expression {
     BinOp(BinOp, P<Value>, P<Value>), 
     CmpOp(CmpOp, P<Value>, P<Value>),
+    
+    // yields the constant value
     Constant(P<Constant>),
     
-    // memory operations
+    // yields a tuple of results from the call
+    ExprCall{
+        data: CallData,
+        is_abort: bool, // T to abort, F to rethrow
+    },
     
+    // yields the memory value
+    Load{
+        is_iref: bool,
+        mem_loc: P<Value>,
+        order: MemoryOrder
+    },
+    
+    // yields nothing
+    Store{
+        is_iref: bool,
+        mem_loc: P<Value>,
+        order: MemoryOrder        
+    },
+    
+    // yields pair (oldvalue, boolean (T = success, F = failure))
     CmpXchg{
         is_iref: bool, // T for iref, F for ptr
         is_strong: bool,
@@ -115,6 +136,7 @@ pub enum Expression {
         desired_value: P<Value>
     },
     
+    // yields old memory value
     AtomicRMW{
         is_iref: bool, // T for iref, F for ptr
         order: MemoryOrder,
@@ -123,39 +145,70 @@ pub enum Expression {
         value: P<Value> // operand for op
     },
     
-    Fence(MemoryOrder),
-    
-    // allocation operations
-    
+    // yields a reference of the type
     New(P<MuType_>),
+    
+    // yields an iref of the type
     AllocA(P<MuType_>),
+    
+    // yields ref
     NewHybrid{    // hybrid type, var part length
         ty: P<MuType_>, 
         var_len: P<Value>
     },  
+    
+    // yields iref
     AllocAHybrid{
         ty: P<MuType_>, 
         var_len: P<Value>
     },
+    
+    // yields stack ref
     NewStack{
         func: P<Value>
     },
+    
+    // yields thread reference
     NewThread{
         stack: P<Value>,
         args: Vec<P<Value>>
     },
-    NewThreadExn{   // NewThreadExn SSAVar (* stack id *) SSAVar (* exception value *) ???
+    
+    // yields thread reference (thread resumes with exceptional value)
+    NewThreadExn{
         stack: P<Value>,
         exn: P<Value>
     },
     
-    PushFrame{
-        stack: P<Value>,
-        func: P<Value>
+    // yields frame cursor
+    NewFrameCursor(P<Value>), // stack
+    
+    GetIRef(P<Value>),
+    
+    GetFieldIRef{
+        base: P<Value>, // iref or ptr
+        index: P<Constant>
     },
-    PopFrame{
-        stack: P<Value>
-    }
+    
+    GetElementIRef{
+        base: P<Value>,
+        index: P<Value>
+    },
+    
+    ShiftIRef{
+        base: P<Value>,
+        offset: P<Value>
+    },
+    
+    GetVarPartIRef(P<Value>),
+    
+//    PushFrame{
+//        stack: P<Value>,
+//        func: P<Value>
+//    },
+//    PopFrame{
+//        stack: P<Value>
+//    }
 }
 
 pub enum Instruction {
@@ -163,18 +216,8 @@ pub enum Instruction {
         left: Vec<P<Value>>,
         right: Expression
     },
-    Load{
-        dest: P<SSAVar>,
-        is_iref: bool,
-        mem_loc: P<Value>,
-        order: MemoryOrder
-    },
-    Store{
-        src: P<SSAVar>,
-        is_iref: bool,
-        mem_loc: P<Value>,
-        order: MemoryOrder        
-    }
+
+    Fence(MemoryOrder),
 }
 
 pub enum Terminal {

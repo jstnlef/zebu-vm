@@ -1,4 +1,6 @@
 use ast::ir::*;
+use vm::context::VMContext;
+
 use std::cell::RefCell;
 
 pub mod passes;
@@ -12,9 +14,9 @@ impl Compiler {
         Compiler{policy: RefCell::new(policy)}
     }
     
-    pub fn compile(&self, func: &mut MuFunction) {
+    pub fn compile(&self, vm: &VMContext, func: &mut MuFunction) {
         for pass in self.policy.borrow_mut().passes.iter_mut() {
-            pass.execute(func);
+            pass.execute(vm, func);
         }
     }
 }
@@ -33,5 +35,5 @@ impl CompilerPolicy {
 }
 
 pub trait CompilerPass {
-    fn execute(&mut self, func: &mut MuFunction);
+    fn execute(&mut self, vm:&VMContext, func: &mut MuFunction);
 }
