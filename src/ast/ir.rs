@@ -9,20 +9,20 @@ pub type MuID  = usize;
 pub type MuTag = &'static str;
 pub type Address = usize; // TODO: replace this with Address(usize)
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SSAVar {
     pub id: MuID,
     pub tag: MuTag,
     pub ty: P<MuType_>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Value {
     SSAVar(SSAVar),
     Constant(MuConstant)
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum MemoryOrder {
     NotAtomic,
     Relaxed,
@@ -33,23 +33,25 @@ pub enum MemoryOrder {
     SeqCst
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum CallConvention {
     Mu,
     Foreign(ForeignFFI)
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum ForeignFFI {
     C
 }
 
+#[derive(Debug)]
 pub struct CallData {
     pub func: P<SSAVar>,
     pub args: Vec<P<Value>>,
     pub convention: CallConvention
 }
 
+#[derive(Debug)]
 pub struct Block {
     label: MuTag,
     content: Option<BlockContent>
@@ -65,6 +67,7 @@ impl Block {
     }
 }
 
+#[derive(Debug)]
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
     pub body: Vec<Instruction>,
@@ -72,22 +75,25 @@ pub struct BlockContent {
     pub keepalives: Option<Vec<P<SSAVar>>>    
 }
 
+#[derive(Debug)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
     pub exn_dest: Destination
 }
 
+#[derive(Debug)]
 pub enum DestArg {
     Normal(P<Value>),
     Freshbound(usize)
 }
 
+#[derive(Debug)]
 pub struct Destination {
     pub target: MuTag,
     pub args: Vec<DestArg>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Constant {
     Int(usize, usize),
     IRef(P<MuType_>, Address),
@@ -98,6 +104,7 @@ pub enum Constant {
     UFuncRefV(Address)
 }
 
+#[derive(Debug)]
 pub enum Expression {
     BinOp(BinOp, P<Value>, P<Value>), 
     CmpOp(CmpOp, P<Value>, P<Value>),
@@ -211,6 +218,7 @@ pub enum Expression {
 //    }
 }
 
+#[derive(Debug)]
 pub enum Instruction {
     Assign{
         left: Vec<P<Value>>,
@@ -220,6 +228,7 @@ pub enum Instruction {
     Fence(MemoryOrder),
 }
 
+#[derive(Debug)]
 pub enum Terminal {
     Return(Vec<P<Value>>),
     ThreadExit,
@@ -261,17 +270,18 @@ pub enum Terminal {
         branches: Vec<(P<Constant>, Destination)>
     },
     ExnInstruction{
-        inner: Expression,
+        inner: Instruction,
         resume: ResumptionData
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MuConstant{
     pub ty: P<MuType_>, 
     pub val: Constant
 }
 
+#[derive(Debug)]
 pub struct MuFunction {
     pub fn_name: MuTag,
     pub sig: P<MuFuncSig>,
@@ -279,7 +289,7 @@ pub struct MuFunction {
     pub blocks: Vec<(MuTag, Block)>
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum BinOp {
     // Int(n) BinOp Int(n) -> Int(n)
     Add,
@@ -305,7 +315,7 @@ pub enum BinOp {
     FRem
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum CmpOp {
     // for Int comparison
     EQ,
@@ -338,7 +348,7 @@ pub enum CmpOp {
     FUNO
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum AtomicRMWOp {
     XCHG,
     ADD,

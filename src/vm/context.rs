@@ -4,11 +4,13 @@ use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
 
+use std::cell::RefCell;
+
 pub struct VMContext {
     constants: HashMap<MuTag, P<Value>>,
     types: HashMap<MuTag, P<MuType_>>,
     func_sigs: HashMap<MuTag, P<MuFuncSig>>,
-    funcs: HashMap<MuTag, MuFunction>
+    funcs: HashMap<MuTag, RefCell<MuFunction>>
 }
 
 impl VMContext {
@@ -51,6 +53,10 @@ impl VMContext {
         debug_assert!(!self.funcs.contains_key(fn_name));
         
         let ret = MuFunction{fn_name: fn_name, sig: sig, entry: entry, blocks: blocks};
-        self.funcs.insert(fn_name, ret);
-    } 
+        self.funcs.insert(fn_name, RefCell::new(ret));
+    }
+    
+    pub fn get_func(&self, fn_name: MuTag) -> Option<&RefCell<MuFunction>> {
+        self.funcs.get(fn_name)
+    }
 }

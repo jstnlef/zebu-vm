@@ -6,3 +6,5 @@ authors = [ "Your name <you@example.com>" ]
 
 [dependencies]
 lazy_static = "0.1.15"
+log = "0.3.5"
+simple_logger = "0.4.0"
