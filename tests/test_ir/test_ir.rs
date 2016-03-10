@@ -50,10 +50,10 @@ pub fn factorial() -> VMContext {
         blk_0_n_3.clone(),
         const_def_int64_1.clone()
     );
-    let blk_0_inst0 = Instruction::Assign{left: vec![blk_0_v48.clone()], right: blk_0_v48_expr};
+    let blk_0_inst0 = Instruction::NonTerm(NonTermInstruction::Assign{left: vec![blk_0_v48.clone()], right: blk_0_v48_expr});
     
     //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)        
-    let blk_0_term = Terminal::Branch2{
+    let blk_0_term = Instruction::Term(Terminal::Branch2{
         cond: blk_0_v48.clone(), 
         true_dest: Destination {
             target: "blk_2", 
@@ -63,30 +63,28 @@ pub fn factorial() -> VMContext {
             target: "blk_1", 
             args: vec![DestArg::Normal(blk_0_n_3.clone())]
         }
-    };
+    });
     
     let blk_0_content = BlockContent {
         args: vec![blk_0_n_3.clone()], 
-        body: vec![blk_0_inst0], 
-        exit: blk_0_term, 
+        body: vec![blk_0_inst0, blk_0_term], 
         keepalives: None
     }; 
-    blk_0.set_content(blk_0_content);
+    blk_0.content = Some(blk_0_content);
 
     // %blk_2(<@int_64> %v53):
     let mut blk_2 = Block::new("blk_2");
     let blk_2_v53 = P(Value::SSAVar(SSAVar{id: 2, tag: "v53", ty: type_def_int64.clone()}));
     
     //   RET %v53
-    let blk_2_term = Terminal::Return(vec![blk_2_v53.clone()]);
+    let blk_2_term = Instruction::Term(Terminal::Return(vec![blk_2_v53.clone()]));
     
     let blk_2_content = BlockContent {
         args: vec![blk_2_v53.clone()], 
-        body: vec![], 
-        exit: blk_2_term, 
+        body: vec![blk_2_term], 
         keepalives: None
     };
-    blk_2.set_content(blk_2_content);
+    blk_2.content = Some(blk_2_content);
     
     // %blk_1(<@int_64> %n_3):
     let mut blk_1 = Block::new("blk_1");
@@ -99,70 +97,52 @@ pub fn factorial() -> VMContext {
         blk_1_n_3.clone(),
         const_def_int64_1.clone()
     );
-    let blk_1_inst0 = Instruction::Assign{left: vec![blk_1_v50.clone()], right: blk_1_v50_expr};
+    let blk_1_inst0 = Instruction::NonTerm(NonTermInstruction::Assign{left: vec![blk_1_v50.clone()], right: blk_1_v50_expr});
     
     //   %v51 = CALL <@fac_sig> @fac (%v50)
     let blk_1_v51 = P(Value::SSAVar(SSAVar{id: 5, tag: "v51", ty: type_def_int64.clone()}));
-    let blk_1_term = Terminal::Call {
-        data: CallData {
-            func: P(SSAVar{id: 6, tag: "fac", ty: fac_func_ref.clone()}),
-            args: vec![blk_1_v50.clone()],
-            convention: CallConvention::Mu
-        },
-        resume: ResumptionData {
-            normal_dest: Destination {
-                target: "blk_1_cont", 
-                args: vec![DestArg::Normal(blk_1_n_3.clone()), DestArg::Freshbound(0)]
-            },
-            exn_dest: Destination {
-                target: "blk_1_cont",
-                args: vec![DestArg::Normal(blk_1_n_3.clone()), DestArg::Freshbound(0)]
-            } 
+    let blk_1_inst1 = Instruction::NonTerm(NonTermInstruction::Assign{
+            left: vec![blk_1_v51.clone()],
+            right: Expression::ExprCall {
+                data: CallData {
+                    func: P(SSAVar{id: 6, tag: "fac", ty: fac_func_ref.clone()}),
+                    args: vec![blk_1_v50.clone()],
+                    convention: CallConvention::Mu
+                },
+                is_abort: true
+            }
+    });
+    
+    //   %v52 = MUL <@int_64> %n_3 %v51
+    let blk_1_v52 = P(Value::SSAVar(SSAVar{id: 9, tag: "v52", ty: type_def_int64.clone()}));
+    let blk_1_v52_expr = Expression::BinOp(
+        BinOp::Mul,
+        blk_1_n_3.clone(),
+        blk_1_v51.clone()
+    );
+    let blk_1_inst2 = Instruction::NonTerm(NonTermInstruction::Assign{
+            left: vec![blk_1_v52.clone()], 
+            right: blk_1_v52_expr
+    });
+    
+    let blk_1_term = Instruction::Term(Terminal::Branch1 (
+        Destination {
+            target: "blk_2", 
+            args: vec![DestArg::Normal(blk_1_v52.clone())]
         }
-    };
+    ));
     
     let blk_1_content = BlockContent {
         args: vec![blk_1_n_3.clone()], 
-        body: vec![blk_1_inst0], 
-        exit: blk_1_term, 
+        body: vec![blk_1_inst0, blk_1_inst1, blk_1_inst2, blk_1_term],
         keepalives: None
     };
-    blk_1.set_content(blk_1_content);
-    
-    // %blk_1_cont(<@int_64> %n_3, <@int_64> %v51):
-    let mut blk_1_cont = Block::new("blk_1_cont");
-    let blk_1_cont_n_3 = P(Value::SSAVar(SSAVar{id: 7, tag: "n_3", ty: type_def_int64.clone()}));
-    let blk_1_cont_v51 = P(Value::SSAVar(SSAVar{id: 8, tag: "v51", ty: type_def_int64.clone()}));
-    
-    //   %v52 = MUL <@int_64> %n_3 %v51
-    let blk_1_cont_v52 = P(Value::SSAVar(SSAVar{id: 9, tag: "v52", ty: type_def_int64.clone()}));
-    let blk_1_cont_v52_expr = Expression::BinOp(
-        BinOp::Mul,
-        blk_1_cont_n_3.clone(),
-        blk_1_cont_v52.clone()
-    );
-    let blk_1_cont_inst0 = Instruction::Assign{left: vec![blk_1_cont_v52.clone()], right: blk_1_cont_v52_expr};
-    
-    let blk_1_cont_term = Terminal::Branch1 (
-        Destination {
-            target: "blk_2", 
-            args: vec![DestArg::Normal(blk_1_cont_v52.clone())]
-        }
-    );
-    
-    let blk_1_cont_content = BlockContent {
-        args: vec![blk_1_cont_n_3.clone(), blk_1_cont_v52.clone()], 
-        body: vec![blk_1_cont_inst0],
-        exit: blk_1_cont_term, 
-        keepalives: None
-    };
-    blk_1_cont.set_content(blk_1_cont_content);
+    blk_1.content = Some(blk_1_content);
     
     // wrap into a function
     vm.declare_func("fac", fac_sig.clone(), "blk_0", vec![
             ("blk_0", blk_0),
             ("blk_1", blk_1),
-            ("blk_1_cont", blk_1_cont),
             ("blk_2", blk_2)
         ]
     );

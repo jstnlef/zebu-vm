@@ -22,6 +22,18 @@ pub enum Value {
     Constant(MuConstant)
 }
 
+#[derive(Debug)]
+pub struct TreeNode {
+    v: TreeNodeKind,
+    children: Vec<P<TreeNode>>,
+}
+
+#[derive(Debug)]
+pub enum TreeNodeKind {
+    Value(Vec<P<Value>>),
+    Expression(P<Expression>),
+}
+
 #[derive(Copy, Clone, Debug)]
 pub enum MemoryOrder {
     NotAtomic,
@@ -53,17 +65,13 @@ pub struct CallData {
 
 #[derive(Debug)]
 pub struct Block {
-    label: MuTag,
-    content: Option<BlockContent>
+    pub label: MuTag,
+    pub content: Option<BlockContent>
 }
 
 impl Block {
     pub fn new(label: MuTag) -> Block {
         Block{label: label, content: None}
-    }
-    
-    pub fn set_content(&mut self, v: BlockContent) {
-        self.content = Some(v);
     }
 }
 
@@ -71,7 +79,6 @@ impl Block {
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
     pub body: Vec<Instruction>,
-    pub exit: Terminal,
     pub keepalives: Option<Vec<P<SSAVar>>>    
 }
 
@@ -220,6 +227,12 @@ pub enum Expression {
 
 #[derive(Debug)]
 pub enum Instruction {
+    NonTerm(NonTermInstruction),
+    Term(Terminal)
+}
+
+#[derive(Debug)]
+pub enum NonTermInstruction {
     Assign{
         left: Vec<P<Value>>,
         right: Expression
@@ -270,7 +283,7 @@ pub enum Terminal {
         branches: Vec<(P<Constant>, Destination)>
     },
     ExnInstruction{
-        inner: Instruction,
+        inner: NonTermInstruction,
         resume: ResumptionData
     }
 }

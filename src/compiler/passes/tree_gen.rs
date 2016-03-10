@@ -17,9 +17,13 @@ impl CompilerPass for TreeGenerationPass {
         
         for entry in func.blocks.iter_mut() {
             let label : MuTag = entry.0;
-            let ref block : &mut Block = &mut entry.1;
+            let ref mut block : &mut Block = &mut entry.1;
             
             debug!("  block: {:?}", label);
+
+            for inst in block.content.take().unwrap().body {
+                
+            }
         }
     }
 }
