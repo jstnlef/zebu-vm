@@ -1,6 +1,6 @@
 extern crate std;
 
-use ast::ptr::*;
+use ast::ptr::P;
 use ast::ir::*;
 use std::collections::HashMap;
 use std::sync::RwLock;

@@ -1,7 +1,5 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use ast::ptr::P;
+use ast::op::{BinOp, CmpOp, AtomicRMWOp};
 use ast::types::*;
 
 pub type WPID  = usize;
@@ -9,58 +7,12 @@ pub type MuID  = usize;
 pub type MuTag = &'static str;
 pub type Address = usize; // TODO: replace this with Address(usize)
 
-#[derive(Clone, Debug)]
-pub struct SSAVar {
-    pub id: MuID,
-    pub tag: MuTag,
-    pub ty: P<MuType_>
-}
-
-#[derive(Clone, Debug)]
-pub enum Value {
-    SSAVar(SSAVar),
-    Constant(MuConstant)
-}
-
 #[derive(Debug)]
-pub struct TreeNode {
-    v: TreeNodeKind,
-    children: Vec<P<TreeNode>>,
-}
-
-#[derive(Debug)]
-pub enum TreeNodeKind {
-    Value(Vec<P<Value>>),
-    Expression(P<Expression>),
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum MemoryOrder {
-    NotAtomic,
-    Relaxed,
-    Consume,
-    Acquire,
-    Release,
-    AcqRel,
-    SeqCst
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum CallConvention {
-    Mu,
-    Foreign(ForeignFFI)
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum ForeignFFI {
-    C
-}
-
-#[derive(Debug)]
-pub struct CallData {
-    pub func: P<SSAVar>,
-    pub args: Vec<P<Value>>,
-    pub convention: CallConvention
+pub struct MuFunction {
+    pub fn_name: MuTag,
+    pub sig: P<MuFuncSig>,
+    pub entry: MuTag,
+    pub blocks: Vec<(MuTag, Block)>
 }
 
 #[derive(Debug)]
@@ -77,27 +29,62 @@ impl Block {
 
 #[derive(Debug)]
 pub struct BlockContent {
-    pub args: Vec<P<Value>>,
-    pub body: Vec<Instruction>,
-    pub keepalives: Option<Vec<P<SSAVar>>>    
+    pub args: Vec<P<TreeNode>>,
+    pub body: Vec<P<TreeNode>>,
+    pub keepalives: Option<Vec<P<TreeNode>>>    
 }
 
-#[derive(Debug)]
-pub struct ResumptionData {
-    pub normal_dest: Destination,
-    pub exn_dest: Destination
+#[derive(Clone, Debug)]
+/// always use with P<TreeNode>
+pub struct TreeNode {
+    pub v: TreeNodeKind,
+    pub children: Vec<P<TreeNode>>,
 }
 
-#[derive(Debug)]
-pub enum DestArg {
-    Normal(P<Value>),
-    Freshbound(usize)
+impl TreeNode {
+    pub fn new_value(v: P<Value>) -> P<TreeNode> {
+        P(TreeNode{v: TreeNodeKind::Value(v), children: vec![]})
+    }
+    
+    pub fn new_inst(v: Instruction) -> P<TreeNode> {
+        P(TreeNode{v: TreeNodeKind::Instruction(v), children: vec![]})
+    }
 }
 
-#[derive(Debug)]
-pub struct Destination {
-    pub target: MuTag,
-    pub args: Vec<DestArg>
+#[derive(Clone, Debug)]
+pub enum TreeNodeKind {
+    Value(P<Value>),
+    Instruction(Instruction),
+}
+
+/// always use with P<Value>
+#[derive(Clone, Debug)]
+pub enum Value {
+    SSAVar(SSAVar),
+    Constant(MuConstant)
+}
+
+impl Value {
+    pub fn new_ssa(v: SSAVar) -> P<Value> {
+        P(Value::SSAVar(v))
+    }
+    
+    pub fn new_constnat(v: MuConstant) -> P<Value> {
+        P(Value::Constant(v))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SSAVar {
+    pub id: MuID,
+    pub tag: MuTag,
+    pub ty: P<MuType_>
+}
+
+#[derive(Clone, Debug)]
+pub struct MuConstant{
+    pub ty: P<MuType_>, 
+    pub val: Constant
 }
 
 #[derive(Clone, Debug)]
@@ -111,10 +98,73 @@ pub enum Constant {
     UFuncRefV(Address)
 }
 
-#[derive(Debug)]
-pub enum Expression {
-    BinOp(BinOp, P<Value>, P<Value>), 
-    CmpOp(CmpOp, P<Value>, P<Value>),
+#[derive(Clone, Debug)]
+pub enum Instruction {
+    NonTerm(NonTermInstruction),
+    Term(Terminal)
+}
+
+#[derive(Clone, Debug)]
+pub enum Terminal {
+    Return(Vec<P<TreeNode>>),
+    ThreadExit,
+    Throw(Vec<P<TreeNode>>),
+    TailCall(CallData),
+    Branch1(Destination),
+    Branch2{
+        cond: P<TreeNode>,
+        true_dest: Destination,
+        false_dest: Destination
+    },
+    Watchpoint{ // Watchpoint NONE ResumptionData
+                //   serves as an unconditional trap. Trap to client, and resume with ResumptionData
+                // Watchpoint (WPID dest) ResumptionData
+                //   when disabled, jump to dest
+                //   when enabled, trap to client and resume
+        id: Option<WPID>,
+        disable_dest: Option<Destination>,
+        resume: ResumptionData
+    }, 
+    WPBranch{
+        wp: WPID, 
+        disable_dest: Destination,
+        enable_dest: Destination
+    },
+    Call{
+        data: CallData,
+        resume: ResumptionData
+    },
+    SwapStack{
+        stack: P<TreeNode>,
+        is_exception: bool,
+        args: Vec<P<TreeNode>>,
+        resume: ResumptionData
+    },
+    Switch{
+        cond: P<TreeNode>,
+        default: Destination,
+        branches: Vec<(P<Constant>, Destination)>
+    },
+    ExnInstruction{
+        inner: NonTermInstruction,
+        resume: ResumptionData
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum NonTermInstruction {
+    Assign{
+        left: Vec<P<TreeNode>>,
+        right: Expression_
+    },
+
+    Fence(MemoryOrder),
+}
+
+#[derive(Clone, Debug)]
+pub enum Expression_ {
+    BinOp(BinOp, P<TreeNode>, P<TreeNode>), 
+    CmpOp(CmpOp, P<TreeNode>, P<TreeNode>),
     
     // yields the constant value
     Constant(P<Constant>),
@@ -145,9 +195,9 @@ pub enum Expression {
         is_strong: bool,
         success_order: MemoryOrder,
         fail_order: MemoryOrder,
-        mem_loc: P<SSAVar>,
-        expected_value: P<Value>,
-        desired_value: P<Value>
+        mem_loc: P<TreeNode>,
+        expected_value: P<TreeNode>,
+        desired_value: P<TreeNode>
     },
     
     // yields old memory value
@@ -155,8 +205,8 @@ pub enum Expression {
         is_iref: bool, // T for iref, F for ptr
         order: MemoryOrder,
         op: AtomicRMWOp,
-        mem_loc: P<Value>,
-        value: P<Value> // operand for op
+        mem_loc: P<TreeNode>,
+        value: P<TreeNode> // operand for op
     },
     
     // yields a reference of the type
@@ -168,53 +218,53 @@ pub enum Expression {
     // yields ref
     NewHybrid{    // hybrid type, var part length
         ty: P<MuType_>, 
-        var_len: P<Value>
+        var_len: P<TreeNode>
     },  
     
     // yields iref
     AllocAHybrid{
         ty: P<MuType_>, 
-        var_len: P<Value>
+        var_len: P<TreeNode>
     },
     
     // yields stack ref
     NewStack{
-        func: P<Value>
+        func: P<TreeNode>
     },
     
     // yields thread reference
     NewThread{
-        stack: P<Value>,
-        args: Vec<P<Value>>
+        stack: P<TreeNode>,
+        args: Vec<P<TreeNode>>
     },
     
     // yields thread reference (thread resumes with exceptional value)
     NewThreadExn{
-        stack: P<Value>,
-        exn: P<Value>
+        stack: P<TreeNode>,
+        exn: P<TreeNode>
     },
     
     // yields frame cursor
-    NewFrameCursor(P<Value>), // stack
+    NewFrameCursor(P<TreeNode>), // stack
     
-    GetIRef(P<Value>),
+    GetIRef(P<TreeNode>),
     
     GetFieldIRef{
-        base: P<Value>, // iref or ptr
+        base: P<TreeNode>, // iref or ptr
         index: P<Constant>
     },
     
     GetElementIRef{
-        base: P<Value>,
-        index: P<Value>
+        base: P<TreeNode>,
+        index: P<TreeNode>
     },
     
     ShiftIRef{
-        base: P<Value>,
-        offset: P<Value>
+        base: P<TreeNode>,
+        offset: P<TreeNode>
     },
     
-    GetVarPartIRef(P<Value>),
+    GetVarPartIRef(P<TreeNode>),
     
 //    PushFrame{
 //        stack: P<Value>,
@@ -225,153 +275,49 @@ pub enum Expression {
 //    }
 }
 
-#[derive(Debug)]
-pub enum Instruction {
-    NonTerm(NonTermInstruction),
-    Term(Terminal)
+#[derive(Copy, Clone, Debug)]
+pub enum MemoryOrder {
+    NotAtomic,
+    Relaxed,
+    Consume,
+    Acquire,
+    Release,
+    AcqRel,
+    SeqCst
 }
 
-#[derive(Debug)]
-pub enum NonTermInstruction {
-    Assign{
-        left: Vec<P<Value>>,
-        right: Expression
-    },
-
-    Fence(MemoryOrder),
+#[derive(Copy, Clone, Debug)]
+pub enum CallConvention {
+    Mu,
+    Foreign(ForeignFFI)
 }
 
-#[derive(Debug)]
-pub enum Terminal {
-    Return(Vec<P<Value>>),
-    ThreadExit,
-    Throw(Vec<P<Value>>),
-    TailCall(CallData),
-    Branch1(Destination),
-    Branch2{
-        cond: P<Value>,
-        true_dest: Destination,
-        false_dest: Destination
-    },
-    Watchpoint{ // Watchpoint NONE ResumptionData
-                //   serves as an unconditional trap. Trap to client, and resume with ResumptionData
-                // Watchpoint (WPID dest) ResumptionData
-                //   when disabled, jump to dest
-                //   when enabled, trap to client and resume
-        id: Option<WPID>,
-        disable_dest: Option<Destination>,
-        resume: ResumptionData
-    }, 
-    WPBranch{
-        wp: WPID, 
-        disable_dest: Destination,
-        enable_dest: Destination
-    },
-    Call{
-        data: CallData,
-        resume: ResumptionData
-    },
-    SwapStack{
-        stack: P<Value>,
-        is_exception: bool,
-        args: Vec<P<Value>>,
-        resume: ResumptionData
-    },
-    Switch{
-        cond: P<Value>,
-        default: Destination,
-        branches: Vec<(P<Constant>, Destination)>
-    },
-    ExnInstruction{
-        inner: NonTermInstruction,
-        resume: ResumptionData
-    }
+#[derive(Copy, Clone, Debug)]
+pub enum ForeignFFI {
+    C
 }
 
 #[derive(Clone, Debug)]
-pub struct MuConstant{
-    pub ty: P<MuType_>, 
-    pub val: Constant
+pub struct CallData {
+    pub func: P<TreeNode>,
+    pub args: Vec<P<TreeNode>>,
+    pub convention: CallConvention
 }
 
-#[derive(Debug)]
-pub struct MuFunction {
-    pub fn_name: MuTag,
-    pub sig: P<MuFuncSig>,
-    pub entry: MuTag,
-    pub blocks: Vec<(MuTag, Block)>
+#[derive(Clone, Debug)]
+pub struct ResumptionData {
+    pub normal_dest: Destination,
+    pub exn_dest: Destination
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum BinOp {
-    // Int(n) BinOp Int(n) -> Int(n)
-    Add,
-    Sub,
-    Mul,
-    Sdiv,
-    Srem,
-    Udiv,
-    And,
-    Or,
-    Xor,
-        
-    // Int(n) BinOp Int(m) -> Int(n)
-    Shl,
-    Lshr,
-    AsHR,
-
-    // FP BinOp FP -> FP
-    Fadd,
-    FSub,
-    FMul,
-    FDiv,
-    FRem
+#[derive(Clone, Debug)]
+pub enum DestArg {
+    Normal(P<TreeNode>),
+    Freshbound(usize)
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum CmpOp {
-    // for Int comparison
-    EQ,
-    NE,
-    SGE,
-    SGT,
-    SLE,
-    SLT,
-    UGE,
-    UGT,
-    ULE,
-    ULT,
-    
-    // for FP comparison
-    FFALSE,
-    FTRUE,
-    FOEQ,
-    FOGT,
-    FOGE,
-    FOLT,
-    FOLE,
-    FONE,
-    FORD,
-    FUEQ,
-    FUGT,
-    FUGE,
-    FULT,
-    FULE,
-    FUNE,
-    FUNO
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum AtomicRMWOp {
-    XCHG,
-    ADD,
-    SUB,
-    AND,
-    NAND,
-    OR,
-    XOR,
-    MAX,
-    MIN,
-    UMAX,
-    UMIN
+#[derive(Clone, Debug)]
+pub struct Destination {
+    pub target: MuTag,
+    pub args: Vec<DestArg>
 }
