@@ -8,7 +8,7 @@ use std::cell::RefCell;
 
 pub struct VMContext {
     constants: HashMap<MuTag, P<Value>>,
-    types: HashMap<MuTag, P<MuType_>>,
+    types: HashMap<MuTag, P<MuType>>,
     func_sigs: HashMap<MuTag, P<MuFuncSig>>,
     funcs: HashMap<MuTag, RefCell<MuFunction>>
 }
@@ -23,16 +23,16 @@ impl VMContext {
         }
     }
     
-    pub fn declare_const(&mut self, const_name: MuTag, ty: P<MuType_>, val: Constant) -> P<Value> {
+    pub fn declare_const(&mut self, const_name: MuTag, ty: P<MuType>, val: Constant) -> P<Value> {
         debug_assert!(!self.constants.contains_key(const_name));
         
-        let ret = P(Value::Constant(MuConstant{ty: ty, val: val}));
+        let ret = P(Value{ty: ty, v: Value_::Constant(val)});
         self.constants.insert(const_name, ret.clone());
         
         ret
     }
     
-    pub fn declare_type(&mut self, type_name: MuTag, ty: P<MuType_>) -> P<MuType_> {
+    pub fn declare_type(&mut self, type_name: MuTag, ty: P<MuType>) -> P<MuType> {
         debug_assert!(!self.types.contains_key(type_name));
         
         self.types.insert(type_name, ty.clone());
@@ -40,7 +40,7 @@ impl VMContext {
         ty
     }
     
-    pub fn declare_func_sig(&mut self, sig_name: MuTag, ret_tys: Vec<P<MuType_>>, arg_tys: Vec<P<MuType_>>) -> P<MuFuncSig> {
+    pub fn declare_func_sig(&mut self, sig_name: MuTag, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
         debug_assert!(!self.func_sigs.contains_key(sig_name));
         
         let ret = P(MuFuncSig{ret_tys: ret_tys, arg_tys: arg_tys});

@@ -22,8 +22,10 @@ impl CompilerPass for TreeGenerationPass {
             debug!("  block: {:?}", label);
 
             for inst in block.content.take().unwrap().body {
-                
+                debug!("    {:?}", inst);
             }
+            
+            debug!("  ");
         }
     }
 }

@@ -5,8 +5,10 @@ use ast::ir::*;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
+pub type MuType = MuType_;
+
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub enum MuType_ {
+enum MuType_ {
     /// int <length>
     Int          (usize),
     /// float
@@ -15,23 +17,23 @@ pub enum MuType_ {
     Double,
     
     /// ref<T>
-    Ref          (P<MuType_>),    // Box is needed for non-recursive enum
+    Ref          (P<MuType>),    // Box is needed for non-recursive enum
     /// iref<T>: internal reference
-    IRef         (P<MuType_>),
+    IRef         (P<MuType>),
     /// weakref<T>
-    WeakRef      (P<MuType_>),
+    WeakRef      (P<MuType>),
     
     /// uptr<T>: unsafe pointer
-    UPtr         (P<MuType_>),
+    UPtr         (P<MuType>),
     
     /// struct<T1 T2 ...>
     Struct       (MuTag),
     
     /// array<T length>
-    Array        (P<MuType_>, usize),
+    Array        (P<MuType>, usize),
     
     /// hybrid<F1 F2 ... V>: a hybrid of fixed length parts and a variable length part
-    Hybrid       (Vec<P<MuType_>>, P<MuType_>),
+    Hybrid       (Vec<P<MuType>>, P<MuType>),
     
     /// void
     Void,
@@ -45,7 +47,7 @@ pub enum MuType_ {
     Tagref64,
     
     /// vector<T length>
-    Vector       (P<MuType_>, usize),
+    Vector       (P<MuType>, usize),
     
     /// funcref<@sig>
     FuncRef      (P<MuFuncSig>),
@@ -65,7 +67,7 @@ pub struct StructType_ {
 }
 
 impl StructType_ {
-    pub fn set_tys(&mut self, mut list: Vec<P<MuType_>>) {
+    pub fn set_tys(&mut self, mut list: Vec<P<MuType>>) {
         self.tys.clear();
         self.tys.append(&mut list);
     }
@@ -152,7 +154,7 @@ impl MuType_ {
 }
 
 /// is a type floating-point type?
-pub fn is_fp(ty: &MuType_) -> bool {
+pub fn is_fp(ty: &MuType) -> bool {
     match *ty {
         MuType_::Float | MuType_::Double => true,
         _ => false
@@ -160,7 +162,7 @@ pub fn is_fp(ty: &MuType_) -> bool {
 }
 
 /// is a type raw pointer?
-pub fn is_ptr(ty: &MuType_) -> bool {
+pub fn is_ptr(ty: &MuType) -> bool {
     match *ty {
         MuType_::UPtr(_) | MuType_::UFuncPtr(_) => true,
         _ => false
@@ -168,7 +170,7 @@ pub fn is_ptr(ty: &MuType_) -> bool {
 }
 
 /// is a type scalar type?
-pub fn is_scalar(ty: &MuType_) -> bool {
+pub fn is_scalar(ty: &MuType) -> bool {
     match *ty {
         MuType_::Int(_)
         | MuType_::Float
@@ -188,7 +190,7 @@ pub fn is_scalar(ty: &MuType_) -> bool {
 
 /// is a type traced by the garbage collector?
 /// Note: An aggregated type is traced if any of its part is traced. 
-pub fn is_traced(ty: &MuType_) -> bool {
+pub fn is_traced(ty: &MuType) -> bool {
     match *ty {
         MuType_::Ref(_) => true,
         MuType_::IRef(_) => true,
@@ -217,7 +219,7 @@ pub fn is_traced(ty: &MuType_) -> bool {
 
 /// is a type native safe?
 /// Note: An aggregated type is native safe if all of its parts are native safe.
-pub fn is_native_safe(ty: &MuType_) -> bool {
+pub fn is_native_safe(ty: &MuType) -> bool {
     match *ty {
         MuType_::Int(_) => true,
         MuType_::Float => true,
@@ -255,6 +257,6 @@ macro_rules! is_type (
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct MuFuncSig {
-    pub ret_tys : Vec<P<MuType_>>,
-    pub arg_tys: Vec<P<MuType_>>
+    pub ret_tys : Vec<P<MuType>>,
+    pub arg_tys: Vec<P<MuType>>
 }

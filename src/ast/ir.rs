@@ -2,6 +2,8 @@ use ast::ptr::P;
 use ast::op::{BinOp, CmpOp, AtomicRMWOp};
 use ast::types::*;
 
+use std::fmt;
+
 pub type WPID  = usize;
 pub type MuID  = usize;
 pub type MuTag = &'static str;
@@ -34,63 +36,82 @@ pub struct BlockContent {
     pub keepalives: Option<Vec<P<TreeNode>>>    
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
-    pub v: TreeNodeKind,
+    pub id: MuID,
+    pub tag: MuTag,
+    pub v: TreeNode_,
     pub children: Vec<P<TreeNode>>,
 }
 
 impl TreeNode {
-    pub fn new_value(v: P<Value>) -> P<TreeNode> {
-        P(TreeNode{v: TreeNodeKind::Value(v), children: vec![]})
+    pub fn new_ssa(id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
+        P(TreeNode{
+                id: id, 
+                tag: tag, 
+                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::SSAVar})), 
+                children: vec![]})
     }
     
-    pub fn new_inst(v: Instruction) -> P<TreeNode> {
-        P(TreeNode{v: TreeNodeKind::Instruction(v), children: vec![]})
+    pub fn new_constant(id: MuID, tag: MuTag, ty: P<MuType>, v: Constant) -> P<TreeNode> {
+        P(TreeNode{
+                id: id,
+                tag: tag,
+                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::Constant(v)})),
+                children: vec![]
+            })
+    }
+    
+    pub fn new_value(id: MuID, tag: MuTag, v: P<Value>) -> P<TreeNode> {
+        P(TreeNode{
+                id: id,
+                tag: tag,
+                v: TreeNode_::Value(v),
+                children: vec![]
+            }
+        )
+    }
+    
+    pub fn new_inst(id: MuID, tag: MuTag, v: Instruction) -> P<TreeNode> {
+        P(TreeNode{id: id, tag: tag, v: TreeNode_::Instruction(v), children: vec![]})
+    }
+}
+
+impl fmt::Debug for TreeNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}#{:?}: {:?}", self.tag, self.id, self.v).unwrap();
+        for child in self.children.iter() {
+            write!(f, "  -> {:?}#{:?}\n", child.tag, child.id).unwrap();
+        }
+        
+        write!(f, "")
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum TreeNodeKind {
+pub enum TreeNode_ {
     Value(P<Value>),
     Instruction(Instruction),
 }
 
 /// always use with P<Value>
 #[derive(Clone, Debug)]
-pub enum Value {
-    SSAVar(SSAVar),
-    Constant(MuConstant)
-}
-
-impl Value {
-    pub fn new_ssa(v: SSAVar) -> P<Value> {
-        P(Value::SSAVar(v))
-    }
-    
-    pub fn new_constnat(v: MuConstant) -> P<Value> {
-        P(Value::Constant(v))
-    }
+pub struct Value {
+    pub ty: P<MuType>,
+    pub v: Value_
 }
 
 #[derive(Clone, Debug)]
-pub struct SSAVar {
-    pub id: MuID,
-    pub tag: MuTag,
-    pub ty: P<MuType_>
-}
-
-#[derive(Clone, Debug)]
-pub struct MuConstant{
-    pub ty: P<MuType_>, 
-    pub val: Constant
+pub enum Value_ {
+    SSAVar,
+    Constant(Constant)
 }
 
 #[derive(Clone, Debug)]
 pub enum Constant {
     Int(usize, usize),
-    IRef(P<MuType_>, Address),
+    IRef(P<MuType>, Address),
     FloatV(f32),
     DoubleV(f64),
     VectorV(Vec<Constant>),
@@ -210,20 +231,20 @@ pub enum Expression_ {
     },
     
     // yields a reference of the type
-    New(P<MuType_>),
+    New(P<MuType>),
     
     // yields an iref of the type
-    AllocA(P<MuType_>),
+    AllocA(P<MuType>),
     
     // yields ref
     NewHybrid{    // hybrid type, var part length
-        ty: P<MuType_>, 
+        ty: P<MuType>, 
         var_len: P<TreeNode>
     },  
     
     // yields iref
     AllocAHybrid{
-        ty: P<MuType_>, 
+        ty: P<MuType>, 
         var_len: P<TreeNode>
     },
     
