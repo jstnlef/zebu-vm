@@ -1,4 +1,4 @@
-extern crate std;
+use std::fmt;
 
 use ast::ptr::P;
 use ast::ir::*;
@@ -7,7 +7,7 @@ use std::sync::RwLock;
 
 pub type MuType = MuType_;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 enum MuType_ {
     /// int <length>
     Int          (usize),
@@ -56,14 +56,55 @@ enum MuType_ {
     UFuncPtr     (P<MuFuncSig>),
 }
 
+impl fmt::Debug for MuType_ {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &MuType_::Int(n)                          => write!(f, "<int<{}>>", n),
+            &MuType_::Float                           => write!(f, "<float>"),
+            &MuType_::Double                          => write!(f, "<double>"),
+            &MuType_::Ref(ref ty)                     => write!(f, "<ref<{:?}>>", ty),
+            &MuType_::IRef(ref ty)                    => write!(f, "<iref<{:?}>>", ty),
+            &MuType_::WeakRef(ref ty)                 => write!(f, "<weakref<{:?}>>", ty),
+            &MuType_::UPtr(ref ty)                    => write!(f, "<uptr<{:?}>>", ty),
+            &MuType_::Array(ref ty, size)             => write!(f, "<array<{:?}, {:?}>", ty, size),
+            &MuType_::Hybrid(ref fix_tys, ref var_ty) => write!(f, "<hybrid<{:?} {:?}>>", fix_tys, var_ty), 
+            &MuType_::Void                            => write!(f, "<void>"),
+            &MuType_::ThreadRef                       => write!(f, "<threadref>"),
+            &MuType_::StackRef                        => write!(f, "<stackref>"),
+            &MuType_::Tagref64                        => write!(f, "<tagref64>"),
+            &MuType_::Vector(ref ty, size)            => write!(f, "<vector<{:?} {:?}>>", ty, size),
+            &MuType_::FuncRef(ref sig)                => write!(f, "<funcref<{:?}>>", sig),
+            &MuType_::UFuncPtr(ref sig)               => write!(f, "<ufuncref<{:?}>>", sig),
+            &MuType_::Struct(tag)                     => {
+                write!(f, "<struct<").unwrap();
+                let struct_tag_map_lock = STRUCT_TAG_MAP.read().unwrap();
+                let struct_ty = struct_tag_map_lock.get(tag);
+                for ty in struct_ty {
+                    write!(f, "{:?}", ty).unwrap()
+                }
+                write!(f, ">>")
+            }
+        }
+    }
+}
+
 lazy_static! {
     /// storing a map from MuTag to StructType_
     pub static ref STRUCT_TAG_MAP : RwLock<HashMap<MuTag, StructType_>> = RwLock::new(HashMap::new());
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct StructType_ {
     tys: Vec<P<MuType_>>
+}
+
+impl fmt::Debug for StructType_ {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for ty in self.tys.iter() {
+            write!(f, "{:?}", ty).unwrap();
+        }
+        write!(f, "")
+    }    
 }
 
 impl StructType_ {
@@ -255,8 +296,14 @@ macro_rules! is_type (
     )
 );
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct MuFuncSig {
     pub ret_tys : Vec<P<MuType>>,
     pub arg_tys: Vec<P<MuType>>
+}
+
+impl fmt::Debug for MuFuncSig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} -> {:?}", self.ret_tys, self.arg_tys)
+    }    
 }

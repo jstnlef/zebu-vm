@@ -32,7 +32,7 @@ pub fn factorial() -> VMContext {
     let type_def_int32 = vm.declare_type("int32", P(MuType::int(32)));
     
     // .const @int_64_1 <@int_64> = 1
-    let const_def_int64_1 = vm.declare_const("int64_1", type_def_int64.clone(), Constant::Int(64, 1));
+    let const_def_int64_1 = vm.declare_const("int64_1", type_def_int64.clone(), Constant::Int(1));
     
     // .funcsig @fac_sig = (@int_64) -> (@int_64)
     let fac_sig = vm.declare_func_sig("fac_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);

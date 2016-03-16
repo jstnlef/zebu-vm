@@ -13,13 +13,13 @@ impl TreeGenerationPass {
 
 impl CompilerPass for TreeGenerationPass {
     fn execute(&mut self, vm: &VMContext, func: &mut MuFunction) {
-        debug!("Generating Tree for {:?}", func.fn_name);
+        debug!("Generating Tree for {}", func.fn_name);
         
         for entry in func.blocks.iter_mut() {
             let label : MuTag = entry.0;
             let ref mut block : &mut Block = &mut entry.1;
             
-            debug!("  block: {:?}", label);
+            debug!("  block: {}", label);
 
             for inst in block.content.take().unwrap().body {
                 debug!("    {:?}", inst);

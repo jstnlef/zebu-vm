@@ -42,7 +42,6 @@ pub struct TreeNode {
     pub id: MuID,
     pub tag: MuTag,
     pub v: TreeNode_,
-    pub children: Vec<P<TreeNode>>,
 }
 
 impl TreeNode {
@@ -50,16 +49,15 @@ impl TreeNode {
         P(TreeNode{
                 id: id, 
                 tag: tag, 
-                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::SSAVar})), 
-                children: vec![]})
+                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::SSAVar}))
+        })
     }
     
     pub fn new_constant(id: MuID, tag: MuTag, ty: P<MuType>, v: Constant) -> P<TreeNode> {
         P(TreeNode{
                 id: id,
                 tag: tag,
-                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::Constant(v)})),
-                children: vec![]
+                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::Constant(v)}))
             })
     }
     
@@ -67,68 +65,106 @@ impl TreeNode {
         P(TreeNode{
                 id: id,
                 tag: tag,
-                v: TreeNode_::Value(v),
-                children: vec![]
+                v: TreeNode_::Value(v)
             }
         )
     }
     
     pub fn new_inst(id: MuID, tag: MuTag, v: Instruction) -> P<TreeNode> {
-        P(TreeNode{id: id, tag: tag, v: TreeNode_::Instruction(v), children: vec![]})
+        P(TreeNode{id: id, tag: tag, v: TreeNode_::Instruction(v)})
+    }
+    
+    pub fn as_value(&self) -> Option<&P<Value>> {
+        match self.v {
+            TreeNode_::Value(ref pv) => Some(&pv),
+            _ => None
+        }
     }
 }
 
 impl fmt::Debug for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}#{:?}: {:?}", self.tag, self.id, self.v).unwrap();
-        for child in self.children.iter() {
-            write!(f, "  -> {:?}#{:?}\n", child.tag, child.id).unwrap();
+        match self.v {
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::SSAVar => {
+                        write!(f, "{:?} %{}#{}", pv.ty, self.tag, self.id)
+                    },
+                    Value_::Constant(ref c) => {
+                        write!(f, "{:?} {:?}", pv.ty, c) 
+                    }
+                }
+            },
+            TreeNode_::Instruction(ref inst) => {
+                write!(f, "{:?}", inst)
+            }
         }
-        
-        write!(f, "")
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
     Instruction(Instruction),
 }
 
 /// always use with P<Value>
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Value {
     pub ty: P<MuType>,
     pub v: Value_
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Value_ {
     SSAVar,
     Constant(Constant)
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Constant {
-    Int(usize, usize),
-    IRef(P<MuType>, Address),
-    FloatV(f32),
-    DoubleV(f64),
-    VectorV(Vec<Constant>),
-    FuncRefV(Address),
-    UFuncRefV(Address)
+    Int(usize),
+    Float(f32),
+    Double(f64),
+    IRef(Address),
+    FuncRef(Address),
+    UFuncRef(Address),
+    Vector(Vec<Constant>),    
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Debug for Constant {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Constant::Int(v) => write!(f, "{}", v),
+            &Constant::Float(v) => write!(f, "{}", v),
+            &Constant::Double(v) => write!(f, "{}", v),
+            &Constant::IRef(v) => write!(f, "{}", v),
+            &Constant::FuncRef(v) => write!(f, "{}", v),
+            &Constant::UFuncRef(v) => write!(f, "{}", v),
+            &Constant::Vector(ref v) => write!(f, "{:?}", v)
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Instruction {
     NonTerm(NonTermInstruction),
     Term(Terminal)
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Debug for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Instruction::NonTerm(ref inst) => write!(f, "{:?}", inst),
+            &Instruction::Term(ref inst) => write!(f, "{:?}", inst)
+        }
+    }    
+}
+
+#[derive(Clone)]
 pub enum Terminal {
     Return(Vec<P<TreeNode>>),
-    ThreadExit,
+    ThreadExit, // TODO:  common inst
     Throw(Vec<P<TreeNode>>),
     TailCall(CallData),
     Branch1(Destination),
@@ -164,7 +200,7 @@ pub enum Terminal {
     Switch{
         cond: P<TreeNode>,
         default: Destination,
-        branches: Vec<(P<Constant>, Destination)>
+        branches: Vec<(P<TreeNode>, Destination)>
     },
     ExnInstruction{
         inner: NonTermInstruction,
@@ -172,7 +208,45 @@ pub enum Terminal {
     }
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Debug for Terminal {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Terminal::Return(ref vals) => write!(f, "RET {:?}", vals),
+            &Terminal::ThreadExit => write!(f, "THREADEXIT"),
+            &Terminal::Throw(ref vals) => write!(f, "THROW {:?}", vals),
+            &Terminal::TailCall(ref call) => write!(f, "TAILCALL {:?}", call),
+            &Terminal::Branch1(ref dest) => write!(f, "BRANCH {:?}", dest),
+            &Terminal::Branch2{ref cond, ref true_dest, ref false_dest} => {
+                write!(f, "BRANCH2 {:?} {:?} {:?}", cond, true_dest, false_dest)
+            },
+            &Terminal::Watchpoint{id, ref disable_dest, ref resume} => {
+                match id {
+                    Some(id) => {
+                        write!(f, "WATCHPOINT {:?} {:?} {:?}", id, disable_dest.as_ref().unwrap(), resume)
+                    },
+                    None => {
+                        write!(f, "TRAP {:?}", resume)
+                    }
+                }
+            },
+            &Terminal::WPBranch{wp, ref disable_dest, ref enable_dest} => {
+                write!(f, "WPBRANCH {:?} {:?} {:?}", wp, disable_dest, enable_dest)
+            },
+            &Terminal::Call{ref data, ref resume} => write!(f, "CALL {:?} {:?}", data, resume),
+            &Terminal::SwapStack{ref stack, is_exception, ref args, ref resume} => {
+                write!(f, "SWAPSTACK {:?} {:?} {:?} {:?}", stack, is_exception, args, resume)
+            },
+            &Terminal::Switch{ref cond, ref default, ref branches} => {
+                write!(f, "SWITCH {:?} {:?} {{{:?}}}", cond, default, branches)
+            },
+            &Terminal::ExnInstruction{ref inner, ref resume} => {
+                write!(f, "{:?} {:?}", inner, resume)
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum NonTermInstruction {
     Assign{
         left: Vec<P<TreeNode>>,
@@ -182,13 +256,23 @@ pub enum NonTermInstruction {
     Fence(MemoryOrder),
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Debug for NonTermInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &NonTermInstruction::Assign{ref left, ref right} => {
+                write!(f, "{:?} = {:?}", left, right)
+            },
+            &NonTermInstruction::Fence(order) => {
+                write!(f, "FENCE {:?}", order)
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Expression_ {
     BinOp(BinOp, P<TreeNode>, P<TreeNode>), 
     CmpOp(CmpOp, P<TreeNode>, P<TreeNode>),
-    
-    // yields the constant value
-    Constant(P<Constant>),
     
     // yields a tuple of results from the call
     ExprCall{
@@ -198,22 +282,23 @@ pub enum Expression_ {
     
     // yields the memory value
     Load{
-        is_iref: bool,
-        mem_loc: P<Value>,
-        order: MemoryOrder
+        is_ptr: bool,
+        order: MemoryOrder,
+        mem_loc: P<TreeNode>
     },
     
     // yields nothing
     Store{
-        is_iref: bool,
-        mem_loc: P<Value>,
-        order: MemoryOrder        
+        is_ptr: bool,
+        order: MemoryOrder,        
+        mem_loc: P<TreeNode>,
+        value: P<TreeNode>
     },
     
     // yields pair (oldvalue, boolean (T = success, F = failure))
     CmpXchg{
-        is_iref: bool, // T for iref, F for ptr
-        is_strong: bool,
+        is_ptr: bool,
+        is_weak: bool,
         success_order: MemoryOrder,
         fail_order: MemoryOrder,
         mem_loc: P<TreeNode>,
@@ -223,7 +308,7 @@ pub enum Expression_ {
     
     // yields old memory value
     AtomicRMW{
-        is_iref: bool, // T for iref, F for ptr
+        is_ptr: bool, // T for iref, F for ptr
         order: MemoryOrder,
         op: AtomicRMWOp,
         mem_loc: P<TreeNode>,
@@ -237,55 +322,53 @@ pub enum Expression_ {
     AllocA(P<MuType>),
     
     // yields ref
-    NewHybrid{    // hybrid type, var part length
-        ty: P<MuType>, 
-        var_len: P<TreeNode>
-    },  
+    NewHybrid(P<MuType>, P<TreeNode>),
     
     // yields iref
-    AllocAHybrid{
-        ty: P<MuType>, 
-        var_len: P<TreeNode>
-    },
+    AllocAHybrid(P<MuType>, P<TreeNode>),
     
     // yields stack ref
-    NewStack{
-        func: P<TreeNode>
-    },
+    NewStack(P<TreeNode>), // func
+                           // TODO: common inst
     
     // yields thread reference
-    NewThread{
-        stack: P<TreeNode>,
-        args: Vec<P<TreeNode>>
-    },
+    NewThread(P<TreeNode>, Vec<P<TreeNode>>), // stack, args
     
     // yields thread reference (thread resumes with exceptional value)
-    NewThreadExn{
-        stack: P<TreeNode>,
-        exn: P<TreeNode>
-    },
+    NewThreadExn(P<TreeNode>, P<TreeNode>), // stack, exception
     
     // yields frame cursor
     NewFrameCursor(P<TreeNode>), // stack
     
+    // ref<T> -> iref<T>
     GetIRef(P<TreeNode>),
     
+    // iref|uptr<struct|hybrid<T>> int<M> -> iref|uptr<U>
     GetFieldIRef{
-        base: P<TreeNode>, // iref or ptr
-        index: P<Constant>
+        is_ptr: bool,
+        base: P<TreeNode>, // iref or uptr
+        index: P<TreeNode> // constant
     },
     
+    // iref|uptr<array<T N>> int<M> -> iref|uptr<T>
     GetElementIRef{
+        is_ptr: bool,
         base: P<TreeNode>,
-        index: P<TreeNode>
+        index: P<TreeNode> // can be constant or ssa var
     },
     
+    // iref|uptr<T> int<M> -> iref|uptr<T>
     ShiftIRef{
+        is_ptr: bool,
         base: P<TreeNode>,
         offset: P<TreeNode>
     },
     
-    GetVarPartIRef(P<TreeNode>),
+    // iref|uptr<hybrid<T U>> -> iref|uptr<U>
+    GetVarPartIRef{
+        is_ptr: bool,
+        base: P<TreeNode>
+    },
     
 //    PushFrame{
 //        stack: P<Value>,
@@ -294,6 +377,73 @@ pub enum Expression_ {
 //    PopFrame{
 //        stack: P<Value>
 //    }
+}
+
+macro_rules! select {
+    ($cond: expr, $res1 : expr, $res2 : expr) => {
+        if $cond {
+            $res1
+        } else {
+            $res2
+        }
+    }
+}
+
+impl fmt::Debug for Expression_ {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Expression_::BinOp(op, ref op1, ref op2) => write!(f, "{:?} {:?} {:?}", op, op1, op2),
+            &Expression_::CmpOp(op, ref op1, ref op2) => write!(f, "{:?} {:?} {:?}", op, op1, op2),
+            &Expression_::ExprCall{ref data, is_abort} => {
+                let abort = select!(is_abort, "ABORT_ON_EXN", "RETHROW");
+                write!(f, "CALL {:?} {}", data, abort)
+            },
+            &Expression_::Load{is_ptr, ref mem_loc, order} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                write!(f, "LOAD {} {:?} {:?}", ptr, order, mem_loc) 
+            },
+            &Expression_::Store{ref value, is_ptr, ref mem_loc, order} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                write!(f, "STORE {} {:?} {:?} {:?}", ptr, order, mem_loc, value)
+            },
+            &Expression_::CmpXchg{is_ptr, is_weak, success_order, fail_order, 
+                ref mem_loc, ref expected_value, ref desired_value} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                let weak = select!(is_weak, "WEAK", "");
+                write!(f, "CMPXCHG {} {} {:?} {:?} {:?} {:?} {:?}", 
+                    ptr, weak, success_order, fail_order, mem_loc, expected_value, desired_value)  
+            },
+            &Expression_::AtomicRMW{is_ptr, order, op, ref mem_loc, ref value} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                write!(f, "ATOMICRMW {} {:?} {:?} {:?} {:?}", ptr, order, op, mem_loc, value)
+            },
+            &Expression_::New(ref ty) => write!(f, "NEW {:?}", ty),
+            &Expression_::AllocA(ref ty) => write!(f, "ALLOCA {:?}", ty),
+            &Expression_::NewHybrid(ref ty, ref len) => write!(f, "NEWHYBRID {:?} {:?}", ty, len),
+            &Expression_::AllocAHybrid(ref ty, ref len) => write!(f, "ALLOCAHYBRID {:?} {:?}", ty, len),
+            &Expression_::NewStack(ref func) => write!(f, "NEWSTACK {:?}", func),
+            &Expression_::NewThread(ref stack, ref args) => write!(f, "NEWTHREAD {:?} PASS_VALUES {:?}", stack, args),
+            &Expression_::NewThreadExn(ref stack, ref exn) => write!(f, "NEWTHREAD {:?} THROW_EXC {:?}", stack, exn),
+            &Expression_::NewFrameCursor(ref stack) => write!(f, "NEWFRAMECURSOR {:?}", stack),
+            &Expression_::GetIRef(ref reference) => write!(f, "GETIREF {:?}", reference),
+            &Expression_::GetFieldIRef{is_ptr, ref base, ref index} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                write!(f, "GETFIELDIREF {} {:?} {:?}", ptr, base, index)
+            },
+            &Expression_::GetElementIRef{is_ptr, ref base, ref index} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                write!(f, "GETELEMENTIREF {} {:?} {:?}", ptr, base, index)
+            },
+            &Expression_::ShiftIRef{is_ptr, ref base, ref offset} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                write!(f, "SHIFTIREF {} {:?} {:?}", ptr, base, offset)
+            },
+            &Expression_::GetVarPartIRef{is_ptr, ref base} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                write!(f, "GETVARPARTIREF {} {:?}", ptr, base)
+            }
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -318,27 +468,54 @@ pub enum ForeignFFI {
     C
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct CallData {
     pub func: P<TreeNode>,
     pub args: Vec<P<TreeNode>>,
     pub convention: CallConvention
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Debug for CallData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} {:?} ({:?})", self.convention, self.func, self.args)
+    }    
+}
+
+#[derive(Clone)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
     pub exn_dest: Destination
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Debug for ResumptionData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "normal: {:?}, exception: {:?}", self.normal_dest, self.exn_dest)
+    }
+}
+
+#[derive(Clone)]
+pub struct Destination {
+    pub target: MuTag,
+    pub args: Vec<DestArg>
+}
+
+impl fmt::Debug for Destination {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{:?}", self.target, self.args)
+    }
+}
+
+#[derive(Clone)]
 pub enum DestArg {
     Normal(P<TreeNode>),
     Freshbound(usize)
 }
 
-#[derive(Clone, Debug)]
-pub struct Destination {
-    pub target: MuTag,
-    pub args: Vec<DestArg>
+impl fmt::Debug for DestArg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DestArg::Normal(ref pv) => write!(f, "{:?}", pv),
+            &DestArg::Freshbound(n) => write!(f, "${}", n)
+        }
+    }    
 }
