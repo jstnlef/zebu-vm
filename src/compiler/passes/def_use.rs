@@ -8,7 +8,7 @@ pub struct DefUsePass {
 }
 
 impl DefUsePass {
-    pub fn name(name: &'static str) -> DefUsePass {
+    pub fn new(name: &'static str) -> DefUsePass {
         DefUsePass{name: name}
     }
 }
@@ -18,7 +18,14 @@ impl CompilerPass for DefUsePass {
         self.name
     }
     
-    fn visit_node(&mut self, vm_context: &VMContext, node: &mut TreeNode) {
-        
+    fn visit_inst(&mut self, vm_context: &VMContext, node: &mut TreeNode) {
+        match node.v {
+            TreeNode_::Instruction(ref inst) => {
+                for p_node in inst.list_operands() {
+                    p_node.use_count.set(p_node.use_count.get() + 1)
+                }
+            },
+            TreeNode_::Value(_) => panic!("expected instruction node")
+        }
     }
 }

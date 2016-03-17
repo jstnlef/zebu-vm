@@ -29,6 +29,7 @@ pub struct CompilerPolicy {
 impl CompilerPolicy {
     pub fn default() -> CompilerPolicy {
         let mut passes : Vec<Box<CompilerPass>> = vec![];
+        passes.push(Box::new(passes::def_use::DefUsePass::new("DefUse")));
         passes.push(Box::new(passes::tree_gen::TreeGenerationPass::new("Tree Generation")));
         
         CompilerPolicy{passes: passes}
@@ -49,8 +50,10 @@ pub trait CompilerPass {
             
             debug!("block: {}", label);
             
-            for node in block.content.as_mut().unwrap().body.iter_mut() {
-                debug!("{:?}", node);
+            for inst in block.content.as_mut().unwrap().body.iter_mut() {
+                debug!("{:?}", inst);
+                
+                self.visit_inst(vm_context, inst);
             }
             
             debug!("---finish---");
@@ -59,5 +62,5 @@ pub trait CompilerPass {
     
     fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {}
     fn visit_block(&mut self, vm_context: &VMContext, block: &mut Block) {}
-    fn visit_node(&mut self, vm_context: &VMContext, node: &mut TreeNode) {}
+    fn visit_inst(&mut self, vm_context: &VMContext, node: &mut TreeNode) {}
 }

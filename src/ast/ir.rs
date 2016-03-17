@@ -37,6 +37,10 @@ pub struct BlockContent {
     pub keepalives: Option<Vec<P<TreeNode>>>    
 }
 
+pub trait OperandIteratable {
+    fn list_operands(&self) -> Vec<P<TreeNode>>;
+}
+
 #[derive(Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
@@ -86,7 +90,7 @@ impl fmt::Debug for TreeNode {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar => {
-                        write!(f, "{:?} %{}#{}", pv.ty, self.tag, self.id)
+                        write!(f, "{:?} %{}#{} (use: {})", pv.ty, self.tag, self.id, self.use_count.get())
                     },
                     Value_::Constant(ref c) => {
                         write!(f, "{:?} {:?}", pv.ty, c) 
@@ -159,6 +163,15 @@ impl fmt::Debug for Instruction {
     }    
 }
 
+impl OperandIteratable for Instruction {
+    fn list_operands(&self) -> Vec<P<TreeNode>> {
+        match self {
+            &Instruction::NonTerm(ref inst) => inst.list_operands(),
+            &Instruction::Term(ref inst) => inst.list_operands()
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum Terminal {
     Return(Vec<P<TreeNode>>),
@@ -203,6 +216,71 @@ pub enum Terminal {
     ExnInstruction{
         inner: NonTermInstruction,
         resume: ResumptionData
+    }
+}
+
+impl OperandIteratable for Terminal {
+    fn list_operands(&self) -> Vec<P<TreeNode>> {
+        use ast::ir::Terminal::*;
+        match self {
+            &Return(ref vals) => vals.to_vec(),
+            &Throw(ref vals) => vals.to_vec(),
+            &TailCall(ref call) => call.list_operands(),
+            &Branch1(ref dest) => dest.list_operands(),
+            &Branch2{ref cond, ref true_dest, ref false_dest} => {
+                let mut ret = vec![];
+                ret.push(cond.clone());
+                ret.append(&mut true_dest.list_operands());
+                ret.append(&mut false_dest.list_operands());
+                ret
+            },
+            &Watchpoint{ref disable_dest, ref resume, ..} => {
+                let mut ret = vec![];
+                if disable_dest.is_some() {
+                    ret.append(&mut disable_dest.as_ref().unwrap().list_operands())
+                }
+                ret.append(&mut resume.list_operands());
+                ret
+            },
+            &WPBranch{ref disable_dest, ref enable_dest, ..} => {
+                let mut ret = vec![];
+                ret.append(&mut disable_dest.list_operands());
+                ret.append(&mut enable_dest.list_operands());
+                ret
+            },
+            &Call{ref data, ref resume} => {
+                let mut ret = vec![];
+                ret.append(&mut data.list_operands());
+                ret.append(&mut resume.list_operands());
+                ret
+            },
+            &SwapStack{ref stack, ref args, ref resume, ..} => {
+                let mut ret = vec![];
+                ret.push(stack.clone());
+                ret.append(&mut args.to_vec());
+                ret.append(&mut resume.list_operands());
+                ret
+            },
+            &Switch{ref cond, ref default, ref branches} => {
+                let mut ret = vec![];
+                ret.push(cond.clone());
+                ret.append(&mut default.list_operands());
+                for entry in branches.iter() {
+                    ret.push(entry.0.clone());
+                    ret.append(&mut entry.1.list_operands());
+                }
+                
+                ret
+            },
+            &ExnInstruction{ref inner, ref resume} => {
+                let mut ret = vec![];
+                ret.append(&mut inner.list_operands());
+                ret.append(&mut resume.list_operands());
+                ret
+            },
+            
+            &ThreadExit => vec![]
+        }
     }
 }
 
@@ -263,6 +341,15 @@ impl fmt::Debug for NonTermInstruction {
             &NonTermInstruction::Fence(order) => {
                 write!(f, "FENCE {:?}", order)
             }
+        }
+    }
+}
+
+impl OperandIteratable for NonTermInstruction {
+    fn list_operands(&self) -> Vec<P<TreeNode>> {
+        match self {
+            &NonTermInstruction::Assign{ref right, ..} => right.list_operands(),
+            &NonTermInstruction::Fence(_) => vec![]
         }
     }
 }
@@ -387,6 +474,38 @@ macro_rules! select {
     }
 }
 
+impl OperandIteratable for Expression_ {
+    fn list_operands(&self) -> Vec<P<TreeNode>> {
+        match self {
+            &Expression_::BinOp(_, ref op1, ref op2) => vec![op1.clone(), op2.clone()],
+            &Expression_::CmpOp(_, ref op1, ref op2) => vec![op1.clone(), op2.clone()],
+            &Expression_::ExprCall{ref data, ..} => data.list_operands(),
+            &Expression_::Load{ref mem_loc, ..} => vec![mem_loc.clone()],
+            &Expression_::Store{ref value, ref mem_loc, ..} => vec![value.clone(), mem_loc.clone()],
+            &Expression_::CmpXchg{ref mem_loc, ref expected_value, ref desired_value, ..} => vec![mem_loc.clone(), expected_value.clone(), desired_value.clone()],
+            &Expression_::AtomicRMW{ref mem_loc, ref value, ..} => vec![mem_loc.clone(), value.clone()],
+            &Expression_::NewHybrid(_, ref len) => vec![len.clone()],
+            &Expression_::AllocAHybrid(_, ref len) => vec![len.clone()],
+            &Expression_::NewStack(ref func) => vec![func.clone()],
+            &Expression_::NewThread(ref stack, ref args) => {
+                let mut ret = vec![];
+                ret.push(stack.clone());
+                ret.append(&mut args.to_vec());
+                ret
+            },
+            &Expression_::NewThreadExn(ref stack, ref exception) => vec![stack.clone(), exception.clone()],
+            &Expression_::NewFrameCursor(ref stack) => vec![stack.clone()],
+            &Expression_::GetIRef(ref reference) => vec![reference.clone()],
+            &Expression_::GetFieldIRef{ref base, ref index, ..} => vec![base.clone(), index.clone()],
+            &Expression_::GetElementIRef{ref base, ref index, ..} => vec![base.clone(), index.clone()],
+            &Expression_::ShiftIRef{ref base, ref offset, ..} => vec![base.clone(), offset.clone()],
+            &Expression_::GetVarPartIRef{ref base, ..} => vec![base.clone()], 
+            
+            &Expression_::New(_) | &Expression_::AllocA(_) => vec![]
+        }
+    }
+}
+
 impl fmt::Debug for Expression_ {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -479,6 +598,17 @@ impl fmt::Debug for CallData {
     }    
 }
 
+impl OperandIteratable for CallData {
+    fn list_operands(&self) -> Vec<P<TreeNode>> {
+        let mut ret = vec![];
+        
+        ret.push(self.func.clone());
+        ret.append(&mut self.args.to_vec());
+        
+        ret
+    }
+}
+
 #[derive(Clone)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
@@ -491,10 +621,35 @@ impl fmt::Debug for ResumptionData {
     }
 }
 
+impl OperandIteratable for ResumptionData {
+    fn list_operands(&self) -> Vec<P<TreeNode>> {
+        let mut ret = vec![];
+        ret.append(&mut self.normal_dest.list_operands());
+        ret.append(&mut self.exn_dest.list_operands());
+        
+        ret
+    }
+}
+
 #[derive(Clone)]
 pub struct Destination {
     pub target: MuTag,
     pub args: Vec<DestArg>
+}
+
+impl OperandIteratable for Destination {
+    fn list_operands(&self) -> Vec<P<TreeNode>> {
+        let mut ret = vec![];
+        
+        for arg in self.args.iter() {
+            match arg {
+                &DestArg::Normal(ref op) => ret.push(op.clone()),
+                _ => {}
+            }
+        }
+        
+        ret
+    }
 }
 
 impl fmt::Debug for Destination {

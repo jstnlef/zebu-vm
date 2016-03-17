@@ -39,6 +39,7 @@
 use std::fmt::{self, Display, Debug};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
+use std::ops::DerefMut;
 
 /// An owned smart pointer.
 pub struct P<T> {
@@ -68,6 +69,12 @@ impl<T> Deref for P<T> {
 
     fn deref<'a>(&'a self) -> &'a T {
         &*self.ptr
+    }
+}
+
+impl<T> DerefMut for P<T> {
+    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+        &mut *self.ptr
     }
 }
 
