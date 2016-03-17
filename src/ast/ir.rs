@@ -3,6 +3,7 @@ use ast::op::{BinOp, CmpOp, AtomicRMWOp};
 use ast::types::*;
 
 use std::fmt;
+use std::cell::Cell;
 
 pub type WPID  = usize;
 pub type MuID  = usize;
@@ -42,6 +43,7 @@ pub struct TreeNode {
     pub id: MuID,
     pub tag: MuTag,
     pub v: TreeNode_,
+    pub use_count: Cell<usize>
 }
 
 impl TreeNode {
@@ -49,7 +51,8 @@ impl TreeNode {
         P(TreeNode{
                 id: id, 
                 tag: tag, 
-                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::SSAVar}))
+                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::SSAVar})),
+                use_count: Cell::new(0)
         })
     }
     
@@ -57,7 +60,8 @@ impl TreeNode {
         P(TreeNode{
                 id: id,
                 tag: tag,
-                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::Constant(v)}))
+                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::Constant(v)})),
+                use_count: Cell::new(0)
             })
     }
     
@@ -65,20 +69,14 @@ impl TreeNode {
         P(TreeNode{
                 id: id,
                 tag: tag,
-                v: TreeNode_::Value(v)
+                v: TreeNode_::Value(v),
+                use_count: Cell::new(0)
             }
         )
     }
     
     pub fn new_inst(id: MuID, tag: MuTag, v: Instruction) -> P<TreeNode> {
-        P(TreeNode{id: id, tag: tag, v: TreeNode_::Instruction(v)})
-    }
-    
-    pub fn as_value(&self) -> Option<&P<Value>> {
-        match self.v {
-            TreeNode_::Value(ref pv) => Some(&pv),
-            _ => None
-        }
+        P(TreeNode{id: id, tag: tag, v: TreeNode_::Instruction(v), use_count: Cell::new(0)})
     }
 }
 

@@ -3,29 +3,18 @@ use vm::context::VMContext;
 
 use compiler::CompilerPass;
 
-pub struct TreeGenerationPass;
+pub struct TreeGenerationPass {
+    name: &'static str,
+}
 
 impl TreeGenerationPass {
-    pub fn new() -> TreeGenerationPass {
-        TreeGenerationPass
+    pub fn new(name: &'static str) -> TreeGenerationPass {
+        TreeGenerationPass{name: name}
     }
 }
 
 impl CompilerPass for TreeGenerationPass {
-    fn execute(&mut self, vm: &VMContext, func: &mut MuFunction) {
-        debug!("Generating Tree for {}", func.fn_name);
-        
-        for entry in func.blocks.iter_mut() {
-            let label : MuTag = entry.0;
-            let ref mut block : &mut Block = &mut entry.1;
-            
-            debug!("  block: {}", label);
-
-            for inst in block.content.take().unwrap().body {
-                debug!("    {:?}", inst);
-            }
-            
-            debug!("  ");
-        }
+    fn name(&self) -> &'static str {
+        self.name
     }
 }

@@ -1,4 +1,5 @@
 use ast::ir::*;
+use ast::ptr::*;
 use vm::context::VMContext;
 
 use std::cell::RefCell;
@@ -28,12 +29,35 @@ pub struct CompilerPolicy {
 impl CompilerPolicy {
     pub fn default() -> CompilerPolicy {
         let mut passes : Vec<Box<CompilerPass>> = vec![];
-        passes.push(Box::new(passes::tree_gen::TreeGenerationPass::new()));
+        passes.push(Box::new(passes::tree_gen::TreeGenerationPass::new("Tree Generation")));
         
         CompilerPolicy{passes: passes}
     }
 }
 
 pub trait CompilerPass {
-    fn execute(&mut self, vm:&VMContext, func: &mut MuFunction);
+    fn name(&self) -> &'static str;
+    
+    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+        debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
+        
+        self.visit_function(vm_context, func);
+        
+        for entry in func.blocks.iter_mut() {
+            let label : MuTag = entry.0;
+            let ref mut block : &mut Block = &mut entry.1;
+            
+            debug!("block: {}", label);
+            
+            for node in block.content.as_mut().unwrap().body.iter_mut() {
+                debug!("{:?}", node);
+            }
+            
+            debug!("---finish---");
+        }
+    }
+    
+    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {}
+    fn visit_block(&mut self, vm_context: &VMContext, block: &mut Block) {}
+    fn visit_node(&mut self, vm_context: &VMContext, node: &mut TreeNode) {}
 }
