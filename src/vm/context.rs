@@ -4,7 +4,6 @@ use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
 
-use std::cell::Cell;
 use std::cell::RefCell;
 
 pub struct VMContext {

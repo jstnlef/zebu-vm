@@ -80,28 +80,28 @@ fn create_types() -> Vec<P<MuType>> {
 fn test_type_constructors() {
     let types = create_types();
     
-    assert_type!(*types[0], "Int(8)");
-    assert_type!(*types[1], "Float");
-    assert_type!(*types[2], "Double");
-    assert_type!(*types[3], "Ref(Int(8))");
-    assert_type!(*types[4], "IRef(Int(8))");
-    assert_type!(*types[5], "WeakRef(Int(8))");
-    assert_type!(*types[6], "UPtr(Int(8))");
-    assert_type!(*types[7], "Struct(\"MyStructTag1\")");
+    assert_type!(*types[0], "int<8>");
+    assert_type!(*types[1], "float");
+    assert_type!(*types[2], "double");
+    assert_type!(*types[3], "ref<int<8>>");
+    assert_type!(*types[4], "iref<int<8>>");
+    assert_type!(*types[5], "weakref<int<8>>");
+    assert_type!(*types[6], "uptr<int<8>>");
+    assert_type!(*types[7], "MyStructTag1(struct)");
     {
         let map = STRUCT_TAG_MAP.read().unwrap();
         let t7_struct_ty = map.get("MyStructTag1").unwrap();
-        assert_type!(t7_struct_ty, "StructType_ { tys: [Int(8), Float] }");
+        assert_type!(t7_struct_ty, "struct<int<8> float>");
     }
-    assert_type!(*types[8], "Array(Int(8), 5)");
-    assert_type!(*types[9], "Hybrid([Struct(\"MyStructTag1\"), Float], Int(8))");
-    assert_type!(*types[10], "Void");
-    assert_type!(*types[11], "ThreadRef");
-    assert_type!(*types[12], "StackRef");
-    assert_type!(*types[13], "Tagref64");
-    assert_type!(*types[14], "Vector(Int(8), 5)");
-    assert_type!(*types[15], "FuncRef(MuFuncSig { ret_tys: [Void], arg_tys: [Int(8), Int(8)] })");
-    assert_type!(*types[16], "UFuncPtr(MuFuncSig { ret_tys: [Void], arg_tys: [Int(8), Int(8)] })");
+    assert_type!(*types[8], "array<int<8> 5>");
+    assert_type!(*types[9], "hybrid<[MyStructTag1(struct), float] int<8>>");
+    assert_type!(*types[10], "void");
+    assert_type!(*types[11], "threadref");
+    assert_type!(*types[12], "stackref");
+    assert_type!(*types[13], "tagref64");
+    assert_type!(*types[14], "vector<int<8> 5>");
+    assert_type!(*types[15], "funcref<[void] -> [int<8>, int<8>]>");
+    assert_type!(*types[16], "ufuncref<[void] -> [int<8>, int<8>]>");
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn test_cyclic_struct() {
     
     let map = STRUCT_TAG_MAP.read().unwrap();
     let struct_ty = map.get("MyStructTag2").unwrap();
-    assert_type!(struct_ty, "StructType_ { tys: [Ref(Struct(\"MyStructTag2\")), Int(32)] }");
+    assert_type!(struct_ty, "struct<ref<MyStructTag2(struct)> int<32>>");
 }
 
 #[test]

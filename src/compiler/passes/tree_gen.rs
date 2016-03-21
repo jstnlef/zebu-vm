@@ -5,7 +5,7 @@ use compiler::CompilerPass;
 
 pub struct TreeGenerationPass {
     name: &'static str,
-}
+} 
 
 impl TreeGenerationPass {
     pub fn new(name: &'static str) -> TreeGenerationPass {

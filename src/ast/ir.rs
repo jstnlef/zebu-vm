@@ -38,28 +38,28 @@ impl MuFunction {
         self.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0)});
         
         P(TreeNode {
-                v: TreeNode_::Value(P(Value{
-                    tag: tag,
-                    ty: ty,
-                    v: Value_::SSAVar(id)
-                }))
+            v: TreeNode_::Value(P(Value{
+                tag: tag,
+                ty: ty,
+                v: Value_::SSAVar(id)
+            }))
         })
     }
     
-    pub fn new_constant(&mut self, id: MuID, tag: MuTag, ty: P<MuType>, v: Constant) -> P<TreeNode> {
+    pub fn new_constant(&mut self, tag: MuTag, ty: P<MuType>, v: Constant) -> P<TreeNode> {
         P(TreeNode{
-                v: TreeNode_::Value(P(Value{
-                            tag: tag,
-                            ty: ty, 
-                            v: Value_::Constant(v)
-                }))
-            })
+            v: TreeNode_::Value(P(Value{
+                tag: tag,
+                ty: ty, 
+                v: Value_::Constant(v)
+            }))
+        })
     }
     
     pub fn new_value(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-                v: TreeNode_::Value(v)
-            })
+            v: TreeNode_::Value(v)
+        })
     }    
 }
 

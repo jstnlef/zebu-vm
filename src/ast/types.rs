@@ -8,7 +8,7 @@ use std::sync::RwLock;
 pub type MuType = MuType_;
 
 #[derive(Clone, PartialEq, Eq)]
-enum MuType_ {
+pub enum MuType_ {
     /// int <length>
     Int          (usize),
     /// float
@@ -59,31 +59,23 @@ enum MuType_ {
 impl fmt::Debug for MuType_ {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &MuType_::Int(n)                          => write!(f, "<int<{}>>", n),
-            &MuType_::Float                           => write!(f, "<float>"),
-            &MuType_::Double                          => write!(f, "<double>"),
-            &MuType_::Ref(ref ty)                     => write!(f, "<ref<{:?}>>", ty),
-            &MuType_::IRef(ref ty)                    => write!(f, "<iref<{:?}>>", ty),
-            &MuType_::WeakRef(ref ty)                 => write!(f, "<weakref<{:?}>>", ty),
-            &MuType_::UPtr(ref ty)                    => write!(f, "<uptr<{:?}>>", ty),
-            &MuType_::Array(ref ty, size)             => write!(f, "<array<{:?}, {:?}>", ty, size),
-            &MuType_::Hybrid(ref fix_tys, ref var_ty) => write!(f, "<hybrid<{:?} {:?}>>", fix_tys, var_ty), 
-            &MuType_::Void                            => write!(f, "<void>"),
-            &MuType_::ThreadRef                       => write!(f, "<threadref>"),
-            &MuType_::StackRef                        => write!(f, "<stackref>"),
-            &MuType_::Tagref64                        => write!(f, "<tagref64>"),
-            &MuType_::Vector(ref ty, size)            => write!(f, "<vector<{:?} {:?}>>", ty, size),
-            &MuType_::FuncRef(ref sig)                => write!(f, "<funcref<{:?}>>", sig),
-            &MuType_::UFuncPtr(ref sig)               => write!(f, "<ufuncref<{:?}>>", sig),
-            &MuType_::Struct(tag)                     => {
-                write!(f, "<struct<").unwrap();
-                let struct_tag_map_lock = STRUCT_TAG_MAP.read().unwrap();
-                let struct_ty = struct_tag_map_lock.get(tag);
-                for ty in struct_ty {
-                    write!(f, "{:?}", ty).unwrap()
-                }
-                write!(f, ">>")
-            }
+            &MuType_::Int(n)                          => write!(f, "int<{}>", n),
+            &MuType_::Float                           => write!(f, "float"),
+            &MuType_::Double                          => write!(f, "double"),
+            &MuType_::Ref(ref ty)                     => write!(f, "ref<{:?}>", ty),
+            &MuType_::IRef(ref ty)                    => write!(f, "iref<{:?}>", ty),
+            &MuType_::WeakRef(ref ty)                 => write!(f, "weakref<{:?}>", ty),
+            &MuType_::UPtr(ref ty)                    => write!(f, "uptr<{:?}>", ty),
+            &MuType_::Array(ref ty, size)             => write!(f, "array<{:?} {:?}>", ty, size),
+            &MuType_::Hybrid(ref fix_tys, ref var_ty) => write!(f, "hybrid<{:?} {:?}>", fix_tys, var_ty), 
+            &MuType_::Void                            => write!(f, "void"),
+            &MuType_::ThreadRef                       => write!(f, "threadref"),
+            &MuType_::StackRef                        => write!(f, "stackref"),
+            &MuType_::Tagref64                        => write!(f, "tagref64"),
+            &MuType_::Vector(ref ty, size)            => write!(f, "vector<{:?} {:?}>", ty, size),
+            &MuType_::FuncRef(ref sig)                => write!(f, "funcref<{:?}>", sig),
+            &MuType_::UFuncPtr(ref sig)               => write!(f, "ufuncref<{:?}>", sig),
+            &MuType_::Struct(tag)                     => write!(f, "{}(struct)", tag)
         }
     }
 }
@@ -100,10 +92,15 @@ pub struct StructType_ {
 
 impl fmt::Debug for StructType_ {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for ty in self.tys.iter() {
+        write!(f, "struct<").unwrap();
+        for i in 0..self.tys.len() {
+            let ty = &self.tys[i];
             write!(f, "{:?}", ty).unwrap();
+            if i != self.tys.len() - 1 {
+                write!(f, " ").unwrap();
+            }
         }
-        write!(f, "")
+        write!(f, ">")
     }    
 }
 

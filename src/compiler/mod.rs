@@ -1,5 +1,4 @@
 use ast::ir::*;
-use ast::ptr::*;
 use vm::context::VMContext;
 
 use std::cell::RefCell;
