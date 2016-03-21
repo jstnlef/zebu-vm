@@ -19,13 +19,6 @@ impl CompilerPass for DefUsePass {
     }
     
     fn visit_inst(&mut self, vm_context: &VMContext, node: &mut TreeNode) {
-        match node.v {
-            TreeNode_::Instruction(ref inst) => {
-                for p_node in inst.list_operands() {
-                    p_node.use_count.set(p_node.use_count.get() + 1)
-                }
-            },
-            TreeNode_::Value(_) => panic!("expected instruction node")
-        }
+
     }
 }

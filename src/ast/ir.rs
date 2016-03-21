@@ -2,6 +2,7 @@ use ast::ptr::P;
 use ast::op::{BinOp, CmpOp, AtomicRMWOp};
 use ast::types::*;
 
+use std::collections::HashMap;
 use std::fmt;
 use std::cell::Cell;
 
@@ -14,8 +15,52 @@ pub type Address = usize; // TODO: replace this with Address(usize)
 pub struct MuFunction {
     pub fn_name: MuTag,
     pub sig: P<MuFuncSig>,
+    pub content: Option<FunctionContent>,
+    pub values: HashMap<MuID, ValueEntry>
+}
+
+#[derive(Debug)]
+pub struct FunctionContent {
     pub entry: MuTag,
     pub blocks: Vec<(MuTag, Block)>
+}
+
+impl MuFunction {
+    pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
+        MuFunction{fn_name: fn_name, sig: sig, content: None, values: HashMap::new()}
+    }
+    
+    pub fn define(&mut self, content: FunctionContent) {
+        self.content = Some(content)
+    }
+    
+    pub fn new_ssa(&mut self, id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
+        self.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0)});
+        
+        P(TreeNode {
+                v: TreeNode_::Value(P(Value{
+                    tag: tag,
+                    ty: ty,
+                    v: Value_::SSAVar(id)
+                }))
+        })
+    }
+    
+    pub fn new_constant(&mut self, id: MuID, tag: MuTag, ty: P<MuType>, v: Constant) -> P<TreeNode> {
+        P(TreeNode{
+                v: TreeNode_::Value(P(Value{
+                            tag: tag,
+                            ty: ty, 
+                            v: Value_::Constant(v)
+                }))
+            })
+    }
+    
+    pub fn new_value(&mut self, v: P<Value>) -> P<TreeNode> {
+        P(TreeNode{
+                v: TreeNode_::Value(v)
+            })
+    }    
 }
 
 #[derive(Debug)]
@@ -44,43 +89,12 @@ pub trait OperandIteratable {
 #[derive(Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
-    pub id: MuID,
-    pub tag: MuTag,
-    pub v: TreeNode_,
-    pub use_count: Cell<usize>
+    pub v: TreeNode_
 }
 
-impl TreeNode {
-    pub fn new_ssa(id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
-        P(TreeNode{
-                id: id, 
-                tag: tag, 
-                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::SSAVar})),
-                use_count: Cell::new(0)
-        })
-    }
-    
-    pub fn new_constant(id: MuID, tag: MuTag, ty: P<MuType>, v: Constant) -> P<TreeNode> {
-        P(TreeNode{
-                id: id,
-                tag: tag,
-                v: TreeNode_::Value(P(Value{ty: ty, v: Value_::Constant(v)})),
-                use_count: Cell::new(0)
-            })
-    }
-    
-    pub fn new_value(id: MuID, tag: MuTag, v: P<Value>) -> P<TreeNode> {
-        P(TreeNode{
-                id: id,
-                tag: tag,
-                v: TreeNode_::Value(v),
-                use_count: Cell::new(0)
-            }
-        )
-    }
-    
-    pub fn new_inst(id: MuID, tag: MuTag, v: Instruction) -> P<TreeNode> {
-        P(TreeNode{id: id, tag: tag, v: TreeNode_::Instruction(v), use_count: Cell::new(0)})
+impl TreeNode {   
+    pub fn new_inst(v: Instruction) -> P<TreeNode> {
+        P(TreeNode{v: TreeNode_::Instruction(v)})
     }
 }
 
@@ -89,8 +103,8 @@ impl fmt::Debug for TreeNode {
         match self.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
-                    Value_::SSAVar => {
-                        write!(f, "{:?} %{}#{} (use: {})", pv.ty, self.tag, self.id, self.use_count.get())
+                    Value_::SSAVar(id) => {
+                        write!(f, "{:?} %{}#{}", pv.ty, pv.tag, id)
                     },
                     Value_::Constant(ref c) => {
                         write!(f, "{:?} {:?}", pv.ty, c) 
@@ -113,14 +127,29 @@ pub enum TreeNode_ {
 /// always use with P<Value>
 #[derive(Clone)]
 pub struct Value {
+    pub tag: MuTag,
     pub ty: P<MuType>,
     pub v: Value_
 }
 
 #[derive(Clone)]
 pub enum Value_ {
-    SSAVar,
+    SSAVar(MuID),
     Constant(Constant)
+}
+
+#[derive(Clone)]
+pub struct ValueEntry {
+    pub id: MuID,
+    pub tag: MuTag,
+    pub ty: P<MuType>,
+    pub use_count: Cell<usize>  // how many times this entry is used
+}
+
+impl fmt::Debug for ValueEntry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} {}({})", self.ty, self.tag, self.id)
+    }
 }
 
 #[derive(Clone)]

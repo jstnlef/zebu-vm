@@ -44,7 +44,7 @@ pub trait CompilerPass {
         
         self.visit_function(vm_context, func);
         
-        for entry in func.blocks.iter_mut() {
+        for entry in func.content.as_mut().unwrap().blocks.iter_mut() {
             let label : MuTag = entry.0;
             let ref mut block : &mut Block = &mut entry.1;
             

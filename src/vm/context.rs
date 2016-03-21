@@ -4,6 +4,7 @@ use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
 
+use std::cell::Cell;
 use std::cell::RefCell;
 
 pub struct VMContext {
@@ -26,7 +27,7 @@ impl VMContext {
     pub fn declare_const(&mut self, const_name: MuTag, ty: P<MuType>, val: Constant) -> P<Value> {
         debug_assert!(!self.constants.contains_key(const_name));
         
-        let ret = P(Value{ty: ty, v: Value_::Constant(val)});
+        let ret = P(Value{tag: const_name, ty: ty, v: Value_::Constant(val)});
         self.constants.insert(const_name, ret.clone());
         
         ret
@@ -49,11 +50,10 @@ impl VMContext {
         ret
     }
     
-    pub fn declare_func (&mut self, fn_name: MuTag, sig: P<MuFuncSig>, entry: MuTag, blocks: Vec<(MuTag, Block)>) {
-        debug_assert!(!self.funcs.contains_key(fn_name));
+    pub fn declare_func (&mut self, func: MuFunction) {
+        debug_assert!(!self.funcs.contains_key(func.fn_name));
         
-        let ret = MuFunction{fn_name: fn_name, sig: sig, entry: entry, blocks: blocks};
-        self.funcs.insert(fn_name, RefCell::new(ret));
+        self.funcs.insert(func.fn_name, RefCell::new(func));
     }
     
     pub fn get_func(&self, fn_name: MuTag) -> Option<&RefCell<MuFunction>> {
