@@ -16,7 +16,7 @@ pub struct MuFunction {
     pub fn_name: MuTag,
     pub sig: P<MuFuncSig>,
     pub content: Option<FunctionContent>,
-    pub values: HashMap<MuID, ValueEntry>
+    pub context: FunctionContext
 }
 
 #[derive(Debug)]
@@ -25,9 +25,26 @@ pub struct FunctionContent {
     pub blocks: Vec<(MuTag, Block)>
 }
 
+#[derive(Debug)]
+pub struct FunctionContext {
+    pub values: HashMap<MuID, ValueEntry>
+}
+
+impl FunctionContext {
+    fn new() -> FunctionContext {
+        FunctionContext {
+            values: HashMap::new()
+        }
+    }
+    
+    pub fn get_value(&self, id: MuID) -> Option<&ValueEntry> {
+        self.values.get(&id)
+    }
+}
+
 impl MuFunction {
     pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
-        MuFunction{fn_name: fn_name, sig: sig, content: None, values: HashMap::new()}
+        MuFunction{fn_name: fn_name, sig: sig, content: None, context: FunctionContext::new()}
     }
     
     pub fn define(&mut self, content: FunctionContent) {
@@ -35,7 +52,7 @@ impl MuFunction {
     }
     
     pub fn new_ssa(&mut self, id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
-        self.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0)});
+        self.context.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0)});
         
         P(TreeNode {
             v: TreeNode_::Value(P(Value{

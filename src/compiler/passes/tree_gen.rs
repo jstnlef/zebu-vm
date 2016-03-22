@@ -3,17 +3,17 @@ use vm::context::VMContext;
 
 use compiler::CompilerPass;
 
-pub struct TreeGenerationPass {
+pub struct TreeGen {
     name: &'static str,
 } 
 
-impl TreeGenerationPass {
-    pub fn new(name: &'static str) -> TreeGenerationPass {
-        TreeGenerationPass{name: name}
+impl TreeGen {
+    pub fn new() -> TreeGen {
+        TreeGen{name: "Tree Geenration"}
     }
 }
 
-impl CompilerPass for TreeGenerationPass {
+impl CompilerPass for TreeGen {
     fn name(&self) -> &'static str {
         self.name
     }

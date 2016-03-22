@@ -38,16 +38,15 @@ pub fn factorial() -> VMContext {
     let fac_sig = vm.declare_func_sig("fac_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
     
     // .funcdef @fac VERSION @fac_v1 <@fac_sig>
-    let fac_func_ref = P(MuType::funcref(fac_sig.clone()));
     let mut func = MuFunction::new("fac", fac_sig.clone());
     
     // %blk_0(<@int_64> %n_3):
     let mut blk_0 = Block::new("blk_0");
-    let blk_0_n_3 = func.new_ssa(0, "n_3", type_def_int64.clone());
+    let blk_0_n_3 = func.new_ssa(0, "blk_0_n_3", type_def_int64.clone());
     let const_def_int64_1_local = func.new_value(const_def_int64_1.clone());
     
     //   %v48 = EQ <@int_64> %n_3 @int_64_1
-    let blk_0_v48 = func.new_ssa(2, "v48", type_def_int64.clone());
+    let blk_0_v48 = func.new_ssa(1, "blk_0_v48", type_def_int64.clone());
     let blk_0_v48_expr = Expression_::CmpOp(
         CmpOp::EQ,
         blk_0_n_3.clone(),
@@ -77,7 +76,7 @@ pub fn factorial() -> VMContext {
 
     // %blk_2(<@int_64> %v53):
     let mut blk_2 = Block::new("blk_2");
-    let blk_2_v53 = func.new_ssa(5, "v53", type_def_int64.clone());
+    let blk_2_v53 = func.new_ssa(2, "blk_2_v53", type_def_int64.clone());
     
     //   RET %v53
     let blk_2_term = TreeNode::new_inst(Instruction::Term(Terminal::Return(vec![blk_2_v53.clone()])));
@@ -91,10 +90,10 @@ pub fn factorial() -> VMContext {
     
     // %blk_1(<@int_64> %n_3):
     let mut blk_1 = Block::new("blk_1");
-    let blk_1_n_3 = func.new_ssa(7, "n_3", type_def_int64.clone());
+    let blk_1_n_3 = func.new_ssa(3, "blk_1_n_3", type_def_int64.clone());
     
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
-    let blk_1_v50 = func.new_ssa(8, "v50", type_def_int64.clone());
+    let blk_1_v50 = func.new_ssa(4, "blk_1_v50", type_def_int64.clone());
     let blk_1_v50_expr = Expression_::BinOp(
         BinOp::Sub,
         blk_1_n_3.clone(),
@@ -103,12 +102,12 @@ pub fn factorial() -> VMContext {
     let blk_1_inst0 = TreeNode::new_inst(Instruction::NonTerm(NonTermInstruction::Assign{left: vec![blk_1_v50.clone()], right: blk_1_v50_expr}));
     
     //   %v51 = CALL <@fac_sig> @fac (%v50)
-    let blk_1_v51 = func.new_ssa(10, "v51", type_def_int64.clone());
+    let blk_1_v51 = func.new_ssa(5, "blk_1_v51", type_def_int64.clone());
     let blk_1_inst1 = TreeNode::new_inst(Instruction::NonTerm(NonTermInstruction::Assign{
             left: vec![blk_1_v51.clone()],
             right: Expression_::ExprCall {
                 data: CallData {
-                    func: func.new_ssa(12, "fac", fac_func_ref.clone()),
+                    func: func.new_ssa(6, "blk_1_fac", P(MuType::funcref(fac_sig.clone()))),
                     args: vec![blk_1_v50.clone()],
                     convention: CallConvention::Mu
                 },
@@ -117,7 +116,7 @@ pub fn factorial() -> VMContext {
     }));
     
     //   %v52 = MUL <@int_64> %n_3 %v51
-    let blk_1_v52 = func.new_ssa(13, "v52", type_def_int64.clone());
+    let blk_1_v52 = func.new_ssa(7, "blk_1_v52", type_def_int64.clone());
     let blk_1_v52_expr = Expression_::BinOp(
         BinOp::Mul,
         blk_1_n_3.clone(),
