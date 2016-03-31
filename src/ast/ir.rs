@@ -1,5 +1,5 @@
 use ast::ptr::P;
-use ast::op::{BinOp, CmpOp, AtomicRMWOp};
+use ast::op::*;
 use ast::types::*;
 
 use std::collections::HashMap;
@@ -106,6 +106,7 @@ pub trait OperandIteratable {
 #[derive(Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
+//    pub op: OpCode,
     pub v: TreeNode_
 }
 
@@ -196,30 +197,15 @@ impl fmt::Debug for Constant {
 
 #[derive(Clone)]
 pub enum Instruction {
-    NonTerm(NonTermInstruction),
-    Term(Terminal)
-}
+    // non-terminal instruction
+    Assign{
+        left: Vec<P<TreeNode>>,
+        right: Expression_
+    },
 
-impl fmt::Debug for Instruction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Instruction::NonTerm(ref inst) => write!(f, "{:?}", inst),
-            &Instruction::Term(ref inst) => write!(f, "{:?}", inst)
-        }
-    }    
-}
-
-impl OperandIteratable for Instruction {
-    fn list_operands(&self) -> Vec<P<TreeNode>> {
-        match self {
-            &Instruction::NonTerm(ref inst) => inst.list_operands(),
-            &Instruction::Term(ref inst) => inst.list_operands()
-        }
-    }
-}
-
-#[derive(Clone)]
-pub enum Terminal {
+    Fence(MemoryOrder),
+    
+    // terminal instruction
     Return(Vec<P<TreeNode>>),
     ThreadExit, // TODO:  common inst
     Throw(Vec<P<TreeNode>>),
@@ -260,15 +246,63 @@ pub enum Terminal {
         branches: Vec<(P<TreeNode>, Destination)>
     },
     ExnInstruction{
-        inner: NonTermInstruction,
+        inner: P<Instruction>,
         resume: ResumptionData
     }
 }
 
-impl OperandIteratable for Terminal {
-    fn list_operands(&self) -> Vec<P<TreeNode>> {
-        use ast::ir::Terminal::*;
+impl fmt::Debug for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            &Instruction::Assign{ref left, ref right} => {
+                write!(f, "{:?} = {:?}", left, right)
+            },
+            &Instruction::Fence(order) => {
+                write!(f, "FENCE {:?}", order)
+            }            
+            
+            &Instruction::Return(ref vals) => write!(f, "RET {:?}", vals),
+            &Instruction::ThreadExit => write!(f, "THREADEXIT"),
+            &Instruction::Throw(ref vals) => write!(f, "THROW {:?}", vals),
+            &Instruction::TailCall(ref call) => write!(f, "TAILCALL {:?}", call),
+            &Instruction::Branch1(ref dest) => write!(f, "BRANCH {:?}", dest),
+            &Instruction::Branch2{ref cond, ref true_dest, ref false_dest} => {
+                write!(f, "BRANCH2 {:?} {:?} {:?}", cond, true_dest, false_dest)
+            },
+            &Instruction::Watchpoint{id, ref disable_dest, ref resume} => {
+                match id {
+                    Some(id) => {
+                        write!(f, "WATCHPOINT {:?} {:?} {:?}", id, disable_dest.as_ref().unwrap(), resume)
+                    },
+                    None => {
+                        write!(f, "TRAP {:?}", resume)
+                    }
+                }
+            },
+            &Instruction::WPBranch{wp, ref disable_dest, ref enable_dest} => {
+                write!(f, "WPBRANCH {:?} {:?} {:?}", wp, disable_dest, enable_dest)
+            },
+            &Instruction::Call{ref data, ref resume} => write!(f, "CALL {:?} {:?}", data, resume),
+            &Instruction::SwapStack{ref stack, is_exception, ref args, ref resume} => {
+                write!(f, "SWAPSTACK {:?} {:?} {:?} {:?}", stack, is_exception, args, resume)
+            },
+            &Instruction::Switch{ref cond, ref default, ref branches} => {
+                write!(f, "SWITCH {:?} {:?} {{{:?}}}", cond, default, branches)
+            },
+            &Instruction::ExnInstruction{ref inner, ref resume} => {
+                write!(f, "{:?} {:?}", inner, resume)
+            }
+        }
+    }    
+}
+
+impl OperandIteratable for Instruction {
+    fn list_operands(&self) -> Vec<P<TreeNode>> {
+        use ast::ir::Instruction::*;
+        match self {
+            &Assign{ref right, ..} => right.list_operands(),
+            &Fence(_) => vec![],
+                        
             &Return(ref vals) => vals.to_vec(),
             &Throw(ref vals) => vals.to_vec(),
             &TailCall(ref call) => call.list_operands(),
@@ -326,76 +360,6 @@ impl OperandIteratable for Terminal {
             },
             
             &ThreadExit => vec![]
-        }
-    }
-}
-
-impl fmt::Debug for Terminal {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Terminal::Return(ref vals) => write!(f, "RET {:?}", vals),
-            &Terminal::ThreadExit => write!(f, "THREADEXIT"),
-            &Terminal::Throw(ref vals) => write!(f, "THROW {:?}", vals),
-            &Terminal::TailCall(ref call) => write!(f, "TAILCALL {:?}", call),
-            &Terminal::Branch1(ref dest) => write!(f, "BRANCH {:?}", dest),
-            &Terminal::Branch2{ref cond, ref true_dest, ref false_dest} => {
-                write!(f, "BRANCH2 {:?} {:?} {:?}", cond, true_dest, false_dest)
-            },
-            &Terminal::Watchpoint{id, ref disable_dest, ref resume} => {
-                match id {
-                    Some(id) => {
-                        write!(f, "WATCHPOINT {:?} {:?} {:?}", id, disable_dest.as_ref().unwrap(), resume)
-                    },
-                    None => {
-                        write!(f, "TRAP {:?}", resume)
-                    }
-                }
-            },
-            &Terminal::WPBranch{wp, ref disable_dest, ref enable_dest} => {
-                write!(f, "WPBRANCH {:?} {:?} {:?}", wp, disable_dest, enable_dest)
-            },
-            &Terminal::Call{ref data, ref resume} => write!(f, "CALL {:?} {:?}", data, resume),
-            &Terminal::SwapStack{ref stack, is_exception, ref args, ref resume} => {
-                write!(f, "SWAPSTACK {:?} {:?} {:?} {:?}", stack, is_exception, args, resume)
-            },
-            &Terminal::Switch{ref cond, ref default, ref branches} => {
-                write!(f, "SWITCH {:?} {:?} {{{:?}}}", cond, default, branches)
-            },
-            &Terminal::ExnInstruction{ref inner, ref resume} => {
-                write!(f, "{:?} {:?}", inner, resume)
-            }
-        }
-    }
-}
-
-#[derive(Clone)]
-pub enum NonTermInstruction {
-    Assign{
-        left: Vec<P<TreeNode>>,
-        right: Expression_
-    },
-
-    Fence(MemoryOrder),
-}
-
-impl fmt::Debug for NonTermInstruction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &NonTermInstruction::Assign{ref left, ref right} => {
-                write!(f, "{:?} = {:?}", left, right)
-            },
-            &NonTermInstruction::Fence(order) => {
-                write!(f, "FENCE {:?}", order)
-            }
-        }
-    }
-}
-
-impl OperandIteratable for NonTermInstruction {
-    fn list_operands(&self) -> Vec<P<TreeNode>> {
-        match self {
-            &NonTermInstruction::Assign{ref right, ..} => right.list_operands(),
-            &NonTermInstruction::Fence(_) => vec![]
         }
     }
 }

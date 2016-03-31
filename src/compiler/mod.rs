@@ -39,6 +39,7 @@ impl CompilerPolicy {
     }
 }
 
+#[allow(unused_variables)]
 pub trait CompilerPass {
     fn name(&self) -> &'static str;
     

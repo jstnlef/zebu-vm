@@ -1,6 +1,3 @@
-use ast::ir::*;
-use vm::context::VMContext;
-
 use compiler::CompilerPass;
 
 pub struct TreeGen {

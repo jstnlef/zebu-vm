@@ -18,6 +18,7 @@ impl CompilerPass for DefUse {
         self.name
     }
     
+    #[allow(unused_variables)]
     fn visit_inst(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, node: &mut TreeNode) {
         match node.v {
             TreeNode_::Instruction(ref inst) => {
@@ -26,7 +27,7 @@ impl CompilerPass for DefUse {
                         TreeNode_::Value(ref val) => {
                             match val.v {
                                 Value_::SSAVar(ref id) => {
-                                    let mut entry = func_context.values.get_mut(id).unwrap();
+                                    let entry = func_context.values.get_mut(id).unwrap();
                                     entry.use_count.set(entry.use_count.get() + 1);
                                 },
                                 _ => {} // dont worry about constants
@@ -40,6 +41,7 @@ impl CompilerPass for DefUse {
         }
     }
     
+    #[allow(unused_variables)]
     fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
         debug!("check use count for variables");
         

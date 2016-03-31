@@ -52,10 +52,10 @@ pub fn factorial() -> VMContext {
         blk_0_n_3.clone(),
         const_def_int64_1_local.clone()
     );
-    let blk_0_inst0 = TreeNode::new_inst(Instruction::NonTerm(NonTermInstruction::Assign{left: vec![blk_0_v48.clone()], right: blk_0_v48_expr}));
+    let blk_0_inst0 = TreeNode::new_inst(Instruction::Assign{left: vec![blk_0_v48.clone()], right: blk_0_v48_expr});
     
     //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)        
-    let blk_0_term = TreeNode::new_inst(Instruction::Term(Terminal::Branch2{
+    let blk_0_term = TreeNode::new_inst(Instruction::Branch2{
         cond: blk_0_v48.clone(), 
         true_dest: Destination {
             target: "blk_2", 
@@ -65,7 +65,7 @@ pub fn factorial() -> VMContext {
             target: "blk_1", 
             args: vec![DestArg::Normal(blk_0_n_3.clone())]
         }
-    }));
+    });
     
     let blk_0_content = BlockContent {
         args: vec![blk_0_n_3.clone()], 
@@ -79,7 +79,7 @@ pub fn factorial() -> VMContext {
     let blk_2_v53 = func.new_ssa(2, "blk_2_v53", type_def_int64.clone());
     
     //   RET %v53
-    let blk_2_term = TreeNode::new_inst(Instruction::Term(Terminal::Return(vec![blk_2_v53.clone()])));
+    let blk_2_term = TreeNode::new_inst(Instruction::Return(vec![blk_2_v53.clone()]));
     
     let blk_2_content = BlockContent {
         args: vec![blk_2_v53.clone()], 
@@ -99,11 +99,11 @@ pub fn factorial() -> VMContext {
         blk_1_n_3.clone(),
         const_def_int64_1_local.clone()
     );
-    let blk_1_inst0 = TreeNode::new_inst(Instruction::NonTerm(NonTermInstruction::Assign{left: vec![blk_1_v50.clone()], right: blk_1_v50_expr}));
+    let blk_1_inst0 = TreeNode::new_inst(Instruction::Assign{left: vec![blk_1_v50.clone()], right: blk_1_v50_expr});
     
     //   %v51 = CALL <@fac_sig> @fac (%v50)
     let blk_1_v51 = func.new_ssa(5, "blk_1_v51", type_def_int64.clone());
-    let blk_1_inst1 = TreeNode::new_inst(Instruction::NonTerm(NonTermInstruction::Assign{
+    let blk_1_inst1 = TreeNode::new_inst(Instruction::Assign{
             left: vec![blk_1_v51.clone()],
             right: Expression_::ExprCall {
                 data: CallData {
@@ -113,7 +113,7 @@ pub fn factorial() -> VMContext {
                 },
                 is_abort: true
             }
-    }));
+    });
     
     //   %v52 = MUL <@int_64> %n_3 %v51
     let blk_1_v52 = func.new_ssa(7, "blk_1_v52", type_def_int64.clone());
@@ -122,17 +122,17 @@ pub fn factorial() -> VMContext {
         blk_1_n_3.clone(),
         blk_1_v51.clone()
     );
-    let blk_1_inst2 = TreeNode::new_inst(Instruction::NonTerm(NonTermInstruction::Assign{
+    let blk_1_inst2 = TreeNode::new_inst(Instruction::Assign{
             left: vec![blk_1_v52.clone()], 
             right: blk_1_v52_expr
-    }));
+    });
     
-    let blk_1_term = TreeNode::new_inst(Instruction::Term(Terminal::Branch1 (
+    let blk_1_term = TreeNode::new_inst(Instruction::Branch1 (
         Destination {
             target: "blk_2", 
             args: vec![DestArg::Normal(blk_1_v52.clone())]
         }
-    )));
+    ));
     
     let blk_1_content = BlockContent {
         args: vec![blk_1_n_3.clone()], 

@@ -1,4 +1,55 @@
 #[derive(Copy, Clone, Debug)]
+pub enum OpCode {
+    // SSA
+    RegI64,
+    RegFP,
+    
+    // Constant
+    IntImmI64,
+    FPImm,
+    
+    // non-terminal
+    Assign,
+    Fence,
+    
+    //terminal
+    Return,
+    ThreadExit,
+    Throw,
+    TailCall,
+    Branch1,
+    Branch2,
+    Watchpoint,
+    WPBranch,
+    Call,
+    SwapStack,
+    Switch,
+    ExnInstruction,
+    
+    // expression
+    BinOp,
+    CmpOp,
+    ExprCall,
+    Load,
+    Store,
+    CmpXchg,
+    AtomicRMWOp,
+    New,
+    AllocA,
+    NewHybrid,
+    AllocAHybrid,
+    NewStack,
+    NewThread,
+    NewThreadExn,
+    NewFrameCursor,
+    GetIRef,
+    GetFieldIRef,
+    GetElementIRef,
+    ShiftIRef,
+    GetVarPartIRef
+}
+
+#[derive(Copy, Clone, Debug)]
 pub enum BinOp {
     // Int(n) BinOp Int(n) -> Int(n)
     Add,
