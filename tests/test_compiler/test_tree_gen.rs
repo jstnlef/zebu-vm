@@ -32,7 +32,7 @@ fn test_use_count() {
 }
 
 #[test]
-fn test_tree_gen() {
+fn test_build_tree() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
     let vm_context : VMContext = factorial();

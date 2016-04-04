@@ -6,6 +6,8 @@ use self::mu::ast::ptr::*;
 use self::mu::ast::op::*;
 use self::mu::vm::context::*;
 
+use std::cell::RefCell;
+
 #[test]
 #[allow(unused_variables)]
 fn test_factorial() {
@@ -47,23 +49,26 @@ pub fn factorial() -> VMContext {
     
     //   %v48 = EQ <@int_64> %n_3 @int_64_1
     let blk_0_v48 = func.new_ssa(1, "blk_0_v48", type_def_int64.clone());
-    let blk_0_v48_expr = Expression_::CmpOp(
-        CmpOp::EQ,
-        blk_0_n_3.clone(),
-        const_def_int64_1_local.clone()
-    );
-    let blk_0_inst0 = TreeNode::new_inst(Instruction::Assign{left: vec![blk_0_v48.clone()], right: blk_0_v48_expr});
+    let blk_0_inst0 = TreeNode::new_inst(Instruction {
+            value: Some(vec![blk_0_v48.clone()]),
+            ops: RefCell::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
+            v: Instruction_::CmpOp(CmpOp::EQ, 0, 1)
+    });    
     
-    //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)        
-    let blk_0_term = TreeNode::new_inst(Instruction::Branch2{
-        cond: blk_0_v48.clone(), 
-        true_dest: Destination {
-            target: "blk_2", 
-            args: vec![DestArg::Normal(const_def_int64_1_local.clone())]
-        },
-        false_dest: Destination {
-            target: "blk_1", 
-            args: vec![DestArg::Normal(blk_0_n_3.clone())]
+    //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)
+    let blk_0_term = TreeNode::new_inst(Instruction{
+        value: None,
+        ops: RefCell::new(vec![blk_0_v48.clone(), const_def_int64_1_local.clone(), blk_0_n_3.clone()]),
+        v: Instruction_::Branch2 {
+            cond: 0,
+            true_dest: Destination {
+                target: "blk_2",
+                args: vec![DestArg::Normal(1)]
+            },
+            false_dest: Destination {
+                target: "blk_1",
+                args: vec![DestArg::Normal(2)]
+            }
         }
     });
     
@@ -79,7 +84,11 @@ pub fn factorial() -> VMContext {
     let blk_2_v53 = func.new_ssa(2, "blk_2_v53", type_def_int64.clone());
     
     //   RET %v53
-    let blk_2_term = TreeNode::new_inst(Instruction::Return(vec![blk_2_v53.clone()]));
+    let blk_2_term = TreeNode::new_inst(Instruction{
+        value: None,
+        ops: RefCell::new(vec![blk_2_v53.clone()]),
+        v: Instruction_::Return(vec![0])
+    });
     
     let blk_2_content = BlockContent {
         args: vec![blk_2_v53.clone()], 
@@ -94,45 +103,43 @@ pub fn factorial() -> VMContext {
     
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
     let blk_1_v50 = func.new_ssa(4, "blk_1_v50", type_def_int64.clone());
-    let blk_1_v50_expr = Expression_::BinOp(
-        BinOp::Sub,
-        blk_1_n_3.clone(),
-        const_def_int64_1_local.clone()
-    );
-    let blk_1_inst0 = TreeNode::new_inst(Instruction::Assign{left: vec![blk_1_v50.clone()], right: blk_1_v50_expr});
+    let blk_1_inst0 = TreeNode::new_inst(Instruction{
+        value: Some(vec![blk_1_v50.clone()]),
+        ops: RefCell::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
+        v: Instruction_::BinOp(BinOp::Sub, 0, 1)
+    });
     
     //   %v51 = CALL <@fac_sig> @fac (%v50)
     let blk_1_v51 = func.new_ssa(5, "blk_1_v51", type_def_int64.clone());
-    let blk_1_inst1 = TreeNode::new_inst(Instruction::Assign{
-            left: vec![blk_1_v51.clone()],
-            right: Expression_::ExprCall {
-                data: CallData {
-                    func: func.new_ssa(6, "blk_1_fac", P(MuType::funcref(fac_sig.clone()))),
-                    args: vec![blk_1_v50.clone()],
-                    convention: CallConvention::Mu
-                },
-                is_abort: true
-            }
+    let blk_1_inst1 = TreeNode::new_inst(Instruction{
+        value: Some(vec![blk_1_v51.clone()]),
+        ops: RefCell::new(vec![func.new_ssa(6, "blk_1_fac", P(MuType::funcref(fac_sig.clone()))), blk_1_v50.clone()]),
+        v: Instruction_::ExprCall {
+            data: CallData {
+                func: 0,
+                args: vec![1],
+                convention: CallConvention::Mu
+            },
+            is_abort: true
+        }
     });
     
     //   %v52 = MUL <@int_64> %n_3 %v51
     let blk_1_v52 = func.new_ssa(7, "blk_1_v52", type_def_int64.clone());
-    let blk_1_v52_expr = Expression_::BinOp(
-        BinOp::Mul,
-        blk_1_n_3.clone(),
-        blk_1_v51.clone()
-    );
-    let blk_1_inst2 = TreeNode::new_inst(Instruction::Assign{
-            left: vec![blk_1_v52.clone()], 
-            right: blk_1_v52_expr
+    let blk_1_inst2 = TreeNode::new_inst(Instruction{
+        value: Some(vec![blk_1_v52.clone()]),
+        ops: RefCell::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
+        v: Instruction_::BinOp(BinOp::Mul, 0, 1)
     });
     
-    let blk_1_term = TreeNode::new_inst(Instruction::Branch1 (
-        Destination {
-            target: "blk_2", 
-            args: vec![DestArg::Normal(blk_1_v52.clone())]
-        }
-    ));
+    let blk_1_term = TreeNode::new_inst(Instruction{
+        value: None,
+        ops: RefCell::new(vec![blk_1_v52.clone()]),
+        v: Instruction_::Branch1(Destination {
+                target: "blk_2",
+                args: vec![DestArg::Normal(0)]
+           })
+    });
     
     let blk_1_content = BlockContent {
         args: vec![blk_1_n_3.clone()], 

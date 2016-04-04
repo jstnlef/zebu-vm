@@ -5,11 +5,14 @@ use ast::types::*;
 use std::collections::HashMap;
 use std::fmt;
 use std::cell::Cell;
+use std::cell::RefCell;
 
 pub type WPID  = usize;
 pub type MuID  = usize;
 pub type MuTag = &'static str;
 pub type Address = usize; // TODO: replace this with Address(usize)
+
+pub type OpIndex = usize;
 
 #[derive(Debug)]
 pub struct MuFunction {
@@ -40,6 +43,10 @@ impl FunctionContext {
     pub fn get_value(&self, id: MuID) -> Option<&ValueEntry> {
         self.values.get(&id)
     }
+    
+    pub fn get_value_mut(&mut self, id: MuID) -> Option<&mut ValueEntry> {
+        self.values.get_mut(&id)
+    }
 }
 
 impl MuFunction {
@@ -52,7 +59,7 @@ impl MuFunction {
     }
     
     pub fn new_ssa(&mut self, id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
-        self.context.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0)});
+        self.context.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
         
         P(TreeNode {
             v: TreeNode_::Value(P(Value{
@@ -99,10 +106,6 @@ pub struct BlockContent {
     pub keepalives: Option<Vec<P<TreeNode>>>    
 }
 
-pub trait OperandIteratable {
-    fn list_operands(&self) -> Vec<P<TreeNode>>;
-}
-
 #[derive(Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
@@ -113,6 +116,18 @@ pub struct TreeNode {
 impl TreeNode {   
     pub fn new_inst(v: Instruction) -> P<TreeNode> {
         P(TreeNode{v: TreeNode_::Instruction(v)})
+    }
+    
+    pub fn extract_ssa_id(&self) -> Option<MuID> {
+        match self.v {
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::SSAVar(id) => Some(id),
+                    _ => None
+                }
+            },
+            _ => None
+        }
     }
 }
 
@@ -139,7 +154,7 @@ impl fmt::Debug for TreeNode {
 #[derive(Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
-    Instruction(Instruction),
+    Instruction(Instruction)
 }
 
 /// always use with P<Value>
@@ -161,7 +176,14 @@ pub struct ValueEntry {
     pub id: MuID,
     pub tag: MuTag,
     pub ty: P<MuType>,
-    pub use_count: Cell<usize>  // how many times this entry is used
+    pub use_count: Cell<usize>,  // how many times this entry is used
+    pub expr: Option<Instruction>
+}
+
+impl ValueEntry {
+    pub fn assign_expr(&mut self, expr: Instruction) {
+        self.expr = Some(expr)
+    }
 }
 
 impl fmt::Debug for ValueEntry {
@@ -196,23 +218,141 @@ impl fmt::Debug for Constant {
 }
 
 #[derive(Clone)]
-pub enum Instruction {
+pub struct Instruction {
+    pub value : Option<Vec<P<TreeNode>>>,
+    pub ops : RefCell<Vec<P<TreeNode>>>,
+    pub v: Instruction_
+}
+
+impl fmt::Debug for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} (value: {:?}, ops: {:?})", self.v, self.value, self.ops.borrow())
+    }
+}
+
+#[derive(Clone)]
+pub enum Instruction_ {
     // non-terminal instruction
-    Assign{
-        left: Vec<P<TreeNode>>,
-        right: Expression_
+    
+    // expressions
+    
+    BinOp(BinOp, OpIndex, OpIndex), 
+    CmpOp(CmpOp, OpIndex, OpIndex),
+    
+    // yields a tuple of results from the call
+    ExprCall{
+        data: CallData,
+        is_abort: bool, // T to abort, F to rethrow
     },
+    
+    // yields the memory value
+    Load{
+        is_ptr: bool,
+        order: MemoryOrder,
+        mem_loc: OpIndex
+    },
+    
+    // yields nothing
+    Store{
+        is_ptr: bool,
+        order: MemoryOrder,        
+        mem_loc: OpIndex,
+        value: OpIndex
+    },
+    
+    // yields pair (oldvalue, boolean (T = success, F = failure))
+    CmpXchg{
+        is_ptr: bool,
+        is_weak: bool,
+        success_order: MemoryOrder,
+        fail_order: MemoryOrder,
+        mem_loc: OpIndex,
+        expected_value: OpIndex,
+        desired_value: OpIndex
+    },
+    
+    // yields old memory value
+    AtomicRMW{
+        is_ptr: bool, // T for iref, F for ptr
+        order: MemoryOrder,
+        op: AtomicRMWOp,
+        mem_loc: OpIndex,
+        value: OpIndex // operand for op
+    },
+    
+    // yields a reference of the type
+    New(P<MuType>),
+    
+    // yields an iref of the type
+    AllocA(P<MuType>),
+    
+    // yields ref
+    NewHybrid(P<MuType>, OpIndex),
+    
+    // yields iref
+    AllocAHybrid(P<MuType>, OpIndex),
+    
+    // yields stack ref
+    NewStack(OpIndex), // func
+                           // TODO: common inst
+    
+    // yields thread reference
+    NewThread(OpIndex, Vec<OpIndex>), // stack, args
+    
+    // yields thread reference (thread resumes with exceptional value)
+    NewThreadExn(OpIndex, OpIndex), // stack, exception
+    
+    // yields frame cursor
+    NewFrameCursor(OpIndex), // stack
+    
+    // ref<T> -> iref<T>
+    GetIRef(OpIndex),
+    
+    // iref|uptr<struct|hybrid<T>> int<M> -> iref|uptr<U>
+    GetFieldIRef{
+        is_ptr: bool,
+        base: OpIndex, // iref or uptr
+        index: OpIndex // constant
+    },
+    
+    // iref|uptr<array<T N>> int<M> -> iref|uptr<T>
+    GetElementIRef{
+        is_ptr: bool,
+        base: OpIndex,
+        index: OpIndex // can be constant or ssa var
+    },
+    
+    // iref|uptr<T> int<M> -> iref|uptr<T>
+    ShiftIRef{
+        is_ptr: bool,
+        base: OpIndex,
+        offset: OpIndex
+    },
+    
+    // iref|uptr<hybrid<T U>> -> iref|uptr<U>
+    GetVarPartIRef{
+        is_ptr: bool,
+        base: OpIndex
+    },
+    
+//    PushFrame{
+//        stack: P<Value>,
+//        func: P<Value>
+//    },
+//    PopFrame{
+//        stack: P<Value>
+//    }
 
     Fence(MemoryOrder),
     
     // terminal instruction
-    Return(Vec<P<TreeNode>>),
+    Return(Vec<OpIndex>),
     ThreadExit, // TODO:  common inst
-    Throw(Vec<P<TreeNode>>),
+    Throw(Vec<OpIndex>),
     TailCall(CallData),
     Branch1(Destination),
     Branch2{
-        cond: P<TreeNode>,
+        cond: OpIndex,
         true_dest: Destination,
         false_dest: Destination
     },
@@ -235,243 +375,20 @@ pub enum Instruction {
         resume: ResumptionData
     },
     SwapStack{
-        stack: P<TreeNode>,
+        stack: OpIndex,
         is_exception: bool,
-        args: Vec<P<TreeNode>>,
+        args: Vec<OpIndex>,
         resume: ResumptionData
     },
     Switch{
-        cond: P<TreeNode>,
+        cond: OpIndex,
         default: Destination,
-        branches: Vec<(P<TreeNode>, Destination)>
+        branches: Vec<(OpIndex, Destination)>
     },
     ExnInstruction{
         inner: P<Instruction>,
         resume: ResumptionData
     }
-}
-
-impl fmt::Debug for Instruction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Instruction::Assign{ref left, ref right} => {
-                write!(f, "{:?} = {:?}", left, right)
-            },
-            &Instruction::Fence(order) => {
-                write!(f, "FENCE {:?}", order)
-            }            
-            
-            &Instruction::Return(ref vals) => write!(f, "RET {:?}", vals),
-            &Instruction::ThreadExit => write!(f, "THREADEXIT"),
-            &Instruction::Throw(ref vals) => write!(f, "THROW {:?}", vals),
-            &Instruction::TailCall(ref call) => write!(f, "TAILCALL {:?}", call),
-            &Instruction::Branch1(ref dest) => write!(f, "BRANCH {:?}", dest),
-            &Instruction::Branch2{ref cond, ref true_dest, ref false_dest} => {
-                write!(f, "BRANCH2 {:?} {:?} {:?}", cond, true_dest, false_dest)
-            },
-            &Instruction::Watchpoint{id, ref disable_dest, ref resume} => {
-                match id {
-                    Some(id) => {
-                        write!(f, "WATCHPOINT {:?} {:?} {:?}", id, disable_dest.as_ref().unwrap(), resume)
-                    },
-                    None => {
-                        write!(f, "TRAP {:?}", resume)
-                    }
-                }
-            },
-            &Instruction::WPBranch{wp, ref disable_dest, ref enable_dest} => {
-                write!(f, "WPBRANCH {:?} {:?} {:?}", wp, disable_dest, enable_dest)
-            },
-            &Instruction::Call{ref data, ref resume} => write!(f, "CALL {:?} {:?}", data, resume),
-            &Instruction::SwapStack{ref stack, is_exception, ref args, ref resume} => {
-                write!(f, "SWAPSTACK {:?} {:?} {:?} {:?}", stack, is_exception, args, resume)
-            },
-            &Instruction::Switch{ref cond, ref default, ref branches} => {
-                write!(f, "SWITCH {:?} {:?} {{{:?}}}", cond, default, branches)
-            },
-            &Instruction::ExnInstruction{ref inner, ref resume} => {
-                write!(f, "{:?} {:?}", inner, resume)
-            }
-        }
-    }    
-}
-
-impl OperandIteratable for Instruction {
-    fn list_operands(&self) -> Vec<P<TreeNode>> {
-        use ast::ir::Instruction::*;
-        match self {
-            &Assign{ref right, ..} => right.list_operands(),
-            &Fence(_) => vec![],
-                        
-            &Return(ref vals) => vals.to_vec(),
-            &Throw(ref vals) => vals.to_vec(),
-            &TailCall(ref call) => call.list_operands(),
-            &Branch1(ref dest) => dest.list_operands(),
-            &Branch2{ref cond, ref true_dest, ref false_dest} => {
-                let mut ret = vec![];
-                ret.push(cond.clone());
-                ret.append(&mut true_dest.list_operands());
-                ret.append(&mut false_dest.list_operands());
-                ret
-            },
-            &Watchpoint{ref disable_dest, ref resume, ..} => {
-                let mut ret = vec![];
-                if disable_dest.is_some() {
-                    ret.append(&mut disable_dest.as_ref().unwrap().list_operands())
-                }
-                ret.append(&mut resume.list_operands());
-                ret
-            },
-            &WPBranch{ref disable_dest, ref enable_dest, ..} => {
-                let mut ret = vec![];
-                ret.append(&mut disable_dest.list_operands());
-                ret.append(&mut enable_dest.list_operands());
-                ret
-            },
-            &Call{ref data, ref resume} => {
-                let mut ret = vec![];
-                ret.append(&mut data.list_operands());
-                ret.append(&mut resume.list_operands());
-                ret
-            },
-            &SwapStack{ref stack, ref args, ref resume, ..} => {
-                let mut ret = vec![];
-                ret.push(stack.clone());
-                ret.append(&mut args.to_vec());
-                ret.append(&mut resume.list_operands());
-                ret
-            },
-            &Switch{ref cond, ref default, ref branches} => {
-                let mut ret = vec![];
-                ret.push(cond.clone());
-                ret.append(&mut default.list_operands());
-                for entry in branches.iter() {
-                    ret.push(entry.0.clone());
-                    ret.append(&mut entry.1.list_operands());
-                }
-                
-                ret
-            },
-            &ExnInstruction{ref inner, ref resume} => {
-                let mut ret = vec![];
-                ret.append(&mut inner.list_operands());
-                ret.append(&mut resume.list_operands());
-                ret
-            },
-            
-            &ThreadExit => vec![]
-        }
-    }
-}
-
-#[derive(Clone)]
-pub enum Expression_ {
-    BinOp(BinOp, P<TreeNode>, P<TreeNode>), 
-    CmpOp(CmpOp, P<TreeNode>, P<TreeNode>),
-    
-    // yields a tuple of results from the call
-    ExprCall{
-        data: CallData,
-        is_abort: bool, // T to abort, F to rethrow
-    },
-    
-    // yields the memory value
-    Load{
-        is_ptr: bool,
-        order: MemoryOrder,
-        mem_loc: P<TreeNode>
-    },
-    
-    // yields nothing
-    Store{
-        is_ptr: bool,
-        order: MemoryOrder,        
-        mem_loc: P<TreeNode>,
-        value: P<TreeNode>
-    },
-    
-    // yields pair (oldvalue, boolean (T = success, F = failure))
-    CmpXchg{
-        is_ptr: bool,
-        is_weak: bool,
-        success_order: MemoryOrder,
-        fail_order: MemoryOrder,
-        mem_loc: P<TreeNode>,
-        expected_value: P<TreeNode>,
-        desired_value: P<TreeNode>
-    },
-    
-    // yields old memory value
-    AtomicRMW{
-        is_ptr: bool, // T for iref, F for ptr
-        order: MemoryOrder,
-        op: AtomicRMWOp,
-        mem_loc: P<TreeNode>,
-        value: P<TreeNode> // operand for op
-    },
-    
-    // yields a reference of the type
-    New(P<MuType>),
-    
-    // yields an iref of the type
-    AllocA(P<MuType>),
-    
-    // yields ref
-    NewHybrid(P<MuType>, P<TreeNode>),
-    
-    // yields iref
-    AllocAHybrid(P<MuType>, P<TreeNode>),
-    
-    // yields stack ref
-    NewStack(P<TreeNode>), // func
-                           // TODO: common inst
-    
-    // yields thread reference
-    NewThread(P<TreeNode>, Vec<P<TreeNode>>), // stack, args
-    
-    // yields thread reference (thread resumes with exceptional value)
-    NewThreadExn(P<TreeNode>, P<TreeNode>), // stack, exception
-    
-    // yields frame cursor
-    NewFrameCursor(P<TreeNode>), // stack
-    
-    // ref<T> -> iref<T>
-    GetIRef(P<TreeNode>),
-    
-    // iref|uptr<struct|hybrid<T>> int<M> -> iref|uptr<U>
-    GetFieldIRef{
-        is_ptr: bool,
-        base: P<TreeNode>, // iref or uptr
-        index: P<TreeNode> // constant
-    },
-    
-    // iref|uptr<array<T N>> int<M> -> iref|uptr<T>
-    GetElementIRef{
-        is_ptr: bool,
-        base: P<TreeNode>,
-        index: P<TreeNode> // can be constant or ssa var
-    },
-    
-    // iref|uptr<T> int<M> -> iref|uptr<T>
-    ShiftIRef{
-        is_ptr: bool,
-        base: P<TreeNode>,
-        offset: P<TreeNode>
-    },
-    
-    // iref|uptr<hybrid<T U>> -> iref|uptr<U>
-    GetVarPartIRef{
-        is_ptr: bool,
-        base: P<TreeNode>
-    },
-    
-//    PushFrame{
-//        stack: P<Value>,
-//        func: P<Value>
-//    },
-//    PopFrame{
-//        stack: P<Value>
-//    }
 }
 
 macro_rules! select {
@@ -484,93 +401,97 @@ macro_rules! select {
     }
 }
 
-impl OperandIteratable for Expression_ {
-    fn list_operands(&self) -> Vec<P<TreeNode>> {
-        match self {
-            &Expression_::BinOp(_, ref op1, ref op2) => vec![op1.clone(), op2.clone()],
-            &Expression_::CmpOp(_, ref op1, ref op2) => vec![op1.clone(), op2.clone()],
-            &Expression_::ExprCall{ref data, ..} => data.list_operands(),
-            &Expression_::Load{ref mem_loc, ..} => vec![mem_loc.clone()],
-            &Expression_::Store{ref value, ref mem_loc, ..} => vec![value.clone(), mem_loc.clone()],
-            &Expression_::CmpXchg{ref mem_loc, ref expected_value, ref desired_value, ..} => vec![mem_loc.clone(), expected_value.clone(), desired_value.clone()],
-            &Expression_::AtomicRMW{ref mem_loc, ref value, ..} => vec![mem_loc.clone(), value.clone()],
-            &Expression_::NewHybrid(_, ref len) => vec![len.clone()],
-            &Expression_::AllocAHybrid(_, ref len) => vec![len.clone()],
-            &Expression_::NewStack(ref func) => vec![func.clone()],
-            &Expression_::NewThread(ref stack, ref args) => {
-                let mut ret = vec![];
-                ret.push(stack.clone());
-                ret.append(&mut args.to_vec());
-                ret
-            },
-            &Expression_::NewThreadExn(ref stack, ref exception) => vec![stack.clone(), exception.clone()],
-            &Expression_::NewFrameCursor(ref stack) => vec![stack.clone()],
-            &Expression_::GetIRef(ref reference) => vec![reference.clone()],
-            &Expression_::GetFieldIRef{ref base, ref index, ..} => vec![base.clone(), index.clone()],
-            &Expression_::GetElementIRef{ref base, ref index, ..} => vec![base.clone(), index.clone()],
-            &Expression_::ShiftIRef{ref base, ref offset, ..} => vec![base.clone(), offset.clone()],
-            &Expression_::GetVarPartIRef{ref base, ..} => vec![base.clone()], 
-            
-            &Expression_::New(_) | &Expression_::AllocA(_) => vec![]
-        }
-    }
-}
-
-impl fmt::Debug for Expression_ {
+impl fmt::Debug for Instruction_ {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Expression_::BinOp(op, ref op1, ref op2) => write!(f, "{:?} {:?} {:?}", op, op1, op2),
-            &Expression_::CmpOp(op, ref op1, ref op2) => write!(f, "{:?} {:?} {:?}", op, op1, op2),
-            &Expression_::ExprCall{ref data, is_abort} => {
+            &Instruction_::BinOp(op, ref op1, ref op2) => write!(f, "{:?} {:?} {:?}", op, op1, op2),
+            &Instruction_::CmpOp(op, ref op1, ref op2) => write!(f, "{:?} {:?} {:?}", op, op1, op2),
+            &Instruction_::ExprCall{ref data, is_abort} => {
                 let abort = select!(is_abort, "ABORT_ON_EXN", "RETHROW");
                 write!(f, "CALL {:?} {}", data, abort)
             },
-            &Expression_::Load{is_ptr, ref mem_loc, order} => {
+            &Instruction_::Load{is_ptr, ref mem_loc, order} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 write!(f, "LOAD {} {:?} {:?}", ptr, order, mem_loc) 
             },
-            &Expression_::Store{ref value, is_ptr, ref mem_loc, order} => {
+            &Instruction_::Store{ref value, is_ptr, ref mem_loc, order} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 write!(f, "STORE {} {:?} {:?} {:?}", ptr, order, mem_loc, value)
             },
-            &Expression_::CmpXchg{is_ptr, is_weak, success_order, fail_order, 
+            &Instruction_::CmpXchg{is_ptr, is_weak, success_order, fail_order, 
                 ref mem_loc, ref expected_value, ref desired_value} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 let weak = select!(is_weak, "WEAK", "");
                 write!(f, "CMPXCHG {} {} {:?} {:?} {:?} {:?} {:?}", 
                     ptr, weak, success_order, fail_order, mem_loc, expected_value, desired_value)  
             },
-            &Expression_::AtomicRMW{is_ptr, order, op, ref mem_loc, ref value} => {
+            &Instruction_::AtomicRMW{is_ptr, order, op, ref mem_loc, ref value} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 write!(f, "ATOMICRMW {} {:?} {:?} {:?} {:?}", ptr, order, op, mem_loc, value)
             },
-            &Expression_::New(ref ty) => write!(f, "NEW {:?}", ty),
-            &Expression_::AllocA(ref ty) => write!(f, "ALLOCA {:?}", ty),
-            &Expression_::NewHybrid(ref ty, ref len) => write!(f, "NEWHYBRID {:?} {:?}", ty, len),
-            &Expression_::AllocAHybrid(ref ty, ref len) => write!(f, "ALLOCAHYBRID {:?} {:?}", ty, len),
-            &Expression_::NewStack(ref func) => write!(f, "NEWSTACK {:?}", func),
-            &Expression_::NewThread(ref stack, ref args) => write!(f, "NEWTHREAD {:?} PASS_VALUES {:?}", stack, args),
-            &Expression_::NewThreadExn(ref stack, ref exn) => write!(f, "NEWTHREAD {:?} THROW_EXC {:?}", stack, exn),
-            &Expression_::NewFrameCursor(ref stack) => write!(f, "NEWFRAMECURSOR {:?}", stack),
-            &Expression_::GetIRef(ref reference) => write!(f, "GETIREF {:?}", reference),
-            &Expression_::GetFieldIRef{is_ptr, ref base, ref index} => {
+            &Instruction_::New(ref ty) => write!(f, "NEW {:?}", ty),
+            &Instruction_::AllocA(ref ty) => write!(f, "ALLOCA {:?}", ty),
+            &Instruction_::NewHybrid(ref ty, ref len) => write!(f, "NEWHYBRID {:?} {:?}", ty, len),
+            &Instruction_::AllocAHybrid(ref ty, ref len) => write!(f, "ALLOCAHYBRID {:?} {:?}", ty, len),
+            &Instruction_::NewStack(ref func) => write!(f, "NEWSTACK {:?}", func),
+            &Instruction_::NewThread(ref stack, ref args) => write!(f, "NEWTHREAD {:?} PASS_VALUES {:?}", stack, args),
+            &Instruction_::NewThreadExn(ref stack, ref exn) => write!(f, "NEWTHREAD {:?} THROW_EXC {:?}", stack, exn),
+            &Instruction_::NewFrameCursor(ref stack) => write!(f, "NEWFRAMECURSOR {:?}", stack),
+            &Instruction_::GetIRef(ref reference) => write!(f, "GETIREF {:?}", reference),
+            &Instruction_::GetFieldIRef{is_ptr, ref base, ref index} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 write!(f, "GETFIELDIREF {} {:?} {:?}", ptr, base, index)
             },
-            &Expression_::GetElementIRef{is_ptr, ref base, ref index} => {
+            &Instruction_::GetElementIRef{is_ptr, ref base, ref index} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 write!(f, "GETELEMENTIREF {} {:?} {:?}", ptr, base, index)
             },
-            &Expression_::ShiftIRef{is_ptr, ref base, ref offset} => {
+            &Instruction_::ShiftIRef{is_ptr, ref base, ref offset} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 write!(f, "SHIFTIREF {} {:?} {:?}", ptr, base, offset)
             },
-            &Expression_::GetVarPartIRef{is_ptr, ref base} => {
+            &Instruction_::GetVarPartIRef{is_ptr, ref base} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 write!(f, "GETVARPARTIREF {} {:?}", ptr, base)
+            },
+            
+            &Instruction_::Fence(order) => {
+                write!(f, "FENCE {:?}", order)
+            }            
+            
+            &Instruction_::Return(ref vals) => write!(f, "RET {:?}", vals),
+            &Instruction_::ThreadExit => write!(f, "THREADEXIT"),
+            &Instruction_::Throw(ref vals) => write!(f, "THROW {:?}", vals),
+            &Instruction_::TailCall(ref call) => write!(f, "TAILCALL {:?}", call),
+            &Instruction_::Branch1(ref dest) => write!(f, "BRANCH {:?}", dest),
+            &Instruction_::Branch2{ref cond, ref true_dest, ref false_dest} => {
+                write!(f, "BRANCH2 {:?} {:?} {:?}", cond, true_dest, false_dest)
+            },
+            &Instruction_::Watchpoint{id, ref disable_dest, ref resume} => {
+                match id {
+                    Some(id) => {
+                        write!(f, "WATCHPOINT {:?} {:?} {:?}", id, disable_dest.as_ref().unwrap(), resume)
+                    },
+                    None => {
+                        write!(f, "TRAP {:?}", resume)
+                    }
+                }
+            },
+            &Instruction_::WPBranch{wp, ref disable_dest, ref enable_dest} => {
+                write!(f, "WPBRANCH {:?} {:?} {:?}", wp, disable_dest, enable_dest)
+            },
+            &Instruction_::Call{ref data, ref resume} => write!(f, "CALL {:?} {:?}", data, resume),
+            &Instruction_::SwapStack{ref stack, is_exception, ref args, ref resume} => {
+                write!(f, "SWAPSTACK {:?} {:?} {:?} {:?}", stack, is_exception, args, resume)
+            },
+            &Instruction_::Switch{ref cond, ref default, ref branches} => {
+                write!(f, "SWITCH {:?} {:?} {{{:?}}}", cond, default, branches)
+            },
+            &Instruction_::ExnInstruction{ref inner, ref resume} => {
+                write!(f, "{:?} {:?}", inner, resume)
             }
         }
-    }
+    }    
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -597,8 +518,8 @@ pub enum ForeignFFI {
 
 #[derive(Clone)]
 pub struct CallData {
-    pub func: P<TreeNode>,
-    pub args: Vec<P<TreeNode>>,
+    pub func: OpIndex,
+    pub args: Vec<OpIndex>,
     pub convention: CallConvention
 }
 
@@ -606,17 +527,6 @@ impl fmt::Debug for CallData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?} {:?} ({:?})", self.convention, self.func, self.args)
     }    
-}
-
-impl OperandIteratable for CallData {
-    fn list_operands(&self) -> Vec<P<TreeNode>> {
-        let mut ret = vec![];
-        
-        ret.push(self.func.clone());
-        ret.append(&mut self.args.to_vec());
-        
-        ret
-    }
 }
 
 #[derive(Clone)]
@@ -631,35 +541,10 @@ impl fmt::Debug for ResumptionData {
     }
 }
 
-impl OperandIteratable for ResumptionData {
-    fn list_operands(&self) -> Vec<P<TreeNode>> {
-        let mut ret = vec![];
-        ret.append(&mut self.normal_dest.list_operands());
-        ret.append(&mut self.exn_dest.list_operands());
-        
-        ret
-    }
-}
-
 #[derive(Clone)]
 pub struct Destination {
     pub target: MuTag,
     pub args: Vec<DestArg>
-}
-
-impl OperandIteratable for Destination {
-    fn list_operands(&self) -> Vec<P<TreeNode>> {
-        let mut ret = vec![];
-        
-        for arg in self.args.iter() {
-            match arg {
-                &DestArg::Normal(ref op) => ret.push(op.clone()),
-                _ => {}
-            }
-        }
-        
-        ret
-    }
 }
 
 impl fmt::Debug for Destination {
@@ -670,7 +555,7 @@ impl fmt::Debug for Destination {
 
 #[derive(Clone)]
 pub enum DestArg {
-    Normal(P<TreeNode>),
+    Normal(OpIndex),
     Freshbound(usize)
 }
 
