@@ -224,9 +224,20 @@ pub struct Instruction {
     pub v: Instruction_
 }
 
+impl Instruction {
+    fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
+        self.v.debug_str(ops)
+    }
+}
+
 impl fmt::Debug for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?} (value: {:?}, ops: {:?})", self.v, self.value, self.ops.borrow())
+        let ops = &self.ops.borrow();
+        if self.value.is_some() {
+            write!(f, "{:?} = {}", self.value.as_ref().unwrap(), self.v.debug_str(ops))
+        } else {
+            write!(f, "{}", self.v.debug_str(ops))
+        }
     }
 }
 
@@ -401,6 +412,109 @@ macro_rules! select {
     }
 }
 
+impl Instruction_ {
+    fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
+        match self {
+            &Instruction_::BinOp(op, op1, op2) => fmt::format(format_args!("{:?} {:?} {:?}", op, ops[op1], ops[op2])),
+            &Instruction_::CmpOp(op, op1, op2) => fmt::format(format_args!("{:?} {:?} {:?}", op, ops[op1], ops[op2])),
+            &Instruction_::ExprCall{ref data, is_abort} => {
+                let abort = select!(is_abort, "ABORT_ON_EXN", "RETHROW");
+                fmt::format(format_args!("CALL {} {}", data.debug_str(ops), abort))
+            },
+            &Instruction_::Load{is_ptr, mem_loc, order} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                fmt::format(format_args!("LOAD {} {:?} {:?}", ptr, order, ops[mem_loc])) 
+            },
+            &Instruction_::Store{value, is_ptr, mem_loc, order} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                fmt::format(format_args!("STORE {} {:?} {:?} {:?}", ptr, order, ops[mem_loc], ops[value]))
+            },
+            &Instruction_::CmpXchg{is_ptr, is_weak, success_order, fail_order, 
+                mem_loc, expected_value, desired_value} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                let weak = select!(is_weak, "WEAK", "");
+                fmt::format(format_args!("CMPXCHG {} {} {:?} {:?} {:?} {:?} {:?}", 
+                    ptr, weak, success_order, fail_order, ops[mem_loc], ops[expected_value], ops[desired_value]))  
+            },
+            &Instruction_::AtomicRMW{is_ptr, order, op, mem_loc, value} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                fmt::format(format_args!("ATOMICRMW {} {:?} {:?} {:?} {:?}", ptr, order, op, ops[mem_loc], ops[value]))
+            },
+            &Instruction_::New(ref ty) => fmt::format(format_args!("NEW {:?}", ty)),
+            &Instruction_::AllocA(ref ty) => fmt::format(format_args!("ALLOCA {:?}", ty)),
+            &Instruction_::NewHybrid(ref ty, len) => fmt::format(format_args!("NEWHYBRID {:?} {:?}", ty, ops[len])),
+            &Instruction_::AllocAHybrid(ref ty, len) => fmt::format(format_args!("ALLOCAHYBRID {:?} {:?}", ty, ops[len])),
+            &Instruction_::NewStack(func) => fmt::format(format_args!("NEWSTACK {:?}", ops[func])),
+            &Instruction_::NewThread(stack, ref args) => fmt::format(format_args!("NEWTHREAD {:?} PASS_VALUES {}", ops[stack], op_vector_str(args, ops))),
+            &Instruction_::NewThreadExn(stack, exn) => fmt::format(format_args!("NEWTHREAD {:?} THROW_EXC {:?}", ops[stack], ops[exn])),
+            &Instruction_::NewFrameCursor(stack) => fmt::format(format_args!("NEWFRAMECURSOR {:?}", ops[stack])),
+            &Instruction_::GetIRef(reference) => fmt::format(format_args!("GETIREF {:?}", ops[reference])),
+            &Instruction_::GetFieldIRef{is_ptr, base, index} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                fmt::format(format_args!("GETFIELDIREF {} {:?} {:?}", ptr, ops[base], ops[index]))
+            },
+            &Instruction_::GetElementIRef{is_ptr, base, index} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                fmt::format(format_args!("GETELEMENTIREF {} {:?} {:?}", ptr, ops[base], ops[index]))
+            },
+            &Instruction_::ShiftIRef{is_ptr, base, offset} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                fmt::format(format_args!("SHIFTIREF {} {:?} {:?}", ptr, ops[base], ops[offset]))
+            },
+            &Instruction_::GetVarPartIRef{is_ptr, base} => {
+                let ptr = select!(is_ptr, "PTR", "");
+                fmt::format(format_args!("GETVARPARTIREF {} {:?}", ptr, ops[base]))
+            },
+            
+            &Instruction_::Fence(order) => {
+                fmt::format(format_args!("FENCE {:?}", order))
+            },
+            
+            &Instruction_::Return(ref vals) => fmt::format(format_args!("RET {}", op_vector_str(vals, ops))),
+            &Instruction_::ThreadExit => "THREADEXIT".to_string(),
+            &Instruction_::Throw(ref vals) => fmt::format(format_args!("THROW {}", op_vector_str(vals, ops))),
+            &Instruction_::TailCall(ref call) => fmt::format(format_args!("TAILCALL {}", call.debug_str(ops))),
+            &Instruction_::Branch1(ref dest) => fmt::format(format_args!("BRANCH {:?}", dest.debug_str(ops))),
+            &Instruction_::Branch2{cond, ref true_dest, ref false_dest} => {
+                fmt::format(format_args!("BRANCH2 {:?} {} {}", ops[cond], true_dest.debug_str(ops), false_dest.debug_str(ops)))
+            },
+            &Instruction_::Watchpoint{id, ref disable_dest, ref resume} => {
+                match id {
+                    Some(id) => {
+                        fmt::format(format_args!("WATCHPOINT {:?} {} {}", id, disable_dest.as_ref().unwrap().debug_str(ops), resume.debug_str(ops)))
+                    },
+                    None => {
+                        fmt::format(format_args!("TRAP {}", resume.debug_str(ops)))
+                    }
+                }
+            },
+            &Instruction_::WPBranch{wp, ref disable_dest, ref enable_dest} => {
+                fmt::format(format_args!("WPBRANCH {:?} {} {}", wp, disable_dest.debug_str(ops), enable_dest.debug_str(ops)))
+            },
+            &Instruction_::Call{ref data, ref resume} => fmt::format(format_args!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops))),
+            &Instruction_::SwapStack{stack, is_exception, ref args, ref resume} => {
+                fmt::format(format_args!("SWAPSTACK {:?} {:?} {} {}", ops[stack], is_exception, op_vector_str(args, ops), resume.debug_str(ops)))
+            },
+            &Instruction_::Switch{cond, ref default, ref branches} => {
+                let mut ret = fmt::format(format_args!("SWITCH {:?} {:?} {{", cond, default.debug_str(ops)));
+                for i in 0..branches.len() {
+                    let (op, ref dest) = branches[i];
+                    ret.push_str(fmt::format(format_args!("{:?} {}", ops[op], dest.debug_str(ops))).as_str());
+                    if i != branches.len() - 1 {
+                        ret.push_str(", ");
+                    }
+                }
+                ret.push_str("}}");
+                
+                ret
+            },
+            &Instruction_::ExnInstruction{ref inner, ref resume} => {
+                fmt::format(format_args!("{:?} {:?}", inner.debug_str(ops), resume.debug_str(ops)))
+            }
+        }
+    }    
+}
+
 impl fmt::Debug for Instruction_ {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -523,6 +637,12 @@ pub struct CallData {
     pub convention: CallConvention
 }
 
+impl CallData {
+    fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
+        fmt::format(format_args!("{:?} {:?} ({})", self.convention, ops[self.func], op_vector_str(&self.args, ops)))
+    }
+}
+
 impl fmt::Debug for CallData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?} {:?} ({:?})", self.convention, self.func, self.args)
@@ -533,6 +653,12 @@ impl fmt::Debug for CallData {
 pub struct ResumptionData {
     pub normal_dest: Destination,
     pub exn_dest: Destination
+}
+
+impl ResumptionData {
+    fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
+        fmt::format(format_args!("normal: {:?}, exception: {:?}", self.normal_dest.debug_str(ops), self.exn_dest.debug_str(ops)))
+    }
 }
 
 impl fmt::Debug for ResumptionData {
@@ -547,6 +673,23 @@ pub struct Destination {
     pub args: Vec<DestArg>
 }
 
+impl Destination {
+    fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
+        let mut ret = fmt::format(format_args!("{}", self.target));
+        ret.push('[');
+        for i in 0..self.args.len() {
+            let ref arg = self.args[i];
+            ret.push_str(arg.debug_str(ops).as_str());
+            if i != self.args.len() - 1 {
+                ret.push_str(", ");
+            }
+        }
+        ret.push(']');
+        
+        ret
+    }
+}
+
 impl fmt::Debug for Destination {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}{:?}", self.target, self.args)
@@ -559,6 +702,15 @@ pub enum DestArg {
     Freshbound(usize)
 }
 
+impl DestArg {
+    fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
+        match self {
+            &DestArg::Normal(index) => fmt::format(format_args!("{:?}", ops[index])),
+            &DestArg::Freshbound(n) => fmt::format(format_args!("${:?}", n)) 
+        }
+    }
+}
+
 impl fmt::Debug for DestArg {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -566,4 +718,16 @@ impl fmt::Debug for DestArg {
             &DestArg::Freshbound(n) => write!(f, "${}", n)
         }
     }    
+}
+
+fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
+    let mut ret = String::new();
+    for i in 0..vec.len() {
+        let index = vec[i];
+        ret.push_str(fmt::format(format_args!("{:?}", ops[index])).as_str());
+        if i != vec.len() - 1 {
+            ret.push_str(", ");
+        }
+    }
+    ret
 }
