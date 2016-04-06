@@ -2,11 +2,13 @@ extern crate mu;
 
 use self::mu::ast::types::*;
 use self::mu::ast::ir::*;
+use self::mu::ast::inst::*;
 use self::mu::ast::ptr::*;
 use self::mu::ast::op::*;
 use self::mu::vm::context::*;
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 #[test]
 #[allow(unused_variables)]
@@ -68,7 +70,8 @@ pub fn factorial() -> VMContext {
             false_dest: Destination {
                 target: "blk_1",
                 args: vec![DestArg::Normal(2)]
-            }
+            },
+            true_prob: 0.5f32
         }
     });
     
@@ -151,12 +154,14 @@ pub fn factorial() -> VMContext {
     // wrap into a function
     func.define(FunctionContent{
             entry: "blk_0", 
-            blocks: vec![
-                ("blk_0", blk_0),
-                ("blk_1", blk_1),
-                ("blk_2", blk_2)
-            ]}
-    );
+            blocks: {
+                let mut blocks = HashMap::new();
+                blocks.insert("blk_0", blk_0);
+                blocks.insert("blk_1", blk_1);
+                blocks.insert("blk_2", blk_2);
+                blocks
+            }
+    });
     
     vm.declare_func(func);
     

@@ -35,7 +35,7 @@ impl CompilerPass for DefUse {
     }
     
     #[allow(unused_variables)]
-    fn visit_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {
+    fn start_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {
         // if an SSA appears in keepalives, its use count increases
         let ref mut keepalives = block.content.as_mut().unwrap().keepalives;
         if keepalives.is_some() {

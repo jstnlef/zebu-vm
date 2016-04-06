@@ -1,5 +1,5 @@
-use ast::ir::*;
-use ast::ir::Instruction_::*;
+use ast::inst::*;
+use ast::inst::Instruction_::*;
 
 pub fn is_terminal_inst(inst: &Instruction_) -> bool {
     match inst {

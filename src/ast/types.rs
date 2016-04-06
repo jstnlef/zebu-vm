@@ -1,7 +1,8 @@
-use std::fmt;
-
 use ast::ptr::P;
 use ast::ir::*;
+use common::vector_as_str;
+
+use std::fmt;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -67,7 +68,7 @@ impl fmt::Display for MuType_ {
             &MuType_::WeakRef(ref ty)                 => write!(f, "weakref<{}>", ty),
             &MuType_::UPtr(ref ty)                    => write!(f, "uptr<{}>", ty),
             &MuType_::Array(ref ty, size)             => write!(f, "array<{} {}>", ty, size),
-            &MuType_::Hybrid(ref fix_tys, ref var_ty) => write!(f, "hybrid<[{}] {}>", type_vector_str(fix_tys), var_ty), 
+            &MuType_::Hybrid(ref fix_tys, ref var_ty) => write!(f, "hybrid<[{}] {}>", vector_as_str(fix_tys), var_ty), 
             &MuType_::Void                            => write!(f, "void"),
             &MuType_::ThreadRef                       => write!(f, "threadref"),
             &MuType_::StackRef                        => write!(f, "stackref"),
@@ -301,17 +302,6 @@ pub struct MuFuncSig {
 
 impl fmt::Display for MuFuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{}] -> [{}]", type_vector_str(&self.ret_tys), type_vector_str(&self.arg_tys))
+        write!(f, "[{}] -> [{}]", vector_as_str(&self.ret_tys), vector_as_str(&self.arg_tys))
     }    
-}
-
-fn type_vector_str(vec: &Vec<P<MuType>>) -> String {
-    let mut ret = String::new();
-    for i in 0..vec.len() {
-        ret.push_str(fmt::format(format_args!("{}", vec[i])).as_str());
-        if i != vec.len() - 1 {
-            ret.push_str(", ");
-        }
-    }
-    ret
 }

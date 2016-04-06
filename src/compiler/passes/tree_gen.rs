@@ -1,5 +1,7 @@
 use ast::ir::*;
+use ast::inst::*;
 use ast::ir_semantics::*;
+
 use vm::context::VMContext;
 use compiler::CompilerPass;
 
@@ -25,10 +27,7 @@ impl CompilerPass for TreeGen {
     fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
         
-        for entry in func.content.as_mut().unwrap().blocks.iter_mut() {
-            let label : MuTag = entry.0;
-            let ref mut block : &mut Block = &mut entry.1;
-            
+        for (label, ref mut block) in func.content.as_mut().unwrap().blocks.iter_mut() {
             // take its content, we will need to put it back
             let mut content = block.content.take().unwrap();
             let body = content.body;

@@ -47,3 +47,21 @@ fn test_build_tree() {
     
     compiler.compile(&vm_context, &mut factorial_func);
 }
+
+#[test]
+fn test_cfa() {
+    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    
+    let vm_context : VMContext = factorial();
+    let compiler = Compiler::new(CompilerPolicy::new(vec![
+            Box::new(passes::DefUse::new()),
+            Box::new(passes::TreeGen::new()),
+            Box::new(passes::ControlFlowAnalysis::new())
+    ]));
+    
+    let mut factorial_func = {
+        vm_context.get_func("fac").unwrap().borrow_mut()
+    };
+    
+    compiler.compile(&vm_context, &mut factorial_func);    
+}
