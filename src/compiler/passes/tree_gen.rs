@@ -39,7 +39,7 @@ impl CompilerPass for TreeGen {
             trace!("");
             
             for node in body.into_iter() {
-                trace!("check inst: {:?}", node);
+                trace!("check inst: {}", node);
                 match &node.v {
                     &TreeNode_::Instruction(ref inst) => {
                         // check if any operands can be replaced by expression
@@ -56,11 +56,11 @@ impl CompilerPass for TreeGen {
                                         // replace the node with its expr
                                         let expr = entry_value.expr.take().unwrap();
                                         
-                                        trace!("{:?} replaced by {:?}", ops[index], expr);
+                                        trace!("{} replaced by {}", ops[index], expr);
                                         ops[index] = TreeNode::new_inst(expr);
                                     }
                                 } else {
-                                    trace!("{:?} cant be replaced", ops[index]);
+                                    trace!("{} cant be replaced", ops[index]);
                                 }
                             }
                         }
@@ -97,7 +97,7 @@ impl CompilerPass for TreeGen {
                     _ => panic!("expected an instruction node here")
                 }
                 
-                trace!("add {:?} back to block {}", node, label);
+                trace!("add {} back to block {}", node, label);
                 trace!("");
                 new_body.push(node);
             }
@@ -123,7 +123,7 @@ impl CompilerPass for TreeGen {
             debug!("block {}", entry.0);
             
             for inst in entry.1.content.as_ref().unwrap().body.iter() {
-                debug!("{:?}", inst);
+                debug!("{}", inst);
             }
         }
     }

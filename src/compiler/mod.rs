@@ -57,7 +57,7 @@ pub trait CompilerPass {
             self.visit_block(vm_context, &mut func.context, block);
             
             for inst in block.content.as_mut().unwrap().body.iter_mut() {
-                debug!("{:?}", inst);
+                debug!("{}", inst);
                 
                 self.visit_inst(vm_context, &mut func.context, inst);
             }

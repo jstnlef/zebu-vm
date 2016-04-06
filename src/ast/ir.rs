@@ -106,7 +106,7 @@ pub struct BlockContent {
     pub keepalives: Option<Vec<P<TreeNode>>>    
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
 //    pub op: OpCode,
@@ -131,47 +131,48 @@ impl TreeNode {
     }
 }
 
-impl fmt::Debug for TreeNode {
+/// use +() to display a node
+impl fmt::Display for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar(id) => {
-                        write!(f, "{:?} %{}#{}", pv.ty, pv.tag, id)
+                        write!(f, "+({} %{}#{})", pv.ty, pv.tag, id)
                     },
                     Value_::Constant(ref c) => {
-                        write!(f, "{:?} {:?}", pv.ty, c) 
+                        write!(f, "+({} {})", pv.ty, c) 
                     }
                 }
             },
             TreeNode_::Instruction(ref inst) => {
-                write!(f, "{:?}", inst)
+                write!(f, "+({})", inst)
             }
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
     Instruction(Instruction)
 }
 
 /// always use with P<Value>
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Value {
     pub tag: MuTag,
     pub ty: P<MuType>,
     pub v: Value_
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant)
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ValueEntry {
     pub id: MuID,
     pub tag: MuTag,
@@ -186,13 +187,13 @@ impl ValueEntry {
     }
 }
 
-impl fmt::Debug for ValueEntry {
+impl fmt::Display for ValueEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?} {}({})", self.ty, self.tag, self.id)
+        write!(f, "{} {}#{}", self.ty, self.tag, self.id)
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Constant {
     Int(usize),
     Float(f32),
@@ -203,7 +204,7 @@ pub enum Constant {
     Vector(Vec<Constant>),    
 }
 
-impl fmt::Debug for Constant {
+impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Constant::Int(v) => write!(f, "{}", v),
@@ -212,12 +213,21 @@ impl fmt::Debug for Constant {
             &Constant::IRef(v) => write!(f, "{}", v),
             &Constant::FuncRef(v) => write!(f, "{}", v),
             &Constant::UFuncRef(v) => write!(f, "{}", v),
-            &Constant::Vector(ref v) => write!(f, "{:?}", v)
+            &Constant::Vector(ref v) => {
+                write!(f, "[").unwrap();
+                for i in 0..v.len() {
+                    write!(f, "{}", v[i]).unwrap();
+                    if i != v.len() - 1 {
+                        write!(f, ", ").unwrap();
+                    }
+                }
+                write!(f, "]")
+            }
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Instruction {
     pub value : Option<Vec<P<TreeNode>>>,
     pub ops : RefCell<Vec<P<TreeNode>>>,
@@ -230,18 +240,18 @@ impl Instruction {
     }
 }
 
-impl fmt::Debug for Instruction {
+impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ops = &self.ops.borrow();
         if self.value.is_some() {
-            write!(f, "{:?} = {}", self.value.as_ref().unwrap(), self.v.debug_str(ops))
+            write!(f, "{} = {}", node_vector_str(self.value.as_ref().unwrap()), self.v.debug_str(ops))
         } else {
             write!(f, "{}", self.v.debug_str(ops))
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Instruction_ {
     // non-terminal instruction
     
@@ -415,91 +425,91 @@ macro_rules! select {
 impl Instruction_ {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         match self {
-            &Instruction_::BinOp(op, op1, op2) => fmt::format(format_args!("{:?} {:?} {:?}", op, ops[op1], ops[op2])),
-            &Instruction_::CmpOp(op, op1, op2) => fmt::format(format_args!("{:?} {:?} {:?}", op, ops[op1], ops[op2])),
+            &Instruction_::BinOp(op, op1, op2) => format!("{:?} {} {}", op, ops[op1], ops[op2]),
+            &Instruction_::CmpOp(op, op1, op2) => format!("{:?} {} {}", op, ops[op1], ops[op2]),
             &Instruction_::ExprCall{ref data, is_abort} => {
                 let abort = select!(is_abort, "ABORT_ON_EXN", "RETHROW");
-                fmt::format(format_args!("CALL {} {}", data.debug_str(ops), abort))
+                format!("CALL {} {}", data.debug_str(ops), abort)
             },
             &Instruction_::Load{is_ptr, mem_loc, order} => {
                 let ptr = select!(is_ptr, "PTR", "");
-                fmt::format(format_args!("LOAD {} {:?} {:?}", ptr, order, ops[mem_loc])) 
+                format!("LOAD {} {:?} {}", ptr, order, ops[mem_loc]) 
             },
             &Instruction_::Store{value, is_ptr, mem_loc, order} => {
                 let ptr = select!(is_ptr, "PTR", "");
-                fmt::format(format_args!("STORE {} {:?} {:?} {:?}", ptr, order, ops[mem_loc], ops[value]))
+                format!("STORE {} {:?} {} {}", ptr, order, ops[mem_loc], ops[value])
             },
             &Instruction_::CmpXchg{is_ptr, is_weak, success_order, fail_order, 
                 mem_loc, expected_value, desired_value} => {
                 let ptr = select!(is_ptr, "PTR", "");
                 let weak = select!(is_weak, "WEAK", "");
-                fmt::format(format_args!("CMPXCHG {} {} {:?} {:?} {:?} {:?} {:?}", 
-                    ptr, weak, success_order, fail_order, ops[mem_loc], ops[expected_value], ops[desired_value]))  
+                format!("CMPXCHG {} {} {:?} {:?} {} {} {}", 
+                    ptr, weak, success_order, fail_order, ops[mem_loc], ops[expected_value], ops[desired_value])  
             },
             &Instruction_::AtomicRMW{is_ptr, order, op, mem_loc, value} => {
                 let ptr = select!(is_ptr, "PTR", "");
-                fmt::format(format_args!("ATOMICRMW {} {:?} {:?} {:?} {:?}", ptr, order, op, ops[mem_loc], ops[value]))
+                format!("ATOMICRMW {} {:?} {:?} {} {}", ptr, order, op, ops[mem_loc], ops[value])
             },
-            &Instruction_::New(ref ty) => fmt::format(format_args!("NEW {:?}", ty)),
-            &Instruction_::AllocA(ref ty) => fmt::format(format_args!("ALLOCA {:?}", ty)),
-            &Instruction_::NewHybrid(ref ty, len) => fmt::format(format_args!("NEWHYBRID {:?} {:?}", ty, ops[len])),
-            &Instruction_::AllocAHybrid(ref ty, len) => fmt::format(format_args!("ALLOCAHYBRID {:?} {:?}", ty, ops[len])),
-            &Instruction_::NewStack(func) => fmt::format(format_args!("NEWSTACK {:?}", ops[func])),
-            &Instruction_::NewThread(stack, ref args) => fmt::format(format_args!("NEWTHREAD {:?} PASS_VALUES {}", ops[stack], op_vector_str(args, ops))),
-            &Instruction_::NewThreadExn(stack, exn) => fmt::format(format_args!("NEWTHREAD {:?} THROW_EXC {:?}", ops[stack], ops[exn])),
-            &Instruction_::NewFrameCursor(stack) => fmt::format(format_args!("NEWFRAMECURSOR {:?}", ops[stack])),
-            &Instruction_::GetIRef(reference) => fmt::format(format_args!("GETIREF {:?}", ops[reference])),
+            &Instruction_::New(ref ty) => format!("NEW {}", ty),
+            &Instruction_::AllocA(ref ty) => format!("ALLOCA {}", ty),
+            &Instruction_::NewHybrid(ref ty, len) => format!("NEWHYBRID {} {}", ty, ops[len]),
+            &Instruction_::AllocAHybrid(ref ty, len) => format!("ALLOCAHYBRID {} {}", ty, ops[len]),
+            &Instruction_::NewStack(func) => format!("NEWSTACK {}", ops[func]),
+            &Instruction_::NewThread(stack, ref args) => format!("NEWTHREAD {} PASS_VALUES {}", ops[stack], op_vector_str(args, ops)),
+            &Instruction_::NewThreadExn(stack, exn) => format!("NEWTHREAD {} THROW_EXC {}", ops[stack], ops[exn]),
+            &Instruction_::NewFrameCursor(stack) => format!("NEWFRAMECURSOR {}", ops[stack]),
+            &Instruction_::GetIRef(reference) => format!("GETIREF {}", ops[reference]),
             &Instruction_::GetFieldIRef{is_ptr, base, index} => {
                 let ptr = select!(is_ptr, "PTR", "");
-                fmt::format(format_args!("GETFIELDIREF {} {:?} {:?}", ptr, ops[base], ops[index]))
+                format!("GETFIELDIREF {} {} {}", ptr, ops[base], ops[index])
             },
             &Instruction_::GetElementIRef{is_ptr, base, index} => {
                 let ptr = select!(is_ptr, "PTR", "");
-                fmt::format(format_args!("GETELEMENTIREF {} {:?} {:?}", ptr, ops[base], ops[index]))
+                format!("GETELEMENTIREF {} {} {}", ptr, ops[base], ops[index])
             },
             &Instruction_::ShiftIRef{is_ptr, base, offset} => {
                 let ptr = select!(is_ptr, "PTR", "");
-                fmt::format(format_args!("SHIFTIREF {} {:?} {:?}", ptr, ops[base], ops[offset]))
+                format!("SHIFTIREF {} {} {}", ptr, ops[base], ops[offset])
             },
             &Instruction_::GetVarPartIRef{is_ptr, base} => {
                 let ptr = select!(is_ptr, "PTR", "");
-                fmt::format(format_args!("GETVARPARTIREF {} {:?}", ptr, ops[base]))
+                format!("GETVARPARTIREF {} {}", ptr, ops[base])
             },
             
             &Instruction_::Fence(order) => {
-                fmt::format(format_args!("FENCE {:?}", order))
+                format!("FENCE {:?}", order)
             },
             
-            &Instruction_::Return(ref vals) => fmt::format(format_args!("RET {}", op_vector_str(vals, ops))),
+            &Instruction_::Return(ref vals) => format!("RET {}", op_vector_str(vals, ops)),
             &Instruction_::ThreadExit => "THREADEXIT".to_string(),
-            &Instruction_::Throw(ref vals) => fmt::format(format_args!("THROW {}", op_vector_str(vals, ops))),
-            &Instruction_::TailCall(ref call) => fmt::format(format_args!("TAILCALL {}", call.debug_str(ops))),
-            &Instruction_::Branch1(ref dest) => fmt::format(format_args!("BRANCH {:?}", dest.debug_str(ops))),
+            &Instruction_::Throw(ref vals) => format!("THROW {}", op_vector_str(vals, ops)),
+            &Instruction_::TailCall(ref call) => format!("TAILCALL {}", call.debug_str(ops)),
+            &Instruction_::Branch1(ref dest) => format!("BRANCH {}", dest.debug_str(ops)),
             &Instruction_::Branch2{cond, ref true_dest, ref false_dest} => {
-                fmt::format(format_args!("BRANCH2 {:?} {} {}", ops[cond], true_dest.debug_str(ops), false_dest.debug_str(ops)))
+                format!("BRANCH2 {} {} {}", ops[cond], true_dest.debug_str(ops), false_dest.debug_str(ops))
             },
             &Instruction_::Watchpoint{id, ref disable_dest, ref resume} => {
                 match id {
                     Some(id) => {
-                        fmt::format(format_args!("WATCHPOINT {:?} {} {}", id, disable_dest.as_ref().unwrap().debug_str(ops), resume.debug_str(ops)))
+                        format!("WATCHPOINT {} {} {}", id, disable_dest.as_ref().unwrap().debug_str(ops), resume.debug_str(ops))
                     },
                     None => {
-                        fmt::format(format_args!("TRAP {}", resume.debug_str(ops)))
+                        format!("TRAP {}", resume.debug_str(ops))
                     }
                 }
             },
             &Instruction_::WPBranch{wp, ref disable_dest, ref enable_dest} => {
-                fmt::format(format_args!("WPBRANCH {:?} {} {}", wp, disable_dest.debug_str(ops), enable_dest.debug_str(ops)))
+                format!("WPBRANCH {} {} {}", wp, disable_dest.debug_str(ops), enable_dest.debug_str(ops))
             },
-            &Instruction_::Call{ref data, ref resume} => fmt::format(format_args!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops))),
+            &Instruction_::Call{ref data, ref resume} => format!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
             &Instruction_::SwapStack{stack, is_exception, ref args, ref resume} => {
-                fmt::format(format_args!("SWAPSTACK {:?} {:?} {} {}", ops[stack], is_exception, op_vector_str(args, ops), resume.debug_str(ops)))
+                format!("SWAPSTACK {} {} {} {}", ops[stack], is_exception, op_vector_str(args, ops), resume.debug_str(ops))
             },
             &Instruction_::Switch{cond, ref default, ref branches} => {
-                let mut ret = fmt::format(format_args!("SWITCH {:?} {:?} {{", cond, default.debug_str(ops)));
+                let mut ret = format!("SWITCH {} {} {{", ops[cond], default.debug_str(ops));
                 for i in 0..branches.len() {
                     let (op, ref dest) = branches[i];
-                    ret.push_str(fmt::format(format_args!("{:?} {}", ops[op], dest.debug_str(ops))).as_str());
+                    ret.push_str(format!("{} {}", ops[op], dest.debug_str(ops)).as_str());
                     if i != branches.len() - 1 {
                         ret.push_str(", ");
                     }
@@ -509,100 +519,7 @@ impl Instruction_ {
                 ret
             },
             &Instruction_::ExnInstruction{ref inner, ref resume} => {
-                fmt::format(format_args!("{:?} {:?}", inner.debug_str(ops), resume.debug_str(ops)))
-            }
-        }
-    }    
-}
-
-impl fmt::Debug for Instruction_ {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Instruction_::BinOp(op, ref op1, ref op2) => write!(f, "{:?} {:?} {:?}", op, op1, op2),
-            &Instruction_::CmpOp(op, ref op1, ref op2) => write!(f, "{:?} {:?} {:?}", op, op1, op2),
-            &Instruction_::ExprCall{ref data, is_abort} => {
-                let abort = select!(is_abort, "ABORT_ON_EXN", "RETHROW");
-                write!(f, "CALL {:?} {}", data, abort)
-            },
-            &Instruction_::Load{is_ptr, ref mem_loc, order} => {
-                let ptr = select!(is_ptr, "PTR", "");
-                write!(f, "LOAD {} {:?} {:?}", ptr, order, mem_loc) 
-            },
-            &Instruction_::Store{ref value, is_ptr, ref mem_loc, order} => {
-                let ptr = select!(is_ptr, "PTR", "");
-                write!(f, "STORE {} {:?} {:?} {:?}", ptr, order, mem_loc, value)
-            },
-            &Instruction_::CmpXchg{is_ptr, is_weak, success_order, fail_order, 
-                ref mem_loc, ref expected_value, ref desired_value} => {
-                let ptr = select!(is_ptr, "PTR", "");
-                let weak = select!(is_weak, "WEAK", "");
-                write!(f, "CMPXCHG {} {} {:?} {:?} {:?} {:?} {:?}", 
-                    ptr, weak, success_order, fail_order, mem_loc, expected_value, desired_value)  
-            },
-            &Instruction_::AtomicRMW{is_ptr, order, op, ref mem_loc, ref value} => {
-                let ptr = select!(is_ptr, "PTR", "");
-                write!(f, "ATOMICRMW {} {:?} {:?} {:?} {:?}", ptr, order, op, mem_loc, value)
-            },
-            &Instruction_::New(ref ty) => write!(f, "NEW {:?}", ty),
-            &Instruction_::AllocA(ref ty) => write!(f, "ALLOCA {:?}", ty),
-            &Instruction_::NewHybrid(ref ty, ref len) => write!(f, "NEWHYBRID {:?} {:?}", ty, len),
-            &Instruction_::AllocAHybrid(ref ty, ref len) => write!(f, "ALLOCAHYBRID {:?} {:?}", ty, len),
-            &Instruction_::NewStack(ref func) => write!(f, "NEWSTACK {:?}", func),
-            &Instruction_::NewThread(ref stack, ref args) => write!(f, "NEWTHREAD {:?} PASS_VALUES {:?}", stack, args),
-            &Instruction_::NewThreadExn(ref stack, ref exn) => write!(f, "NEWTHREAD {:?} THROW_EXC {:?}", stack, exn),
-            &Instruction_::NewFrameCursor(ref stack) => write!(f, "NEWFRAMECURSOR {:?}", stack),
-            &Instruction_::GetIRef(ref reference) => write!(f, "GETIREF {:?}", reference),
-            &Instruction_::GetFieldIRef{is_ptr, ref base, ref index} => {
-                let ptr = select!(is_ptr, "PTR", "");
-                write!(f, "GETFIELDIREF {} {:?} {:?}", ptr, base, index)
-            },
-            &Instruction_::GetElementIRef{is_ptr, ref base, ref index} => {
-                let ptr = select!(is_ptr, "PTR", "");
-                write!(f, "GETELEMENTIREF {} {:?} {:?}", ptr, base, index)
-            },
-            &Instruction_::ShiftIRef{is_ptr, ref base, ref offset} => {
-                let ptr = select!(is_ptr, "PTR", "");
-                write!(f, "SHIFTIREF {} {:?} {:?}", ptr, base, offset)
-            },
-            &Instruction_::GetVarPartIRef{is_ptr, ref base} => {
-                let ptr = select!(is_ptr, "PTR", "");
-                write!(f, "GETVARPARTIREF {} {:?}", ptr, base)
-            },
-            
-            &Instruction_::Fence(order) => {
-                write!(f, "FENCE {:?}", order)
-            }            
-            
-            &Instruction_::Return(ref vals) => write!(f, "RET {:?}", vals),
-            &Instruction_::ThreadExit => write!(f, "THREADEXIT"),
-            &Instruction_::Throw(ref vals) => write!(f, "THROW {:?}", vals),
-            &Instruction_::TailCall(ref call) => write!(f, "TAILCALL {:?}", call),
-            &Instruction_::Branch1(ref dest) => write!(f, "BRANCH {:?}", dest),
-            &Instruction_::Branch2{ref cond, ref true_dest, ref false_dest} => {
-                write!(f, "BRANCH2 {:?} {:?} {:?}", cond, true_dest, false_dest)
-            },
-            &Instruction_::Watchpoint{id, ref disable_dest, ref resume} => {
-                match id {
-                    Some(id) => {
-                        write!(f, "WATCHPOINT {:?} {:?} {:?}", id, disable_dest.as_ref().unwrap(), resume)
-                    },
-                    None => {
-                        write!(f, "TRAP {:?}", resume)
-                    }
-                }
-            },
-            &Instruction_::WPBranch{wp, ref disable_dest, ref enable_dest} => {
-                write!(f, "WPBRANCH {:?} {:?} {:?}", wp, disable_dest, enable_dest)
-            },
-            &Instruction_::Call{ref data, ref resume} => write!(f, "CALL {:?} {:?}", data, resume),
-            &Instruction_::SwapStack{ref stack, is_exception, ref args, ref resume} => {
-                write!(f, "SWAPSTACK {:?} {:?} {:?} {:?}", stack, is_exception, args, resume)
-            },
-            &Instruction_::Switch{ref cond, ref default, ref branches} => {
-                write!(f, "SWITCH {:?} {:?} {{{:?}}}", cond, default, branches)
-            },
-            &Instruction_::ExnInstruction{ref inner, ref resume} => {
-                write!(f, "{:?} {:?}", inner, resume)
+                format!("{} {}", inner.debug_str(ops), resume.debug_str(ops))
             }
         }
     }    
@@ -630,7 +547,7 @@ pub enum ForeignFFI {
     C
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CallData {
     pub func: OpIndex,
     pub args: Vec<OpIndex>,
@@ -639,17 +556,11 @@ pub struct CallData {
 
 impl CallData {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        fmt::format(format_args!("{:?} {:?} ({})", self.convention, ops[self.func], op_vector_str(&self.args, ops)))
+        format!("{:?} {} [{}]", self.convention, ops[self.func], op_vector_str(&self.args, ops))
     }
 }
 
-impl fmt::Debug for CallData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?} {:?} ({:?})", self.convention, self.func, self.args)
-    }    
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
     pub exn_dest: Destination
@@ -657,17 +568,11 @@ pub struct ResumptionData {
 
 impl ResumptionData {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        fmt::format(format_args!("normal: {:?}, exception: {:?}", self.normal_dest.debug_str(ops), self.exn_dest.debug_str(ops)))
+        format!("normal: {}, exception: {}", self.normal_dest.debug_str(ops), self.exn_dest.debug_str(ops))
     }
 }
 
-impl fmt::Debug for ResumptionData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "normal: {:?}, exception: {:?}", self.normal_dest, self.exn_dest)
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Destination {
     pub target: MuTag,
     pub args: Vec<DestArg>
@@ -675,7 +580,7 @@ pub struct Destination {
 
 impl Destination {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        let mut ret = fmt::format(format_args!("{}", self.target));
+        let mut ret = format!("{}", self.target);
         ret.push('[');
         for i in 0..self.args.len() {
             let ref arg = self.args[i];
@@ -690,13 +595,7 @@ impl Destination {
     }
 }
 
-impl fmt::Debug for Destination {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{:?}", self.target, self.args)
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum DestArg {
     Normal(OpIndex),
     Freshbound(usize)
@@ -705,26 +604,28 @@ pub enum DestArg {
 impl DestArg {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         match self {
-            &DestArg::Normal(index) => fmt::format(format_args!("{:?}", ops[index])),
-            &DestArg::Freshbound(n) => fmt::format(format_args!("${:?}", n)) 
+            &DestArg::Normal(index) => format!("{}", ops[index]),
+            &DestArg::Freshbound(n) => format!("${}", n) 
         }
     }
-}
-
-impl fmt::Debug for DestArg {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &DestArg::Normal(ref pv) => write!(f, "{:?}", pv),
-            &DestArg::Freshbound(n) => write!(f, "${}", n)
-        }
-    }    
 }
 
 fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
     let mut ret = String::new();
     for i in 0..vec.len() {
         let index = vec[i];
-        ret.push_str(fmt::format(format_args!("{:?}", ops[index])).as_str());
+        ret.push_str(format!("{}", ops[index]).as_str());
+        if i != vec.len() - 1 {
+            ret.push_str(", ");
+        }
+    }
+    ret
+}
+
+fn node_vector_str(vec: &Vec<P<TreeNode>>) -> String {
+    let mut ret = String::new();
+    for i in 0..vec.len() {
+        ret.push_str(format!("{}", vec[i]).as_str());
         if i != vec.len() - 1 {
             ret.push_str(", ");
         }

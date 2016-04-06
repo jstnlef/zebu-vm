@@ -5,13 +5,13 @@ use self::mu::ast::types::*;
 
 macro_rules! assert_type (
     ($test:expr, $expect: expr) => (
-        assert_eq!(format!("{:?}", $test), $expect)
+        assert_eq!(format!("{}", $test), $expect)
     )
 );
 
 macro_rules! println_type (
     ($test:expr) => (
-        println!("{:?}", $test)
+        println!("{}", $test)
     )  
 );
 
