@@ -20,12 +20,14 @@ pub struct MuFunction {
     pub fn_name: MuTag,
     pub sig: P<MuFuncSig>,
     pub content: Option<FunctionContent>,
-    pub context: FunctionContext
+    pub context: FunctionContext,
+    
+    pub block_trace: Option<Vec<MuTag>> // only available after Trace Generation Pass
 }
 
 impl MuFunction {
     pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
-        MuFunction{fn_name: fn_name, sig: sig, content: None, context: FunctionContext::new()}
+        MuFunction{fn_name: fn_name, sig: sig, content: None, context: FunctionContext::new(), block_trace: None}
     }
     
     pub fn define(&mut self, content: FunctionContent) {
@@ -131,6 +133,26 @@ impl Block {
 pub struct ControlFlow {
     pub preds : Vec<MuTag>,
     pub succs : Vec<BlockEdge>
+}
+
+impl ControlFlow {
+    pub fn get_hottest_succ(&self) -> Option<MuTag> {
+        if self.succs.len() == 0 {
+            None
+        } else {
+            let mut hot_blk = self.succs[0].target;
+            let mut hot_prob = self.succs[0].probability;
+            
+            for edge in self.succs.iter() {
+                if edge.probability > hot_prob {
+                    hot_blk = edge.target;
+                    hot_prob = edge.probability;
+                }
+            }
+            
+            Some(hot_blk)
+        }
+    }
 }
 
 impl fmt::Display for ControlFlow {

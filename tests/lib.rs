@@ -5,11 +5,17 @@ mod test_compiler;
 mod common {
     use std::fmt;
     
-    pub fn assert_str_vector (left: &Vec<&str>, right: &Vec<&str>) {
-        left.clone().sort();
-        right.clone().sort();
-        
+    pub fn assert_vector_ordered <T: fmt::Debug> (left: &Vec<T>, right: &Vec<T>) {
         assert_debug_str(left, right);
+    }
+    
+    pub fn assert_vector_no_order <T: Ord + fmt::Debug + Clone> (left: &Vec<T>, right: &Vec<T>) {
+        let mut left_clone = left.clone();
+        left_clone.sort();
+        let mut right_clone = right.clone();
+        right_clone.sort();
+        
+        assert_debug_str(left_clone, right_clone);
     }
     
     pub fn assert_debug_str<T: fmt::Debug, U: fmt::Debug> (left: T, right: U) {

@@ -208,7 +208,7 @@ pub fn factorial() -> VMContext {
                 target: "blk_1",
                 args: vec![DestArg::Normal(2)]
             },
-            true_prob: 0.5f32
+            true_prob: 0.3f32
         }
     });
     

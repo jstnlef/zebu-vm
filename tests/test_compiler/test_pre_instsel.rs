@@ -73,18 +73,18 @@ fn test_cfa_factorial() {
     
     // blk_0: preds=[], succs=[blk_2, blk_1]
     let blk_0 = content.get_block("blk_0");
-    assert_str_vector(&blk_0.control_flow.preds, &vec![]);
-    assert_str_vector(&block_edges_into_vec(&blk_0.control_flow.succs), &vec!["blk_2", "blk_1"]);
+    assert_vector_no_order(&blk_0.control_flow.preds, &vec![]);
+    assert_vector_no_order(&block_edges_into_vec(&blk_0.control_flow.succs), &vec!["blk_2", "blk_1"]);
     
     // blk_2: preds=[blk_0, blk_1], succs=[]
     let blk_2 = content.get_block("blk_2");
-    assert_str_vector(&blk_2.control_flow.preds, &vec!["blk_0", "blk_1"]);
-    assert_str_vector(&block_edges_into_vec(&blk_2.control_flow.succs), &vec![]);
+    assert_vector_no_order(&blk_2.control_flow.preds, &vec!["blk_0", "blk_1"]);
+    assert_vector_no_order(&block_edges_into_vec(&blk_2.control_flow.succs), &vec![]);
     
     // blk_1: preds=[blk_0], succs=[blk_2]
     let blk_1 = content.get_block("blk_1");
-    assert_str_vector(&blk_1.control_flow.preds, &vec!["blk_0"]);
-    assert_str_vector(&block_edges_into_vec(&blk_1.control_flow.succs), &vec!["blk_2"]);
+    assert_vector_no_order(&blk_1.control_flow.preds, &vec!["blk_0"]);
+    assert_vector_no_order(&block_edges_into_vec(&blk_1.control_flow.succs), &vec!["blk_2"]);
 }
 
 #[test]
@@ -109,18 +109,18 @@ fn test_cfa_sum() {
     
     // entry: preds=[], succs=[head]
     let entry = content.get_block("entry");
-    assert_str_vector(&entry.control_flow.preds, &vec![]);
-    assert_str_vector(&block_edges_into_vec(&entry.control_flow.succs), &vec!["head"]);
+    assert_vector_no_order(&entry.control_flow.preds, &vec![]);
+    assert_vector_no_order(&block_edges_into_vec(&entry.control_flow.succs), &vec!["head"]);
     
     // head: preds=[entry, head], succs=[head, ret]
     let head = content.get_block("head");
-    assert_str_vector(&head.control_flow.preds, &vec!["entry", "head"]);
-    assert_str_vector(&block_edges_into_vec(&head.control_flow.succs), &vec!["ret", "head"]);
+    assert_vector_no_order(&head.control_flow.preds, &vec!["entry", "head"]);
+    assert_vector_no_order(&block_edges_into_vec(&head.control_flow.succs), &vec!["ret", "head"]);
     
     // ret: preds=[head], succs=[]
     let ret = content.get_block("ret");
-    assert_str_vector(&ret.control_flow.preds, &vec!["head"]);
-    assert_str_vector(&block_edges_into_vec(&ret.control_flow.succs), &vec![]);
+    assert_vector_no_order(&ret.control_flow.preds, &vec!["head"]);
+    assert_vector_no_order(&block_edges_into_vec(&ret.control_flow.succs), &vec![]);
 }
 
 fn block_edges_into_vec(edges: &Vec<BlockEdge>) -> Vec<&str> {
@@ -129,4 +129,46 @@ fn block_edges_into_vec(edges: &Vec<BlockEdge>) -> Vec<&str> {
         ret.push(edge.target);
     }
     ret
+}
+
+#[test]
+fn test_trace_factorial() {
+    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    
+    let vm_context : VMContext = factorial();
+    let compiler = Compiler::new(CompilerPolicy::new(vec![
+            Box::new(passes::DefUse::new()),
+            Box::new(passes::TreeGen::new()),
+            Box::new(passes::ControlFlowAnalysis::new()),
+            Box::new(passes::TraceGen::new())
+    ]));
+    
+    let mut factorial_func = {
+        vm_context.get_func("fac").unwrap().borrow_mut()
+    };
+    
+    compiler.compile(&vm_context, &mut factorial_func);
+    
+    assert_vector_ordered(factorial_func.block_trace.as_ref().unwrap(), &vec!["blk_0", "blk_1", "blk_2"]);
+}
+
+#[test]
+fn test_trace_sum() {
+    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    
+    let vm_context : VMContext = sum();
+    let compiler = Compiler::new(CompilerPolicy::new(vec![
+            Box::new(passes::DefUse::new()),
+            Box::new(passes::TreeGen::new()),
+            Box::new(passes::ControlFlowAnalysis::new()),
+            Box::new(passes::TraceGen::new())
+    ]));
+    
+    let mut sum_func = {
+        vm_context.get_func("sum").unwrap().borrow_mut()
+    };
+    
+    compiler.compile(&vm_context, &mut sum_func);
+    
+    assert_vector_ordered(sum_func.block_trace.as_ref().unwrap(), &vec!["entry", "head", "ret"]);
 }
