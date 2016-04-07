@@ -1,5 +1,6 @@
 use ast::ir::*;
 use ast::inst::Instruction_::*;
+use common::vector_as_str;
 use vm::context::VMContext;
 
 use compiler::CompilerPass;
@@ -22,18 +23,23 @@ fn check_edge_kind(target: MuTag, stack: &Vec<MuTag>) -> EdgeKind {
     }
 }
 
-fn new_edge(cur: MuTag, edge: BlockEdge, func: &mut MuFunction) {
+fn new_edge(cur: MuTag, edge: BlockEdge, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut MuFunction) {
     // add current block to target's predecessors
     {
-        let target = func.content.as_mut().unwrap().get_block_mut(edge.target).unwrap();
+        let target = func.content.as_mut().unwrap().get_block_mut(edge.target);
         target.control_flow.preds.push(cur);
     }
     
-    // add target as current block's successors
+    // add target as current block's successors and start dfs
+    let succ = edge.target;
     {
-        let cur = func.content.as_mut().unwrap().get_block_mut(cur).unwrap();
+        let cur = func.content.as_mut().unwrap().get_block_mut(cur);
         cur.control_flow.succs.push(edge);
     }
+    if !visited.contains(&succ) {
+        dfs(succ, stack, visited, func);
+    }
+    
 }
 
 const WATCHPOINT_DISABLED_CHANCE : f32 = 0.9f32;
@@ -42,12 +48,16 @@ const NORMAL_RESUME_CHANCE       : f32 = 0.6f32;
 const EXN_RESUME_CHANCE          : f32 = 1f32 - NORMAL_RESUME_CHANCE;
 
 fn dfs(cur: MuTag, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut MuFunction) {
+    trace!("dfs visiting block {}", cur);
+    trace!("current stack: {:?}", stack);
+    trace!("current visited: {:?}", visited);
+    
     stack.push(cur);
     visited.push(cur);
     
     // find all the successors for current block, and push them to the stack    
     let out_edges : Vec<BlockEdge> = {
-        let cur = func.content.as_mut().unwrap().get_block_mut(cur).unwrap(); 
+        let cur = func.content.as_mut().unwrap().get_block_mut(cur); 
         let ref body = cur.content.as_ref().unwrap().body;
         let last_inst = body.last().unwrap();
         
@@ -171,8 +181,10 @@ fn dfs(cur: MuTag, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut 
         }
     };
     
+    trace!("out edges for {}: {}", cur, vector_as_str(&out_edges));
+    
     for edge in out_edges {
-        new_edge(cur, edge, func);
+        new_edge(cur, edge, stack, visited, func);
     }
     
     stack.pop();

@@ -2,7 +2,10 @@ extern crate mu;
 extern crate log;
 extern crate simple_logger;
 
+use common::*;
 use test_ir::test_ir::factorial;
+use test_ir::test_ir::sum;
+use self::mu::ast::ir::*;
 use self::mu::compiler::*;
 use self::mu::vm::context::VMContext;
 
@@ -49,7 +52,7 @@ fn test_build_tree() {
 }
 
 #[test]
-fn test_cfa() {
+fn test_cfa_factorial() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
     let vm_context : VMContext = factorial();
@@ -63,5 +66,67 @@ fn test_cfa() {
         vm_context.get_func("fac").unwrap().borrow_mut()
     };
     
-    compiler.compile(&vm_context, &mut factorial_func);    
+    compiler.compile(&vm_context, &mut factorial_func);
+    
+    // assert cfa
+    let content = factorial_func.content.as_ref().unwrap();
+    
+    // blk_0: preds=[], succs=[blk_2, blk_1]
+    let blk_0 = content.get_block("blk_0");
+    assert_str_vector(&blk_0.control_flow.preds, &vec![]);
+    assert_str_vector(&block_edges_into_vec(&blk_0.control_flow.succs), &vec!["blk_2", "blk_1"]);
+    
+    // blk_2: preds=[blk_0, blk_1], succs=[]
+    let blk_2 = content.get_block("blk_2");
+    assert_str_vector(&blk_2.control_flow.preds, &vec!["blk_0", "blk_1"]);
+    assert_str_vector(&block_edges_into_vec(&blk_2.control_flow.succs), &vec![]);
+    
+    // blk_1: preds=[blk_0], succs=[blk_2]
+    let blk_1 = content.get_block("blk_1");
+    assert_str_vector(&blk_1.control_flow.preds, &vec!["blk_0"]);
+    assert_str_vector(&block_edges_into_vec(&blk_1.control_flow.succs), &vec!["blk_2"]);
+}
+
+#[test]
+fn test_cfa_sum() {
+    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    
+    let vm_context : VMContext = sum();
+    let compiler = Compiler::new(CompilerPolicy::new(vec![
+            Box::new(passes::DefUse::new()),
+            Box::new(passes::TreeGen::new()),
+            Box::new(passes::ControlFlowAnalysis::new())
+    ]));
+    
+    let mut sum_func = {
+        vm_context.get_func("sum").unwrap().borrow_mut()
+    };
+    
+    compiler.compile(&vm_context, &mut sum_func);
+    
+    // assert cfa
+    let content = sum_func.content.as_ref().unwrap();
+    
+    // entry: preds=[], succs=[head]
+    let entry = content.get_block("entry");
+    assert_str_vector(&entry.control_flow.preds, &vec![]);
+    assert_str_vector(&block_edges_into_vec(&entry.control_flow.succs), &vec!["head"]);
+    
+    // head: preds=[entry, head], succs=[head, ret]
+    let head = content.get_block("head");
+    assert_str_vector(&head.control_flow.preds, &vec!["entry", "head"]);
+    assert_str_vector(&block_edges_into_vec(&head.control_flow.succs), &vec!["ret", "head"]);
+    
+    // ret: preds=[head], succs=[]
+    let ret = content.get_block("ret");
+    assert_str_vector(&ret.control_flow.preds, &vec!["head"]);
+    assert_str_vector(&block_edges_into_vec(&ret.control_flow.succs), &vec![]);
+}
+
+fn block_edges_into_vec(edges: &Vec<BlockEdge>) -> Vec<&str> {
+    let mut ret = vec![];
+    for edge in edges {
+        ret.push(edge.target);
+    }
+    ret
 }

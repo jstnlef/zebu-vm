@@ -69,19 +69,27 @@ pub struct FunctionContent {
 
 impl FunctionContent {
     pub fn get_entry_block(&self) -> &Block {
-        self.get_block(self.entry).unwrap()
+        self.get_block(self.entry)
     }
     
     pub fn get_entry_block_mut(&mut self) -> &mut Block {
-        self.get_block_mut(self.entry).unwrap()
+        self.get_block_mut(self.entry)
     }
     
-    pub fn get_block(&self, tag: MuTag) -> Option<&Block> {
-        self.blocks.get(tag)
+    pub fn get_block(&self, tag: MuTag) -> &Block {
+        let ret = self.blocks.get(tag);
+        match ret {
+            Some(b) => b,
+            None => panic!("cannot find block {}", tag)
+        }
     }
     
-    pub fn get_block_mut(&mut self, tag: MuTag) -> Option<&mut Block> {
-        self.blocks.get_mut(tag)
+    pub fn get_block_mut(&mut self, tag: MuTag) -> &mut Block {
+        let ret = self.blocks.get_mut(tag);
+        match ret {
+            Some(b) => b,
+            None => panic!("cannot find block {}", tag)
+        }
     } 
 }
 
