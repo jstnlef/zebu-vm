@@ -17,6 +17,7 @@ impl CompilerPass for TraceGen {
         self.name
     }
     
+    #[allow(unused_variables)]
     fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
         // we put the high probability edge into a hot trace, and others into cold paths
         // and traverse cold_path later
@@ -67,6 +68,7 @@ impl CompilerPass for TraceGen {
         func.block_trace = Some(trace);
     }
     
+    #[allow(unused_variables)]
     fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
         debug!("trace for {}", func.fn_name);
         debug!("{:?}", func.block_trace.as_ref().unwrap());
