@@ -32,6 +32,7 @@ impl CompilerPolicy {
         passes.push(Box::new(passes::DefUse::new()));
         passes.push(Box::new(passes::TreeGen::new()));
         passes.push(Box::new(passes::ControlFlowAnalysis::new()));
+        passes.push(Box::new(passes::TraceGen::new()));
         passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
         
         CompilerPolicy{passes: passes}

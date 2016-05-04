@@ -24,28 +24,28 @@ fn test_sum() {
 
 pub fn sum() -> VMContext {
     let mut vm = VMContext::new();
-    
+
     // .typedef @int_64 = int<64>
     let type_def_int64 = vm.declare_type("int_64", P(MuType::int(64)));
     let type_def_int1  = vm.declare_type("int_1", P(MuType::int(1)));
-    
+
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1
     let const_def_int64_0 = vm.declare_const("int64_0", type_def_int64.clone(), Constant::Int(0));
     let const_def_int64_1 = vm.declare_const("int64_1", type_def_int64.clone(), Constant::Int(1));
-    
+
     // .funcsig @sum_sig = (@int_64) -> (@int_64)
     let sum_sig = vm.declare_func_sig("sum_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
-    
+
     // .funcdef @sum VERSION @sum_v1 <@sum_sig>
     let mut func = MuFunction::new("sum", sum_sig.clone());
-    
+
     // %entry(<@int_64> %n):
     let mut blk_entry = Block::new("entry");
     let blk_entry_n = func.new_ssa(0, "blk_entry_n", type_def_int64.clone());
-    let const_def_int64_0_local = func.new_value(const_def_int64_0.clone()); // FIXME: why we need a local version?
-    let const_def_int64_1_local = func.new_value(const_def_int64_1.clone());
-    
+    let const_def_int64_0_local = func.new_constant(const_def_int64_0.clone()); // FIXME: why we need a local version?
+    let const_def_int64_1_local = func.new_constant(const_def_int64_1.clone());
+
     // BRANCH %head
     let blk_entry_term = TreeNode::new_inst(Instruction {
         value: None,
@@ -55,20 +55,20 @@ pub fn sum() -> VMContext {
             args: vec![DestArg::Normal(0), DestArg::Normal(1), DestArg::Normal(2)]
         })
     });
-    
+
     let blk_entry_content = BlockContent {
         args: vec![blk_entry_n.clone()],
         body: vec![blk_entry_term],
         keepalives: None
     };
     blk_entry.content = Some(blk_entry_content);
-    
+
     // %head(<@int_64> %n, <@int_64> %s, <@int_64> %i):
     let mut blk_head = Block::new("head");
     let blk_head_n = func.new_ssa(1, "blk_head_n", type_def_int64.clone());
     let blk_head_s = func.new_ssa(2, "blk_head_s", type_def_int64.clone());
     let blk_head_i = func.new_ssa(3, "blk_head_i", type_def_int64.clone());
-    
+
     // %s2 = ADD %s %i
     let blk_head_s2 = func.new_ssa(4, "blk_head_s2", type_def_int64.clone());
     let blk_head_inst0 = TreeNode::new_inst(Instruction {
@@ -76,7 +76,7 @@ pub fn sum() -> VMContext {
         ops: RefCell::new(vec![blk_head_s.clone(), blk_head_i.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
-    
+
     // %i2 = ADD %i 1
     let blk_head_i2 = func.new_ssa(5, "blk_head_i2", type_def_int64.clone());
     let blk_head_inst1 = TreeNode::new_inst(Instruction {
@@ -84,7 +84,7 @@ pub fn sum() -> VMContext {
         ops: RefCell::new(vec![blk_head_i.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
-    
+
     // %cond = UGT %i %n
     let blk_head_cond = func.new_ssa(6, "blk_head_cond", type_def_int1.clone());
     let blk_head_inst2 = TreeNode::new_inst(Instruction {
@@ -117,18 +117,18 @@ pub fn sum() -> VMContext {
         keepalives: None
     };
     blk_head.content = Some(blk_head_content);
-    
+
     // %ret(<@int_64> %s):
     let mut blk_ret = Block::new("ret");
     let blk_ret_s = func.new_ssa(7, "blk_ret_s", type_def_int64.clone());
-    
+
     // RET %s
     let blk_ret_term = TreeNode::new_inst(Instruction{
         value: None,
         ops: RefCell::new(vec![blk_ret_s.clone()]),
         v: Instruction_::Return(vec![0])
     });
-    
+
     let blk_ret_content = BlockContent {
         args: vec![blk_ret_s.clone()],
         body: vec![blk_ret_term],
@@ -138,7 +138,7 @@ pub fn sum() -> VMContext {
 
     // wrap into a function
     func.define(FunctionContent{
-            entry: "entry", 
+            entry: "entry",
             blocks: {
                 let mut blocks = HashMap::new();
                 blocks.insert("entry", blk_entry);
@@ -147,16 +147,16 @@ pub fn sum() -> VMContext {
                 blocks
             }
     });
-    
+
     vm.declare_func(func);
-    
+
     vm
 }
 
 #[allow(unused_variables)]
 pub fn factorial() -> VMContext {
     let mut vm = VMContext::new();
-    
+
     // .typedef @int_64 = int<64>
     // .typedef @int_1 = int<1>
     // .typedef @float = float
@@ -171,29 +171,29 @@ pub fn factorial() -> VMContext {
     let type_def_void  = vm.declare_type("void", P(MuType::void()));
     let type_def_int8  = vm.declare_type("int8", P(MuType::int(8)));
     let type_def_int32 = vm.declare_type("int32", P(MuType::int(32)));
-    
+
     // .const @int_64_1 <@int_64> = 1
     let const_def_int64_1 = vm.declare_const("int64_1", type_def_int64.clone(), Constant::Int(1));
-    
+
     // .funcsig @fac_sig = (@int_64) -> (@int_64)
     let fac_sig = vm.declare_func_sig("fac_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
-    
+
     // .funcdef @fac VERSION @fac_v1 <@fac_sig>
     let mut func = MuFunction::new("fac", fac_sig.clone());
-    
+
     // %blk_0(<@int_64> %n_3):
     let mut blk_0 = Block::new("blk_0");
     let blk_0_n_3 = func.new_ssa(0, "blk_0_n_3", type_def_int64.clone());
-    let const_def_int64_1_local = func.new_value(const_def_int64_1.clone());
-    
+    let const_def_int64_1_local = func.new_constant(const_def_int64_1.clone());
+
     //   %v48 = EQ <@int_64> %n_3 @int_64_1
     let blk_0_v48 = func.new_ssa(1, "blk_0_v48", type_def_int64.clone());
     let blk_0_inst0 = TreeNode::new_inst(Instruction {
             value: Some(vec![blk_0_v48.clone()]),
             ops: RefCell::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
             v: Instruction_::CmpOp(CmpOp::EQ, 0, 1)
-    });    
-    
+    });
+
     //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)
     let blk_0_term = TreeNode::new_inst(Instruction{
         value: None,
@@ -211,36 +211,36 @@ pub fn factorial() -> VMContext {
             true_prob: 0.3f32
         }
     });
-    
+
     let blk_0_content = BlockContent {
-        args: vec![blk_0_n_3.clone()], 
-        body: vec![blk_0_inst0, blk_0_term], 
+        args: vec![blk_0_n_3.clone()],
+        body: vec![blk_0_inst0, blk_0_term],
         keepalives: None
-    }; 
+    };
     blk_0.content = Some(blk_0_content);
 
     // %blk_2(<@int_64> %v53):
     let mut blk_2 = Block::new("blk_2");
     let blk_2_v53 = func.new_ssa(2, "blk_2_v53", type_def_int64.clone());
-    
+
     //   RET %v53
     let blk_2_term = TreeNode::new_inst(Instruction{
         value: None,
         ops: RefCell::new(vec![blk_2_v53.clone()]),
         v: Instruction_::Return(vec![0])
     });
-    
+
     let blk_2_content = BlockContent {
-        args: vec![blk_2_v53.clone()], 
-        body: vec![blk_2_term], 
+        args: vec![blk_2_v53.clone()],
+        body: vec![blk_2_term],
         keepalives: None
     };
     blk_2.content = Some(blk_2_content);
-    
+
     // %blk_1(<@int_64> %n_3):
     let mut blk_1 = Block::new("blk_1");
     let blk_1_n_3 = func.new_ssa(3, "blk_1_n_3", type_def_int64.clone());
-    
+
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
     let blk_1_v50 = func.new_ssa(4, "blk_1_v50", type_def_int64.clone());
     let blk_1_inst0 = TreeNode::new_inst(Instruction{
@@ -248,7 +248,7 @@ pub fn factorial() -> VMContext {
         ops: RefCell::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Sub, 0, 1)
     });
-    
+
     //   %v51 = CALL <@fac_sig> @fac (%v50)
     let blk_1_v51 = func.new_ssa(5, "blk_1_v51", type_def_int64.clone());
     let blk_1_inst1 = TreeNode::new_inst(Instruction{
@@ -263,7 +263,7 @@ pub fn factorial() -> VMContext {
             is_abort: true
         }
     });
-    
+
     //   %v52 = MUL <@int_64> %n_3 %v51
     let blk_1_v52 = func.new_ssa(7, "blk_1_v52", type_def_int64.clone());
     let blk_1_inst2 = TreeNode::new_inst(Instruction{
@@ -271,7 +271,7 @@ pub fn factorial() -> VMContext {
         ops: RefCell::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
         v: Instruction_::BinOp(BinOp::Mul, 0, 1)
     });
-    
+
     let blk_1_term = TreeNode::new_inst(Instruction{
         value: None,
         ops: RefCell::new(vec![blk_1_v52.clone()]),
@@ -280,17 +280,17 @@ pub fn factorial() -> VMContext {
                 args: vec![DestArg::Normal(0)]
            })
     });
-    
+
     let blk_1_content = BlockContent {
-        args: vec![blk_1_n_3.clone()], 
+        args: vec![blk_1_n_3.clone()],
         body: vec![blk_1_inst0, blk_1_inst1, blk_1_inst2, blk_1_term],
         keepalives: None
     };
     blk_1.content = Some(blk_1_content);
-    
+
     // wrap into a function
     func.define(FunctionContent{
-            entry: "blk_0", 
+            entry: "blk_0",
             blocks: {
                 let mut blocks = HashMap::new();
                 blocks.insert("blk_0", blk_0);
@@ -299,8 +299,8 @@ pub fn factorial() -> VMContext {
                 blocks
             }
     });
-    
+
     vm.declare_func(func);
-    
+
     vm
 }

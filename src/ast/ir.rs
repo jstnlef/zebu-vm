@@ -1,6 +1,7 @@
 use ast::ptr::P;
 use ast::types::*;
 use ast::inst::*;
+use ast::op::*;
 use common::vector_as_str;
 
 use std::collections::HashMap;
@@ -21,7 +22,7 @@ pub struct MuFunction {
     pub sig: P<MuFuncSig>,
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
-    
+
     pub block_trace: Option<Vec<MuTag>> // only available after Trace Generation Pass
 }
 
@@ -29,15 +30,16 @@ impl MuFunction {
     pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
         MuFunction{fn_name: fn_name, sig: sig, content: None, context: FunctionContext::new(), block_trace: None}
     }
-    
+
     pub fn define(&mut self, content: FunctionContent) {
         self.content = Some(content)
     }
-    
+
     pub fn new_ssa(&mut self, id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
         self.context.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
-        
+
         P(TreeNode {
+            op: pick_op_code_for_ssa(&ty),
             v: TreeNode_::Value(P(Value{
                 tag: tag,
                 ty: ty,
@@ -45,22 +47,13 @@ impl MuFunction {
             }))
         })
     }
-    
-    pub fn new_constant(&mut self, tag: MuTag, ty: P<MuType>, v: Constant) -> P<TreeNode> {
+
+    pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            v: TreeNode_::Value(P(Value{
-                tag: tag,
-                ty: ty, 
-                v: Value_::Constant(v)
-            }))
-        })
-    }
-    
-    pub fn new_value(&mut self, v: P<Value>) -> P<TreeNode> {
-        P(TreeNode{
+            op: pick_op_code_for_const(&v.ty),
             v: TreeNode_::Value(v)
         })
-    }    
+    }
 }
 
 #[derive(Debug)]
@@ -73,11 +66,11 @@ impl FunctionContent {
     pub fn get_entry_block(&self) -> &Block {
         self.get_block(self.entry)
     }
-    
+
     pub fn get_entry_block_mut(&mut self) -> &mut Block {
         self.get_block_mut(self.entry)
     }
-    
+
     pub fn get_block(&self, tag: MuTag) -> &Block {
         let ret = self.blocks.get(tag);
         match ret {
@@ -85,14 +78,14 @@ impl FunctionContent {
             None => panic!("cannot find block {}", tag)
         }
     }
-    
+
     pub fn get_block_mut(&mut self, tag: MuTag) -> &mut Block {
         let ret = self.blocks.get_mut(tag);
         match ret {
             Some(b) => b,
             None => panic!("cannot find block {}", tag)
         }
-    } 
+    }
 }
 
 #[derive(Debug)]
@@ -106,11 +99,11 @@ impl FunctionContext {
             values: HashMap::new()
         }
     }
-    
+
     pub fn get_value(&self, id: MuID) -> Option<&ValueEntry> {
         self.values.get(&id)
     }
-    
+
     pub fn get_value_mut(&mut self, id: MuID) -> Option<&mut ValueEntry> {
         self.values.get_mut(&id)
     }
@@ -142,14 +135,14 @@ impl ControlFlow {
         } else {
             let mut hot_blk = self.succs[0].target;
             let mut hot_prob = self.succs[0].probability;
-            
+
             for edge in self.succs.iter() {
                 if edge.probability > hot_prob {
                     hot_blk = edge.target;
                     hot_prob = edge.probability;
                 }
             }
-            
+
             Some(hot_blk)
         }
     }
@@ -191,21 +184,21 @@ pub enum EdgeKind {
 pub struct BlockContent {
     pub args: Vec<P<TreeNode>>,
     pub body: Vec<P<TreeNode>>,
-    pub keepalives: Option<Vec<P<TreeNode>>>    
+    pub keepalives: Option<Vec<P<TreeNode>>>
 }
 
 #[derive(Debug, Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
-//    pub op: OpCode,
-    pub v: TreeNode_
+    pub op: OpCode,
+    pub v: TreeNode_,
 }
 
-impl TreeNode {   
+impl TreeNode {
     pub fn new_inst(v: Instruction) -> P<TreeNode> {
-        P(TreeNode{v: TreeNode_::Instruction(v)})
+        P(TreeNode{op: pick_op_code_for_inst(&v), v: TreeNode_::Instruction(v)})
     }
-    
+
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             TreeNode_::Value(ref pv) => {
@@ -229,7 +222,7 @@ impl fmt::Display for TreeNode {
                         write!(f, "+({} %{}#{})", pv.ty, pv.tag, id)
                     },
                     Value_::Constant(ref c) => {
-                        write!(f, "+({} {})", pv.ty, c) 
+                        write!(f, "+({} {})", pv.ty, c)
                     }
                 }
             },
@@ -265,11 +258,11 @@ pub struct ValueEntry {
     pub id: MuID,
     pub tag: MuTag,
     pub ty: P<MuType>,
-    
+
     // how many times this entry is used
     // availalbe after DefUse pass
     pub use_count: Cell<usize>,
-    
+
     // this field is only used during TreeGeneration pass
     pub expr: Option<Instruction>
 }
@@ -294,7 +287,7 @@ pub enum Constant {
     IRef(Address),
     FuncRef(Address),
     UFuncRef(Address),
-    Vector(Vec<Constant>),    
+    Vector(Vec<Constant>),
 }
 
 impl fmt::Display for Constant {
