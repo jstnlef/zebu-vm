@@ -247,6 +247,34 @@ pub struct Value {
     pub v: Value_
 }
 
+impl Value {
+    pub fn is_int_reg(&self) -> bool {
+        match self.v {
+            Value_::SSAVar(_) => {
+                if is_scalar(&self.ty) && !is_fp(&self.ty) {
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false
+        }
+    }
+    
+    pub fn is_int_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(_) => {
+                let ty : &MuType_ = &self.ty;
+                match ty {
+                    &MuType_::Int(_) => true,
+                    _ => false
+                }
+            }
+            _ => false
+        }
+    }    
+}
+
 #[derive(Debug, Clone)]
 pub enum Value_ {
     SSAVar(MuID),
