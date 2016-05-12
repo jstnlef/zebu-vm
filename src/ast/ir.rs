@@ -19,6 +19,9 @@ pub type OpIndex = usize;
 #[derive(Debug)]
 pub struct MuFunction {
     pub fn_name: MuTag,
+    
+    pub next_id: MuID,
+    
     pub sig: P<MuFuncSig>,
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
@@ -26,9 +29,23 @@ pub struct MuFunction {
     pub block_trace: Option<Vec<MuTag>> // only available after Trace Generation Pass
 }
 
+pub const RESERVED_NODE_IDS_FOR_MACHINE : usize = 100;
+
 impl MuFunction {
     pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
-        MuFunction{fn_name: fn_name, sig: sig, content: None, context: FunctionContext::new(), block_trace: None}
+        MuFunction{
+            fn_name: fn_name,
+            next_id: RESERVED_NODE_IDS_FOR_MACHINE, 
+            sig: sig, 
+            content: None, 
+            context: FunctionContext::new(), 
+            block_trace: None}
+    }
+    
+    fn get_id(&mut self) -> MuID {
+        let ret = self.next_id;
+        self.next_id += 1;
+        ret
     }
 
     pub fn define(&mut self, content: FunctionContent) {
@@ -36,7 +53,7 @@ impl MuFunction {
     }
 
     pub fn new_ssa(&mut self, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
-        let id = TreeNode::get_id();
+        let id = self.get_id();
         
         self.context.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
@@ -53,9 +70,17 @@ impl MuFunction {
 
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            id: TreeNode::get_id(),
+            id: self.get_id(),
             op: pick_op_code_for_const(&v.ty),
             v: TreeNode_::Value(v)
+        })
+    }
+    
+    pub fn new_inst(&mut self, v: Instruction) -> P<TreeNode> {
+        P(TreeNode{
+            id: self.get_id(),
+            op: pick_op_code_for_inst(&v), 
+            v: TreeNode_::Instruction(v),
         })
     }
 }
@@ -199,24 +224,7 @@ pub struct TreeNode {
     pub v: TreeNode_,
 }
 
-use std::sync::atomic::{Ordering, AtomicUsize, ATOMIC_USIZE_INIT};
-static CUR_ID : AtomicUsize = ATOMIC_USIZE_INIT;
-
 impl TreeNode {
-    pub fn get_id() -> MuID {
-        let ret = CUR_ID.load(Ordering::SeqCst);
-        CUR_ID.store(ret + 1, Ordering::SeqCst);
-        return ret;
-    }
-    
-    pub fn new_inst(v: Instruction) -> P<TreeNode> {
-        P(TreeNode{
-            id: TreeNode::get_id(),
-            op: pick_op_code_for_inst(&v), 
-            v: TreeNode_::Instruction(v),
-        })
-    }
-
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             TreeNode_::Value(ref pv) => {

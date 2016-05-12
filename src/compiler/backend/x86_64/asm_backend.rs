@@ -94,6 +94,22 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: jbe {}", dest.target);
     }
     
+    fn emit_jg(&mut self, dest: &Destination) {
+        trace!("emit: jg {}", dest.target);
+    }
+    
+    fn emit_jge(&mut self, dest: &Destination) {
+        trace!("emit: jge {}", dest.target);
+    }
+    
+    fn emit_jl(&mut self, dest: &Destination) {
+        trace!("emit: jl {}", dest.target);
+    }
+    
+    fn emit_jle(&mut self, dest: &Destination) {
+        trace!("emit: jle {}", dest.target);
+    }    
+    
     fn emit_call(&mut self, func: &P<Value>) {
         trace!("emit: call {}", func);
     }

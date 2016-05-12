@@ -26,6 +26,10 @@ pub trait CodeGenerator {
     fn emit_jae(&mut self, dest: &Destination);
     fn emit_jb(&mut self, dest: &Destination);
     fn emit_jbe(&mut self, dest: &Destination);
+    fn emit_jg(&mut self, dest: &Destination);
+    fn emit_jge(&mut self, dest: &Destination);
+    fn emit_jl(&mut self, dest: &Destination);
+    fn emit_jle(&mut self, dest: &Destination);
     
     fn emit_call(&mut self, func: &P<Value>);
     fn emit_ret(&mut self);

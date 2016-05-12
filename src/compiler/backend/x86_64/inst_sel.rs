@@ -66,10 +66,14 @@ impl <'a> InstructionSelection {
                             match self.emit_cmp_res(cond) {
                                 op::CmpOp::EQ => self.backend.emit_je(branch_dest),
                                 op::CmpOp::NE => self.backend.emit_jne(branch_dest),
-                                op::CmpOp::SGE => self.backend.emit_jae(branch_dest),
-                                op::CmpOp::SGT => self.backend.emit_ja(branch_dest),
-                                op::CmpOp::SLE => self.backend.emit_jbe(branch_dest),
-                                op::CmpOp::SLT => self.backend.emit_jb(branch_dest),
+                                op::CmpOp::UGE => self.backend.emit_jae(branch_dest),
+                                op::CmpOp::UGT => self.backend.emit_ja(branch_dest),
+                                op::CmpOp::ULE => self.backend.emit_jbe(branch_dest),
+                                op::CmpOp::ULT => self.backend.emit_jb(branch_dest),
+                                op::CmpOp::SGE => self.backend.emit_jge(branch_dest),
+                                op::CmpOp::SGT => self.backend.emit_jg(branch_dest),
+                                op::CmpOp::SLE => self.backend.emit_jle(branch_dest),
+                                op::CmpOp::SLT => self.backend.emit_jl(branch_dest),
                                 _ => unimplemented!()
                             }
                         } else if self.match_ireg(cond) {
@@ -448,6 +452,8 @@ impl CompilerPass for InstructionSelection {
     #[allow(unused_variables)]
     fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
         debug!("{}", self.name());
+        
+        // init machine registers on the function
     }
 
     #[allow(unused_variables)]

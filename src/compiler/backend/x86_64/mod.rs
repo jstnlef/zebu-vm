@@ -9,6 +9,10 @@ pub use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 use ast::ptr::P;
 use ast::ir::*;
 
+lazy_static! {
+    
+}
+
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
     use std::u32;
     match op.v {
