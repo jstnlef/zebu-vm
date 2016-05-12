@@ -42,7 +42,7 @@ pub fn sum() -> VMContext {
 
     // %entry(<@int_64> %n):
     let mut blk_entry = Block::new("entry");
-    let blk_entry_n = func.new_ssa(0, "blk_entry_n", type_def_int64.clone());
+    let blk_entry_n = func.new_ssa("blk_entry_n", type_def_int64.clone());
     let const_def_int64_0_local = func.new_constant(const_def_int64_0.clone()); // FIXME: why we need a local version?
     let const_def_int64_1_local = func.new_constant(const_def_int64_1.clone());
 
@@ -65,30 +65,30 @@ pub fn sum() -> VMContext {
 
     // %head(<@int_64> %n, <@int_64> %s, <@int_64> %i):
     let mut blk_head = Block::new("head");
-    let blk_head_n = func.new_ssa(1, "blk_head_n", type_def_int64.clone());
-    let blk_head_s = func.new_ssa(2, "blk_head_s", type_def_int64.clone());
-    let blk_head_i = func.new_ssa(3, "blk_head_i", type_def_int64.clone());
+    let blk_head_n = func.new_ssa("blk_head_n", type_def_int64.clone());
+    let blk_head_s = func.new_ssa("blk_head_s", type_def_int64.clone());
+    let blk_head_i = func.new_ssa("blk_head_i", type_def_int64.clone());
 
     // %s2 = ADD %s %i
-    let blk_head_s2 = func.new_ssa(4, "blk_head_s2", type_def_int64.clone());
+    let blk_head_s2 = func.new_ssa("blk_head_s2", type_def_int64.clone());
     let blk_head_inst0 = TreeNode::new_inst(Instruction {
-        value: Some(vec![blk_head_s2.clone()]),
+        value: Some(vec![blk_head_s2.clone_value().unwrap()]),
         ops: RefCell::new(vec![blk_head_s.clone(), blk_head_i.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
     // %i2 = ADD %i 1
-    let blk_head_i2 = func.new_ssa(5, "blk_head_i2", type_def_int64.clone());
+    let blk_head_i2 = func.new_ssa("blk_head_i2", type_def_int64.clone());
     let blk_head_inst1 = TreeNode::new_inst(Instruction {
-        value: Some(vec![blk_head_i2.clone()]),
+        value: Some(vec![blk_head_i2.clone_value().unwrap()]),
         ops: RefCell::new(vec![blk_head_i.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
     // %cond = UGT %i %n
-    let blk_head_cond = func.new_ssa(6, "blk_head_cond", type_def_int1.clone());
+    let blk_head_cond = func.new_ssa("blk_head_cond", type_def_int1.clone());
     let blk_head_inst2 = TreeNode::new_inst(Instruction {
-        value: Some(vec![blk_head_cond.clone()]),
+        value: Some(vec![blk_head_cond.clone_value().unwrap()]),
         ops: RefCell::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
         v: Instruction_::CmpOp(CmpOp::UGT, 0, 1)
     });
@@ -120,7 +120,7 @@ pub fn sum() -> VMContext {
 
     // %ret(<@int_64> %s):
     let mut blk_ret = Block::new("ret");
-    let blk_ret_s = func.new_ssa(7, "blk_ret_s", type_def_int64.clone());
+    let blk_ret_s = func.new_ssa("blk_ret_s", type_def_int64.clone());
 
     // RET %s
     let blk_ret_term = TreeNode::new_inst(Instruction{
@@ -183,13 +183,13 @@ pub fn factorial() -> VMContext {
 
     // %blk_0(<@int_64> %n_3):
     let mut blk_0 = Block::new("blk_0");
-    let blk_0_n_3 = func.new_ssa(0, "blk_0_n_3", type_def_int64.clone());
+    let blk_0_n_3 = func.new_ssa("blk_0_n_3", type_def_int64.clone());
     let const_def_int64_1_local = func.new_constant(const_def_int64_1.clone());
 
     //   %v48 = EQ <@int_64> %n_3 @int_64_1
-    let blk_0_v48 = func.new_ssa(1, "blk_0_v48", type_def_int64.clone());
+    let blk_0_v48 = func.new_ssa("blk_0_v48", type_def_int64.clone());
     let blk_0_inst0 = TreeNode::new_inst(Instruction {
-            value: Some(vec![blk_0_v48.clone()]),
+            value: Some(vec![blk_0_v48.clone_value().unwrap()]),
             ops: RefCell::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
             v: Instruction_::CmpOp(CmpOp::EQ, 0, 1)
     });
@@ -221,7 +221,7 @@ pub fn factorial() -> VMContext {
 
     // %blk_2(<@int_64> %v53):
     let mut blk_2 = Block::new("blk_2");
-    let blk_2_v53 = func.new_ssa(2, "blk_2_v53", type_def_int64.clone());
+    let blk_2_v53 = func.new_ssa("blk_2_v53", type_def_int64.clone());
 
     //   RET %v53
     let blk_2_term = TreeNode::new_inst(Instruction{
@@ -239,21 +239,21 @@ pub fn factorial() -> VMContext {
 
     // %blk_1(<@int_64> %n_3):
     let mut blk_1 = Block::new("blk_1");
-    let blk_1_n_3 = func.new_ssa(3, "blk_1_n_3", type_def_int64.clone());
+    let blk_1_n_3 = func.new_ssa("blk_1_n_3", type_def_int64.clone());
 
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
-    let blk_1_v50 = func.new_ssa(4, "blk_1_v50", type_def_int64.clone());
+    let blk_1_v50 = func.new_ssa("blk_1_v50", type_def_int64.clone());
     let blk_1_inst0 = TreeNode::new_inst(Instruction{
-        value: Some(vec![blk_1_v50.clone()]),
+        value: Some(vec![blk_1_v50.clone_value().unwrap()]),
         ops: RefCell::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Sub, 0, 1)
     });
 
     //   %v51 = CALL <@fac_sig> @fac (%v50)
-    let blk_1_v51 = func.new_ssa(5, "blk_1_v51", type_def_int64.clone());
+    let blk_1_v51 = func.new_ssa("blk_1_v51", type_def_int64.clone());
     let blk_1_inst1 = TreeNode::new_inst(Instruction{
-        value: Some(vec![blk_1_v51.clone()]),
-        ops: RefCell::new(vec![func.new_ssa(6, "blk_1_fac", P(MuType::funcref(fac_sig.clone()))), blk_1_v50.clone()]),
+        value: Some(vec![blk_1_v51.clone_value().unwrap()]),
+        ops: RefCell::new(vec![func.new_ssa("blk_1_fac", P(MuType::funcref(fac_sig.clone()))), blk_1_v50.clone()]),
         v: Instruction_::ExprCall {
             data: CallData {
                 func: 0,
@@ -265,9 +265,9 @@ pub fn factorial() -> VMContext {
     });
 
     //   %v52 = MUL <@int_64> %n_3 %v51
-    let blk_1_v52 = func.new_ssa(7, "blk_1_v52", type_def_int64.clone());
+    let blk_1_v52 = func.new_ssa("blk_1_v52", type_def_int64.clone());
     let blk_1_inst2 = TreeNode::new_inst(Instruction{
-        value: Some(vec![blk_1_v52.clone()]),
+        value: Some(vec![blk_1_v52.clone_value().unwrap()]),
         ops: RefCell::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
         v: Instruction_::BinOp(BinOp::Mul, 0, 1)
     });

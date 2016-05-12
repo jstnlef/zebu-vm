@@ -9,7 +9,7 @@ use std::cell::RefCell;
 
 #[derive(Debug, Clone)]
 pub struct Instruction {
-    pub value : Option<Vec<P<TreeNode>>>,
+    pub value : Option<Vec<P<Value>>>,
     pub ops : RefCell<Vec<P<TreeNode>>>,
     pub v: Instruction_
 }

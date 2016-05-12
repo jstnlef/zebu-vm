@@ -35,10 +35,13 @@ impl MuFunction {
         self.content = Some(content)
     }
 
-    pub fn new_ssa(&mut self, id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
+    pub fn new_ssa(&mut self, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
+        let id = TreeNode::get_id();
+        
         self.context.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
         P(TreeNode {
+            id: id,
             op: pick_op_code_for_ssa(&ty),
             v: TreeNode_::Value(P(Value{
                 tag: tag,
@@ -50,6 +53,7 @@ impl MuFunction {
 
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
+            id: TreeNode::get_id(),
             op: pick_op_code_for_const(&v.ty),
             v: TreeNode_::Value(v)
         })
@@ -190,13 +194,27 @@ pub struct BlockContent {
 #[derive(Debug, Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
+    pub id: MuID,
     pub op: OpCode,
     pub v: TreeNode_,
 }
 
+use std::sync::atomic::{Ordering, AtomicUsize, ATOMIC_USIZE_INIT};
+static CUR_ID : AtomicUsize = ATOMIC_USIZE_INIT;
+
 impl TreeNode {
+    pub fn get_id() -> MuID {
+        let ret = CUR_ID.load(Ordering::SeqCst);
+        CUR_ID.store(ret + 1, Ordering::SeqCst);
+        return ret;
+    }
+    
     pub fn new_inst(v: Instruction) -> P<TreeNode> {
-        P(TreeNode{op: pick_op_code_for_inst(&v), v: TreeNode_::Instruction(v)})
+        P(TreeNode{
+            id: TreeNode::get_id(),
+            op: pick_op_code_for_inst(&v), 
+            v: TreeNode_::Instruction(v),
+        })
     }
 
     pub fn extract_ssa_id(&self) -> Option<MuID> {
@@ -208,6 +226,20 @@ impl TreeNode {
                 }
             },
             _ => None
+        }
+    }
+    
+    pub fn clone_value(&self) -> Option<P<Value>> {
+        match self.v {
+            TreeNode_::Value(ref val) => Some(val.clone()),
+            _ => None 
+        }
+    }    
+    
+    pub fn into_value(self) -> Option<P<Value>> {
+        match self.v {
+            TreeNode_::Value(val) => Some(val),
+            _ => None 
         }
     }
 }
@@ -272,7 +304,27 @@ impl Value {
             }
             _ => false
         }
-    }    
+    }
+    
+    pub fn extract_ssa_id(&self) -> Option<MuID> {
+        match self.v {
+            Value_::SSAVar(id) => Some(id),
+            _ => None
+        }
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.v {
+            Value_::SSAVar(id) => {
+                write!(f, "+({} %{}#{})", self.ty, self.tag, id)
+            },
+            Value_::Constant(ref c) => {
+                write!(f, "+({} {})", self.ty, c)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

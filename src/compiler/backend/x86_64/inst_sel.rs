@@ -1,64 +1,23 @@
 use ast::ir::*;
 use ast::ptr::*;
+use ast::inst::Instruction;
 use ast::inst::Destination;
 use ast::inst::DestArg;
-use ast::inst::Instruction_::*;
+use ast::inst::Instruction_;
 use ast::op;
 use ast::op::OpCode;
-use ast::types::*;
+use ast::types;
 use vm::context::VMContext;
 
 use compiler::CompilerPass;
-use compiler::backend::x86_64::*;
+use compiler::backend::x86_64;
+use compiler::backend::x86_64::CodeGenerator;
+use compiler::backend::x86_64::ASMCodeGen;
 
 pub struct InstructionSelection {
     name: &'static str,
-    backend: Box<CodeGenerator>
-}
-
-#[derive(Clone)]
-pub enum MatchResult {
-    REG(P<Value>),
-    MEM{base: P<Value>, index: P<Value>, scale: P<Value>, disp: P<Value>},
-    IMM(P<Value>),
-    FP_REG(P<Value>),
-    FP_IMM(P<Value>),
-}
-
-macro_rules! results_as {
-    ($results: expr, $expect: pat) => {
-        {
-            let find_pattern = |x: Vec<MatchResult>| {
-                for i in x.iter() {
-                    match i {
-                        &$expect => return Some(i.clone()),
-                        _ => continue
-                    }
-                }
-            
-                None
-            };
-            
-            find_pattern($results)
-        };
-    }
-}
-
-macro_rules! match_result {
-    ($result1: expr, $expect1: pat, $result2: expr, $expect2: pat, $block: block) => {
-        {
-            let r1 = results_as!($result1, $expect1);
-            let r2 = results_as!($result2, $expect2);
-            if r1.is_some() && r2.is_some() $block
-        }
-    };
     
-    ($result1: expr, $expect1: pat, $block) => {
-        {
-            let r1 = results_as!($result1, $expect1);
-            if r1.is_some() $block
-        }
-    };
+    backend: Box<CodeGenerator>
 }
 
 impl <'a> InstructionSelection {
@@ -75,12 +34,18 @@ impl <'a> InstructionSelection {
     // 3. we need to backup/restore all the callee-saved registers
     // if any of these assumption breaks, we will need to re-emit the code
     #[allow(unused_variables)]
-    fn instruction_select(&mut self, inst: &'a P<TreeNode>) -> Option<Vec<MatchResult>> {
-        trace!("instsel on node {}", inst);
-        match inst.v {
+    fn instruction_select(&mut self, node: &'a P<TreeNode>) {
+        trace!("instsel on node {}", node);
+        
+//        let mut state = inst.state.borrow_mut();
+//        *state = Some(BURSState::new(MATCH_RES_LEN));
+        
+        match node.v {
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
-                    Branch2{cond, ref true_dest, ref false_dest, true_prob} => {
+                    Instruction_::Branch2{cond, ref true_dest, ref false_dest, true_prob} => {
+                        // move this to trace generation
+                        // assert here
                         let (fallthrough_dest, branch_dest, branch_if_true) = {
                             if true_prob > 0.5f32 {
                                 (true_dest, false_dest, false)
@@ -89,122 +54,62 @@ impl <'a> InstructionSelection {
                             }
                         };
                         
-                        let mut ops = inst.ops.borrow_mut();
+                        let ops = inst.ops.borrow();
                         
-                        self.process_dest(&mut ops, fallthrough_dest);
-                        self.process_dest(&mut ops, branch_dest);
+                        self.process_dest(&ops, fallthrough_dest);
+                        self.process_dest(&ops, branch_dest);
     
                         let ref cond = ops[cond];
                         
-                        match cond.op {
-                            OpCode::Comparison(op) => {
-                                trace!("Tile comp-branch2");                            
-                                match cond.v {
-                                    TreeNode_::Instruction(ref inst) => {
-                                        match inst.v {
-                                            CmpOp(op, op1, op2) => {
-                                                // cmp op1 op2
-                                                // jcc branch_dest
-                                                // #fallthrough_dest:
-                                                // ..
-                                                let op1 = self.instruction_select(&ops[op1]).unwrap();
-                                                let op2 = self.instruction_select(&ops[op2]).unwrap();
-                                                
-                                                match_result!(op1, MatchResult::REG(_), op2, MatchResult::REG(_), {
-                                                    
-                                                });
-                                                
-//                                                // x86 cmp only allows second op as immediate
-//                                                let (op1, op2, branch_if_true) = {
-//                                                    if op1.is_int_const() && op2.is_int_reg() {
-//                                                        (op2, op1, !branch_if_true)
-//                                                    } else {
-//                                                        (op1, op2, branch_if_true)
-//                                                    }
-//                                                };
-//                                                
-//                                                if op1.is_int_reg() && op2.is_int_reg() {
-//                                                    self.backend.emit_cmp_r64_r64(op1, op2);
-//                                                } else if op1.is_int_reg() && op2.is_int_const() {
-//                                                    // x86 only supports immediates smaller than 32bits
-//                                                    let ty : &MuType_ = &op2.ty;
-//                                                    match ty {
-//                                                        &MuType_::Int(len) if len <= 32 => {
-//                                                            self.backend.emit_cmp_r64_imm32(op1, op2);
-//                                                        },
-//                                                        &MuType_::Int(len) if len > 32  => {
-//                                                            self.backend.emit_cmp_r64_mem64(op1, op2);
-//                                                        },
-//                                                        _ => panic!("{} is supposed to be int type", ty)
-//                                                    }
-//                                                } else if op1.is_int_const() && op2.is_int_reg() {
-//                                                    panic!("expected op2 as imm and op1 as reg found op1: {:?}, op2: {:?}", op1, op2);
-//                                                } else if op1.is_int_const() && op2.is_int_const() {
-//                                                    
-//                                                }
-                                                
-                                                None
-                                            },
-            
-                                            _ => panic!("expected a comparison op")
-                                        }
-                                    },
-                                    
-                                    _ => panic!("expected a comparison inst")
-                                }
-                            },
-                            
-                            OpCode::RegI64 | OpCode::IntImmI64 => {
-                                trace!("Tile value-branch2");
-                                // test/cmp pv 0
-                                // jcc branch_dest
-                                // #fallthrough_dest:
-                                // ...                            
-                                
-                                None
-                            },
-                            
-                            _ => {
-                                trace!("nested: compute cond");
-                                // instsel for cond first
-                                self.instruction_select(cond);
-                                
-                                // test/cmp res 0
-                                // jcc branch_dest
-                                // #fallthrough_dest:
-                                // ...
-                                trace!("Tile value-branch2 after computing cond");
-                                
-                                None
+                        if self.match_cmp_res(cond) {
+                            trace!("emit cmp_eq-branch2");
+                            match self.emit_cmp_res(cond) {
+                                op::CmpOp::EQ => self.backend.emit_je(branch_dest),
+                                op::CmpOp::NE => self.backend.emit_jne(branch_dest),
+                                op::CmpOp::SGE => self.backend.emit_jae(branch_dest),
+                                op::CmpOp::SGT => self.backend.emit_ja(branch_dest),
+                                op::CmpOp::SLE => self.backend.emit_jbe(branch_dest),
+                                op::CmpOp::SLT => self.backend.emit_jb(branch_dest),
+                                _ => unimplemented!()
                             }
+                        } else if self.match_ireg(cond) {
+                            trace!("emit ireg-branch2");
+                            
+                            let cond_reg = self.emit_ireg(cond);
+                            
+                            // emit: cmp cond_reg 1
+                            self.backend.emit_cmp_r64_imm32(&cond_reg, 1);
+                            // emit: je #branch_dest
+                            self.backend.emit_je(branch_dest);                            
+                        } else {
+                            unimplemented!();
                         }
                     },
                     
-                    Branch1(ref dest) => {
-                        let mut ops = inst.ops.borrow_mut();
+                    Instruction_::Branch1(ref dest) => {
+                        let ops = inst.ops.borrow();
                                             
-                        self.process_dest(&mut ops, dest);
+                        self.process_dest(&ops, dest);
                         
-                        trace!("Tile branch1");
+                        trace!("emit branch1");
                         // jmp
-                        
-                        None
+                        self.backend.emit_jmp(dest);
                     },
                     
-                    ExprCall{ref data, is_abort} => {
-                        trace!("Tile exprcall");
+                    Instruction_::ExprCall{ref data, is_abort} => {
+                        trace!("deal with pre-call convention");
                         
-                        let ops = inst.ops.borrow_mut();
+                        let ops = inst.ops.borrow();
                         for arg_index in data.args.iter() {
                             let ref arg = ops[*arg_index];
                             trace!("arg {}", arg);
                             match arg.op {
                                 OpCode::RegI64 | OpCode::IntImmI64 => {
-                                    trace!("Tile move-gpr-arg");
+                                    trace!("emit move-gpr-arg");
                                     // move to register
                                 },
                                 OpCode::RegFP | OpCode::FPImm => {
-                                    trace!("Tile move-fpr-arg");
+                                    trace!("emit move-fpr-arg");
                                     // move to fp register
                                 },
                                 _ => {
@@ -213,30 +118,31 @@ impl <'a> InstructionSelection {
                                     self.instruction_select(arg);
                                     
                                     // mov based on type
-                                    trace!("Tile move-arg after computing arg");
+                                    trace!("emit move-arg after computing arg");
                                 }
                             }
                         }
                         
-                        // emit call
+                        let ref func = ops[data.func];
+                        // check direct call or indirect                        
                         
-                        // return ret vals
-                        None
+                        // deal with ret vals
+                        unimplemented!()
                     },
                     
-                    Return(ref vals) => {
-                        let ops = inst.ops.borrow_mut();                    
+                    Instruction_::Return(ref vals) => {
+                        let ops = inst.ops.borrow();                    
                         for val_index in vals.iter() {
                             let ref val = ops[*val_index];
                             trace!("return val: {}", val);
                             
                             match val.op {
                                 OpCode::RegI64 | OpCode::IntImmI64 => {
-                                    trace!("Tile move-gpr-ret");
+                                    trace!("emit move-gpr-ret");
                                     // move to return register
                                 }
                                 OpCode::RegFP | OpCode::FPImm => {
-                                    trace!("Tile move-fpr-ret");
+                                    trace!("emit move-fpr-ret");
                                     // move to return fp register
                                 }
                                 _ => {
@@ -245,37 +151,108 @@ impl <'a> InstructionSelection {
                                     self.instruction_select(val);
                                     
                                     // move based on type
-                                    trace!("Tile move-ret-val after computing arg");
+                                    trace!("emit move-ret-val after computing arg");
                                 }
                             }
                         }
                         
-                        None
+                        self.backend.emit_ret();
                     },
                     
-                    BinOp(op, op1, op2) => {
+                    Instruction_::BinOp(op, op1, op2) => {
+                        let ops = inst.ops.borrow();
+                        
                         match op {
                             op::BinOp::Add => {
-                                trace!("Tile add");
-                                // mov op1, res
-                                // add op2 res
-                                
-                                None
+                                if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                                    trace!("emit add-ireg-ireg");
+                                    
+                                    let reg_op1 = self.emit_ireg(&ops[op1]);
+                                    let reg_op2 = self.emit_ireg(&ops[op2]);
+                                    let res_tmp = self.emit_get_result(node);
+                                    
+                                    // mov op1, res
+                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    // add op2 res
+                                    self.backend.emit_add_r64_r64(&res_tmp, &reg_op2);
+                                } else if self.match_ireg(&ops[op1]) && self.match_iimm(&ops[op2]) {
+                                    trace!("emit add-ireg-imm");
+                                    
+                                    let reg_op1 = self.emit_ireg(&ops[op1]);
+                                    let reg_op2 = self.emit_get_iimm(&ops[op2]);
+                                    let res_tmp = self.emit_get_result(node);
+                                    
+                                    // mov op1, res
+                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    // add op2, res
+                                    self.backend.emit_add_r64_imm32(&res_tmp, reg_op2);
+                                } else if self.match_iimm(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                                    trace!("emit add-imm-ireg");
+                                    unimplemented!();
+                                } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                                    trace!("emit add-ireg-mem");
+                                    
+                                    let reg_op1 = self.emit_ireg(&ops[op1]);
+                                    let reg_op2 = self.emit_mem(&ops[op2]);
+                                    let res_tmp = self.emit_get_result(node);
+                                    
+                                    // mov op1, res
+                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    // add op2 res
+                                    self.backend.emit_add_r64_mem64(&res_tmp, &reg_op2);
+                                } else if self.match_mem(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                                    trace!("emit add-mem-ireg");
+                                    unimplemented!();
+                                } else {
+                                    unimplemented!()
+                                }
                             },
                             op::BinOp::Sub => {
-                                trace!("Tile sub");
-                                // mov op1, res
-                                // sub op1, res
-                                
-                                None
+                                if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                                    trace!("emit sub-ireg-ireg");
+                                    
+                                    let reg_op1 = self.emit_ireg(&ops[op1]);
+                                    let reg_op2 = self.emit_ireg(&ops[op2]);
+                                    let res_tmp = self.emit_get_result(node);
+                                    
+                                    // mov op1, res
+                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    // add op2 res
+                                    self.backend.emit_sub_r64_r64(&res_tmp, &reg_op2);
+                                } else if self.match_ireg(&ops[op1]) && self.match_iimm(&ops[op2]) {
+                                    trace!("emit sub-ireg-imm");
+
+                                    let reg_op1 = self.emit_ireg(&ops[op1]);
+                                    let reg_op2 = self.emit_get_iimm(&ops[op2]);
+                                    let res_tmp = self.emit_get_result(node);
+                                    
+                                    // mov op1, res
+                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    // add op2, res
+                                    self.backend.emit_sub_r64_imm32(&res_tmp, reg_op2);
+                                } else if self.match_iimm(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                                    trace!("emit sub-imm-ireg");
+                                    unimplemented!();
+                                } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                                    trace!("emit sub-ireg-mem");
+                                    
+                                    let reg_op1 = self.emit_ireg(&ops[op1]);
+                                    let reg_op2 = self.emit_mem(&ops[op2]);
+                                    let res_tmp = self.emit_get_result(node);
+                                    
+                                    // mov op1, res
+                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    // sub op2 res
+                                    self.backend.emit_sub_r64_mem64(&res_tmp, &reg_op2);
+                                } else if self.match_mem(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                                    trace!("emit add-mem-ireg");
+                                    unimplemented!();
+                                } else {
+                                    unimplemented!()
+                                }
                             },
                             op::BinOp::Mul => {
-                                trace!("Tile mul");
-                                // mov op1 rax
-                                // mul op2 rax
-                                // mov rax res
-                                
-                                None
+                                unimplemented!()
                             },
                             
                             _ => unimplemented!()
@@ -287,17 +264,17 @@ impl <'a> InstructionSelection {
             },
             
             TreeNode_::Value(ref p) => {
-                None
+
             }
         }
     }
     
     #[allow(unused_variables)]
-    fn process_dest(&mut self, ops: &mut Vec<P<TreeNode>>, dest: &Destination) {
+    fn process_dest(&mut self, ops: &Vec<P<TreeNode>>, dest: &Destination) {
         for dest_arg in dest.args.iter() {
             match dest_arg {
                 &DestArg::Normal(op_index) => {
-                    let ref mut arg = ops[op_index];
+                    let ref arg = ops[op_index];
                     match arg.op {
                         OpCode::RegI64 
                         | OpCode::RegFP
@@ -313,6 +290,151 @@ impl <'a> InstructionSelection {
                     }
                 },
                 &DestArg::Freshbound(_) => unimplemented!()
+            }
+        }
+    }
+    
+    fn match_cmp_res(&mut self, op: &P<TreeNode>) -> bool {
+        match op.v {
+            TreeNode_::Instruction(ref inst) => {
+                match inst.v {
+                    Instruction_::CmpOp(_, _, _) => true,
+                    _ => false
+                }
+            }
+            TreeNode_::Value(_) => false
+        }
+    }
+    
+    fn emit_cmp_res(&mut self, cond: &P<TreeNode>) -> op::CmpOp {
+        match cond.v {
+            TreeNode_::Instruction(ref inst) => {
+                let ops = inst.ops.borrow();                
+                
+                match inst.v {
+                    Instruction_::CmpOp(op, op1, op2) => {
+                        let op1 = &ops[op1];
+                        let op2 = &ops[op2];
+                        
+                        if op::is_int_cmp(op) {                        
+                            if self.match_ireg(op1) && self.match_ireg(op2) {
+                                let reg_op1 = self.emit_ireg(op1);
+                                let reg_op2 = self.emit_ireg(op2);
+                                
+                                self.backend.emit_cmp_r64_r64(&reg_op1, &reg_op2);
+                            } else if self.match_ireg(op1) && self.match_iimm(op2) {
+                                let reg_op1 = self.emit_ireg(op1);
+                                let iimm_op2 = self.emit_get_iimm(op2);
+                                
+                                self.backend.emit_cmp_r64_imm32(&reg_op1, iimm_op2);
+                            } else {
+                                unimplemented!()
+                            }
+                        } else {
+                            unimplemented!()
+                        }
+                        
+                        op
+                    }
+                    
+                    _ => panic!("expect cmp res to emit")
+                }
+            }
+            _ => panic!("expect cmp res to emit")
+        }
+    }    
+    
+    fn match_ireg(&mut self, op: &P<TreeNode>) -> bool {
+        match op.v {
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        return false;
+                    }
+                    
+                    let ref value = inst.value.as_ref().unwrap()[0];
+                    
+                    if types::is_scalar(&value.ty) {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            
+            TreeNode_::Value(ref pv) => {
+                pv.is_int_reg()
+            }
+        }
+    }
+    
+    fn emit_ireg(&mut self, op: &P<TreeNode>) -> P<Value> {
+        match op.v {
+            TreeNode_::Instruction(_) => {
+                self.instruction_select(op);
+                
+                self.emit_get_result(op)
+            },
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::Constant(_) => panic!("expected ireg"),
+                    Value_::SSAVar(_) => {
+                        pv.clone()
+                    }
+                }
+            }
+        }
+    }
+    
+    fn match_iimm(&mut self, op: &P<TreeNode>) -> bool {
+        match op.v {
+            TreeNode_::Value(ref pv) if x86_64::is_valid_x86_imm(pv) => true,
+            _ => false
+        }
+    }
+    
+    fn match_mem(&mut self, op: &P<TreeNode>) -> bool {
+        unimplemented!()
+    }
+    
+    fn emit_mem(&mut self, op: &P<TreeNode>) -> P<Value> {
+        unimplemented!()
+    }
+    
+    fn emit_get_iimm(&mut self, op: &P<TreeNode>) -> u32 {
+        match op.v {
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::Constant(Constant::Int(val)) => {
+                        val as u32
+                    },
+                    _ => panic!("expected iimm")
+                }
+            },
+            _ => panic!("expected iimm")
+        }
+    }
+    
+    fn emit_get_result(&mut self, node: &P<TreeNode>) -> P<Value> {
+        match node.v {
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        panic!("expected ONE result from the node {}", node);
+                    }
+                    
+                    let ref value = inst.value.as_ref().unwrap()[0];
+                    
+                    value.clone()
+                } else {
+                    panic!("expected result from the node {}", node);
+                }
+            }
+            
+            TreeNode_::Value(ref pv) => {
+                pv.clone()
             }
         }
     }    

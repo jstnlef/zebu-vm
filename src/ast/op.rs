@@ -186,6 +186,22 @@ pub enum AtomicRMWOp {
     UMIN
 }
 
+pub fn is_int_cmp(op: CmpOp) -> bool {
+    match op {
+        CmpOp::EQ
+        | CmpOp::NE
+        | CmpOp::SGE
+        | CmpOp::SGT
+        | CmpOp::SLE
+        | CmpOp::SLT
+        | CmpOp::UGE
+        | CmpOp::UGT
+        | CmpOp::ULE
+        | CmpOp::ULT => true,
+        _ => false
+    }
+}
+
 pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
     match inst.v {
         Instruction_::BinOp(op, _, _) => OpCode::Binary(op),

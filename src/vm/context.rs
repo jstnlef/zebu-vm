@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
+use vm::CompiledFunction;
 
 use std::cell::RefCell;
 
@@ -10,7 +11,9 @@ pub struct VMContext {
     constants: HashMap<MuTag, P<Value>>,
     types: HashMap<MuTag, P<MuType>>,
     func_sigs: HashMap<MuTag, P<MuFuncSig>>,
-    funcs: HashMap<MuTag, RefCell<MuFunction>>
+    funcs: HashMap<MuTag, RefCell<MuFunction>>,
+    
+    compiled_funcs: HashMap<MuTag, RefCell<CompiledFunction>>
 }
 
 impl VMContext {
@@ -19,7 +22,8 @@ impl VMContext {
             constants: HashMap::new(),
             types: HashMap::new(),
             func_sigs: HashMap::new(),
-            funcs: HashMap::new()
+            funcs: HashMap::new(),
+            compiled_funcs: HashMap::new()
         }
     }
     
@@ -53,6 +57,12 @@ impl VMContext {
         debug_assert!(!self.funcs.contains_key(func.fn_name));
         
         self.funcs.insert(func.fn_name, RefCell::new(func));
+    }
+    
+    pub fn add_compiled_func (&mut self, func: CompiledFunction) {
+        debug_assert!(self.funcs.contains_key(func.fn_name));
+
+        self.compiled_funcs.insert(func.fn_name, RefCell::new(func));
     }
     
     pub fn get_func(&self, fn_name: MuTag) -> Option<&RefCell<MuFunction>> {

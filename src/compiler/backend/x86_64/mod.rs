@@ -8,11 +8,13 @@ pub use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 
 use ast::ptr::P;
 use ast::ir::*;
-use ast::types::*;
+
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
-    let ty : &MuType_ = &op.ty;
-    match ty {
-        &MuType_::Int(len) if len <= 32 => true,
+    use std::u32;
+    match op.v {
+        Value_::Constant(Constant::Int(val)) if val <= u32::MAX as usize => {
+            true
+        },
         _ => false
     }
 }
