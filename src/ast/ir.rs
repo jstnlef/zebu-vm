@@ -82,7 +82,7 @@ impl MuFunction {
             op: pick_op_code_for_inst(&v), 
             v: TreeNode_::Instruction(v),
         })
-    }
+    }      
 }
 
 #[derive(Debug)]
@@ -225,6 +225,15 @@ pub struct TreeNode {
 }
 
 impl TreeNode {
+    // this is a hack to allow creating TreeNode without using a &mut MuFunction
+    pub fn new_inst(id: MuID, v: Instruction) -> P<TreeNode> {
+        P(TreeNode{
+            id: id,
+            op: pick_op_code_for_inst(&v), 
+            v: TreeNode_::Instruction(v),
+        })
+    }    
+    
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             TreeNode_::Value(ref pv) => {
@@ -237,10 +246,10 @@ impl TreeNode {
         }
     }
     
-    pub fn clone_value(&self) -> Option<P<Value>> {
+    pub fn clone_value(&self) -> P<Value> {
         match self.v {
-            TreeNode_::Value(ref val) => Some(val.clone()),
-            _ => None 
+            TreeNode_::Value(ref val) => val.clone(),
+            _ => panic!("expecting a value") 
         }
     }    
     

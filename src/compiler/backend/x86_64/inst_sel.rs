@@ -104,26 +104,24 @@ impl <'a> InstructionSelection {
                         trace!("deal with pre-call convention");
                         
                         let ops = inst.ops.borrow();
+                        let mut gpr_arg_count = 0;
+                        let mut fpr_arg_count = 0;
                         for arg_index in data.args.iter() {
                             let ref arg = ops[*arg_index];
                             trace!("arg {}", arg);
-                            match arg.op {
-                                OpCode::RegI64 | OpCode::IntImmI64 => {
-                                    trace!("emit move-gpr-arg");
-                                    // move to register
-                                },
-                                OpCode::RegFP | OpCode::FPImm => {
-                                    trace!("emit move-fpr-arg");
-                                    // move to fp register
-                                },
-                                _ => {
-                                    trace!("nested: compute arg");
-                                    // instself for arg first
-                                    self.instruction_select(arg);
-                                    
-                                    // mov based on type
-                                    trace!("emit move-arg after computing arg");
-                                }
+                            
+                            if self.match_ireg(arg) {
+                                let arg = self.emit_ireg(arg);
+                                
+                                self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
+                                gpr_arg_count += 1;
+                            } else if self.match_iimm(arg) {
+                                let arg = self.emit_get_iimm(arg);
+                                
+                                self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], arg);
+                                gpr_arg_count += 1;
+                            } else {
+                                unimplemented!();
                             }
                         }
                         
