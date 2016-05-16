@@ -55,6 +55,7 @@ impl MuFunction {
     pub fn new_ssa(&mut self, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
         let id = self.get_id();
         
+        self.context.value_tags.insert(tag, id);
         self.context.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
         P(TreeNode {
@@ -119,14 +120,32 @@ impl FunctionContent {
 
 #[derive(Debug)]
 pub struct FunctionContext {
+    pub value_tags: HashMap<MuTag, MuID>,
     pub values: HashMap<MuID, ValueEntry>
 }
 
 impl FunctionContext {
     fn new() -> FunctionContext {
         FunctionContext {
+            value_tags: HashMap::new(),
             values: HashMap::new()
         }
+    }
+    
+    pub fn get_value_by_tag(&self, tag: MuTag) -> Option<&ValueEntry> {
+        match self.value_tags.get(tag) {
+            Some(id) => self.get_value(*id),
+            None => None
+        }
+    }
+    
+    pub fn get_value_mut_by_tag(&mut self, tag: MuTag) -> Option<&mut ValueEntry> {
+        let id : MuID = match self.value_tags.get(tag) {
+            Some(id) => *id,
+            None => return None
+        };
+        
+        self.get_value_mut(id)
     }
 
     pub fn get_value(&self, id: MuID) -> Option<&ValueEntry> {
