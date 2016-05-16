@@ -66,6 +66,14 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: sub {}, {} -> {}", dest, src, dest);
     }
     
+    fn emit_mul_r64(&mut self, src: &P<Value>) {
+        trace!("emit: mul rax, {} -> rax", src);
+    }
+    
+    fn emit_mul_mem64(&mut self, src: &P<Value>) {
+        trace!("emit: mul rax, {} -> rax", src);
+    }
+    
     fn emit_jmp(&mut self, dest: &Destination) {
         trace!("emit: jmp {}", dest.target);
     }
@@ -110,11 +118,27 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: jle {}", dest.target);
     }    
     
-    fn emit_call(&mut self, func: &P<Value>) {
+    fn emit_call_near_rel32(&mut self, func: MuTag) {
+        trace!("emit: call {}", func);
+    }
+    
+    fn emit_call_near_r64(&mut self, func: &P<Value>) {
+        trace!("emit: call {}", func);
+    }
+    
+    fn emit_call_near_mem64(&mut self, func: &P<Value>) {
         trace!("emit: call {}", func);
     }
     
     fn emit_ret(&mut self) {
         trace!("emit: ret");
     }
+    
+    fn emit_push(&mut self, src: &P<Value>) {
+        trace!("emit: push {}", src);
+    }
+    
+    fn emit_pop(&mut self, dest: &P<Value>) {
+        trace!("emit: pop {}", dest);
+    }    
 }

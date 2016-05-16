@@ -57,7 +57,7 @@ pub fn sum() -> VMContext {
     });
 
     let blk_entry_content = BlockContent {
-        args: vec![blk_entry_n.clone()],
+        args: vec![blk_entry_n.clone_value()],
         body: vec![blk_entry_term],
         keepalives: None
     };
@@ -112,7 +112,7 @@ pub fn sum() -> VMContext {
     });
 
     let blk_head_content = BlockContent {
-        args: vec![blk_head_n.clone(), blk_head_s.clone(), blk_head_i.clone()],
+        args: vec![blk_head_n.clone_value(), blk_head_s.clone_value(), blk_head_i.clone_value()],
         body: vec![blk_head_inst0, blk_head_inst1, blk_head_inst2, blk_head_term],
         keepalives: None
     };
@@ -130,7 +130,7 @@ pub fn sum() -> VMContext {
     });
 
     let blk_ret_content = BlockContent {
-        args: vec![blk_ret_s.clone()],
+        args: vec![blk_ret_s.clone_value()],
         body: vec![blk_ret_term],
         keepalives: None
     };
@@ -177,8 +177,10 @@ pub fn factorial() -> VMContext {
 
     // .funcsig @fac_sig = (@int_64) -> (@int_64)
     let fac_sig = vm.declare_func_sig("fac_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
+    let type_def_funcref_fac = vm.declare_type("fac_sig", P(MuType::funcref(fac_sig.clone())));
 
     // .funcdef @fac VERSION @fac_v1 <@fac_sig>
+    let const_func_fac = vm.declare_const("fac", type_def_funcref_fac, Constant::FuncRef("fac"));
     let mut func = MuFunction::new("fac", fac_sig.clone());
 
     // %blk_0(<@int_64> %n_3):
@@ -213,7 +215,7 @@ pub fn factorial() -> VMContext {
     });
 
     let blk_0_content = BlockContent {
-        args: vec![blk_0_n_3.clone()],
+        args: vec![blk_0_n_3.clone_value()],
         body: vec![blk_0_inst0, blk_0_term],
         keepalives: None
     };
@@ -231,7 +233,7 @@ pub fn factorial() -> VMContext {
     });
 
     let blk_2_content = BlockContent {
-        args: vec![blk_2_v53.clone()],
+        args: vec![blk_2_v53.clone_value()],
         body: vec![blk_2_term],
         keepalives: None
     };
@@ -251,7 +253,7 @@ pub fn factorial() -> VMContext {
 
     //   %v51 = CALL <@fac_sig> @fac (%v50)
     let blk_1_v51 = func.new_ssa("blk_1_v51", type_def_int64.clone());
-    let blk_1_fac = func.new_ssa("blk_1_fac", P(MuType::funcref(fac_sig.clone())));
+    let blk_1_fac = func.new_constant(const_func_fac.clone());
     let blk_1_inst1 = func.new_inst(Instruction{
         value: Some(vec![blk_1_v51.clone_value()]),
         ops: RefCell::new(vec![blk_1_fac, blk_1_v50.clone()]),
@@ -283,7 +285,7 @@ pub fn factorial() -> VMContext {
     });
 
     let blk_1_content = BlockContent {
-        args: vec![blk_1_n_3.clone()],
+        args: vec![blk_1_n_3.clone_value()],
         body: vec![blk_1_inst0, blk_1_inst1, blk_1_inst2, blk_1_term],
         keepalives: None
     };

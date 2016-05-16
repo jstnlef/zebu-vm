@@ -17,16 +17,20 @@ impl DefUse {
 fn use_op(op: &P<TreeNode>, func_context: &mut FunctionContext) {
     match op.v {
         TreeNode_::Value(ref val) => {
-            match val.v {
-                Value_::SSAVar(ref id) => {
-                    let entry = func_context.values.get_mut(id).unwrap();
-                    entry.use_count.set(entry.use_count.get() + 1);
-                },
-                _ => {} // dont worry about constants
-            }
+            use_value(val, func_context);
         },
         _ => {} // dont worry about instruction
     }
+}
+
+fn use_value(val: &P<Value>, func_context: &mut FunctionContext) {
+        match val.v {
+            Value_::SSAVar(ref id) => {
+                let entry = func_context.values.get_mut(id).unwrap();
+                entry.use_count.set(entry.use_count.get() + 1);
+            },
+            _ => {} // dont worry about constants
+        }    
 }
 
 impl CompilerPass for DefUse {
@@ -40,7 +44,7 @@ impl CompilerPass for DefUse {
         let ref mut keepalives = block.content.as_mut().unwrap().keepalives;
         if keepalives.is_some() {
             for op in keepalives.as_mut().unwrap().iter_mut() {
-                use_op(op, func_context);
+                use_value(op, func_context);
             }
         }
     }

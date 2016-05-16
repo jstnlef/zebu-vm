@@ -211,9 +211,9 @@ pub enum EdgeKind {
 
 #[derive(Debug)]
 pub struct BlockContent {
-    pub args: Vec<P<TreeNode>>,
+    pub args: Vec<P<Value>>,
     pub body: Vec<P<TreeNode>>,
-    pub keepalives: Option<Vec<P<TreeNode>>>
+    pub keepalives: Option<Vec<P<Value>>>
 }
 
 #[derive(Debug, Clone)]
@@ -310,6 +310,19 @@ impl Value {
         }
     }
     
+    pub fn is_fp_reg(&self) -> bool {
+        match self.v {
+            Value_::SSAVar(_) => {
+                if is_scalar(&self.ty) && is_fp(&self.ty) {
+                    true
+                } else {
+                    false
+                }
+            },
+            _ => false
+        }
+    }
+    
     pub fn is_int_const(&self) -> bool {
         match self.v {
             Value_::Constant(_) => {
@@ -382,8 +395,8 @@ pub enum Constant {
     Float(f32),
     Double(f64),
     IRef(Address),
-    FuncRef(Address),
-    UFuncRef(Address),
+    FuncRef(MuTag),
+    UFuncRef(MuTag),
     Vector(Vec<Constant>),
 }
 
