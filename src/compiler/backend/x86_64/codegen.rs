@@ -3,6 +3,13 @@ use ast::ir::*;
 use ast::inst::*;
 
 pub trait CodeGenerator {
+    fn start_code(&mut self, func_name: MuTag);
+    fn finish_code(&mut self);
+    
+    fn print_cur_code(&self);
+    
+    fn start_block(&mut self, block_name: MuTag);
+    
     fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>);
     fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: u32);
     fn emit_cmp_r64_mem64(&mut self, op1: &P<Value>, op2: &P<Value>);
@@ -40,6 +47,6 @@ pub trait CodeGenerator {
     
     fn emit_ret(&mut self);
     
-    fn emit_push(&mut self, src: &P<Value>);
-    fn emit_pop(&mut self, dest: &P<Value>);
+    fn emit_push_r64(&mut self, src: &P<Value>);
+    fn emit_pop_r64(&mut self, dest: &P<Value>);
 }

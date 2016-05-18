@@ -375,9 +375,11 @@ impl <'a> InstructionSelection {
     }
     
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>) {
+        self.backend.start_block("prologue");
+        
         // push all callee-saved registers
         for reg in x86_64::CALLEE_SAVED_GPRs.iter() {
-            self.backend.emit_push(&reg);
+            self.backend.emit_push_r64(&reg);
         }
         
         // unload arguments
@@ -401,9 +403,11 @@ impl <'a> InstructionSelection {
     }
     
     fn emit_common_epilogue(&mut self, ret_inst: &Instruction) {
+        self.backend.start_block("epilogue");        
+        
         // pop all callee-saved registers
         for reg in x86_64::CALLEE_SAVED_GPRs.iter() {
-            self.backend.emit_pop(&reg);
+            self.backend.emit_pop_r64(&reg);
         }
         
         let ref ops = ret_inst.ops.borrow();
@@ -617,7 +621,9 @@ impl CompilerPass for InstructionSelection {
     fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
         debug!("{}", self.name());
         
-        // prologue (get arguments from entry block first)
+        self.backend.start_code(func.fn_name);
+        
+        // prologue (get arguments from entry block first)        
         let entry_block = func.content.as_ref().unwrap().get_entry_block();
         let ref args = entry_block.content.as_ref().unwrap().args;
         self.emit_common_prologue(args);
@@ -627,6 +633,8 @@ impl CompilerPass for InstructionSelection {
     fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
         for block_label in func.block_trace.as_ref().unwrap() {
             let block = func.content.as_mut().unwrap().get_block_mut(block_label);
+            
+            self.backend.start_block(block.label);
 
             let block_content = block.content.as_mut().unwrap();
 
@@ -634,5 +642,12 @@ impl CompilerPass for InstructionSelection {
                 self.instruction_select(inst);
             }
         }
+    }
+    
+    #[allow(unused_variables)]
+    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+        self.backend.print_cur_code();
+        
+        self.backend.finish_code();
     }
 }

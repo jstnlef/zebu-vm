@@ -56,7 +56,7 @@ impl MuFunction {
         let id = self.get_id();
         
         self.context.value_tags.insert(tag, id);
-        self.context.values.insert(id, ValueEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
+        self.context.values.insert(id, SSAVarEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
         P(TreeNode {
             id: id,
@@ -121,7 +121,7 @@ impl FunctionContent {
 #[derive(Debug)]
 pub struct FunctionContext {
     pub value_tags: HashMap<MuTag, MuID>,
-    pub values: HashMap<MuID, ValueEntry>
+    pub values: HashMap<MuID, SSAVarEntry>
 }
 
 impl FunctionContext {
@@ -132,14 +132,14 @@ impl FunctionContext {
         }
     }
     
-    pub fn get_value_by_tag(&self, tag: MuTag) -> Option<&ValueEntry> {
+    pub fn get_value_by_tag(&self, tag: MuTag) -> Option<&SSAVarEntry> {
         match self.value_tags.get(tag) {
             Some(id) => self.get_value(*id),
             None => None
         }
     }
     
-    pub fn get_value_mut_by_tag(&mut self, tag: MuTag) -> Option<&mut ValueEntry> {
+    pub fn get_value_mut_by_tag(&mut self, tag: MuTag) -> Option<&mut SSAVarEntry> {
         let id : MuID = match self.value_tags.get(tag) {
             Some(id) => *id,
             None => return None
@@ -148,11 +148,11 @@ impl FunctionContext {
         self.get_value_mut(id)
     }
 
-    pub fn get_value(&self, id: MuID) -> Option<&ValueEntry> {
+    pub fn get_value(&self, id: MuID) -> Option<&SSAVarEntry> {
         self.values.get(&id)
     }
 
-    pub fn get_value_mut(&mut self, id: MuID) -> Option<&mut ValueEntry> {
+    pub fn get_value_mut(&mut self, id: MuID) -> Option<&mut SSAVarEntry> {
         self.values.get_mut(&id)
     }
 }
@@ -383,7 +383,7 @@ pub enum Value_ {
 }
 
 #[derive(Debug, Clone)]
-pub struct ValueEntry {
+pub struct SSAVarEntry {
     pub id: MuID,
     pub tag: MuTag,
     pub ty: P<MuType>,
@@ -396,13 +396,13 @@ pub struct ValueEntry {
     pub expr: Option<Instruction>
 }
 
-impl ValueEntry {
+impl SSAVarEntry {
     pub fn assign_expr(&mut self, expr: Instruction) {
         self.expr = Some(expr)
     }
 }
 
-impl fmt::Display for ValueEntry {
+impl fmt::Display for SSAVarEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} {}#{}", self.ty, self.tag, self.id)
     }
