@@ -1,6 +1,9 @@
 #![allow(unused_variables)]
 
+use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
+use vm::MachineCode;
+use vm::CompiledFunction;
 
 use ast::ptr::P;
 use ast::ir::*;
@@ -10,23 +13,76 @@ use ast::inst::*;
 use std::collections::HashMap;
 use std::fmt;
 use std::str;
+use std::usize;
 
 struct ASMCode {
     name: MuTag, 
-    code: Vec<String>,
-    regs: HashMap<MuID, RegUses>,
+    code: Vec<ASM>,
+    reg_defines: HashMap<MuID, Vec<ASMLocation>>,
+    reg_uses: HashMap<MuID, Vec<ASMLocation>>
 }
 
-pub struct ASMCodeGen {
-    cur: Option<ASMCode>,
+impl MachineCode for ASMCode {
+    fn number_of_insts(&self) -> usize {
+        self.code.len()
+    }
     
-    all_code: HashMap<MuTag, ASMCode>
+    fn is_move(&self, index: usize) -> bool {
+        let inst = self.code.get(index);
+        match inst {
+            Some(inst) => inst.code.starts_with("mov"),
+            None => false
+        }
+    }
+    
+    fn get_inst_reg_uses(&self, index: usize) -> Vec<MuID> {
+        unimplemented!()
+    }
+    fn get_inst_reg_defines(&self, index: usize) -> Vec<MuID> {
+        unimplemented!()
+    }
+    
+    fn get_reg_uses(&self, id: MuID) -> Vec<MuID> {
+        unimplemented!()
+    }
+    fn get_reg_defines(&self, id: MuID) -> Vec<MuID> {
+        unimplemented!()
+    }
 }
 
-struct RegUses {
-    locs: Vec<ASMLocation>
+struct ASM {
+    code: String,
+    defines: Vec<MuID>,
+    uses: Vec<MuID>
 }
 
+impl ASM {
+    fn symbolic(line: String) -> ASM {
+        ASM {
+            code: line,
+            defines: vec![],
+            uses: vec![]
+        }
+    }
+    
+    fn inst(inst: String, defines: Vec<MuID>, uses: Vec<MuID>) -> ASM {
+        ASM {
+            code: inst,
+            defines: defines,
+            uses: uses
+        }
+    }
+    
+    fn branch(line: String) -> ASM {
+        ASM {
+            code: line,
+            defines: vec![],
+            uses: vec![]
+        }
+    }
+}
+
+#[derive(Clone)]
 struct ASMLocation {
     line: usize,
     index: usize,
@@ -34,13 +90,20 @@ struct ASMLocation {
 }
 
 impl ASMLocation {
-    fn new(line: usize, index: usize, len: usize) -> ASMLocation {
+    /// the 'line' field will be updated later
+    fn new(index: usize, len: usize) -> ASMLocation {
         ASMLocation{
-            line: line,
+            line: usize::MAX,
             index: index,
             len: len
         }
     }
+}
+
+pub struct ASMCodeGen {
+    cur: Option<ASMCode>,
+    
+    all_code: HashMap<MuTag, ASMCode>
 }
 
 const REG_PLACEHOLDER_LEN : usize = 3;
@@ -81,26 +144,58 @@ impl ASMCodeGen {
     }
     
     /// return line number for this code
-    fn add_assembly(&mut self, code: String) -> usize {
-        let len = self.cur_mut().code.len();
-        self.cur_mut().code.push(code);
+    fn add_asm_symbolic(&mut self, code: String){
+        self.cur_mut().code.push(ASM::symbolic(code));
+    }
+    
+    fn add_asm_branch(&mut self, code: String) {
+        self.cur_mut().code.push(ASM::branch(code));
+    }
+    
+    fn add_asm_inst(
+        &mut self, 
+        code: String, 
+        defines: Vec<MuID>,
+        define_locs: Vec<ASMLocation>, 
+        uses: Vec<MuID>,
+        use_locs: Vec<ASMLocation>) 
+    {
+       
+    }
+    
+    fn define_reg(&mut self, reg: &P<Value>, loc: ASMLocation) {
+        let id = reg.extract_ssa_id().unwrap();
         
-        len
+        let code = self.cur_mut();
+        if code.reg_defines.contains_key(&id) {
+            let regs = code.reg_defines.get_mut(&id).unwrap();
+            regs.push(loc);
+        } else {
+            code.reg_defines.insert(id, vec![loc]);
+        } 
     }
     
     fn use_reg(&mut self, reg: &P<Value>, loc: ASMLocation) {
         let id = reg.extract_ssa_id().unwrap();
         
         let code = self.cur_mut();
-        if code.regs.contains_key(&id) {
-            let reg_uses = code.regs.get_mut(&id).unwrap();
-            reg_uses.locs.push(loc);
+        if code.reg_uses.contains_key(&id) {
+            let reg_uses = code.reg_uses.get_mut(&id).unwrap();
+            reg_uses.push(loc);
         } else {
-            code.regs.insert(id, RegUses {
-                    locs: vec![loc]
-                });
+            code.reg_uses.insert(id, vec![loc]);
         } 
     }
+    
+    fn prepare_op(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
+        let str = self.asm_reg_op(op);
+        let len = str.len();
+        (str, op.extract_ssa_id().unwrap(), ASMLocation::new(loc, len)) 
+    }
+    
+    fn prepare_machine_reg(&self, op: &P<Value>) -> MuID {
+        op.extract_ssa_id().unwrap()
+    } 
     
     fn asm_reg_op(&self, op: &P<Value>) -> String {
         let id = op.extract_ssa_id().unwrap();
@@ -123,10 +218,11 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(ASMCode {
                 name: func_name,
                 code: vec![],
-                regs: HashMap::new()
+                reg_defines: HashMap::new(),
+                reg_uses: HashMap::new()
             });
         
-        self.add_assembly(format!(".globl {}", func_name));
+        self.add_asm_symbolic(format!(".globl {}", func_name));
     }
     
     fn finish_code(&mut self) {
@@ -143,7 +239,7 @@ impl CodeGenerator for ASMCodeGen {
             
             println!("code for {}: ", code.name);
             for line in code.code.iter() {
-                println!("{}", line);
+                println!("{}", line.code);
             }
         } else {
             println!("no current code");
@@ -154,35 +250,40 @@ impl CodeGenerator for ASMCodeGen {
     
     fn start_block(&mut self, block_name: MuTag) {
         let label = format!("{}:", self.asm_block_label(block_name));
-        self.add_assembly(label);
+        self.add_asm_symbolic(label);
     }
     
     fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>) {
         trace!("emit: cmp {} {}", op1, op2);
         
-        let reg1 = self.asm_reg_op(op1);
-        let reg2 = self.asm_reg_op(op2);
+        let (reg1, id1, loc1) = self.prepare_op(op1, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_op(op2, 4 + 1 + reg1.len() + 1);
         
         let asm = format!("cmpq {} {}", reg1, reg2);
-        let line = self.add_assembly(asm);
         
-        let loc_reg1 = ASMLocation::new(line, 4 + 1, reg1.len());
-        self.use_reg(op1, loc_reg1);
-        
-        let loc_reg2 = ASMLocation::new(line, 4 + 1 + reg1.len() + 1, reg2.len());
-        self.use_reg(op2, loc_reg2);
+        self.add_asm_inst(
+            asm,
+            vec![],
+            vec![],
+            vec![id1, id2],
+            vec![loc1, loc2]
+        );
     }
     
     fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: u32) {
         trace!("emit: cmp {} {}", op1, op2);
         
-        let reg1 = self.asm_reg_op(op1);
+        let (reg1, id1, loc1) = self.prepare_op(op1, 4 + 1);
         
         let asm = format!("cmpq {} ${}", reg1, op2);
-        let line = self.add_assembly(asm);
         
-        let loc_reg1 = ASMLocation::new(line, 4 + 1, reg1.len());
-        self.use_reg(op1, loc_reg1);
+        self.add_asm_inst(
+            asm,
+            vec![],
+            vec![],
+            vec![id1],
+            vec![loc1]
+        )
     }
     
     fn emit_cmp_r64_mem64(&mut self, op1: &P<Value>, op2: &P<Value>) {
@@ -193,13 +294,17 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: mov {} -> {}", src, dest);
         
-        let reg1 = self.asm_reg_op(dest);
+        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
         
         let asm = format!("movq {} ${}", src, reg1);
-        let line = self.add_assembly(asm);
         
-        let loc_reg1 = ASMLocation::new(line, 4 + 1, reg1.len());
-        self.use_reg(dest, loc_reg1);
+        self.add_asm_inst(
+            asm,
+            vec![],
+            vec![],
+            vec![id1],
+            vec![loc1]
+        )
     }
     
     fn emit_mov_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
@@ -210,31 +315,35 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: mov {} -> {}", src, dest);
         
-        let reg1 = self.asm_reg_op(dest);
-        let reg2 = self.asm_reg_op(src);
+        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_op(src, 4 + 1 + reg1.len() + 1);
         
         let asm = format!("movq {} {}", reg2, reg1);
-        let line = self.add_assembly(asm);
         
-        let loc_reg1 = ASMLocation::new(line, 4 + 1, reg1.len());
-        self.use_reg(dest, loc_reg1);
-        let loc_reg2 = ASMLocation::new(line, 4 + 1 + reg1.len() + 1, reg2.len());
-        self.use_reg(src, loc_reg2);
+        self.add_asm_inst(
+            asm,
+            vec![id1],
+            vec![loc1],
+            vec![id2],
+            vec![loc2]
+        )
     }
     
     fn emit_add_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
         
-        let reg1 = self.asm_reg_op(dest);
-        let reg2 = self.asm_reg_op(src);
+        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_op(src, 4 + 1 + reg1.len() + 1);
         
         let asm = format!("addq {} {}", reg2, reg1);
-        let line = self.add_assembly(asm);
         
-        let loc_reg1 = ASMLocation::new(line, 4 + 1, reg1.len());
-        self.use_reg(dest, loc_reg1);
-        let loc_reg2 = ASMLocation::new(line, 4 + 1 + reg1.len() + 1, reg2.len());
-        self.use_reg(src, loc_reg2);
+        self.add_asm_inst(
+            asm,
+            vec![id1],
+            vec![loc1.clone()],
+            vec![id1, id2],
+            vec![loc1, loc2]
+        )
     }
     
     fn emit_add_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
@@ -245,28 +354,34 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_add_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
         
-        let reg1 = self.asm_reg_op(dest);
+        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
         
         let asm = format!("addq {} ${}", src, reg1);
-        let line = self.add_assembly(asm);
         
-        let loc_reg1 = ASMLocation::new(line, 4 + 1, reg1.len());
-        self.use_reg(dest, loc_reg1);
+        self.add_asm_inst(
+            asm,
+            vec![id1],
+            vec![loc1.clone()],
+            vec![id1],
+            vec![loc1]
+        )
     }
     
     fn emit_sub_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: sub {}, {} -> {}", dest, src, dest);
         
-        let reg1 = self.asm_reg_op(dest);
-        let reg2 = self.asm_reg_op(src);
+        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_op(src, 4 + 1 + reg1.len() + 1);
         
         let asm = format!("subq {} {}", reg2, reg1);
-        let line = self.add_assembly(asm);
         
-        let loc_reg1 = ASMLocation::new(line, 4 + 1, reg1.len());
-        self.use_reg(dest, loc_reg1);
-        let loc_reg2 = ASMLocation::new(line, 4 + 1 + reg1.len() + 1, reg2.len());
-        self.use_reg(src, loc_reg2);        
+        self.add_asm_inst(
+            asm,
+            vec![id1],
+            vec![loc1.clone()],
+            vec![id1, id2],
+            vec![loc1, loc2]
+        )        
     }
     
     fn emit_sub_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
@@ -277,25 +392,35 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_sub_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: sub {}, {} -> {}", dest, src, dest);
         
-        let reg1 = self.asm_reg_op(dest);
+        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
         
         let asm = format!("subq {} ${}", src, reg1);
-        let line = self.add_assembly(asm);
         
-        let loc_reg1 = ASMLocation::new(line, 4 + 1, reg1.len());
-        self.use_reg(dest, loc_reg1);        
+        self.add_asm_inst(
+            asm,
+            vec![id1],
+            vec![loc1.clone()],
+            vec![id1],
+            vec![loc1]
+        )        
     }
     
     fn emit_mul_r64(&mut self, src: &P<Value>) {
-        trace!("emit: mul rax, {} -> rax", src);
+        trace!("emit: mul rax, {} -> (rdx, rax)", src);
         
-        let reg = self.asm_reg_op(src);
+        let (reg, id, loc) = self.prepare_op(src, 3 + 1);
+        let rax = self.prepare_machine_reg(&x86_64::RAX);
+        let rdx = self.prepare_machine_reg(&x86_64::RDX);
         
         let asm = format!("mul {}", reg);
-        let line = self.add_assembly(asm);
         
-        let loc_reg = ASMLocation::new(line, 3 + 1, reg.len());
-        self.use_reg(src, loc_reg);
+        self.add_asm_inst(
+            asm,
+            vec![rax, rdx],
+            vec![],
+            vec![id, rax],
+            vec![loc]
+        )
     }
     
     fn emit_mul_mem64(&mut self, src: &P<Value>) {
@@ -308,84 +433,86 @@ impl CodeGenerator for ASMCodeGen {
         
         // symbolic label, we dont need to patch it
         let asm = format!("jmp {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);
+        self.add_asm_branch(asm)
     }
     
     fn emit_je(&mut self, dest: &Destination) {
         trace!("emit: je {}", dest.target);
         
         let asm = format!("je {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_jne(&mut self, dest: &Destination) {
         trace!("emit: jne {}", dest.target);
         
         let asm = format!("jne {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_ja(&mut self, dest: &Destination) {
         trace!("emit: ja {}", dest.target);
         
         let asm = format!("ja {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_jae(&mut self, dest: &Destination) {
         trace!("emit: jae {}", dest.target);
         
         let asm = format!("jae {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_jb(&mut self, dest: &Destination) {
         trace!("emit: jb {}", dest.target);
         
         let asm = format!("jb {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_jbe(&mut self, dest: &Destination) {
         trace!("emit: jbe {}", dest.target);
         
         let asm = format!("jbe {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_jg(&mut self, dest: &Destination) {
         trace!("emit: jg {}", dest.target);
         
         let asm = format!("jg {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_jge(&mut self, dest: &Destination) {
         trace!("emit: jge {}", dest.target);
         
         let asm = format!("jge {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_jl(&mut self, dest: &Destination) {
         trace!("emit: jl {}", dest.target);
         
         let asm = format!("jl {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }
     
     fn emit_jle(&mut self, dest: &Destination) {
         trace!("emit: jle {}", dest.target);
         
         let asm = format!("jle {}", self.asm_block_label(dest.target));
-        self.add_assembly(asm);        
+        self.add_asm_branch(asm);        
     }    
     
     fn emit_call_near_rel32(&mut self, func: MuTag) {
         trace!("emit: call {}", func);
         
         let asm = format!("call {}", func);
-        self.add_assembly(asm);
+        self.add_asm_branch(asm);
+        
+        // FIXME: call interferes with machine registers
     }
     
     fn emit_call_near_r64(&mut self, func: &P<Value>) {
@@ -402,30 +529,38 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: ret");
         
         let asm = format!("ret");
-        self.add_assembly(asm);
+        self.add_asm_branch(asm);
     }
     
     fn emit_push_r64(&mut self, src: &P<Value>) {
         trace!("emit: push {}", src);
         
-        let reg = self.asm_reg_op(src);
+        let (reg, id, loc) = self.prepare_op(src, 5 + 1);
         
         let asm = format!("pushq {}", reg);
-        let line = self.add_assembly(asm);
         
-        let loc_reg = ASMLocation::new(line, 5 + 1, reg.len());
-        self.use_reg(src, loc_reg);
+        self.add_asm_inst(
+            asm,
+            vec![],
+            vec![],
+            vec![id],
+            vec![loc]
+        )
     }
     
     fn emit_pop_r64(&mut self, dest: &P<Value>) {
         trace!("emit: pop {}", dest);
         
-        let reg = self.asm_reg_op(dest);
+        let (reg, id, loc) = self.prepare_op(dest, 4 + 1);
         
         let asm = format!("popq {}", reg);
-        let line = self.add_assembly(asm);
         
-        let loc_reg = ASMLocation::new(line, 4 + 1, reg.len());
-        self.use_reg(dest, loc_reg);        
+        self.add_asm_inst(
+            asm,
+            vec![id],
+            vec![loc.clone()],
+            vec![id],
+            vec![loc]
+        )        
     }    
 }

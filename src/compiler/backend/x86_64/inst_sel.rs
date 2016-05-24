@@ -377,6 +377,8 @@ impl <'a> InstructionSelection {
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>) {
         self.backend.start_block("prologue");
         
+        // TODO: push rbp, store rsp, etc.
+        
         // push all callee-saved registers
         for reg in x86_64::CALLEE_SAVED_GPRs.iter() {
             self.backend.emit_push_r64(&reg);
