@@ -19,9 +19,8 @@ fn test_instsel_fac() {
             Box::new(backend::inst_sel::InstructionSelection::new())
     ]));
     
-    let mut factorial_func = {
-        vm_context.get_func("fac").unwrap().borrow_mut()
-    };
+    let funcs = vm_context.funcs().read().unwrap();
+    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
     
     compiler.compile(&vm_context, &mut factorial_func);    
 }

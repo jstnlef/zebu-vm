@@ -18,9 +18,8 @@ fn test_use_count() {
         vec![Box::new(passes::DefUse::new())]
     ));
     
-    let mut factorial_func = {
-        vm_context.get_func("fac").unwrap().borrow_mut()
-    };
+    let funcs = vm_context.funcs().read().unwrap();
+    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
     
     compiler.compile(&vm_context, &mut factorial_func);
     
@@ -43,9 +42,8 @@ fn test_build_tree() {
              Box::new(passes::TreeGen::new())]
     ));
     
-    let mut factorial_func = {
-        vm_context.get_func("fac").unwrap().borrow_mut()
-    };
+    let funcs = vm_context.funcs().read().unwrap();
+    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
     
     compiler.compile(&vm_context, &mut factorial_func);
 }
@@ -61,9 +59,8 @@ fn test_cfa_factorial() {
             Box::new(passes::ControlFlowAnalysis::new())
     ]));
     
-    let mut factorial_func = {
-        vm_context.get_func("fac").unwrap().borrow_mut()
-    };
+    let funcs = vm_context.funcs().read().unwrap();
+    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
     
     compiler.compile(&vm_context, &mut factorial_func);
     
@@ -97,9 +94,8 @@ fn test_cfa_sum() {
             Box::new(passes::ControlFlowAnalysis::new())
     ]));
     
-    let mut sum_func = {
-        vm_context.get_func("sum").unwrap().borrow_mut()
-    };
+    let funcs = vm_context.funcs().read().unwrap();
+    let mut sum_func = funcs.get("sum").unwrap().borrow_mut();
     
     compiler.compile(&vm_context, &mut sum_func);
     
@@ -142,9 +138,8 @@ fn test_trace_factorial() {
             Box::new(passes::TraceGen::new())
     ]));
     
-    let mut factorial_func = {
-        vm_context.get_func("fac").unwrap().borrow_mut()
-    };
+    let funcs = vm_context.funcs().read().unwrap();
+    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
     
     compiler.compile(&vm_context, &mut factorial_func);
     
@@ -163,9 +158,8 @@ fn test_trace_sum() {
             Box::new(passes::TraceGen::new())
     ]));
     
-    let mut sum_func = {
-        vm_context.get_func("sum").unwrap().borrow_mut()
-    };
+    let funcs = vm_context.funcs().read().unwrap();
+    let mut sum_func = funcs.get("sum").unwrap().borrow_mut();
     
     compiler.compile(&vm_context, &mut sum_func);
     

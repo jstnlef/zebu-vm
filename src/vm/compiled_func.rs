@@ -1,9 +1,11 @@
 use ast::ir::*;
-use ast::ptr::P;
+
+use std::marker::Send;
+use std::marker::Sync;
 
 pub struct CompiledFunction {
     pub fn_name: MuTag,
-    pub mc: Box<MachineCode>
+    pub mc: Box<MachineCode + Send + Sync>
 }
 
 pub trait MachineCode {
