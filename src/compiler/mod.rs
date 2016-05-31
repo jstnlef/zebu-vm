@@ -2,22 +2,27 @@ use ast::ir::*;
 use vm::context::VMContext;
 
 use std::cell::RefCell;
+use std::sync::Arc;
 
 pub mod passes;
 pub mod backend;
 
 pub struct Compiler {
-    policy: RefCell<CompilerPolicy>
+    policy: RefCell<CompilerPolicy>,
+    vm: Arc<VMContext>
 }
 
 impl Compiler {
-    pub fn new(policy: CompilerPolicy) -> Compiler {
-        Compiler{policy: RefCell::new(policy)}
+    pub fn new(policy: CompilerPolicy, vm: Arc<VMContext>) -> Compiler {
+        Compiler{
+            policy: RefCell::new(policy),
+            vm: vm
+        }
     }
     
-    pub fn compile(&self, vm: &VMContext, func: &mut MuFunction) {
+    pub fn compile(&self, func: &mut MuFunction) {
         for pass in self.policy.borrow_mut().passes.iter_mut() {
-            pass.execute(vm, func);
+            pass.execute(&self.vm, func);
         }
     }
 }
