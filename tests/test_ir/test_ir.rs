@@ -23,7 +23,7 @@ fn test_sum() {
 }
 
 pub fn sum() -> VMContext {
-    let mut vm = VMContext::new();
+    let vm = VMContext::new();
 
     // .typedef @int_64 = int<64>
     let type_def_int64 = vm.declare_type("int_64", P(MuType::int(64)));
@@ -155,7 +155,7 @@ pub fn sum() -> VMContext {
 
 #[allow(unused_variables)]
 pub fn factorial() -> VMContext {
-    let mut vm = VMContext::new();
+    let vm = VMContext::new();
 
     // .typedef @int_64 = int<64>
     // .typedef @int_1 = int<1>

@@ -9,6 +9,7 @@ use ast::op::OpCode;
 use ast::types;
 use ast::types::MuType_;
 use vm::context::VMContext;
+use vm::machine_code::CompiledFunction;
 
 use compiler::CompilerPass;
 use compiler::backend::x86_64;
@@ -123,7 +124,7 @@ impl <'a> InstructionSelection {
                         debug_assert!(func_sig.arg_tys.len() == rets.len());
                                                 
                         let mut gpr_arg_count = 0;
-                        let mut fpr_arg_count = 0;
+                        // TODO: let mut fpr_arg_count = 0;
                         for arg_index in data.args.iter() {
                             let ref arg = ops[*arg_index];
                             trace!("arg {}", arg);
@@ -172,7 +173,7 @@ impl <'a> InstructionSelection {
                         
                         // deal with ret vals
                         let mut gpr_ret_count = 0;
-                        let mut fpr_ret_count = 0;
+                        // TODO: let mut fpr_ret_count = 0;
                         for val in rets {
                             if val.is_int_reg() {
                                 if gpr_ret_count < x86_64::RETURN_GPRs.len() {
@@ -386,7 +387,7 @@ impl <'a> InstructionSelection {
         
         // unload arguments
         let mut gpr_arg_count = 0;
-        let mut fpr_arg_count = 0;
+        // TODO: let mut fpr_arg_count = 0;
         for arg in args {
             if arg.is_int_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
@@ -419,7 +420,7 @@ impl <'a> InstructionSelection {
         };
         
         let mut gpr_ret_count = 0;
-        let mut fpr_ret_count = 0;
+        // TODO: let mut fpr_ret_count = 0;
         for i in ret_val_indices {
             let ref ret_val = ops[*i];
             if self.match_ireg(ret_val) {
@@ -532,6 +533,7 @@ impl <'a> InstructionSelection {
         }
     }
     
+    #[allow(unused_variables)]
     fn match_fpreg(&mut self, op: &P<TreeNode>) -> bool {
         unimplemented!()
     }
@@ -583,10 +585,12 @@ impl <'a> InstructionSelection {
         }
     }
     
+    #[allow(unused_variables)]
     fn match_mem(&mut self, op: &P<TreeNode>) -> bool {
         unimplemented!()
     }
     
+    #[allow(unused_variables)]
     fn emit_mem(&mut self, op: &P<TreeNode>) -> P<Value> {
         unimplemented!()
     }
@@ -650,6 +654,12 @@ impl CompilerPass for InstructionSelection {
     fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
         self.backend.print_cur_code();
         
-        self.backend.finish_code();
+        let mc = self.backend.finish_code();
+        let compiled_func = CompiledFunction {
+            fn_name: func.fn_name,
+            mc: mc
+        };
+        
+        vm_context.add_compiled_func(compiled_func);
     }
 }

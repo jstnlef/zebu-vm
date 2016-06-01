@@ -2,9 +2,11 @@ use ast::ptr::P;
 use ast::ir::*;
 use ast::inst::*;
 
+use vm::machine_code::MachineCode;
+
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuTag);
-    fn finish_code(&mut self);
+    fn finish_code(&mut self) -> Box<MachineCode>;
     
     fn print_cur_code(&self);
     

@@ -8,7 +8,7 @@ use self::mu::compiler::*;
 use std::sync::Arc;
 
 #[test]
-fn test_instsel_fac() {
+fn test_regalloc_fac() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
     let vm_context = Arc::new(factorial());
@@ -18,7 +18,8 @@ fn test_instsel_fac() {
             Box::new(passes::TreeGen::new()),
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new()),
-            Box::new(backend::inst_sel::InstructionSelection::new())
+            Box::new(backend::inst_sel::InstructionSelection::new()),
+            Box::new(backend::reg_alloc::RegisterAllocation::new())
     ]), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();

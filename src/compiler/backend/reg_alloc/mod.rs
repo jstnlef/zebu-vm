@@ -2,6 +2,8 @@ use compiler::CompilerPass;
 use ast::ir::*;
 use vm::context::VMContext;
 
+mod liveness;
+
 pub struct RegisterAllocation {
     name: &'static str
 }
@@ -21,6 +23,11 @@ impl CompilerPass for RegisterAllocation {
     
     #[allow(unused_variables)]
     fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+        let mut compiled_funcs = vm_context.compiled_funcs().read().unwrap();
+        let mut cf = compiled_funcs.get(func.fn_name).unwrap().borrow_mut();
         
+        cf.mc.print();
+        
+//        liveness::build(&mut cf, func);
     }
 }

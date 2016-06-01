@@ -7,7 +7,6 @@ use test_ir::test_ir::factorial;
 use test_ir::test_ir::sum;
 use self::mu::ast::ir::*;
 use self::mu::compiler::*;
-use self::mu::vm::context::VMContext;
 
 use std::sync::Arc;
 
