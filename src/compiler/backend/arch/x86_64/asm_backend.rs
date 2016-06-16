@@ -716,8 +716,8 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![rsp],
-            vec![],
+            vec![id, rsp],
+            vec![loc],
             vec![rsp],
             vec![]
         )
@@ -735,8 +735,8 @@ impl CodeGenerator for ASMCodeGen {
             asm,
             vec![id, rsp],
             vec![loc.clone()],
-            vec![id, rsp],
-            vec![loc]
+            vec![rsp],
+            vec![]
         )        
     }    
 }

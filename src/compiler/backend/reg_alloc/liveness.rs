@@ -84,7 +84,9 @@ impl InterferenceGraph {
         let from_ix = self.get_node(from);
         let to_ix = self.get_node(to);
         
-        self.matrix.as_ref().unwrap()[(from_ix, to_ix)]
+        let ref matrix = self.matrix.as_ref().unwrap();
+        
+        matrix[(from_ix, to_ix)] || matrix[(to_ix, from_ix)]
     }
     
     pub fn print(&self) {
@@ -223,12 +225,15 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
     ig.init_graph();
     
     // compute liveIn and liveOut iteratively
+    trace!("build live outs");
     while !work_list.is_empty() {
         let n = work_list.pop_front().unwrap();
+//        trace!("build liveout for #{}", n);
         let ref mut out_set = live_out[n];
         
         // out = union(in[succ]) for all succs
         for succ in cf.mc.get_succs(n) {
+//            trace!("add successor's livein {:?} to #{}", &live_in[*succ], n); 
             add_all(out_set, &live_in[*succ]);
         }
         
@@ -236,17 +241,29 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
         let mut diff = out_set.clone();
         for def in cf.mc.get_inst_reg_defines(n) {
             remove_value(&mut diff, *def);
+//            trace!("removing def: {}", *def);
+//            trace!("diff = {:?}", diff);
         }
+//        trace!("out - def = {:?}", diff);
         
         if !diff.is_empty() {
             let ref mut in_set = live_in[n];
-            
             
             if add_all(in_set, &diff) {
                 for p in cf.mc.get_preds(n) {
                     work_list.push_front(*p);
                 }
             }
+        }
+//        trace!("in = use + (out - def) = {:?}", live_in[n]);
+    }
+    
+    // debug live-outs
+    if cfg!(debug_assertions) {
+        trace!("check live-outs");
+        for n in 0..n_insts {
+            let ref mut live = live_out[n];
+            trace!("#{}\t{:?}", n, live);
         }
     }
     
@@ -259,8 +276,8 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
                 let src = cf.mc.get_inst_reg_uses(n);
                 let dst = cf.mc.get_inst_reg_defines(n);
                 
-                // src may be immediate number
-                // dest is definitly register
+                // src may be an immediate number
+                // but dest is definitly a register
                 debug_assert!(dst.len() == 1);
                 
                 if src.len() == 1 {
@@ -320,9 +337,19 @@ fn add_all<T: Copy + PartialEq> (vec: &mut Vec<T>, vec2: &Vec<T>) -> bool {
     is_changed
 }
 
+fn find_value<T: Ord + fmt::Debug + fmt::Display> (vec: &mut Vec<T>, val: T) -> Option<usize> {
+    for i in 0..vec.len() {
+        if vec[i] == val {
+            return Some(i);
+        }
+    }
+    
+    None
+}
+
 fn remove_value<T: Ord + fmt::Debug + fmt::Display> (vec: &mut Vec<T>, val: T) {
-    match vec.binary_search(&val) {
-        Ok(index) => {vec.remove(index);},
-        Err(_) => {} // do nothing
+    match find_value(vec, val) {
+        Some(index) => {vec.remove(index);},
+        None => {} // do nothing
     }
 }

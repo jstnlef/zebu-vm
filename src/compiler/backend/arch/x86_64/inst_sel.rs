@@ -5,7 +5,6 @@ use ast::inst::Destination;
 use ast::inst::DestArg;
 use ast::inst::Instruction_;
 use ast::op;
-use ast::op::OpCode;
 use ast::types;
 use ast::types::MuType_;
 use vm::context::VMContext;
