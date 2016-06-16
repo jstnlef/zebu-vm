@@ -63,7 +63,9 @@ impl MachineCode for ASMCode {
         let n_insts = self.code.len();
         for i in 0..n_insts {
             let ref line = self.code[i];
-            println!("#{}\t{}\t\tpred: {:?}, succ: {:?}", i, line.code, self.preds[i], self.succs[i]);
+            println!("#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}", 
+                i, line.code, self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
+                self.preds[i], self.succs[i]);
         }
         
         println!("");        
@@ -252,9 +254,9 @@ impl ASMCodeGen {
             loc.line = line;
             
             if mc.reg_uses.contains_key(&id) {
-                mc.reg_defines.get_mut(&id).unwrap().push(loc.clone());
+                mc.reg_uses.get_mut(&id).unwrap().push(loc.clone());
             } else {
-                mc.reg_defines.insert(id, vec![loc.clone()]);
+                mc.reg_uses.insert(id, vec![loc.clone()]);
             }
         }
        
@@ -466,16 +468,16 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: mov {} -> {}", src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
+        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1 + 1 + src.to_string().len() + 1);
         
-        let asm = format!("movq {} ${}", src, reg1);
+        let asm = format!("movq ${} {}", src, reg1);
         
         self.add_asm_inst(
             asm,
-            vec![],
-            vec![],
             vec![id1],
-            vec![loc1]
+            vec![loc1],
+            vec![],
+            vec![]
         )
     }
     
@@ -708,15 +710,16 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: push {}", src);
         
         let (reg, id, loc) = self.prepare_op(src, 5 + 1);
+        let rsp = self.prepare_machine_reg(&x86_64::RSP);
         
         let asm = format!("pushq {}", reg);
         
         self.add_asm_inst(
             asm,
+            vec![rsp],
             vec![],
-            vec![],
-            vec![id],
-            vec![loc]
+            vec![rsp],
+            vec![]
         )
     }
     
@@ -724,14 +727,15 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: pop {}", dest);
         
         let (reg, id, loc) = self.prepare_op(dest, 4 + 1);
+        let rsp = self.prepare_machine_reg(&x86_64::RSP);
         
         let asm = format!("popq {}", reg);
         
         self.add_asm_inst(
             asm,
-            vec![id],
+            vec![id, rsp],
             vec![loc.clone()],
-            vec![id],
+            vec![id, rsp],
             vec![loc]
         )        
     }    

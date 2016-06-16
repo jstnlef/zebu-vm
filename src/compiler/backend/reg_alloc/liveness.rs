@@ -87,16 +87,52 @@ impl InterferenceGraph {
         self.matrix.as_ref().unwrap()[(from_ix, to_ix)]
     }
     
-    pub fn print_with(&self, func: &MuFunction) {
+    pub fn print(&self) {
+        println!("");
+        println!("Interference Graph");
+
+        println!("color:");
+        for (n, c) in self.color.iter() {
+            println!("Node {} -> Color {}", n, c);
+        }
+        println!("moves:");
+        for mov in self.moves.iter() {
+            println!("Move {} -> {}", mov.0, mov.1);
+        }
+        println!("graph:");
+        {
+            let idx_to_node_id = {
+                let mut ret : HashMap<MatrixIndex, MuID> = HashMap::new();
+                
+                for node_id in self.nodes.keys() {
+                    ret.insert(*self.nodes.get(node_id).unwrap(), *node_id);
+                }
+                
+                ret 
+            };
+            
+            let matrix = self.matrix.as_ref().unwrap();
+            for i in 0..matrix.ncols() {
+                for j in 0..matrix.nrows() {
+                    if matrix[(i, j)] {
+                        let from_node = idx_to_node_id.get(&i).unwrap();
+                        let to_node = idx_to_node_id.get(&j).unwrap();
+                        
+                        println!("Node {} -> Node {}", from_node, to_node);
+                    }
+                }
+            }
+        }
+        println!("");
+    }
+    
+    #[allow(dead_code)]
+    pub fn print_symbols(&self, func: &MuFunction) {
         let ref context = func.context;
         
         println!("");
         println!("Interference Graph");
         
-        println!("nodes:");
-        for (n, ix) in self.nodes.iter() {
-            println!("Node {} -> Index {}", get_tag(*n, context), ix);
-        }
         println!("color:");
         for (n, c) in self.color.iter() {
             println!("Node {} -> Color {}", get_tag(*n, context), get_tag(*c, context));
@@ -124,7 +160,7 @@ impl InterferenceGraph {
                         let from_node = idx_to_node_id.get(&i).unwrap();
                         let to_node = idx_to_node_id.get(&j).unwrap();
                         
-                        println!("{} -> {}", get_tag(*from_node, context), get_tag(*to_node, context));
+                        println!("Node {} -> Node {}", get_tag(*from_node, context), get_tag(*to_node, context));
                     }
                 }
             }
@@ -142,7 +178,7 @@ fn is_machine_reg(node: MuID) -> bool {
 }
 
 // from tony's code src/RegAlloc/Liveness.java
-pub fn build (cf: &CompiledFunction, f: &MuFunction) -> InterferenceGraph {
+pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
     let mut ig = InterferenceGraph::new();
     
     // move precolor nodes to later iteration of registers
@@ -223,12 +259,17 @@ pub fn build (cf: &CompiledFunction, f: &MuFunction) -> InterferenceGraph {
                 let src = cf.mc.get_inst_reg_uses(n);
                 let dst = cf.mc.get_inst_reg_defines(n);
                 
-                debug_assert!(src.len() == 1);
+                // src may be immediate number
+                // dest is definitly register
                 debug_assert!(dst.len() == 1);
                 
-                ig.add_move(src[0], dst[0]);
-                
-                Some(src[0])
+                if src.len() == 1 {
+                    ig.add_move(src[0], dst[0]);
+                    
+                    Some(src[0])
+                } else {
+                    None
+                }
             } else {
                 None
             }

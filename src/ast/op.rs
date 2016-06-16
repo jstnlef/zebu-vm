@@ -2,7 +2,7 @@ use ast::ptr::P;
 use ast::types::*;
 use ast::inst::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OpCode {
     // SSA
     RegI64,
@@ -112,7 +112,7 @@ pub fn pick_op_code_for_const(ty: &P<MuType>) -> OpCode {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BinOp {
     // Int(n) BinOp Int(n) -> Int(n)
     Add,
@@ -138,7 +138,7 @@ pub enum BinOp {
     FRem
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CmpOp {
     // for Int comparison
     EQ,
@@ -171,7 +171,7 @@ pub enum CmpOp {
     FUNO
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AtomicRMWOp {
     XCHG,
     ADD,
