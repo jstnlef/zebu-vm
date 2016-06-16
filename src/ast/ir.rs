@@ -98,7 +98,8 @@ impl FunctionContent {
     }
 
     pub fn get_entry_block_mut(&mut self) -> &mut Block {
-        self.get_block_mut(self.entry)
+        let entry = self.entry;
+        self.get_block_mut(entry)
     }
 
     pub fn get_block(&self, tag: MuTag) -> &Block {

@@ -82,22 +82,22 @@ lazy_static! {
 }
 
 lazy_static!{
-    pub static ref XMM0  : P<Value> = FPR!("xmm0", 20);
-    pub static ref XMM1  : P<Value> = FPR!("xmm1", 21);
-    pub static ref XMM2  : P<Value> = FPR!("xmm2", 22);
-    pub static ref XMM3  : P<Value> = FPR!("xmm3", 23);
-    pub static ref XMM4  : P<Value> = FPR!("xmm4", 24);
-    pub static ref XMM5  : P<Value> = FPR!("xmm5", 25);
-    pub static ref XMM6  : P<Value> = FPR!("xmm6", 26);
-    pub static ref XMM7  : P<Value> = FPR!("xmm7", 27);
-    pub static ref XMM8  : P<Value> = FPR!("xmm8", 28);
-    pub static ref XMM9  : P<Value> = FPR!("xmm9", 29);
-    pub static ref XMM10 : P<Value> = FPR!("xmm10",30);
-    pub static ref XMM11 : P<Value> = FPR!("xmm11",31);
-    pub static ref XMM12 : P<Value> = FPR!("xmm12",32);
-    pub static ref XMM13 : P<Value> = FPR!("xmm13",33);
-    pub static ref XMM14 : P<Value> = FPR!("xmm14",34);
-    pub static ref XMM15 : P<Value> = FPR!("xmm15",35); 
+    pub static ref XMM0  : P<Value> = FPR!("xmm0", 16);
+    pub static ref XMM1  : P<Value> = FPR!("xmm1", 17);
+    pub static ref XMM2  : P<Value> = FPR!("xmm2", 18);
+    pub static ref XMM3  : P<Value> = FPR!("xmm3", 19);
+    pub static ref XMM4  : P<Value> = FPR!("xmm4", 20);
+    pub static ref XMM5  : P<Value> = FPR!("xmm5", 21);
+    pub static ref XMM6  : P<Value> = FPR!("xmm6", 22);
+    pub static ref XMM7  : P<Value> = FPR!("xmm7", 23);
+    pub static ref XMM8  : P<Value> = FPR!("xmm8", 24);
+    pub static ref XMM9  : P<Value> = FPR!("xmm9", 25);
+    pub static ref XMM10 : P<Value> = FPR!("xmm10",26);
+    pub static ref XMM11 : P<Value> = FPR!("xmm11",27);
+    pub static ref XMM12 : P<Value> = FPR!("xmm12",28);
+    pub static ref XMM13 : P<Value> = FPR!("xmm13",29);
+    pub static ref XMM14 : P<Value> = FPR!("xmm14",30);
+    pub static ref XMM15 : P<Value> = FPR!("xmm15",31); 
     
     pub static ref RETURN_FPRs : [P<Value>; 2] = [
         XMM0.clone(),
@@ -114,6 +114,54 @@ lazy_static!{
     ];
     
     pub static ref CALLEE_SAVED_FPRs : [P<Value>; 0] = [];
+}
+
+lazy_static! {
+    pub static ref ALL_MACHINE_REGs : Vec<P<Value>> = vec![
+        RAX.clone(),
+        RCX.clone(),
+        RDX.clone(),
+        RBX.clone(),
+        RSP.clone(),
+        RBP.clone(),
+        RSI.clone(),
+        RDI.clone(),
+        R8.clone(),
+        R9.clone(),
+        R10.clone(),
+        R11.clone(),
+        R12.clone(),
+        R13.clone(),
+        R14.clone(),
+        R15.clone(),
+        XMM0.clone(),
+        XMM1.clone(),
+        XMM2.clone(),
+        XMM3.clone(),
+        XMM4.clone(),
+        XMM5.clone(),
+        XMM6.clone(),
+        XMM7.clone(),
+        XMM8.clone(),
+        XMM9.clone(),
+        XMM10.clone(),
+        XMM11.clone(),
+        XMM12.clone(),
+        XMM13.clone(),
+        XMM14.clone(),
+        XMM15.clone()
+    ];
+}
+
+pub fn get_name_for_value(id: MuID, func_context: &FunctionContext) -> &'static str {
+    if id < RESERVED_NODE_IDS_FOR_MACHINE {
+        ALL_MACHINE_REGs[id].tag
+    } else {
+        match func_context.get_value(id) {
+            Some(ref v) => v.tag,
+            None => panic!("cannot find tag for node id={}", id)
+        }
+    }
 }
 
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {

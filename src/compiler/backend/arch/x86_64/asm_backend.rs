@@ -40,12 +40,20 @@ impl MachineCode for ASMCode {
         }
     }
     
+    fn get_succs(&self, index: usize) -> &Vec<usize> {
+        &self.succs[index]
+    }
+    
+    fn get_preds(&self, index: usize) -> &Vec<usize> {
+        &self.preds[index]
+    }
+    
     fn get_inst_reg_uses(&self, index: usize) -> &Vec<MuID> {
-        &self.code[index].defines
+        &self.code[index].uses
     }
     
     fn get_inst_reg_defines(&self, index: usize) -> &Vec<MuID> {
-        &self.code[index].uses
+        &self.code[index].defines
     }
     
     fn print(&self) {

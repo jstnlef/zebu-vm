@@ -8,3 +8,4 @@ authors = [ "Your name <you@example.com>" ]
 lazy_static = "0.1.15"
 log = "0.3.5"
 simple_logger = "0.4.0"
+nalgebra = "0.8.2"

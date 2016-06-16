@@ -28,6 +28,7 @@ impl CompilerPass for RegisterAllocation {
         
         cf.mc.print();
         
-//        liveness::build(&mut cf, func);
+        let liveness = liveness::build(&mut cf, func);
+        liveness.print_with(func);
     }
 }
