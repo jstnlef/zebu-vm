@@ -10,13 +10,14 @@ use std::collections::{HashMap, HashSet};
 
 use self::nalgebra::DMatrix;
 
-type Node = usize;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Node(usize);
 
 pub struct InterferenceGraph {
     nodes: HashMap<MuID, Node>,
     
     matrix: Option<DMatrix<bool>>,
-    color: HashMap<MuID, MuID>,
+    color: HashMap<Node, MuID>,
     
     moves: HashSet<(MuID, MuID)>
 }
@@ -34,9 +35,10 @@ impl InterferenceGraph {
     fn new_node(&mut self, reg: MuID) -> Node {
         if !self.nodes.contains_key(&reg) {
             let index = self.nodes.len();
-            self.nodes.insert(reg, index);
+            let node = Node(index);
+            self.nodes.insert(reg, node.clone());
             
-            index
+            node
         } else {
             * self.nodes.get(&reg).unwrap()
         }
@@ -58,35 +60,26 @@ impl InterferenceGraph {
         self.moves.insert((src, dst));
     }
     
-    fn add_interference_edge(&mut self, from: MuID, to: MuID) {
-        let from_ix = self.get_node(from);
-        let to_ix = self.get_node(to);
-        
-        self.matrix.as_mut().unwrap()[(from_ix, to_ix)] = true;
+    fn add_interference_edge(&mut self, from: Node, to: Node) {
+        self.matrix.as_mut().unwrap()[(from.0, to.0)] = true;
     }
     
-    fn color_node(&mut self, reg: MuID, color: MuID) {
-        self.color.insert(reg, color);
+    fn color_node(&mut self, node: Node, color: MuID) {
+        self.color.insert(node, color);
     }
     
-    fn node_has_color(&self, reg: MuID) -> bool {
-        self.color.contains_key(&reg)
+    fn node_has_color(&self, node: Node) -> bool {
+        self.color.contains_key(&node)
     }
     
-    fn is_same_node(&self, reg1: MuID, reg2: MuID) -> bool {
-        let node1 = self.get_node(reg1);
-        let node2 = self.get_node(reg2);
-        
+    fn is_same_node(&self, node1: Node, node2: Node) -> bool {
         node1 == node2
     }
     
-    fn is_adj(&self, from: MuID, to: MuID) -> bool {
-        let from_node = self.get_node(from);
-        let to_node = self.get_node(to);
-        
+    fn is_adj(&self, from: Node, to: Node) -> bool {
         let ref matrix = self.matrix.as_ref().unwrap();
         
-        matrix[(from_node, to_node)] || matrix[(to_node, from_node)]
+        matrix[(from.0, to.0)] || matrix[(to.0, from.0)]
     }
     
     pub fn print(&self) {
@@ -95,7 +88,7 @@ impl InterferenceGraph {
 
         println!("color:");
         for (n, c) in self.color.iter() {
-            println!("Node {} -> Color {}", n, c);
+            println!("Node {} -> Color/Reg {}", n.0, c);
         }
         println!("moves:");
         for mov in self.moves.iter() {
@@ -117,10 +110,10 @@ impl InterferenceGraph {
             for i in 0..matrix.ncols() {
                 for j in 0..matrix.nrows() {
                     if matrix[(i, j)] {
-                        let from_node = node_to_reg_id.get(&i).unwrap();
-                        let to_node = node_to_reg_id.get(&j).unwrap();
+                        let from_node = node_to_reg_id.get(&Node(i)).unwrap();
+                        let to_node = node_to_reg_id.get(&Node(j)).unwrap();
                         
-                        println!("Node {} -> Node {}", from_node, to_node);
+                        println!("Reg {} -> Reg {}", from_node, to_node);
                     }
                 }
             }
@@ -137,7 +130,7 @@ impl InterferenceGraph {
         
         println!("color:");
         for (n, c) in self.color.iter() {
-            println!("Node {} -> Color {}", get_tag(*n, context), get_tag(*c, context));
+            println!("Node {} -> Color/Reg {}", get_tag(n.0, context), get_tag(*c, context));
         }
         println!("moves:");
         for mov in self.moves.iter() {
@@ -159,10 +152,10 @@ impl InterferenceGraph {
             for i in 0..matrix.ncols() {
                 for j in 0..matrix.nrows() {
                     if matrix[(i, j)] {
-                        let from_node = idx_to_node_id.get(&i).unwrap();
-                        let to_node = idx_to_node_id.get(&j).unwrap();
+                        let from_node = idx_to_node_id.get(&Node(i)).unwrap();
+                        let to_node = idx_to_node_id.get(&Node(j)).unwrap();
                         
-                        println!("Node {} -> Node {}", get_tag(*from_node, context), get_tag(*to_node, context));
+                        println!("Reg {} -> Reg {}", get_tag(*from_node, context), get_tag(*to_node, context));
                     }
                 }
             }
@@ -171,8 +164,8 @@ impl InterferenceGraph {
     }
 }
 
-fn is_machine_reg(node: MuID) -> bool {
-    if node < RESERVED_NODE_IDS_FOR_MACHINE {
+fn is_machine_reg(reg: MuID) -> bool {
+    if reg < RESERVED_NODE_IDS_FOR_MACHINE {
         true
     } else {
         false
@@ -198,23 +191,23 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
         
         for reg_id in cf.mc.get_inst_reg_defines(i) {
             let reg_id = *reg_id;
-            ig.new_node(reg_id);
+            let node = ig.new_node(reg_id);
             
             // precolor
             if is_machine_reg(reg_id) {
-                ig.color_node(reg_id, reg_id);
+                ig.color_node(node, reg_id);
             }
         }
         
         for reg_id in cf.mc.get_inst_reg_uses(i) {
             let reg_id = *reg_id;
+            let node = ig.new_node(reg_id);
             
-            ig.new_node(reg_id);
             in_set.push(reg_id);
             
             // precolor
             if is_machine_reg(reg_id) {
-                ig.color_node(reg_id, reg_id);
+                ig.color_node(node, reg_id);
             }
         }
         
@@ -295,8 +288,8 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
         for d in cf.mc.get_inst_reg_defines(n) {
             for t in live.iter() {
                 if src.is_none() || (src.is_some() && *t != src.unwrap()) {
-                    let from = *d;
-                    let to = *t;
+                    let from = ig.get_node(*d);
+                    let to = ig.get_node(*t);
                     
                     if !ig.is_same_node(from, to) && !ig.is_adj(from, to) {
                         if !ig.node_has_color(from) {
