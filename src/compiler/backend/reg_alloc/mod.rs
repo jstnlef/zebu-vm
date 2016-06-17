@@ -1,6 +1,10 @@
+#![allow(dead_code)]
+
 use compiler::CompilerPass;
 use ast::ir::*;
 use vm::context::VMContext;
+
+use compiler::backend::init_machine_regs_for_func;
 
 mod liveness;
 mod coloring;
@@ -29,7 +33,10 @@ impl CompilerPass for RegisterAllocation {
         
         cf.mc.print();
         
-        let liveness = liveness::build(&mut cf);
+        // initialize machine registers for the function context
+        init_machine_regs_for_func(&mut func.context);
+        
+        let liveness = liveness::build(&mut cf, func);
         liveness.print();
         
         coloring::GraphColoring::start(&mut cf, liveness);

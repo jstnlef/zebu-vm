@@ -3,7 +3,8 @@ extern crate nalgebra;
 use vm::machine_code::CompiledFunction;
 use vm::machine_code::MachineCode;
 use ast::ir::*;
-use compiler::backend::get_name_for_value as get_tag;
+use ast::types;
+use compiler::backend;
 
 use std::collections::LinkedList;
 use std::collections::{HashMap, HashSet};
@@ -12,43 +13,89 @@ use self::nalgebra::DMatrix;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Node(usize);
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NodeProperty {
+    color: Option<MuID>,
+    group: backend::RegGroup
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Move{pub from: Node, pub to: Node}
 
 pub struct InterferenceGraph {
     nodes: HashMap<MuID, Node>,
+    nodes_property: HashMap<Node, NodeProperty>,
     
     matrix: Option<DMatrix<bool>>,
-    color: HashMap<Node, MuID>,
     
-    moves: HashSet<(MuID, MuID)>
+    moves: HashSet<Move>,
 }
 
 impl InterferenceGraph {
     fn new() -> InterferenceGraph {
         InterferenceGraph {
             nodes: HashMap::new(),
+            nodes_property: HashMap::new(),
             matrix: None,
-            color: HashMap::new(),
             moves: HashSet::new()
         }
     }
     
-    fn new_node(&mut self, reg: MuID) -> Node {
-        if !self.nodes.contains_key(&reg) {
+    fn new_node(&mut self, reg_id: MuID, context: &FunctionContext) -> Node {
+        let entry = context.get_value(reg_id).unwrap();
+        
+        if !self.nodes.contains_key(&reg_id) {
             let index = self.nodes.len();
             let node = Node(index);
-            self.nodes.insert(reg, node.clone());
+            
+            // add the node
+            self.nodes.insert(reg_id, node.clone());
+            
+            // add node property
+            let group = {
+                let ref ty = entry.ty;
+                if types::is_scalar(ty) {
+                    if types::is_fp(ty) {
+                        backend::RegGroup::GPR
+                    } else {
+                        backend::RegGroup::FPR
+                    }
+                } else {
+                    unimplemented!()
+                }
+            };
+            let property = NodeProperty {
+                color: None,
+                group: group 
+            };
+            self.nodes_property.insert(node, property);
             
             node
         } else {
-            * self.nodes.get(&reg).unwrap()
+            * self.nodes.get(&reg_id).unwrap()
         }
     }
     
-    fn get_node(&self, reg: MuID) -> Node {
+    pub fn get_node(&self, reg: MuID) -> Node {
         match self.nodes.get(&reg) {
             Some(index) => *index,
             None => panic!("do not have a node for {}", reg)
         }
+    }
+    
+    pub fn nodes(&self) -> Vec<Node> {
+        let mut ret = vec![];
+        for node in self.nodes.values() {
+            ret.push(node.clone());
+        }
+        ret
+    }
+    
+    pub fn moves(&self) -> &HashSet<Move> {
+        &self.moves
+    }
+    
+    pub fn n_nodes(&self) -> usize {
+        self.nodes.len()
     }
     
     fn init_graph(&mut self) {
@@ -56,20 +103,29 @@ impl InterferenceGraph {
         self.matrix = Some(DMatrix::from_element(len, len, false));
     }
     
-    fn add_move(&mut self, src: MuID, dst: MuID) {
-        self.moves.insert((src, dst));
+    fn add_move(&mut self, src: Node, dst: Node) {
+        self.moves.insert(Move{from: src, to: dst});
     }
     
     fn add_interference_edge(&mut self, from: Node, to: Node) {
-        self.matrix.as_mut().unwrap()[(from.0, to.0)] = true;
+        // only if two nodes are from the same RegGroup,
+        // they may interefere
+        if self.nodes_property.get(&from).unwrap().group 
+           == self.nodes_property.get(&to).unwrap().group {
+            self.matrix.as_mut().unwrap()[(from.0, to.0)] = true;
+        }
     }
     
     fn color_node(&mut self, node: Node, color: MuID) {
-        self.color.insert(node, color);
+        self.nodes_property.get_mut(&node).unwrap().color = Some(color);
     }
     
-    fn node_has_color(&self, node: Node) -> bool {
-        self.color.contains_key(&node)
+    pub fn is_colored(&self, node: Node) -> bool {
+        self.nodes_property.get(&node).unwrap().color.is_some()
+    }
+    
+    pub fn get_group_of(&self, node: Node) -> backend::RegGroup {
+        self.nodes_property.get(&node).unwrap().group
     }
     
     fn is_same_node(&self, node1: Node, node2: Node) -> bool {
@@ -82,17 +138,48 @@ impl InterferenceGraph {
         matrix[(from.0, to.0)] || matrix[(to.0, from.0)]
     }
     
+    pub fn outdegree_of(&self, node: Node) -> usize {
+        let mut count = 0;
+        for i in 0..self.nodes.len() {
+            if self.matrix.as_ref().unwrap()[(node.0, i)] {
+                count += 1;
+            }
+        }
+        
+        count
+    }
+    
+    pub fn indegree_of(&self, node: Node) -> usize {
+        let mut count = 0;
+        for i in 0..self.nodes.len() {
+            if self.matrix.as_ref().unwrap()[(i, node.0)] {
+                count += 1;
+            }
+        }
+        
+        count
+    }
+    
+    pub fn degree_of(&self, node: Node) -> usize {
+        self.outdegree_of(node) + self.indegree_of(node)
+    }
+    
     pub fn print(&self) {
         println!("");
         println!("Interference Graph");
 
+        println!("nodes:");
+        for id in self.nodes.keys() {
+            println!("Reg {} -> {:?}", id, self.nodes.get(&id).unwrap());
+        }
+
         println!("color:");
-        for (n, c) in self.color.iter() {
-            println!("Node {} -> Color/Reg {}", n.0, c);
+        for (n, c) in self.nodes_property.iter() {
+            println!("{:?} -> Color/Reg {:?}", n, c);
         }
         println!("moves:");
         for mov in self.moves.iter() {
-            println!("Move {} -> {}", mov.0, mov.1);
+            println!("Move {:?} -> {:?}", mov.from, mov.to);
         }
         println!("graph:");
         {
@@ -120,51 +207,9 @@ impl InterferenceGraph {
         }
         println!("");
     }
-    
-    #[allow(dead_code)]
-    pub fn print_symbols(&self, func: &MuFunction) {
-        let ref context = func.context;
-        
-        println!("");
-        println!("Interference Graph");
-        
-        println!("color:");
-        for (n, c) in self.color.iter() {
-            println!("Node {} -> Color/Reg {}", get_tag(n.0, context), get_tag(*c, context));
-        }
-        println!("moves:");
-        for mov in self.moves.iter() {
-            println!("Move {} -> {}", get_tag(mov.0, context), get_tag(mov.1, context));
-        }
-        println!("graph:");
-        {
-            let idx_to_node_id = {
-                let mut ret : HashMap<Node, MuID> = HashMap::new();
-                
-                for node_id in self.nodes.keys() {
-                    ret.insert(*self.nodes.get(node_id).unwrap(), *node_id);
-                }
-                
-                ret 
-            };
-            
-            let matrix = self.matrix.as_ref().unwrap();
-            for i in 0..matrix.ncols() {
-                for j in 0..matrix.nrows() {
-                    if matrix[(i, j)] {
-                        let from_node = idx_to_node_id.get(&Node(i)).unwrap();
-                        let to_node = idx_to_node_id.get(&Node(j)).unwrap();
-                        
-                        println!("Reg {} -> Reg {}", get_tag(*from_node, context), get_tag(*to_node, context));
-                    }
-                }
-            }
-        }
-        println!("");
-    }
 }
 
-fn is_machine_reg(reg: MuID) -> bool {
+pub fn is_machine_reg(reg: MuID) -> bool {
     if reg < RESERVED_NODE_IDS_FOR_MACHINE {
         true
     } else {
@@ -173,10 +218,15 @@ fn is_machine_reg(reg: MuID) -> bool {
 }
 
 // from tony's code src/RegAlloc/Liveness.java
-pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
+pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
     let mut ig = InterferenceGraph::new();
     
-    // move precolor nodes to later iteration of registers
+    // precolor machine register nodes
+    for reg in backend::all_regs().iter() {
+        let reg_id = reg.extract_ssa_id().unwrap();
+        let node = ig.new_node(reg_id, &func.context);
+        ig.color_node(node, reg_id);
+    }
     
     // Liveness Analysis
     let n_insts = cf.mc.number_of_insts();
@@ -191,24 +241,14 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
         
         for reg_id in cf.mc.get_inst_reg_defines(i) {
             let reg_id = *reg_id;
-            let node = ig.new_node(reg_id);
-            
-            // precolor
-            if is_machine_reg(reg_id) {
-                ig.color_node(node, reg_id);
-            }
+            ig.new_node(reg_id, &func.context);
         }
         
         for reg_id in cf.mc.get_inst_reg_uses(i) {
             let reg_id = *reg_id;
-            let node = ig.new_node(reg_id);
+            ig.new_node(reg_id, &func.context);
             
             in_set.push(reg_id);
-            
-            // precolor
-            if is_machine_reg(reg_id) {
-                ig.color_node(node, reg_id);
-            }
         }
         
         work_list.push_front(i);
@@ -274,7 +314,9 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
                 debug_assert!(dst.len() == 1);
                 
                 if src.len() == 1 {
-                    ig.add_move(src[0], dst[0]);
+                    let node1 = ig.get_node(src[0]);
+                    let node2 = ig.get_node(dst[0]);
+                    ig.add_move(node1, node2);
                     
                     Some(src[0])
                 } else {
@@ -292,10 +334,10 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
                     let to = ig.get_node(*t);
                     
                     if !ig.is_same_node(from, to) && !ig.is_adj(from, to) {
-                        if !ig.node_has_color(from) {
+                        if !ig.is_colored(from) {
                             ig.add_interference_edge(from, to);
                         }
-                        if !ig.node_has_color(to) {
+                        if !ig.is_colored(to) {
                             ig.add_interference_edge(to, from);
                         }
                     }
@@ -315,8 +357,6 @@ pub fn build (cf: &CompiledFunction) -> InterferenceGraph {
     ig
 }
 
-use std::fmt;
-
 fn add_all<T: Copy + PartialEq> (vec: &mut Vec<T>, vec2: &Vec<T>) -> bool {
     let mut is_changed = false;
     
@@ -330,7 +370,7 @@ fn add_all<T: Copy + PartialEq> (vec: &mut Vec<T>, vec2: &Vec<T>) -> bool {
     is_changed
 }
 
-fn find_value<T: Ord + fmt::Debug + fmt::Display> (vec: &mut Vec<T>, val: T) -> Option<usize> {
+pub fn find_value<T: PartialEq> (vec: &Vec<T>, val: T) -> Option<usize> {
     for i in 0..vec.len() {
         if vec[i] == val {
             return Some(i);
@@ -340,7 +380,7 @@ fn find_value<T: Ord + fmt::Debug + fmt::Display> (vec: &mut Vec<T>, val: T) -> 
     None
 }
 
-fn remove_value<T: Ord + fmt::Debug + fmt::Display> (vec: &mut Vec<T>, val: T) {
+fn remove_value<T: PartialEq> (vec: &mut Vec<T>, val: T) {
     match find_value(vec, val) {
         Some(index) => {vec.remove(index);},
         None => {} // do nothing
