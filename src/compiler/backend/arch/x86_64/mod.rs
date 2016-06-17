@@ -116,6 +116,9 @@ lazy_static!{
     pub static ref CALLEE_SAVED_FPRs : [P<Value>; 0] = [];
 }
 
+pub const GPR_COUNT : usize = 16;
+pub const FPR_COUNT : usize = 16;
+
 lazy_static! {
     pub static ref ALL_MACHINE_REGs : Vec<P<Value>> = vec![
         RAX.clone(),

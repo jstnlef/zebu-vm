@@ -10,10 +10,10 @@ use std::collections::{HashMap, HashSet};
 
 use self::nalgebra::DMatrix;
 
-type MatrixIndex = usize;
+type Node = usize;
 
 pub struct InterferenceGraph {
-    nodes: HashMap<MuID, MatrixIndex>,
+    nodes: HashMap<MuID, Node>,
     
     matrix: Option<DMatrix<bool>>,
     color: HashMap<MuID, MuID>,
@@ -31,21 +31,21 @@ impl InterferenceGraph {
         }
     }
     
-    fn new_node(&mut self, node: MuID) -> MatrixIndex {
-        if !self.nodes.contains_key(&node) {
+    fn new_node(&mut self, reg: MuID) -> Node {
+        if !self.nodes.contains_key(&reg) {
             let index = self.nodes.len();
-            self.nodes.insert(node, index);
+            self.nodes.insert(reg, index);
             
             index
         } else {
-            * self.nodes.get(&node).unwrap()
+            * self.nodes.get(&reg).unwrap()
         }
     }
     
-    fn get_node(&self, node: MuID) -> MatrixIndex {
-        match self.nodes.get(&node) {
+    fn get_node(&self, reg: MuID) -> Node {
+        match self.nodes.get(&reg) {
             Some(index) => *index,
-            None => panic!("do not have a node for {}", node)
+            None => panic!("do not have a node for {}", reg)
         }
     }
     
@@ -65,28 +65,28 @@ impl InterferenceGraph {
         self.matrix.as_mut().unwrap()[(from_ix, to_ix)] = true;
     }
     
-    fn color_node(&mut self, node: MuID, color: MuID) {
-        self.color.insert(node, color);
+    fn color_node(&mut self, reg: MuID, color: MuID) {
+        self.color.insert(reg, color);
     }
     
-    fn node_has_color(&self, node: MuID) -> bool {
-        self.color.contains_key(&node)
+    fn node_has_color(&self, reg: MuID) -> bool {
+        self.color.contains_key(&reg)
     }
     
-    fn is_same_node(&self, node1: MuID, node2: MuID) -> bool {
-        let ix1 = self.get_node(node1);
-        let ix2 = self.get_node(node2);
+    fn is_same_node(&self, reg1: MuID, reg2: MuID) -> bool {
+        let node1 = self.get_node(reg1);
+        let node2 = self.get_node(reg2);
         
-        ix1 == ix2
+        node1 == node2
     }
     
     fn is_adj(&self, from: MuID, to: MuID) -> bool {
-        let from_ix = self.get_node(from);
-        let to_ix = self.get_node(to);
+        let from_node = self.get_node(from);
+        let to_node = self.get_node(to);
         
         let ref matrix = self.matrix.as_ref().unwrap();
         
-        matrix[(from_ix, to_ix)] || matrix[(to_ix, from_ix)]
+        matrix[(from_node, to_node)] || matrix[(to_node, from_node)]
     }
     
     pub fn print(&self) {
@@ -103,11 +103,11 @@ impl InterferenceGraph {
         }
         println!("graph:");
         {
-            let idx_to_node_id = {
-                let mut ret : HashMap<MatrixIndex, MuID> = HashMap::new();
+            let node_to_reg_id = {
+                let mut ret : HashMap<Node, MuID> = HashMap::new();
                 
-                for node_id in self.nodes.keys() {
-                    ret.insert(*self.nodes.get(node_id).unwrap(), *node_id);
+                for reg in self.nodes.keys() {
+                    ret.insert(*self.nodes.get(reg).unwrap(), *reg);
                 }
                 
                 ret 
@@ -117,8 +117,8 @@ impl InterferenceGraph {
             for i in 0..matrix.ncols() {
                 for j in 0..matrix.nrows() {
                     if matrix[(i, j)] {
-                        let from_node = idx_to_node_id.get(&i).unwrap();
-                        let to_node = idx_to_node_id.get(&j).unwrap();
+                        let from_node = node_to_reg_id.get(&i).unwrap();
+                        let to_node = node_to_reg_id.get(&j).unwrap();
                         
                         println!("Node {} -> Node {}", from_node, to_node);
                     }
@@ -146,7 +146,7 @@ impl InterferenceGraph {
         println!("graph:");
         {
             let idx_to_node_id = {
-                let mut ret : HashMap<MatrixIndex, MuID> = HashMap::new();
+                let mut ret : HashMap<Node, MuID> = HashMap::new();
                 
                 for node_id in self.nodes.keys() {
                     ret.insert(*self.nodes.get(node_id).unwrap(), *node_id);

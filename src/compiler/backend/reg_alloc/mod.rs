@@ -3,6 +3,7 @@ use ast::ir::*;
 use vm::context::VMContext;
 
 mod liveness;
+mod coloring;
 
 pub struct RegisterAllocation {
     name: &'static str
@@ -30,5 +31,7 @@ impl CompilerPass for RegisterAllocation {
         
         let liveness = liveness::build(&mut cf);
         liveness.print();
+        
+        coloring::GraphColoring::start(&mut cf, liveness);
     }
 }
