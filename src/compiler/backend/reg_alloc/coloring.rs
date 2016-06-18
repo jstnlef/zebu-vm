@@ -32,6 +32,7 @@ pub struct GraphColoring <'a> {
     
     worklist_spill: Vec<Node>,
     worklist_freeze: HashSet<Node>,
+    frozen_moves: HashSet<Move>,
     
     worklist_simplify: HashSet<Node>,
     select_stack: Vec<Node>
@@ -58,6 +59,7 @@ impl <'a> GraphColoring <'a> {
             
             worklist_spill: Vec::new(),
             worklist_freeze: HashSet::new(),
+            frozen_moves: HashSet::new(),
             
             worklist_simplify: HashSet::new(),
             select_stack: Vec::new()
@@ -412,7 +414,32 @@ impl <'a> GraphColoring <'a> {
     }
     
     fn freeze(&mut self) {
-        unimplemented!()
+        let node = {
+            let next = self.worklist_freeze.iter().next().unwrap().clone();
+            self.worklist_freeze.take(&next).unwrap()
+        };
+        
+        self.worklist_simplify.insert(node);
+        self.freeze_moves(node);
+    }
+    
+    fn freeze_moves(&mut self, u: Node) {
+        for m in self.node_moves(u) {
+            let mut v = self.get_alias(m.from);
+            if v == self.get_alias(u) {
+                v = self.get_alias(m.to);
+            }
+            
+            self.active_moves.remove(&m);
+            self.frozen_moves.insert(m);
+            
+            if !self.precolored.contains(&v) 
+               && self.node_moves(v).is_empty()
+               && self.degree(v) < self.n_regs_for_node(v) {
+                self.worklist_freeze.remove(&v);
+                self.worklist_simplify.insert(v);
+            }
+        }
     }
     
     fn select_spill(&mut self) {
