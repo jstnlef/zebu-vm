@@ -108,7 +108,7 @@ impl InterferenceGraph {
         self.moves.insert(Move{from: src, to: dst});
     }
     
-    fn add_interference_edge(&mut self, from: Node, to: Node) {
+    pub fn add_interference_edge(&mut self, from: Node, to: Node) {
         // only if two nodes are from the same RegGroup,
         // they may interefere
         if self.nodes_property.get(&from).unwrap().group 
@@ -133,7 +133,7 @@ impl InterferenceGraph {
         node1 == node2
     }
     
-    fn is_adj(&self, from: Node, to: Node) -> bool {
+    pub fn is_adj(&self, from: Node, to: Node) -> bool {
         let ref matrix = self.matrix.as_ref().unwrap();
         
         matrix[(from.0, to.0)] || matrix[(to.0, from.0)]
