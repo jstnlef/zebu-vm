@@ -5,6 +5,7 @@ use vm::machine_code::MachineCode;
 use ast::ir::*;
 use ast::types;
 use compiler::backend;
+use utils::vec_utils;
 
 use std::collections::LinkedList;
 use std::collections::{HashMap, HashSet};
@@ -138,6 +139,19 @@ impl InterferenceGraph {
         matrix[(from.0, to.0)] || matrix[(to.0, from.0)]
     }
     
+    pub fn outedges_of(&self, node: Node) -> Vec<Node> {
+        let mut ret = vec![];
+        let matrix = self.matrix.as_ref().unwrap();
+        
+        for i in 0..self.nodes.len() {
+            if matrix[(node.0, i)] {
+                ret.push(Node(i));
+            }
+        }
+        
+        ret
+    }
+    
     pub fn outdegree_of(&self, node: Node) -> usize {
         let mut count = 0;
         for i in 0..self.nodes.len() {
@@ -267,13 +281,13 @@ pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
         // out = union(in[succ]) for all succs
         for succ in cf.mc.get_succs(n) {
 //            trace!("add successor's livein {:?} to #{}", &live_in[*succ], n); 
-            add_all(out_set, &live_in[*succ]);
+            vec_utils::add_all(out_set, &live_in[*succ]);
         }
         
         // in = use(i.e. live_in) + (out - def) 
         let mut diff = out_set.clone();
         for def in cf.mc.get_inst_reg_defines(n) {
-            remove_value(&mut diff, *def);
+            vec_utils::remove_value(&mut diff, *def);
 //            trace!("removing def: {}", *def);
 //            trace!("diff = {:?}", diff);
         }
@@ -282,7 +296,7 @@ pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
         if !diff.is_empty() {
             let ref mut in_set = live_in[n];
             
-            if add_all(in_set, &diff) {
+            if vec_utils::add_all(in_set, &diff) {
                 for p in cf.mc.get_preds(n) {
                     work_list.push_front(*p);
                 }
@@ -346,7 +360,7 @@ pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
         }
         
         for d in cf.mc.get_inst_reg_defines(n) {
-            remove_value(live, *d);
+            vec_utils::remove_value(live, *d);
         }
         
         for u in cf.mc.get_inst_reg_uses(n) {
@@ -355,34 +369,4 @@ pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
     }
     
     ig
-}
-
-fn add_all<T: Copy + PartialEq> (vec: &mut Vec<T>, vec2: &Vec<T>) -> bool {
-    let mut is_changed = false;
-    
-    for i in vec2.iter() {
-        if !vec.contains(i) {
-            vec.push(*i);
-            is_changed = true;
-        }
-    }
-    
-    is_changed
-}
-
-pub fn find_value<T: PartialEq> (vec: &Vec<T>, val: T) -> Option<usize> {
-    for i in 0..vec.len() {
-        if vec[i] == val {
-            return Some(i);
-        }
-    }
-    
-    None
-}
-
-fn remove_value<T: PartialEq> (vec: &mut Vec<T>, val: T) {
-    match find_value(vec, val) {
-        Some(index) => {vec.remove(index);},
-        None => {} // do nothing
-    }
 }
