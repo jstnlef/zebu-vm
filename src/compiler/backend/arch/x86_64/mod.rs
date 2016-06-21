@@ -228,6 +228,14 @@ pub fn all_regs() -> &'static Vec<P<Value>> {
     &ALL_MACHINE_REGs
 }
 
+pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
+    match reg_id {
+        0...15  => RegGroup::GPR,
+        16...31 => RegGroup::FPR,
+        _ => panic!("expected a machine reg ID, got {}", reg_id)
+    }
+}
+
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
     use std::u32;
     match op.v {

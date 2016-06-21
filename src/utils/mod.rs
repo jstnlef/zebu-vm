@@ -32,3 +32,17 @@ pub mod vec_utils {
         }
     }
 }
+
+pub mod hashset_utils {
+    use std::collections::HashSet;
+    use std::hash::Hash;
+    
+    pub fn pop_first<T: Eq + Hash + Copy> (set: &mut HashSet<T>) -> Option<T> {
+        if set.is_empty() {
+            None
+        } else {
+            let next : T = set.iter().next().unwrap().clone();
+            set.take(&next)
+        }
+    }
+}

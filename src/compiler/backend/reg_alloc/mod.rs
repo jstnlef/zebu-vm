@@ -39,6 +39,7 @@ impl CompilerPass for RegisterAllocation {
         let liveness = liveness::build(&mut cf, func);
         liveness.print();
         
-        coloring::GraphColoring::start(&mut cf, liveness);
+        let coloring = coloring::GraphColoring::start(&mut cf, liveness);
+        let spills = coloring.spills();
     }
 }

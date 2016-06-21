@@ -14,10 +14,12 @@ use self::nalgebra::DMatrix;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Node(usize);
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeProperty {
     color: Option<MuID>,
-    group: backend::RegGroup
+    group: backend::RegGroup,
+    temp: MuID,
+    spill_cost: f32
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Move{pub from: Node, pub to: Node}
@@ -66,14 +68,21 @@ impl InterferenceGraph {
             };
             let property = NodeProperty {
                 color: None,
-                group: group 
+                group: group,
+                temp: reg_id,
+                spill_cost: 0.0f32
             };
             self.nodes_property.insert(node, property);
-            
-            node
-        } else {
-            * self.nodes.get(&reg_id).unwrap()
-        }
+        } 
+        
+        
+        let node = * self.nodes.get(&reg_id).unwrap();
+        
+        // increase node spill cost
+        let property = self.nodes_property.get_mut(&node).unwrap();
+        property.spill_cost += 1.0f32;
+        
+        node
     }
     
     pub fn get_node(&self, reg: MuID) -> Node {
@@ -117,7 +126,7 @@ impl InterferenceGraph {
         }
     }
     
-    fn color_node(&mut self, node: Node, color: MuID) {
+    pub fn color_node(&mut self, node: Node, color: MuID) {
         self.nodes_property.get_mut(&node).unwrap().color = Some(color);
     }
     
@@ -125,8 +134,20 @@ impl InterferenceGraph {
         self.nodes_property.get(&node).unwrap().color.is_some()
     }
     
+    pub fn get_color_of(&self, node: Node) -> Option<MuID> {
+        self.nodes_property.get(&node).unwrap().color
+    }
+    
     pub fn get_group_of(&self, node: Node) -> backend::RegGroup {
         self.nodes_property.get(&node).unwrap().group
+    }
+    
+    pub fn get_temp_of(&self, node: Node) -> MuID {
+        self.nodes_property.get(&node).unwrap().temp
+    }
+    
+    pub fn get_spill_cost(&self, node: Node) -> f32 {
+        self.nodes_property.get(&node).unwrap().spill_cost
     }
     
     fn is_same_node(&self, node1: Node, node2: Node) -> bool {

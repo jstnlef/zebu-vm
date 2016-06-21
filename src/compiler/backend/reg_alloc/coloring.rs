@@ -5,6 +5,7 @@ use vm::machine_code::CompiledFunction;
 
 use compiler::backend;
 use utils::vec_utils;
+use utils::hashset_utils;
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -18,7 +19,8 @@ pub struct GraphColoring <'a> {
     cur_cf: &'a CompiledFunction,
     
     precolored: HashSet<Node>,
-    colors: HashSet<MuID>,
+    colors: HashMap<backend::RegGroup, HashSet<MuID>>,
+    colored_nodes: Vec<Node>,
     
     initial: Vec<Node>,
     degree: HashMap<Node, usize>,
@@ -31,6 +33,9 @@ pub struct GraphColoring <'a> {
     alias: HashMap<Node, Node>,
     
     worklist_spill: Vec<Node>,
+    spillable: HashMap<MuID, bool>,
+    spilled_nodes: Vec<Node>,
+    
     worklist_freeze: HashSet<Node>,
     frozen_moves: HashSet<Move>,
     
@@ -39,13 +44,19 @@ pub struct GraphColoring <'a> {
 }
 
 impl <'a> GraphColoring <'a> {
-    pub fn start (cf: &CompiledFunction, ig: InterferenceGraph) {
+    pub fn start (cf: &CompiledFunction, ig: InterferenceGraph) -> GraphColoring {
         let mut coloring = GraphColoring {
             ig: ig,
             cur_cf: cf, 
             
             precolored: HashSet::new(),
-            colors: HashSet::new(),
+            colors: {
+                let mut map = HashMap::new();
+                map.insert(backend::RegGroup::GPR, HashSet::new());
+                map.insert(backend::RegGroup::FPR, HashSet::new());
+                map
+            },
+            colored_nodes: Vec::new(),
             
             initial: Vec::new(),
             degree: HashMap::new(),
@@ -58,6 +69,9 @@ impl <'a> GraphColoring <'a> {
             alias: HashMap::new(),
             
             worklist_spill: Vec::new(),
+            spillable: HashMap::new(),
+            spilled_nodes: Vec::new(),
+            
             worklist_freeze: HashSet::new(),
             frozen_moves: HashSet::new(),
             
@@ -66,6 +80,8 @@ impl <'a> GraphColoring <'a> {
         };
         
         coloring.init();
+        
+        coloring
     }
     
     fn init (&mut self) {
@@ -76,7 +92,10 @@ impl <'a> GraphColoring <'a> {
             let node = self.ig.get_node(reg_id);
             
             self.precolored.insert(node);
-            self.colors.insert(reg_id);
+            {
+                let group = backend::pick_group_for_reg(reg_id);
+                self.colors.get_mut(&group).unwrap().insert(reg_id);
+            }
         }
         
         for node in self.ig.nodes() {
@@ -443,10 +462,78 @@ impl <'a> GraphColoring <'a> {
     }
     
     fn select_spill(&mut self) {
-        unimplemented!()
+        let mut m : Option<Node> = None;
+        
+        for n in self.worklist_spill.iter() {
+            let n = *n;
+            if m.is_none() {
+                m = Some(n);
+            } else if {
+                // m is not none
+                let temp = self.ig.get_temp_of(m.unwrap());
+                let spillable = {match self.spillable.get(&temp) {
+                    None => {
+                        //by default, its spillable
+                        true
+                    },
+                    Some(b) => *b
+                }};
+                
+                !spillable
+            } {
+                m = Some(n);
+            } else if (self.ig.get_spill_cost(n) / (self.degree(n) as f32)) 
+              < (self.ig.get_spill_cost(m.unwrap()) / (self.degree(m.unwrap()) as f32)) {
+                m = Some(n);
+            }
+        }
+        
+        // m is not none
+        let m = m.unwrap();
+        vec_utils::remove_value(&mut self.worklist_spill, m);
+        self.worklist_simplify.insert(m);
+        self.freeze_moves(m);
     }
     
     fn assign_colors(&mut self) {
-        unimplemented!()
+        while !self.select_stack.is_empty() {
+            let n = self.select_stack.pop().unwrap();
+            
+            let mut ok_colors = self.colors.get(&self.ig.get_group_of(n)).unwrap().clone();
+            for w in self.ig.outedges_of(n) {
+                let w = self.get_alias(w);
+                match self.ig.get_color_of(w) {
+                    None => {}, // do nothing
+                    Some(color) => {ok_colors.remove(&color);}
+                }
+            }
+            
+            if ok_colors.is_empty() {
+                self.spilled_nodes.push(n);
+            } else {
+                self.colored_nodes.push(n);
+                self.ig.color_node(n, hashset_utils::pop_first(&mut ok_colors).unwrap());
+            }
+        }
+        
+        for n in self.coalesced_nodes.iter() {
+            let n = *n;
+            let alias = self.get_alias(n);
+            let alias_color = self.ig.get_color_of(alias).unwrap();
+            self.ig.color_node(n, alias_color);
+        }
+    }
+    
+    pub fn spills(&self) -> Vec<MuID> {
+        let mut spills = vec![];
+        
+        let spill_count = self.spilled_nodes.len();
+        if spill_count > 0 {
+            for n in self.spilled_nodes.iter() {
+                spills.push(self.ig.get_temp_of(*n));
+            }
+        }
+        
+        spills
     }
 }
