@@ -28,7 +28,7 @@ impl CompilerPass for RegisterAllocation {
     
     #[allow(unused_variables)]
     fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
-        let mut compiled_funcs = vm_context.compiled_funcs().read().unwrap();
+        let compiled_funcs = vm_context.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(func.fn_name).unwrap().borrow_mut();
         
         cf.mc.print();
@@ -39,7 +39,30 @@ impl CompilerPass for RegisterAllocation {
         let liveness = liveness::build(&mut cf, func);
         liveness.print();
         
-        let coloring = coloring::GraphColoring::start(&mut cf, liveness);
+        let coloring = coloring::GraphColoring::start(liveness);
         let spills = coloring.spills();
+        
+        if !spills.is_empty() {
+            unimplemented!();
+        }
+        
+        // replace regs
+        trace!("Replacing Registers...");
+        for node in coloring.ig.nodes() {
+            let temp = coloring.ig.get_temp_of(node);
+            
+            // skip machine registers
+            if temp < RESERVED_NODE_IDS_FOR_MACHINE {
+                continue;
+            } else {
+                let alias = coloring.get_alias(node);
+                let machine_reg = coloring.ig.get_color_of(alias).unwrap();
+                
+                trace!("replacing {} with {}", temp, machine_reg);
+                cf.mc.replace_reg(temp, machine_reg);
+            }
+        }
+        
+        cf.mc.print();
     }
 }

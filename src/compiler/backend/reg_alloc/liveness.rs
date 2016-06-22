@@ -92,6 +92,14 @@ impl InterferenceGraph {
         }
     }
     
+    pub fn temps(&self) -> Vec<MuID>{
+        let mut ret = vec![];
+        for reg in self.nodes.keys() {
+            ret.push(*reg);
+        }
+        ret
+    }
+    
     pub fn nodes(&self) -> Vec<Node> {
         let mut ret = vec![];
         for node in self.nodes.values() {

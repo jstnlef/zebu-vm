@@ -16,4 +16,6 @@ pub trait MachineCode {
     
     fn get_inst_reg_uses(&self, index: usize) -> &Vec<MuID>;
     fn get_inst_reg_defines(&self, index: usize) -> &Vec<MuID>;
+    
+    fn replace_reg(&mut self, from: MuID, to: MuID);
 }

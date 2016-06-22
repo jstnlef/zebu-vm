@@ -1,8 +1,11 @@
 #![allow(unused_variables)]
 
+use compiler::backend;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use vm::machine_code::MachineCode;
+
+use utils::string_utils;
 
 use ast::ptr::P;
 use ast::ir::*;
@@ -54,6 +57,35 @@ impl MachineCode for ASMCode {
     
     fn get_inst_reg_defines(&self, index: usize) -> &Vec<MuID> {
         &self.code[index].defines
+    }
+    
+    fn replace_reg(&mut self, from: MuID, to: MuID) {
+        let to_reg_tag : MuTag = backend::all_regs()[to].tag;
+        let to_reg_string = "%".to_string() + to_reg_tag;
+        
+        match self.reg_defines.get(&from) {
+            Some(defines) => {
+                for loc in defines {
+                    let ref mut inst_to_patch = self.code[loc.line];
+                    for i in 0..loc.len {
+                        string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
+                    }
+                }
+            },
+            None => {}
+        }
+        
+        match self.reg_uses.get(&from) {
+            Some(uses) => {
+                for loc in uses {
+                    let ref mut inst_to_patch = self.code[loc.line];
+                    for i in 0..loc.len {
+                        string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
+                    }   
+                }
+            },
+            None => {}
+        }
     }
     
     fn print(&self) {
@@ -142,7 +174,7 @@ pub struct ASMCodeGen {
     cur: Option<Box<ASMCode>>
 }
 
-const REG_PLACEHOLDER_LEN : usize = 3;
+const REG_PLACEHOLDER_LEN : usize = 5;
 lazy_static! {
     pub static ref REG_PLACEHOLDER : String = {
         let blank_spaces = [' ' as u8; REG_PLACEHOLDER_LEN];
@@ -168,18 +200,6 @@ impl ASMCodeGen {
     
     fn line(&self) -> usize {
         self.cur().code.len()
-    }
-    
-    fn replace(s: &mut String, index: usize, replace: &str, replace_len: usize) {
-        let vec = unsafe {s.as_mut_vec()};
-        
-        for i in 0..replace_len {
-            if i < replace.len() {
-                vec[index + i] = replace.as_bytes()[i] as u8;
-            } else {
-                vec[index + i] = ' ' as u8;
-            }
-        }
     }
     
     fn add_asm_block_label(&mut self, code: String, block_name: &'static str) {
@@ -489,10 +509,10 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: mov {} -> {}", src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_op(src, 4 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
         
-        let asm = format!("movq {} {}", reg2, reg1);
+        let asm = format!("movq {} {}", reg1, reg2);
         
         self.add_asm_inst(
             asm,
@@ -506,10 +526,10 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_add_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_op(src, 4 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
         
-        let asm = format!("addq {} {}", reg2, reg1);
+        let asm = format!("addq {} {}", reg1, reg2);
         
         self.add_asm_inst(
             asm,
@@ -544,10 +564,10 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_sub_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: sub {}, {} -> {}", dest, src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_op(src, 4 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
         
-        let asm = format!("subq {} {}", reg2, reg1);
+        let asm = format!("subq {} {}", reg1, reg2);
         
         self.add_asm_inst(
             asm,
@@ -566,9 +586,9 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_sub_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: sub {}, {} -> {}", dest, src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
+        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1 + 1 + src.to_string().len() + 1);
         
-        let asm = format!("subq {} ${}", src, reg1);
+        let asm = format!("subq ${} {}", src, reg1);
         
         self.add_asm_inst(
             asm,

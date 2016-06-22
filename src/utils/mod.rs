@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 // This porvides some missing operations on Vec.
 // They are not included in the standard libarary. 
 // (because they are likely inefficient?)
@@ -43,6 +45,21 @@ pub mod hashset_utils {
         } else {
             let next : T = set.iter().next().unwrap().clone();
             set.take(&next)
+        }
+    }
+}
+
+pub mod string_utils {
+   pub fn replace(s: &mut String, index: usize, replace: &String, replace_len: usize) {
+        let vec = unsafe {s.as_mut_vec()};
+        let vec_replace = replace.as_bytes();
+        
+        for i in 0..replace_len {
+            if i < replace.len() {
+                vec[index + i] = vec_replace[i] as u8;
+            } else {
+                vec[index + i] = ' ' as u8;
+            }
         }
     }
 }

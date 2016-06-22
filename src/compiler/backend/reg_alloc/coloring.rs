@@ -13,13 +13,12 @@ use std::collections::HashMap;
 
 const COALESCING : bool = true;
 
-pub struct GraphColoring <'a> {
-    ig: InterferenceGraph,
-    cur_cf: &'a CompiledFunction,
+pub struct GraphColoring {
+    pub ig: InterferenceGraph,
     
     precolored: HashSet<Node>,
     colors: HashMap<backend::RegGroup, HashSet<MuID>>,
-    colored_nodes: Vec<Node>,
+    pub colored_nodes: Vec<Node>,
     
     initial: Vec<Node>,
     degree: HashMap<Node, isize>,
@@ -43,11 +42,10 @@ pub struct GraphColoring <'a> {
     select_stack: Vec<Node>
 }
 
-impl <'a> GraphColoring <'a> {
-    pub fn start (cf: &CompiledFunction, ig: InterferenceGraph) -> GraphColoring {
+impl GraphColoring {
+    pub fn start (ig: InterferenceGraph) -> GraphColoring {
         let mut coloring = GraphColoring {
             ig: ig,
-            cur_cf: cf, 
             
             precolored: HashSet::new(),
             colors: {
@@ -359,7 +357,7 @@ impl <'a> GraphColoring <'a> {
         }
     }
     
-    fn get_alias(&self, node: Node) -> Node {
+    pub fn get_alias(&self, node: Node) -> Node {
         if self.coalesced_nodes.contains(&node) {
             self.get_alias(*self.alias.get(&node).unwrap())
         } else {
