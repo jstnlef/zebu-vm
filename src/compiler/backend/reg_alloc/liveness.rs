@@ -58,9 +58,9 @@ impl InterferenceGraph {
                 let ref ty = entry.ty;
                 if types::is_scalar(ty) {
                     if types::is_fp(ty) {
-                        backend::RegGroup::GPR
-                    } else {
                         backend::RegGroup::FPR
+                    } else {
+                        backend::RegGroup::GPR
                     }
                 } else {
                     unimplemented!()
