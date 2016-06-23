@@ -20,7 +20,7 @@ pub struct GraphColoring {
     pub colored_nodes: Vec<Node>,
     
     initial: Vec<Node>,
-    degree: HashMap<Node, isize>,
+    degree: HashMap<Node, usize>,
     
     worklist_moves: Vec<Move>,
     movelist: HashMap<Node, RefCell<Vec<Move>>>,
@@ -86,11 +86,16 @@ impl GraphColoring {
         trace!("Initializing coloring allocator...");
         
         // for all machine registers
+        for reg in backend::all_regs().iter() {
+            let reg_id = reg.extract_ssa_id().unwrap();
+            let node = self.ig.get_node(reg_id);
+            self.precolored.insert(node);
+        }
+        
         for reg in backend::all_usable_regs().iter() {
             let reg_id = reg.extract_ssa_id().unwrap();
             let node = self.ig.get_node(reg_id);
             
-            self.precolored.insert(node);
             {
                 let group = backend::pick_group_for_reg(reg_id);
                 self.colors.get_mut(&group).unwrap().insert(reg_id);
@@ -101,8 +106,8 @@ impl GraphColoring {
             if !self.ig.is_colored(node) {
                 self.initial.push(node);
                 let outdegree = self.ig.outdegree_of(node);
-                self.degree.insert(node, outdegree as isize);
-                trace!("{} has outdegree of {}", self.node_info(node), outdegree);
+                self.degree.insert(node, outdegree);
+                trace!("{} has a degree of {}", self.node_info(node), outdegree);
             }
         }
         
@@ -229,9 +234,7 @@ impl GraphColoring {
         self.select_stack.push(node);
         
         for m in self.adjacent(node).iter() {
-            let m = *m;
-            trace!("decrement degree of its adjacent node {}", self.node_info(m));
-            self.decrement_degree(m);
+            self.decrement_degree(*m);
         }
     }
     
@@ -256,7 +259,7 @@ impl GraphColoring {
         adj
     }
     
-    fn degree(&self, n: Node) -> isize {
+    fn degree(&self, n: Node) -> usize {
         match self.degree.get(&n) {
             Some(d) => *d,
             None => 0
@@ -264,10 +267,17 @@ impl GraphColoring {
     }
     
     fn decrement_degree(&mut self, n: Node) {
+        if self.precolored.contains(&n) {
+            return;
+        }
+        
+        trace!("decrement degree of {}", self.node_info(n));        
+        
         let d = self.degree(n);
+        debug_assert!(d != 0);
         self.degree.insert(n, d - 1);
         
-        if d == self.n_regs_for_node(n) as isize {
+        if d == self.n_regs_for_node(n) {
             trace!("{}'s degree is K, no longer need to spill it", self.node_info(n));
             let mut nodes = self.adjacent(n);
             nodes.insert(n);
@@ -368,7 +378,7 @@ impl GraphColoring {
     }
     
     fn add_worklist(&mut self, node: Node) {
-        if !self.is_move_related(node) && self.degree(node) < self.n_regs_for_node(node) as isize {
+        if !self.is_move_related(node) && self.degree(node) < self.n_regs_for_node(node) {
             self.worklist_freeze.remove(&node);
             self.worklist_simplify.insert(node);
         }
@@ -378,7 +388,7 @@ impl GraphColoring {
         for t in self.adjacent(v).iter() {
             let t = *t;
             if !self.precolored.contains(&t) 
-              || self.degree(t) < self.n_regs_for_node(t) as isize
+              || self.degree(t) < self.n_regs_for_node(t)
               || self.ig.is_adj(t, u) {
                 return false;
             } 
@@ -400,7 +410,7 @@ impl GraphColoring {
         
         let mut k = 0;
         for n in nodes.iter() {
-            if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) as isize {
+            if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) {
                 k += 1;
             }
         }
@@ -444,7 +454,7 @@ impl GraphColoring {
         }
         
         if self.worklist_freeze.contains(&u)
-          && self.degree(u) >= self.n_regs_for_node(u) as isize {
+          && self.degree(u) >= self.n_regs_for_node(u) {
             self.worklist_freeze.remove(&u);
             self.worklist_spill.push(u);
         }
@@ -487,7 +497,7 @@ impl GraphColoring {
             
             if !self.precolored.contains(&v) 
                && self.node_moves(v).is_empty()
-               && self.degree(v) < self.n_regs_for_node(v) as isize {
+               && self.degree(v) < self.n_regs_for_node(v) {
                 self.worklist_freeze.remove(&v);
                 self.worklist_simplify.insert(v);
             }
