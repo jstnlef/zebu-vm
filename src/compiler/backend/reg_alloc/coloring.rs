@@ -5,10 +5,9 @@ use vm::machine_code::CompiledFunction;
 
 use compiler::backend;
 use utils::vec_utils;
-use utils::hashset_utils;
+use utils::LinkedHashSet;
 
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::collections::HashMap;
 
 const COALESCING : bool = true;
@@ -16,8 +15,8 @@ const COALESCING : bool = true;
 pub struct GraphColoring {
     pub ig: InterferenceGraph,
     
-    precolored: HashSet<Node>,
-    colors: HashMap<backend::RegGroup, HashSet<MuID>>,
+    precolored: LinkedHashSet<Node>,
+    colors: HashMap<backend::RegGroup, LinkedHashSet<MuID>>,
     pub colored_nodes: Vec<Node>,
     
     initial: Vec<Node>,
@@ -25,20 +24,20 @@ pub struct GraphColoring {
     
     worklist_moves: Vec<Move>,
     movelist: HashMap<Node, RefCell<Vec<Move>>>,
-    active_moves: HashSet<Move>,
-    coalesced_nodes: HashSet<Node>,
-    coalesced_moves: HashSet<Move>,
-    constrained_moves: HashSet<Move>,
+    active_moves: LinkedHashSet<Move>,
+    coalesced_nodes: LinkedHashSet<Node>,
+    coalesced_moves: LinkedHashSet<Move>,
+    constrained_moves: LinkedHashSet<Move>,
     alias: HashMap<Node, Node>,
     
     worklist_spill: Vec<Node>,
     spillable: HashMap<MuID, bool>,
     spilled_nodes: Vec<Node>,
     
-    worklist_freeze: HashSet<Node>,
-    frozen_moves: HashSet<Move>,
+    worklist_freeze: LinkedHashSet<Node>,
+    frozen_moves: LinkedHashSet<Move>,
     
-    worklist_simplify: HashSet<Node>,
+    worklist_simplify: LinkedHashSet<Node>,
     select_stack: Vec<Node>
 }
 
@@ -47,11 +46,11 @@ impl GraphColoring {
         let mut coloring = GraphColoring {
             ig: ig,
             
-            precolored: HashSet::new(),
+            precolored: LinkedHashSet::new(),
             colors: {
                 let mut map = HashMap::new();
-                map.insert(backend::RegGroup::GPR, HashSet::new());
-                map.insert(backend::RegGroup::FPR, HashSet::new());
+                map.insert(backend::RegGroup::GPR, LinkedHashSet::new());
+                map.insert(backend::RegGroup::FPR, LinkedHashSet::new());
                 map
             },
             colored_nodes: Vec::new(),
@@ -61,20 +60,20 @@ impl GraphColoring {
             
             worklist_moves: Vec::new(),
             movelist: HashMap::new(),
-            active_moves: HashSet::new(),
-            coalesced_nodes: HashSet::new(),
-            coalesced_moves: HashSet::new(),
-            constrained_moves: HashSet::new(),
+            active_moves: LinkedHashSet::new(),
+            coalesced_nodes: LinkedHashSet::new(),
+            coalesced_moves: LinkedHashSet::new(),
+            constrained_moves: LinkedHashSet::new(),
             alias: HashMap::new(),
             
             worklist_spill: Vec::new(),
             spillable: HashMap::new(),
             spilled_nodes: Vec::new(),
             
-            worklist_freeze: HashSet::new(),
-            frozen_moves: HashSet::new(),
+            worklist_freeze: LinkedHashSet::new(),
+            frozen_moves: LinkedHashSet::new(),
             
-            worklist_simplify: HashSet::new(),
+            worklist_simplify: LinkedHashSet::new(),
             select_stack: Vec::new()
         };
         
@@ -178,8 +177,8 @@ impl GraphColoring {
         !self.node_moves(node).is_empty()
     }
     
-    fn node_moves(&mut self, node: Node) -> HashSet<Move> {
-        let mut moves = HashSet::new();
+    fn node_moves(&mut self, node: Node) -> LinkedHashSet<Move> {
+        let mut moves = LinkedHashSet::new();
         
         // addAll(active_moves)
         for m in self.active_moves.iter() {
@@ -191,7 +190,7 @@ impl GraphColoring {
             moves.insert(m.clone());
         }
         
-        let mut retained = HashSet::new();
+        let mut retained = LinkedHashSet::new();
         let movelist = &GraphColoring::movelist_mut(&mut self.movelist, node).borrow();
         for m in moves.iter() {
             if vec_utils::find_value(movelist, *m).is_some() {
@@ -223,20 +222,21 @@ impl GraphColoring {
     
     fn simplify(&mut self) {
         // remove next element from worklist_simplify, we know its not empty
-        let node = hashset_utils::pop_first(&mut self.worklist_simplify).unwrap();
+        let node = self.worklist_simplify.pop_front().unwrap();
         
         trace!("Simplifying {}", self.node_info(node));
         
         self.select_stack.push(node);
         
-        for m in self.adjacent(node) {
+        for m in self.adjacent(node).iter() {
+            let m = *m;
             trace!("decrement degree of its adjacent node {}", self.node_info(m));
             self.decrement_degree(m);
         }
     }
     
-    fn adjacent(&self, n: Node) -> HashSet<Node> {
-        let mut adj = HashSet::new();
+    fn adjacent(&self, n: Node) -> LinkedHashSet<Node> {
+        let mut adj = LinkedHashSet::new();
         
         // add n's successors
         for s in self.ig.outedges_of(n) {
@@ -286,9 +286,11 @@ impl GraphColoring {
         }
     }
     
-    fn enable_moves(&mut self, nodes: HashSet<Node>) {
-        for n in nodes {
-            for mov in self.node_moves(n) {
+    fn enable_moves(&mut self, nodes: LinkedHashSet<Node>) {
+        for n in nodes.iter() {
+            let n = *n;
+            for mov in self.node_moves(n).iter() {
+                let mov = *mov;
                 if self.active_moves.contains(&mov) {
                     self.active_moves.insert(mov);
                     self.worklist_moves.push(mov);
@@ -373,7 +375,8 @@ impl GraphColoring {
     }
     
     fn ok(&self, u: Node, v: Node) -> bool {
-        for t in self.adjacent(v) {
+        for t in self.adjacent(v).iter() {
+            let t = *t;
             if !self.precolored.contains(&t) 
               || self.degree(t) < self.n_regs_for_node(t) as isize
               || self.ig.is_adj(t, u) {
@@ -389,10 +392,14 @@ impl GraphColoring {
         
         let adj_u = self.adjacent(u);
         let adj_v = self.adjacent(v);
-        let nodes = adj_u.union(&adj_v).collect::<HashSet<_>>();
+        let nodes = {
+            let mut ret = adj_u;
+            ret.add_all(adj_v);
+            ret
+        };
         
         let mut k = 0;
-        for n in nodes {
+        for n in nodes.iter() {
             if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) as isize {
                 k += 1;
             }
@@ -426,11 +433,12 @@ impl GraphColoring {
             movelist_u.extend_from_slice(movelist_v.as_slice());
         }
         
-        let mut nodes = HashSet::new();
+        let mut nodes = LinkedHashSet::new();
         nodes.insert(v);
         self.enable_moves(nodes);
         
-        for t in self.adjacent(v) {
+        for t in self.adjacent(v).iter() {
+            let t = *t;
             self.add_edge(t, u);
             self.decrement_degree(t);
         }
@@ -459,7 +467,7 @@ impl GraphColoring {
     
     fn freeze(&mut self) {
         // it is not empty (checked before)
-        let node = hashset_utils::pop_first(&mut self.worklist_freeze).unwrap();
+        let node = self.worklist_freeze.pop_front().unwrap();
         trace!("Freezing {}...", self.node_info(node));
         
         self.worklist_simplify.insert(node);
@@ -467,7 +475,8 @@ impl GraphColoring {
     }
     
     fn freeze_moves(&mut self, u: Node) {
-        for m in self.node_moves(u) {
+        for m in self.node_moves(u).iter() {
+            let m = *m;
             let mut v = self.get_alias(m.from);
             if v == self.get_alias(u) {
                 v = self.get_alias(m.to);
@@ -528,7 +537,7 @@ impl GraphColoring {
             let n = self.select_stack.pop().unwrap();
             trace!("Assigning color to {}", self.node_info(n));
             
-            let mut ok_colors = self.colors.get(&self.ig.get_group_of(n)).unwrap().clone();
+            let mut ok_colors : LinkedHashSet<MuID> = self.colors.get(&self.ig.get_group_of(n)).unwrap().clone();
             for w in self.ig.outedges_of(n) {
                 let w = self.get_alias(w);
                 match self.ig.get_color_of(w) {
@@ -542,7 +551,7 @@ impl GraphColoring {
                 trace!("{} is a spilled node", self.node_info(n));
                 self.spilled_nodes.push(n);
             } else {
-                let first_available_color = hashset_utils::pop_first(&mut ok_colors).unwrap();
+                let first_available_color = ok_colors.pop_front().unwrap();
                 trace!("Color {} as {}", self.node_info(n), first_available_color);
                 self.colored_nodes.push(n);
                 self.ig.color_node(n, first_available_color);

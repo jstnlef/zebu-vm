@@ -1,5 +1,9 @@
 #![allow(dead_code)]
 
+mod linked_hashset;
+pub use utils::linked_hashset::LinkedHashSet;
+pub use utils::linked_hashset::LinkedHashMap;
+
 // This porvides some missing operations on Vec.
 // They are not included in the standard libarary. 
 // (because they are likely inefficient?)
@@ -31,20 +35,6 @@ pub mod vec_utils {
         match find_value(vec, val) {
             Some(index) => {vec.remove(index);},
             None => {} // do nothing
-        }
-    }
-}
-
-pub mod hashset_utils {
-    use std::collections::HashSet;
-    use std::hash::Hash;
-    
-    pub fn pop_first<T: Eq + Hash + Copy> (set: &mut HashSet<T>) -> Option<T> {
-        if set.is_empty() {
-            None
-        } else {
-            let next : T = set.iter().next().unwrap().clone();
-            set.take(&next)
         }
     }
 }
