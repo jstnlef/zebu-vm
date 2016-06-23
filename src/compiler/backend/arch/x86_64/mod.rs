@@ -81,13 +81,13 @@ lazy_static! {
         R15.clone()
     ];
     
-    pub static ref ALL_GPRs : [P<Value>; 16] = [
+    pub static ref ALL_GPRs : [P<Value>; 15] = [
         RAX.clone(),
         RCX.clone(),
         RDX.clone(),
         RBX.clone(),
         RSP.clone(),
-        RBP.clone(),
+//        RBP.clone(),
         RSI.clone(),
         RDI.clone(),
         R8.clone(),
@@ -193,6 +193,39 @@ lazy_static! {
         XMM14.clone(),
         XMM15.clone()
     ];
+    
+    pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
+        RAX.clone(),
+        RCX.clone(),
+        RDX.clone(),
+        RBX.clone(),
+        RSI.clone(),
+        RDI.clone(),
+        R8.clone(),
+        R9.clone(),
+        R10.clone(),
+        R11.clone(),
+        R12.clone(),
+        R13.clone(),
+        R14.clone(),
+        R15.clone(),
+        XMM0.clone(),
+        XMM1.clone(),
+        XMM2.clone(),
+        XMM3.clone(),
+        XMM4.clone(),
+        XMM5.clone(),
+        XMM6.clone(),
+        XMM7.clone(),
+        XMM8.clone(),
+        XMM9.clone(),
+        XMM10.clone(),
+        XMM11.clone(),
+        XMM12.clone(),
+        XMM13.clone(),
+        XMM14.clone(),
+        XMM15.clone()
+    ];
 }
 
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
@@ -226,6 +259,10 @@ pub fn number_of_all_regs() -> usize {
 
 pub fn all_regs() -> &'static Vec<P<Value>> {
     &ALL_MACHINE_REGs
+}
+
+pub fn all_usable_regs() -> &'static Vec<P<Value>> {
+    &ALL_USABLE_MACHINE_REGs
 }
 
 pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {

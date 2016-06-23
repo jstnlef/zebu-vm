@@ -14,6 +14,7 @@ use ast::inst::*;
 use std::collections::HashMap;
 use std::str;
 use std::usize;
+use std::slice::Iter;
 
 struct ASMCode {
     name: MuTag, 
@@ -134,22 +135,6 @@ impl ASM {
             uses: vec![]
         }
     }
-    
-    fn call(line: String) -> ASM {
-        ASM {
-            code: line,
-            defines: vec![],
-            uses: vec![]
-        }
-    }
-    
-    fn ret(line: String) -> ASM {
-        ASM {
-            code: line,
-            defines: vec![],
-            uses: vec![]
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -184,6 +169,8 @@ lazy_static! {
 }
 
 impl ASMCodeGen {
+
+        
     pub fn new() -> ASMCodeGen {
         ASMCodeGen {
             cur: None
@@ -214,12 +201,25 @@ impl ASMCodeGen {
         self.cur_mut().code.push(ASM::symbolic(code));
     }
     
+    fn prepare_machine_regs(&self, regs: Iter<P<Value>>) -> Vec<MuID> {
+        regs.map(|x| self.prepare_machine_reg(x)).collect()
+    } 
+    
     fn add_asm_call(&mut self, code: String) {
-        self.cur_mut().code.push(ASM::call(code));
+        let mut uses : Vec<MuID> = self.prepare_machine_regs(x86_64::ARGUMENT_GPRs.iter());
+        uses.append(&mut self.prepare_machine_regs(x86_64::ARGUMENT_FPRs.iter()));
+        
+        let mut defines : Vec<MuID> = self.prepare_machine_regs(x86_64::RETURN_GPRs.iter());
+        defines.append(&mut self.prepare_machine_regs(x86_64::RETURN_FPRs.iter()));
+          
+        self.add_asm_inst(code, defines, vec![], uses, vec![]);
     }
     
     fn add_asm_ret(&mut self, code: String) {
-        self.cur_mut().code.push(ASM::ret(code));
+        let mut uses : Vec<MuID> = self.prepare_machine_regs(x86_64::RETURN_GPRs.iter());
+        uses.append(&mut self.prepare_machine_regs(x86_64::RETURN_FPRs.iter()));
+        
+        self.add_asm_inst(code, vec![], vec![], uses, vec![]);
     }
     
     fn add_asm_branch(&mut self, code: String, target: &'static str) {
@@ -516,10 +516,10 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id1],
-            vec![loc1],
             vec![id2],
-            vec![loc2]
+            vec![loc2],
+            vec![id1],
+            vec![loc1]
         )
     }
     
@@ -533,8 +533,8 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id1],
-            vec![loc1.clone()],
+            vec![id2],
+            vec![loc2.clone()],
             vec![id1, id2],
             vec![loc1, loc2]
         )
@@ -571,8 +571,8 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id1],
-            vec![loc1.clone()],
+            vec![id2],
+            vec![loc2.clone()],
             vec![id1, id2],
             vec![loc1, loc2]
         )        
@@ -736,10 +736,10 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id, rsp],
-            vec![loc],
             vec![rsp],
-            vec![]
+            vec![],
+            vec![id, rsp],
+            vec![loc]
         )
     }
     

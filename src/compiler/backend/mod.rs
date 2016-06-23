@@ -18,6 +18,8 @@ pub use compiler::backend::x86_64::number_of_all_regs;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::all_regs;
 #[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::all_usable_regs;
+#[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::pick_group_for_reg;
 
 #[cfg(target_arch = "arm")]

@@ -304,12 +304,12 @@ pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
     trace!("build live outs");
     while !work_list.is_empty() {
         let n = work_list.pop_front().unwrap();
-//        trace!("build liveout for #{}", n);
+        trace!("build liveout for #{}", n);
         let ref mut out_set = live_out[n];
         
         // out = union(in[succ]) for all succs
         for succ in cf.mc.get_succs(n) {
-//            trace!("add successor's livein {:?} to #{}", &live_in[*succ], n); 
+            trace!("add successor's livein {:?} to #{}", &live_in[*succ], n); 
             vec_utils::add_all(out_set, &live_in[*succ]);
         }
         
@@ -317,13 +317,14 @@ pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
         let mut diff = out_set.clone();
         for def in cf.mc.get_inst_reg_defines(n) {
             vec_utils::remove_value(&mut diff, *def);
-//            trace!("removing def: {}", *def);
-//            trace!("diff = {:?}", diff);
+            trace!("removing def: {}", *def);
+            trace!("diff = {:?}", diff);
         }
-//        trace!("out - def = {:?}", diff);
+        trace!("out - def = {:?}", diff);
         
         if !diff.is_empty() {
             let ref mut in_set = live_in[n];
+            trace!("in = (use) {:?}", in_set);
             
             if vec_utils::add_all(in_set, &diff) {
                 for p in cf.mc.get_preds(n) {
@@ -331,7 +332,7 @@ pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
                 }
             }
         }
-//        trace!("in = use + (out - def) = {:?}", live_in[n]);
+        trace!("in = use + (out - def) = {:?}", live_in[n]);
     }
     
     // debug live-outs

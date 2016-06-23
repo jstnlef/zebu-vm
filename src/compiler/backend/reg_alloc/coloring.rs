@@ -87,7 +87,7 @@ impl GraphColoring {
         trace!("Initializing coloring allocator...");
         
         // for all machine registers
-        for reg in backend::all_regs().iter() {
+        for reg in backend::all_usable_regs().iter() {
             let reg_id = reg.extract_ssa_id().unwrap();
             let node = self.ig.get_node(reg_id);
             
