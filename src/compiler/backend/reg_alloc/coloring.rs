@@ -1,7 +1,6 @@
 use ast::ir::MuID;
 use compiler::backend::reg_alloc::liveness::InterferenceGraph;
 use compiler::backend::reg_alloc::liveness::{Node, Move};
-use vm::machine_code::CompiledFunction;
 
 use compiler::backend;
 use utils::vec_utils;
@@ -85,21 +84,18 @@ impl GraphColoring {
     fn init (&mut self) {
         trace!("Initializing coloring allocator...");
         
-        // for all machine registers
+        // precolor for all machine registers
         for reg in backend::all_regs().iter() {
             let reg_id = reg.extract_ssa_id().unwrap();
             let node = self.ig.get_node(reg_id);
             self.precolored.insert(node);
         }
         
+        // put usable registers as available colors
         for reg in backend::all_usable_regs().iter() {
             let reg_id = reg.extract_ssa_id().unwrap();
-            let node = self.ig.get_node(reg_id);
-            
-            {
-                let group = backend::pick_group_for_reg(reg_id);
-                self.colors.get_mut(&group).unwrap().insert(reg_id);
-            }
+            let group = backend::pick_group_for_reg(reg_id);
+            self.colors.get_mut(&group).unwrap().insert(reg_id);
         }
         
         for node in self.ig.nodes() {

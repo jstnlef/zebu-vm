@@ -64,7 +64,6 @@ impl<K: Hash + Eq + Clone> Clone for LinkedHashSet<K> {
 }
 
 use std::fmt;
-use std::fmt::DebugSet;
 impl<A: fmt::Debug + Hash + Eq, S: BuildHasher> fmt::Debug for LinkedHashSet<A, S> {
     /// Returns a string that lists the key-value pairs in insertion order.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
