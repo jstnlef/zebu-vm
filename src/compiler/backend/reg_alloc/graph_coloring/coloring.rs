@@ -1,6 +1,6 @@
 use ast::ir::MuID;
-use compiler::backend::reg_alloc::liveness::InterferenceGraph;
-use compiler::backend::reg_alloc::liveness::{Node, Move};
+use compiler::backend::reg_alloc::graph_coloring::liveness::InterferenceGraph;
+use compiler::backend::reg_alloc::graph_coloring::liveness::{Node, Move};
 
 use compiler::backend;
 use utils::vec_utils;

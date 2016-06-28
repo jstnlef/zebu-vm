@@ -21,8 +21,18 @@ impl Compiler {
     }
     
     pub fn compile(&self, func: &mut MuFunction) {
-        for pass in self.policy.borrow_mut().passes.iter_mut() {
-            pass.execute(&self.vm, func);
+        let mut cur_pass = 0;
+        let n_passes = self.policy.borrow().passes.len();
+        
+        let ref mut passes = self.policy.borrow_mut().passes;
+        
+        while cur_pass < n_passes {
+            let result = passes[cur_pass].execute(&self.vm, func);
+            
+            match result {
+                PassExecutionResult::ProceedToNext => cur_pass += 1,
+                PassExecutionResult::GoBackTo(next) => cur_pass = next
+            }
         }
     }
 }
@@ -30,6 +40,13 @@ impl Compiler {
 pub struct CompilerPolicy {
     passes: Vec<Box<CompilerPass>>
 }
+
+pub const PASS0_DEF_USE   : usize = 0;
+pub const PASS1_TREE_GEN  : usize = 1;
+pub const PASS2_CFA       : usize = 2;
+pub const PASS3_TRACE_GEN : usize = 3;
+pub const PASS4_INST_SEL  : usize = 4;
+pub const PASS5_REG_ALLOC : usize = 5;
 
 impl CompilerPolicy {
     pub fn default() -> CompilerPolicy {
@@ -39,6 +56,7 @@ impl CompilerPolicy {
         passes.push(Box::new(passes::ControlFlowAnalysis::new()));
         passes.push(Box::new(passes::TraceGen::new()));
         passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
+        passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new()));
         
         CompilerPolicy{passes: passes}
     }
@@ -48,11 +66,16 @@ impl CompilerPolicy {
     }
 }
 
+pub enum PassExecutionResult {
+    ProceedToNext,
+    GoBackTo(usize)
+}
+
 #[allow(unused_variables)]
 pub trait CompilerPass {
     fn name(&self) -> &'static str;
     
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
         
         self.start_function(vm_context, func);
@@ -60,6 +83,8 @@ pub trait CompilerPass {
         self.finish_function(vm_context, func);        
         
         debug!("---finish---");
+        
+        PassExecutionResult::ProceedToNext
     }
     
     fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {

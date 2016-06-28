@@ -1,13 +1,14 @@
 #![allow(dead_code)]
 
 use compiler::CompilerPass;
+use compiler::PassExecutionResult;
+use compiler;
 use ast::ir::*;
 use vm::context::VMContext;
 
 use compiler::backend::init_machine_regs_for_func;
 
-mod liveness;
-mod coloring;
+mod graph_coloring;
 
 pub struct RegisterAllocation {
     name: &'static str
@@ -19,15 +20,9 @@ impl RegisterAllocation {
             name: "Register Allcoation"
         }
     }
-}
-
-impl CompilerPass for RegisterAllocation {
-    fn name(&self) -> &'static str {
-        self.name
-    }
     
     #[allow(unused_variables)]
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn coloring(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> bool {
         let compiled_funcs = vm_context.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(func.fn_name).unwrap().borrow_mut();
         
@@ -36,14 +31,14 @@ impl CompilerPass for RegisterAllocation {
         // initialize machine registers for the function context
         init_machine_regs_for_func(&mut func.context);
         
-        let liveness = liveness::build(&mut cf, func);
+        let liveness = graph_coloring::build_inteference_graph(&mut cf, func);
         liveness.print();
         
-        let coloring = coloring::GraphColoring::start(liveness);
+        let coloring = graph_coloring::GraphColoring::start(liveness);
         let spills = coloring.spills();
         
         if !spills.is_empty() {
-            unimplemented!();
+            return false;
         }
         
         // replace regs
@@ -64,5 +59,25 @@ impl CompilerPass for RegisterAllocation {
         }
         
         cf.mc.print();
+        
+        true
+    }    
+}
+
+impl CompilerPass for RegisterAllocation {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+    
+    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> PassExecutionResult {
+        debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
+        
+        if self.coloring(vm_context, func) {
+            debug!("---finish---");
+            
+            PassExecutionResult::ProceedToNext
+        } else {
+            PassExecutionResult::GoBackTo(compiler::PASS4_INST_SEL)
+        }
     }
 }

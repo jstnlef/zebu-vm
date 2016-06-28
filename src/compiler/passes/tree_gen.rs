@@ -4,6 +4,7 @@ use ast::ir_semantics::*;
 
 use vm::context::VMContext;
 use compiler::CompilerPass;
+use compiler::PassExecutionResult;
 
 pub struct TreeGen {
     name: &'static str
@@ -24,7 +25,7 @@ impl CompilerPass for TreeGen {
         self.name
     }
     
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
         
         {
@@ -119,6 +120,8 @@ impl CompilerPass for TreeGen {
         self.finish_function(vm_context, func);
         
         debug!("---finish---");
+        
+        PassExecutionResult::ProceedToNext
     }
     
     #[allow(unused_variables)]
