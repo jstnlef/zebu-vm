@@ -19,7 +19,8 @@ fn test_regalloc_fac() {
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new()),
             Box::new(backend::inst_sel::InstructionSelection::new()),
-            Box::new(backend::reg_alloc::RegisterAllocation::new())
+            Box::new(backend::reg_alloc::RegisterAllocation::new()),
+            Box::new(backend::code_emission::CodeEmission::new())
     ]), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();

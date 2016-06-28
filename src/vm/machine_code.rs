@@ -7,6 +7,7 @@ pub struct CompiledFunction {
 
 pub trait MachineCode {
     fn print(&self);
+    fn emit(&self) -> Vec<u8>;
     
     fn number_of_insts(&self) -> usize;
     

@@ -1,5 +1,6 @@
 pub mod inst_sel;
 pub mod reg_alloc;
+pub mod code_emission;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RegGroup {GPR, FPR}

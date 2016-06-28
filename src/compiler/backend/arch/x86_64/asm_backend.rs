@@ -89,6 +89,17 @@ impl MachineCode for ASMCode {
         }
     }
     
+    fn emit(&self) -> Vec<u8> {
+        let mut ret = vec![];
+        
+        for inst in self.code.iter() {
+            ret.append(&mut inst.code.clone().into_bytes());
+            ret.append(&mut "\n".to_string().into_bytes());
+        }
+        
+        ret
+    }
+    
     fn print(&self) {
         println!("");
 
