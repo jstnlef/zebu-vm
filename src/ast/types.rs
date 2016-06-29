@@ -1,6 +1,6 @@
 use ast::ptr::P;
 use ast::ir::*;
-use common::vector_as_str;
+use utils::vec_utils::as_str as vector_as_str;
 
 use std::fmt;
 use std::collections::HashMap;
@@ -16,43 +16,43 @@ pub enum MuType_ {
     Float,
     /// double
     Double,
-    
+
     /// ref<T>
     Ref          (P<MuType>),    // Box is needed for non-recursive enum
     /// iref<T>: internal reference
     IRef         (P<MuType>),
     /// weakref<T>
     WeakRef      (P<MuType>),
-    
+
     /// uptr<T>: unsafe pointer
     UPtr         (P<MuType>),
-    
+
     /// struct<T1 T2 ...>
     Struct       (MuTag),
-    
+
     /// array<T length>
     Array        (P<MuType>, usize),
-    
+
     /// hybrid<F1 F2 ... V>: a hybrid of fixed length parts and a variable length part
     Hybrid       (Vec<P<MuType>>, P<MuType>),
-    
+
     /// void
     Void,
-    
+
     /// threadref
     ThreadRef,
     /// stackref
     StackRef,
-    
+
     /// tagref64: hold a double or an int or an ref<void>
     Tagref64,
-    
+
     /// vector<T length>
     Vector       (P<MuType>, usize),
-    
+
     /// funcref<@sig>
     FuncRef      (P<MuFuncSig>),
-    
+
     /// ufuncptr<@sig>
     UFuncPtr     (P<MuFuncSig>),
 }
@@ -68,7 +68,7 @@ impl fmt::Display for MuType_ {
             &MuType_::WeakRef(ref ty)                 => write!(f, "weakref<{}>", ty),
             &MuType_::UPtr(ref ty)                    => write!(f, "uptr<{}>", ty),
             &MuType_::Array(ref ty, size)             => write!(f, "array<{} {}>", ty, size),
-            &MuType_::Hybrid(ref fix_tys, ref var_ty) => write!(f, "hybrid<[{}] {}>", vector_as_str(fix_tys), var_ty), 
+            &MuType_::Hybrid(ref fix_tys, ref var_ty) => write!(f, "hybrid<[{}] {}>", vector_as_str(fix_tys), var_ty),
             &MuType_::Void                            => write!(f, "void"),
             &MuType_::ThreadRef                       => write!(f, "threadref"),
             &MuType_::StackRef                        => write!(f, "stackref"),
@@ -102,7 +102,7 @@ impl fmt::Display for StructType_ {
             }
         }
         write!(f, ">")
-    }    
+    }
 }
 
 impl StructType_ {
@@ -228,7 +228,7 @@ pub fn is_scalar(ty: &MuType) -> bool {
 }
 
 /// is a type traced by the garbage collector?
-/// Note: An aggregated type is traced if any of its part is traced. 
+/// Note: An aggregated type is traced if any of its part is traced.
 pub fn is_traced(ty: &MuType) -> bool {
     match *ty {
         MuType_::Ref(_) => true,
@@ -242,13 +242,13 @@ pub fn is_traced(ty: &MuType) -> bool {
         MuType_::Hybrid(ref fix_tys, ref var_ty) => {
             is_traced(var_ty) ||
             fix_tys.into_iter().map(|ty| is_traced(ty))
-                .fold(false, |ret, this| ret || this) 
+                .fold(false, |ret, this| ret || this)
             },
         MuType_::Struct(tag) => {
             let map = STRUCT_TAG_MAP.read().unwrap();
             let struct_ty = map.get(tag).unwrap();
             let ref field_tys = struct_ty.tys;
-            
+
             field_tys.into_iter().map(|ty| is_traced(&ty))
                 .fold(false, |ret, this| ret || this)
         },
@@ -269,7 +269,7 @@ pub fn is_native_safe(ty: &MuType) -> bool {
         MuType_::UPtr(_) => true,
         MuType_::UFuncPtr(_) => true,
         MuType_::Hybrid(ref fix_tys, ref var_ty) => {
-            is_native_safe(var_ty) && 
+            is_native_safe(var_ty) &&
             fix_tys.into_iter().map(|ty| is_native_safe(&ty))
                 .fold(true, |ret, this| ret && this)
         },
@@ -277,7 +277,7 @@ pub fn is_native_safe(ty: &MuType) -> bool {
             let map = STRUCT_TAG_MAP.read().unwrap();
             let struct_ty = map.get(tag).unwrap();
             let ref field_tys = struct_ty.tys;
-            
+
             field_tys.into_iter().map(|ty| is_native_safe(&ty))
                 .fold(true, |ret, this| ret && this)
         },
@@ -303,5 +303,5 @@ pub struct MuFuncSig {
 impl fmt::Display for MuFuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[{}] -> [{}]", vector_as_str(&self.ret_tys), vector_as_str(&self.arg_tys))
-    }    
+    }
 }

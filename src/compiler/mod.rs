@@ -1,3 +1,5 @@
+extern crate hprof;
+
 use ast::ir::*;
 use vm::context::VMContext;
 
@@ -6,6 +8,16 @@ use std::sync::Arc;
 
 pub mod passes;
 pub mod backend;
+
+pub use compiler::passes::CompilerPass;
+pub use compiler::passes::PassExecutionResult;
+pub use compiler::passes::PASS0_DEF_USE;
+pub use compiler::passes::PASS1_TREE_GEN;
+pub use compiler::passes::PASS2_CFA;
+pub use compiler::passes::PASS3_TRACE_GEN;
+pub use compiler::passes::PASS4_INST_SEL;
+pub use compiler::passes::PASS5_REG_ALLOC;
+pub use compiler::passes::PASS6_CODE_EMIT;
 
 pub struct Compiler {
     policy: RefCell<CompilerPolicy>,
@@ -19,34 +31,35 @@ impl Compiler {
             vm: vm
         }
     }
-    
+
     pub fn compile(&self, func: &mut MuFunction) {
+        let _p = hprof::enter(func.fn_name);
+
         let mut cur_pass = 0;
         let n_passes = self.policy.borrow().passes.len();
-        
+
         let ref mut passes = self.policy.borrow_mut().passes;
-        
+
         while cur_pass < n_passes {
+            let _p = hprof::enter(passes[cur_pass].name());
             let result = passes[cur_pass].execute(&self.vm, func);
-            
+
             match result {
                 PassExecutionResult::ProceedToNext => cur_pass += 1,
                 PassExecutionResult::GoBackTo(next) => cur_pass = next
             }
+
+            drop(_p);
         }
+
+		drop(_p);
+		hprof::profiler().print_timing();
     }
 }
 
 pub struct CompilerPolicy {
     passes: Vec<Box<CompilerPass>>
 }
-
-pub const PASS0_DEF_USE   : usize = 0;
-pub const PASS1_TREE_GEN  : usize = 1;
-pub const PASS2_CFA       : usize = 2;
-pub const PASS3_TRACE_GEN : usize = 3;
-pub const PASS4_INST_SEL  : usize = 4;
-pub const PASS5_REG_ALLOC : usize = 5;
 
 impl CompilerPolicy {
     pub fn default() -> CompilerPolicy {
@@ -57,59 +70,11 @@ impl CompilerPolicy {
         passes.push(Box::new(passes::TraceGen::new()));
         passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
         passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new()));
-        
+
         CompilerPolicy{passes: passes}
     }
-    
+
     pub fn new(passes: Vec<Box<CompilerPass>>) -> CompilerPolicy {
         CompilerPolicy{passes: passes}
     }
-}
-
-pub enum PassExecutionResult {
-    ProceedToNext,
-    GoBackTo(usize)
-}
-
-#[allow(unused_variables)]
-pub trait CompilerPass {
-    fn name(&self) -> &'static str;
-    
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> PassExecutionResult {
-        debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
-        
-        self.start_function(vm_context, func);
-        self.visit_function(vm_context, func);
-        self.finish_function(vm_context, func);        
-        
-        debug!("---finish---");
-        
-        PassExecutionResult::ProceedToNext
-    }
-    
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
-        for (label, ref mut block) in func.content.as_mut().unwrap().blocks.iter_mut() {
-            debug!("block: {}", label);
-            
-            self.start_block(vm_context, &mut func.context, block);
-            self.visit_block(vm_context, &mut func.context, block);
-            self.finish_block(vm_context, &mut func.context, block);
-        }
-    }
-    
-    fn visit_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {
-        for inst in block.content.as_mut().unwrap().body.iter_mut() {
-            debug!("{}", inst);
-            
-            self.visit_inst(vm_context, func_context, inst);
-        }    
-    }
-    
-    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {}
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {}
-    
-    fn start_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {}
-    fn finish_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {}
-    
-    fn visit_inst(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, node: &mut TreeNode) {}
 }

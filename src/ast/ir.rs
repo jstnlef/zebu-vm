@@ -2,7 +2,7 @@ use ast::ptr::P;
 use ast::types::*;
 use ast::inst::*;
 use ast::op::*;
-use common::vector_as_str;
+use utils::vec_utils::as_str as vector_as_str;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -19,9 +19,9 @@ pub type OpIndex = usize;
 #[derive(Debug)]
 pub struct MuFunction {
     pub fn_name: MuTag,
-    
+
     pub next_id: MuID,
-    
+
     pub sig: P<MuFuncSig>,
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
@@ -35,13 +35,13 @@ impl MuFunction {
     pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
         MuFunction{
             fn_name: fn_name,
-            next_id: RESERVED_NODE_IDS_FOR_MACHINE, 
-            sig: sig, 
-            content: None, 
-            context: FunctionContext::new(), 
+            next_id: RESERVED_NODE_IDS_FOR_MACHINE,
+            sig: sig,
+            content: None,
+            context: FunctionContext::new(),
             block_trace: None}
     }
-    
+
     fn get_id(&mut self) -> MuID {
         let ret = self.next_id;
         self.next_id += 1;
@@ -54,7 +54,7 @@ impl MuFunction {
 
     pub fn new_ssa(&mut self, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
         let id = self.get_id();
-        
+
         self.context.value_tags.insert(tag, id);
         self.context.values.insert(id, SSAVarEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
@@ -76,14 +76,14 @@ impl MuFunction {
             v: TreeNode_::Value(v)
         })
     }
-    
+
     pub fn new_inst(&mut self, v: Instruction) -> P<TreeNode> {
         P(TreeNode{
             id: self.get_id(),
-            op: pick_op_code_for_inst(&v), 
+            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
-    }      
+    }
 }
 
 #[derive(Debug)]
@@ -132,20 +132,20 @@ impl FunctionContext {
             values: HashMap::new()
         }
     }
-    
+
     pub fn get_value_by_tag(&self, tag: MuTag) -> Option<&SSAVarEntry> {
         match self.value_tags.get(tag) {
             Some(id) => self.get_value(*id),
             None => None
         }
     }
-    
+
     pub fn get_value_mut_by_tag(&mut self, tag: MuTag) -> Option<&mut SSAVarEntry> {
         let id : MuID = match self.value_tags.get(tag) {
             Some(id) => *id,
             None => return None
         };
-        
+
         self.get_value_mut(id)
     }
 
@@ -249,11 +249,11 @@ impl TreeNode {
     pub fn new_inst(id: MuID, v: Instruction) -> P<TreeNode> {
         P(TreeNode{
             id: id,
-            op: pick_op_code_for_inst(&v), 
+            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
-    }    
-    
+    }
+
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             TreeNode_::Value(ref pv) => {
@@ -265,18 +265,18 @@ impl TreeNode {
             _ => None
         }
     }
-    
+
     pub fn clone_value(&self) -> P<Value> {
         match self.v {
             TreeNode_::Value(ref val) => val.clone(),
-            _ => panic!("expecting a value") 
+            _ => panic!("expecting a value")
         }
-    }    
-    
+    }
+
     pub fn into_value(self) -> Option<P<Value>> {
         match self.v {
             TreeNode_::Value(val) => Some(val),
-            _ => None 
+            _ => None
         }
     }
 }
@@ -329,7 +329,7 @@ impl Value {
             _ => false
         }
     }
-    
+
     pub fn is_fp_reg(&self) -> bool {
         match self.v {
             Value_::SSAVar(_) => {
@@ -342,7 +342,7 @@ impl Value {
             _ => false
         }
     }
-    
+
     pub fn is_int_const(&self) -> bool {
         match self.v {
             Value_::Constant(_) => {
@@ -355,7 +355,7 @@ impl Value {
             _ => false
         }
     }
-    
+
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             Value_::SSAVar(id) => Some(id),

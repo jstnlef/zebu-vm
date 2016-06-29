@@ -4,14 +4,7 @@ extern crate lazy_static;
 extern crate log;
 
 #[macro_use]
-mod common;
-
+mod utils;
 pub mod ast;
 pub mod vm;
 pub mod compiler;
-mod utils;
-
-#[allow(dead_code)]
-fn main() {
-    println!("Hello, world!");
-}

@@ -2,7 +2,7 @@ use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
 use ast::op::*;
-use common::vector_as_str;
+use utils::vec_utils::as_str as vector_as_str;
 
 use std::fmt;
 use std::cell::RefCell;
@@ -34,33 +34,33 @@ impl fmt::Display for Instruction {
 #[derive(Debug, Clone)]
 pub enum Instruction_ {
     // non-terminal instruction
-    
+
     // expressions
-    
-    BinOp(BinOp, OpIndex, OpIndex), 
+
+    BinOp(BinOp, OpIndex, OpIndex),
     CmpOp(CmpOp, OpIndex, OpIndex),
-    
+
     // yields a tuple of results from the call
     ExprCall{
         data: CallData,
         is_abort: bool, // T to abort, F to rethrow
     },
-    
+
     // yields the memory value
     Load{
         is_ptr: bool,
         order: MemoryOrder,
         mem_loc: OpIndex
     },
-    
+
     // yields nothing
     Store{
         is_ptr: bool,
-        order: MemoryOrder,        
+        order: MemoryOrder,
         mem_loc: OpIndex,
         value: OpIndex
     },
-    
+
     // yields pair (oldvalue, boolean (T = success, F = failure))
     CmpXchg{
         is_ptr: bool,
@@ -71,7 +71,7 @@ pub enum Instruction_ {
         expected_value: OpIndex,
         desired_value: OpIndex
     },
-    
+
     // yields old memory value
     AtomicRMW{
         is_ptr: bool, // T for iref, F for ptr
@@ -80,62 +80,62 @@ pub enum Instruction_ {
         mem_loc: OpIndex,
         value: OpIndex // operand for op
     },
-    
+
     // yields a reference of the type
     New(P<MuType>),
-    
+
     // yields an iref of the type
     AllocA(P<MuType>),
-    
+
     // yields ref
     NewHybrid(P<MuType>, OpIndex),
-    
+
     // yields iref
     AllocAHybrid(P<MuType>, OpIndex),
-    
+
     // yields stack ref
     NewStack(OpIndex), // func
                            // TODO: common inst
-    
+
     // yields thread reference
     NewThread(OpIndex, Vec<OpIndex>), // stack, args
-    
+
     // yields thread reference (thread resumes with exceptional value)
     NewThreadExn(OpIndex, OpIndex), // stack, exception
-    
+
     // yields frame cursor
     NewFrameCursor(OpIndex), // stack
-    
+
     // ref<T> -> iref<T>
     GetIRef(OpIndex),
-    
+
     // iref|uptr<struct|hybrid<T>> int<M> -> iref|uptr<U>
     GetFieldIRef{
         is_ptr: bool,
         base: OpIndex, // iref or uptr
         index: OpIndex // constant
     },
-    
+
     // iref|uptr<array<T N>> int<M> -> iref|uptr<T>
     GetElementIRef{
         is_ptr: bool,
         base: OpIndex,
         index: OpIndex // can be constant or ssa var
     },
-    
+
     // iref|uptr<T> int<M> -> iref|uptr<T>
     ShiftIRef{
         is_ptr: bool,
         base: OpIndex,
         offset: OpIndex
     },
-    
+
     // iref|uptr<hybrid<T U>> -> iref|uptr<U>
     GetVarPartIRef{
         is_ptr: bool,
         base: OpIndex
     },
-    
+
 //    PushFrame{
 //        stack: P<Value>,
 //        func: P<Value>
@@ -145,7 +145,7 @@ pub enum Instruction_ {
 //    }
 
     Fence(MemoryOrder),
-    
+
     // terminal instruction
     Return(Vec<OpIndex>),
     ThreadExit, // TODO:  common inst
@@ -166,9 +166,9 @@ pub enum Instruction_ {
         id: Option<WPID>,
         disable_dest: Option<Destination>,
         resume: ResumptionData
-    }, 
+    },
     WPBranch{
-        wp: WPID, 
+        wp: WPID,
         disable_dest: Destination,
         enable_dest: Destination
     },
@@ -204,18 +204,18 @@ impl Instruction_ {
             },
             &Instruction_::Load{is_ptr, mem_loc, order} => {
                 let ptr = select_value!(is_ptr, "PTR", "");
-                format!("LOAD {} {:?} {}", ptr, order, ops[mem_loc]) 
+                format!("LOAD {} {:?} {}", ptr, order, ops[mem_loc])
             },
             &Instruction_::Store{value, is_ptr, mem_loc, order} => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!("STORE {} {:?} {} {}", ptr, order, ops[mem_loc], ops[value])
             },
-            &Instruction_::CmpXchg{is_ptr, is_weak, success_order, fail_order, 
+            &Instruction_::CmpXchg{is_ptr, is_weak, success_order, fail_order,
                 mem_loc, expected_value, desired_value} => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 let weak = select_value!(is_weak, "WEAK", "");
-                format!("CMPXCHG {} {} {:?} {:?} {} {} {}", 
-                    ptr, weak, success_order, fail_order, ops[mem_loc], ops[expected_value], ops[desired_value])  
+                format!("CMPXCHG {} {} {:?} {:?} {} {} {}",
+                    ptr, weak, success_order, fail_order, ops[mem_loc], ops[expected_value], ops[desired_value])
             },
             &Instruction_::AtomicRMW{is_ptr, order, op, mem_loc, value} => {
                 let ptr = select_value!(is_ptr, "PTR", "");
@@ -246,11 +246,11 @@ impl Instruction_ {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!("GETVARPARTIREF {} {}", ptr, ops[base])
             },
-            
+
             &Instruction_::Fence(order) => {
                 format!("FENCE {:?}", order)
             },
-            
+
             &Instruction_::Return(ref vals) => format!("RET {}", op_vector_str(vals, ops)),
             &Instruction_::ThreadExit => "THREADEXIT".to_string(),
             &Instruction_::Throw(ref vals) => format!("THROW {}", op_vector_str(vals, ops)),
@@ -286,14 +286,14 @@ impl Instruction_ {
                     }
                 }
                 ret.push_str("}}");
-                
+
                 ret
             },
             &Instruction_::ExnInstruction{ref inner, ref resume} => {
                 format!("{} {}", inner.debug_str(ops), resume.debug_str(ops))
             }
         }
-    }    
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -361,7 +361,7 @@ impl Destination {
             }
         }
         ret.push(']');
-        
+
         ret
     }
 }
@@ -376,7 +376,7 @@ impl DestArg {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         match self {
             &DestArg::Normal(index) => format!("{}", ops[index]),
-            &DestArg::Freshbound(n) => format!("${}", n) 
+            &DestArg::Freshbound(n) => format!("${}", n)
         }
     }
 }
