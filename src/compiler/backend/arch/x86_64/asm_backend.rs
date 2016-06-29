@@ -180,8 +180,6 @@ lazy_static! {
 }
 
 impl ASMCodeGen {
-
-        
     pub fn new() -> ASMCodeGen {
         ASMCodeGen {
             cur: None
@@ -426,7 +424,11 @@ impl CodeGenerator for ASMCodeGen {
                 branches: HashMap::new()
             }));
         
+        // to link with C sources via gcc
         self.add_asm_symbolic(format!(".globl {}", func_name));
+        self.add_asm_symbolic(format!(".globl _{}", func_name));
+        self.add_asm_symbolic(format!("{}:", func_name));
+        self.add_asm_symbolic(format!("_{}:", func_name));
     }
     
     fn finish_code(&mut self) -> Box<MachineCode> {
@@ -464,7 +466,7 @@ impl CodeGenerator for ASMCodeGen {
         let (reg1, id1, loc1) = self.prepare_op(op1, 4 + 1);
         let (reg2, id2, loc2) = self.prepare_op(op2, 4 + 1 + reg1.len() + 1);
         
-        let asm = format!("cmpq {} {}", reg1, reg2);
+        let asm = format!("cmpq {},{}", reg1, reg2);
         
         self.add_asm_inst(
             asm,
@@ -478,9 +480,9 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: u32) {
         trace!("emit: cmp {} {}", op1, op2);
         
-        let (reg1, id1, loc1) = self.prepare_op(op1, 4 + 1);
+        let (reg1, id1, loc1) = self.prepare_op(op1, 4 + 1 + 1 + op2.to_string().len() + 1);
         
-        let asm = format!("cmpq {} ${}", reg1, op2);
+        let asm = format!("cmpq ${},{}", op2, reg1);
         
         self.add_asm_inst(
             asm,
@@ -501,7 +503,7 @@ impl CodeGenerator for ASMCodeGen {
         
         let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1 + 1 + src.to_string().len() + 1);
         
-        let asm = format!("movq ${} {}", src, reg1);
+        let asm = format!("movq ${},{}", src, reg1);
         
         self.add_asm_inst(
             asm,
@@ -523,7 +525,7 @@ impl CodeGenerator for ASMCodeGen {
         let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
         let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
         
-        let asm = format!("movq {} {}", reg1, reg2);
+        let asm = format!("movq {},{}", reg1, reg2);
         
         self.add_asm_inst(
             asm,
@@ -540,7 +542,7 @@ impl CodeGenerator for ASMCodeGen {
         let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
         let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
         
-        let asm = format!("addq {} {}", reg1, reg2);
+        let asm = format!("addq {},{}", reg1, reg2);
         
         self.add_asm_inst(
             asm,
@@ -561,7 +563,7 @@ impl CodeGenerator for ASMCodeGen {
         
         let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
         
-        let asm = format!("addq {} ${}", src, reg1);
+        let asm = format!("addq {},${}", src, reg1);
         
         self.add_asm_inst(
             asm,
@@ -578,7 +580,7 @@ impl CodeGenerator for ASMCodeGen {
         let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
         let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
         
-        let asm = format!("subq {} {}", reg1, reg2);
+        let asm = format!("subq {},{}", reg1, reg2);
         
         self.add_asm_inst(
             asm,
@@ -599,7 +601,7 @@ impl CodeGenerator for ASMCodeGen {
         
         let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1 + 1 + src.to_string().len() + 1);
         
-        let asm = format!("subq ${} {}", src, reg1);
+        let asm = format!("subq ${},{}", src, reg1);
         
         self.add_asm_inst(
             asm,

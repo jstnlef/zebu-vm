@@ -385,7 +385,7 @@ impl <'a> InstructionSelection {
         // push rbp
         self.backend.emit_push_r64(&x86_64::RBP);
         // mov rsp -> rbp
-        self.backend.emit_mov_r64_r64(&x86_64::RSP, &x86_64::RBP);
+        self.backend.emit_mov_r64_r64(&x86_64::RBP, &x86_64::RSP);
         
         // push all callee-saved registers
         for i in 0..x86_64::CALLEE_SAVED_GPRs.len() {
