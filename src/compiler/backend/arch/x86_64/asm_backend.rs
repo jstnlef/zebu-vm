@@ -28,7 +28,10 @@ struct ASMCode {
     idx_to_blk: HashMap<usize, MuTag>,
     blk_to_idx: HashMap<MuTag, usize>,
     cond_branches: HashMap<usize, MuTag>,
-    branches: HashMap<usize, MuTag>
+    branches: HashMap<usize, MuTag>,
+    
+    block_livein: HashMap<MuTag, Vec<MuID>>,
+    block_liveout: HashMap<MuTag, Vec<MuID>>
 }
 
 impl MachineCode for ASMCode {
@@ -421,7 +424,10 @@ impl CodeGenerator for ASMCodeGen {
                 idx_to_blk: HashMap::new(),
                 blk_to_idx: HashMap::new(),
                 cond_branches: HashMap::new(),
-                branches: HashMap::new()
+                branches: HashMap::new(),
+                
+                block_livein: HashMap::new(),
+                block_liveout: HashMap::new()
             }));
         
         // to link with C sources via gcc
@@ -458,6 +464,45 @@ impl CodeGenerator for ASMCodeGen {
     fn start_block(&mut self, block_name: MuTag) {
         let label = format!("{}:", self.asm_block_label(block_name));        
         self.add_asm_block_label(label, block_name);
+    }
+    
+    fn set_block_livein(&mut self, block_name: MuTag, live_in: &Vec<P<Value>>) {
+        let cur = self.cur_mut();
+        
+        let mut res = {
+            if !cur.block_livein.contains_key(&block_name) {
+                cur.block_livein.insert(block_name, vec![]);
+            } else {
+                panic!("seems we are inserting livein to block {} twice", block_name);
+            }
+            
+            cur.block_livein.get_mut(&block_name).unwrap()
+        };
+        
+        for value in live_in {
+            res.push(value.extract_ssa_id().unwrap());
+        }
+    }
+    
+    fn set_block_liveout(&mut self, block_name: MuTag, live_out: &Vec<P<Value>>) {
+        let cur = self.cur_mut();
+        
+        let mut res = {
+            if !cur.block_liveout.contains_key(&block_name) {
+                cur.block_liveout.insert(block_name, vec![]);
+            } else {
+                panic!("seems we are inserting livein to block {} twice", block_name);
+            }
+            
+            cur.block_liveout.get_mut(&block_name).unwrap()
+        };
+        
+        for value in live_out {
+            match value.extract_ssa_id() {
+                Some(id) => res.push(id),
+                None => {}
+            }
+        }        
     }
     
     fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>) {

@@ -3,6 +3,7 @@ use ast::types::*;
 use ast::inst::*;
 use ast::op::*;
 use utils::vec_utils::as_str as vector_as_str;
+use utils::vec_utils;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -236,6 +237,77 @@ pub struct BlockContent {
     pub keepalives: Option<Vec<P<Value>>>
 }
 
+impl BlockContent {
+    pub fn get_out_arguments(&self) -> Vec<P<Value>> {
+        let n_insts = self.body.len();
+        let ref last_inst = self.body[n_insts - 1];
+        
+        let mut ret : Vec<P<Value>> = vec![];
+        
+        match last_inst.v {
+            TreeNode_::Instruction(ref inst) => {
+                let ops = inst.ops.borrow();
+                match inst.v {
+                    Instruction_::Return(_)
+                    | Instruction_::ThreadExit
+                    | Instruction_::Throw(_)
+                    | Instruction_::TailCall(_) => {
+                        // they do not have explicit liveouts
+                    }
+                    Instruction_::Branch1(ref dest) => {
+                        let mut live_outs = dest.get_arguments(&ops);
+                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                    }
+                    Instruction_::Branch2{ref true_dest, ref false_dest, ..} => {
+                        let mut live_outs = true_dest.get_arguments(&ops);
+                        live_outs.append(&mut false_dest.get_arguments(&ops));
+                        
+                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                    }
+                    Instruction_::Watchpoint{ref disable_dest, ref resume, ..} => {
+                        let mut live_outs = vec![];
+                        
+                        if disable_dest.is_some() {
+                            live_outs.append(&mut disable_dest.as_ref().unwrap().get_arguments(&ops));
+                        }
+                        live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
+                        live_outs.append(&mut resume.exn_dest.get_arguments(&ops));
+                        
+                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                    }
+                    Instruction_::WPBranch{ref disable_dest, ref enable_dest, ..} => {
+                        let mut live_outs = vec![];
+                        live_outs.append(&mut disable_dest.get_arguments(&ops));
+                        live_outs.append(&mut enable_dest.get_arguments(&ops));
+                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                    }
+                    Instruction_::Call{ref resume, ..}
+                    | Instruction_::SwapStack{ref resume, ..}
+                    | Instruction_::ExnInstruction{ref resume, ..} => {
+                        let mut live_outs = vec![];
+                        live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
+                        live_outs.append(&mut resume.exn_dest.get_arguments(&ops));
+                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                    }
+                    Instruction_::Switch{ref default, ref branches, ..} => {
+                        let mut live_outs = vec![];
+                        live_outs.append(&mut default.get_arguments(&ops));
+                        for &(_, ref dest) in branches {
+                            live_outs.append(&mut dest.get_arguments(&ops));
+                        }
+                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                    }
+                    
+                    _ => panic!("didn't expect last inst as {:?}", inst) 
+                }
+            },
+            _ => panic!("expect last treenode of block is a inst")
+        }
+        
+        ret
+    }
+}
+
 #[derive(Debug, Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
@@ -269,7 +341,14 @@ impl TreeNode {
     pub fn clone_value(&self) -> P<Value> {
         match self.v {
             TreeNode_::Value(ref val) => val.clone(),
-            _ => panic!("expecting a value")
+            TreeNode_::Instruction(ref inst) => {
+                info!("expecting a value, but we found an inst. Instead we use its first value");
+                let vals = inst.value.as_ref().unwrap();
+                if vals.len() != 1 {
+                    panic!("we expect an inst with 1 value, but found multiple or zero (it should not be here - folded as a child)");
+                }
+                vals[0].clone()
+            }
         }
     }
 
@@ -309,7 +388,7 @@ pub enum TreeNode_ {
 }
 
 /// always use with P<Value>
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Value {
     pub tag: MuTag,
     pub ty: P<MuType>,
@@ -377,7 +456,7 @@ impl fmt::Display for Value {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant)
@@ -409,7 +488,7 @@ impl fmt::Display for SSAVarEntry {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Constant {
     Int(usize),
     Float(f32),

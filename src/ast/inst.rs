@@ -3,6 +3,7 @@ use ast::ptr::*;
 use ast::types::*;
 use ast::op::*;
 use utils::vec_utils::as_str as vector_as_str;
+use utils::vec_utils;
 
 use std::fmt;
 use std::cell::RefCell;
@@ -363,6 +364,16 @@ impl Destination {
         ret.push(']');
 
         ret
+    }
+    
+    pub fn get_arguments(&self, ops: &Vec<P<TreeNode>>) -> Vec<P<Value>> {
+        vec_utils::map(&self.args, 
+            |x| {
+                match x {
+                    &DestArg::Normal(i) => ops[i].clone_value(),
+                    &DestArg::Freshbound(_) => unimplemented!()
+                }
+        })
     }
 }
 

@@ -681,6 +681,13 @@ impl CompilerPass for InstructionSelection {
             self.backend.start_block(block.label);
 
             let block_content = block.content.as_ref().unwrap();
+            
+            // live in is args of the block
+            self.backend.set_block_livein(block.label, &block_content.args);
+            
+            // live out is the union of all branch args of this block
+            let live_out = block_content.get_out_arguments();
+            self.backend.set_block_liveout(block.label, &live_out);
 
             for inst in block_content.body.iter() {
                 self.instruction_select(inst, func);
