@@ -17,7 +17,8 @@ pub const PASS2_CFA       : usize = 2;
 pub const PASS3_TRACE_GEN : usize = 3;
 pub const PASS4_INST_SEL  : usize = 4;
 pub const PASS5_REG_ALLOC : usize = 5;
-pub const PASS6_CODE_EMIT : usize = 6;
+pub const PASS6_PEEPHOLE  : usize = 6;
+pub const PASS7_CODE_EMIT : usize = 7;
 
 pub enum PassExecutionResult {
     ProceedToNext,

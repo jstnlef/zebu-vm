@@ -15,6 +15,8 @@ use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::x86_64::ASMCodeGen;
 
+use std::collections::HashMap;
+
 pub struct InstructionSelection {
     name: &'static str,
     
@@ -713,6 +715,7 @@ impl CompilerPass for InstructionSelection {
         let mc = self.backend.finish_code();
         let compiled_func = CompiledFunction {
             fn_name: func.fn_name,
+            temps: HashMap::new(),
             mc: mc
         };
         

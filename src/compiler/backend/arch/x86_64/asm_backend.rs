@@ -97,6 +97,11 @@ impl MachineCode for ASMCode {
         }
     }
     
+    fn set_inst_nop(&mut self, index: usize) {
+        self.code.remove(index);
+        self.code.insert(index, ASM::nop());
+    }
+    
     fn emit(&self) -> Vec<u8> {
         let mut ret = vec![];
         
@@ -108,19 +113,23 @@ impl MachineCode for ASMCode {
         ret
     }
     
-    fn print(&self) {
-        println!("");
+    fn trace_mc(&self) {
+        trace!("");
 
-        println!("code for {}: ", self.name);
+        trace!("code for {}: \n", self.name);
+        
         let n_insts = self.code.len();
         for i in 0..n_insts {
-            let ref line = self.code[i];
-            println!("#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}", 
-                i, line.code, self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
-                self.preds[i], self.succs[i]);
+            self.trace_inst(i);
         }
         
-        println!("");        
+        trace!("")      
+    }
+    
+    fn trace_inst(&self, i: usize) {
+        trace!("#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}", 
+            i, self.code[i].code, self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
+            self.preds[i], self.succs[i]);
     }
     
     fn get_ir_block_livein(&self, block: MuTag) -> Option<&Vec<MuID>> {
@@ -169,6 +178,14 @@ impl ASM {
     fn branch(line: String) -> ASM {
         ASM {
             code: line,
+            defines: vec![],
+            uses: vec![]
+        }
+    }
+    
+    fn nop() -> ASM {
+        ASM {
+            code: "".to_string(),
             defines: vec![],
             uses: vec![]
         }

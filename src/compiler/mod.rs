@@ -17,7 +17,8 @@ pub use compiler::passes::PASS2_CFA;
 pub use compiler::passes::PASS3_TRACE_GEN;
 pub use compiler::passes::PASS4_INST_SEL;
 pub use compiler::passes::PASS5_REG_ALLOC;
-pub use compiler::passes::PASS6_CODE_EMIT;
+pub use compiler::passes::PASS6_PEEPHOLE;
+pub use compiler::passes::PASS7_CODE_EMIT;
 
 pub struct Compiler {
     policy: RefCell<CompilerPolicy>,
@@ -52,8 +53,8 @@ impl Compiler {
             drop(_p);
         }
 
-		drop(_p);
-		hprof::profiler().print_timing();
+        drop(_p);
+        hprof::profiler().print_timing();
     }
 }
 
@@ -70,6 +71,8 @@ impl CompilerPolicy {
         passes.push(Box::new(passes::TraceGen::new()));
         passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
         passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new()));
+        passes.push(Box::new(backend::peephole_opt::PeepholeOptimization::new()));
+        passes.push(Box::new(backend::code_emission::CodeEmission::new()));
 
         CompilerPolicy{passes: passes}
     }

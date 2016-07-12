@@ -27,7 +27,7 @@ impl RegisterAllocation {
         let compiled_funcs = vm_context.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(func.fn_name).unwrap().borrow_mut();
         
-        cf.mc.print();
+        cf.mc.trace_mc();
         
         // initialize machine registers for the function context
         init_machine_regs_for_func(&mut func.context);
@@ -56,10 +56,12 @@ impl RegisterAllocation {
                 
                 trace!("replacing {} with {}", temp, machine_reg);
                 cf.mc.replace_reg(temp, machine_reg);
+                
+                cf.temps.insert(temp, machine_reg);
             }
         }
         
-        cf.mc.print();
+        cf.mc.trace_mc();
         
         true
     }    

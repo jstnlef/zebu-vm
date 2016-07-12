@@ -74,6 +74,7 @@ fn test_regalloc_fac() {
             Box::new(passes::TraceGen::new()),
             Box::new(backend::inst_sel::InstructionSelection::new()),
             Box::new(backend::reg_alloc::RegisterAllocation::new()),
+            Box::new(backend::peephole_opt::PeepholeOptimization::new()),
             Box::new(backend::code_emission::CodeEmission::new())
     ]), vm_context.clone());
     
