@@ -194,21 +194,23 @@ lazy_static! {
         XMM15.clone()
     ];
     
+    // put callee saved regs first
     pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
+        RBX.clone(),
+        R12.clone(),
+        R13.clone(),
+        R14.clone(),
+        R15.clone(),
+            
         RAX.clone(),
         RCX.clone(),
         RDX.clone(),
-        RBX.clone(),
         RSI.clone(),
         RDI.clone(),
         R8.clone(),
         R9.clone(),
         R10.clone(),
         R11.clone(),
-        R12.clone(),
-        R13.clone(),
-        R14.clone(),
-        R15.clone(),
         XMM0.clone(),
         XMM1.clone(),
         XMM2.clone(),
@@ -271,6 +273,16 @@ pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
         16...31 => RegGroup::FPR,
         _ => panic!("expected a machine reg ID, got {}", reg_id)
     }
+}
+
+pub fn is_callee_saved(reg_id: MuID) -> bool {
+    for reg in CALLEE_SAVED_GPRs.iter() {
+        if reg_id == reg.extract_ssa_id().unwrap() {
+            return true;
+        }
+    }
+    
+    false 
 }
 
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {

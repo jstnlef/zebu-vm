@@ -559,6 +559,11 @@ impl GraphColoring {
             } else {
                 let first_available_color = ok_colors.pop_front().unwrap();
                 trace!("Color {} as {}", self.node_info(n), first_available_color);
+                
+                if !backend::is_callee_saved(first_available_color) {
+                    panic!("using a non-callee-saved register. need to go to compiler slowpath. Unimplemented");
+                }
+                
                 self.colored_nodes.push(n);
                 self.ig.color_node(n, first_available_color);
             }

@@ -22,6 +22,8 @@ pub use compiler::backend::x86_64::all_regs;
 pub use compiler::backend::x86_64::all_usable_regs;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::pick_group_for_reg;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::is_callee_saved;
 
 #[cfg(target_arch = "arm")]
 #[path = "arch/arm/mod.rs"]
