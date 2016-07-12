@@ -4,7 +4,7 @@ extern crate lazy_static;
 extern crate log;
 
 #[macro_use]
-mod utils;
+pub mod utils;
 pub mod ast;
 pub mod vm;
 pub mod compiler;

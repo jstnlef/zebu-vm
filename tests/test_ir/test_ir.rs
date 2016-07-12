@@ -275,6 +275,7 @@ pub fn factorial() -> VMContext {
         v: Instruction_::BinOp(BinOp::Mul, 0, 1)
     });
 
+    // BRANCH blk_2 (%blk_1_v52)
     let blk_1_term = func.new_inst(Instruction{
         value: None,
         ops: RefCell::new(vec![blk_1_v52.clone()]),

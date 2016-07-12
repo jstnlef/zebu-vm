@@ -13,6 +13,16 @@ impl<K: Hash + Eq> LinkedHashSet<K> {
     pub fn new() -> Self {
         LinkedHashSet(LinkedHashMap::new())
     }
+    
+    pub fn from_vec(from: Vec<K>) -> Self {
+        let mut ret = LinkedHashSet::new();
+        
+        for ele in from {
+            ret.insert(ele);
+        }
+        
+        ret
+    }
 }
 
 impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {

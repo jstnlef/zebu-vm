@@ -380,7 +380,13 @@ impl <'a> InstructionSelection {
     }
     
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>) {
-        self.backend.start_block("prologue");
+        let block_name = "prologue";
+        self.backend.start_block(block_name);
+        
+        // no livein
+        // liveout = entry block's args
+        self.backend.set_block_livein(block_name, &vec![]);
+        self.backend.set_block_liveout(block_name, args);
         
         // push rbp
         self.backend.emit_push_r64(&x86_64::RBP);
@@ -414,10 +420,13 @@ impl <'a> InstructionSelection {
                 panic!("expect an arg value to be either int reg or fp reg");
             }
         }
+        
+        self.backend.end_block(block_name);
     }
     
     fn emit_common_epilogue(&mut self, ret_inst: &Instruction, cur_func: &MuFunction) {
-        self.backend.start_block("epilogue");
+        // epilogue is not a block (its a few instruction inserted before return)
+        // FIXME: this may change in the future
         
         // prepare return regs
         let ref ops = ret_inst.ops.borrow();
@@ -692,6 +701,8 @@ impl CompilerPass for InstructionSelection {
             for inst in block_content.body.iter() {
                 self.instruction_select(inst, func);
             }
+            
+            self.backend.end_block(block.label);
         }
     }
     

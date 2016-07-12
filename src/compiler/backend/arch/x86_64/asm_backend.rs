@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::str;
 use std::usize;
 use std::slice::Iter;
+use std::ops;
 
 struct ASMCode {
     name: MuTag, 
@@ -29,6 +30,10 @@ struct ASMCode {
     blk_to_idx: HashMap<MuTag, usize>,
     cond_branches: HashMap<usize, MuTag>,
     branches: HashMap<usize, MuTag>,
+    
+    blocks: Vec<MuTag>,
+    block_start: HashMap<MuTag, usize>,
+    block_range: HashMap<MuTag, ops::Range<usize>>,
     
     block_livein: HashMap<MuTag, Vec<MuID>>,
     block_liveout: HashMap<MuTag, Vec<MuID>>
@@ -116,6 +121,25 @@ impl MachineCode for ASMCode {
         }
         
         println!("");        
+    }
+    
+    fn get_ir_block_livein(&self, block: MuTag) -> Option<&Vec<MuID>> {
+        self.block_livein.get(&block)
+    }
+    
+    fn get_ir_block_liveout(&self, block: MuTag) -> Option<&Vec<MuID>> {
+        self.block_liveout.get(&block)
+    }
+    
+    fn get_all_blocks(&self) -> &Vec<MuTag> {
+        &self.blocks
+    }
+    
+    fn get_block_range(&self, block: MuTag) -> Option<ops::Range<usize>> {
+        match self.block_range.get(&block) {
+            Some(r) => Some(r.clone()),
+            None => None
+        }
     }
 }
 
@@ -426,6 +450,10 @@ impl CodeGenerator for ASMCodeGen {
                 cond_branches: HashMap::new(),
                 branches: HashMap::new(),
                 
+                blocks: vec![],
+                block_start: HashMap::new(),
+                block_range: HashMap::new(),
+                
                 block_livein: HashMap::new(),
                 block_liveout: HashMap::new()
             }));
@@ -464,6 +492,17 @@ impl CodeGenerator for ASMCodeGen {
     fn start_block(&mut self, block_name: MuTag) {
         let label = format!("{}:", self.asm_block_label(block_name));        
         self.add_asm_block_label(label, block_name);
+        self.cur_mut().blocks.push(block_name);
+        
+        let start = self.line();
+        self.cur_mut().block_start.insert(block_name, start);
+    }
+    
+    fn end_block(&mut self, block_name: MuTag) {
+        let start : usize = *self.cur().block_start.get(&block_name).unwrap();
+        let end : usize = self.line();
+        
+        self.cur_mut().block_range.insert(block_name, (start..end));
     }
     
     fn set_block_livein(&mut self, block_name: MuTag, live_in: &Vec<P<Value>>) {

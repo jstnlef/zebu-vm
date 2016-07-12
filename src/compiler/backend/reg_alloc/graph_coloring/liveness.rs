@@ -6,6 +6,7 @@ use ast::ir::*;
 use ast::types;
 use compiler::backend;
 use utils::vec_utils;
+use utils::LinkedHashSet;
 
 use std::collections::LinkedList;
 use std::collections::{HashMap, HashSet};
@@ -260,7 +261,111 @@ pub fn is_machine_reg(reg: MuID) -> bool {
     }
 }
 
+// from Tailoring Graph-coloring Register Allocation For Runtime Compilation, Figure 4
+pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
+    let mut ig = InterferenceGraph::new();
+    
+    // precolor machine register nodes
+    for reg in backend::all_regs().iter() {
+        let reg_id = reg.extract_ssa_id().unwrap();
+        let node = ig.new_node(reg_id, &func.context);
+        ig.color_node(node, reg_id);
+    }
+    
+    // Initialize and creates nodes for all the involved temps/regs
+    for i in 0..cf.mc.number_of_insts() {
+        for reg_id in cf.mc.get_inst_reg_defines(i) {
+            let reg_id = *reg_id;
+            ig.new_node(reg_id, &func.context);
+        }
+        
+        for reg_id in cf.mc.get_inst_reg_uses(i) {
+            let reg_id = *reg_id;
+            ig.new_node(reg_id, &func.context);
+        }
+    }
+    
+    // all nodes has been added, we init graph (create adjacency matrix)
+    ig.init_graph();    
+    
+    for block in cf.mc.get_all_blocks() {
+        // Current_Live(B) = LiveOut(B)
+        let mut current_live = LinkedHashSet::from_vec(match cf.mc.get_ir_block_liveout(block) {
+            Some(liveout) => liveout.to_vec(),
+            None => panic!("cannot find liveout for block {}", block)
+        });
+        
+        let range = cf.mc.get_block_range(block);
+        if range.is_none() {
+            continue;
+        }
+        
+        // for every inst I in reverse order
+        for i in range.unwrap().rev() {
+            let src : Option<MuID> = {
+                if cf.mc.is_move(i) {
+                    let src = cf.mc.get_inst_reg_uses(i);
+                    let dst = cf.mc.get_inst_reg_defines(i);
+                    
+                    // src may be an immediate number
+                    // but dest is definitly a register
+                    debug_assert!(dst.len() == 1);
+                    
+                    if src.len() == 1 {
+                        let node1 = ig.get_node(src[0]);
+                        let node2 = ig.get_node(dst[0]);
+                        ig.add_move(node1, node2);
+                        
+                        Some(src[0])
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+            
+            // for every definition D in I
+            for d in cf.mc.get_inst_reg_defines(i) {
+                // add an interference from D to every element E in Current_Live - {D}
+                // creating nodes if necessary
+                for e in current_live.iter() {
+                    if src.is_none() || (src.is_some() && *e != src.unwrap()) {
+                        let from = ig.get_node(*d);
+                        let to = ig.get_node(*e);
+                        
+                        if !ig.is_same_node(from, to) && !ig.is_adj(from, to) {
+                            if !ig.is_colored(from) {
+                                ig.add_interference_edge(from, to);
+                            }
+                            if !ig.is_colored(to) {
+                                ig.add_interference_edge(to, from);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // for every definition D in I
+            for d in cf.mc.get_inst_reg_defines(i) {
+                // remove D from Current_Live
+                current_live.remove(d);
+            }
+            
+            // for every use U in I
+            for u in cf.mc.get_inst_reg_uses(i) {
+                // add U to Current_live
+                current_live.insert(*u);
+            }
+        }
+    }
+    
+    ig
+}
+
 // from tony's code src/RegAlloc/Liveness.java
+// this function is no longer used
+#[allow(dead_code)]
 pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
     let mut ig = InterferenceGraph::new();
     

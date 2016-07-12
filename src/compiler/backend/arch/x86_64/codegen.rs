@@ -13,6 +13,7 @@ pub trait CodeGenerator {
     fn start_block(&mut self, block_name: MuTag);
     fn set_block_livein(&mut self, block_name: MuTag, live_in: &Vec<P<Value>>);
     fn set_block_liveout(&mut self, block_name: MuTag, live_out: &Vec<P<Value>>);
+    fn end_block(&mut self, block_name: MuTag);
     
     fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>);
     fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: u32);

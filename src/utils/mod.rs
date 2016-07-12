@@ -20,6 +20,18 @@ macro_rules! select_value {
 pub mod vec_utils {
     use std::fmt;
     
+    pub fn is_identical_to_str_ignore_order<T: Ord + fmt::Display + Clone, Q: Ord + fmt::Display + Clone> (vec: &Vec<T>, mut expect: Vec<Q>) -> bool {
+        let mut vec_copy = vec.to_vec();
+        vec_copy.sort();
+        
+        expect.sort();
+        
+        let a = as_str(&vec_copy);
+        let b = as_str(&expect);
+        
+        a == b
+    }
+    
     pub fn as_str<T: fmt::Display>(vec: &Vec<T>) -> String {
         let mut ret = String::new();
         for i in 0..vec.len() {
