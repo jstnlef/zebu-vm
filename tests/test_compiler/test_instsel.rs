@@ -22,7 +22,9 @@ fn test_instsel_fac() {
     ]), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();
-    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
+    let factorial_func = funcs.get("fac").unwrap().borrow();
+    let func_vers = vm_context.func_vers().read().unwrap();
+    let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut factorial_func);    
+    compiler.compile(&mut factorial_func_ver); 
 }

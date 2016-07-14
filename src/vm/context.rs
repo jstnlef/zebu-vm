@@ -12,7 +12,9 @@ pub struct VMContext {
     constants: RwLock<HashMap<MuTag, P<Value>>>,
     types: RwLock<HashMap<MuTag, P<MuType>>>,
     func_sigs: RwLock<HashMap<MuTag, P<MuFuncSig>>>,
-    funcs: RwLock<HashMap<MuTag, RefCell<MuFunctionVersion>>>,
+    
+    func_vers: RwLock<HashMap<(MuTag, MuTag), RefCell<MuFunctionVersion>>>,
+    funcs: RwLock<HashMap<MuTag, RefCell<MuFunction>>>,
     
     compiled_funcs: RwLock<HashMap<MuTag, RefCell<CompiledFunction>>>
 }
@@ -23,6 +25,8 @@ impl <'a> VMContext {
             constants: RwLock::new(HashMap::new()),
             types: RwLock::new(HashMap::new()),
             func_sigs: RwLock::new(HashMap::new()),
+            
+            func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new())
         }
@@ -57,11 +61,38 @@ impl <'a> VMContext {
         ret
     }
     
-    pub fn declare_func (&self, func: MuFunctionVersion) {
+    pub fn declare_func (&self, func: MuFunction) {
+        info!("declare function {}", func.fn_name);
         let mut funcs = self.funcs.write().unwrap();
-        debug_assert!(!funcs.contains_key(func.fn_name));
-        
         funcs.insert(func.fn_name, RefCell::new(func));
+    }
+    
+    pub fn define_func_version (&self, func_ver: MuFunctionVersion) {
+        info!("define function {} with version {}", func_ver.fn_name, func_ver.version);
+        // record this version
+        let func_ver_key = (func_ver.fn_name, func_ver.version);
+        {
+            let mut func_vers = self.func_vers.write().unwrap();
+            func_vers.insert(func_ver_key, RefCell::new(func_ver));
+        }
+        
+        // acquire a reference to the func_ver
+        let func_vers = self.func_vers.read().unwrap();
+        let func_ver = func_vers.get(&func_ver_key).unwrap().borrow();
+        
+        // change current version to this (obsolete old versions)
+        let funcs = self.funcs.read().unwrap();
+        debug_assert!(funcs.contains_key(func_ver.fn_name)); // it should be declared before defining
+        let mut func = funcs.get(func_ver.fn_name).unwrap().borrow_mut();
+        
+        if func.cur_ver.is_some() {
+            let obsolete_ver = func.cur_ver.unwrap();
+            func.all_vers.push(obsolete_ver);
+            
+            // redefinition happens here
+            // do stuff
+        }
+        func.cur_ver = Some(func_ver.version);        
     }
     
     pub fn add_compiled_func (&self, func: CompiledFunction) {
@@ -70,8 +101,12 @@ impl <'a> VMContext {
         self.compiled_funcs.write().unwrap().insert(func.fn_name, RefCell::new(func));
     }
     
-    pub fn funcs(&self) -> &RwLock<HashMap<MuTag, RefCell<MuFunctionVersion>>> {
+    pub fn funcs(&self) -> &RwLock<HashMap<MuTag, RefCell<MuFunction>>> {
         &self.funcs
+    }
+    
+    pub fn func_vers(&self) -> &RwLock<HashMap<(MuTag, MuTag), RefCell<MuFunctionVersion>>> {
+        &self.func_vers
     }
     
     pub fn compiled_funcs(&self) -> &RwLock<HashMap<MuTag, RefCell<CompiledFunction>>> {

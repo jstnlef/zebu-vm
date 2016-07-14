@@ -20,17 +20,19 @@ fn test_use_count() {
     ), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();
-    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
+    let factorial_func = funcs.get("fac").unwrap().borrow();
+    let func_vers = vm_context.func_vers().read().unwrap();
+    let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut factorial_func);
+    compiler.compile(&mut factorial_func_ver);
     
-    assert!(factorial_func.context.get_value_by_tag("blk_0_n_3").unwrap().use_count.get() == 2, "blk_0_n_3 use should be 2");
-    assert!(factorial_func.context.get_value_by_tag("blk_0_v48").unwrap().use_count.get() == 1, "blk_0_v48 use should be 1");
-    assert!(factorial_func.context.get_value_by_tag("blk_2_v53").unwrap().use_count.get() == 1, "blk_2_v53 use should be 1");
-    assert!(factorial_func.context.get_value_by_tag("blk_1_n_3").unwrap().use_count.get() == 2, "blk_1_n_3 use should be 2");
-    assert!(factorial_func.context.get_value_by_tag("blk_1_v50").unwrap().use_count.get() == 1, "blk_1_v50 use should be 1");
-    assert!(factorial_func.context.get_value_by_tag("blk_1_v51").unwrap().use_count.get() == 1, "blk_1_v51 use should be 1");
-    assert!(factorial_func.context.get_value_by_tag("blk_1_v52").unwrap().use_count.get() == 1, "blk_1_v52 use should be 1");
+    assert!(factorial_func_ver.context.get_value_by_tag("blk_0_n_3").unwrap().use_count.get() == 2, "blk_0_n_3 use should be 2");
+    assert!(factorial_func_ver.context.get_value_by_tag("blk_0_v48").unwrap().use_count.get() == 1, "blk_0_v48 use should be 1");
+    assert!(factorial_func_ver.context.get_value_by_tag("blk_2_v53").unwrap().use_count.get() == 1, "blk_2_v53 use should be 1");
+    assert!(factorial_func_ver.context.get_value_by_tag("blk_1_n_3").unwrap().use_count.get() == 2, "blk_1_n_3 use should be 2");
+    assert!(factorial_func_ver.context.get_value_by_tag("blk_1_v50").unwrap().use_count.get() == 1, "blk_1_v50 use should be 1");
+    assert!(factorial_func_ver.context.get_value_by_tag("blk_1_v51").unwrap().use_count.get() == 1, "blk_1_v51 use should be 1");
+    assert!(factorial_func_ver.context.get_value_by_tag("blk_1_v52").unwrap().use_count.get() == 1, "blk_1_v52 use should be 1");
 }
 
 #[test]
@@ -44,9 +46,11 @@ fn test_build_tree() {
     ), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();
-    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
+    let factorial_func = funcs.get("fac").unwrap().borrow();
+    let func_vers = vm_context.func_vers().read().unwrap();
+    let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut factorial_func);
+    compiler.compile(&mut factorial_func_ver);
 }
 
 #[test]
@@ -61,12 +65,14 @@ fn test_cfa_factorial() {
     ]), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();
-    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
+    let factorial_func = funcs.get("fac").unwrap().borrow();
+    let func_vers = vm_context.func_vers().read().unwrap();
+    let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut factorial_func);
+    compiler.compile(&mut factorial_func_ver);
     
     // assert cfa
-    let content = factorial_func.content.as_ref().unwrap();
+    let content = factorial_func_ver.content.as_ref().unwrap();
     
     // blk_0: preds=[], succs=[blk_2, blk_1]
     let blk_0 = content.get_block("blk_0");
@@ -96,12 +102,14 @@ fn test_cfa_sum() {
     ]), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();
-    let mut sum_func = funcs.get("sum").unwrap().borrow_mut();
+    let sum_func = funcs.get("sum").unwrap().borrow();
+    let func_vers = vm_context.func_vers().read().unwrap();
+    let mut sum_func_ver = func_vers.get(&(sum_func.fn_name, sum_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut sum_func);
+    compiler.compile(&mut sum_func_ver);
     
     // assert cfa
-    let content = sum_func.content.as_ref().unwrap();
+    let content = sum_func_ver.content.as_ref().unwrap();
     
     // entry: preds=[], succs=[head]
     let entry = content.get_block("entry");
@@ -140,11 +148,13 @@ fn test_trace_factorial() {
     ]), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();
-    let mut factorial_func = funcs.get("fac").unwrap().borrow_mut();
+    let factorial_func = funcs.get("fac").unwrap().borrow();
+    let func_vers = vm_context.func_vers().read().unwrap();
+    let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut factorial_func);
+    compiler.compile(&mut factorial_func_ver);
     
-    assert_vector_ordered(factorial_func.block_trace.as_ref().unwrap(), &vec!["blk_0", "blk_1", "blk_2"]);
+    assert_vector_ordered(factorial_func_ver.block_trace.as_ref().unwrap(), &vec!["blk_0", "blk_1", "blk_2"]);
 }
 
 #[test]
@@ -160,9 +170,11 @@ fn test_trace_sum() {
     ]), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();
-    let mut sum_func = funcs.get("sum").unwrap().borrow_mut();
+    let sum_func = funcs.get("sum").unwrap().borrow();
+    let func_vers = vm_context.func_vers().read().unwrap();
+    let mut sum_func_ver = func_vers.get(&(sum_func.fn_name, sum_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut sum_func);
+    compiler.compile(&mut sum_func_ver);
     
-    assert_vector_ordered(sum_func.block_trace.as_ref().unwrap(), &vec!["entry", "head", "ret"]);
+    assert_vector_ordered(sum_func_ver.block_trace.as_ref().unwrap(), &vec!["entry", "head", "ret"]);
 }

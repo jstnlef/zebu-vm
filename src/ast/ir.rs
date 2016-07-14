@@ -18,8 +18,28 @@ pub type Address = usize; // TODO: replace this with Address(usize)
 pub type OpIndex = usize;
 
 #[derive(Debug)]
+pub struct MuFunction {
+    pub fn_name: MuTag,
+    pub sig: P<MuFuncSig>,
+    pub cur_ver: Option<MuTag>,
+    pub all_vers: Vec<MuTag>
+}
+
+impl MuFunction {
+    pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
+        MuFunction {
+            fn_name: fn_name,
+            sig: sig,
+            cur_ver: None,
+            all_vers: vec![]
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct MuFunctionVersion {
     pub fn_name: MuTag,
+    pub version: MuTag,
 
     pub next_id: MuID,
 
@@ -33,9 +53,10 @@ pub struct MuFunctionVersion {
 pub const RESERVED_NODE_IDS_FOR_MACHINE : usize = 100;
 
 impl MuFunctionVersion {
-    pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunctionVersion {
+    pub fn new(fn_name: MuTag, ver: MuTag, sig: P<MuFuncSig>) -> MuFunctionVersion {
         MuFunctionVersion{
             fn_name: fn_name,
+            version: ver,
             next_id: RESERVED_NODE_IDS_FOR_MACHINE,
             sig: sig,
             content: None,
