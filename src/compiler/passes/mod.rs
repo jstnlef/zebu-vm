@@ -29,7 +29,7 @@ pub enum PassExecutionResult {
 pub trait CompilerPass {
     fn name(&self) -> &'static str;
 
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> PassExecutionResult {
+    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
 
         self.start_function(vm_context, func);
@@ -41,7 +41,7 @@ pub trait CompilerPass {
         PassExecutionResult::ProceedToNext
     }
 
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         for (label, ref mut block) in func.content.as_mut().unwrap().blocks.iter_mut() {
             debug!("block: {}", label);
 
@@ -59,8 +59,8 @@ pub trait CompilerPass {
         }
     }
 
-    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {}
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {}
+    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {}
+    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {}
 
     fn start_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {}
     fn finish_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {}

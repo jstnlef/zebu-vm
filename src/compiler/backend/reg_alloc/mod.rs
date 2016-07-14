@@ -23,7 +23,7 @@ impl RegisterAllocation {
     
     #[allow(unused_variables)]
     // returns true if we spill registers (which requires another instruction selection)
-    fn coloring(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> bool {
+    fn coloring(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) -> bool {
         let compiled_funcs = vm_context.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(func.fn_name).unwrap().borrow_mut();
         
@@ -72,7 +72,7 @@ impl CompilerPass for RegisterAllocation {
         self.name
     }
     
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> PassExecutionResult {
+    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
         
         if self.coloring(vm_context, func) {

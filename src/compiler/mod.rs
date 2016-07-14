@@ -33,7 +33,7 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&self, func: &mut MuFunction) {
+    pub fn compile(&self, func: &mut MuFunctionVersion) {
         let _p = hprof::enter(func.fn_name);
 
         let mut cur_pass = 0;

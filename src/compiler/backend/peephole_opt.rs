@@ -55,7 +55,7 @@ impl CompilerPass for PeepholeOptimization {
         self.name
     }
     
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         let compiled_funcs = vm_context.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(func.fn_name).unwrap().borrow_mut();
         

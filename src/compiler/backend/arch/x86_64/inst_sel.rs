@@ -37,7 +37,7 @@ impl <'a> InstructionSelection {
     // 3. we need to backup/restore all the callee-saved registers
     // if any of these assumption breaks, we will need to re-emit the code
     #[allow(unused_variables)]
-    fn instruction_select(&mut self, node: &'a P<TreeNode>, cur_func: &MuFunction) {
+    fn instruction_select(&mut self, node: &'a P<TreeNode>, cur_func: &MuFunctionVersion) {
         trace!("instsel on node {}", node);
         
         match node.v {
@@ -349,7 +349,7 @@ impl <'a> InstructionSelection {
     }
     
     #[allow(unused_variables)]
-    fn process_dest(&mut self, ops: &Vec<P<TreeNode>>, dest: &Destination, cur_func: &MuFunction) {
+    fn process_dest(&mut self, ops: &Vec<P<TreeNode>>, dest: &Destination, cur_func: &MuFunctionVersion) {
         for i in 0..dest.args.len() {
             let ref dest_arg = dest.args[i];
             match dest_arg {
@@ -426,7 +426,7 @@ impl <'a> InstructionSelection {
         self.backend.end_block(block_name);
     }
     
-    fn emit_common_epilogue(&mut self, ret_inst: &Instruction, cur_func: &MuFunction) {
+    fn emit_common_epilogue(&mut self, ret_inst: &Instruction, cur_func: &MuFunctionVersion) {
         // epilogue is not a block (its a few instruction inserted before return)
         // FIXME: this may change in the future
         
@@ -480,7 +480,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_cmp_res(&mut self, cond: &P<TreeNode>, cur_func: &MuFunction) -> op::CmpOp {
+    fn emit_cmp_res(&mut self, cond: &P<TreeNode>, cur_func: &MuFunctionVersion) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
                 let ops = inst.ops.borrow();                
@@ -544,7 +544,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_ireg(&mut self, op: &P<TreeNode>, cur_func: &MuFunction) -> P<Value> {
+    fn emit_ireg(&mut self, op: &P<TreeNode>, cur_func: &MuFunctionVersion) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
                 self.instruction_select(op, cur_func);
@@ -646,7 +646,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_general_move(&mut self, src: &P<TreeNode>, dest: &P<Value>, cur_func: &MuFunction) {
+    fn emit_general_move(&mut self, src: &P<TreeNode>, dest: &P<Value>, cur_func: &MuFunctionVersion) {
         let ref dst_ty = dest.ty;
         
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
@@ -673,7 +673,7 @@ impl CompilerPass for InstructionSelection {
     }
 
     #[allow(unused_variables)]
-    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         debug!("{}", self.name());
         
         self.backend.start_code(func.fn_name);
@@ -685,7 +685,7 @@ impl CompilerPass for InstructionSelection {
     }
 
     #[allow(unused_variables)]
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         for block_label in func.block_trace.as_ref().unwrap() {
             let block = func.content.as_ref().unwrap().get_block(block_label);
             
@@ -709,7 +709,7 @@ impl CompilerPass for InstructionSelection {
     }
     
     #[allow(unused_variables)]
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         self.backend.print_cur_code();
         
         let mc = self.backend.finish_code();

@@ -21,7 +21,7 @@ impl CompilerPass for CodeEmission {
         self.name
     }
 
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         use std::io::prelude::*;
         use std::fs::File;
         use std::fs;

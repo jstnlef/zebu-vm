@@ -262,7 +262,7 @@ pub fn is_machine_reg(reg: MuID) -> bool {
 }
 
 // from Tailoring Graph-coloring Register Allocation For Runtime Compilation, Figure 4
-pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
+pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
     let mut ig = InterferenceGraph::new();
     
     // precolor machine register nodes
@@ -366,7 +366,7 @@ pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunction) -> Interf
 // from tony's code src/RegAlloc/Liveness.java
 // this function is no longer used
 #[allow(dead_code)]
-pub fn build (cf: &CompiledFunction, func: &MuFunction) -> InterferenceGraph {
+pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
     let mut ig = InterferenceGraph::new();
     
     // precolor machine register nodes

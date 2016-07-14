@@ -20,7 +20,7 @@ impl CompilerPass for InstructionSelection {
     }
     
     #[allow(unused_variables)]
-    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         println!("{}", self.name());
     }
 }

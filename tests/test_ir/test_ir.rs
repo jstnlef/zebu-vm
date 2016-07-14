@@ -38,7 +38,7 @@ pub fn sum() -> VMContext {
     let sum_sig = vm.declare_func_sig("sum_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
 
     // .funcdef @sum VERSION @sum_v1 <@sum_sig>
-    let mut func = MuFunction::new("sum", sum_sig.clone());
+    let mut func = MuFunctionVersion::new("sum", sum_sig.clone());
 
     // %entry(<@int_64> %n):
     let mut blk_entry = Block::new("entry");
@@ -181,7 +181,7 @@ pub fn factorial() -> VMContext {
 
     // .funcdef @fac VERSION @fac_v1 <@fac_sig>
     let const_func_fac = vm.declare_const("fac", type_def_funcref_fac, Constant::FuncRef("fac"));
-    let mut func = MuFunction::new("fac", fac_sig.clone());
+    let mut func = MuFunctionVersion::new("fac", fac_sig.clone());
 
     // %blk_0(<@int_64> %n_3):
     let mut blk_0 = Block::new("blk_0");

@@ -25,7 +25,7 @@ impl CompilerPass for TreeGen {
         self.name
     }
     
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunction) -> PassExecutionResult {
+    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
         
         {
@@ -125,7 +125,7 @@ impl CompilerPass for TreeGen {
     }
     
     #[allow(unused_variables)]
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         debug!("check depth tree for {}", func.fn_name);
         
         for entry in func.content.as_ref().unwrap().blocks.iter() {

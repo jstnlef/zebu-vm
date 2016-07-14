@@ -12,7 +12,7 @@ pub struct VMContext {
     constants: RwLock<HashMap<MuTag, P<Value>>>,
     types: RwLock<HashMap<MuTag, P<MuType>>>,
     func_sigs: RwLock<HashMap<MuTag, P<MuFuncSig>>>,
-    funcs: RwLock<HashMap<MuTag, RefCell<MuFunction>>>,
+    funcs: RwLock<HashMap<MuTag, RefCell<MuFunctionVersion>>>,
     
     compiled_funcs: RwLock<HashMap<MuTag, RefCell<CompiledFunction>>>
 }
@@ -57,7 +57,7 @@ impl <'a> VMContext {
         ret
     }
     
-    pub fn declare_func (&self, func: MuFunction) {
+    pub fn declare_func (&self, func: MuFunctionVersion) {
         let mut funcs = self.funcs.write().unwrap();
         debug_assert!(!funcs.contains_key(func.fn_name));
         
@@ -70,7 +70,7 @@ impl <'a> VMContext {
         self.compiled_funcs.write().unwrap().insert(func.fn_name, RefCell::new(func));
     }
     
-    pub fn funcs(&self) -> &RwLock<HashMap<MuTag, RefCell<MuFunction>>> {
+    pub fn funcs(&self) -> &RwLock<HashMap<MuTag, RefCell<MuFunctionVersion>>> {
         &self.funcs
     }
     

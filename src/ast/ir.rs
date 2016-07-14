@@ -18,7 +18,7 @@ pub type Address = usize; // TODO: replace this with Address(usize)
 pub type OpIndex = usize;
 
 #[derive(Debug)]
-pub struct MuFunction {
+pub struct MuFunctionVersion {
     pub fn_name: MuTag,
 
     pub next_id: MuID,
@@ -32,9 +32,9 @@ pub struct MuFunction {
 
 pub const RESERVED_NODE_IDS_FOR_MACHINE : usize = 100;
 
-impl MuFunction {
-    pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
-        MuFunction{
+impl MuFunctionVersion {
+    pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunctionVersion {
+        MuFunctionVersion{
             fn_name: fn_name,
             next_id: RESERVED_NODE_IDS_FOR_MACHINE,
             sig: sig,
@@ -317,7 +317,7 @@ pub struct TreeNode {
 }
 
 impl TreeNode {
-    // this is a hack to allow creating TreeNode without using a &mut MuFunction
+    // this is a hack to allow creating TreeNode without using a &mut MuFunctionVersion
     pub fn new_inst(id: MuID, v: Instruction) -> P<TreeNode> {
         P(TreeNode{
             id: id,

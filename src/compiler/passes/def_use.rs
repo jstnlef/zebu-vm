@@ -63,7 +63,7 @@ impl CompilerPass for DefUse {
     }
     
     #[allow(unused_variables)]
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         debug!("check use count for variables");
         
         for entry in func.context.values.values() {

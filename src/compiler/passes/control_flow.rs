@@ -23,7 +23,7 @@ fn check_edge_kind(target: MuTag, stack: &Vec<MuTag>) -> EdgeKind {
     }
 }
 
-fn new_edge(cur: MuTag, edge: BlockEdge, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut MuFunction) {
+fn new_edge(cur: MuTag, edge: BlockEdge, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut MuFunctionVersion) {
     // add current block to target's predecessors
     {
         let target = func.content.as_mut().unwrap().get_block_mut(edge.target);
@@ -47,7 +47,7 @@ const WATCHPOINT_DISABLED_CHANCE : f32 = 0.9f32;
 const NORMAL_RESUME_CHANCE       : f32 = 0.6f32;
 const EXN_RESUME_CHANCE          : f32 = 1f32 - NORMAL_RESUME_CHANCE;
 
-fn dfs(cur: MuTag, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut MuFunction) {
+fn dfs(cur: MuTag, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut MuFunctionVersion) {
     trace!("dfs visiting block {}", cur);
     trace!("current stack: {:?}", stack);
     trace!("current visited: {:?}", visited);
@@ -196,7 +196,7 @@ impl CompilerPass for ControlFlowAnalysis {
     }
 
     #[allow(unused_variables)]
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         let mut stack   : Vec<MuTag> = vec![];
         let mut visited : Vec<MuTag> = vec![];
 
@@ -204,7 +204,7 @@ impl CompilerPass for ControlFlowAnalysis {
     }
 
     #[allow(unused_variables)]
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunction) {
+    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
         debug!("check control flow for {}", func.fn_name);
 
         for entry in func.content.as_ref().unwrap().blocks.iter() {
