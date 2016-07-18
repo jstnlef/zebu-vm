@@ -83,7 +83,7 @@ pub fn pick_op_code_for_ssa(ty: &P<MuType>) -> OpCode {
     }
 }
 
-pub fn pick_op_code_for_const(ty: &P<MuType>) -> OpCode {
+pub fn pick_op_code_for_value(ty: &P<MuType>) -> OpCode {
     use ast::types::MuType_::*;
     let a : &MuType_ = ty;
     match a {

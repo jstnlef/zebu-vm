@@ -11,8 +11,10 @@ use std::cell::RefCell;
 pub struct VMContext {
     constants: RwLock<HashMap<MuTag, P<Value>>>,
     types: RwLock<HashMap<MuTag, P<MuType>>>,
-    func_sigs: RwLock<HashMap<MuTag, P<MuFuncSig>>>,
     
+    globals: RwLock<HashMap<MuTag, P<GlobalCell>>>,
+    
+    func_sigs: RwLock<HashMap<MuTag, P<MuFuncSig>>>,
     func_vers: RwLock<HashMap<(MuTag, MuTag), RefCell<MuFunctionVersion>>>,
     funcs: RwLock<HashMap<MuTag, RefCell<MuFunction>>>,
     
@@ -24,8 +26,10 @@ impl <'a> VMContext {
         VMContext {
             constants: RwLock::new(HashMap::new()),
             types: RwLock::new(HashMap::new()),
-            func_sigs: RwLock::new(HashMap::new()),
             
+            globals: RwLock::new(HashMap::new()),
+            
+            func_sigs: RwLock::new(HashMap::new()),
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new())
@@ -40,6 +44,19 @@ impl <'a> VMContext {
         constants.insert(const_name, ret.clone());
         
         ret
+    }
+    
+    pub fn declare_global(&self, global_name: MuTag, ty: P<MuType>) -> P<Value> {
+        let global = P(GlobalCell{tag: global_name, ty: ty.clone()});
+        
+        let mut globals = self.globals.write().unwrap();
+        globals.insert(global_name, global.clone());
+        
+        P(Value{
+            tag: "",
+            ty: P(MuType::iref(ty)),
+            v: Value_::Global(global.clone())
+        })
     }
     
     pub fn declare_type(&self, type_name: MuTag, ty: P<MuType>) -> P<MuType> {

@@ -94,7 +94,15 @@ impl MuFunctionVersion {
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
             id: self.get_id(),
-            op: pick_op_code_for_const(&v.ty),
+            op: pick_op_code_for_value(&v.ty),
+            v: TreeNode_::Value(v)
+        })
+    }
+    
+    pub fn new_global(&mut self, v: P<Value>) -> P<TreeNode> {
+        P(TreeNode{
+            id: self.get_id(),
+            op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
@@ -392,6 +400,9 @@ impl fmt::Display for TreeNode {
                     },
                     Value_::Constant(ref c) => {
                         write!(f, "+({} {})", pv.ty, c)
+                    },
+                    Value_::Global(ref g) => {
+                        write!(f, "+({} @{})", g.ty, g.tag)
                     }
                 }
             },
@@ -472,6 +483,9 @@ impl fmt::Display for Value {
             },
             Value_::Constant(ref c) => {
                 write!(f, "+({} {})", self.ty, c)
+            },
+            Value_::Global(ref g) => {
+                write!(f, "+({} @{})", g.ty, g.tag)
             }
         }
     }
@@ -480,7 +494,8 @@ impl fmt::Display for Value {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value_ {
     SSAVar(MuID),
-    Constant(Constant)
+    Constant(Constant),
+    Global(P<GlobalCell>)
 }
 
 #[derive(Debug, Clone)]
@@ -541,6 +556,12 @@ impl fmt::Display for Constant {
             }
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GlobalCell {
+    pub tag: MuTag,
+    pub ty: P<MuType>
 }
 
 pub fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {

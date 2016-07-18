@@ -556,7 +556,8 @@ impl <'a> InstructionSelection {
                     Value_::Constant(_) => panic!("expected ireg"),
                     Value_::SSAVar(_) => {
                         pv.clone()
-                    }
+                    },
+                    Value_::Global(_) => unimplemented!()
                 }
             }
         }
