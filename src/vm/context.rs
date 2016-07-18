@@ -7,8 +7,11 @@ use vm::machine_code::CompiledFunction;
 
 use std::sync::RwLock;
 use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT, Ordering};
 
 pub struct VMContext {
+    pub is_running: AtomicBool,
+    
     constants: RwLock<HashMap<MuTag, P<Value>>>,
     types: RwLock<HashMap<MuTag, P<MuType>>>,
     
@@ -23,7 +26,9 @@ pub struct VMContext {
 
 impl <'a> VMContext {
     pub fn new() -> VMContext {
-        VMContext {
+        let ret = VMContext {
+            is_running: ATOMIC_BOOL_INIT,
+            
             constants: RwLock::new(HashMap::new()),
             types: RwLock::new(HashMap::new()),
             
@@ -33,7 +38,19 @@ impl <'a> VMContext {
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new())
-        }
+        };
+        
+        ret.is_running.store(false, Ordering::SeqCst);
+        
+        ret
+    }
+    
+    pub fn run_vm(&self) {
+        self.is_running.store(true, Ordering::SeqCst);
+    }
+    
+    pub fn is_running(&self) -> bool {
+        self.is_running.load(Ordering::Relaxed)
     }
     
     pub fn declare_const(&self, const_name: MuTag, ty: P<MuType>, val: Constant) -> P<Value> {

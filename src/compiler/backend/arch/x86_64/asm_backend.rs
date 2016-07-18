@@ -361,7 +361,7 @@ impl ASMCodeGen {
         } 
     }
     
-    fn prepare_op(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
+    fn prepare_reg(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
         let str = self.asm_reg_op(op);
         let len = str.len();
         (str, op.extract_ssa_id().unwrap(), ASMLocation::new(loc, len)) 
@@ -564,8 +564,8 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>) {
         trace!("emit: cmp {} {}", op1, op2);
         
-        let (reg1, id1, loc1) = self.prepare_op(op1, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_op(op2, 4 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(op1, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(op2, 4 + 1 + reg1.len() + 1);
         
         let asm = format!("cmpq {},{}", reg1, reg2);
         
@@ -581,7 +581,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: u32) {
         trace!("emit: cmp {} {}", op1, op2);
         
-        let (reg1, id1, loc1) = self.prepare_op(op1, 4 + 1 + 1 + op2.to_string().len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(op1, 4 + 1 + 1 + op2.to_string().len() + 1);
         
         let asm = format!("cmpq ${},{}", op2, reg1);
         
@@ -602,7 +602,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: mov {} -> {}", src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
         
         let asm = format!("movq ${},{}", src, reg1);
         
@@ -623,8 +623,8 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: mov {} -> {}", src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
         
         let asm = format!("movq {},{}", reg1, reg2);
         
@@ -637,11 +637,16 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
     
+    fn emit_mov_mem64_r64(&mut self, src: &P<Value>, dest: &P<Value>) {
+        trace!("emit: mov {} -> {}", src, dest);
+        unimplemented!()
+    }
+    
     fn emit_add_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
         
         let asm = format!("addq {},{}", reg1, reg2);
         
@@ -662,7 +667,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_add_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1);
         
         let asm = format!("addq {},${}", src, reg1);
         
@@ -678,8 +683,8 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_sub_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: sub {}, {} -> {}", dest, src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(src, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_op(dest, 4 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
         
         let asm = format!("subq {},{}", reg1, reg2);
         
@@ -700,7 +705,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_sub_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: sub {}, {} -> {}", dest, src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_op(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
         
         let asm = format!("subq ${},{}", src, reg1);
         
@@ -716,7 +721,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mul_r64(&mut self, src: &P<Value>) {
         trace!("emit: mul rax, {} -> (rdx, rax)", src);
         
-        let (reg, id, loc) = self.prepare_op(src, 3 + 1);
+        let (reg, id, loc) = self.prepare_reg(src, 3 + 1);
         let rax = self.prepare_machine_reg(&x86_64::RAX);
         let rdx = self.prepare_machine_reg(&x86_64::RDX);
         
@@ -843,7 +848,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_push_r64(&mut self, src: &P<Value>) {
         trace!("emit: push {}", src);
         
-        let (reg, id, loc) = self.prepare_op(src, 5 + 1);
+        let (reg, id, loc) = self.prepare_reg(src, 5 + 1);
         let rsp = self.prepare_machine_reg(&x86_64::RSP);
         
         let asm = format!("pushq {}", reg);
@@ -860,7 +865,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_pop_r64(&mut self, dest: &P<Value>) {
         trace!("emit: pop {}", dest);
         
-        let (reg, id, loc) = self.prepare_op(dest, 4 + 1);
+        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
         let rsp = self.prepare_machine_reg(&x86_64::RSP);
         
         let asm = format!("popq {}", reg);

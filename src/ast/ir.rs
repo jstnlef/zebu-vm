@@ -402,7 +402,10 @@ impl fmt::Display for TreeNode {
                         write!(f, "+({} {})", pv.ty, c)
                     },
                     Value_::Global(ref g) => {
-                        write!(f, "+({} @{})", g.ty, g.tag)
+                        write!(f, "+({} to GLOBAL {} @{})", pv.ty, g.ty, g.tag)
+                    },
+                    Value_::Memory(ref mem) => {
+                        write!(f, "+({})", mem)
                     }
                 }
             },
@@ -485,7 +488,10 @@ impl fmt::Display for Value {
                 write!(f, "+({} {})", self.ty, c)
             },
             Value_::Global(ref g) => {
-                write!(f, "+({} @{})", g.ty, g.tag)
+                write!(f, "+({} to GLOBAL {} @{})", self.ty, g.ty, g.tag)
+            },
+            Value_::Memory(ref mem) => {
+                write!(f, "+({})", mem)
             }
         }
     }
@@ -495,7 +501,8 @@ impl fmt::Display for Value {
 pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant),
-    Global(P<GlobalCell>)
+    Global(P<GlobalCell>),
+    Memory(MemoryLocation)
 }
 
 #[derive(Debug, Clone)]
@@ -553,6 +560,37 @@ impl fmt::Display for Constant {
                     }
                 }
                 write!(f, "]")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MemoryLocation {
+    Address{
+        base: P<Value>,
+        offset: Option<P<Value>>,
+        index: Option<P<Value>>,
+        scale: Option<u8>
+    },
+    Symbolic{
+        base: Option<P<Value>>,
+        label: MuTag
+    }
+}
+
+impl fmt::Display for MemoryLocation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &MemoryLocation::Address{ref base, ref offset, ref index, scale} => {
+                write!(f, "{} + {} + {} * {}", base, offset.as_ref().unwrap(), index.as_ref().unwrap(), scale.unwrap())
+            }
+            &MemoryLocation::Symbolic{ref base, ref label} => {
+                if base.is_some() {
+                    write!(f, "{}({})", base.as_ref().unwrap(), label)
+                } else {
+                    write!(f, "{}", label)
+                }
             }
         }
     }

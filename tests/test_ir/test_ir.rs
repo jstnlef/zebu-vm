@@ -354,7 +354,7 @@ pub fn global_access() -> VMContext {
     let mut blk_0 = Block::new("blk_0");
     
     // %x = LOAD <@int_64> @a
-    let blk_0_x = func_ver.new_ssa("blk_0_x", type_def_iref_int64.clone()).clone_value();
+    let blk_0_x = func_ver.new_ssa("blk_0_x", type_def_int64.clone()).clone_value();
     let blk_0_a = func_ver.new_global(global_a.clone());
     let blk_0_inst0 = func_ver.new_inst(Instruction{
         value: Some(vec![blk_0_x]),

@@ -59,7 +59,7 @@ impl Compiler {
 }
 
 pub struct CompilerPolicy {
-    passes: Vec<Box<CompilerPass>>
+    pub passes: Vec<Box<CompilerPass>>
 }
 
 impl CompilerPolicy {

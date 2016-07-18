@@ -285,6 +285,15 @@ pub fn is_native_safe(ty: &MuType) -> bool {
     }
 }
 
+pub fn get_referent_ty(ty: &MuType) -> Option<P<MuType>> {
+    match ty {
+        &MuType_::Ref(ref referent)
+        | &MuType_::IRef(ref referent)
+        | &MuType_::WeakRef(ref referent) => Some(referent.clone()),
+        _ => None
+    }
+}
+
 macro_rules! is_type (
     ($e:expr, $p:pat) => (
         match $e {

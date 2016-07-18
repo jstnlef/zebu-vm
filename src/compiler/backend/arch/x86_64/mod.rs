@@ -58,6 +58,8 @@ lazy_static! {
     pub static ref R14 : P<Value> = GPR!("r14", 14);
     pub static ref R15 : P<Value> = GPR!("r15", 15);
     
+    pub static ref RIP : P<Value> = GPR!("rip", 32);
+    
     pub static ref RETURN_GPRs : [P<Value>; 2] = [
         RAX.clone(),
         RDX.clone(),
@@ -191,7 +193,8 @@ lazy_static! {
         XMM12.clone(),
         XMM13.clone(),
         XMM14.clone(),
-        XMM15.clone()
+        XMM15.clone(),
+        RIP.clone()
     ];
     
     // put callee saved regs first
