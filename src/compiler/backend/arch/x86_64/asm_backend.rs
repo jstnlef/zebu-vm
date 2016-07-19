@@ -23,6 +23,8 @@ struct ASMCode {
     reg_defines: HashMap<MuID, Vec<ASMLocation>>,
     reg_uses: HashMap<MuID, Vec<ASMLocation>>,
     
+    mem_op_used: HashMap<usize, bool>,
+    
     preds: Vec<Vec<usize>>,
     succs: Vec<Vec<usize>>,
     
@@ -50,6 +52,10 @@ impl MachineCode for ASMCode {
             Some(inst) => inst.code.starts_with("mov"),
             None => false
         }
+    }
+    
+    fn is_using_mem_op(&self, index: usize) -> bool {
+        *self.mem_op_used.get(&index).unwrap()
     }
     
     fn get_succs(&self, index: usize) -> &Vec<usize> {
@@ -265,28 +271,28 @@ impl ASMCodeGen {
         let mut defines : Vec<MuID> = self.prepare_machine_regs(x86_64::RETURN_GPRs.iter());
         defines.append(&mut self.prepare_machine_regs(x86_64::RETURN_FPRs.iter()));
           
-        self.add_asm_inst(code, defines, vec![], uses, vec![]);
+        self.add_asm_inst(code, defines, vec![], uses, vec![], false);
     }
     
     fn add_asm_ret(&mut self, code: String) {
         let mut uses : Vec<MuID> = self.prepare_machine_regs(x86_64::RETURN_GPRs.iter());
         uses.append(&mut self.prepare_machine_regs(x86_64::RETURN_FPRs.iter()));
         
-        self.add_asm_inst(code, vec![], vec![], uses, vec![]);
+        self.add_asm_inst(code, vec![], vec![], uses, vec![], false);
     }
     
     fn add_asm_branch(&mut self, code: String, target: &'static str) {
         let l = self.line();
-        self.cur_mut().code.push(ASM::branch(code));
-        
         self.cur_mut().branches.insert(l, target);
+        
+        self.add_asm_inst(code, vec![], vec![], vec![], vec![], false);
     }
     
     fn add_asm_branch2(&mut self, code: String, target: &'static str) {
         let l = self.line();
-        self.cur_mut().code.push(ASM::branch(code));
-        
         self.cur_mut().cond_branches.insert(l, target);
+        
+        self.add_asm_inst(code, vec![], vec![], vec![], vec![], false);
     }
     
     fn add_asm_inst(
@@ -295,7 +301,8 @@ impl ASMCodeGen {
         defines: Vec<MuID>,
         mut define_locs: Vec<ASMLocation>, 
         uses: Vec<MuID>,
-        mut use_locs: Vec<ASMLocation>) 
+        mut use_locs: Vec<ASMLocation>,
+        is_using_mem_op: bool) 
     {
         let line = self.line();
         
@@ -335,6 +342,7 @@ impl ASMCodeGen {
        
         // put the instruction
         mc.code.push(ASM::inst(code, defines, uses));
+        mc.mem_op_used.insert(line, is_using_mem_op);
     }
     
     fn define_reg(&mut self, reg: &P<Value>, loc: ASMLocation) {
@@ -572,6 +580,8 @@ impl CodeGenerator for ASMCodeGen {
                 reg_defines: HashMap::new(),
                 reg_uses: HashMap::new(),
                 
+                mem_op_used: HashMap::new(),
+                
                 preds: vec![],
                 succs: vec![],
                 
@@ -687,7 +697,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![],
             vec![],
             vec![id1, id2],
-            vec![loc1, loc2]
+            vec![loc1, loc2],
+            false
         );
     }
     
@@ -703,7 +714,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![],
             vec![],
             vec![id1],
-            vec![loc1]
+            vec![loc1],
+            false
         )
     }
     
@@ -724,7 +736,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![id1],
             vec![loc1],
             vec![],
-            vec![]
+            vec![],
+            false
         )
     }
     
@@ -741,7 +754,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![id2],
             vec![loc2],
             id1,
-            loc1
+            loc1,
+            true
         )
     }
     
@@ -762,7 +776,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![], // not defining anything (write to memory)
             vec![],
             id2,
-            loc2
+            loc2,
+            true
         )
     }
     
@@ -778,7 +793,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![],
             vec![],
             id,
-            loc
+            loc,
+            true
         )
     }
     
@@ -795,7 +811,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![id2],
             vec![loc2],
             vec![id1],
-            vec![loc1]
+            vec![loc1],
+            false
         )
     }
     
@@ -812,7 +829,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![id2],
             vec![loc2.clone()],
             vec![id1, id2],
-            vec![loc1, loc2]
+            vec![loc1, loc2],
+            false
         )
     }
     
@@ -833,7 +851,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![id1],
             vec![loc1.clone()],
             vec![id1],
-            vec![loc1]
+            vec![loc1],
+            false
         )
     }
     
@@ -850,7 +869,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![id2],
             vec![loc2.clone()],
             vec![id1, id2],
-            vec![loc1, loc2]
+            vec![loc1, loc2],
+            false
         )        
     }
     
@@ -871,7 +891,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![id1],
             vec![loc1.clone()],
             vec![id1],
-            vec![loc1]
+            vec![loc1],
+            false
         )        
     }
     
@@ -889,7 +910,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![rax, rdx],
             vec![],
             vec![id, rax],
-            vec![loc]
+            vec![loc],
+            false
         )
     }
     
@@ -1015,7 +1037,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![rsp],
             vec![],
             vec![id, rsp],
-            vec![loc]
+            vec![loc],
+            false
         )
     }
     
@@ -1032,7 +1055,8 @@ impl CodeGenerator for ASMCodeGen {
             vec![id, rsp],
             vec![loc.clone()],
             vec![rsp],
-            vec![]
+            vec![],
+            false
         )        
     }    
 }

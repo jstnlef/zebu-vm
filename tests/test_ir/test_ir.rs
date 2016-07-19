@@ -341,7 +341,7 @@ pub fn global_access() -> VMContext {
     let global_a = vm.declare_global("a", type_def_int64.clone());
     
     // .funcsig @global_access_sig = () -> ()
-    let func_sig = vm.declare_func_sig("global_access_sig", vec![], vec![]);
+    let func_sig = vm.declare_func_sig("global_access_sig", vec![type_def_int64.clone()], vec![]);
 
     // .funcdecl @global_access <@global_access_sig>
     let func = MuFunction::new("global_access", func_sig.clone());
@@ -353,22 +353,10 @@ pub fn global_access() -> VMContext {
     // %blk_0():
     let mut blk_0 = Block::new("blk_0");
     
-    // %x = LOAD <@int_64> @a
-    let blk_0_x = func_ver.new_ssa("blk_0_x", type_def_int64.clone()).clone_value();
-    let blk_0_a = func_ver.new_global(global_a.clone());
-    let blk_0_inst0 = func_ver.new_inst(Instruction{
-        value: Some(vec![blk_0_x]),
-        ops: RefCell::new(vec![blk_0_a.clone()]),
-        v: Instruction_::Load{
-            is_ptr: false,
-            order: MemoryOrder::Relaxed,
-            mem_loc: 0
-        }
-    });
-    
     // STORE <@int_64> @a @int_64_1
+    let blk_0_a = func_ver.new_global(global_a.clone());
     let blk_0_const_int64_1 = func_ver.new_constant(const_def_int64_1.clone());
-    let blk_0_inst1 = func_ver.new_inst(Instruction{
+    let blk_0_inst0 = func_ver.new_inst(Instruction{
         value: None,
         ops: RefCell::new(vec![blk_0_a.clone(), blk_0_const_int64_1.clone()]),
         v: Instruction_::Store{
@@ -378,11 +366,23 @@ pub fn global_access() -> VMContext {
             value: 1
         }
     });
+        
+    // %x = LOAD <@int_64> @a
+    let blk_0_x = func_ver.new_ssa("blk_0_x", type_def_int64.clone());
+    let blk_0_inst1 = func_ver.new_inst(Instruction{
+        value: Some(vec![blk_0_x.clone_value()]),
+        ops: RefCell::new(vec![blk_0_a.clone()]),
+        v: Instruction_::Load{
+            is_ptr: false,
+            order: MemoryOrder::Relaxed,
+            mem_loc: 0
+        }
+    });
     
     let blk_0_term = func_ver.new_inst(Instruction{
         value: None,
-        ops: RefCell::new(vec![]),
-        v: Instruction_::Return(vec![])
+        ops: RefCell::new(vec![blk_0_x.clone()]),
+        v: Instruction_::Return(vec![0])
     });
     
     let blk_0_content = BlockContent {

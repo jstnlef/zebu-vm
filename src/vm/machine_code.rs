@@ -17,6 +17,8 @@ pub trait MachineCode {
     fn number_of_insts(&self) -> usize;
     
     fn is_move(&self, index: usize) -> bool;
+    fn is_using_mem_op(&self, index: usize) -> bool;
+    
     fn get_succs(&self, index: usize) -> &Vec<usize>;
     fn get_preds(&self, index: usize) -> &Vec<usize>;
     

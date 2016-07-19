@@ -15,7 +15,7 @@ impl PeepholeOptimization {
     }
     
     pub fn remove_redundant_move(&mut self, inst: usize, cf: &mut CompiledFunction) {
-        if cf.mc.is_move(inst) {
+        if cf.mc.is_move(inst) && !cf.mc.is_using_mem_op(inst) {
             cf.mc.trace_inst(inst);
             
             let src : MuID = {

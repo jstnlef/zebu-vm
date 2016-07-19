@@ -307,18 +307,21 @@ pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunctionVersion) ->
                     let src = cf.mc.get_inst_reg_uses(i);
                     let dst = cf.mc.get_inst_reg_defines(i);
                     
-                    // src may be an immediate number
-                    // but dest is a register or a memory location
-                    debug_assert!(dst.len() == 1);
-                    
-                    if src.len() == 1 {
-                        let node1 = ig.get_node(src[0]);
-                        let node2 = ig.get_node(dst[0]);
-                        ig.add_move(node1, node2);
-                        
-                        Some(src[0])
-                    } else {
+                    // src:  reg/imm/mem
+                    // dest: reg/mem
+                    // we dont care if src/dest is mem
+                    if cf.mc.is_using_mem_op(i) {
                         None
+                    } else {
+                        if src.len() == 1 {
+                            let node1 = ig.get_node(src[0]);
+                            let node2 = ig.get_node(dst[0]);
+                            ig.add_move(node1, node2);
+                            
+                            Some(src[0])
+                        } else {
+                            None
+                        }
                     }
                 } else {
                     None
