@@ -371,6 +371,119 @@ impl ASMCodeGen {
         op.extract_ssa_id().unwrap()
     }
     
+    #[allow(unused_assignments)]
+    fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, Vec<MuID>, Vec<ASMLocation>) {
+        let mut ids : Vec<MuID> = vec![];
+        let mut locs : Vec<ASMLocation> = vec![];
+        let mut result_str : String = "".to_string();
+        
+        let mut loc_cursor : usize = 0;
+        
+        match op.v {
+            // offset(base,index,scale)
+            Value_::Memory(MemoryLocation::Address{ref base, ref offset, ref index, scale}) => {
+                // deal with offset
+                if offset.is_some() {
+                    let offset = offset.as_ref().unwrap();
+                    
+                    match offset.v {
+                        Value_::SSAVar(id) => {
+                            // temp as offset
+                            let (str, id, loc) = self.prepare_reg(offset, 0);
+                            
+                            result_str.push_str(&str);
+                            ids.push(id);
+                            locs.push(loc);
+                            
+                            loc_cursor += str.len();
+                        },
+                        Value_::Constant(Constant::Int(val)) => {
+                            let str = val.to_string();
+                            
+                            result_str.push_str(&str);
+                            loc_cursor += str.len();
+                        },
+                        _ => panic!("unexpected offset type: {:?}", offset)
+                    }
+                }
+                
+                result_str.push('(');
+                loc_cursor += 1; 
+                
+                // deal with base, base is ssa
+                let (str, id, loc) = self.prepare_reg(base, loc_cursor);
+                result_str.push_str(&str);
+                ids.push(id);
+                locs.push(loc);
+                loc_cursor += str.len();
+                
+                // deal with index (ssa or constant)
+                if index.is_some() {
+                    result_str.push(',');
+                    loc_cursor += 1; // plus 1 for ,                    
+                    
+                    let index = index.as_ref().unwrap();
+                    
+                    match index.v {
+                        Value_::SSAVar(id) => {
+                            // temp as offset
+                            let (str, id, loc) = self.prepare_reg(index, loc_cursor);
+                            
+                            result_str.push_str(&str);
+                            ids.push(id);
+                            locs.push(loc);
+                            
+                            loc_cursor += str.len();
+                        },
+                        Value_::Constant(Constant::Int(val)) => {
+                            let str = val.to_string();
+                            
+                            result_str.push_str(&str);
+                            loc_cursor += str.len();
+                        },
+                        _ => panic!("unexpected index type: {:?}", index)
+                    }
+                    
+                    // scale
+                    if scale.is_some() {
+                        result_str.push(',');
+                        loc_cursor += 1;
+                        
+                        let scale = scale.unwrap();
+                        let str = scale.to_string();
+                        
+                        result_str.push_str(&str);
+                        loc_cursor += str.len();
+                    }
+                }
+                
+                result_str.push(')');
+                loc_cursor += 1;
+            },
+            Value_::Memory(MemoryLocation::Symbolic{ref base, label}) => {
+                result_str.push_str(label);
+                loc_cursor += label.len();
+                
+                if base.is_some() {
+                    result_str.push('(');
+                    loc_cursor += 1;
+                    
+                    let (str, id, loc) = self.prepare_reg(base.as_ref().unwrap(), loc_cursor);
+                    result_str.push_str(&str);
+                    ids.push(id);
+                    locs.push(loc);
+                    loc_cursor += str.len();
+                    
+                    result_str.push(')');
+                    loc_cursor += 1;                    
+                }
+            },
+            _ => panic!("expect mem location as value")
+        }
+        
+        (result_str, ids, locs)
+    }
+    
     fn asm_reg_op(&self, op: &P<Value>) -> String {
         let id = op.extract_ssa_id().unwrap();
         if id < RESERVED_NODE_IDS_FOR_MACHINE {
@@ -617,7 +730,56 @@ impl CodeGenerator for ASMCodeGen {
     
     fn emit_mov_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: mov {} -> {}", src, dest);
-        unimplemented!()
+        
+        let (mem, id1, loc1) = self.prepare_mem(src, 4 + 1);
+        let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
+        
+        let asm = format!("movq {},{}", mem, reg);
+        
+        self.add_asm_inst(
+            asm,
+            vec![id2],
+            vec![loc2],
+            id1,
+            loc1
+        )
+    }
+    
+    fn emit_mov_mem64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: mov {} -> {}", src, dest);
+        
+        let (reg, id1, loc1) = self.prepare_reg(src, 4 + 1);
+        let (mem, mut id2, mut loc2) = self.prepare_mem(dest, 4 + 1 + reg.len() + 1);
+        
+        // the register we used for the memory location is counted as 'use'
+        id2.push(id1);
+        loc2.push(loc1);
+        
+        let asm = format!("movq {},{}", reg, mem);
+        
+        self.add_asm_inst(
+            asm,
+            vec![], // not defining anything (write to memory)
+            vec![],
+            id2,
+            loc2
+        )
+    }
+    
+    fn emit_mov_mem64_imm32(&mut self, dest: &P<Value>, src: u32) {
+        trace!("emit: mov {} -> {}", src, dest);
+        
+        let (mem, id, loc) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+        
+        let asm = format!("movq ${},{}", src, mem);
+        
+        self.add_asm_inst(
+            asm,
+            vec![],
+            vec![],
+            id,
+            loc
+        )
     }
     
     fn emit_mov_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
@@ -635,11 +797,6 @@ impl CodeGenerator for ASMCodeGen {
             vec![id1],
             vec![loc1]
         )
-    }
-    
-    fn emit_mov_mem64_r64(&mut self, src: &P<Value>, dest: &P<Value>) {
-        trace!("emit: mov {} -> {}", src, dest);
-        unimplemented!()
     }
     
     fn emit_add_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {

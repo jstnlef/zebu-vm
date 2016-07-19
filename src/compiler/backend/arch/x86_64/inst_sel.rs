@@ -4,6 +4,7 @@ use ast::inst::Instruction;
 use ast::inst::Destination;
 use ast::inst::DestArg;
 use ast::inst::Instruction_;
+use ast::inst::MemoryOrder;
 use ast::op;
 use ast::types;
 use ast::types::MuType_;
@@ -338,16 +339,62 @@ impl <'a> InstructionSelection {
                         }
                     }
                     
+                    // load on x64 generates mov inst (no matter what order is specified)
+                    // https://www.cl.cam.ac.uk/~pes20/cpp/cpp0xmappings.html
                     Instruction_::Load{is_ptr, order, mem_loc} => {
                         let ops = inst.ops.borrow();
                         let ref loc_op = ops[mem_loc];
+                        
+                        // check order
+                        match order {
+                            MemoryOrder::Relaxed 
+                            | MemoryOrder::Consume 
+                            | MemoryOrder::Acquire
+                            | MemoryOrder::SeqCst => {},
+                            _ => panic!("didnt expect order {:?} with store inst", order)
+                        }                        
 
                         let resolved_loc = self.emit_get_mem(loc_op, vm);                        
                         let res_temp = self.emit_get_result(node);
                         
                         if self.match_ireg(node) {
                             // emit mov(GPR)
-                            self.backend.emit_mov_mem64_r64(&resolved_loc, &res_temp);
+                            self.backend.emit_mov_r64_mem64(&res_temp, &resolved_loc);
+                        } else {
+                            // emit mov(FPR)
+                            unimplemented!()
+                        }
+                    }
+                    
+                    Instruction_::Store{is_ptr, order, mem_loc, value} => {
+                        let ops = inst.ops.borrow();
+                        let ref loc_op = ops[mem_loc];
+                        let ref val_op = ops[value];
+                        
+                        let generate_plain_mov : bool = {
+                            match order {
+                                MemoryOrder::Relaxed | MemoryOrder::Release => true,
+                                MemoryOrder::SeqCst => false,
+                                _ => panic!("didnt expect order {:?} with store inst", order)
+                            }
+                        };
+                        
+                        let resolved_loc = self.emit_get_mem(loc_op, vm);
+                        
+                        if self.match_ireg(val_op) {
+                            let val = self.emit_ireg(val_op, cur_func, vm);
+                            if generate_plain_mov {
+                                self.backend.emit_mov_mem64_r64(&resolved_loc, &val);
+                            } else {
+                                unimplemented!()
+                            }
+                        } else if self.match_iimm(val_op) {
+                            let val = self.emit_get_iimm(val_op);
+                            if generate_plain_mov {
+                                self.backend.emit_mov_mem64_imm32(&resolved_loc, val);
+                            } else {
+                                unimplemented!()
+                            }
                         } else {
                             // emit mov(FPR)
                             unimplemented!()

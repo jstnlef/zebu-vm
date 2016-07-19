@@ -308,7 +308,7 @@ pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunctionVersion) ->
                     let dst = cf.mc.get_inst_reg_defines(i);
                     
                     // src may be an immediate number
-                    // but dest is definitly a register
+                    // but dest is a register or a memory location
                     debug_assert!(dst.len() == 1);
                     
                     if src.len() == 1 {

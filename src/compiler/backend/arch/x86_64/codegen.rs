@@ -22,7 +22,8 @@ pub trait CodeGenerator {
     fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: u32);
     fn emit_mov_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
     fn emit_mov_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_mov_mem64_r64(&mut self, src: &P<Value>, dest: &P<Value>);
+    fn emit_mov_mem64_r64(&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_mov_mem64_imm32(&mut self, dest: &P<Value>, src: u32);
     
     fn emit_add_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>);
     fn emit_add_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);

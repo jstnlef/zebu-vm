@@ -361,7 +361,7 @@ pub fn global_access() -> VMContext {
         ops: RefCell::new(vec![blk_0_a.clone()]),
         v: Instruction_::Load{
             is_ptr: false,
-            order: MemoryOrder::SeqCst,
+            order: MemoryOrder::Relaxed,
             mem_loc: 0
         }
     });
@@ -373,7 +373,7 @@ pub fn global_access() -> VMContext {
         ops: RefCell::new(vec![blk_0_a.clone(), blk_0_const_int64_1.clone()]),
         v: Instruction_::Store{
             is_ptr: false,
-            order: MemoryOrder::SeqCst,
+            order: MemoryOrder::Relaxed,
             mem_loc: 0,
             value: 1
         }

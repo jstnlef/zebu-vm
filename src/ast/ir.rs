@@ -587,7 +587,7 @@ impl fmt::Display for MemoryLocation {
             }
             &MemoryLocation::Symbolic{ref base, ref label} => {
                 if base.is_some() {
-                    write!(f, "{}({})", base.as_ref().unwrap(), label)
+                    write!(f, "{}({})", label, base.as_ref().unwrap())
                 } else {
                     write!(f, "{}", label)
                 }
