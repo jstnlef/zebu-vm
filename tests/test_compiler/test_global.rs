@@ -30,4 +30,5 @@ fn test_global_access() {
     let mut func_ver = func_vers.get(&(func.fn_name, func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut func_ver); 
+    backend::emit_context(&vm_context);
 }
