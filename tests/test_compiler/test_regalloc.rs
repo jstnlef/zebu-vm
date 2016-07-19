@@ -69,16 +69,7 @@ fn test_regalloc_fac() {
     
     let vm_context = Arc::new(factorial());
     
-    let compiler = Compiler::new(CompilerPolicy::new(vec![
-            Box::new(passes::DefUse::new()),
-            Box::new(passes::TreeGen::new()),
-            Box::new(passes::ControlFlowAnalysis::new()),
-            Box::new(passes::TraceGen::new()),
-            Box::new(backend::inst_sel::InstructionSelection::new()),
-            Box::new(backend::reg_alloc::RegisterAllocation::new()),
-            Box::new(backend::peephole_opt::PeepholeOptimization::new()),
-            Box::new(backend::code_emission::CodeEmission::new())
-    ]), vm_context.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), vm_context.clone());
     
     let funcs = vm_context.funcs().read().unwrap();
     let factorial_func = funcs.get("fac").unwrap().borrow();

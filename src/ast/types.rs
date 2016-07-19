@@ -8,7 +8,7 @@ use std::sync::RwLock;
 
 pub type MuType = MuType_;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub enum MuType_ {
     /// int <length>
     Int          (usize),
@@ -109,6 +109,10 @@ impl StructType_ {
     pub fn set_tys(&mut self, mut list: Vec<P<MuType>>) {
         self.tys.clear();
         self.tys.append(&mut list);
+    }
+    
+    pub fn get_tys(&self) -> &Vec<P<MuType_>> {
+        &self.tys
     }
 }
 
@@ -303,7 +307,7 @@ macro_rules! is_type (
     )
 );
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct MuFuncSig {
     pub ret_tys : Vec<P<MuType>>,
     pub arg_tys: Vec<P<MuType>>

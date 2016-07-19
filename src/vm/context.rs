@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
+use compiler::backend;
+use compiler::backend::BackendTypeInfo;
 use vm::machine_code::CompiledFunction;
 
 use std::sync::RwLock;
@@ -10,10 +12,12 @@ use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT, Ordering};
 
 pub struct VMContext {
-    pub is_running: AtomicBool,
+    is_running: AtomicBool,
     
     constants: RwLock<HashMap<MuTag, P<Value>>>,
+    
     types: RwLock<HashMap<MuTag, P<MuType>>>,
+    backend_type_info: RwLock<HashMap<P<MuType>, BackendTypeInfo>>,
     
     globals: RwLock<HashMap<MuTag, P<GlobalCell>>>,
     
@@ -30,7 +34,9 @@ impl <'a> VMContext {
             is_running: ATOMIC_BOOL_INIT,
             
             constants: RwLock::new(HashMap::new()),
+            
             types: RwLock::new(HashMap::new()),
+            backend_type_info: RwLock::new(HashMap::new()),
             
             globals: RwLock::new(HashMap::new()),
             
@@ -133,6 +139,28 @@ impl <'a> VMContext {
         debug_assert!(self.funcs.read().unwrap().contains_key(func.fn_name));
 
         self.compiled_funcs.write().unwrap().insert(func.fn_name, RefCell::new(func));
+    }
+    
+    pub fn get_backend_type_info(&self, ty: &P<MuType>) -> BackendTypeInfo {
+        {
+            let read_lock = self.backend_type_info.read().unwrap();
+        
+            match read_lock.get(ty) {
+                Some(info) => {return info.clone();},
+                None => {}
+            }
+        }
+        
+        let resolved = backend::resolve_backend_type_info(ty, self);
+        
+        let mut write_lock = self.backend_type_info.write().unwrap();
+        write_lock.insert(ty.clone(), resolved.clone());
+        
+        resolved        
+    }
+    
+    pub fn globals(&self) -> &RwLock<HashMap<MuTag, P<GlobalCell>>> {
+        &self.globals
     }
     
     pub fn funcs(&self) -> &RwLock<HashMap<MuTag, RefCell<MuFunction>>> {

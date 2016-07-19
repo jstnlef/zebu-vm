@@ -1,6 +1,7 @@
 #![allow(unused_variables)]
 
 use compiler::backend;
+use compiler::backend::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use vm::machine_code::MachineCode;
@@ -470,7 +471,7 @@ impl ASMCodeGen {
                 loc_cursor += 1;
             },
             Value_::Memory(MemoryLocation::Symbolic{ref base, label}) => {
-                result_str.push_str(label);
+                result_str.push_str(&symbol(label));
                 loc_cursor += label.len();
                 
                 if base.is_some() {
@@ -505,7 +506,7 @@ impl ASMCodeGen {
     }
     
     fn asm_block_label(&self, label: MuTag) -> String {
-        format!("{}_{}", self.cur().name, label)
+        symbol(&format!("{}_{}", self.cur().name, label))
     }
     
     fn control_flow_analysis(&mut self) {
@@ -600,10 +601,8 @@ impl CodeGenerator for ASMCodeGen {
             }));
         
         // to link with C sources via gcc
-        self.add_asm_symbolic(format!(".globl {}", func_name));
-        self.add_asm_symbolic(format!(".globl _{}", func_name));
-        self.add_asm_symbolic(format!("{}:", func_name));
-        self.add_asm_symbolic(format!("_{}:", func_name));
+        self.add_asm_symbolic(directive_globl(symbol(func_name)));
+        self.add_asm_symbolic(format!("{}:", symbol(func_name)));
     }
     
     fn finish_code(&mut self) -> Box<MachineCode> {
@@ -1002,7 +1001,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_call_near_rel32(&mut self, func: MuTag) {
         trace!("emit: call {}", func);
         
-        let asm = format!("call {}", func);
+        let asm = format!("call {}", symbol(func));
         self.add_asm_call(asm);
         
         // FIXME: call interferes with machine registers
@@ -1062,36 +1061,93 @@ impl CodeGenerator for ASMCodeGen {
     }    
 }
 
+const EMIT_DIR : &'static str = "emit";
+
+fn create_emit_directory() {
+    use std::fs;    
+    match fs::create_dir(EMIT_DIR) {
+        Ok(_) => {},
+        Err(_) => {}
+    }    
+}
+
 pub fn emit_code(func: &mut MuFunctionVersion, vm: &VMContext) {
     use std::io::prelude::*;
     use std::fs::File;
-    use std::fs;
+    use std::path;
 
     let compiled_funcs = vm.compiled_funcs().read().unwrap();
     let cf = compiled_funcs.get(func.fn_name).unwrap().borrow();
 
     let code = cf.mc.emit();
 
-    const EMIT_DIR : &'static str = "emit";
-    match fs::create_dir(EMIT_DIR) {
-        Ok(_) => {},
-        Err(_) => {}
-    }
+    // create 'emit' directory
+    create_emit_directory();
 
-    let file_name = EMIT_DIR.to_string() + "/" + func.fn_name + ".s";
-    let mut file = match File::create(file_name.clone()) {
-        Err(why) => panic!("couldn't create emission file {}: {}", file_name, why),
+    let mut file_path = path::PathBuf::new();
+    file_path.push(EMIT_DIR);
+    file_path.push(func.fn_name.to_string() + ".s");
+    let mut file = match File::create(file_path.as_path()) {
+        Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     };
 
     match file.write_all(code.as_slice()) {
-        Err(why) => panic!("couldn'd write to file {}: {}", file_name, why),
-        Ok(_) => println!("emit code to {}", file_name)
+        Err(why) => panic!("couldn'd write to file {}: {}", file_path.to_str().unwrap(), why),
+        Ok(_) => println!("emit code to {}", file_path.to_str().unwrap())
     }
 }
 
+const CONTEXT_FILE : &'static str = "context.s";
 pub fn emit_context(vm: &VMContext) {
+    use std::path;
+    use std::fs::File;
+    use std::io::prelude::*;
+    
     debug!("---Emit VM Context---");
+    create_emit_directory();
+    
+    let mut file_path = path::PathBuf::new();
+    file_path.push(EMIT_DIR);
+    file_path.push(CONTEXT_FILE);
+    
+    let mut file = match File::create(file_path.as_path()) {
+        Err(why) => panic!("couldn't create context file {}: {}", file_path.to_str().unwrap(), why),
+        Ok(file) => file
+    };
+    
+    // put globals into bss section
+    file.write_fmt(format_args!("\t.bss\n")).unwrap();
+    
+    let globals = vm.globals().read().unwrap();
+    for cell in globals.values() {
+        let (size, align) = {
+            let ty_info = vm.get_backend_type_info(&cell.ty);
+            (ty_info.size, ty_info.alignment)
+        };
+        
+        file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(cell.tag)))).unwrap();
+        file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(cell.tag), size, align))).unwrap();
+        file.write("\n".as_bytes()).unwrap();
+    }
     
     debug!("---finish---");
+}
+
+fn directive_globl(name: String) -> String {
+    format!(".globl {}", name)
+}
+
+fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
+    format!(".comm {},{},{}", name, size, align)
+}
+
+#[cfg(target_os = "linux")]
+fn symbol(name: &str) -> String {
+    name.to_string()
+}
+
+#[cfg(target_os = "macos")]
+fn symbol(name: &str) -> String {
+    format!("_{}", name)
 }
