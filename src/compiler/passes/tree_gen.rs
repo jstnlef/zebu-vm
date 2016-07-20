@@ -60,10 +60,7 @@ impl CompilerPass for TreeGen {
                                             let expr = entry_value.expr.take().unwrap();
                                             
                                             trace!("{} replaced by {}", ops[index], expr);
-                                            ops[index] = TreeNode::new_inst({
-                                                    let ret = func.next_id;
-                                                    func.next_id += 1;
-                                                    ret}, expr);
+                                            ops[index] = TreeNode::new_inst(vm_context.next_id(), expr);
                                         }
                                     } else {
                                         trace!("{} cant be replaced", ops[index]);

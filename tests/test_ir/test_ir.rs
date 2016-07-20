@@ -52,12 +52,12 @@ pub fn sum() -> VMContext {
 
     // %entry(<@int_64> %n):
     let mut blk_entry = Block::new("entry");
-    let blk_entry_n = func_ver.new_ssa("blk_entry_n", type_def_int64.clone());
-    let const_def_int64_0_local = func_ver.new_constant(const_def_int64_0.clone()); // FIXME: why we need a local version?
-    let const_def_int64_1_local = func_ver.new_constant(const_def_int64_1.clone());
+    let blk_entry_n = func_ver.new_ssa(vm.next_id(), "blk_entry_n", type_def_int64.clone());
+    let const_def_int64_0_local = func_ver.new_constant(vm.next_id(), const_def_int64_0.clone()); // FIXME: why we need a local version?
+    let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
 
     // BRANCH %head
-    let blk_entry_term = func_ver.new_inst(Instruction {
+    let blk_entry_term = func_ver.new_inst(vm.next_id(), Instruction {
         value: None,
         ops: RefCell::new(vec![blk_entry_n.clone(), const_def_int64_0_local.clone(), const_def_int64_0_local.clone()]),
         v: Instruction_::Branch1(Destination{
@@ -75,36 +75,36 @@ pub fn sum() -> VMContext {
 
     // %head(<@int_64> %n, <@int_64> %s, <@int_64> %i):
     let mut blk_head = Block::new("head");
-    let blk_head_n = func_ver.new_ssa("blk_head_n", type_def_int64.clone());
-    let blk_head_s = func_ver.new_ssa("blk_head_s", type_def_int64.clone());
-    let blk_head_i = func_ver.new_ssa("blk_head_i", type_def_int64.clone());
+    let blk_head_n = func_ver.new_ssa(vm.next_id(), "blk_head_n", type_def_int64.clone());
+    let blk_head_s = func_ver.new_ssa(vm.next_id(), "blk_head_s", type_def_int64.clone());
+    let blk_head_i = func_ver.new_ssa(vm.next_id(), "blk_head_i", type_def_int64.clone());
 
     // %s2 = ADD %s %i
-    let blk_head_s2 = func_ver.new_ssa("blk_head_s2", type_def_int64.clone());
-    let blk_head_inst0 = func_ver.new_inst(Instruction {
+    let blk_head_s2 = func_ver.new_ssa(vm.next_id(), "blk_head_s2", type_def_int64.clone());
+    let blk_head_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_s2.clone_value()]),
         ops: RefCell::new(vec![blk_head_s.clone(), blk_head_i.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
     // %i2 = ADD %i 1
-    let blk_head_i2 = func_ver.new_ssa("blk_head_i2", type_def_int64.clone());
-    let blk_head_inst1 = func_ver.new_inst(Instruction {
+    let blk_head_i2 = func_ver.new_ssa(vm.next_id(), "blk_head_i2", type_def_int64.clone());
+    let blk_head_inst1 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_i2.clone_value()]),
         ops: RefCell::new(vec![blk_head_i.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
     // %cond = UGT %i %n
-    let blk_head_cond = func_ver.new_ssa("blk_head_cond", type_def_int1.clone());
-    let blk_head_inst2 = func_ver.new_inst(Instruction {
+    let blk_head_cond = func_ver.new_ssa(vm.next_id(), "blk_head_cond", type_def_int1.clone());
+    let blk_head_inst2 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_cond.clone_value()]),
         ops: RefCell::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
         v: Instruction_::CmpOp(CmpOp::UGT, 0, 1)
     });
 
     // BRANCH2 %cond %ret(%s2) %head(%n %s2 %i2)
-    let blk_head_term = func_ver.new_inst(Instruction{
+    let blk_head_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_head_cond.clone(), blk_head_n.clone(), blk_head_s2.clone(), blk_head_i2.clone()]),
         v: Instruction_::Branch2 {
@@ -130,10 +130,10 @@ pub fn sum() -> VMContext {
 
     // %ret(<@int_64> %s):
     let mut blk_ret = Block::new("ret");
-    let blk_ret_s = func_ver.new_ssa("blk_ret_s", type_def_int64.clone());
+    let blk_ret_s = func_ver.new_ssa(vm.next_id(), "blk_ret_s", type_def_int64.clone());
 
     // RET %s
-    let blk_ret_term = func_ver.new_inst(Instruction{
+    let blk_ret_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_ret_s.clone()]),
         v: Instruction_::Return(vec![0])
@@ -199,19 +199,19 @@ pub fn factorial() -> VMContext {
 
     // %blk_0(<@int_64> %n_3):
     let mut blk_0 = Block::new("blk_0");
-    let blk_0_n_3 = func_ver.new_ssa("blk_0_n_3", type_def_int64.clone());
-    let const_def_int64_1_local = func_ver.new_constant(const_def_int64_1.clone());
+    let blk_0_n_3 = func_ver.new_ssa(vm.next_id(), "blk_0_n_3", type_def_int64.clone());
+    let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
 
     //   %v48 = EQ <@int_64> %n_3 @int_64_1
-    let blk_0_v48 = func_ver.new_ssa("blk_0_v48", type_def_int64.clone());
-    let blk_0_inst0 = func_ver.new_inst(Instruction {
+    let blk_0_v48 = func_ver.new_ssa(vm.next_id(), "blk_0_v48", type_def_int64.clone());
+    let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
             value: Some(vec![blk_0_v48.clone_value()]),
             ops: RefCell::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
             v: Instruction_::CmpOp(CmpOp::EQ, 0, 1)
     });
 
     //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)
-    let blk_0_term = func_ver.new_inst(Instruction{
+    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_0_v48.clone(), const_def_int64_1_local.clone(), blk_0_n_3.clone()]),
         v: Instruction_::Branch2 {
@@ -237,10 +237,10 @@ pub fn factorial() -> VMContext {
 
     // %blk_2(<@int_64> %v53):
     let mut blk_2 = Block::new("blk_2");
-    let blk_2_v53 = func_ver.new_ssa("blk_2_v53", type_def_int64.clone());
+    let blk_2_v53 = func_ver.new_ssa(vm.next_id(), "blk_2_v53", type_def_int64.clone());
 
     //   RET %v53
-    let blk_2_term = func_ver.new_inst(Instruction{
+    let blk_2_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_2_v53.clone()]),
         v: Instruction_::Return(vec![0])
@@ -255,20 +255,20 @@ pub fn factorial() -> VMContext {
 
     // %blk_1(<@int_64> %n_3):
     let mut blk_1 = Block::new("blk_1");
-    let blk_1_n_3 = func_ver.new_ssa("blk_1_n_3", type_def_int64.clone());
+    let blk_1_n_3 = func_ver.new_ssa(vm.next_id(), "blk_1_n_3", type_def_int64.clone());
 
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
-    let blk_1_v50 = func_ver.new_ssa("blk_1_v50", type_def_int64.clone());
-    let blk_1_inst0 = func_ver.new_inst(Instruction{
+    let blk_1_v50 = func_ver.new_ssa(vm.next_id(), "blk_1_v50", type_def_int64.clone());
+    let blk_1_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v50.clone_value()]),
         ops: RefCell::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Sub, 0, 1)
     });
 
     //   %v51 = CALL <@fac_sig> @fac (%v50)
-    let blk_1_v51 = func_ver.new_ssa("blk_1_v51", type_def_int64.clone());
-    let blk_1_fac = func_ver.new_constant(const_func_fac.clone());
-    let blk_1_inst1 = func_ver.new_inst(Instruction{
+    let blk_1_v51 = func_ver.new_ssa(vm.next_id(), "blk_1_v51", type_def_int64.clone());
+    let blk_1_fac = func_ver.new_constant(vm.next_id(), const_func_fac.clone());
+    let blk_1_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v51.clone_value()]),
         ops: RefCell::new(vec![blk_1_fac, blk_1_v50.clone()]),
         v: Instruction_::ExprCall {
@@ -282,15 +282,15 @@ pub fn factorial() -> VMContext {
     });
 
     //   %v52 = MUL <@int_64> %n_3 %v51
-    let blk_1_v52 = func_ver.new_ssa("blk_1_v52", type_def_int64.clone());
-    let blk_1_inst2 = func_ver.new_inst(Instruction{
+    let blk_1_v52 = func_ver.new_ssa(vm.next_id(), "blk_1_v52", type_def_int64.clone());
+    let blk_1_inst2 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v52.clone_value()]),
         ops: RefCell::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
         v: Instruction_::BinOp(BinOp::Mul, 0, 1)
     });
 
     // BRANCH blk_2 (%blk_1_v52)
-    let blk_1_term = func_ver.new_inst(Instruction{
+    let blk_1_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_1_v52.clone()]),
         v: Instruction_::Branch1(Destination {
@@ -354,9 +354,9 @@ pub fn global_access() -> VMContext {
     let mut blk_0 = Block::new("blk_0");
     
     // STORE <@int_64> @a @int_64_1
-    let blk_0_a = func_ver.new_global(global_a.clone());
-    let blk_0_const_int64_1 = func_ver.new_constant(const_def_int64_1.clone());
-    let blk_0_inst0 = func_ver.new_inst(Instruction{
+    let blk_0_a = func_ver.new_global(vm.next_id(), global_a.clone());
+    let blk_0_const_int64_1 = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
+    let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_0_a.clone(), blk_0_const_int64_1.clone()]),
         v: Instruction_::Store{
@@ -368,8 +368,8 @@ pub fn global_access() -> VMContext {
     });
         
     // %x = LOAD <@int_64> @a
-    let blk_0_x = func_ver.new_ssa("blk_0_x", type_def_int64.clone());
-    let blk_0_inst1 = func_ver.new_inst(Instruction{
+    let blk_0_x = func_ver.new_ssa(vm.next_id(), "blk_0_x", type_def_int64.clone());
+    let blk_0_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_0_x.clone_value()]),
         ops: RefCell::new(vec![blk_0_a.clone()]),
         v: Instruction_::Load{
@@ -379,7 +379,7 @@ pub fn global_access() -> VMContext {
         }
     });
     
-    let blk_0_term = func_ver.new_inst(Instruction{
+    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_0_x.clone()]),
         v: Instruction_::Return(vec![0])

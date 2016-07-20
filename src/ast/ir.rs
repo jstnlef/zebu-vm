@@ -41,8 +41,6 @@ pub struct MuFunctionVersion {
     pub fn_name: MuTag,
     pub version: MuTag,
 
-    pub next_id: MuID,
-
     pub sig: P<MuFuncSig>,
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
@@ -57,26 +55,17 @@ impl MuFunctionVersion {
         MuFunctionVersion{
             fn_name: fn_name,
             version: ver,
-            next_id: RESERVED_NODE_IDS_FOR_MACHINE,
             sig: sig,
             content: None,
             context: FunctionContext::new(),
             block_trace: None}
     }
 
-    fn get_id(&mut self) -> MuID {
-        let ret = self.next_id;
-        self.next_id += 1;
-        ret
-    }
-
     pub fn define(&mut self, content: FunctionContent) {
         self.content = Some(content)
     }
 
-    pub fn new_ssa(&mut self, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
-        let id = self.get_id();
-
+    pub fn new_ssa(&mut self, id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
         self.context.value_tags.insert(tag, id);
         self.context.values.insert(id, SSAVarEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
@@ -91,25 +80,25 @@ impl MuFunctionVersion {
         })
     }
 
-    pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
+    pub fn new_constant(&mut self, id: MuID, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            id: self.get_id(),
+            id: id,
             op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
     
-    pub fn new_global(&mut self, v: P<Value>) -> P<TreeNode> {
+    pub fn new_global(&mut self, id: MuID, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            id: self.get_id(),
+            id: id,
             op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
 
-    pub fn new_inst(&mut self, v: Instruction) -> P<TreeNode> {
+    pub fn new_inst(&mut self, id: MuID, v: Instruction) -> P<TreeNode> {
         P(TreeNode{
-            id: self.get_id(),
+            id: id,
             op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })

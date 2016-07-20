@@ -9,9 +9,10 @@ use vm::machine_code::CompiledFunction;
 
 use std::sync::RwLock;
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT, Ordering};
+use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 
 pub struct VMContext {
+    next_id: AtomicUsize,
     is_running: AtomicBool,
     
     constants: RwLock<HashMap<MuTag, P<Value>>>,
@@ -31,6 +32,7 @@ pub struct VMContext {
 impl <'a> VMContext {
     pub fn new() -> VMContext {
         let ret = VMContext {
+            next_id: ATOMIC_USIZE_INIT,
             is_running: ATOMIC_BOOL_INIT,
             
             constants: RwLock::new(HashMap::new()),
@@ -47,8 +49,13 @@ impl <'a> VMContext {
         };
         
         ret.is_running.store(false, Ordering::SeqCst);
+        ret.next_id.store(RESERVED_NODE_IDS_FOR_MACHINE, Ordering::SeqCst);
         
         ret
+    }
+    
+    pub fn next_id(&self) -> MuID {
+        self.next_id.fetch_add(1, Ordering::SeqCst)
     }
     
     pub fn run_vm(&self) {
