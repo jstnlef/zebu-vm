@@ -1,5 +1,5 @@
 use ast::ir::*;
-use vm::context::VMContext;
+use vm::VMContext;
 
 mod def_use;
 mod tree_gen;

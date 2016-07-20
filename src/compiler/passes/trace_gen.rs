@@ -1,5 +1,5 @@
 use ast::ir::*;
-use vm::context::VMContext;
+use vm::VMContext;
 use compiler::CompilerPass;
 
 pub struct TraceGen {

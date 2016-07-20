@@ -8,8 +8,8 @@ use ast::inst::MemoryOrder;
 use ast::op;
 use ast::types;
 use ast::types::MuType_;
-use vm::context::VMContext;
-use vm::machine_code::CompiledFunction;
+use vm::VMContext;
+use vm::CompiledFunction;
 
 use compiler::CompilerPass;
 use compiler::backend::x86_64;

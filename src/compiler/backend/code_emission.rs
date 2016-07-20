@@ -2,7 +2,7 @@
 
 use compiler::CompilerPass;
 use ast::ir::*;
-use vm::context::VMContext;
+use vm::VMContext;
 use compiler::backend::emit_code;
 
 pub struct CodeEmission {

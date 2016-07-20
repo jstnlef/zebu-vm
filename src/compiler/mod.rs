@@ -1,7 +1,7 @@
 extern crate hprof;
 
 use ast::ir::*;
-use vm::context::VMContext;
+use vm::VMContext;
 
 use std::cell::RefCell;
 use std::sync::Arc;

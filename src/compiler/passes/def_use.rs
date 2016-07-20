@@ -1,6 +1,6 @@
 use ast::ir::*;
 use ast::ptr::*;
-use vm::context::VMContext;
+use vm::VMContext;
 
 use compiler::CompilerPass;
 

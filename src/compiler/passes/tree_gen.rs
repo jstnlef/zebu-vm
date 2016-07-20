@@ -2,7 +2,7 @@ use ast::ir::*;
 use ast::inst::*;
 use ast::ir_semantics::*;
 
-use vm::context::VMContext;
+use vm::VMContext;
 use compiler::CompilerPass;
 use compiler::PassExecutionResult;
 

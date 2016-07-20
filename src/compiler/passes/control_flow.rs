@@ -1,7 +1,7 @@
 use ast::ir::*;
 use ast::inst::Instruction_::*;
 use utils::vec_utils::as_str as vector_as_str;
-use vm::context::VMContext;
+use vm::VMContext;
 
 use compiler::CompilerPass;
 

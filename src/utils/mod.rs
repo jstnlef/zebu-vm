@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub type ByteSize = usize;
+
 mod linked_hashset;
 pub use utils::linked_hashset::LinkedHashSet;
 pub use utils::linked_hashset::LinkedHashMap;

@@ -5,7 +5,7 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::ptr::*;
 use self::mu::ast::op::*;
-use self::mu::vm::context::*;
+use self::mu::vm::*;
 
 use std::cell::RefCell;
 use std::collections::HashMap;

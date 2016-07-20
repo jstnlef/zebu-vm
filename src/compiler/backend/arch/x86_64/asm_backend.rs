@@ -1,11 +1,11 @@
 #![allow(unused_variables)]
 
 use compiler::backend;
-use compiler::backend::ByteSize;
+use utils::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
-use vm::machine_code::MachineCode;
-use vm::context::VMContext;
+use vm::MachineCode;
+use vm::VMContext;
 
 use utils::string_utils;
 

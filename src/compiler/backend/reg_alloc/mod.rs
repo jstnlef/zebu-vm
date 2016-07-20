@@ -4,7 +4,7 @@ use compiler::CompilerPass;
 use compiler::PassExecutionResult;
 use compiler;
 use ast::ir::*;
-use vm::context::VMContext;
+use vm::VMContext;
 
 use compiler::backend::init_machine_regs_for_func;
 

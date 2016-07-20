@@ -3,7 +3,7 @@ pub mod reg_alloc;
 pub mod peephole_opt;
 pub mod code_emission;
 
-pub type ByteSize = usize;
+use utils::ByteSize;
 
 // X86_64
 
@@ -39,7 +39,7 @@ mod arm;
 
 // common data structure with target specific info
 
-use vm::context::VMContext;
+use vm::VMContext;
 use ast::types::*;
 use ast::ptr::*;
 pub fn resolve_backend_type_info (ty: &MuType, vm: &VMContext) -> BackendTypeInfo {

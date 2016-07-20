@@ -1,3 +1,5 @@
+extern crate immix_rust as gc;
+
 use std::collections::HashMap;
 
 use ast::ptr::P;
@@ -6,6 +8,7 @@ use ast::types::*;
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use vm::machine_code::CompiledFunction;
+use vm::vm_options::VMOptions;
 
 use std::sync::RwLock;
 use std::cell::RefCell;
@@ -50,6 +53,9 @@ impl <'a> VMContext {
         
         ret.is_running.store(false, Ordering::SeqCst);
         ret.next_id.store(RESERVED_NODE_IDS_FOR_MACHINE, Ordering::SeqCst);
+        
+        let options = VMOptions::default();
+        gc::gc_init(options.immix_size, options.lo_size, options.n_gcthreads);
         
         ret
     }
