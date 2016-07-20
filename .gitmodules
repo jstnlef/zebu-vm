@@ -1,0 +1,3 @@
+[submodule "gc"]
+	path = gc
+	url = git@gitlab.anu.edu.au:mu/immix-rust.git

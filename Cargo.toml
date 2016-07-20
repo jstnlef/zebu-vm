@@ -4,6 +4,9 @@ name = "mu"
 version = "0.0.1"
 authors = [ "Your name <you@example.com>" ]
 
+[dependencies.immix_rust]
+path = "gc"
+
 [dependencies]
 lazy_static = "0.1.15"
 log = "0.3.5"
