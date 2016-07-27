@@ -3,7 +3,7 @@ use std::ops;
 use std::collections::HashMap;
 
 pub struct CompiledFunction {
-    pub fn_name: MuName,
+    pub func_ver_id: MuID,
     pub temps: HashMap<MuID, MuID>, // assumes one temperary maps to one register
     pub mc: Box<MachineCode>
 }

@@ -4,8 +4,7 @@ use ast::ptr::*;
 use ast::ir::*;
 use ast::types::*;
 use vm::VM;
-use vm::bundle::MuBundle;
-use vm::bundle::TopLevelDefNode;
+use vm::bundle::*;
 
 use std::mem;
 use std::os::raw;
@@ -78,7 +77,7 @@ pub type MuArraySize = usize;
 pub type MuIntValue = P<Value>;
 
 pub type MuBundleNode = *mut MuBundle;
-pub type MuChildNode  = TopLevelDefNode;
+pub type MuChildNode  = MuIRNode;
 pub type MuTypeNode   = P<MuType>;
 pub type MuFuncSigNode= P<MuFuncSig>;
 pub type MuConstNode  = P<Value>;
@@ -90,8 +89,8 @@ pub type MuNorParamNode = P<Value>;
 pub type MuExcParamNode = P<Value>;
 pub type MuInstNode     = P<TreeNode>;
 pub type MuInstResNode  = P<TreeNode>;
-pub type MuVarNode      = P<TreeNode>;
 pub type MuLocalVarNode = P<TreeNode>;
+pub type MuVarNode      = MuIRNode;
 
 pub type MuFlag          = usize;
 pub type MuDestKind      = MuFlag;
@@ -274,20 +273,25 @@ impl MuCtx {
         let bundle = unsafe{b.as_mut()}.unwrap();
         
         if bundle.type_defs.contains_key(&id) {
-            TopLevelDefNode::Type(id)
+            MuIRNode::new(id, MuIRNodeKind::Type)
         } else if bundle.func_sigs.contains_key(&id) {
-            TopLevelDefNode::FuncSig(id)
+            MuIRNode::new(id, MuIRNodeKind::FuncSig)
         } else if bundle.constants.contains_key(&id) {
-            TopLevelDefNode::Constant(id)
+            MuIRNode::new(id, MuIRNodeKind::Var(MuVarNodeKind::Global(MuGlobalVarNodeKind::Const)))
         } else if bundle.globals.contains_key(&id) {
-            TopLevelDefNode::Global(id)
+            MuIRNode::new(id, MuIRNodeKind::Var(MuVarNodeKind::Global(MuGlobalVarNodeKind::Global)))
         } else if bundle.func_defs.contains_key(&id) {
-            TopLevelDefNode::FuncDef(id)
+            MuIRNode::new(id, MuIRNodeKind::Var(MuVarNodeKind::Global(MuGlobalVarNodeKind::Func)))
         } else if bundle.func_decls.contains_key(&id) {
-            TopLevelDefNode::FuncDecl(id)
+            MuIRNode::new(id, MuIRNodeKind::FuncVer)
         } else {
             panic!("expecting ID of a top level definition")
         }
+    }
+    
+    #[allow(unused_variables)]
+    pub fn get_id(ctx: &mut MuCtx, b: MuBundleNode, node: MuChildNode) -> MuID {
+        node.id
     }
     
     fn new(vm: Arc<VM>) -> MuCtx {
@@ -322,7 +326,7 @@ impl MuCtx {
             abort_bundle_node    : api!(MuCtx::abort_bundle_node),
             
             get_node: api!(MuCtx::get_node),
-            get_id  : unimplemented_api!(),
+            get_id  : api!(MuCtx::get_id),
             set_name: unimplemented_api!(),
             
             // create types
@@ -418,3 +422,26 @@ impl MuCtxInternal {
         }
     }
 }
+
+pub trait MuEntity {
+    fn id(&self) -> MuID;
+    fn name(&self) -> Option<MuName>;
+    fn set_name(&mut self, name: MuName);
+}
+
+macro_rules! mu_entity {
+    ($entity: ident) => {
+        impl MuEntity for $entity {
+            #[inline(always)]
+            fn id(&self) -> MuID {self.id}
+            #[inline(always)]
+            fn name(&self) -> Option<MuName> {self.name}
+            fn set_name(&mut self, name: MuName) {self.name = Some(name);}
+        }
+    }
+}
+
+mu_entity!(MuFunction);
+mu_entity!(MuFunctionVersion);
+mu_entity!(Block);
+mu_entity!(TreeNode);

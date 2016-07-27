@@ -30,7 +30,7 @@ pub trait CompilerPass {
     fn name(&self) -> &'static str;
 
     fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
-        debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
+        debug!("---CompilerPass {} for {}---", self.name(), func);
 
         self.start_function(vm, func);
         self.visit_function(vm, func);

@@ -346,7 +346,7 @@ impl ResumptionData {
 
 #[derive(Clone, Debug)]
 pub struct Destination {
-    pub target: MuName,
+    pub target: MuID,
     pub args: Vec<DestArg>
 }
 

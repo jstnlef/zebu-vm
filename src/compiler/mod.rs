@@ -34,7 +34,8 @@ impl Compiler {
     }
 
     pub fn compile(&self, func: &mut MuFunctionVersion) {
-        let _p = hprof::enter(func.fn_name);
+        // FIXME: should use function name here (however hprof::enter only accept &'static str)
+        let _p = hprof::enter("Function Compilation");
 
         let mut cur_pass = 0;
         let n_passes = self.policy.borrow().passes.len();

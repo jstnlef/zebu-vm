@@ -15,7 +15,7 @@ impl ControlFlowAnalysis {
     }
 }
 
-fn check_edge_kind(target: MuName, stack: &Vec<MuName>) -> EdgeKind {
+fn check_edge_kind(target: MuID, stack: &Vec<MuID>) -> EdgeKind {
     if stack.contains(&target) {
         EdgeKind::Backward
     } else {
@@ -23,7 +23,7 @@ fn check_edge_kind(target: MuName, stack: &Vec<MuName>) -> EdgeKind {
     }
 }
 
-fn new_edge(cur: MuName, edge: BlockEdge, stack: &mut Vec<MuName>, visited: &mut Vec<MuName>, func: &mut MuFunctionVersion) {
+fn new_edge(cur: MuID, edge: BlockEdge, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuFunctionVersion) {
     // add current block to target's predecessors
     {
         let target = func.content.as_mut().unwrap().get_block_mut(edge.target);
@@ -47,7 +47,7 @@ const WATCHPOINT_DISABLED_CHANCE : f32 = 0.9f32;
 const NORMAL_RESUME_CHANCE       : f32 = 0.6f32;
 const EXN_RESUME_CHANCE          : f32 = 1f32 - NORMAL_RESUME_CHANCE;
 
-fn dfs(cur: MuName, stack: &mut Vec<MuName>, visited: &mut Vec<MuName>, func: &mut MuFunctionVersion) {
+fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuFunctionVersion) {
     trace!("dfs visiting block {}", cur);
     trace!("current stack: {:?}", stack);
     trace!("current visited: {:?}", visited);
@@ -197,15 +197,15 @@ impl CompilerPass for ControlFlowAnalysis {
 
     #[allow(unused_variables)]
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        let mut stack   : Vec<MuName> = vec![];
-        let mut visited : Vec<MuName> = vec![];
+        let mut stack   : Vec<MuID> = vec![];
+        let mut visited : Vec<MuID> = vec![];
 
         dfs(func.content.as_ref().unwrap().entry, &mut stack, &mut visited, func);
     }
 
     #[allow(unused_variables)]
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        debug!("check control flow for {}", func.fn_name);
+        debug!("check control flow for {}", func);
 
         for entry in func.content.as_ref().unwrap().blocks.iter() {
             debug!("block {}", entry.0);

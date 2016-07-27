@@ -920,82 +920,93 @@ impl CodeGenerator for ASMCodeGen {
         unimplemented!()
     }
     
-    fn emit_jmp(&mut self, dest: &Destination) {
-        trace!("emit: jmp {}", dest.target);
+    fn emit_jmp(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jmp {}", dest_name);
         
         // symbolic label, we dont need to patch it
-        let asm = format!("jmp {}", self.asm_block_label(dest.target));
-        self.add_asm_branch(asm, dest.target)
+        let asm = format!("jmp {}", self.asm_block_label(dest_name));
+        self.add_asm_branch(asm, dest_name)
     }
     
-    fn emit_je(&mut self, dest: &Destination) {
-        trace!("emit: je {}", dest.target);
+    fn emit_je(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: je {}", dest_name);
         
-        let asm = format!("je {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);        
+        let asm = format!("je {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jne(&mut self, dest: &Destination) {
-        trace!("emit: jne {}", dest.target);
+    fn emit_jne(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jne {}", dest_name);
         
-        let asm = format!("jne {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);
+        let asm = format!("jne {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);
     }
     
-    fn emit_ja(&mut self, dest: &Destination) {
-        trace!("emit: ja {}", dest.target);
+    fn emit_ja(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: ja {}", dest_name);
         
-        let asm = format!("ja {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);
+        let asm = format!("ja {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);
     }
     
-    fn emit_jae(&mut self, dest: &Destination) {
-        trace!("emit: jae {}", dest.target);
+    fn emit_jae(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jae {}", dest_name);
         
-        let asm = format!("jae {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);        
+        let asm = format!("jae {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jb(&mut self, dest: &Destination) {
-        trace!("emit: jb {}", dest.target);
+    fn emit_jb(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jb {}", dest_name);
         
-        let asm = format!("jb {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);
+        let asm = format!("jb {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);
     }
     
-    fn emit_jbe(&mut self, dest: &Destination) {
-        trace!("emit: jbe {}", dest.target);
+    fn emit_jbe(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jbe {}", dest_name);
         
-        let asm = format!("jbe {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);        
+        let asm = format!("jbe {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jg(&mut self, dest: &Destination) {
-        trace!("emit: jg {}", dest.target);
+    fn emit_jg(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jg {}", dest_name);
         
-        let asm = format!("jg {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);        
+        let asm = format!("jg {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jge(&mut self, dest: &Destination) {
-        trace!("emit: jge {}", dest.target);
+    fn emit_jge(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jge {}", dest_name);
         
-        let asm = format!("jge {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);        
+        let asm = format!("jge {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jl(&mut self, dest: &Destination) {
-        trace!("emit: jl {}", dest.target);
+    fn emit_jl(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jl {}", dest_name);
         
-        let asm = format!("jl {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);        
+        let asm = format!("jl {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jle(&mut self, dest: &Destination) {
-        trace!("emit: jle {}", dest.target);
+    fn emit_jle(&mut self, dest: &Block) {
+        let dest_name = dest.name.unwrap();
+        trace!("emit: jle {}", dest_name);
         
-        let asm = format!("jle {}", self.asm_block_label(dest.target));
-        self.add_asm_branch2(asm, dest.target);        
+        let asm = format!("jle {}", self.asm_block_label(dest_name));
+        self.add_asm_branch2(asm, dest_name);        
     }    
     
     fn emit_call_near_rel32(&mut self, func: MuName) {
@@ -1077,7 +1088,7 @@ pub fn emit_code(func: &mut MuFunctionVersion, vm: &VM) {
     use std::path;
 
     let compiled_funcs = vm.compiled_funcs().read().unwrap();
-    let cf = compiled_funcs.get(func.fn_name).unwrap().borrow();
+    let cf = compiled_funcs.get(&func.id).unwrap().borrow();
 
     let code = cf.mc.emit();
 
@@ -1086,7 +1097,7 @@ pub fn emit_code(func: &mut MuFunctionVersion, vm: &VM) {
 
     let mut file_path = path::PathBuf::new();
     file_path.push(EMIT_DIR);
-    file_path.push(func.fn_name.to_string() + ".s");
+    file_path.push(func.name.unwrap().to_string() + ".s");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file

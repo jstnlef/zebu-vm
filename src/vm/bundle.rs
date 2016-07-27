@@ -32,11 +32,43 @@ impl MuBundle {
     }
 }
 
-pub enum TopLevelDefNode {
-    Type(MuID),
-    FuncSig(MuID),
-    Constant(MuID),
-    Global(MuID),
-    FuncDef(MuID),
-    FuncDecl(MuID)
+pub struct MuIRNode {
+    pub id: MuID,
+    pub v: MuIRNodeKind
+}
+
+impl MuIRNode {
+    pub fn new(id: MuID, v: MuIRNodeKind) -> MuIRNode {
+        MuIRNode {
+            id: id,
+            v: v
+        }
+    }
+}
+
+pub enum MuIRNodeKind {
+    Type,
+    FuncSig,
+    Var(MuVarNodeKind),
+    FuncVer,
+    BB,
+    Inst
+}
+
+pub enum MuVarNodeKind {
+    Global(MuGlobalVarNodeKind),
+    Local(MuLocalVarNodeKind)
+}
+
+pub enum MuGlobalVarNodeKind {
+    Const,
+    Global,
+    Func,
+    ExpFunc
+}
+
+pub enum MuLocalVarNodeKind {
+    NorParam,
+    ExcParam,
+    MuInstRes
 }

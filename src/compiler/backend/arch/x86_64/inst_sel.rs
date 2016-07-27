@@ -59,22 +59,24 @@ impl <'a> InstructionSelection {
                         
                         self.process_dest(&ops, fallthrough_dest, cur_func, vm);
                         self.process_dest(&ops, branch_dest, cur_func, vm);
+                        
+                        let branch_target = cur_func.content.as_ref().unwrap().get_block(branch_dest.target);
     
                         let ref cond = ops[cond];
                         
                         if self.match_cmp_res(cond) {
                             trace!("emit cmp_eq-branch2");
                             match self.emit_cmp_res(cond, cur_func, vm) {
-                                op::CmpOp::EQ => self.backend.emit_je(branch_dest),
-                                op::CmpOp::NE => self.backend.emit_jne(branch_dest),
-                                op::CmpOp::UGE => self.backend.emit_jae(branch_dest),
-                                op::CmpOp::UGT => self.backend.emit_ja(branch_dest),
-                                op::CmpOp::ULE => self.backend.emit_jbe(branch_dest),
-                                op::CmpOp::ULT => self.backend.emit_jb(branch_dest),
-                                op::CmpOp::SGE => self.backend.emit_jge(branch_dest),
-                                op::CmpOp::SGT => self.backend.emit_jg(branch_dest),
-                                op::CmpOp::SLE => self.backend.emit_jle(branch_dest),
-                                op::CmpOp::SLT => self.backend.emit_jl(branch_dest),
+                                op::CmpOp::EQ => self.backend.emit_je(branch_target),
+                                op::CmpOp::NE => self.backend.emit_jne(branch_target),
+                                op::CmpOp::UGE => self.backend.emit_jae(branch_target),
+                                op::CmpOp::UGT => self.backend.emit_ja(branch_target),
+                                op::CmpOp::ULE => self.backend.emit_jbe(branch_target),
+                                op::CmpOp::ULT => self.backend.emit_jb(branch_target),
+                                op::CmpOp::SGE => self.backend.emit_jge(branch_target),
+                                op::CmpOp::SGT => self.backend.emit_jg(branch_target),
+                                op::CmpOp::SLE => self.backend.emit_jle(branch_target),
+                                op::CmpOp::SLT => self.backend.emit_jl(branch_target),
                                 _ => unimplemented!()
                             }
                         } else if self.match_ireg(cond) {
@@ -85,7 +87,7 @@ impl <'a> InstructionSelection {
                             // emit: cmp cond_reg 1
                             self.backend.emit_cmp_r64_imm32(&cond_reg, 1);
                             // emit: je #branch_dest
-                            self.backend.emit_je(branch_dest);                            
+                            self.backend.emit_je(branch_target);                            
                         } else {
                             unimplemented!();
                         }
@@ -96,9 +98,11 @@ impl <'a> InstructionSelection {
                                             
                         self.process_dest(&ops, dest, cur_func, vm);
                         
+                        let target = cur_func.content.as_ref().unwrap().get_block(dest.target);
+                        
                         trace!("emit branch1");
                         // jmp
-                        self.backend.emit_jmp(dest);
+                        self.backend.emit_jmp(target);
                     },
                     
                     Instruction_::ExprCall{ref data, is_abort} => {
@@ -779,7 +783,7 @@ impl CompilerPass for InstructionSelection {
     fn start_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("{}", self.name());
         
-        self.backend.start_code(func.fn_name);
+        self.backend.start_code(func.name.unwrap());
         
         // prologue (get arguments from entry block first)        
         let entry_block = func.content.as_ref().unwrap().get_entry_block();
@@ -789,25 +793,26 @@ impl CompilerPass for InstructionSelection {
 
     #[allow(unused_variables)]
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        for block_label in func.block_trace.as_ref().unwrap() {
-            let block = func.content.as_ref().unwrap().get_block(block_label);
+        for block_id in func.block_trace.as_ref().unwrap() {
+            let block = func.content.as_ref().unwrap().get_block(*block_id);
+            let block_label = block.name.unwrap();
             
-            self.backend.start_block(block.label);
+            self.backend.start_block(block_label);
 
             let block_content = block.content.as_ref().unwrap();
             
             // live in is args of the block
-            self.backend.set_block_livein(block.label, &block_content.args);
+            self.backend.set_block_livein(block_label, &block_content.args);
             
             // live out is the union of all branch args of this block
             let live_out = block_content.get_out_arguments();
-            self.backend.set_block_liveout(block.label, &live_out);
+            self.backend.set_block_liveout(block_label, &live_out);
 
             for inst in block_content.body.iter() {
                 self.instruction_select(inst, func, vm);
             }
             
-            self.backend.end_block(block.label);
+            self.backend.end_block(block_label);
         }
     }
     
@@ -817,7 +822,7 @@ impl CompilerPass for InstructionSelection {
         
         let mc = self.backend.finish_code();
         let compiled_func = CompiledFunction {
-            fn_name: func.fn_name,
+            func_ver_id: func.id,
             temps: HashMap::new(),
             mc: mc
         };

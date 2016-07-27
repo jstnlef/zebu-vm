@@ -6,6 +6,7 @@ use self::mu::ast::inst::*;
 use self::mu::ast::ptr::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
+use self::mu::vm::api::*;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -44,24 +45,31 @@ pub fn sum() -> VM {
     let sum_sig = vm.declare_func_sig("sum_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
 
     // .funcdecl @sum <@sum_sig>
-    let func = MuFunction::new("sum", sum_sig.clone());
+    let mut func = MuFunction::new(vm.next_id(), sum_sig.clone());
+    func.set_name("sum");
+    let func_id = func.id;
     vm.declare_func(func);
 
     // .funcdef @sum VERSION @sum_v1 <@sum_sig> 
-    let mut func_ver = MuFunctionVersion::new("sum", "sum_v1", sum_sig.clone());
+    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, sum_sig.clone());
+    func_ver.set_name("sum_v1");
 
     // %entry(<@int_64> %n):
-    let mut blk_entry = Block::new("entry");
+    let mut blk_entry = Block::new(vm.next_id());
+    blk_entry.set_name("entry");
+    
     let blk_entry_n = func_ver.new_ssa(vm.next_id(), "blk_entry_n", type_def_int64.clone());
     let const_def_int64_0_local = func_ver.new_constant(vm.next_id(), const_def_int64_0.clone()); // FIXME: why we need a local version?
     let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
 
     // BRANCH %head
+    let mut blk_head = Block::new(vm.next_id());
+    blk_head.set_name("head");
     let blk_entry_term = func_ver.new_inst(vm.next_id(), Instruction {
         value: None,
         ops: RefCell::new(vec![blk_entry_n.clone(), const_def_int64_0_local.clone(), const_def_int64_0_local.clone()]),
         v: Instruction_::Branch1(Destination{
-            target: "head",
+            target: blk_head.id(),
             args: vec![DestArg::Normal(0), DestArg::Normal(1), DestArg::Normal(2)]
         })
     });
@@ -74,7 +82,7 @@ pub fn sum() -> VM {
     blk_entry.content = Some(blk_entry_content);
 
     // %head(<@int_64> %n, <@int_64> %s, <@int_64> %i):
-    let mut blk_head = Block::new("head");
+
     let blk_head_n = func_ver.new_ssa(vm.next_id(), "blk_head_n", type_def_int64.clone());
     let blk_head_s = func_ver.new_ssa(vm.next_id(), "blk_head_s", type_def_int64.clone());
     let blk_head_i = func_ver.new_ssa(vm.next_id(), "blk_head_i", type_def_int64.clone());
@@ -104,17 +112,19 @@ pub fn sum() -> VM {
     });
 
     // BRANCH2 %cond %ret(%s2) %head(%n %s2 %i2)
+    let mut blk_ret = Block::new(vm.next_id());
+    blk_ret.set_name("ret");    
     let blk_head_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_head_cond.clone(), blk_head_n.clone(), blk_head_s2.clone(), blk_head_i2.clone()]),
         v: Instruction_::Branch2 {
             cond: 0,
             true_dest: Destination {
-                target: "ret",
+                target: blk_ret.id(),
                 args: vec![DestArg::Normal(2)]
             },
             false_dest: Destination {
-                target: "head",
+                target: blk_head.id(),
                 args: vec![DestArg::Normal(1), DestArg::Normal(2), DestArg::Normal(3)]
             },
             true_prob: 0.6f32
@@ -129,7 +139,6 @@ pub fn sum() -> VM {
     blk_head.content = Some(blk_head_content);
 
     // %ret(<@int_64> %s):
-    let mut blk_ret = Block::new("ret");
     let blk_ret_s = func_ver.new_ssa(vm.next_id(), "blk_ret_s", type_def_int64.clone());
 
     // RET %s
@@ -148,12 +157,12 @@ pub fn sum() -> VM {
 
     // wrap into a function
     func_ver.define(FunctionContent{
-            entry: "entry",
+            entry: blk_entry.id(),
             blocks: {
                 let mut blocks = HashMap::new();
-                blocks.insert("entry", blk_entry);
-                blocks.insert("head", blk_head);
-                blocks.insert("ret", blk_ret);
+                blocks.insert(blk_entry.id(), blk_entry);
+                blocks.insert(blk_head.id(), blk_head);
+                blocks.insert(blk_ret.id(), blk_ret);
                 blocks
             }
     });
@@ -190,15 +199,17 @@ pub fn factorial() -> VM {
     let type_def_funcref_fac = vm.declare_type("fac_sig", P(MuType::funcref(fac_sig.clone())));
 
     // .funcdecl @fac <@fac_sig>
-    let func = MuFunction::new("fac", fac_sig.clone());
+    let func = MuFunction::new(vm.next_id(), fac_sig.clone());
+    let func_id = func.id;
     vm.declare_func(func);
 
     // .funcdef @fac VERSION @fac_v1 <@fac_sig>
     let const_func_fac = vm.declare_const("fac", type_def_funcref_fac, Constant::FuncRef("fac"));
-    let mut func_ver = MuFunctionVersion::new("fac", "fac_v1", fac_sig.clone());
+    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, fac_sig.clone());
 
     // %blk_0(<@int_64> %n_3):
-    let mut blk_0 = Block::new("blk_0");
+    let mut blk_0 = Block::new(vm.next_id());
+    blk_0.set_name("blk_0");
     let blk_0_n_3 = func_ver.new_ssa(vm.next_id(), "blk_0_n_3", type_def_int64.clone());
     let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
 
@@ -211,17 +222,21 @@ pub fn factorial() -> VM {
     });
 
     //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)
+    let mut blk_1 = Block::new(vm.next_id());
+    blk_1.set_name("blk_1");    
+    let mut blk_2 = Block::new(vm.next_id());
+    blk_2.set_name("blk_2");
     let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_0_v48.clone(), const_def_int64_1_local.clone(), blk_0_n_3.clone()]),
         v: Instruction_::Branch2 {
             cond: 0,
             true_dest: Destination {
-                target: "blk_2",
+                target: blk_2.id,
                 args: vec![DestArg::Normal(1)]
             },
             false_dest: Destination {
-                target: "blk_1",
+                target: blk_1.id,
                 args: vec![DestArg::Normal(2)]
             },
             true_prob: 0.3f32
@@ -236,7 +251,6 @@ pub fn factorial() -> VM {
     blk_0.content = Some(blk_0_content);
 
     // %blk_2(<@int_64> %v53):
-    let mut blk_2 = Block::new("blk_2");
     let blk_2_v53 = func_ver.new_ssa(vm.next_id(), "blk_2_v53", type_def_int64.clone());
 
     //   RET %v53
@@ -254,7 +268,6 @@ pub fn factorial() -> VM {
     blk_2.content = Some(blk_2_content);
 
     // %blk_1(<@int_64> %n_3):
-    let mut blk_1 = Block::new("blk_1");
     let blk_1_n_3 = func_ver.new_ssa(vm.next_id(), "blk_1_n_3", type_def_int64.clone());
 
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
@@ -294,7 +307,7 @@ pub fn factorial() -> VM {
         value: None,
         ops: RefCell::new(vec![blk_1_v52.clone()]),
         v: Instruction_::Branch1(Destination {
-                target: "blk_2",
+                target: blk_2.id,
                 args: vec![DestArg::Normal(0)]
            })
     });
@@ -308,12 +321,12 @@ pub fn factorial() -> VM {
 
     // wrap into a function
     func_ver.define(FunctionContent{
-            entry: "blk_0",
+            entry: blk_0.id,
             blocks: {
                 let mut blocks = HashMap::new();
-                blocks.insert("blk_0", blk_0);
-                blocks.insert("blk_1", blk_1);
-                blocks.insert("blk_2", blk_2);
+                blocks.insert(blk_0.id, blk_0);
+                blocks.insert(blk_1.id, blk_1);
+                blocks.insert(blk_2.id, blk_2);
                 blocks
             }
     });
@@ -344,14 +357,16 @@ pub fn global_access() -> VM {
     let func_sig = vm.declare_func_sig("global_access_sig", vec![type_def_int64.clone()], vec![]);
 
     // .funcdecl @global_access <@global_access_sig>
-    let func = MuFunction::new("global_access", func_sig.clone());
+    let func = MuFunction::new(vm.next_id(), func_sig.clone());
+    let func_id = func.id;
     vm.declare_func(func);
     
     // .funcdef @global_access VERSION @v1 <@global_access_sig>
-    let mut func_ver = MuFunctionVersion::new("global_access", "v1", func_sig.clone());
+    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, func_sig.clone());
     
     // %blk_0():
-    let mut blk_0 = Block::new("blk_0");
+    let mut blk_0 = Block::new(vm.next_id());
+    blk_0.set_name("blk_0");
     
     // STORE <@int_64> @a @int_64_1
     let blk_0_a = func_ver.new_global(vm.next_id(), global_a.clone());
@@ -393,10 +408,10 @@ pub fn global_access() -> VM {
     blk_0.content = Some(blk_0_content);
     
     func_ver.define(FunctionContent{
-        entry: "blk_0",
+        entry: blk_0.id,
         blocks: {
             let mut ret = HashMap::new();
-            ret.insert("blk_0", blk_0);
+            ret.insert(blk_0.id, blk_0);
             ret
         }
     });

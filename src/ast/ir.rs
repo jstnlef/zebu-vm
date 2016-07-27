@@ -19,16 +19,19 @@ pub type OpIndex = usize;
 
 #[derive(Debug)]
 pub struct MuFunction {
-    pub fn_name: MuName,
+    pub id: MuID,
+    pub name: Option<MuName>,
+    
     pub sig: P<MuFuncSig>,
-    pub cur_ver: Option<MuName>,
-    pub all_vers: Vec<MuName>
+    pub cur_ver: Option<MuID>,
+    pub all_vers: Vec<MuID>
 }
 
 impl MuFunction {
-    pub fn new(fn_name: MuName, sig: P<MuFuncSig>) -> MuFunction {
+    pub fn new(id: MuID, sig: P<MuFuncSig>) -> MuFunction {
         MuFunction {
-            fn_name: fn_name,
+            id: id,
+            name: None,
             sig: sig,
             cur_ver: None,
             all_vers: vec![]
@@ -36,25 +39,47 @@ impl MuFunction {
     }
 }
 
+impl fmt::Display for MuFunction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.name.is_none() {
+            write!(f, "Func #{}", self.id)
+        } else {
+            write!(f, "Func {}#{}", self.name.unwrap(), self.id)
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct MuFunctionVersion {
-    pub fn_name: MuName,
-    pub version: MuName,
-
+    pub id: MuID,
+    pub name: Option<MuName>,
+         
+    pub func_id: MuID,
     pub sig: P<MuFuncSig>,
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
 
-    pub block_trace: Option<Vec<MuName>> // only available after Trace Generation Pass
+    pub block_trace: Option<Vec<MuID>> // only available after Trace Generation Pass
+}
+
+impl fmt::Display for MuFunctionVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.name.is_none() {
+            write!(f, "FuncVer #{} of Func#{}", self.id, self.func_id)
+        } else {
+            write!(f, "FuncVer {}#{} of Func#{}", self.name.unwrap(), self.id, self.func_id)
+        }
+    }
 }
 
 pub const RESERVED_NODE_IDS_FOR_MACHINE : usize = 100;
 
 impl MuFunctionVersion {
-    pub fn new(fn_name: MuName, ver: MuName, sig: P<MuFuncSig>) -> MuFunctionVersion {
+    pub fn new(id: MuID, func: MuID, sig: P<MuFuncSig>) -> MuFunctionVersion {
         MuFunctionVersion{
-            fn_name: fn_name,
-            version: ver,
+            id: id,
+            name: None,
+            func_id: func,
             sig: sig,
             content: None,
             context: FunctionContext::new(),
@@ -71,6 +96,7 @@ impl MuFunctionVersion {
 
         P(TreeNode {
             id: id,
+            name: None,
             op: pick_op_code_for_ssa(&ty),
             v: TreeNode_::Value(P(Value{
                 tag: tag,
@@ -83,6 +109,7 @@ impl MuFunctionVersion {
     pub fn new_constant(&mut self, id: MuID, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
             id: id,
+            name: None,
             op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
@@ -91,6 +118,7 @@ impl MuFunctionVersion {
     pub fn new_global(&mut self, id: MuID, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
             id: id,
+            name: None,
             op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
@@ -99,6 +127,7 @@ impl MuFunctionVersion {
     pub fn new_inst(&mut self, id: MuID, v: Instruction) -> P<TreeNode> {
         P(TreeNode{
             id: id,
+            name: None,
             op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
@@ -107,33 +136,33 @@ impl MuFunctionVersion {
 
 #[derive(Debug)]
 pub struct FunctionContent {
-    pub entry: MuName,
-    pub blocks: HashMap<MuName, Block>
+    pub entry: MuID,
+    pub blocks: HashMap<MuID, Block>
 }
 
 impl FunctionContent {
     pub fn get_entry_block(&self) -> &Block {
         self.get_block(self.entry)
-    }
+    } 
 
     pub fn get_entry_block_mut(&mut self) -> &mut Block {
         let entry = self.entry;
         self.get_block_mut(entry)
     }
 
-    pub fn get_block(&self, tag: MuName) -> &Block {
-        let ret = self.blocks.get(tag);
+    pub fn get_block(&self, id: MuID) -> &Block {
+        let ret = self.blocks.get(&id);
         match ret {
             Some(b) => b,
-            None => panic!("cannot find block {}", tag)
+            None => panic!("cannot find block #{}", id)
         }
     }
 
-    pub fn get_block_mut(&mut self, tag: MuName) -> &mut Block {
-        let ret = self.blocks.get_mut(tag);
+    pub fn get_block_mut(&mut self, id: MuID) -> &mut Block {
+        let ret = self.blocks.get_mut(&id);
         match ret {
             Some(b) => b,
-            None => panic!("cannot find block {}", tag)
+            None => panic!("cannot find block #{}", id)
         }
     }
 }
@@ -179,25 +208,26 @@ impl FunctionContext {
 
 #[derive(Debug)]
 pub struct Block {
-    pub label: MuName,
+    pub id: MuID,
+    pub name: Option<MuName>,
     pub content: Option<BlockContent>,
     pub control_flow: ControlFlow
 }
 
 impl Block {
-    pub fn new(label: MuName) -> Block {
-        Block{label: label, content: None, control_flow: ControlFlow::default()}
+    pub fn new(id: MuID) -> Block {
+        Block{id: id, name: None, content: None, control_flow: ControlFlow::default()}
     }
 }
 
 #[derive(Debug)]
 pub struct ControlFlow {
-    pub preds : Vec<MuName>,
+    pub preds : Vec<MuID>,
     pub succs : Vec<BlockEdge>
 }
 
 impl ControlFlow {
-    pub fn get_hottest_succ(&self) -> Option<MuName> {
+    pub fn get_hottest_succ(&self) -> Option<MuID> {
         if self.succs.len() == 0 {
             None
         } else {
@@ -231,7 +261,7 @@ impl default::Default for ControlFlow {
 
 #[derive(Copy, Clone, Debug)]
 pub struct BlockEdge {
-    pub target: MuName,
+    pub target: MuID,
     pub kind: EdgeKind,
     pub is_exception: bool,
     pub probability: f32
@@ -330,6 +360,7 @@ impl BlockContent {
 /// always use with P<TreeNode>
 pub struct TreeNode {
     pub id: MuID,
+    pub name: Option<MuName>,
     pub op: OpCode,
     pub v: TreeNode_,
 }
@@ -339,6 +370,7 @@ impl TreeNode {
     pub fn new_inst(id: MuID, v: Instruction) -> P<TreeNode> {
         P(TreeNode{
             id: id,
+            name: None,
             op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })

@@ -36,17 +36,17 @@ pub trait CodeGenerator {
     fn emit_mul_r64(&mut self, src: &P<Value>);
     fn emit_mul_mem64(&mut self, src: &P<Value>);
     
-    fn emit_jmp(&mut self, dest: &Destination);
-    fn emit_je(&mut self, dest: &Destination);
-    fn emit_jne(&mut self, dest: &Destination);
-    fn emit_ja(&mut self, dest: &Destination);
-    fn emit_jae(&mut self, dest: &Destination);
-    fn emit_jb(&mut self, dest: &Destination);
-    fn emit_jbe(&mut self, dest: &Destination);
-    fn emit_jg(&mut self, dest: &Destination);
-    fn emit_jge(&mut self, dest: &Destination);
-    fn emit_jl(&mut self, dest: &Destination);
-    fn emit_jle(&mut self, dest: &Destination);
+    fn emit_jmp(&mut self, dest: &Block);
+    fn emit_je(&mut self, dest: &Block);
+    fn emit_jne(&mut self, dest: &Block);
+    fn emit_ja(&mut self, dest: &Block);
+    fn emit_jae(&mut self, dest: &Block);
+    fn emit_jb(&mut self, dest: &Block);
+    fn emit_jbe(&mut self, dest: &Block);
+    fn emit_jg(&mut self, dest: &Block);
+    fn emit_jge(&mut self, dest: &Block);
+    fn emit_jl(&mut self, dest: &Block);
+    fn emit_jle(&mut self, dest: &Block);
     
     fn emit_call_near_rel32(&mut self, func: MuName);
     fn emit_call_near_r64(&mut self, func: &P<Value>);
