@@ -14,29 +14,35 @@ use std::sync::RwLock;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 
-pub struct VMContext {
+pub struct VM {
     next_id: AtomicUsize,
     is_running: AtomicBool,
     
-    constants: RwLock<HashMap<MuTag, P<Value>>>,
+    id_name_map: RwLock<HashMap<MuID, MuName>>,
+    name_id_map: RwLock<HashMap<MuName, MuID>>,
     
-    types: RwLock<HashMap<MuTag, P<MuType>>>,
+    constants: RwLock<HashMap<MuName, P<Value>>>,
+    
+    types: RwLock<HashMap<MuName, P<MuType>>>,
     backend_type_info: RwLock<HashMap<P<MuType>, BackendTypeInfo>>,
     
-    globals: RwLock<HashMap<MuTag, P<GlobalCell>>>,
+    globals: RwLock<HashMap<MuName, P<GlobalCell>>>,
     
-    func_sigs: RwLock<HashMap<MuTag, P<MuFuncSig>>>,
-    func_vers: RwLock<HashMap<(MuTag, MuTag), RefCell<MuFunctionVersion>>>,
-    funcs: RwLock<HashMap<MuTag, RefCell<MuFunction>>>,
+    func_sigs: RwLock<HashMap<MuName, P<MuFuncSig>>>,
+    func_vers: RwLock<HashMap<(MuName, MuName), RefCell<MuFunctionVersion>>>,
+    funcs: RwLock<HashMap<MuName, RefCell<MuFunction>>>,
     
-    compiled_funcs: RwLock<HashMap<MuTag, RefCell<CompiledFunction>>>
+    compiled_funcs: RwLock<HashMap<MuName, RefCell<CompiledFunction>>>
 }
 
-impl <'a> VMContext {
-    pub fn new() -> VMContext {
-        let ret = VMContext {
+impl <'a> VM {
+    pub fn new() -> VM {
+        let ret = VM {
             next_id: ATOMIC_USIZE_INIT,
             is_running: ATOMIC_BOOL_INIT,
+            
+            id_name_map: RwLock::new(HashMap::new()),
+            name_id_map: RwLock::new(HashMap::new()),
             
             constants: RwLock::new(HashMap::new()),
             
@@ -72,7 +78,7 @@ impl <'a> VMContext {
         self.is_running.load(Ordering::Relaxed)
     }
     
-    pub fn declare_const(&self, const_name: MuTag, ty: P<MuType>, val: Constant) -> P<Value> {
+    pub fn declare_const(&self, const_name: MuName, ty: P<MuType>, val: Constant) -> P<Value> {
         let mut constants = self.constants.write().unwrap();
         debug_assert!(!constants.contains_key(const_name));
         
@@ -82,7 +88,7 @@ impl <'a> VMContext {
         ret
     }
     
-    pub fn declare_global(&self, global_name: MuTag, ty: P<MuType>) -> P<Value> {
+    pub fn declare_global(&self, global_name: MuName, ty: P<MuType>) -> P<Value> {
         let global = P(GlobalCell{tag: global_name, ty: ty.clone()});
         
         let mut globals = self.globals.write().unwrap();
@@ -95,7 +101,7 @@ impl <'a> VMContext {
         })
     }
     
-    pub fn declare_type(&self, type_name: MuTag, ty: P<MuType>) -> P<MuType> {
+    pub fn declare_type(&self, type_name: MuName, ty: P<MuType>) -> P<MuType> {
         let mut types = self.types.write().unwrap();
         debug_assert!(!types.contains_key(type_name));
         
@@ -104,7 +110,7 @@ impl <'a> VMContext {
         ty
     }
     
-    pub fn declare_func_sig(&self, sig_name: MuTag, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
+    pub fn declare_func_sig(&self, sig_name: MuName, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
         let mut func_sigs = self.func_sigs.write().unwrap();
         debug_assert!(!func_sigs.contains_key(sig_name));
         
@@ -172,19 +178,27 @@ impl <'a> VMContext {
         resolved        
     }
     
-    pub fn globals(&self) -> &RwLock<HashMap<MuTag, P<GlobalCell>>> {
+    pub fn get_id_of(&self, name: MuName) -> MuID {
+        *self.name_id_map.read().unwrap().get(&name).unwrap()
+    }
+    
+    pub fn get_name_of(&self, id: MuID) -> MuName {
+        *self.id_name_map.read().unwrap().get(&id).unwrap()
+    }
+    
+    pub fn globals(&self) -> &RwLock<HashMap<MuName, P<GlobalCell>>> {
         &self.globals
     }
     
-    pub fn funcs(&self) -> &RwLock<HashMap<MuTag, RefCell<MuFunction>>> {
+    pub fn funcs(&self) -> &RwLock<HashMap<MuName, RefCell<MuFunction>>> {
         &self.funcs
     }
     
-    pub fn func_vers(&self) -> &RwLock<HashMap<(MuTag, MuTag), RefCell<MuFunctionVersion>>> {
+    pub fn func_vers(&self) -> &RwLock<HashMap<(MuName, MuName), RefCell<MuFunctionVersion>>> {
         &self.func_vers
     }
     
-    pub fn compiled_funcs(&self) -> &RwLock<HashMap<MuTag, RefCell<CompiledFunction>>> {
+    pub fn compiled_funcs(&self) -> &RwLock<HashMap<MuName, RefCell<CompiledFunction>>> {
         &self.compiled_funcs
     }
 }

@@ -13,7 +13,7 @@ use std::sync::Arc;
 fn test_ir_liveness_fac() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(factorial());
+    let vm = Arc::new(factorial());
     
     let compiler = Compiler::new(CompilerPolicy::new(vec![
             Box::new(passes::DefUse::new()),
@@ -21,16 +21,16 @@ fn test_ir_liveness_fac() {
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new()),
             Box::new(backend::inst_sel::InstructionSelection::new()),
-    ]), vm_context.clone());
+    ]), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let factorial_func = funcs.get("fac").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut factorial_func_ver);
     
-    let cf_lock = vm_context.compiled_funcs().read().unwrap();
+    let cf_lock = vm.compiled_funcs().read().unwrap();
     let cf = cf_lock.get("fac").unwrap().borrow();
     
     // block 0
@@ -67,13 +67,13 @@ fn test_ir_liveness_fac() {
 fn test_regalloc_fac() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(factorial());
+    let vm = Arc::new(factorial());
     
-    let compiler = Compiler::new(CompilerPolicy::default(), vm_context.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let factorial_func = funcs.get("fac").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut factorial_func_ver); 

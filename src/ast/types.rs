@@ -28,7 +28,7 @@ pub enum MuType_ {
     UPtr         (P<MuType>),
 
     /// struct<T1 T2 ...>
-    Struct       (MuTag),
+    Struct       (MuName),
 
     /// array<T length>
     Array        (P<MuType>, usize),
@@ -82,8 +82,8 @@ impl fmt::Display for MuType_ {
 }
 
 lazy_static! {
-    /// storing a map from MuTag to StructType_
-    pub static ref STRUCT_TAG_MAP : RwLock<HashMap<MuTag, StructType_>> = RwLock::new(HashMap::new());
+    /// storing a map from MuName to StructType_
+    pub static ref STRUCT_TAG_MAP : RwLock<HashMap<MuName, StructType_>> = RwLock::new(HashMap::new());
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -141,13 +141,13 @@ impl MuType_ {
     pub fn uptr(referent: P<MuType_>) -> MuType_ {
         MuType_::UPtr(referent)
     }
-    pub fn mustruct_empty(tag: MuTag) -> MuType_ {
+    pub fn mustruct_empty(tag: MuName) -> MuType_ {
         let struct_ty_ = StructType_{tys: vec![]};
         STRUCT_TAG_MAP.write().unwrap().insert(tag, struct_ty_);
 
         MuType_::Struct(tag)
     }
-    pub fn mustruct(tag: MuTag, list: Vec<P<MuType_>>) -> MuType_ {
+    pub fn mustruct(tag: MuName, list: Vec<P<MuType_>>) -> MuType_ {
         let struct_ty_ = StructType_{tys: list};
 
         // if there is an attempt to use a same tag for different struct,

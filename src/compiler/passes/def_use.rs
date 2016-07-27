@@ -1,6 +1,6 @@
 use ast::ir::*;
 use ast::ptr::*;
-use vm::VMContext;
+use vm::VM;
 
 use compiler::CompilerPass;
 
@@ -39,7 +39,7 @@ impl CompilerPass for DefUse {
     }
     
     #[allow(unused_variables)]
-    fn start_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {
+    fn start_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {
         // if an SSA appears in keepalives, its use count increases
         let ref mut keepalives = block.content.as_mut().unwrap().keepalives;
         if keepalives.is_some() {
@@ -50,7 +50,7 @@ impl CompilerPass for DefUse {
     }
     
     #[allow(unused_variables)]
-    fn visit_inst(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, node: &mut TreeNode) {
+    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &mut TreeNode) {
         // if an SSA appears in operands of instrs, its use count increases
         match node.v {
             TreeNode_::Instruction(ref inst) => {
@@ -63,7 +63,7 @@ impl CompilerPass for DefUse {
     }
     
     #[allow(unused_variables)]
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
+    fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("check use count for variables");
         
         for entry in func.context.values.values() {

@@ -2,7 +2,7 @@
 
 use compiler::CompilerPass;
 use ast::ir::*;
-use vm::VMContext;
+use vm::VM;
 use compiler::backend::emit_code;
 
 pub struct CodeEmission {
@@ -22,7 +22,7 @@ impl CompilerPass for CodeEmission {
         self.name
     }
 
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
-        emit_code(func, vm_context);
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        emit_code(func, vm);
     }
 }

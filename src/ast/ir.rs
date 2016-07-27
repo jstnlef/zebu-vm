@@ -12,21 +12,21 @@ use std::cell::Cell;
 
 pub type WPID  = usize;
 pub type MuID  = usize;
-pub type MuTag = &'static str;
+pub type MuName = &'static str;
 pub type Address = usize; // TODO: replace this with Address(usize)
 
 pub type OpIndex = usize;
 
 #[derive(Debug)]
 pub struct MuFunction {
-    pub fn_name: MuTag,
+    pub fn_name: MuName,
     pub sig: P<MuFuncSig>,
-    pub cur_ver: Option<MuTag>,
-    pub all_vers: Vec<MuTag>
+    pub cur_ver: Option<MuName>,
+    pub all_vers: Vec<MuName>
 }
 
 impl MuFunction {
-    pub fn new(fn_name: MuTag, sig: P<MuFuncSig>) -> MuFunction {
+    pub fn new(fn_name: MuName, sig: P<MuFuncSig>) -> MuFunction {
         MuFunction {
             fn_name: fn_name,
             sig: sig,
@@ -38,20 +38,20 @@ impl MuFunction {
 
 #[derive(Debug)]
 pub struct MuFunctionVersion {
-    pub fn_name: MuTag,
-    pub version: MuTag,
+    pub fn_name: MuName,
+    pub version: MuName,
 
     pub sig: P<MuFuncSig>,
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
 
-    pub block_trace: Option<Vec<MuTag>> // only available after Trace Generation Pass
+    pub block_trace: Option<Vec<MuName>> // only available after Trace Generation Pass
 }
 
 pub const RESERVED_NODE_IDS_FOR_MACHINE : usize = 100;
 
 impl MuFunctionVersion {
-    pub fn new(fn_name: MuTag, ver: MuTag, sig: P<MuFuncSig>) -> MuFunctionVersion {
+    pub fn new(fn_name: MuName, ver: MuName, sig: P<MuFuncSig>) -> MuFunctionVersion {
         MuFunctionVersion{
             fn_name: fn_name,
             version: ver,
@@ -65,7 +65,7 @@ impl MuFunctionVersion {
         self.content = Some(content)
     }
 
-    pub fn new_ssa(&mut self, id: MuID, tag: MuTag, ty: P<MuType>) -> P<TreeNode> {
+    pub fn new_ssa(&mut self, id: MuID, tag: MuName, ty: P<MuType>) -> P<TreeNode> {
         self.context.value_tags.insert(tag, id);
         self.context.values.insert(id, SSAVarEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
@@ -107,8 +107,8 @@ impl MuFunctionVersion {
 
 #[derive(Debug)]
 pub struct FunctionContent {
-    pub entry: MuTag,
-    pub blocks: HashMap<MuTag, Block>
+    pub entry: MuName,
+    pub blocks: HashMap<MuName, Block>
 }
 
 impl FunctionContent {
@@ -121,7 +121,7 @@ impl FunctionContent {
         self.get_block_mut(entry)
     }
 
-    pub fn get_block(&self, tag: MuTag) -> &Block {
+    pub fn get_block(&self, tag: MuName) -> &Block {
         let ret = self.blocks.get(tag);
         match ret {
             Some(b) => b,
@@ -129,7 +129,7 @@ impl FunctionContent {
         }
     }
 
-    pub fn get_block_mut(&mut self, tag: MuTag) -> &mut Block {
+    pub fn get_block_mut(&mut self, tag: MuName) -> &mut Block {
         let ret = self.blocks.get_mut(tag);
         match ret {
             Some(b) => b,
@@ -140,7 +140,7 @@ impl FunctionContent {
 
 #[derive(Debug)]
 pub struct FunctionContext {
-    pub value_tags: HashMap<MuTag, MuID>,
+    pub value_tags: HashMap<MuName, MuID>,
     pub values: HashMap<MuID, SSAVarEntry>
 }
 
@@ -152,14 +152,14 @@ impl FunctionContext {
         }
     }
 
-    pub fn get_value_by_tag(&self, tag: MuTag) -> Option<&SSAVarEntry> {
+    pub fn get_value_by_tag(&self, tag: MuName) -> Option<&SSAVarEntry> {
         match self.value_tags.get(tag) {
             Some(id) => self.get_value(*id),
             None => None
         }
     }
 
-    pub fn get_value_mut_by_tag(&mut self, tag: MuTag) -> Option<&mut SSAVarEntry> {
+    pub fn get_value_mut_by_tag(&mut self, tag: MuName) -> Option<&mut SSAVarEntry> {
         let id : MuID = match self.value_tags.get(tag) {
             Some(id) => *id,
             None => return None
@@ -179,25 +179,25 @@ impl FunctionContext {
 
 #[derive(Debug)]
 pub struct Block {
-    pub label: MuTag,
+    pub label: MuName,
     pub content: Option<BlockContent>,
     pub control_flow: ControlFlow
 }
 
 impl Block {
-    pub fn new(label: MuTag) -> Block {
+    pub fn new(label: MuName) -> Block {
         Block{label: label, content: None, control_flow: ControlFlow::default()}
     }
 }
 
 #[derive(Debug)]
 pub struct ControlFlow {
-    pub preds : Vec<MuTag>,
+    pub preds : Vec<MuName>,
     pub succs : Vec<BlockEdge>
 }
 
 impl ControlFlow {
-    pub fn get_hottest_succ(&self) -> Option<MuTag> {
+    pub fn get_hottest_succ(&self) -> Option<MuName> {
         if self.succs.len() == 0 {
             None
         } else {
@@ -231,7 +231,7 @@ impl default::Default for ControlFlow {
 
 #[derive(Copy, Clone, Debug)]
 pub struct BlockEdge {
-    pub target: MuTag,
+    pub target: MuName,
     pub kind: EdgeKind,
     pub is_exception: bool,
     pub probability: f32
@@ -414,7 +414,7 @@ pub enum TreeNode_ {
 /// always use with P<Value>
 #[derive(Debug, Clone, PartialEq)]
 pub struct Value {
-    pub tag: MuTag,
+    pub tag: MuName,
     pub ty: P<MuType>,
     pub v: Value_
 }
@@ -497,7 +497,7 @@ pub enum Value_ {
 #[derive(Debug, Clone)]
 pub struct SSAVarEntry {
     pub id: MuID,
-    pub tag: MuTag,
+    pub tag: MuName,
     pub ty: P<MuType>,
 
     // how many times this entry is used
@@ -526,8 +526,8 @@ pub enum Constant {
     Float(f32),
     Double(f64),
     IRef(Address),
-    FuncRef(MuTag),
-    UFuncRef(MuTag),
+    FuncRef(MuName),
+    UFuncRef(MuName),
     Vector(Vec<Constant>),
 }
 
@@ -564,7 +564,7 @@ pub enum MemoryLocation {
     },
     Symbolic{
         base: Option<P<Value>>,
-        label: MuTag
+        label: MuName
     }
 }
 
@@ -587,7 +587,7 @@ impl fmt::Display for MemoryLocation {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GlobalCell {
-    pub tag: MuTag,
+    pub tag: MuName,
     pub ty: P<MuType>
 }
 

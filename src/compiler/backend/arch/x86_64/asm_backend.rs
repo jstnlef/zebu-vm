@@ -5,7 +5,7 @@ use utils::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use vm::MachineCode;
-use vm::VMContext;
+use vm::VM;
 
 use utils::string_utils;
 
@@ -20,7 +20,7 @@ use std::slice::Iter;
 use std::ops;
 
 struct ASMCode {
-    name: MuTag, 
+    name: MuName, 
     code: Vec<ASM>,
     reg_defines: HashMap<MuID, Vec<ASMLocation>>,
     reg_uses: HashMap<MuID, Vec<ASMLocation>>,
@@ -30,17 +30,17 @@ struct ASMCode {
     preds: Vec<Vec<usize>>,
     succs: Vec<Vec<usize>>,
     
-    idx_to_blk: HashMap<usize, MuTag>,
-    blk_to_idx: HashMap<MuTag, usize>,
-    cond_branches: HashMap<usize, MuTag>,
-    branches: HashMap<usize, MuTag>,
+    idx_to_blk: HashMap<usize, MuName>,
+    blk_to_idx: HashMap<MuName, usize>,
+    cond_branches: HashMap<usize, MuName>,
+    branches: HashMap<usize, MuName>,
     
-    blocks: Vec<MuTag>,
-    block_start: HashMap<MuTag, usize>,
-    block_range: HashMap<MuTag, ops::Range<usize>>,
+    blocks: Vec<MuName>,
+    block_start: HashMap<MuName, usize>,
+    block_range: HashMap<MuName, ops::Range<usize>>,
     
-    block_livein: HashMap<MuTag, Vec<MuID>>,
-    block_liveout: HashMap<MuTag, Vec<MuID>>
+    block_livein: HashMap<MuName, Vec<MuID>>,
+    block_liveout: HashMap<MuName, Vec<MuID>>
 }
 
 impl MachineCode for ASMCode {
@@ -77,7 +77,7 @@ impl MachineCode for ASMCode {
     }
     
     fn replace_reg(&mut self, from: MuID, to: MuID) {
-        let to_reg_tag : MuTag = backend::all_regs()[to].tag;
+        let to_reg_tag : MuName = backend::all_regs()[to].tag;
         let to_reg_string = "%".to_string() + to_reg_tag;
         
         match self.reg_defines.get(&from) {
@@ -140,19 +140,19 @@ impl MachineCode for ASMCode {
             self.preds[i], self.succs[i]);
     }
     
-    fn get_ir_block_livein(&self, block: MuTag) -> Option<&Vec<MuID>> {
+    fn get_ir_block_livein(&self, block: MuName) -> Option<&Vec<MuID>> {
         self.block_livein.get(&block)
     }
     
-    fn get_ir_block_liveout(&self, block: MuTag) -> Option<&Vec<MuID>> {
+    fn get_ir_block_liveout(&self, block: MuName) -> Option<&Vec<MuID>> {
         self.block_liveout.get(&block)
     }
     
-    fn get_all_blocks(&self) -> &Vec<MuTag> {
+    fn get_all_blocks(&self) -> &Vec<MuName> {
         &self.blocks
     }
     
-    fn get_block_range(&self, block: MuTag) -> Option<ops::Range<usize>> {
+    fn get_block_range(&self, block: MuName) -> Option<ops::Range<usize>> {
         match self.block_range.get(&block) {
             Some(r) => Some(r.clone()),
             None => None
@@ -505,7 +505,7 @@ impl ASMCodeGen {
         }
     }
     
-    fn asm_block_label(&self, label: MuTag) -> String {
+    fn asm_block_label(&self, label: MuName) -> String {
         symbol(&format!("{}_{}", self.cur().name, label))
     }
     
@@ -575,7 +575,7 @@ impl ASMCodeGen {
 }
 
 impl CodeGenerator for ASMCodeGen {
-    fn start_code(&mut self, func_name: MuTag) {
+    fn start_code(&mut self, func_name: MuName) {
         self.cur = Some(Box::new(ASMCode {
                 name: func_name,
                 code: vec![],
@@ -629,7 +629,7 @@ impl CodeGenerator for ASMCodeGen {
         println!("");
     }
     
-    fn start_block(&mut self, block_name: MuTag) {
+    fn start_block(&mut self, block_name: MuName) {
         let label = format!("{}:", self.asm_block_label(block_name));        
         self.add_asm_block_label(label, block_name);
         self.cur_mut().blocks.push(block_name);
@@ -638,14 +638,14 @@ impl CodeGenerator for ASMCodeGen {
         self.cur_mut().block_start.insert(block_name, start);
     }
     
-    fn end_block(&mut self, block_name: MuTag) {
+    fn end_block(&mut self, block_name: MuName) {
         let start : usize = *self.cur().block_start.get(&block_name).unwrap();
         let end : usize = self.line();
         
         self.cur_mut().block_range.insert(block_name, (start..end));
     }
     
-    fn set_block_livein(&mut self, block_name: MuTag, live_in: &Vec<P<Value>>) {
+    fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>) {
         let cur = self.cur_mut();
         
         let mut res = {
@@ -663,7 +663,7 @@ impl CodeGenerator for ASMCodeGen {
         }
     }
     
-    fn set_block_liveout(&mut self, block_name: MuTag, live_out: &Vec<P<Value>>) {
+    fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>) {
         let cur = self.cur_mut();
         
         let mut res = {
@@ -998,7 +998,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_branch2(asm, dest.target);        
     }    
     
-    fn emit_call_near_rel32(&mut self, func: MuTag) {
+    fn emit_call_near_rel32(&mut self, func: MuName) {
         trace!("emit: call {}", func);
         
         let asm = format!("call {}", symbol(func));
@@ -1071,7 +1071,7 @@ fn create_emit_directory() {
     }    
 }
 
-pub fn emit_code(func: &mut MuFunctionVersion, vm: &VMContext) {
+pub fn emit_code(func: &mut MuFunctionVersion, vm: &VM) {
     use std::io::prelude::*;
     use std::fs::File;
     use std::path;
@@ -1099,7 +1099,7 @@ pub fn emit_code(func: &mut MuFunctionVersion, vm: &VMContext) {
 }
 
 const CONTEXT_FILE : &'static str = "context.s";
-pub fn emit_context(vm: &VMContext) {
+pub fn emit_context(vm: &VM) {
     use std::path;
     use std::fs::File;
     use std::io::prelude::*;

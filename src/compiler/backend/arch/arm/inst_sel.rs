@@ -1,6 +1,6 @@
 use ast::ir::*;
 use ast::inst::Instruction_::*;
-use vm::context::VMContext;
+use vm::context::VM;
 
 use compiler::CompilerPass;
 
@@ -20,7 +20,7 @@ impl CompilerPass for InstructionSelection {
     }
     
     #[allow(unused_variables)]
-    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
+    fn start_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         println!("{}", self.name());
     }
 }

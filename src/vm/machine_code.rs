@@ -3,7 +3,7 @@ use std::ops;
 use std::collections::HashMap;
 
 pub struct CompiledFunction {
-    pub fn_name: MuTag,
+    pub fn_name: MuName,
     pub temps: HashMap<MuID, MuID>, // assumes one temperary maps to one register
     pub mc: Box<MachineCode>
 }
@@ -25,11 +25,11 @@ pub trait MachineCode {
     fn get_inst_reg_uses(&self, index: usize) -> &Vec<MuID>;
     fn get_inst_reg_defines(&self, index: usize) -> &Vec<MuID>;
     
-    fn get_ir_block_livein(&self, block: MuTag) -> Option<&Vec<MuID>>;
-    fn get_ir_block_liveout(&self, block: MuTag) -> Option<&Vec<MuID>>;
+    fn get_ir_block_livein(&self, block: MuName) -> Option<&Vec<MuID>>;
+    fn get_ir_block_liveout(&self, block: MuName) -> Option<&Vec<MuID>>;
     
-    fn get_all_blocks(&self) -> &Vec<MuTag>;
-    fn get_block_range(&self, block: MuTag) -> Option<ops::Range<usize>>;
+    fn get_all_blocks(&self) -> &Vec<MuName>;
+    fn get_block_range(&self, block: MuName) -> Option<ops::Range<usize>>;
     
     fn replace_reg(&mut self, from: MuID, to: MuID);
     fn set_inst_nop(&mut self, index: usize);

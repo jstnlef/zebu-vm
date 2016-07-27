@@ -2,7 +2,7 @@ use ast::ir::*;
 use ast::inst::*;
 use ast::ir_semantics::*;
 
-use vm::VMContext;
+use vm::VM;
 use compiler::CompilerPass;
 use compiler::PassExecutionResult;
 
@@ -25,7 +25,7 @@ impl CompilerPass for TreeGen {
         self.name
     }
     
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) -> PassExecutionResult {
+    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
         
         {
@@ -60,7 +60,7 @@ impl CompilerPass for TreeGen {
                                             let expr = entry_value.expr.take().unwrap();
                                             
                                             trace!("{} replaced by {}", ops[index], expr);
-                                            ops[index] = TreeNode::new_inst(vm_context.next_id(), expr);
+                                            ops[index] = TreeNode::new_inst(vm.next_id(), expr);
                                         }
                                     } else {
                                         trace!("{} cant be replaced", ops[index]);
@@ -114,7 +114,7 @@ impl CompilerPass for TreeGen {
             }
         }
         
-        self.finish_function(vm_context, func);
+        self.finish_function(vm, func);
         
         debug!("---finish---");
         
@@ -122,7 +122,7 @@ impl CompilerPass for TreeGen {
     }
     
     #[allow(unused_variables)]
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
+    fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("check depth tree for {}", func.fn_name);
         
         for entry in func.content.as_ref().unwrap().blocks.iter() {

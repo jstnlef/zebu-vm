@@ -1,5 +1,5 @@
 use ast::ir::*;
-use vm::VMContext;
+use vm::VM;
 
 mod def_use;
 mod tree_gen;
@@ -29,41 +29,41 @@ pub enum PassExecutionResult {
 pub trait CompilerPass {
     fn name(&self) -> &'static str;
 
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) -> PassExecutionResult {
+    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
 
-        self.start_function(vm_context, func);
-        self.visit_function(vm_context, func);
-        self.finish_function(vm_context, func);
+        self.start_function(vm, func);
+        self.visit_function(vm, func);
+        self.finish_function(vm, func);
 
         debug!("---finish---");
 
         PassExecutionResult::ProceedToNext
     }
 
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         for (label, ref mut block) in func.content.as_mut().unwrap().blocks.iter_mut() {
             debug!("block: {}", label);
 
-            self.start_block(vm_context, &mut func.context, block);
-            self.visit_block(vm_context, &mut func.context, block);
-            self.finish_block(vm_context, &mut func.context, block);
+            self.start_block(vm, &mut func.context, block);
+            self.visit_block(vm, &mut func.context, block);
+            self.finish_block(vm, &mut func.context, block);
         }
     }
 
-    fn visit_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {
+    fn visit_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {
         for inst in block.content.as_mut().unwrap().body.iter_mut() {
             debug!("{}", inst);
 
-            self.visit_inst(vm_context, func_context, inst);
+            self.visit_inst(vm, func_context, inst);
         }
     }
 
-    fn start_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {}
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {}
+    fn start_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {}
+    fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {}
 
-    fn start_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {}
-    fn finish_block(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, block: &mut Block) {}
+    fn start_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {}
+    fn finish_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {}
 
-    fn visit_inst(&mut self, vm_context: &VMContext, func_context: &mut FunctionContext, node: &mut TreeNode) {}
+    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &mut TreeNode) {}
 }

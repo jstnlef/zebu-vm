@@ -4,7 +4,7 @@ use compiler::CompilerPass;
 use compiler::PassExecutionResult;
 use compiler;
 use ast::ir::*;
-use vm::VMContext;
+use vm::VM;
 
 use compiler::backend::init_machine_regs_for_func;
 
@@ -23,8 +23,8 @@ impl RegisterAllocation {
     
     #[allow(unused_variables)]
     // returns true if we spill registers (which requires another instruction selection)
-    fn coloring(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) -> bool {
-        let compiled_funcs = vm_context.compiled_funcs().read().unwrap();
+    fn coloring(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> bool {
+        let compiled_funcs = vm.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(func.fn_name).unwrap().borrow_mut();
         
         cf.mc.trace_mc();
@@ -72,10 +72,10 @@ impl CompilerPass for RegisterAllocation {
         self.name
     }
     
-    fn execute(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) -> PassExecutionResult {
+    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func.fn_name);
         
-        if self.coloring(vm_context, func) {
+        if self.coloring(vm, func) {
             debug!("---finish---");
             
             PassExecutionResult::ProceedToNext

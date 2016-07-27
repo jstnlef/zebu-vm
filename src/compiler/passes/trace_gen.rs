@@ -1,5 +1,5 @@
 use ast::ir::*;
-use vm::VMContext;
+use vm::VM;
 use compiler::CompilerPass;
 
 pub struct TraceGen {
@@ -18,12 +18,12 @@ impl CompilerPass for TraceGen {
     }
     
     #[allow(unused_variables)]
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         // we put the high probability edge into a hot trace, and others into cold paths
         // and traverse cold_path later
         let trace = {
-            let mut trace : Vec<MuTag> = vec![];
-            let mut work_stack : Vec<MuTag> = vec![];
+            let mut trace : Vec<MuName> = vec![];
+            let mut work_stack : Vec<MuName> = vec![];
         
             let entry = func.content.as_ref().unwrap().entry;
             work_stack.push(entry);
@@ -47,7 +47,7 @@ impl CompilerPass for TraceGen {
                 // push cold paths (that are not in the trace and not in the work_stack) to work_stack
                 let mut cold_edges = cur_block.control_flow.succs.clone();
                 cold_edges.retain(|x| !x.target.eq(hot_edge) && !trace.contains(&x.target) &&!work_stack.contains(&x.target));
-                let mut cold_edge_tags = cold_edges.iter().map(|x| x.target).collect::<Vec<MuTag>>();
+                let mut cold_edge_tags = cold_edges.iter().map(|x| x.target).collect::<Vec<MuName>>();
                 trace!("push cold edges {:?} to work stack", cold_edge_tags);
                 work_stack.append(&mut cold_edge_tags);
                 
@@ -69,7 +69,7 @@ impl CompilerPass for TraceGen {
     }
     
     #[allow(unused_variables)]
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
+    fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("trace for {}", func.fn_name);
         debug!("{:?}", func.block_trace.as_ref().unwrap());
     }

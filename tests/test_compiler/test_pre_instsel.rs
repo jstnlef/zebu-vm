@@ -14,14 +14,14 @@ use std::sync::Arc;
 fn test_use_count() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(factorial());
+    let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(
         vec![Box::new(passes::DefUse::new())]
-    ), vm_context.clone());
+    ), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let factorial_func = funcs.get("fac").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut factorial_func_ver);
@@ -39,15 +39,15 @@ fn test_use_count() {
 fn test_build_tree() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(factorial());
+    let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(
         vec![Box::new(passes::DefUse::new()),
              Box::new(passes::TreeGen::new())]
-    ), vm_context.clone());
+    ), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let factorial_func = funcs.get("fac").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut factorial_func_ver);
@@ -57,16 +57,16 @@ fn test_build_tree() {
 fn test_cfa_factorial() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(factorial());
+    let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(vec![
             Box::new(passes::DefUse::new()),
             Box::new(passes::TreeGen::new()),
             Box::new(passes::ControlFlowAnalysis::new())
-    ]), vm_context.clone());
+    ]), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let factorial_func = funcs.get("fac").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut factorial_func_ver);
@@ -94,16 +94,16 @@ fn test_cfa_factorial() {
 fn test_cfa_sum() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(sum());
+    let vm = Arc::new(sum());
     let compiler = Compiler::new(CompilerPolicy::new(vec![
             Box::new(passes::DefUse::new()),
             Box::new(passes::TreeGen::new()),
             Box::new(passes::ControlFlowAnalysis::new())
-    ]), vm_context.clone());
+    ]), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let sum_func = funcs.get("sum").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut sum_func_ver = func_vers.get(&(sum_func.fn_name, sum_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut sum_func_ver);
@@ -139,17 +139,17 @@ fn block_edges_into_vec(edges: &Vec<BlockEdge>) -> Vec<&str> {
 fn test_trace_factorial() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(factorial());
+    let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(vec![
             Box::new(passes::DefUse::new()),
             Box::new(passes::TreeGen::new()),
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new())
-    ]), vm_context.clone());
+    ]), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let factorial_func = funcs.get("fac").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut factorial_func_ver);
@@ -161,17 +161,17 @@ fn test_trace_factorial() {
 fn test_trace_sum() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(sum());
+    let vm = Arc::new(sum());
     let compiler = Compiler::new(CompilerPolicy::new(vec![
             Box::new(passes::DefUse::new()),
             Box::new(passes::TreeGen::new()),
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new())
-    ]), vm_context.clone());
+    ]), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let sum_func = funcs.get("sum").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut sum_func_ver = func_vers.get(&(sum_func.fn_name, sum_func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut sum_func_ver);

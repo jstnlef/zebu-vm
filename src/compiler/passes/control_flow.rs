@@ -1,7 +1,7 @@
 use ast::ir::*;
 use ast::inst::Instruction_::*;
 use utils::vec_utils::as_str as vector_as_str;
-use vm::VMContext;
+use vm::VM;
 
 use compiler::CompilerPass;
 
@@ -15,7 +15,7 @@ impl ControlFlowAnalysis {
     }
 }
 
-fn check_edge_kind(target: MuTag, stack: &Vec<MuTag>) -> EdgeKind {
+fn check_edge_kind(target: MuName, stack: &Vec<MuName>) -> EdgeKind {
     if stack.contains(&target) {
         EdgeKind::Backward
     } else {
@@ -23,7 +23,7 @@ fn check_edge_kind(target: MuTag, stack: &Vec<MuTag>) -> EdgeKind {
     }
 }
 
-fn new_edge(cur: MuTag, edge: BlockEdge, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut MuFunctionVersion) {
+fn new_edge(cur: MuName, edge: BlockEdge, stack: &mut Vec<MuName>, visited: &mut Vec<MuName>, func: &mut MuFunctionVersion) {
     // add current block to target's predecessors
     {
         let target = func.content.as_mut().unwrap().get_block_mut(edge.target);
@@ -47,7 +47,7 @@ const WATCHPOINT_DISABLED_CHANCE : f32 = 0.9f32;
 const NORMAL_RESUME_CHANCE       : f32 = 0.6f32;
 const EXN_RESUME_CHANCE          : f32 = 1f32 - NORMAL_RESUME_CHANCE;
 
-fn dfs(cur: MuTag, stack: &mut Vec<MuTag>, visited: &mut Vec<MuTag>, func: &mut MuFunctionVersion) {
+fn dfs(cur: MuName, stack: &mut Vec<MuName>, visited: &mut Vec<MuName>, func: &mut MuFunctionVersion) {
     trace!("dfs visiting block {}", cur);
     trace!("current stack: {:?}", stack);
     trace!("current visited: {:?}", visited);
@@ -196,15 +196,15 @@ impl CompilerPass for ControlFlowAnalysis {
     }
 
     #[allow(unused_variables)]
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
-        let mut stack   : Vec<MuTag> = vec![];
-        let mut visited : Vec<MuTag> = vec![];
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        let mut stack   : Vec<MuName> = vec![];
+        let mut visited : Vec<MuName> = vec![];
 
         dfs(func.content.as_ref().unwrap().entry, &mut stack, &mut visited, func);
     }
 
     #[allow(unused_variables)]
-    fn finish_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
+    fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("check control flow for {}", func.fn_name);
 
         for entry in func.content.as_ref().unwrap().blocks.iter() {

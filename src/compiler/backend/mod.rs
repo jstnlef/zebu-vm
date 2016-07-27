@@ -39,10 +39,10 @@ mod arm;
 
 // common data structure with target specific info
 
-use vm::VMContext;
+use vm::VM;
 use ast::types::*;
 use ast::ptr::*;
-pub fn resolve_backend_type_info (ty: &MuType, vm: &VMContext) -> BackendTypeInfo {
+pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
     match ty {
         // integral
         &MuType_::Int(size_in_bit) => {
@@ -106,7 +106,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VMContext) -> BackendTypeInf
     }
 }
 
-fn layout_struct(tys: &Vec<P<MuType_>>, vm: &VMContext) -> BackendTypeInfo {
+fn layout_struct(tys: &Vec<P<MuType_>>, vm: &VM) -> BackendTypeInfo {
     let mut offsets : Vec<ByteSize> = vec![];
     let mut cur : ByteSize = 0;
     let mut struct_align : ByteSize = 0;

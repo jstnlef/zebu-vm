@@ -11,7 +11,7 @@ use std::sync::Arc;
 fn test_global_access() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
-    let vm_context = Arc::new(global_access());
+    let vm = Arc::new(global_access());
     
     let compiler = Compiler::new(CompilerPolicy::new(vec![
         Box::new(passes::DefUse::new()),
@@ -22,13 +22,13 @@ fn test_global_access() {
         Box::new(backend::reg_alloc::RegisterAllocation::new()),
         Box::new(backend::peephole_opt::PeepholeOptimization::new()),
         Box::new(backend::code_emission::CodeEmission::new())
-    ]), vm_context.clone());
+    ]), vm.clone());
     
-    let funcs = vm_context.funcs().read().unwrap();
+    let funcs = vm.funcs().read().unwrap();
     let func = funcs.get("global_access").unwrap().borrow();
-    let func_vers = vm_context.func_vers().read().unwrap();
+    let func_vers = vm.func_vers().read().unwrap();
     let mut func_ver = func_vers.get(&(func.fn_name, func.cur_ver.unwrap())).unwrap().borrow_mut();
     
     compiler.compile(&mut func_ver); 
-    backend::emit_context(&vm_context);
+    backend::emit_context(&vm);
 }

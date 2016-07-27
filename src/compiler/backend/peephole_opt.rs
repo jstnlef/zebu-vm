@@ -1,6 +1,6 @@
 use compiler::CompilerPass;
 use ast::ir::*;
-use vm::VMContext;
+use vm::VM;
 use vm::CompiledFunction;
 
 pub struct PeepholeOptimization {
@@ -55,8 +55,8 @@ impl CompilerPass for PeepholeOptimization {
         self.name
     }
     
-    fn visit_function(&mut self, vm_context: &VMContext, func: &mut MuFunctionVersion) {
-        let compiled_funcs = vm_context.compiled_funcs().read().unwrap();
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        let compiled_funcs = vm.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(func.fn_name).unwrap().borrow_mut();
         
         for i in 0..cf.mc.number_of_insts() {

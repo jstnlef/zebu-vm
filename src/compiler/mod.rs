@@ -1,7 +1,7 @@
 extern crate hprof;
 
 use ast::ir::*;
-use vm::VMContext;
+use vm::VM;
 
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -22,11 +22,11 @@ pub use compiler::passes::PASS7_CODE_EMIT;
 
 pub struct Compiler {
     policy: RefCell<CompilerPolicy>,
-    vm: Arc<VMContext>
+    vm: Arc<VM>
 }
 
 impl Compiler {
-    pub fn new(policy: CompilerPolicy, vm: Arc<VMContext>) -> Compiler {
+    pub fn new(policy: CompilerPolicy, vm: Arc<VM>) -> Compiler {
         Compiler{
             policy: RefCell::new(policy),
             vm: vm

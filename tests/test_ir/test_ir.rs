@@ -28,8 +28,8 @@ fn test_global_access() {
     let vm = global_access();
 }
 
-pub fn sum() -> VMContext {
-    let vm = VMContext::new();
+pub fn sum() -> VM {
+    let vm = VM::new();
 
     // .typedef @int_64 = int<64>
     let type_def_int64 = vm.declare_type("int_64", P(MuType::int(64)));
@@ -164,8 +164,8 @@ pub fn sum() -> VMContext {
 }
 
 #[allow(unused_variables)]
-pub fn factorial() -> VMContext {
-    let vm = VMContext::new();
+pub fn factorial() -> VM {
+    let vm = VM::new();
 
     // .typedef @int_64 = int<64>
     // .typedef @int_1 = int<1>
@@ -324,8 +324,8 @@ pub fn factorial() -> VMContext {
 }
 
 #[allow(unused_variables)]
-pub fn global_access() -> VMContext {
-    let vm = VMContext::new();
+pub fn global_access() -> VM {
+    let vm = VM::new();
     
     // .typedef @int64 = int<64>
     // .typedef @iref_int64 = iref<int<64>>

@@ -5,15 +5,15 @@ use ast::inst::*;
 use vm::MachineCode;
 
 pub trait CodeGenerator {
-    fn start_code(&mut self, func_name: MuTag);
+    fn start_code(&mut self, func_name: MuName);
     fn finish_code(&mut self) -> Box<MachineCode>;
     
     fn print_cur_code(&self);
     
-    fn start_block(&mut self, block_name: MuTag);
-    fn set_block_livein(&mut self, block_name: MuTag, live_in: &Vec<P<Value>>);
-    fn set_block_liveout(&mut self, block_name: MuTag, live_out: &Vec<P<Value>>);
-    fn end_block(&mut self, block_name: MuTag);
+    fn start_block(&mut self, block_name: MuName);
+    fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>);
+    fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
+    fn end_block(&mut self, block_name: MuName);
     
     fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>);
     fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: u32);
@@ -48,7 +48,7 @@ pub trait CodeGenerator {
     fn emit_jl(&mut self, dest: &Destination);
     fn emit_jle(&mut self, dest: &Destination);
     
-    fn emit_call_near_rel32(&mut self, func: MuTag);
+    fn emit_call_near_rel32(&mut self, func: MuName);
     fn emit_call_near_r64(&mut self, func: &P<Value>);
     fn emit_call_near_mem64(&mut self, func: &P<Value>);
     
