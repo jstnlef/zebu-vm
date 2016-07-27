@@ -92,14 +92,15 @@ impl MuFunctionVersion {
 
     pub fn new_ssa(&mut self, id: MuID, tag: MuName, ty: P<MuType>) -> P<TreeNode> {
         self.context.value_tags.insert(tag, id);
-        self.context.values.insert(id, SSAVarEntry{id: id, tag: tag, ty: ty.clone(), use_count: Cell::new(0), expr: None});
+        self.context.values.insert(id, SSAVarEntry{id: id, name: Some(tag), ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
         P(TreeNode {
             id: id,
             name: None,
             op: pick_op_code_for_ssa(&ty),
             v: TreeNode_::Value(P(Value{
-                tag: tag,
+                id: id,        
+                name: Some(tag),
                 ty: ty,
                 v: Value_::SSAVar(id)
             }))
@@ -414,22 +415,7 @@ impl TreeNode {
 impl fmt::Display for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.v {
-            TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::SSAVar(id) => {
-                        write!(f, "+({} %{}#{})", pv.ty, pv.tag, id)
-                    },
-                    Value_::Constant(ref c) => {
-                        write!(f, "+({} {})", pv.ty, c)
-                    },
-                    Value_::Global(ref g) => {
-                        write!(f, "+({} to GLOBAL {} @{})", pv.ty, g.ty, g.tag)
-                    },
-                    Value_::Memory(ref mem) => {
-                        write!(f, "+({})", mem)
-                    }
-                }
-            },
+            TreeNode_::Value(ref pv) => pv.fmt(f),
             TreeNode_::Instruction(ref inst) => {
                 write!(f, "+({})", inst)
             }
@@ -446,7 +432,8 @@ pub enum TreeNode_ {
 /// always use with P<Value>
 #[derive(Debug, Clone, PartialEq)]
 pub struct Value {
-    pub tag: MuName,
+    pub id: MuID,
+    pub name: Option<MuName>,
     pub ty: P<MuType>,
     pub v: Value_
 }
@@ -501,9 +488,16 @@ impl Value {
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let tag = {
+            if self.name.is_some() {
+                self.name.unwrap()
+            } else {
+                "???"
+            }
+        };
         match self.v {
             Value_::SSAVar(id) => {
-                write!(f, "+({} %{}#{})", self.ty, self.tag, id)
+                write!(f, "+({} %{}#{})", self.ty, tag, id)
             },
             Value_::Constant(ref c) => {
                 write!(f, "+({} {})", self.ty, c)
@@ -529,7 +523,7 @@ pub enum Value_ {
 #[derive(Debug, Clone)]
 pub struct SSAVarEntry {
     pub id: MuID,
-    pub tag: MuName,
+    pub name: Option<MuName>,
     pub ty: P<MuType>,
 
     // how many times this entry is used
@@ -548,7 +542,11 @@ impl SSAVarEntry {
 
 impl fmt::Display for SSAVarEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {}#{}", self.ty, self.tag, self.id)
+        if self.name.is_some() {
+            write!(f, "{} {}#{}", self.ty, self.name.unwrap(), self.id)
+        } else {
+            write!(f, "{} {}#{}", self.ty, "???", self.id)
+        }
     }
 }
 

@@ -77,7 +77,7 @@ impl MachineCode for ASMCode {
     }
     
     fn replace_reg(&mut self, from: MuID, to: MuID) {
-        let to_reg_tag : MuName = backend::all_regs()[to].tag;
+        let to_reg_tag : MuName = backend::all_regs()[to].name.unwrap();
         let to_reg_string = "%".to_string() + to_reg_tag;
         
         match self.reg_defines.get(&from) {
@@ -498,7 +498,7 @@ impl ASMCodeGen {
         let id = op.extract_ssa_id().unwrap();
         if id < RESERVED_NODE_IDS_FOR_MACHINE {
             // machine reg
-            format!("%{}", op.tag)
+            format!("%{}", op.name.unwrap())
         } else {
             // virtual register, use place holder
             REG_PLACEHOLDER.clone()

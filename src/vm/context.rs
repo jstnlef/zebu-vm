@@ -78,24 +78,25 @@ impl <'a> VM {
         self.is_running.load(Ordering::Relaxed)
     }
     
-    pub fn declare_const(&self, const_name: MuName, ty: P<MuType>, val: Constant) -> P<Value> {
+    pub fn declare_const(&self, id: MuID, const_name: MuName, ty: P<MuType>, val: Constant) -> P<Value> {
         let mut constants = self.constants.write().unwrap();
         debug_assert!(!constants.contains_key(const_name));
         
-        let ret = P(Value{tag: const_name, ty: ty, v: Value_::Constant(val)});
+        let ret = P(Value{id: id, name: Some(const_name), ty: ty, v: Value_::Constant(val)});
         constants.insert(const_name, ret.clone());
         
         ret
     }
     
-    pub fn declare_global(&self, global_name: MuName, ty: P<MuType>) -> P<Value> {
+    pub fn declare_global(&self, id: MuID, global_name: MuName, ty: P<MuType>) -> P<Value> {
         let global = P(GlobalCell{tag: global_name, ty: ty.clone()});
         
         let mut globals = self.globals.write().unwrap();
         globals.insert(global_name, global.clone());
         
         P(Value{
-            tag: "",
+            id: id,
+            name: Some(global_name),
             ty: P(MuType::iref(ty)),
             v: Value_::Global(global.clone())
         })

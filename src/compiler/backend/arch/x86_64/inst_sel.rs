@@ -662,7 +662,8 @@ impl <'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar(_) => P(Value{
-                        tag: "",
+                        id: vm.next_id(),
+                        name: None,
                         ty: types::get_referent_ty(& pv.ty).unwrap(),
                         v: Value_::Memory(MemoryLocation::Address{
                             base: pv.clone(),
@@ -678,7 +679,8 @@ impl <'a> InstructionSelection {
                         } else {
                             // symbolic
                             P(Value{
-                                tag: "",
+                                id: vm.next_id(),
+                                name: None,
                                 ty: types::get_referent_ty(&pv.ty).unwrap(),
                                 v: Value_::Memory(MemoryLocation::Symbolic{
                                     base: Some(x86_64::RIP.clone()),

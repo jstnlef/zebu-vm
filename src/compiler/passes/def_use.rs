@@ -67,7 +67,7 @@ impl CompilerPass for DefUse {
         debug!("check use count for variables");
         
         for entry in func.context.values.values() {
-            debug!("{}#{}: {}", entry.tag, entry.id, entry.use_count.get())
+            debug!("{}: {}", entry, entry.use_count.get())
         }
     }
 }

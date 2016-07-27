@@ -38,8 +38,8 @@ pub fn sum() -> VM {
 
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1
-    let const_def_int64_0 = vm.declare_const("int64_0", type_def_int64.clone(), Constant::Int(0));
-    let const_def_int64_1 = vm.declare_const("int64_1", type_def_int64.clone(), Constant::Int(1));
+    let const_def_int64_0 = vm.declare_const(vm.next_id(), "int64_0", type_def_int64.clone(), Constant::Int(0));
+    let const_def_int64_1 = vm.declare_const(vm.next_id(), "int64_1", type_def_int64.clone(), Constant::Int(1));
 
     // .funcsig @sum_sig = (@int_64) -> (@int_64)
     let sum_sig = vm.declare_func_sig("sum_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
@@ -192,7 +192,7 @@ pub fn factorial() -> VM {
     let type_def_int32 = vm.declare_type("int32", P(MuType::int(32)));
 
     // .const @int_64_1 <@int_64> = 1
-    let const_def_int64_1 = vm.declare_const("int64_1", type_def_int64.clone(), Constant::Int(1));
+    let const_def_int64_1 = vm.declare_const(vm.next_id(), "int64_1", type_def_int64.clone(), Constant::Int(1));
 
     // .funcsig @fac_sig = (@int_64) -> (@int_64)
     let fac_sig = vm.declare_func_sig("fac_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
@@ -204,7 +204,7 @@ pub fn factorial() -> VM {
     vm.declare_func(func);
 
     // .funcdef @fac VERSION @fac_v1 <@fac_sig>
-    let const_func_fac = vm.declare_const("fac", type_def_funcref_fac, Constant::FuncRef("fac"));
+    let const_func_fac = vm.declare_const(vm.next_id(), "fac", type_def_funcref_fac, Constant::FuncRef("fac"));
     let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, fac_sig.clone());
 
     // %blk_0(<@int_64> %n_3):
@@ -347,11 +347,11 @@ pub fn global_access() -> VM {
     
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1
-    let const_def_int64_0 = vm.declare_const("int64_0", type_def_int64.clone(), Constant::Int(0));
-    let const_def_int64_1 = vm.declare_const("int64_1", type_def_int64.clone(), Constant::Int(1));
+    let const_def_int64_0 = vm.declare_const(vm.next_id(), "int64_0", type_def_int64.clone(), Constant::Int(0));
+    let const_def_int64_1 = vm.declare_const(vm.next_id(), "int64_1", type_def_int64.clone(), Constant::Int(1));
     
     // .global @a <@int_64>
-    let global_a = vm.declare_global("a", type_def_int64.clone());
+    let global_a = vm.declare_global(vm.next_id(), "a", type_def_int64.clone());
     
     // .funcsig @global_access_sig = () -> ()
     let func_sig = vm.declare_func_sig("global_access_sig", vec![type_def_int64.clone()], vec![]);

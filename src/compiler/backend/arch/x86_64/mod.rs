@@ -19,7 +19,8 @@ use compiler::backend::RegGroup;
 macro_rules! GPR {
     ($name: expr, $id: expr) => {
         P(Value {
-            tag: $name,
+            id: $id,
+            name: Some($name),
             ty: GPR_TY.clone(),
             v: Value_::SSAVar($id)
         })
@@ -29,7 +30,8 @@ macro_rules! GPR {
 macro_rules! FPR {
     ($name: expr, $id: expr) => {
         P(Value {
-            tag: $name,
+            id: $id,
+            name: Some($name),
             ty: FPR_TY.clone(),
             v: Value_::SSAVar($id)
         })
@@ -242,13 +244,13 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
         let reg_id = reg.extract_ssa_id().unwrap();
         let entry = SSAVarEntry {
             id: reg_id,
-            tag: reg.tag,
+            name: reg.name, 
             ty: reg.ty.clone(),
             use_count: Cell::new(0),
             expr: None
         };
         
-        func_context.value_tags.insert(reg.tag, reg_id);
+        func_context.value_tags.insert(reg.name.unwrap(), reg_id);
         func_context.values.insert(reg_id, entry);
     }
 }
