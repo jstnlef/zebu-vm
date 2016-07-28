@@ -43,9 +43,9 @@ use vm::VM;
 use ast::types::*;
 use ast::ptr::*;
 pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
-    match ty {
+    match ty.v {
         // integral
-        &MuType_::Int(size_in_bit) => {
+        MuType_::Int(size_in_bit) => {
             match size_in_bit {
                 8  => BackendTypeInfo{size: 1, alignment: 1, struct_layout: None},
                 16 => BackendTypeInfo{size: 2, alignment: 2, struct_layout: None},
@@ -55,26 +55,26 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             }
         },
         // pointer of any type
-        &MuType_::Ref(_)
-        | &MuType_::IRef(_)
-        | &MuType_::WeakRef(_)
-        | &MuType_::UPtr(_)
-        | &MuType_::FuncRef(_)
-        | &MuType_::UFuncPtr(_)
-        | &MuType_::Tagref64
-        | &MuType_::ThreadRef
-        | &MuType_::StackRef => BackendTypeInfo{size: 8, alignment: 8, struct_layout: None},
+        MuType_::Ref(_)
+        | MuType_::IRef(_)
+        | MuType_::WeakRef(_)
+        | MuType_::UPtr(_)
+        | MuType_::FuncRef(_)
+        | MuType_::UFuncPtr(_)
+        | MuType_::Tagref64
+        | MuType_::ThreadRef
+        | MuType_::StackRef => BackendTypeInfo{size: 8, alignment: 8, struct_layout: None},
         // floating point
-        &MuType_::Float => BackendTypeInfo{size: 4, alignment: 4, struct_layout: None},
-        &MuType_::Double => BackendTypeInfo{size: 8, alignment: 8, struct_layout: None},
+        MuType_::Float => BackendTypeInfo{size: 4, alignment: 4, struct_layout: None},
+        MuType_::Double => BackendTypeInfo{size: 8, alignment: 8, struct_layout: None},
         // array
-        &MuType_::Array(ref ty, len) => {
+        MuType_::Array(ref ty, len) => {
             let ele_ty = vm.get_backend_type_info(ty);
             
             BackendTypeInfo{size: ele_ty.size * len, alignment: ele_ty.alignment, struct_layout: None}
         }
         // struct
-        &MuType_::Struct(name) => {
+        MuType_::Struct(name) => {
             let read_lock = STRUCT_TAG_MAP.read().unwrap();
             let struc = read_lock.get(name).unwrap();
             let tys = struc.get_tys();            
@@ -86,7 +86,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         // - align is the most strict aligned element (from all fix tys and var ty)
         // - size is fixed tys size
         // - layout is fixed tys layout
-        &MuType_::Hybrid(ref fix_tys, ref var_ty) => {
+        MuType_::Hybrid(ref fix_tys, ref var_ty) => {
             // treat fix_tys as struct
             let mut ret = layout_struct(fix_tys, vm);
             
@@ -100,13 +100,13 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             ret
         }
         // void
-        &MuType_::Void => BackendTypeInfo{size: 0, alignment: 8, struct_layout: None},
+        MuType_::Void => BackendTypeInfo{size: 0, alignment: 8, struct_layout: None},
         // vector
-        &MuType_::Vector(_, _) => unimplemented!()
+        MuType_::Vector(_, _) => unimplemented!()
     }
 }
 
-fn layout_struct(tys: &Vec<P<MuType_>>, vm: &VM) -> BackendTypeInfo {
+fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
     let mut offsets : Vec<ByteSize> = vec![];
     let mut cur : ByteSize = 0;
     let mut struct_align : ByteSize = 0;

@@ -496,7 +496,7 @@ impl ASMCodeGen {
     
     fn asm_reg_op(&self, op: &P<Value>) -> String {
         let id = op.extract_ssa_id().unwrap();
-        if id < RESERVED_NODE_IDS_FOR_MACHINE {
+        if id < MACHINE_ID_END {
             // machine reg
             format!("%{}", op.name.unwrap())
         } else {

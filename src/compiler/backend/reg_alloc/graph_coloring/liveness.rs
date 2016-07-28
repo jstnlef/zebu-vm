@@ -254,7 +254,7 @@ impl InterferenceGraph {
 }
 
 pub fn is_machine_reg(reg: MuID) -> bool {
-    if reg < RESERVED_NODE_IDS_FOR_MACHINE {
+    if reg < MACHINE_ID_END {
         true
     } else {
         false

@@ -56,59 +56,59 @@ pub enum OpCode {
 
 pub fn pick_op_code_for_ssa(ty: &P<MuType>) -> OpCode {
     use ast::types::MuType_::*;
-    let a : &MuType_ = ty;
-    match a {
+    let a : &MuType = ty;
+    match a.v {
         // currently use i64 for all ints
-        &Int(_) => OpCode::RegI64,
+        Int(_) => OpCode::RegI64,
         // currently do not differentiate float and double
-        &Float
-        | &Double => OpCode::RegFP,
+        Float
+        | Double => OpCode::RegFP,
         // ref and pointer types use RegI64
-        &Ref(_)
-        | &IRef(_)
-        | &WeakRef(_)
-        | &UPtr(_)
-        | &ThreadRef
-        | &StackRef
-        | &Tagref64
-        | &FuncRef(_)
-        | &UFuncPtr(_) => OpCode::RegI64,
+        Ref(_)
+        | IRef(_)
+        | WeakRef(_)
+        | UPtr(_)
+        | ThreadRef
+        | StackRef
+        | Tagref64
+        | FuncRef(_)
+        | UFuncPtr(_) => OpCode::RegI64,
         // we are not supposed to have these as SSA
-        &Struct(_)
-        | &Array(_, _)
-        | &Hybrid(_, _)
-        | &Void => panic!("Not expecting {} as SSA", ty),
+        Struct(_)
+        | Array(_, _)
+        | Hybrid(_, _)
+        | Void => panic!("Not expecting {} as SSA", ty),
         // unimplemented
-        &Vector(_, _) => unimplemented!()
+        Vector(_, _) => unimplemented!()
     }
 }
 
 pub fn pick_op_code_for_value(ty: &P<MuType>) -> OpCode {
     use ast::types::MuType_::*;
-    let a : &MuType_ = ty;
-    match a {
+    let a : &MuType = ty;
+    match a.v {
         // currently use i64 for all ints
-        &Int(_) => OpCode::IntImmI64,
+        Int(_) => OpCode::IntImmI64,
         // currently do not differentiate float and double
-        &Float
-        | &Double => OpCode::FPImm,
+        Float
+        | Double => OpCode::FPImm,
         // ref and pointer types use RegI64
-        &Ref(_)
-        | &IRef(_)
-        | &WeakRef(_)
-        | &UPtr(_)
-        | &ThreadRef
-        | &StackRef
-        | &Tagref64
-        | &FuncRef(_)
-        | &UFuncPtr(_) => OpCode::IntImmI64,
+        Ref(_)
+        | IRef(_)
+        | WeakRef(_)
+        | UPtr(_)
+        | ThreadRef
+        | StackRef
+        | Tagref64
+        | FuncRef(_)
+        | UFuncPtr(_) => OpCode::IntImmI64,
         // we are not supposed to have these as SSA
-        &Struct(_)
-        | &Array(_, _)
-        | &Hybrid(_, _)
-        | &Void => unimplemented!(),
+        Struct(_)
+        | Array(_, _)
+        | Hybrid(_, _)
+        | Void => unimplemented!(),
         // unimplemented
-        &Vector(_, _) => unimplemented!()
+        Vector(_, _) => unimplemented!()
     }
 }
 

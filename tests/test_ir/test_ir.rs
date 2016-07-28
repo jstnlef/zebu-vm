@@ -33,8 +33,10 @@ pub fn sum() -> VM {
     let vm = VM::new();
 
     // .typedef @int_64 = int<64>
-    let type_def_int64 = vm.declare_type("int_64", P(MuType::int(64)));
-    let type_def_int1  = vm.declare_type("int_1", P(MuType::int(1)));
+    let mut type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    type_def_int64.set_name("int_64");
+    let mut type_def_int1  = vm.declare_type(vm.next_id(), MuType_::int(1));
+    type_def_int1.set_name("int_1");
 
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1
@@ -183,20 +185,28 @@ pub fn factorial() -> VM {
     // .typedef @void = void
     // .typedef @int_8 = int<8>
     // .typedef @int_32 = int<32>
-    let type_def_int64 = vm.declare_type("int_64", P(MuType::int(64)));
-    let type_def_int1  = vm.declare_type("int_1", P(MuType::int(1)));
-    let type_def_float = vm.declare_type("float", P(MuType::float()));
-    let type_def_double = vm.declare_type("double", P(MuType::double()));
-    let type_def_void  = vm.declare_type("void", P(MuType::void()));
-    let type_def_int8  = vm.declare_type("int8", P(MuType::int(8)));
-    let type_def_int32 = vm.declare_type("int32", P(MuType::int(32)));
+    let mut type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    type_def_int64.set_name("int_64");
+    let mut type_def_int1  = vm.declare_type(vm.next_id(), MuType_::int(1));
+    type_def_int1.set_name("int_1");
+    let mut type_def_float = vm.declare_type(vm.next_id(), MuType_::float());
+    type_def_float.set_name("float");
+    let mut type_def_double = vm.declare_type(vm.next_id(), MuType_::double());
+    type_def_double.set_name("double");
+    let mut type_def_void  = vm.declare_type(vm.next_id(), MuType_::void());
+    type_def_void.set_name("void");
+    let mut type_def_int8  = vm.declare_type(vm.next_id(), MuType_::int(8));
+    type_def_int8.set_name("int8");
+    let mut type_def_int32 = vm.declare_type(vm.next_id(), MuType_::int(32));
+    type_def_int32.set_name("int32");
 
     // .const @int_64_1 <@int_64> = 1
     let const_def_int64_1 = vm.declare_const(vm.next_id(), "int64_1", type_def_int64.clone(), Constant::Int(1));
 
     // .funcsig @fac_sig = (@int_64) -> (@int_64)
     let fac_sig = vm.declare_func_sig("fac_sig", vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
-    let type_def_funcref_fac = vm.declare_type("fac_sig", P(MuType::funcref(fac_sig.clone())));
+    let mut type_def_funcref_fac = vm.declare_type(vm.next_id(), MuType_::funcref(fac_sig.clone()));
+    type_def_funcref_fac.set_name("fac_sig");
 
     // .funcdecl @fac <@fac_sig>
     let func = MuFunction::new(vm.next_id(), fac_sig.clone());
@@ -342,8 +352,10 @@ pub fn global_access() -> VM {
     
     // .typedef @int64 = int<64>
     // .typedef @iref_int64 = iref<int<64>>
-    let type_def_int64 = vm.declare_type("int64", P(MuType::int(64)));
-    let type_def_iref_int64 = vm.declare_type("iref_int64", P(MuType::iref(type_def_int64.clone())));
+    let mut type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    type_def_int64.set_name("int64");
+    let mut type_def_iref_int64 = vm.declare_type(vm.next_id(), MuType_::iref(type_def_int64.clone()));
+    type_def_iref_int64.set_name("iref_int64");
     
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1

@@ -6,7 +6,22 @@ use std::fmt;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
-pub type MuType = MuType_;
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct MuType {
+    pub id: MuID,
+    pub name: Option<MuName>,
+    pub v: MuType_
+}
+
+impl MuType {
+    pub fn new(id: MuID, v: MuType_) -> MuType {
+        MuType {
+            id: id,
+            name: None,
+            v: v
+        }
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub enum MuType_ {
@@ -57,6 +72,12 @@ pub enum MuType_ {
     UFuncPtr     (P<MuFuncSig>),
 }
 
+impl fmt::Display for MuType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.v)        
+    }
+}
+
 impl fmt::Display for MuType_ {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -88,7 +109,7 @@ lazy_static! {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct StructType_ {
-    tys: Vec<P<MuType_>>
+    tys: Vec<P<MuType>>
 }
 
 impl fmt::Display for StructType_ {
@@ -111,7 +132,7 @@ impl StructType_ {
         self.tys.append(&mut list);
     }
     
-    pub fn get_tys(&self) -> &Vec<P<MuType_>> {
+    pub fn get_tys(&self) -> &Vec<P<MuType>> {
         &self.tys
     }
 }
@@ -126,19 +147,16 @@ impl MuType_ {
     pub fn double() -> MuType_ {
         MuType_::Double
     }
-    pub fn muref(referent: P<MuType_>) -> MuType_ {
+    pub fn muref(referent: P<MuType>) -> MuType_ {
         MuType_::Ref(referent)
     }
-    pub fn muref_void() -> MuType_ {
-        MuType_::Ref(P(MuType_::void()))
-    }
-    pub fn iref(referent: P<MuType_>) -> MuType_ {
+    pub fn iref(referent: P<MuType>) -> MuType_ {
         MuType_::IRef(referent)
     }
-    pub fn weakref(referent: P<MuType_>) -> MuType_ {
+    pub fn weakref(referent: P<MuType>) -> MuType_ {
         MuType_::WeakRef(referent)
     }
-    pub fn uptr(referent: P<MuType_>) -> MuType_ {
+    pub fn uptr(referent: P<MuType>) -> MuType_ {
         MuType_::UPtr(referent)
     }
     pub fn mustruct_empty(tag: MuName) -> MuType_ {
@@ -147,7 +165,7 @@ impl MuType_ {
 
         MuType_::Struct(tag)
     }
-    pub fn mustruct(tag: MuName, list: Vec<P<MuType_>>) -> MuType_ {
+    pub fn mustruct(tag: MuName, list: Vec<P<MuType>>) -> MuType_ {
         let struct_ty_ = StructType_{tys: list};
 
         // if there is an attempt to use a same tag for different struct,
@@ -167,10 +185,10 @@ impl MuType_ {
 
         MuType_::Struct(tag)
     }
-    pub fn array(ty: P<MuType_>, len: usize) -> MuType_ {
+    pub fn array(ty: P<MuType>, len: usize) -> MuType_ {
         MuType_::Array(ty, len)
     }
-    pub fn hybrid(fix_tys: Vec<P<MuType_>>, var_ty: P<MuType_>) -> MuType_ {
+    pub fn hybrid(fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) -> MuType_ {
         MuType_::Hybrid(fix_tys, var_ty)
     }
     pub fn void() -> MuType_ {
@@ -185,7 +203,7 @@ impl MuType_ {
     pub fn tagref64() -> MuType_ {
         MuType_::Tagref64
     }
-    pub fn vector(ty: P<MuType_>, len: usize) -> MuType_ {
+    pub fn vector(ty: P<MuType>, len: usize) -> MuType_ {
         MuType_::Vector(ty, len)
     }
     pub fn funcref(sig: P<MuFuncSig>) -> MuType_ {
@@ -198,7 +216,7 @@ impl MuType_ {
 
 /// is a type floating-point type?
 pub fn is_fp(ty: &MuType) -> bool {
-    match *ty {
+    match ty.v {
         MuType_::Float | MuType_::Double => true,
         _ => false
     }
@@ -206,7 +224,7 @@ pub fn is_fp(ty: &MuType) -> bool {
 
 /// is a type raw pointer?
 pub fn is_ptr(ty: &MuType) -> bool {
-    match *ty {
+    match ty.v {
         MuType_::UPtr(_) | MuType_::UFuncPtr(_) => true,
         _ => false
     }
@@ -214,7 +232,7 @@ pub fn is_ptr(ty: &MuType) -> bool {
 
 /// is a type scalar type?
 pub fn is_scalar(ty: &MuType) -> bool {
-    match *ty {
+    match ty.v {
         MuType_::Int(_)
         | MuType_::Float
         | MuType_::Double
@@ -234,7 +252,7 @@ pub fn is_scalar(ty: &MuType) -> bool {
 /// is a type traced by the garbage collector?
 /// Note: An aggregated type is traced if any of its part is traced.
 pub fn is_traced(ty: &MuType) -> bool {
-    match *ty {
+    match ty.v {
         MuType_::Ref(_) => true,
         MuType_::IRef(_) => true,
         MuType_::WeakRef(_) => true,
@@ -263,7 +281,7 @@ pub fn is_traced(ty: &MuType) -> bool {
 /// is a type native safe?
 /// Note: An aggregated type is native safe if all of its parts are native safe.
 pub fn is_native_safe(ty: &MuType) -> bool {
-    match *ty {
+    match ty.v {
         MuType_::Int(_) => true,
         MuType_::Float => true,
         MuType_::Double => true,
@@ -290,10 +308,10 @@ pub fn is_native_safe(ty: &MuType) -> bool {
 }
 
 pub fn get_referent_ty(ty: &MuType) -> Option<P<MuType>> {
-    match ty {
-        &MuType_::Ref(ref referent)
-        | &MuType_::IRef(ref referent)
-        | &MuType_::WeakRef(ref referent) => Some(referent.clone()),
+    match ty.v {
+        MuType_::Ref(ref referent)
+        | MuType_::IRef(ref referent)
+        | MuType_::WeakRef(ref referent) => Some(referent.clone()),
         _ => None
     }
 }

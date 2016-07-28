@@ -445,3 +445,4 @@ mu_entity!(MuFunction);
 mu_entity!(MuFunctionVersion);
 mu_entity!(Block);
 mu_entity!(TreeNode);
+mu_entity!(MuType);

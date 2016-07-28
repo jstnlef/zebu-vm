@@ -17,6 +17,12 @@ pub type Address = usize; // TODO: replace this with Address(usize)
 
 pub type OpIndex = usize;
 
+pub const MACHINE_ID_START : usize = 0;
+pub const MACHINE_ID_END   : usize = 100;
+pub const INTERNAL_ID_START: usize = 101;
+pub const INTERNAL_ID_END  : usize = 200;
+pub const USER_ID_START    : usize = 201;
+
 #[derive(Debug)]
 pub struct MuFunction {
     pub id: MuID,
@@ -71,8 +77,6 @@ impl fmt::Display for MuFunctionVersion {
         }
     }
 }
-
-pub const RESERVED_NODE_IDS_FOR_MACHINE : usize = 100;
 
 impl MuFunctionVersion {
     pub fn new(id: MuID, func: MuID, sig: P<MuFuncSig>) -> MuFunctionVersion {
@@ -468,9 +472,9 @@ impl Value {
     pub fn is_int_const(&self) -> bool {
         match self.v {
             Value_::Constant(_) => {
-                let ty : &MuType_ = &self.ty;
-                match ty {
-                    &MuType_::Int(_) => true,
+                let ty : &MuType = &self.ty;
+                match ty.v {
+                    MuType_::Int(_) => true,
                     _ => false
                 }
             }

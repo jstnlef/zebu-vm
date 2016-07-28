@@ -39,8 +39,8 @@ macro_rules! FPR {
 }
 
 lazy_static! {
-    pub static ref GPR_TY : P<MuType> = P(MuType::int(64));
-    pub static ref FPR_TY : P<MuType> = P(MuType::double());
+    pub static ref GPR_TY : P<MuType> = P(MuType::new(INTERNAL_ID_START + 0, MuType_::int(64)));
+    pub static ref FPR_TY : P<MuType> = P(MuType::new(INTERNAL_ID_START + 1, MuType_::double()));
 }
 
 // put into several segments to avoid 'recursion limit reached' error

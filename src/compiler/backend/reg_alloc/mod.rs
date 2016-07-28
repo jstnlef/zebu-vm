@@ -48,7 +48,7 @@ impl RegisterAllocation {
             let temp = coloring.ig.get_temp_of(node);
             
             // skip machine registers
-            if temp < RESERVED_NODE_IDS_FOR_MACHINE {
+            if temp < MACHINE_ID_END {
                 continue;
             } else {
                 let alias = coloring.get_alias(node);

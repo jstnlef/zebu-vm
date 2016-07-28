@@ -9,6 +9,7 @@ use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use vm::machine_code::CompiledFunction;
 use vm::vm_options::VMOptions;
+use vm::api::*;
 
 use std::sync::RwLock;
 use std::cell::RefCell;
@@ -23,7 +24,7 @@ pub struct VM {
     
     constants: RwLock<HashMap<MuName, P<Value>>>,
     
-    types: RwLock<HashMap<MuName, P<MuType>>>,
+    types: RwLock<HashMap<MuID, P<MuType>>>,
     backend_type_info: RwLock<HashMap<P<MuType>, BackendTypeInfo>>,
     
     globals: RwLock<HashMap<MuName, P<GlobalCell>>>,
@@ -58,7 +59,7 @@ impl <'a> VM {
         };
         
         ret.is_running.store(false, Ordering::SeqCst);
-        ret.next_id.store(RESERVED_NODE_IDS_FOR_MACHINE, Ordering::SeqCst);
+        ret.next_id.store(USER_ID_START, Ordering::SeqCst);
         
         let options = VMOptions::default();
         gc::gc_init(options.immix_size, options.lo_size, options.n_gcthreads);
@@ -97,16 +98,18 @@ impl <'a> VM {
         P(Value{
             id: id,
             name: Some(global_name),
-            ty: P(MuType::iref(ty)),
+            ty: P(MuType::new(self.next_id(), MuType_::iref(ty))),
             v: Value_::Global(global.clone())
         })
     }
     
-    pub fn declare_type(&self, type_name: MuName, ty: P<MuType>) -> P<MuType> {
-        let mut types = self.types.write().unwrap();
-        debug_assert!(!types.contains_key(type_name));
+    pub fn declare_type(&self, id: MuID, ty: MuType_) -> P<MuType> {
+        let ty = P(MuType{id: id, name: None, v: ty});
         
-        types.insert(type_name, ty.clone());
+        let mut types = self.types.write().unwrap();
+        debug_assert!(!types.contains_key(&id));
+        
+        types.insert(ty.id(), ty.clone());
         
         ty
     }

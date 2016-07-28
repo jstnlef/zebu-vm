@@ -7,7 +7,7 @@ use ast::inst::Instruction_;
 use ast::inst::MemoryOrder;
 use ast::op;
 use ast::types;
-use ast::types::MuType_;
+use ast::types::*;
 use vm::VM;
 use vm::CompiledFunction;
 
@@ -113,10 +113,10 @@ impl <'a> InstructionSelection {
                         let ref func = ops[data.func];
                         let ref func_sig = match func.v {
                             TreeNode_::Value(ref pv) => {
-                                let ty : &MuType_ = &pv.ty;
-                                match ty {
-                                    &MuType_::FuncRef(ref sig)
-                                    | &MuType_::UFuncPtr(ref sig) => sig,
+                                let ty : &MuType = &pv.ty;
+                                match ty.v {
+                                    MuType_::FuncRef(ref sig)
+                                    | MuType_::UFuncPtr(ref sig) => sig,
                                     _ => panic!("expected funcref/ptr type")
                                 }
                             },
