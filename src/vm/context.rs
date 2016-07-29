@@ -22,12 +22,11 @@ pub struct VM {
     id_name_map: RwLock<HashMap<MuID, MuName>>,
     name_id_map: RwLock<HashMap<MuName, MuID>>,
     
-    constants: RwLock<HashMap<MuName, P<Value>>>,
-    
     types: RwLock<HashMap<MuID, P<MuType>>>,
     backend_type_info: RwLock<HashMap<P<MuType>, BackendTypeInfo>>,
     
-    globals: RwLock<HashMap<MuName, P<GlobalCell>>>,
+    constants: RwLock<HashMap<MuID, P<Value>>>,
+    globals: RwLock<HashMap<MuID, P<Value>>>,
     
     func_sigs: RwLock<HashMap<MuName, P<MuFuncSig>>>,
     func_vers: RwLock<HashMap<(MuID, MuID), RefCell<MuFunctionVersion>>>,
@@ -79,28 +78,28 @@ impl <'a> VM {
         self.is_running.load(Ordering::Relaxed)
     }
     
-    pub fn declare_const(&self, id: MuID, const_name: MuName, ty: P<MuType>, val: Constant) -> P<Value> {
+    pub fn declare_const(&self, id: MuID, ty: P<MuType>, val: Constant) -> P<Value> {
         let mut constants = self.constants.write().unwrap();
-        debug_assert!(!constants.contains_key(const_name));
+        debug_assert!(!constants.contains_key(&id));
         
-        let ret = P(Value{id: id, name: Some(const_name), ty: ty, v: Value_::Constant(val)});
-        constants.insert(const_name, ret.clone());
+        let ret = P(Value{id: id, name: None, ty: ty, v: Value_::Constant(val)});
+        constants.insert(id, ret.clone());
         
         ret
     }
     
-    pub fn declare_global(&self, id: MuID, global_name: MuName, ty: P<MuType>) -> P<Value> {
-        let global = P(GlobalCell{tag: global_name, ty: ty.clone()});
+    pub fn declare_global(&self, id: MuID, ty: P<MuType>) -> P<Value> {
+        let global = P(Value{
+            id: id,
+            name: None,
+            ty: P(MuType::new(self.next_id(), MuType_::iref(ty))),
+            v: Value_::Global
+        });
         
         let mut globals = self.globals.write().unwrap();
-        globals.insert(global_name, global.clone());
+        globals.insert(id, global.clone());
         
-        P(Value{
-            id: id,
-            name: Some(global_name),
-            ty: P(MuType::new(self.next_id(), MuType_::iref(ty))),
-            v: Value_::Global(global.clone())
-        })
+        global
     }
     
     pub fn declare_type(&self, id: MuID, ty: MuType_) -> P<MuType> {
@@ -190,7 +189,7 @@ impl <'a> VM {
         *self.id_name_map.read().unwrap().get(&id).unwrap()
     }
     
-    pub fn globals(&self) -> &RwLock<HashMap<MuName, P<GlobalCell>>> {
+    pub fn globals(&self) -> &RwLock<HashMap<MuID, P<Value>>> {
         &self.globals
     }
     

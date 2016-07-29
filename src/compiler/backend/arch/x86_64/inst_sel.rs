@@ -621,7 +621,7 @@ impl <'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::Constant(_)
-                    | Value_::Global(_)
+                    | Value_::Global
                     | Value_::Memory(_) => panic!("expected ireg"),
                     Value_::SSAVar(_) => {
                         pv.clone()
@@ -672,7 +672,7 @@ impl <'a> InstructionSelection {
                             scale: None
                         })
                     }),
-                    Value_::Global(ref glob) => {
+                    Value_::Global => {
                         if vm.is_running() {
                             // get address from vm
                             unimplemented!()
@@ -684,7 +684,7 @@ impl <'a> InstructionSelection {
                                 ty: types::get_referent_ty(&pv.ty).unwrap(),
                                 v: Value_::Memory(MemoryLocation::Symbolic{
                                     base: Some(x86_64::RIP.clone()),
-                                    label: glob.tag
+                                    label: pv.name.unwrap()
                                 })
                             })
                         }

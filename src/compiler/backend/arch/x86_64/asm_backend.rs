@@ -1131,14 +1131,14 @@ pub fn emit_context(vm: &VM) {
     file.write_fmt(format_args!("\t.bss\n")).unwrap();
     
     let globals = vm.globals().read().unwrap();
-    for cell in globals.values() {
+    for global in globals.values() {
         let (size, align) = {
-            let ty_info = vm.get_backend_type_info(&cell.ty);
+            let ty_info = vm.get_backend_type_info(&global.ty);
             (ty_info.size, ty_info.alignment)
         };
         
-        file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(cell.tag)))).unwrap();
-        file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(cell.tag), size, align))).unwrap();
+        file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name.unwrap())))).unwrap();
+        file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name.unwrap()), size, align))).unwrap();
         file.write("\n".as_bytes()).unwrap();
     }
     

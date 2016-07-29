@@ -506,8 +506,8 @@ impl fmt::Display for Value {
             Value_::Constant(ref c) => {
                 write!(f, "+({} {})", self.ty, c)
             },
-            Value_::Global(ref g) => {
-                write!(f, "+({} to GLOBAL {} @{})", self.ty, g.ty, g.tag)
+            Value_::Global => {
+                write!(f, "+(GLOBAL {} @{})", self.ty, self.name.unwrap())
             },
             Value_::Memory(ref mem) => {
                 write!(f, "+({})", mem)
@@ -520,7 +520,7 @@ impl fmt::Display for Value {
 pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant),
-    Global(P<GlobalCell>),
+    Global,
     Memory(MemoryLocation)
 }
 
@@ -617,12 +617,6 @@ impl fmt::Display for MemoryLocation {
             }
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct GlobalCell {
-    pub tag: MuName,
-    pub ty: P<MuType>
 }
 
 pub fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {

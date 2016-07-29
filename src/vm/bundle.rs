@@ -8,7 +8,7 @@ pub struct MuBundle {
     pub type_defs: HashMap<MuID, P<MuType>>,
     pub func_sigs: HashMap<MuID, P<MuFuncSig>>,
     pub constants: HashMap<MuID, P<Value>>,
-    pub globals  : HashMap<MuID, P<GlobalCell>>,
+    pub globals  : HashMap<MuID, P<Value>>,
     pub func_defs: HashMap<MuID, MuFunction>,
     pub func_decls: HashMap<MuID, MuFunctionVersion>,
     
