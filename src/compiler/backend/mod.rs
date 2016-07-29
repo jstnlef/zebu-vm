@@ -42,6 +42,7 @@ mod arm;
 use vm::VM;
 use ast::types::*;
 use ast::ptr::*;
+use ast::ir::*;
 pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
     match ty.v {
         // integral
@@ -69,7 +70,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         MuType_::Double => BackendTypeInfo{size: 8, alignment: 8, struct_layout: None},
         // array
         MuType_::Array(ref ty, len) => {
-            let ele_ty = vm.get_backend_type_info(ty);
+            let ele_ty = vm.get_backend_type_info(ty.id());
             
             BackendTypeInfo{size: ele_ty.size * len, alignment: ele_ty.alignment, struct_layout: None}
         }
@@ -91,7 +92,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             let mut ret = layout_struct(fix_tys, vm);
             
             // treat var_ty as array (getting its alignment)
-            let var_align = vm.get_backend_type_info(var_ty).alignment;
+            let var_align = vm.get_backend_type_info(var_ty.id()).alignment;
             
             if ret.alignment < var_align {
                 ret.alignment = var_align;
@@ -112,7 +113,7 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
     let mut struct_align : ByteSize = 0;
     
     for ty in tys.iter() {
-        let ty_info = vm.get_backend_type_info(ty);
+        let ty_info = vm.get_backend_type_info(ty.id());
         trace!("examining field: {}, {:?}", ty, ty_info);
         
         let align = ty_info.alignment;

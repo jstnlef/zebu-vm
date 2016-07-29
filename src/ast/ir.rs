@@ -8,6 +8,7 @@ use utils::vec_utils;
 use std::collections::HashMap;
 use std::fmt;
 use std::default;
+use std::sync::RwLock;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
@@ -55,8 +56,7 @@ pub fn new_internal_id() -> MuID {
 
 #[derive(Debug)]
 pub struct MuFunction {
-    pub id: MuID,
-    pub name: Option<MuName>,
+    pub hdr: MuEntityHeader,
     
     pub sig: P<MuFuncSig>,
     pub cur_ver: Option<MuID>,
@@ -66,8 +66,7 @@ pub struct MuFunction {
 impl MuFunction {
     pub fn new(id: MuID, sig: P<MuFuncSig>) -> MuFunction {
         MuFunction {
-            id: id,
-            name: None,
+            hdr: MuEntityHeader::unnamed(id),
             sig: sig,
             cur_ver: None,
             all_vers: vec![]
@@ -77,18 +76,13 @@ impl MuFunction {
 
 impl fmt::Display for MuFunction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.name.is_none() {
-            write!(f, "Func #{}", self.id)
-        } else {
-            write!(f, "Func {}#{}", self.name.unwrap(), self.id)
-        }
+        write!(f, "Func {}", self.hdr)
     }
 }
 
 #[derive(Debug)]
 pub struct MuFunctionVersion {
-    pub id: MuID,
-    pub name: Option<MuName>,
+    pub hdr: MuEntityHeader,
          
     pub func_id: MuID,
     pub sig: P<MuFuncSig>,
@@ -100,19 +94,14 @@ pub struct MuFunctionVersion {
 
 impl fmt::Display for MuFunctionVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.name.is_none() {
-            write!(f, "FuncVer #{} of Func#{}", self.id, self.func_id)
-        } else {
-            write!(f, "FuncVer {}#{} of Func#{}", self.name.unwrap(), self.id, self.func_id)
-        }
+        write!(f, "FuncVer {} of Func #{}", self.hdr, self.func_id)
     }
 }
 
 impl MuFunctionVersion {
     pub fn new(id: MuID, func: MuID, sig: P<MuFuncSig>) -> MuFunctionVersion {
         MuFunctionVersion{
-            id: id,
-            name: None,
+            hdr: MuEntityHeader::unnamed(id),
             func_id: func,
             sig: sig,
             content: None,
@@ -129,12 +118,10 @@ impl MuFunctionVersion {
         self.context.values.insert(id, SSAVarEntry{id: id, name: Some(tag), ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
         P(TreeNode {
-            id: id,
-            name: None,
+            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_ssa(&ty),
             v: TreeNode_::Value(P(Value{
-                id: id,        
-                name: Some(tag),
+                hdr: MuEntityHeader::named(id, tag),
                 ty: ty,
                 v: Value_::SSAVar(id)
             }))
@@ -143,8 +130,7 @@ impl MuFunctionVersion {
 
     pub fn new_constant(&mut self, id: MuID, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            id: id,
-            name: None,
+            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
@@ -152,8 +138,7 @@ impl MuFunctionVersion {
     
     pub fn new_global(&mut self, id: MuID, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            id: id,
-            name: None,
+            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
@@ -161,8 +146,7 @@ impl MuFunctionVersion {
 
     pub fn new_inst(&mut self, id: MuID, v: Instruction) -> P<TreeNode> {
         P(TreeNode{
-            id: id,
-            name: None,
+            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
@@ -243,15 +227,14 @@ impl FunctionContext {
 
 #[derive(Debug)]
 pub struct Block {
-    pub id: MuID,
-    pub name: Option<MuName>,
+    pub hdr: MuEntityHeader,
     pub content: Option<BlockContent>,
     pub control_flow: ControlFlow
 }
 
 impl Block {
     pub fn new(id: MuID) -> Block {
-        Block{id: id, name: None, content: None, control_flow: ControlFlow::default()}
+        Block{hdr: MuEntityHeader::unnamed(id), content: None, control_flow: ControlFlow::default()}
     }
 }
 
@@ -391,11 +374,10 @@ impl BlockContent {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
-    pub id: MuID,
-    pub name: Option<MuName>,
+    pub hdr: MuEntityHeader,
     pub op: OpCode,
     pub v: TreeNode_,
 }
@@ -404,8 +386,7 @@ impl TreeNode {
     // this is a hack to allow creating TreeNode without using a &mut MuFunctionVersion
     pub fn new_inst(id: MuID, v: Instruction) -> P<TreeNode> {
         P(TreeNode{
-            id: id,
-            name: None,
+            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
@@ -464,10 +445,9 @@ pub enum TreeNode_ {
 }
 
 /// always use with P<Value>
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Value {
-    pub id: MuID,
-    pub name: Option<MuName>,
+    pub hdr: MuEntityHeader,
     pub ty: P<MuType>,
     pub v: Value_
 }
@@ -522,25 +502,18 @@ impl Value {
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let tag = {
-            if self.name.is_some() {
-                self.name.unwrap()
-            } else {
-                "???"
-            }
-        };
         match self.v {
             Value_::SSAVar(id) => {
-                write!(f, "+({} %{}#{})", self.ty, tag, id)
+                write!(f, "+({} %{})", self.ty, self.hdr)
             },
             Value_::Constant(ref c) => {
-                write!(f, "+({} {})", self.ty, c)
+                write!(f, "+({} {} @{})", self.ty, c, self.hdr)
             },
-            Value_::Global => {
-                write!(f, "+(GLOBAL {} @{})", self.ty, self.name.unwrap())
+            Value_::Global(ref ty) => {
+                write!(f, "+(GLOBAL {} @{})", ty, self.hdr)
             },
             Value_::Memory(ref mem) => {
-                write!(f, "+({})", mem)
+                write!(f, "+(MEM {} %{})", mem, self.hdr)
             }
         }
     }
@@ -550,7 +523,7 @@ impl fmt::Display for Value {
 pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant),
-    Global,
+    Global(P<MuType>), // what type is this global (without IRef)
     Memory(MemoryLocation)
 }
 
@@ -649,29 +622,73 @@ impl fmt::Display for MemoryLocation {
     }
 }
 
+#[derive(Debug)] // Display, PartialEq
+pub struct MuEntityHeader {
+    id: MuID,
+    name: RwLock<Option<MuName>>
+}
+
+impl MuEntityHeader {
+    pub fn unnamed(id: MuID) -> MuEntityHeader {
+        MuEntityHeader {
+            id: id,
+            name: RwLock::new(None)
+        }
+    }
+    
+    pub fn named(id: MuID, name: MuName) -> MuEntityHeader {
+        MuEntityHeader {
+            id: id,
+            name: RwLock::new(Some(name))
+        }
+    }
+    
+    pub fn id(&self) -> MuID {
+        self.id
+    }
+    
+    pub fn name(&self) -> Option<MuName> {
+        *self.name.read().unwrap()
+    }
+}
+
+impl PartialEq for MuEntityHeader {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl fmt::Display for MuEntityHeader {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.name().is_none() {
+            write!(f, "#{}", self.id)
+        } else {
+            write!(f, "{} #{}", self.name().unwrap(), self.id)
+        }
+    }
+}
+
 pub trait MuEntity {
     fn id(&self) -> MuID;
     fn name(&self) -> Option<MuName>;
-    fn set_name(&mut self, name: MuName);
+    fn set_name(&self, name: MuName);
     fn as_entity(&self) -> &MuEntity;
-    fn as_entity_mut(&mut self) -> &mut MuEntity;
 }
 
 macro_rules! impl_mu_entity {
     ($entity: ty) => {
         impl MuEntity for $entity {
             #[inline(always)]
-            fn id(&self) -> MuID {self.id}
+            fn id(&self) -> MuID {self.hdr.id}
             #[inline(always)]
-            fn name(&self) -> Option<MuName> {self.name}
-            fn set_name(&mut self, name: MuName) {self.name = Some(name);}
+            fn name(&self) -> Option<MuName> {self.hdr.name()}
+            fn set_name(&self, name: MuName) {
+                let mut write_guard = self.hdr.name.write().unwrap();
+                *write_guard = Some(name);
+            }
             fn as_entity(&self) -> &MuEntity {
                 let ref_ty : &$entity = self;
                 ref_ty as &MuEntity
-            }
-            fn as_entity_mut(&mut self) -> &mut MuEntity {
-                let ref_ty : &mut $entity = self;
-                ref_ty as &mut MuEntity
             }
         }
     }

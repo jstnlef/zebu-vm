@@ -627,7 +627,7 @@ impl <'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::Constant(_)
-                    | Value_::Global
+                    | Value_::Global(_)
                     | Value_::Memory(_) => panic!("expected ireg"),
                     Value_::SSAVar(_) => {
                         pv.clone()
@@ -668,8 +668,7 @@ impl <'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar(_) => P(Value{
-                        id: vm.next_id(),
-                        name: None,
+                        hdr: MuEntityHeader::unnamed(vm.next_id()),
                         ty: types::get_referent_ty(& pv.ty).unwrap(),
                         v: Value_::Memory(MemoryLocation::Address{
                             base: pv.clone(),
@@ -678,19 +677,18 @@ impl <'a> InstructionSelection {
                             scale: None
                         })
                     }),
-                    Value_::Global => {
+                    Value_::Global(_) => {
                         if vm.is_running() {
                             // get address from vm
                             unimplemented!()
                         } else {
                             // symbolic
                             P(Value{
-                                id: vm.next_id(),
-                                name: None,
+                                hdr: MuEntityHeader::unnamed(vm.next_id()),
                                 ty: types::get_referent_ty(&pv.ty).unwrap(),
                                 v: Value_::Memory(MemoryLocation::Symbolic{
                                     base: Some(x86_64::RIP.clone()),
-                                    label: pv.name.unwrap()
+                                    label: pv.name().unwrap()
                                 })
                             })
                         }
@@ -805,7 +803,7 @@ impl CompilerPass for InstructionSelection {
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         for block_id in func.block_trace.as_ref().unwrap() {
             let block = func.content.as_ref().unwrap().get_block(*block_id);
-            let block_label = block.name.unwrap();
+            let block_label = block.name().unwrap();
             
             self.backend.start_block(block_label);
 
@@ -833,7 +831,7 @@ impl CompilerPass for InstructionSelection {
         let mc = self.backend.finish_code();
         let compiled_func = CompiledFunction {
             func_id: func.func_id,
-            func_ver_id: func.id,
+            func_ver_id: func.id(),
             temps: HashMap::new(),
             mc: mc
         };

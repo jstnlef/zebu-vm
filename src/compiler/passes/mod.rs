@@ -65,5 +65,5 @@ pub trait CompilerPass {
     fn start_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {}
     fn finish_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {}
 
-    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &mut TreeNode) {}
+    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &TreeNode) {}
 }

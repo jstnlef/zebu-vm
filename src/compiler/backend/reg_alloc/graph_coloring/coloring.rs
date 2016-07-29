@@ -85,7 +85,7 @@ impl GraphColoring {
         trace!("Initializing coloring allocator...");
         
         // precolor for all machine registers
-        for reg in backend::all_regs().iter() {
+        for reg in backend::all_regs().values() {
             let reg_id = reg.extract_ssa_id().unwrap();
             let node = self.ig.get_node(reg_id);
             self.precolored.insert(node);

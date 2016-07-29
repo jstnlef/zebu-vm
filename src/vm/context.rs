@@ -9,7 +9,6 @@ use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use vm::machine_code::CompiledFunction;
 use vm::vm_options::VMOptions;
-use vm::api::*;
 
 use std::sync::RwLock;
 use std::cell::RefCell;
@@ -23,7 +22,7 @@ pub struct VM {
     name_id_map: RwLock<HashMap<MuName, MuID>>,
     
     types: RwLock<HashMap<MuID, P<MuType>>>,
-    backend_type_info: RwLock<HashMap<P<MuType>, BackendTypeInfo>>,
+    backend_type_info: RwLock<HashMap<MuID, P<BackendTypeInfo>>>,
     
     constants: RwLock<HashMap<MuID, P<Value>>>,
     globals: RwLock<HashMap<MuID, P<Value>>>,
@@ -79,7 +78,7 @@ impl <'a> VM {
         self.is_running.load(Ordering::Relaxed)
     }
     
-    pub fn set_name(&self, entity: &mut MuEntity, name: MuName) {
+    pub fn set_name(&self, entity: &MuEntity, name: MuName) {
         let id = entity.id();
         entity.set_name(name);
         
@@ -104,7 +103,7 @@ impl <'a> VM {
         let mut constants = self.constants.write().unwrap();
         debug_assert!(!constants.contains_key(&id));
         
-        let ret = P(Value{id: id, name: None, ty: ty, v: Value_::Constant(val)});
+        let ret = P(Value{hdr: MuEntityHeader::unnamed(id), ty: ty, v: Value_::Constant(val)});
         constants.insert(id, ret.clone());
         
         ret
@@ -112,10 +111,9 @@ impl <'a> VM {
     
     pub fn declare_global(&self, id: MuID, ty: P<MuType>) -> P<Value> {
         let global = P(Value{
-            id: id,
-            name: None,
-            ty: P(MuType::new(self.next_id(), MuType_::iref(ty))),
-            v: Value_::Global
+            hdr: MuEntityHeader::unnamed(id),
+            ty: P(MuType::new(self.next_id(), MuType_::iref(ty.clone()))),
+            v: Value_::Global(ty)
         });
         
         let mut globals = self.globals.write().unwrap();
@@ -125,7 +123,7 @@ impl <'a> VM {
     }
     
     pub fn declare_type(&self, id: MuID, ty: MuType_) -> P<MuType> {
-        let ty = P(MuType{id: id, name: None, v: ty});
+        let ty = P(MuType{hdr: MuEntityHeader::unnamed(id), v: ty});
         
         let mut types = self.types.write().unwrap();
         debug_assert!(!types.contains_key(&id));
@@ -139,7 +137,7 @@ impl <'a> VM {
         let mut func_sigs = self.func_sigs.write().unwrap();
         debug_assert!(!func_sigs.contains_key(&id));
         
-        let ret = P(MuFuncSig{id: id, name: None, ret_tys: ret_tys, arg_tys: arg_tys});
+        let ret = P(MuFuncSig{hdr: MuEntityHeader::unnamed(id), ret_tys: ret_tys, arg_tys: arg_tys});
         func_sigs.insert(id, ret.clone());
         
         ret
@@ -148,13 +146,13 @@ impl <'a> VM {
     pub fn declare_func (&self, func: MuFunction) {
         info!("declare function {}", func);
         let mut funcs = self.funcs.write().unwrap();
-        funcs.insert(func.id, RefCell::new(func));
+        funcs.insert(func.id(), RefCell::new(func));
     }
     
     pub fn define_func_version (&self, func_ver: MuFunctionVersion) {
         info!("define function version {}", func_ver);
         // record this version
-        let func_ver_key = (func_ver.func_id, func_ver.id);
+        let func_ver_key = (func_ver.func_id, func_ver.id());
         {
             let mut func_vers = self.func_vers.write().unwrap();
             func_vers.insert(func_ver_key, RefCell::new(func_ver));
@@ -176,7 +174,7 @@ impl <'a> VM {
             // redefinition happens here
             // do stuff
         }
-        func.cur_ver = Some(func_ver.id);        
+        func.cur_ver = Some(func_ver.id());        
     }
     
     pub fn add_compiled_func (&self, func: CompiledFunction) {
@@ -186,20 +184,22 @@ impl <'a> VM {
         self.compiled_funcs.write().unwrap().insert(func.func_ver_id, RefCell::new(func));
     }
     
-    pub fn get_backend_type_info(&self, ty: &P<MuType>) -> BackendTypeInfo {
+    pub fn get_backend_type_info(&self, tyid: MuID) -> P<BackendTypeInfo> {        
         {
             let read_lock = self.backend_type_info.read().unwrap();
         
-            match read_lock.get(ty) {
+            match read_lock.get(&tyid) {
                 Some(info) => {return info.clone();},
                 None => {}
             }
         }
-        
-        let resolved = backend::resolve_backend_type_info(ty, self);
+
+        let types = self.types.read().unwrap();
+        let ty = types.get(&tyid).unwrap();
+        let resolved = P(backend::resolve_backend_type_info(ty, self));
         
         let mut write_lock = self.backend_type_info.write().unwrap();
-        write_lock.insert(ty.clone(), resolved.clone());
+        write_lock.insert(tyid, resolved.clone());
         
         resolved        
     }

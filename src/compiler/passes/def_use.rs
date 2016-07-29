@@ -50,7 +50,7 @@ impl CompilerPass for DefUse {
     }
     
     #[allow(unused_variables)]
-    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &mut TreeNode) {
+    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &TreeNode) {
         // if an SSA appears in operands of instrs, its use count increases
         match node.v {
             TreeNode_::Instruction(ref inst) => {

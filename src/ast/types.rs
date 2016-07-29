@@ -6,24 +6,22 @@ use std::fmt;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(PartialEq, Debug)]
 pub struct MuType {
-    pub id: MuID,
-    pub name: Option<MuName>,
+    pub hdr: MuEntityHeader,
     pub v: MuType_
 }
 
 impl MuType {
     pub fn new(id: MuID, v: MuType_) -> MuType {
         MuType {
-            id: id,
-            name: None,
+            hdr: MuEntityHeader::unnamed(id),
             v: v
         }
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(PartialEq, Debug)]
 pub enum MuType_ {
     /// int <length>
     Int          (usize),
@@ -107,7 +105,7 @@ lazy_static! {
     pub static ref STRUCT_TAG_MAP : RwLock<HashMap<MuName, StructType_>> = RwLock::new(HashMap::new());
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 pub struct StructType_ {
     tys: Vec<P<MuType>>
 }
@@ -325,10 +323,9 @@ macro_rules! is_type (
     )
 );
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(PartialEq, Debug)]
 pub struct MuFuncSig {
-    pub id: MuID,
-    pub name: Option<MuName>,
+    pub hdr: MuEntityHeader,
     pub ret_tys : Vec<P<MuType>>,
     pub arg_tys: Vec<P<MuType>>
 }

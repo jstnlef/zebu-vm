@@ -4,6 +4,7 @@ extern crate simple_logger;
 
 use test_ir::test_ir::global_access;
 use self::mu::compiler::*;
+use self::mu::ast::ir::*;
 
 use std::sync::Arc;
 
@@ -24,11 +25,12 @@ fn test_global_access() {
         Box::new(backend::code_emission::CodeEmission::new())
     ]), vm.clone());
     
+    let func_id = vm.id_of("global_access");
     let funcs = vm.funcs().read().unwrap();
-    let func = funcs.get("global_access").unwrap().borrow();
+    let func = funcs.get(&func_id).unwrap().borrow();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers.get(&(func.fn_name, func.cur_ver.unwrap())).unwrap().borrow_mut();
+    let mut func_ver = func_vers.get(&(func.id(), func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut func_ver); 
+    compiler.compile(&mut func_ver);
     backend::emit_context(&vm);
 }

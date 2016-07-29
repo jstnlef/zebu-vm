@@ -41,76 +41,78 @@ use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-/// An owned smart pointer.
-pub struct P<T> {
-    ptr: Box<T>
-}
+use std::sync::Arc;
+
+pub type P<T> = Arc<T>;
+
+///// An owned smart pointer.
+//pub struct P<T> {
+//    ptr: Box<T>
+//}
 
 #[allow(non_snake_case)]
 /// Construct a `P<T>` from a `T` value.
 pub fn P<T: 'static>(value: T) -> P<T> {
-    P {
-        ptr: Box::new(value)
-    }
+    Arc::new(value)
 }
 
-impl<T: 'static> P<T> {
-    /// Move out of the pointer.
-    /// Intended for chaining transformations not covered by `map`.
-    pub fn and_then<U, F>(self, f: F) -> U where
-        F: FnOnce(T) -> U,
-    {
-        f(*self.ptr)
-    }
-}
-
-impl<T> Deref for P<T> {
-    type Target = T;
-
-    fn deref<'a>(&'a self) -> &'a T {
-        &*self.ptr
-    }
-}
-
-impl<T> DerefMut for P<T> {
-    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
-        &mut *self.ptr
-    }
-}
-
-impl<T: 'static + Clone> Clone for P<T> {
-    fn clone(&self) -> P<T> {
-        P((**self).clone())
-    }
-}
-
-impl<T: PartialEq> PartialEq for P<T> {
-    fn eq(&self, other: &P<T>) -> bool {
-        **self == **other
-    }
-}
-
-impl<T: Eq> Eq for P<T> {}
-
-impl<T: Debug> Debug for P<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Debug::fmt(&**self, f)
-    }
-}
-impl<T: Display> Display for P<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt(&**self, f)
-    }
-}
-
-impl<T> fmt::Pointer for P<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Pointer::fmt(&self.ptr, f)
-    }
-}
-
-impl<T: Hash> Hash for P<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        (**self).hash(state);
-    }
-}
+//impl<T: 'static> P<T> {
+//    /// Move out of the pointer.
+//    /// Intended for chaining transformations not covered by `map`.
+//    pub fn and_then<U, F>(self, f: F) -> U where
+//        F: FnOnce(T) -> U,
+//    {
+//        f(*self.ptr)
+//    }
+//}
+//
+//impl<T> Deref for P<T> {
+//    type Target = T;
+//
+//    fn deref<'a>(&'a self) -> &'a T {
+//        &*self.ptr
+//    }
+//}
+//
+//impl<T> DerefMut for P<T> {
+//    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+//        &mut *self.ptr
+//    }
+//}
+//
+//impl<T: 'static + Clone> Clone for P<T> {
+//    fn clone(&self) -> P<T> {
+//        P((**self).clone())
+//    }
+//}
+//
+//impl<T: PartialEq> PartialEq for P<T> {
+//    fn eq(&self, other: &P<T>) -> bool {
+//        **self == **other
+//    }
+//}
+//
+//impl<T: Eq> Eq for P<T> {}
+//
+//impl<T: Debug> Debug for P<T> {
+//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//        Debug::fmt(&**self, f)
+//    }
+//}
+//impl<T: Display> Display for P<T> {
+//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//        Display::fmt(&**self, f)
+//    }
+//}
+//
+//impl<T> fmt::Pointer for P<T> {
+//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//        fmt::Pointer::fmt(&self.ptr, f)
+//    }
+//}
+//
+//impl<T: Hash> Hash for P<T> {
+//    fn hash<H: Hasher>(&self, state: &mut H) {
+//        (**self).hash(state);
+//    }
+//}

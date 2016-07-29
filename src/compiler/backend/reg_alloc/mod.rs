@@ -25,7 +25,7 @@ impl RegisterAllocation {
     // returns true if we spill registers (which requires another instruction selection)
     fn coloring(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> bool {
         let compiled_funcs = vm.compiled_funcs().read().unwrap();
-        let mut cf = compiled_funcs.get(&func.id).unwrap().borrow_mut();
+        let mut cf = compiled_funcs.get(&func.id()).unwrap().borrow_mut();
         
         cf.mc.trace_mc();
         

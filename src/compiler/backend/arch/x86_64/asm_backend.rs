@@ -77,7 +77,7 @@ impl MachineCode for ASMCode {
     }
     
     fn replace_reg(&mut self, from: MuID, to: MuID) {
-        let to_reg_tag : MuName = backend::all_regs()[to].name.unwrap();
+        let to_reg_tag : MuName = backend::all_regs().get(&to).unwrap().name().unwrap();
         let to_reg_string = "%".to_string() + to_reg_tag;
         
         match self.reg_defines.get(&from) {
@@ -498,7 +498,7 @@ impl ASMCodeGen {
         let id = op.extract_ssa_id().unwrap();
         if id < MACHINE_ID_END {
             // machine reg
-            format!("%{}", op.name.unwrap())
+            format!("%{}", op.name().unwrap())
         } else {
             // virtual register, use place holder
             REG_PLACEHOLDER.clone()
@@ -921,7 +921,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jmp(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jmp {}", dest_name);
         
         // symbolic label, we dont need to patch it
@@ -930,7 +930,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_je(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: je {}", dest_name);
         
         let asm = format!("je {}", self.asm_block_label(dest_name));
@@ -938,7 +938,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jne(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jne {}", dest_name);
         
         let asm = format!("jne {}", self.asm_block_label(dest_name));
@@ -946,7 +946,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_ja(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: ja {}", dest_name);
         
         let asm = format!("ja {}", self.asm_block_label(dest_name));
@@ -954,7 +954,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jae(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jae {}", dest_name);
         
         let asm = format!("jae {}", self.asm_block_label(dest_name));
@@ -962,7 +962,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jb(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jb {}", dest_name);
         
         let asm = format!("jb {}", self.asm_block_label(dest_name));
@@ -970,7 +970,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jbe(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jbe {}", dest_name);
         
         let asm = format!("jbe {}", self.asm_block_label(dest_name));
@@ -978,7 +978,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jg(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jg {}", dest_name);
         
         let asm = format!("jg {}", self.asm_block_label(dest_name));
@@ -986,7 +986,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jge(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jge {}", dest_name);
         
         let asm = format!("jge {}", self.asm_block_label(dest_name));
@@ -994,7 +994,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jl(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jl {}", dest_name);
         
         let asm = format!("jl {}", self.asm_block_label(dest_name));
@@ -1002,7 +1002,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn emit_jle(&mut self, dest: &Block) {
-        let dest_name = dest.name.unwrap();
+        let dest_name = dest.name().unwrap();
         trace!("emit: jle {}", dest_name);
         
         let asm = format!("jle {}", self.asm_block_label(dest_name));
@@ -1091,7 +1091,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     let func = funcs.get(&fv.func_id).unwrap().borrow();
 
     let compiled_funcs = vm.compiled_funcs().read().unwrap();
-    let cf = compiled_funcs.get(&fv.id).unwrap().borrow();
+    let cf = compiled_funcs.get(&fv.id()).unwrap().borrow();
 
     let code = cf.mc.emit();
 
@@ -1100,7 +1100,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 
     let mut file_path = path::PathBuf::new();
     file_path.push(EMIT_DIR);
-    file_path.push(func.name.unwrap().to_string() + ".s");
+    file_path.push(func.name().unwrap().to_string() + ".s");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
@@ -1135,13 +1135,22 @@ pub fn emit_context(vm: &VM) {
     
     let globals = vm.globals().read().unwrap();
     for global in globals.values() {
+        debug!("emit global: {}", global);
         let (size, align) = {
-            let ty_info = vm.get_backend_type_info(&global.ty);
+            let alloc_ty = {
+                match global.v {
+                    Value_::Global(ref ty) => ty,
+                    _ => panic!("expected a global")
+                }
+            };
+            
+            debug!("getting type: {:?}", alloc_ty);
+            let ty_info = vm.get_backend_type_info(alloc_ty.id());
             (ty_info.size, ty_info.alignment)
         };
         
-        file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name.unwrap())))).unwrap();
-        file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name.unwrap()), size, align))).unwrap();
+        file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name().unwrap())))).unwrap();
+        file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name().unwrap()), size, align))).unwrap();
         file.write("\n".as_bytes()).unwrap();
     }
     

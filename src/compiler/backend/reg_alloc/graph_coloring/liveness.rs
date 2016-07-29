@@ -266,7 +266,7 @@ pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunctionVersion) ->
     let mut ig = InterferenceGraph::new();
     
     // precolor machine register nodes
-    for reg in backend::all_regs().iter() {
+    for reg in backend::all_regs().values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let node = ig.new_node(reg_id, &func.context);
         ig.color_node(node, reg_id);
@@ -373,7 +373,7 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
     let mut ig = InterferenceGraph::new();
     
     // precolor machine register nodes
-    for reg in backend::all_regs().iter() {
+    for reg in backend::all_regs().values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let node = ig.new_node(reg_id, &func.context);
         ig.color_node(node, reg_id);

@@ -16,13 +16,14 @@ use ast::ir::*;
 use ast::types::*;
 use compiler::backend::RegGroup;
 
+use std::collections::HashMap;
+
 macro_rules! GPR {
     ($name: expr) => {
         {
             let id = new_machine_id();
             P(Value {
-                id: id,
-                name: Some($name),
+                hdr: MuEntityHeader::named(id, $name),
                 ty: GPR_TY.clone(),
                 v: Value_::SSAVar(id)
             })
@@ -35,8 +36,7 @@ macro_rules! FPR {
         {
             let id = new_machine_id();
             P(Value {
-                id: id,
-                name: Some($name),
+                hdr: MuEntityHeader::named(id, $name),
                 ty: FPR_TY.clone(),
                 v: Value_::SSAVar(id)
             })
@@ -171,41 +171,44 @@ pub const GPR_COUNT : usize = 16;
 pub const FPR_COUNT : usize = 16;
 
 lazy_static! {
-    pub static ref ALL_MACHINE_REGs : Vec<P<Value>> = vec![
-        RAX.clone(),
-        RCX.clone(),
-        RDX.clone(),
-        RBX.clone(),
-        RSP.clone(),
-        RBP.clone(),
-        RSI.clone(),
-        RDI.clone(),
-        R8.clone(),
-        R9.clone(),
-        R10.clone(),
-        R11.clone(),
-        R12.clone(),
-        R13.clone(),
-        R14.clone(),
-        R15.clone(),
-        XMM0.clone(),
-        XMM1.clone(),
-        XMM2.clone(),
-        XMM3.clone(),
-        XMM4.clone(),
-        XMM5.clone(),
-        XMM6.clone(),
-        XMM7.clone(),
-        XMM8.clone(),
-        XMM9.clone(),
-        XMM10.clone(),
-        XMM11.clone(),
-        XMM12.clone(),
-        XMM13.clone(),
-        XMM14.clone(),
-        XMM15.clone(),
-        RIP.clone()
-    ];
+    pub static ref ALL_MACHINE_REGs : HashMap<MuID, P<Value>> = {
+        let mut map = HashMap::new();
+        map.insert(RAX.id(), RAX.clone());
+        map.insert(RCX.id(), RCX.clone());
+        map.insert(RDX.id(), RDX.clone());
+        map.insert(RBX.id(), RBX.clone());
+        map.insert(RSP.id(), RSP.clone());
+        map.insert(RBP.id(), RBP.clone());
+        map.insert(RSI.id(), RSI.clone());
+        map.insert(RDI.id(), RDI.clone());
+        map.insert(R8.id(), R8.clone());
+        map.insert(R9.id(), R9.clone());
+        map.insert(R10.id(), R10.clone());
+        map.insert(R11.id(), R11.clone());
+        map.insert(R12.id(), R12.clone());
+        map.insert(R13.id(), R13.clone());
+        map.insert(R14.id(), R14.clone());
+        map.insert(R15.id(), R15.clone());
+        map.insert(XMM0.id(), XMM0.clone());
+        map.insert(XMM1.id(), XMM1.clone());
+        map.insert(XMM2.id(), XMM2.clone());
+        map.insert(XMM3.id(), XMM3.clone());
+        map.insert(XMM4.id(), XMM4.clone());
+        map.insert(XMM5.id(), XMM5.clone());
+        map.insert(XMM6.id(), XMM6.clone());
+        map.insert(XMM7.id(), XMM7.clone());
+        map.insert(XMM8.id(), XMM8.clone());
+        map.insert(XMM9.id(), XMM9.clone());
+        map.insert(XMM10.id(), XMM10.clone());
+        map.insert(XMM11.id(), XMM11.clone());
+        map.insert(XMM12.id(), XMM12.clone());
+        map.insert(XMM13.id(), XMM13.clone());
+        map.insert(XMM14.id(), XMM14.clone());
+        map.insert(XMM15.id(), XMM15.clone());
+        map.insert(RIP.id(), RIP.clone());
+        
+        map
+    };
     
     // put callee saved regs first
     pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
@@ -246,17 +249,17 @@ lazy_static! {
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
     use std::cell::Cell;
     
-    for reg in ALL_MACHINE_REGs.iter() {
+    for reg in ALL_MACHINE_REGs.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let entry = SSAVarEntry {
             id: reg_id,
-            name: reg.name, 
+            name: reg.name(), 
             ty: reg.ty.clone(),
             use_count: Cell::new(0),
             expr: None
         };
         
-        func_context.value_tags.insert(reg.name.unwrap(), reg_id);
+        func_context.value_tags.insert(reg.name().unwrap(), reg_id);
         func_context.values.insert(reg_id, entry);
     }
 }
@@ -272,7 +275,7 @@ pub fn number_of_all_regs() -> usize {
     ALL_MACHINE_REGs.len()
 }
 
-pub fn all_regs() -> &'static Vec<P<Value>> {
+pub fn all_regs() -> &'static HashMap<MuID, P<Value>> {
     &ALL_MACHINE_REGs
 }
 
@@ -281,10 +284,13 @@ pub fn all_usable_regs() -> &'static Vec<P<Value>> {
 }
 
 pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
-    match reg_id {
-        0...15  => RegGroup::GPR,
-        16...31 => RegGroup::FPR,
-        _ => panic!("expected a machine reg ID, got {}", reg_id)
+    let reg = all_regs().get(&reg_id).unwrap();
+    if reg.is_int_reg() {
+        RegGroup::GPR
+    } else if reg.is_fp_reg() {
+        RegGroup::FPR
+    } else {
+        panic!("expect a machine reg to be either a GPR or a FPR: {}", reg)
     }
 }
 
