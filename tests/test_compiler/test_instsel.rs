@@ -21,10 +21,11 @@ fn test_instsel_fac() {
             Box::new(backend::inst_sel::InstructionSelection::new())
     ]), vm.clone());
     
+    let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
-    let factorial_func = funcs.get("fac").unwrap().borrow();
+    let func = funcs.get(&func_id).unwrap().borrow();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
+    let mut func_ver = func_vers.get(&(func.id, func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut factorial_func_ver); 
+    compiler.compile(&mut func_ver);
 }

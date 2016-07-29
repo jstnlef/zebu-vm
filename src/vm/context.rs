@@ -28,7 +28,8 @@ pub struct VM {
     constants: RwLock<HashMap<MuID, P<Value>>>,
     globals: RwLock<HashMap<MuID, P<Value>>>,
     
-    func_sigs: RwLock<HashMap<MuName, P<MuFuncSig>>>,
+    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
+    // key: (func_id, func_ver_id)
     func_vers: RwLock<HashMap<(MuID, MuID), RefCell<MuFunctionVersion>>>,
     funcs: RwLock<HashMap<MuID, RefCell<MuFunction>>>,
     
@@ -78,6 +79,27 @@ impl <'a> VM {
         self.is_running.load(Ordering::Relaxed)
     }
     
+    pub fn set_name(&self, entity: &mut MuEntity, name: MuName) {
+        let id = entity.id();
+        entity.set_name(name);
+        
+        let mut map = self.id_name_map.write().unwrap();
+        map.insert(id, name);
+        
+        let mut map2 = self.name_id_map.write().unwrap();
+        map2.insert(name, id);
+    }
+    
+    pub fn id_of(&self, name: MuName) -> MuID {
+        let map = self.name_id_map.read().unwrap();
+        *map.get(name).unwrap()
+    }
+    
+    pub fn name_of(&self, id: MuID) -> MuName {
+        let map = self.id_name_map.read().unwrap();
+        map.get(&id).unwrap()
+    }
+    
     pub fn declare_const(&self, id: MuID, ty: P<MuType>, val: Constant) -> P<Value> {
         let mut constants = self.constants.write().unwrap();
         debug_assert!(!constants.contains_key(&id));
@@ -113,24 +135,24 @@ impl <'a> VM {
         ty
     }
     
-    pub fn declare_func_sig(&self, sig_name: MuName, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
+    pub fn declare_func_sig(&self, id: MuID, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
         let mut func_sigs = self.func_sigs.write().unwrap();
-        debug_assert!(!func_sigs.contains_key(&sig_name));
+        debug_assert!(!func_sigs.contains_key(&id));
         
-        let ret = P(MuFuncSig{ret_tys: ret_tys, arg_tys: arg_tys});
-        func_sigs.insert(sig_name, ret.clone());
+        let ret = P(MuFuncSig{id: id, name: None, ret_tys: ret_tys, arg_tys: arg_tys});
+        func_sigs.insert(id, ret.clone());
         
         ret
     }
     
     pub fn declare_func (&self, func: MuFunction) {
-        info!("declare function {:?}", func);
+        info!("declare function {}", func);
         let mut funcs = self.funcs.write().unwrap();
         funcs.insert(func.id, RefCell::new(func));
     }
     
     pub fn define_func_version (&self, func_ver: MuFunctionVersion) {
-        info!("define function {} with version {}", func_ver.func_id, func_ver.id);
+        info!("define function version {}", func_ver);
         // record this version
         let func_ver_key = (func_ver.func_id, func_ver.id);
         {
@@ -158,7 +180,8 @@ impl <'a> VM {
     }
     
     pub fn add_compiled_func (&self, func: CompiledFunction) {
-        debug_assert!(self.funcs.read().unwrap().contains_key(&func.func_ver_id));
+        debug_assert!(self.funcs.read().unwrap().contains_key(&func.func_id));
+        debug_assert!(self.func_vers.read().unwrap().contains_key(&(func.func_id, func.func_ver_id)));
 
         self.compiled_funcs.write().unwrap().insert(func.func_ver_id, RefCell::new(func));
     }

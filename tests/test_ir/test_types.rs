@@ -64,7 +64,7 @@ fn create_types() -> Vec<P<MuType>> {
     let t14 = MuType::new(14, MuType_::vector(types[0].clone(), 5));
     types.push(P(t14));
     
-    let sig = P(MuFuncSig{ret_tys: vec![types[10].clone()], arg_tys: vec![types[0].clone(), types[0].clone()]});
+    let sig = P(MuFuncSig{id: 20, name: None, ret_tys: vec![types[10].clone()], arg_tys: vec![types[0].clone(), types[0].clone()]});
     
     let t15 = MuType::new(15, MuType_::funcref(sig.clone()));
     types.push(P(t15));

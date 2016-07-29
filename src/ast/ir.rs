@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::default;
 use std::cell::Cell;
+use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
 pub type WPID  = usize;
 pub type MuID  = usize;
@@ -17,11 +18,40 @@ pub type Address = usize; // TODO: replace this with Address(usize)
 
 pub type OpIndex = usize;
 
-pub const MACHINE_ID_START : usize = 0;
-pub const MACHINE_ID_END   : usize = 100;
-pub const INTERNAL_ID_START: usize = 101;
-pub const INTERNAL_ID_END  : usize = 200;
-pub const USER_ID_START    : usize = 201;
+lazy_static! {
+    pub static ref MACHINE_ID : AtomicUsize = {
+        let a = ATOMIC_USIZE_INIT;
+        a.store(MACHINE_ID_START, Ordering::SeqCst);
+        a
+    };
+    pub static ref INTERNAL_ID : AtomicUsize = {
+        let a = ATOMIC_USIZE_INIT;
+        a.store(INTERNAL_ID_START, Ordering::SeqCst);
+        a
+    };
+} 
+pub const  MACHINE_ID_START : usize = 0;
+pub const  MACHINE_ID_END   : usize = 100;
+
+pub const  INTERNAL_ID_START: usize = 101;
+pub const  INTERNAL_ID_END  : usize = 200;
+pub const  USER_ID_START    : usize = 201;
+
+pub fn new_machine_id() -> MuID {
+    let ret = MACHINE_ID.fetch_add(1, Ordering::SeqCst);
+    if ret >= MACHINE_ID_END {
+        panic!("machine id overflow")
+    }
+    ret
+}
+
+pub fn new_internal_id() -> MuID {
+    let ret = INTERNAL_ID.fetch_add(1, Ordering::SeqCst);
+    if ret >= INTERNAL_ID_END {
+        panic!("internal id overflow")
+    }
+    ret
+}
 
 #[derive(Debug)]
 pub struct MuFunction {
@@ -560,8 +590,8 @@ pub enum Constant {
     Float(f32),
     Double(f64),
     IRef(Address),
-    FuncRef(MuName),
-    UFuncRef(MuName),
+    FuncRef(MuID),
+    UFuncRef(MuID),
     Vector(Vec<Constant>),
 }
 
@@ -618,6 +648,42 @@ impl fmt::Display for MemoryLocation {
         }
     }
 }
+
+pub trait MuEntity {
+    fn id(&self) -> MuID;
+    fn name(&self) -> Option<MuName>;
+    fn set_name(&mut self, name: MuName);
+    fn as_entity(&self) -> &MuEntity;
+    fn as_entity_mut(&mut self) -> &mut MuEntity;
+}
+
+macro_rules! impl_mu_entity {
+    ($entity: ty) => {
+        impl MuEntity for $entity {
+            #[inline(always)]
+            fn id(&self) -> MuID {self.id}
+            #[inline(always)]
+            fn name(&self) -> Option<MuName> {self.name}
+            fn set_name(&mut self, name: MuName) {self.name = Some(name);}
+            fn as_entity(&self) -> &MuEntity {
+                let ref_ty : &$entity = self;
+                ref_ty as &MuEntity
+            }
+            fn as_entity_mut(&mut self) -> &mut MuEntity {
+                let ref_ty : &mut $entity = self;
+                ref_ty as &mut MuEntity
+            }
+        }
+    }
+}
+
+impl_mu_entity!(MuFunction);
+impl_mu_entity!(MuFunctionVersion);
+impl_mu_entity!(Block);
+impl_mu_entity!(TreeNode);
+impl_mu_entity!(MuType);
+impl_mu_entity!(Value);
+impl_mu_entity!(MuFuncSig);
 
 pub fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
     let mut ret = String::new();

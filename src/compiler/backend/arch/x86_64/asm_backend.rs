@@ -1082,13 +1082,16 @@ fn create_emit_directory() {
     }    
 }
 
-pub fn emit_code(func: &mut MuFunctionVersion, vm: &VM) {
+pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     use std::io::prelude::*;
     use std::fs::File;
     use std::path;
+    
+    let funcs = vm.funcs().read().unwrap();
+    let func = funcs.get(&fv.func_id).unwrap().borrow();
 
     let compiled_funcs = vm.compiled_funcs().read().unwrap();
-    let cf = compiled_funcs.get(&func.id).unwrap().borrow();
+    let cf = compiled_funcs.get(&fv.id).unwrap().borrow();
 
     let code = cf.mc.emit();
 

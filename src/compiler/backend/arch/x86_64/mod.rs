@@ -17,52 +17,58 @@ use ast::types::*;
 use compiler::backend::RegGroup;
 
 macro_rules! GPR {
-    ($name: expr, $id: expr) => {
-        P(Value {
-            id: $id,
-            name: Some($name),
-            ty: GPR_TY.clone(),
-            v: Value_::SSAVar($id)
-        })
+    ($name: expr) => {
+        {
+            let id = new_machine_id();
+            P(Value {
+                id: id,
+                name: Some($name),
+                ty: GPR_TY.clone(),
+                v: Value_::SSAVar(id)
+            })
+        }
     };
 }
 
 macro_rules! FPR {
-    ($name: expr, $id: expr) => {
-        P(Value {
-            id: $id,
-            name: Some($name),
-            ty: FPR_TY.clone(),
-            v: Value_::SSAVar($id)
-        })
+    ($name: expr) => {
+        {
+            let id = new_machine_id();
+            P(Value {
+                id: id,
+                name: Some($name),
+                ty: FPR_TY.clone(),
+                v: Value_::SSAVar(id)
+            })
+        }
     };
 }
 
 lazy_static! {
-    pub static ref GPR_TY : P<MuType> = P(MuType::new(INTERNAL_ID_START + 0, MuType_::int(64)));
-    pub static ref FPR_TY : P<MuType> = P(MuType::new(INTERNAL_ID_START + 1, MuType_::double()));
+    pub static ref GPR_TY : P<MuType> = P(MuType::new(new_internal_id(), MuType_::int(64)));
+    pub static ref FPR_TY : P<MuType> = P(MuType::new(new_internal_id(), MuType_::double()));
 }
 
 // put into several segments to avoid 'recursion limit reached' error
 lazy_static! {
-    pub static ref RAX : P<Value> = GPR!("rax", 0);
-    pub static ref RCX : P<Value> = GPR!("rcx", 1);
-    pub static ref RDX : P<Value> = GPR!("rdx", 2);
-    pub static ref RBX : P<Value> = GPR!("rbx", 3);
-    pub static ref RSP : P<Value> = GPR!("rsp", 4);
-    pub static ref RBP : P<Value> = GPR!("rbp", 5);
-    pub static ref RSI : P<Value> = GPR!("rsi", 6);
-    pub static ref RDI : P<Value> = GPR!("rdi", 7);
-    pub static ref R8  : P<Value> = GPR!("r8",  8);
-    pub static ref R9  : P<Value> = GPR!("r9",  9);
-    pub static ref R10 : P<Value> = GPR!("r10", 10);
-    pub static ref R11 : P<Value> = GPR!("r11", 11);
-    pub static ref R12 : P<Value> = GPR!("r12", 12);
-    pub static ref R13 : P<Value> = GPR!("r13", 13);
-    pub static ref R14 : P<Value> = GPR!("r14", 14);
-    pub static ref R15 : P<Value> = GPR!("r15", 15);
+    pub static ref RAX : P<Value> = GPR!("rax");
+    pub static ref RCX : P<Value> = GPR!("rcx");
+    pub static ref RDX : P<Value> = GPR!("rdx");
+    pub static ref RBX : P<Value> = GPR!("rbx");
+    pub static ref RSP : P<Value> = GPR!("rsp");
+    pub static ref RBP : P<Value> = GPR!("rbp");
+    pub static ref RSI : P<Value> = GPR!("rsi");
+    pub static ref RDI : P<Value> = GPR!("rdi");
+    pub static ref R8  : P<Value> = GPR!("r8");
+    pub static ref R9  : P<Value> = GPR!("r9");
+    pub static ref R10 : P<Value> = GPR!("r10");
+    pub static ref R11 : P<Value> = GPR!("r11");
+    pub static ref R12 : P<Value> = GPR!("r12");
+    pub static ref R13 : P<Value> = GPR!("r13");
+    pub static ref R14 : P<Value> = GPR!("r14");
+    pub static ref R15 : P<Value> = GPR!("r15");
     
-    pub static ref RIP : P<Value> = GPR!("rip", 32);
+    pub static ref RIP : P<Value> = GPR!("rip");
     
     pub static ref RETURN_GPRs : [P<Value>; 2] = [
         RAX.clone(),
@@ -108,22 +114,22 @@ lazy_static! {
 }
 
 lazy_static!{
-    pub static ref XMM0  : P<Value> = FPR!("xmm0", 16);
-    pub static ref XMM1  : P<Value> = FPR!("xmm1", 17);
-    pub static ref XMM2  : P<Value> = FPR!("xmm2", 18);
-    pub static ref XMM3  : P<Value> = FPR!("xmm3", 19);
-    pub static ref XMM4  : P<Value> = FPR!("xmm4", 20);
-    pub static ref XMM5  : P<Value> = FPR!("xmm5", 21);
-    pub static ref XMM6  : P<Value> = FPR!("xmm6", 22);
-    pub static ref XMM7  : P<Value> = FPR!("xmm7", 23);
-    pub static ref XMM8  : P<Value> = FPR!("xmm8", 24);
-    pub static ref XMM9  : P<Value> = FPR!("xmm9", 25);
-    pub static ref XMM10 : P<Value> = FPR!("xmm10",26);
-    pub static ref XMM11 : P<Value> = FPR!("xmm11",27);
-    pub static ref XMM12 : P<Value> = FPR!("xmm12",28);
-    pub static ref XMM13 : P<Value> = FPR!("xmm13",29);
-    pub static ref XMM14 : P<Value> = FPR!("xmm14",30);
-    pub static ref XMM15 : P<Value> = FPR!("xmm15",31); 
+    pub static ref XMM0  : P<Value> = FPR!("xmm0");
+    pub static ref XMM1  : P<Value> = FPR!("xmm1");
+    pub static ref XMM2  : P<Value> = FPR!("xmm2");
+    pub static ref XMM3  : P<Value> = FPR!("xmm3");
+    pub static ref XMM4  : P<Value> = FPR!("xmm4");
+    pub static ref XMM5  : P<Value> = FPR!("xmm5");
+    pub static ref XMM6  : P<Value> = FPR!("xmm6");
+    pub static ref XMM7  : P<Value> = FPR!("xmm7");
+    pub static ref XMM8  : P<Value> = FPR!("xmm8");
+    pub static ref XMM9  : P<Value> = FPR!("xmm9");
+    pub static ref XMM10 : P<Value> = FPR!("xmm10");
+    pub static ref XMM11 : P<Value> = FPR!("xmm11");
+    pub static ref XMM12 : P<Value> = FPR!("xmm12");
+    pub static ref XMM13 : P<Value> = FPR!("xmm13");
+    pub static ref XMM14 : P<Value> = FPR!("xmm14");
+    pub static ref XMM15 : P<Value> = FPR!("xmm15"); 
     
     pub static ref RETURN_FPRs : [P<Value>; 2] = [
         XMM0.clone(),

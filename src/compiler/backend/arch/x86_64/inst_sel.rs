@@ -159,9 +159,15 @@ impl <'a> InstructionSelection {
                         
                         // check direct call or indirect
                         if self.match_funcref_const(func) {
-                            let target = self.emit_get_funcref_const(func);
-                            
-                            self.backend.emit_call_near_rel32(target);
+                            let target_id = self.emit_get_funcref_const(func);
+                            let funcs = vm.funcs().read().unwrap();
+                            let target = funcs.get(&target_id).unwrap().borrow();
+                                                        
+                            if vm.is_running() {
+                                unimplemented!()
+                            } else {
+                                self.backend.emit_call_near_rel32(target.name().unwrap());
+                            }
                         } else if self.match_ireg(func) {
                             let target = self.emit_ireg(func, cur_func, vm);
                             
@@ -710,12 +716,12 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_get_funcref_const(&mut self, op: &P<TreeNode>) -> MuName {
+    fn emit_get_funcref_const(&mut self, op: &P<TreeNode>) -> MuID {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
-                    Value_::Constant(Constant::FuncRef(tag))
-                    | Value_::Constant(Constant::UFuncRef(tag)) => tag,
+                    Value_::Constant(Constant::FuncRef(id))
+                    | Value_::Constant(Constant::UFuncRef(id)) => id,
                     _ => panic!("expected a (u)funcref const")
                 }
             },
@@ -782,13 +788,15 @@ impl CompilerPass for InstructionSelection {
     }
 
     #[allow(unused_variables)]
-    fn start_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+    fn start_function(&mut self, vm: &VM, func_ver: &mut MuFunctionVersion) {
         debug!("{}", self.name());
         
-        self.backend.start_code(func.name.unwrap());
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_ver.func_id).unwrap().borrow();
+        self.backend.start_code(func.name().unwrap());
         
         // prologue (get arguments from entry block first)        
-        let entry_block = func.content.as_ref().unwrap().get_entry_block();
+        let entry_block = func_ver.content.as_ref().unwrap().get_entry_block();
         let ref args = entry_block.content.as_ref().unwrap().args;
         self.emit_common_prologue(args);
     }
@@ -824,6 +832,7 @@ impl CompilerPass for InstructionSelection {
         
         let mc = self.backend.finish_code();
         let compiled_func = CompiledFunction {
+            func_id: func.func_id,
             func_ver_id: func.id,
             temps: HashMap::new(),
             mc: mc

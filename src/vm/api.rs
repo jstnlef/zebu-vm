@@ -422,28 +422,3 @@ impl MuCtxInternal {
         }
     }
 }
-
-pub trait MuEntity {
-    fn id(&self) -> MuID;
-    fn name(&self) -> Option<MuName>;
-    fn set_name(&mut self, name: MuName);
-}
-
-macro_rules! mu_entity {
-    ($entity: ident) => {
-        impl MuEntity for $entity {
-            #[inline(always)]
-            fn id(&self) -> MuID {self.id}
-            #[inline(always)]
-            fn name(&self) -> Option<MuName> {self.name}
-            fn set_name(&mut self, name: MuName) {self.name = Some(name);}
-        }
-    }
-}
-
-mu_entity!(MuFunction);
-mu_entity!(MuFunctionVersion);
-mu_entity!(Block);
-mu_entity!(TreeNode);
-mu_entity!(MuType);
-mu_entity!(Value);

@@ -23,20 +23,21 @@ fn test_ir_liveness_fac() {
             Box::new(backend::inst_sel::InstructionSelection::new()),
     ]), vm.clone());
     
+    let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
-    let factorial_func = funcs.get("fac").unwrap().borrow();
+    let func = funcs.get(&func_id).unwrap().borrow();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
+    let mut func_ver = func_vers.get(&(func.id, func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut factorial_func_ver);
+    compiler.compile(&mut func_ver);
     
     let cf_lock = vm.compiled_funcs().read().unwrap();
-    let cf = cf_lock.get("fac").unwrap().borrow();
+    let cf = cf_lock.get(&func_ver.id).unwrap().borrow();
     
     // block 0
     
     let block_0_livein = cf.mc.get_ir_block_livein("blk_0").unwrap();
-    let blk_0_n_3 = factorial_func_ver.context.get_value_by_tag("blk_0_n_3").unwrap().id;
+    let blk_0_n_3 = func_ver.context.get_value_by_tag("blk_0_n_3").unwrap().id;
     assert!(vec_utils::is_identical_to_str_ignore_order(block_0_livein, vec![blk_0_n_3]));
     
     let block_0_liveout = cf.mc.get_ir_block_liveout("blk_0").unwrap();
@@ -45,17 +46,17 @@ fn test_ir_liveness_fac() {
     // block 1
     
     let block_1_livein = cf.mc.get_ir_block_livein("blk_1").unwrap();
-    let blk_1_n_3 = factorial_func_ver.context.get_value_by_tag("blk_1_n_3").unwrap().id;
+    let blk_1_n_3 = func_ver.context.get_value_by_tag("blk_1_n_3").unwrap().id;
     assert!(vec_utils::is_identical_to_str_ignore_order(block_1_livein, vec![blk_1_n_3]));
     
     let block_1_liveout = cf.mc.get_ir_block_liveout("blk_1").unwrap();
-    let blk_1_v52 = factorial_func_ver.context.get_value_by_tag("blk_1_v52").unwrap().id;
+    let blk_1_v52 = func_ver.context.get_value_by_tag("blk_1_v52").unwrap().id;
     assert!(vec_utils::is_identical_to_str_ignore_order(block_1_liveout, vec![blk_1_v52]));
     
     // block 2
     
     let block_2_livein = cf.mc.get_ir_block_livein("blk_2").unwrap();
-    let blk_2_v53 = factorial_func_ver.context.get_value_by_tag("blk_2_v53").unwrap().id;
+    let blk_2_v53 = func_ver.context.get_value_by_tag("blk_2_v53").unwrap().id;
     assert!(vec_utils::is_identical_to_str_ignore_order(block_2_livein, vec![blk_2_v53]));
     
     let block_2_liveout = cf.mc.get_ir_block_liveout("blk_2").unwrap();
@@ -71,10 +72,11 @@ fn test_regalloc_fac() {
     
     let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
     
+    let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
-    let factorial_func = funcs.get("fac").unwrap().borrow();
+    let func = funcs.get(&func_id).unwrap().borrow();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut factorial_func_ver = func_vers.get(&(factorial_func.fn_name, factorial_func.cur_ver.unwrap())).unwrap().borrow_mut();
+    let mut func_ver = func_vers.get(&(func.id, func.cur_ver.unwrap())).unwrap().borrow_mut();
     
-    compiler.compile(&mut factorial_func_ver); 
+    compiler.compile(&mut func_ver);
 }
