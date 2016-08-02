@@ -3,10 +3,8 @@ extern crate mu;
 use self::mu::ast::types::*;
 use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
-use self::mu::ast::ptr::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
-use self::mu::vm::api::*;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -33,24 +31,24 @@ pub fn sum() -> VM {
     let vm = VM::new();
 
     // .typedef @int_64 = int<64>
-    let mut type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
     vm.set_name(type_def_int64.as_entity(), "int_64");
-    let mut type_def_int1  = vm.declare_type(vm.next_id(), MuType_::int(1));
+    let type_def_int1  = vm.declare_type(vm.next_id(), MuType_::int(1));
     vm.set_name(type_def_int1.as_entity(), "int_1");
 
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1
-    let mut const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
+    let const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
     vm.set_name(const_def_int64_0.as_entity(), "int64_0");
-    let mut const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
+    let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
     vm.set_name(const_def_int64_1.as_entity(), "int64_1");
 
     // .funcsig @sum_sig = (@int_64) -> (@int_64)
-    let mut sum_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
+    let sum_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
     vm.set_name(sum_sig.as_entity(), "sum_sig");
 
     // .funcdecl @sum <@sum_sig>
-    let mut func = MuFunction::new(vm.next_id(), sum_sig.clone());
+    let func = MuFunction::new(vm.next_id(), sum_sig.clone());
     vm.set_name(func.as_entity(), "sum");
     let func_id = func.id();
     vm.declare_func(func);
@@ -188,33 +186,33 @@ pub fn factorial() -> VM {
     // .typedef @void = void
     // .typedef @int_8 = int<8>
     // .typedef @int_32 = int<32>
-    let mut type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
     vm.set_name(type_def_int64.as_entity(), "int_64");
-    let mut type_def_int1  = vm.declare_type(vm.next_id(), MuType_::int(1));
+    let type_def_int1  = vm.declare_type(vm.next_id(), MuType_::int(1));
     vm.set_name(type_def_int1.as_entity(), "int_1");
-    let mut type_def_float = vm.declare_type(vm.next_id(), MuType_::float());
+    let type_def_float = vm.declare_type(vm.next_id(), MuType_::float());
     vm.set_name(type_def_float.as_entity(), "float");
-    let mut type_def_double = vm.declare_type(vm.next_id(), MuType_::double());
+    let type_def_double = vm.declare_type(vm.next_id(), MuType_::double());
     vm.set_name(type_def_double.as_entity(), "double");
-    let mut type_def_void  = vm.declare_type(vm.next_id(), MuType_::void());
+    let type_def_void  = vm.declare_type(vm.next_id(), MuType_::void());
     vm.set_name(type_def_void.as_entity(), "void");
-    let mut type_def_int8  = vm.declare_type(vm.next_id(), MuType_::int(8));
+    let type_def_int8  = vm.declare_type(vm.next_id(), MuType_::int(8));
     vm.set_name(type_def_int8.as_entity(), "int8");
-    let mut type_def_int32 = vm.declare_type(vm.next_id(), MuType_::int(32));
+    let type_def_int32 = vm.declare_type(vm.next_id(), MuType_::int(32));
     vm.set_name(type_def_int32.as_entity(), "int32");
 
     // .const @int_64_1 <@int_64> = 1
-    let mut const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
+    let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
     vm.set_name(const_def_int64_1.as_entity(), "int64_1");
 
     // .funcsig @fac_sig = (@int_64) -> (@int_64)
-    let mut fac_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
+    let fac_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
     vm.set_name(fac_sig.as_entity(), "fac_sig");
-    let mut type_def_funcref_fac = vm.declare_type(vm.next_id(), MuType_::funcref(fac_sig.clone()));
+    let type_def_funcref_fac = vm.declare_type(vm.next_id(), MuType_::funcref(fac_sig.clone()));
     vm.set_name(type_def_funcref_fac.as_entity(), "fac_sig");
 
     // .funcdecl @fac <@fac_sig>
-    let mut func = MuFunction::new(vm.next_id(), fac_sig.clone());
+    let func = MuFunction::new(vm.next_id(), fac_sig.clone());
     vm.set_name(func.as_entity(), "fac");
     let func_id = func.id();
     vm.declare_func(func);
@@ -358,28 +356,28 @@ pub fn global_access() -> VM {
     
     // .typedef @int64 = int<64>
     // .typedef @iref_int64 = iref<int<64>>
-    let mut type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
     vm.set_name(type_def_int64.as_entity(), "int64");
-    let mut type_def_iref_int64 = vm.declare_type(vm.next_id(), MuType_::iref(type_def_int64.clone()));
+    let type_def_iref_int64 = vm.declare_type(vm.next_id(), MuType_::iref(type_def_int64.clone()));
     vm.set_name(type_def_iref_int64.as_entity(), "iref_int64");
     
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1
-    let mut const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
+    let const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
     vm.set_name(const_def_int64_0.as_entity(), "int64_0");
-    let mut const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
+    let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
     vm.set_name(const_def_int64_1.as_entity(), "int64_1");
     
     // .global @a <@int_64>
-    let mut global_a = vm.declare_global(vm.next_id(), type_def_int64.clone());
+    let global_a = vm.declare_global(vm.next_id(), type_def_int64.clone());
     vm.set_name(global_a.as_entity(), "a");
     
     // .funcsig @global_access_sig = () -> ()
-    let mut func_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![]);
+    let func_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![]);
     vm.set_name(func_sig.as_entity(), "global_access_sig");
 
     // .funcdecl @global_access <@global_access_sig>
-    let mut func = MuFunction::new(vm.next_id(), func_sig.clone());
+    let func = MuFunction::new(vm.next_id(), func_sig.clone());
     vm.set_name(func.as_entity(), "global_access");
     let func_id = func.id();
     vm.declare_func(func);

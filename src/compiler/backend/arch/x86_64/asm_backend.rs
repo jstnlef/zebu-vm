@@ -11,7 +11,6 @@ use utils::string_utils;
 
 use ast::ptr::P;
 use ast::ir::*;
-use ast::inst::*;
 
 use std::collections::HashMap;
 use std::str;

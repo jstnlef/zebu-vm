@@ -8,7 +8,6 @@ use vm::bundle::*;
 
 use std::mem;
 use std::os::raw;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -74,23 +73,23 @@ impl MuVM {
 
 pub type MuArraySize = usize;
 
-pub type MuIntValue = P<Value>;
+pub type MuIntValue   = MuValue;
 
-pub type MuBundleNode = *mut MuBundle;
-pub type MuChildNode  = MuIRNode;
-pub type MuTypeNode   = P<MuType>;
-pub type MuFuncSigNode= P<MuFuncSig>;
-pub type MuConstNode  = P<Value>;
-pub type MuGlobalNode = P<Value>;
-pub type MuFuncNode   = RefCell<MuFunction>;
-pub type MuFuncVerNode= RefCell<MuFunctionVersion>;
-pub type MuBBNode     = P<Block>;
-pub type MuNorParamNode = P<Value>;
-pub type MuExcParamNode = P<Value>;
-pub type MuInstNode     = P<TreeNode>;
-pub type MuInstResNode  = P<TreeNode>;
-pub type MuLocalVarNode = P<TreeNode>;
-pub type MuVarNode      = MuIRNode;
+pub type MuBundleNode = MuValue;
+pub type MuChildNode  = MuValue;
+pub type MuTypeNode   = MuValue;
+pub type MuFuncSigNode= MuValue;
+pub type MuConstNode  = MuValue;
+pub type MuGlobalNode = MuValue;
+pub type MuFuncNode   = MuValue;
+pub type MuFuncVerNode= MuValue;
+pub type MuBBNode     = MuValue;
+pub type MuNorParamNode = MuValue;
+pub type MuExcParamNode = MuValue;
+pub type MuInstNode     = MuValue;
+pub type MuInstResNode  = MuValue;
+pub type MuLocalVarNode = MuValue;
+pub type MuVarNode      = MuValue;
 
 pub type MuFlag          = usize;
 pub type MuDestKind      = MuFlag;
@@ -233,6 +232,7 @@ pub struct MuCtx {
 
 struct MuCtxInternal {
     vm: Arc<VM>,
+    cur_bundles: HashMap<MuID, MuBundle>
 }
 
 impl MuCtx {
@@ -251,14 +251,25 @@ impl MuCtx {
     
     #[allow(unused_variables)]
     pub fn new_bundle(ctx: &mut MuCtx) -> MuBundleNode {
-        let bundle = Box::new(MuBundle::new());
+        let id = ctx.internal.vm.next_id();
+        let bundle = MuBundle::new(id);
         
-        Box::into_raw(bundle)
+        ctx.internal.cur_bundles.insert(id, bundle);
+        
+        handle_bundle(id)
+    }
+    
+    fn get_bundle(&self, b: MuBundleNode) -> &MuBundle {
+        self.internal.cur_bundles.get(&b.id).unwrap()
+    }
+    
+    fn get_bundle_mut(&mut self, b: MuBundleNode) -> &mut MuBundle {
+        self.internal.cur_bundles.get_mut(&b.id).unwrap()
     }
     
     #[allow(unused_variables)]
     pub fn load_bundle_from_node(ctx: &mut MuCtx, b: MuBundleNode) {
-        let bundle = unsafe{Box::from_raw(b)};
+        let bundle = ctx.get_bundle(b);
         
         // load it
         unimplemented!()
@@ -266,24 +277,24 @@ impl MuCtx {
     
     #[allow(unused_variables)]
     pub fn abort_bundle_node(ctx: &mut MuCtx, b: MuBundleNode) {
-        let bundle = unsafe{Box::from_raw(b)};
+        ctx.internal.cur_bundles.remove(&b.id);
     }
     
     pub fn get_node(ctx: &mut MuCtx, b: MuBundleNode, id: MuID) -> MuChildNode {
-        let bundle = unsafe{b.as_mut()}.unwrap();
+        let bundle = ctx.get_bundle(b);
         
         if bundle.type_defs.contains_key(&id) {
-            MuIRNode::new(id, MuIRNodeKind::Type)
+            handle_type(id)
         } else if bundle.func_sigs.contains_key(&id) {
-            MuIRNode::new(id, MuIRNodeKind::FuncSig)
+            handle_funcsig(id)
         } else if bundle.constants.contains_key(&id) {
-            MuIRNode::new(id, MuIRNodeKind::Var(MuVarNodeKind::Global(MuGlobalVarNodeKind::Const)))
+            handle_const(id)
         } else if bundle.globals.contains_key(&id) {
-            MuIRNode::new(id, MuIRNodeKind::Var(MuVarNodeKind::Global(MuGlobalVarNodeKind::Global)))
+            handle_global(id)
         } else if bundle.func_defs.contains_key(&id) {
-            MuIRNode::new(id, MuIRNodeKind::Var(MuVarNodeKind::Global(MuGlobalVarNodeKind::Func)))
+            handle_func(id)
         } else if bundle.func_decls.contains_key(&id) {
-            MuIRNode::new(id, MuIRNodeKind::FuncVer)
+            handle_funcver(id)
         } else {
             panic!("expecting ID of a top level definition")
         }
@@ -293,6 +304,120 @@ impl MuCtx {
     pub fn get_id(ctx: &mut MuCtx, b: MuBundleNode, node: MuChildNode) -> MuID {
         node.id
     }
+    
+    fn next_id(&self) -> MuID {
+        self.internal.vm.next_id()
+    }
+    
+    #[allow(unused_variables)]
+    pub fn set_name(ctx: &mut MuCtx, b: MuBundleNode, node: MuChildNode, name: MuName) {
+        // what can be 'set_name'?
+        unimplemented!()
+    }
+    
+    pub fn new_int_type(ctx: &mut MuCtx, b: MuBundleNode, len: raw::c_int) -> MuTypeNode {
+        let id = ctx.next_id();
+        let ty = P(MuType::new(id, MuType_::Int(len as usize)));
+            
+        ctx.get_bundle_mut(b).type_defs.insert(id, ty);
+        
+        handle_type(id)
+    }
+    
+    pub fn new_float_type(ctx: &mut MuCtx, b: MuBundleNode) -> MuTypeNode {
+        let id = ctx.next_id();
+        let ty = P(MuType::new(id, MuType_::Float));
+        
+        ctx.get_bundle_mut(b).type_defs.insert(id, ty);
+        
+        handle_type(id)
+    }
+    
+    pub fn new_double_type(ctx: &mut MuCtx, b: MuBundleNode) -> MuTypeNode {
+        let id = ctx.next_id();
+        let ty = P(MuType::new(id, MuType_::Double));
+        
+        ctx.get_bundle_mut(b).type_defs.insert(id, ty);
+        
+        handle_type(id)
+    }
+    
+    pub fn new_funcsig(ctx: &mut MuCtx, b: MuBundleNode, 
+        paramtys: *const MuTypeNode, nparamtys: MuArraySize,
+        rettys: *const MuTypeNode, nrettys: MuArraySize) -> MuFuncSigNode {
+        
+        let arg_tys = {
+            let mut ret = vec![];
+            let bundle = ctx.get_bundle(b);            
+            for i in 0..nparamtys {
+                let ty_handle = unsafe{paramtys.offset(i as isize).as_ref()}.unwrap();
+                let ty = bundle.get_type(ty_handle).clone();
+                ret.push(ty);
+            }
+            ret
+        };
+        
+        let ret_tys = {
+            let mut ret = vec![];
+            let bundle = ctx.get_bundle(b);
+            for i in 0..nrettys {
+                let ty_handle = unsafe{rettys.offset(i as isize).as_ref()}.unwrap();
+                let ty = bundle.get_type(ty_handle).clone();
+                ret.push(ty);
+            }
+            ret
+        };
+        
+        let id = ctx.next_id();
+        let func_sig = P(MuFuncSig{
+            hdr: MuEntityHeader::unnamed(id),
+            ret_tys: ret_tys,
+            arg_tys: arg_tys
+        });
+        
+        ctx.get_bundle_mut(b).func_sigs.insert(id, func_sig);
+        
+        handle_funcsig(id)
+    }
+        
+    pub fn new_const_int(ctx: &mut MuCtx, b: MuBundleNode, ty: MuTypeNode, value: u64) -> MuConstNode {
+        let id = ctx.next_id();
+        let val = P(Value{
+            hdr: MuEntityHeader::unnamed(id),
+            ty: ctx.get_bundle(b).get_type(&ty).clone(),
+            v: Value_::Constant(Constant::Int(value))
+        });
+        
+        ctx.get_bundle_mut(b).constants.insert(id, val);
+        
+        handle_const(id)
+    }
+    
+    pub fn new_const_float(ctx: &mut MuCtx, b: MuBundleNode, ty: MuTypeNode, value: f32) -> MuConstNode {
+        let id = ctx.next_id();
+        let val = P(Value{
+            hdr: MuEntityHeader::unnamed(id),
+            ty: ctx.get_bundle(b).get_type(&ty).clone(),
+            v: Value_::Constant(Constant::Float(value))
+        });
+        
+        ctx.get_bundle_mut(b).constants.insert(id, val);
+        
+        handle_const(id)
+    }
+    
+    pub fn new_const_double(ctx: &mut MuCtx, b: MuBundleNode, ty: MuTypeNode, value: f64) -> MuConstNode {
+        let id = ctx.next_id();
+        let val = P(Value{
+            hdr: MuEntityHeader::unnamed(id),
+            ty: ctx.get_bundle(b).get_type(&ty).clone(),
+            v: Value_::Constant(Constant::Double(value))
+        });
+        
+        ctx.get_bundle_mut(b).constants.insert(id, val);
+        
+        handle_const(id)
+    }    
     
     fn new(vm: Arc<VM>) -> MuCtx {
         MuCtx {
@@ -327,19 +452,19 @@ impl MuCtx {
             
             get_node: api!(MuCtx::get_node),
             get_id  : api!(MuCtx::get_id),
-            set_name: unimplemented_api!(),
+            set_name: api!(MuCtx::set_name),
             
             // create types
-            new_type_int   : unimplemented_api!(),
-            new_type_float : unimplemented_api!(),
-            new_type_double: unimplemented_api!(),
+            new_type_int   : api!(MuCtx::new_int_type),
+            new_type_float : api!(MuCtx::new_float_type),
+            new_type_double: api!(MuCtx::new_double_type),
             // ... a lot more 
             
-            new_funcsig: unimplemented_api!(),
+            new_funcsig: api!(MuCtx::new_funcsig),
             
-            new_const_int   : unimplemented_api!(),
-            new_const_float : unimplemented_api!(),
-            new_const_double: unimplemented_api!(),
+            new_const_int   : api!(MuCtx::new_const_int),
+            new_const_float : api!(MuCtx::new_const_float),
+            new_const_double: api!(MuCtx::new_const_double),
             // ... a lot more
             
             new_global_cell : unimplemented_api!(),
@@ -418,7 +543,8 @@ impl MuCtx {
 impl MuCtxInternal {
     fn new(vm: Arc<VM>) -> MuCtxInternal {
         MuCtxInternal {
-            vm: vm
+            vm: vm,
+            cur_bundles: HashMap::new()
         }
     }
 }

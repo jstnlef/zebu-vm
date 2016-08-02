@@ -1,6 +1,5 @@
 use ast::ptr::P;
 use ast::ir::*;
-use ast::inst::*;
 
 use vm::MachineCode;
 

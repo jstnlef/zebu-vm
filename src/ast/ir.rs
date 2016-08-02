@@ -503,7 +503,7 @@ impl Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.v {
-            Value_::SSAVar(id) => {
+            Value_::SSAVar(_) => {
                 write!(f, "+({} %{})", self.ty, self.hdr)
             },
             Value_::Constant(ref c) => {
@@ -559,7 +559,7 @@ impl fmt::Display for SSAVarEntry {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Constant {
-    Int(usize),
+    Int(u64),
     Float(f32),
     Double(f64),
     IRef(Address),

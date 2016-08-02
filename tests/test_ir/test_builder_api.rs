@@ -19,8 +19,8 @@ fn test_builder_factorial() {
 }
 
 fn builder_factorial() {
-    let mvm = MuVM::new();
-    let mvm_ref = unsafe {mvm.as_mut()}.unwrap();
-    let ctx = (mvm_ref.new_context)(mvm);
-    let ctx_ref = unsafe {ctx.as_mut()}.unwrap();
+//    let mvm = MuVM::new();
+//    let mvm_ref = unsafe {mvm.as_mut()}.unwrap();
+//    let ctx = (mvm_ref.new_context)(mvm);
+//    let ctx_ref = unsafe {ctx.as_mut()}.unwrap();
 }

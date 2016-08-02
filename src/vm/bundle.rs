@@ -1,10 +1,13 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
+use vm::api::*;
 
 use std::collections::HashMap;
 
 pub struct MuBundle {
+    pub id: MuID,
+    
     pub type_defs: HashMap<MuID, P<MuType>>,
     pub func_sigs: HashMap<MuID, P<MuFuncSig>>,
     pub constants: HashMap<MuID, P<Value>>,
@@ -17,8 +20,10 @@ pub struct MuBundle {
 }
 
 impl MuBundle {
-    pub fn new() -> MuBundle {
+    pub fn new(id: MuID) -> MuBundle {
         MuBundle {
+            id: id,
+            
             type_defs: HashMap::new(),
             func_sigs: HashMap::new(),
             constants: HashMap::new(),
@@ -30,45 +35,103 @@ impl MuBundle {
 //            name_id_map: HashMap::new()
         }
     }
+    
+    pub fn get_type(&self, ty: &MuTypeNode) -> &P<MuType> {
+        self.type_defs.get(&ty.id).unwrap()
+    }
 }
 
-pub struct MuIRNode {
+#[derive(Copy, Clone, Debug)]
+pub struct MuValue {
     pub id: MuID,
-    pub v: MuIRNodeKind
+    pub v: MuValueKind
+} 
+
+#[derive(Copy, Clone, Debug)]
+pub enum MuValueKind {
+    Int,
+    Float,
+    Double,
+    UPtr,
+    UFP,
+    
+    // SeqValue
+    Struct,
+    Array,
+    Vector,
+    
+    // GenRef
+    Ref,
+    IRef,
+    TagRef64,
+    FuncRef,
+    ThreadRef,
+    StackRef,
+    FCRef, // frame cursor ref        
+    
+    // GenRef->IR
+    Bundle,
+    
+    // GenRef->IR->Child
+    Type,
+    FuncSig,
+    FuncVer,
+    BB,
+    Inst,
+    
+    // GenRef->IR->Child->Var->Global
+    Const,
+    Global,
+    Func,
+    ExpFunc,
+    
+    // GenRef->IR->Child->Var->Local
+    NorParam,
+    ExcParam,
+    InstRes,    
 }
 
-impl MuIRNode {
-    pub fn new(id: MuID, v: MuIRNodeKind) -> MuIRNode {
-        MuIRNode {
-            id: id,
-            v: v
+macro_rules! handle_constructor {
+    ($fn_name: ident, $kind: ident) => {
+        pub fn $fn_name(id: MuID) -> MuValue {
+            MuValue{
+                id: id, v: MuValueKind::$kind
+            }
         }
     }
 }
 
-pub enum MuIRNodeKind {
-    Type,
-    FuncSig,
-    Var(MuVarNodeKind),
-    FuncVer,
-    BB,
-    Inst
-}
+handle_constructor!(handle_int, Int);
+handle_constructor!(handle_float, Float);
+handle_constructor!(handle_double, Double);
+handle_constructor!(handle_uptr, UPtr);
+handle_constructor!(handle_ufp, UFP);
 
-pub enum MuVarNodeKind {
-    Global(MuGlobalVarNodeKind),
-    Local(MuLocalVarNodeKind)
-}
+handle_constructor!(handle_struct, Struct);
+handle_constructor!(handle_array, Array);
+handle_constructor!(handle_vector, Vector);
 
-pub enum MuGlobalVarNodeKind {
-    Const,
-    Global,
-    Func,
-    ExpFunc
-}
+handle_constructor!(handle_ref, Ref);
+handle_constructor!(handle_iref, IRef);
+handle_constructor!(handle_tagref64, TagRef64);
+handle_constructor!(handle_funcref, FuncRef);
+handle_constructor!(handle_threadref, ThreadRef);
+handle_constructor!(handle_stackref, StackRef);
+handle_constructor!(handle_fcref, FCRef);
 
-pub enum MuLocalVarNodeKind {
-    NorParam,
-    ExcParam,
-    MuInstRes
-}
+handle_constructor!(handle_bundle, Bundle);
+
+handle_constructor!(handle_type, Type);
+handle_constructor!(handle_funcsig, FuncSig);
+handle_constructor!(handle_funcver, FuncVer);
+handle_constructor!(handle_bb, BB);
+handle_constructor!(handle_inst, Inst);
+
+handle_constructor!(handle_const, Const);
+handle_constructor!(handle_global, Global);
+handle_constructor!(handle_func, Func);
+handle_constructor!(handle_expfunc, ExpFunc);
+
+handle_constructor!(handle_norparam, NorParam);
+handle_constructor!(handle_excparam, ExcParam);
+handle_constructor!(handle_instres, InstRes);
