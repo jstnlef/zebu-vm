@@ -167,14 +167,10 @@ impl <'a> VM {
         debug_assert!(funcs.contains_key(&func_ver.func_id)); // it should be declared before defining
         let mut func = funcs.get(&func_ver.func_id).unwrap().borrow_mut();
         
-        if func.cur_ver.is_some() {
-            let obsolete_ver = func.cur_ver.unwrap();
-            func.all_vers.push(obsolete_ver);
-            
-            // redefinition happens here
-            // do stuff
-        }
-        func.cur_ver = Some(func_ver.id());        
+        func.new_version(func_ver.id());
+        
+        // redefinition happens here
+        // do stuff        
     }
     
     pub fn add_compiled_func (&self, func: CompiledFunction) {
@@ -226,5 +222,13 @@ impl <'a> VM {
     
     pub fn compiled_funcs(&self) -> &RwLock<HashMap<MuID, RefCell<CompiledFunction>>> {
         &self.compiled_funcs
+    }
+    
+    pub fn types(&self) -> &RwLock<HashMap<MuID, P<MuType>>> {
+        &self.types
+    }
+    
+    pub fn func_sigs(&self) -> &RwLock<HashMap<MuID, P<MuFuncSig>>> {
+        &self.func_sigs
     }
 }

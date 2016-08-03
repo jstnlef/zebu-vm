@@ -10,6 +10,7 @@ use std::mem;
 use std::os::raw;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::ops::DerefMut;
 
 /// This module implements muapi.h
 
@@ -259,14 +260,6 @@ impl MuCtx {
         handle_bundle(id)
     }
     
-    fn get_bundle(&self, b: MuBundleNode) -> &MuBundle {
-        self.internal.cur_bundles.get(&b.id).unwrap()
-    }
-    
-    fn get_bundle_mut(&mut self, b: MuBundleNode) -> &mut MuBundle {
-        self.internal.cur_bundles.get_mut(&b.id).unwrap()
-    }
-    
     #[allow(unused_variables)]
     pub fn load_bundle_from_node(ctx: &mut MuCtx, b: MuBundleNode) {
         let bundle = ctx.get_bundle(b);
@@ -348,10 +341,9 @@ impl MuCtx {
         
         let arg_tys = {
             let mut ret = vec![];
-            let bundle = ctx.get_bundle(b);            
             for i in 0..nparamtys {
                 let ty_handle = unsafe{paramtys.offset(i as isize).as_ref()}.unwrap();
-                let ty = bundle.get_type(ty_handle).clone();
+                let ty = ctx.get_type(b, ty_handle);
                 ret.push(ty);
             }
             ret
@@ -359,10 +351,9 @@ impl MuCtx {
         
         let ret_tys = {
             let mut ret = vec![];
-            let bundle = ctx.get_bundle(b);
             for i in 0..nrettys {
                 let ty_handle = unsafe{rettys.offset(i as isize).as_ref()}.unwrap();
-                let ty = bundle.get_type(ty_handle).clone();
+                let ty = ctx.get_type(b, ty_handle);
                 ret.push(ty);
             }
             ret
@@ -384,7 +375,7 @@ impl MuCtx {
         let id = ctx.next_id();
         let val = P(Value{
             hdr: MuEntityHeader::unnamed(id),
-            ty: ctx.get_bundle(b).get_type(&ty).clone(),
+            ty: ctx.get_type(b, &ty),
             v: Value_::Constant(Constant::Int(value))
         });
         
@@ -397,7 +388,7 @@ impl MuCtx {
         let id = ctx.next_id();
         let val = P(Value{
             hdr: MuEntityHeader::unnamed(id),
-            ty: ctx.get_bundle(b).get_type(&ty).clone(),
+            ty: ctx.get_type(b, &ty),
             v: Value_::Constant(Constant::Float(value))
         });
         
@@ -410,14 +401,77 @@ impl MuCtx {
         let id = ctx.next_id();
         let val = P(Value{
             hdr: MuEntityHeader::unnamed(id),
-            ty: ctx.get_bundle(b).get_type(&ty).clone(),
+            ty: ctx.get_type(b, &ty),
             v: Value_::Constant(Constant::Double(value))
         });
         
         ctx.get_bundle_mut(b).constants.insert(id, val);
         
         handle_const(id)
-    }    
+    }
+    
+    pub fn new_global_cell(ctx: &mut MuCtx, b: MuBundleNode, ty: MuTypeNode) -> MuGlobalNode {
+        let id = ctx.next_id();
+        let ty = ctx.get_type(b, &ty);
+        
+        let iref_id = ctx.next_id();
+        let iref_ty = P(MuType{
+            hdr: MuEntityHeader::unnamed(iref_id),
+            v: MuType_::IRef(ty.clone())
+        });
+        
+        let global = P(Value{
+            hdr: MuEntityHeader::unnamed(id),
+            ty: iref_ty.clone(),
+            v: Value_::Global(ty)
+        });
+        
+        let bundle = ctx.get_bundle_mut(b);
+        bundle.globals.insert(id, global);
+        bundle.type_defs.insert(iref_id, iref_ty);
+        
+        handle_global(id)
+    }
+    
+    pub fn new_func(ctx: &mut MuCtx, b: MuBundleNode, sig: MuFuncSigNode) -> MuFuncNode {
+        let id = ctx.next_id();
+        
+        let func = MuFunction::new(id, ctx.get_func_sig(b, &sig));
+        
+        let bundle = ctx.get_bundle_mut(b);
+        bundle.func_defs.insert(id, func);
+        
+        handle_func(id)
+    }
+    
+    pub fn new_func_ver(ctx: &mut MuCtx, b: MuBundleNode, func: MuFuncNode) -> MuFuncVerNode {
+        let fv_id = ctx.next_id();
+        let fid = func.id;
+        
+        let fv = {
+            if ctx.get_bundle_mut(b).func_defs.contains_key(&fid) {
+                let func = ctx.get_bundle_mut(b).func_defs.get_mut(&fid).unwrap();
+                let fv = MuFunctionVersion::new(fv_id, fid, func.sig.clone());
+                func.new_version(fv_id);
+                
+                fv
+            } else {
+                let guard = ctx.internal.vm.funcs().read().unwrap();
+                let mut func = guard.get(&fid).unwrap().borrow_mut();
+                let fv = MuFunctionVersion::new(fv_id, fid, func.sig.clone());
+                func.new_version(fv_id);
+                
+                fv
+            }
+        };
+        
+        ctx.get_bundle_mut(b).func_decls.insert(fv_id, fv);
+        handle_funcver(fv_id)
+    }
+    
+    pub fn new_bb(ctx: &mut MuCtx, fv: MuFuncVerNode) -> MuBBNode {
+        unimplemented!()
+    }
     
     fn new(vm: Arc<VM>) -> MuCtx {
         MuCtx {
@@ -467,10 +521,10 @@ impl MuCtx {
             new_const_double: api!(MuCtx::new_const_double),
             // ... a lot more
             
-            new_global_cell : unimplemented_api!(),
+            new_global_cell : api!(MuCtx::new_global_cell),
             
-            new_func: unimplemented_api!(),
-            new_func_ver: unimplemented_api!(),
+            new_func: api!(MuCtx::new_func),
+            new_func_ver: api!(MuCtx::new_func_ver),
             
             // create CFG
             new_bb: unimplemented_api!(),
@@ -537,7 +591,43 @@ impl MuCtx {
             
             new_comminst: unimplemented_api!(),       
         }
-    } 
+    }
+    
+    fn get_bundle(&self, b: MuBundleNode) -> &MuBundle {
+        self.internal.cur_bundles.get(&b.id).unwrap()
+    }
+    
+    fn get_bundle_mut(&mut self, b: MuBundleNode) -> &mut MuBundle {
+        self.internal.cur_bundles.get_mut(&b.id).unwrap()
+    }
+    
+    fn get_type(&self, b: MuBundleNode, ty: &MuTypeNode) -> P<MuType> {
+        let id = ty.id;
+        
+        if self.get_bundle(b).type_defs.contains_key(&id) {
+            self.get_bundle(b).type_defs.get(&id).unwrap().clone()
+        } else {
+            self.internal.vm.types().read().unwrap().get(&id).unwrap().clone()
+        }
+    }
+    
+    fn get_func_sig(&self, b: MuBundleNode, func_sig: &MuFuncSigNode) -> P<MuFuncSig> {
+        let id = func_sig.id;
+        
+        if self.get_bundle(b).func_sigs.contains_key(&id) {
+            self.get_bundle(b).func_sigs.get(&id).unwrap().clone()
+        } else {
+            self.internal.vm.func_sigs().read().unwrap().get(&id).unwrap().clone()
+        }
+    }
+    
+    fn get_func_ver(&self, b: MuBundleNode, func_ver: &MuFuncVerNode) -> &MuFunctionVersion {
+        self.get_bundle(b).func_decls.get(&func_ver.id).unwrap()
+    }    
+    
+    fn get_func_ver_mut(&mut self, b: MuBundleNode, func_ver: &MuFuncVerNode) -> &mut MuFunctionVersion {
+        self.get_bundle_mut(b).func_decls.get_mut(&func_ver.id).unwrap()
+    }
 }
 
 impl MuCtxInternal {

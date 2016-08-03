@@ -35,10 +35,6 @@ impl MuBundle {
 //            name_id_map: HashMap::new()
         }
     }
-    
-    pub fn get_type(&self, ty: &MuTypeNode) -> &P<MuType> {
-        self.type_defs.get(&ty.id).unwrap()
-    }
 }
 
 #[derive(Copy, Clone, Debug)]

@@ -72,6 +72,15 @@ impl MuFunction {
             all_vers: vec![]
         }
     }
+    
+    pub fn new_version(&mut self, fv: MuID) {
+        if self.cur_ver.is_some() {
+            let obsolete_ver = self.cur_ver.unwrap();
+            self.all_vers.push(obsolete_ver);
+        }
+        
+        self.cur_ver = Some(fv);
+    }
 }
 
 impl fmt::Display for MuFunction {
