@@ -1,7 +1,6 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
-use vm::api::*;
 
 use std::collections::HashMap;
 

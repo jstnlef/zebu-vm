@@ -10,7 +10,6 @@ use std::mem;
 use std::os::raw;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::ops::DerefMut;
 
 /// This module implements muapi.h
 
@@ -469,6 +468,7 @@ impl MuCtx {
         handle_funcver(fv_id)
     }
     
+    #[allow(unused_variables)]
     pub fn new_bb(ctx: &mut MuCtx, fv: MuFuncVerNode) -> MuBBNode {
         unimplemented!()
     }
