@@ -1,5 +1,9 @@
 #![allow(dead_code)]
 
+extern crate immix_rust as gc;
+pub use gc::common::Address;
+pub use gc::common::ObjectReference;
+
 pub type ByteSize = usize;
 
 mod linked_hashset;

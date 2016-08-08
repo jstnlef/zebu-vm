@@ -9,6 +9,8 @@ use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use vm::machine_code::CompiledFunction;
 use vm::vm_options::VMOptions;
+use runtime::thread::MuStack;
+use runtime::thread::MuThread;
 
 use std::sync::RwLock;
 use std::cell::RefCell;
@@ -230,5 +232,9 @@ impl <'a> VM {
     
     pub fn func_sigs(&self) -> &RwLock<HashMap<MuID, P<MuFuncSig>>> {
         &self.func_sigs
+    }
+    
+    pub fn new_stack(&self, func_id: MuID) -> Box<MuStack> {
+        Box::new(MuStack::new(self.next_id(), func_id))
     }
 }
