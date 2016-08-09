@@ -1,14 +1,14 @@
 #![allow(dead_code)]
-
-extern crate immix_rust as gc;
-pub use gc::common::Address;
-pub use gc::common::ObjectReference;
-
 pub type ByteSize = usize;
+
+pub mod mem;
 
 mod linked_hashset;
 pub use utils::linked_hashset::LinkedHashSet;
 pub use utils::linked_hashset::LinkedHashMap;
+
+pub use runtime::Address;
+pub use runtime::ObjectReference;
 
 macro_rules! select_value {
     ($cond: expr, $res1 : expr, $res2 : expr) => {

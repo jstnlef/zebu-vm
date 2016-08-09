@@ -57,7 +57,7 @@ impl CompilerPass for PeepholeOptimization {
     
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         let compiled_funcs = vm.compiled_funcs().read().unwrap();
-        let mut cf = compiled_funcs.get(&func.id()).unwrap().borrow_mut();
+        let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
         
         for i in 0..cf.mc.number_of_insts() {
             self.remove_redundant_move(i, &mut cf);

@@ -42,6 +42,9 @@ struct ASMCode {
     block_liveout: HashMap<MuName, Vec<MuID>>
 }
 
+unsafe impl Send for ASMCode {} 
+unsafe impl Sync for ASMCode {}
+
 impl MachineCode for ASMCode {
     fn number_of_insts(&self) -> usize {
         self.code.len()
@@ -1087,10 +1090,10 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     use std::path;
     
     let funcs = vm.funcs().read().unwrap();
-    let func = funcs.get(&fv.func_id).unwrap().borrow();
+    let func = funcs.get(&fv.func_id).unwrap().read().unwrap();
 
     let compiled_funcs = vm.compiled_funcs().read().unwrap();
-    let cf = compiled_funcs.get(&fv.id()).unwrap().borrow();
+    let cf = compiled_funcs.get(&fv.id()).unwrap().read().unwrap();
 
     let code = cf.mc.emit();
 

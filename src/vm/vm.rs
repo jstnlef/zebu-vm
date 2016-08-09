@@ -1,5 +1,3 @@
-extern crate immix_rust as gc;
-
 use std::collections::HashMap;
 
 use ast::ptr::P;
@@ -9,12 +7,16 @@ use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use vm::machine_code::CompiledFunction;
 use vm::vm_options::VMOptions;
+use runtime::gc;
 use runtime::thread::MuStack;
+use runtime::RuntimeValue;
 use runtime::thread::MuThread;
+use utils::Address;
 
 use std::sync::RwLock;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
+use std::thread::JoinHandle;
 
 pub struct VM {
     next_id: AtomicUsize,
@@ -31,10 +33,12 @@ pub struct VM {
     
     func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
     // key: (func_id, func_ver_id)
-    func_vers: RwLock<HashMap<(MuID, MuID), RefCell<MuFunctionVersion>>>,
-    funcs: RwLock<HashMap<MuID, RefCell<MuFunction>>>,
+    func_vers: RwLock<HashMap<(MuID, MuID), RwLock<MuFunctionVersion>>>,
+    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,
     
-    compiled_funcs: RwLock<HashMap<MuID, RefCell<CompiledFunction>>>
+    compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
+    
+    threads: RwLock<Vec<JoinHandle<()>>>
 }
 
 impl <'a> VM {
@@ -56,7 +60,9 @@ impl <'a> VM {
             func_sigs: RwLock::new(HashMap::new()),
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
-            compiled_funcs: RwLock::new(HashMap::new())
+            compiled_funcs: RwLock::new(HashMap::new()),
+            
+            threads: RwLock::new(vec!())
         };
         
         ret.is_running.store(false, Ordering::SeqCst);
@@ -148,7 +154,7 @@ impl <'a> VM {
     pub fn declare_func (&self, func: MuFunction) {
         info!("declare function {}", func);
         let mut funcs = self.funcs.write().unwrap();
-        funcs.insert(func.id(), RefCell::new(func));
+        funcs.insert(func.id(), RwLock::new(func));
     }
     
     pub fn define_func_version (&self, func_ver: MuFunctionVersion) {
@@ -157,17 +163,17 @@ impl <'a> VM {
         let func_ver_key = (func_ver.func_id, func_ver.id());
         {
             let mut func_vers = self.func_vers.write().unwrap();
-            func_vers.insert(func_ver_key, RefCell::new(func_ver));
+            func_vers.insert(func_ver_key, RwLock::new(func_ver));
         }
         
         // acquire a reference to the func_ver
         let func_vers = self.func_vers.read().unwrap();
-        let func_ver = func_vers.get(&func_ver_key).unwrap().borrow();
+        let func_ver = func_vers.get(&func_ver_key).unwrap().write().unwrap();
         
         // change current version to this (obsolete old versions)
         let funcs = self.funcs.read().unwrap();
         debug_assert!(funcs.contains_key(&func_ver.func_id)); // it should be declared before defining
-        let mut func = funcs.get(&func_ver.func_id).unwrap().borrow_mut();
+        let mut func = funcs.get(&func_ver.func_id).unwrap().write().unwrap();
         
         func.new_version(func_ver.id());
         
@@ -179,7 +185,7 @@ impl <'a> VM {
         debug_assert!(self.funcs.read().unwrap().contains_key(&func.func_id));
         debug_assert!(self.func_vers.read().unwrap().contains_key(&(func.func_id, func.func_ver_id)));
 
-        self.compiled_funcs.write().unwrap().insert(func.func_ver_id, RefCell::new(func));
+        self.compiled_funcs.write().unwrap().insert(func.func_ver_id, RwLock::new(func));
     }
     
     pub fn get_backend_type_info(&self, tyid: MuID) -> P<BackendTypeInfo> {        
@@ -214,15 +220,15 @@ impl <'a> VM {
         &self.globals
     }
     
-    pub fn funcs(&self) -> &RwLock<HashMap<MuID, RefCell<MuFunction>>> {
+    pub fn funcs(&self) -> &RwLock<HashMap<MuID, RwLock<MuFunction>>> {
         &self.funcs
     }
     
-    pub fn func_vers(&self) -> &RwLock<HashMap<(MuID, MuID), RefCell<MuFunctionVersion>>> {
+    pub fn func_vers(&self) -> &RwLock<HashMap<(MuID, MuID), RwLock<MuFunctionVersion>>> {
         &self.func_vers
     }
     
-    pub fn compiled_funcs(&self) -> &RwLock<HashMap<MuID, RefCell<CompiledFunction>>> {
+    pub fn compiled_funcs(&self) -> &RwLock<HashMap<MuID, RwLock<CompiledFunction>>> {
         &self.compiled_funcs
     }
     
@@ -235,6 +241,24 @@ impl <'a> VM {
     }
     
     pub fn new_stack(&self, func_id: MuID) -> Box<MuStack> {
-        Box::new(MuStack::new(self.next_id(), func_id))
+        let funcs = self.funcs.read().unwrap();
+        let func : &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
+        
+        Box::new(MuStack::new(self.next_id(), func))
+    }
+    
+    pub fn new_thread_normal(&self, stack: Box<MuStack>, threadlocal: Address, vals: Vec<RuntimeValue>) {
+        let user_tls = {
+            if threadlocal.is_zero() {
+                None
+            } else {
+                Some(threadlocal)
+            }
+        };
+        
+        // set up arguments on stack
+        unimplemented!();
+        
+        MuThread::launch(self.next_id(), stack, user_tls, vals, self);
     }
 }

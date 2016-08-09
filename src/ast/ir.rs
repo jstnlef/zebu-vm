@@ -11,11 +11,11 @@ use std::default;
 use std::sync::RwLock;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
+use utils::Address;
 
 pub type WPID  = usize;
 pub type MuID  = usize;
 pub type MuName = &'static str;
-pub type Address = usize; // TODO: replace this with Address(usize)
 
 pub type OpIndex = usize;
 
@@ -633,8 +633,8 @@ impl fmt::Display for MemoryLocation {
 
 #[derive(Debug)] // Display, PartialEq
 pub struct MuEntityHeader {
-    id: MuID,
-    name: RwLock<Option<MuName>>
+    pub id: MuID,
+    pub name: RwLock<Option<MuName>>
 }
 
 impl MuEntityHeader {

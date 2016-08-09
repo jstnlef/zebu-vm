@@ -6,6 +6,7 @@ extern crate immix_rust as gc;
 
 #[macro_use]
 pub mod utils;
+#[macro_use]
 pub mod ast;
 pub mod vm;
 pub mod compiler;

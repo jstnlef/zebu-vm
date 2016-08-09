@@ -161,7 +161,7 @@ impl <'a> InstructionSelection {
                         if self.match_funcref_const(func) {
                             let target_id = self.emit_get_funcref_const(func);
                             let funcs = vm.funcs().read().unwrap();
-                            let target = funcs.get(&target_id).unwrap().borrow();
+                            let target = funcs.get(&target_id).unwrap().read().unwrap();
                                                         
                             if vm.is_running() {
                                 unimplemented!()
@@ -790,7 +790,7 @@ impl CompilerPass for InstructionSelection {
         debug!("{}", self.name());
         
         let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_ver.func_id).unwrap().borrow();
+        let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
         self.backend.start_code(func.name().unwrap());
         
         // prologue (get arguments from entry block first)        

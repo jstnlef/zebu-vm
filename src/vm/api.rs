@@ -456,7 +456,7 @@ impl MuCtx {
                 fv
             } else {
                 let guard = ctx.internal.vm.funcs().read().unwrap();
-                let mut func = guard.get(&fid).unwrap().borrow_mut();
+                let mut func = guard.get(&fid).unwrap().write().unwrap();
                 let fv = MuFunctionVersion::new(fv_id, fid, func.sig.clone());
                 func.new_version(fv_id);
                 
