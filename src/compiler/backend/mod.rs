@@ -5,11 +5,14 @@ pub mod code_emission;
 
 use utils::ByteSize;
 
+pub type Word = usize;
+pub const WORD_SIZE : ByteSize = 8;
+
 // X86_64
 
 #[cfg(target_arch = "x86_64")]
 #[path = "arch/x86_64/mod.rs"]
-mod x86_64;
+pub mod x86_64;
 
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::init_machine_regs_for_func;

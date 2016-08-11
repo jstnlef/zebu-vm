@@ -1,5 +1,6 @@
 mod test_ir;
 mod test_compiler;
+mod test_vm;
 
 #[macro_use]
 mod common {

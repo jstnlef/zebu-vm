@@ -4,7 +4,7 @@ use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
 use vm::VM;
-use runtime::RuntimeValue;
+use runtime::ValueLocation;
 use runtime::gc;
 
 use utils::ByteSize;
@@ -27,9 +27,8 @@ impl_mu_entity!(MuStack);
 pub struct MuStack {
     pub hdr: MuEntityHeader,
     
-    func_id: MuID,
-    
-    state: MuStackState,
+    func_addr: ValueLocation,
+    func_id: MuID, 
     
     size: ByteSize,
     //    lo addr                                                    hi addr
@@ -49,12 +48,13 @@ pub struct MuStack {
     
     exception_obj  : Option<Address>,
     
+    state: MuStackState,
     #[allow(dead_code)]
     mmap           : memmap::Mmap
 }
 
 impl MuStack {
-    pub fn new(id: MuID, func: &MuFunction) -> MuStack {
+    pub fn new(id: MuID, func_addr: ValueLocation, func: &MuFunction) -> MuStack {
         let total_size = PAGE_SIZE * 2 + STACK_SIZE;
         
         let anon_mmap = match memmap::Mmap::anonymous(total_size, memmap::Protection::ReadWrite) {
@@ -83,6 +83,7 @@ impl MuStack {
         
         MuStack {
             hdr: MuEntityHeader::unnamed(id),
+            func_addr: func_addr,
             func_id: func.id(),
             
             state: MuStackState::Ready(func.sig.arg_tys.clone()),
@@ -102,6 +103,61 @@ impl MuStack {
             mmap: anon_mmap
         }
     }
+    
+    #[cfg(target_arch = "x86_64")]
+    pub fn runtime_load_args(&mut self, vals: Vec<ValueLocation>) {
+        use compiler::backend::Word;
+        use compiler::backend::WORD_SIZE;
+        use compiler::backend::RegGroup;
+        use compiler::backend::x86_64;
+        
+        let mut gpr_used = vec![];
+        let mut fpr_used = vec![];
+        
+        for i in 0..vals.len() {
+            let ref val = vals[i];
+            let (reg_group, word) = val.load_value();
+            
+            match reg_group {
+                RegGroup::GPR => gpr_used.push(word),
+                RegGroup::FPR => fpr_used.push(word),
+            }
+        }
+        
+        let mut stack_ptr = self.sp;
+        for i in 0..x86_64::ARGUMENT_FPRs.len() {
+            stack_ptr = stack_ptr.sub(WORD_SIZE);
+            let val = {
+                if i < fpr_used.len() {
+                    fpr_used[i]
+                } else {
+                    0 as Word
+                }
+            };
+            
+            debug!("store {} to {}", val, stack_ptr);
+            unsafe {stack_ptr.store(val);}
+        }
+        
+        for i in 0..x86_64::ARGUMENT_GPRs.len() {
+            stack_ptr = stack_ptr.sub(WORD_SIZE);
+            let val = {
+                if i < gpr_used.len() {
+                    gpr_used[i]
+                } else {
+                    0 as Word
+                }
+            };
+            
+            debug!("store {} to {}", val, stack_ptr);
+            unsafe {stack_ptr.store(val);}
+        }
+        
+        // should have put 6 + 6 words on the stack
+        debug_assert!(self.sp.diff(stack_ptr) == 12 * WORD_SIZE);
+        // save it back
+        self.sp = stack_ptr;
+    }
 }
 
 pub enum MuStackState {
@@ -118,6 +174,13 @@ pub struct MuThread {
     user_tls: Option<Address>
 }
 
+#[cfg(target_arch = "x86_64")]
+#[cfg(target_os = "macos")]
+#[link(name = "runtime")]
+extern "C" {
+    fn init_thread_local(thread: &Box<MuThread>) -> Address;
+}
+
 impl MuThread {
     pub fn new(id: MuID, allocator: Box<gc::Mutator>, stack: Box<MuStack>, user_tls: Option<Address>) -> MuThread {
         MuThread {
@@ -128,10 +191,15 @@ impl MuThread {
         }
     }
     
-    pub fn launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vals: Vec<RuntimeValue>, vm: &VM) -> JoinHandle<()> {
+    #[no_mangle]
+    pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vm: &VM) -> JoinHandle<()> {
         match thread::Builder::new().name(format!("Mu Thread #{}", id)).spawn(move || {
-            let mut muthread = Box::new(MuThread::new(id, gc::new_mutator(), stack, user_tls));
-            MuThread::thread_entry(muthread, vm);
+            let muthread = Box::new(MuThread::new(id, gc::new_mutator(), stack, user_tls));
+            
+            // set thread local
+            let addr = unsafe {init_thread_local(&muthread)};
+            
+            MuThread::thread_entry(muthread);
         }) {
             Ok(handle) => handle,
             Err(_) => panic!("failed to create a thread")
@@ -139,7 +207,14 @@ impl MuThread {
     }
     
     /// entry function for launching a mu thread
-    pub fn thread_entry(mu_thread: Box<MuThread>, vm: &VM) -> ! {
+    pub fn thread_entry(mu_thread: Box<MuThread>) -> ! {
+        let ref stack = mu_thread.stack;
         
+        unimplemented!()
     }
+}
+
+pub struct MuPrimordialThread {
+    pub func_id: MuID,
+    pub args: Vec<Constant>
 }

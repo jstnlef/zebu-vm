@@ -25,14 +25,14 @@ fn test_ir_liveness_fac() {
     
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
-    let func = funcs.get(&func_id).unwrap().borrow();
+    let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers.get(&(func.id(), func.cur_ver.unwrap())).unwrap().borrow_mut();
+    let mut func_ver = func_vers.get(&(func.id(), func.cur_ver.unwrap())).unwrap().write().unwrap();
     
     compiler.compile(&mut func_ver);
     
     let cf_lock = vm.compiled_funcs().read().unwrap();
-    let cf = cf_lock.get(&func_ver.id()).unwrap().borrow();
+    let cf = cf_lock.get(&func_ver.id()).unwrap().read().unwrap();
     
     // block 0
     
@@ -74,9 +74,9 @@ fn test_regalloc_fac() {
     
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
-    let func = funcs.get(&func_id).unwrap().borrow();
+    let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers.get(&(func.id(), func.cur_ver.unwrap())).unwrap().borrow_mut();
+    let mut func_ver = func_vers.get(&(func.id(), func.cur_ver.unwrap())).unwrap().write().unwrap();
     
     compiler.compile(&mut func_ver);
 }

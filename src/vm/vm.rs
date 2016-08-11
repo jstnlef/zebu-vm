@@ -8,9 +8,8 @@ use compiler::backend::BackendTypeInfo;
 use vm::machine_code::CompiledFunction;
 use vm::vm_options::VMOptions;
 use runtime::gc;
-use runtime::thread::MuStack;
-use runtime::RuntimeValue;
-use runtime::thread::MuThread;
+use runtime::thread::*;
+use runtime::ValueLocation;
 use utils::Address;
 
 use std::sync::RwLock;
@@ -38,7 +37,8 @@ pub struct VM {
     
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
     
-    threads: RwLock<Vec<JoinHandle<()>>>
+    threads: RwLock<Vec<JoinHandle<()>>>,
+    pub primordial: RwLock<Option<MuPrimordialThread>>
 }
 
 impl <'a> VM {
@@ -62,7 +62,8 @@ impl <'a> VM {
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
             
-            threads: RwLock::new(vec!())
+            threads: RwLock::new(vec!()),
+            primordial: RwLock::new(None)
         };
         
         ret.is_running.store(false, Ordering::SeqCst);
@@ -240,14 +241,31 @@ impl <'a> VM {
         &self.func_sigs
     }
     
+    pub fn resolve_function_address(&self, func_id: MuID) -> ValueLocation {
+        let funcs = self.funcs.read().unwrap();
+        let func : &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
+                
+        if self.is_running() {
+            unimplemented!()
+        } else {
+            ValueLocation::Relocatable(backend::RegGroup::GPR, func.name().unwrap())
+        }
+    }
+    
     pub fn new_stack(&self, func_id: MuID) -> Box<MuStack> {
         let funcs = self.funcs.read().unwrap();
         let func : &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
         
-        Box::new(MuStack::new(self.next_id(), func))
+        Box::new(MuStack::new(self.next_id(), self.resolve_function_address(func_id), func))
     }
     
-    pub fn new_thread_normal(&self, stack: Box<MuStack>, threadlocal: Address, vals: Vec<RuntimeValue>) {
+    pub fn make_primordial_thread(&self, func_id: MuID, args: Vec<Constant>) {
+        let mut guard = self.primordial.write().unwrap();
+        *guard = Some(MuPrimordialThread{func_id: func_id, args: args});
+    }
+    
+    #[deprecated]
+    pub fn new_thread_normal(&self, mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>) {
         let user_tls = {
             if threadlocal.is_zero() {
                 None
@@ -257,8 +275,11 @@ impl <'a> VM {
         };
         
         // set up arguments on stack
-        unimplemented!();
+        stack.runtime_load_args(vals);
         
-        MuThread::launch(self.next_id(), stack, user_tls, vals, self);
+        let handle = MuThread::mu_thread_launch(self.next_id(), stack, user_tls, self);
+        
+        let mut threads = self.threads.write().unwrap();
+        threads.push(handle);
     }
 }
