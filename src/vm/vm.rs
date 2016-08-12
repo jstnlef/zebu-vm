@@ -13,7 +13,6 @@ use runtime::ValueLocation;
 use utils::Address;
 
 use std::sync::RwLock;
-use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 use std::thread::JoinHandle;
 

@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 extern crate mu;
 extern crate log;
 extern crate simple_logger;
@@ -8,8 +10,6 @@ use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
-use self::mu::utils::Address;
-use self::mu::runtime::ValueLocation;
 
 use test_ir::test_ir::factorial;
 

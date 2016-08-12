@@ -1157,13 +1157,13 @@ pub fn emit_context(vm: &VM) {
     }
     
     // serialize vm
-    unimplemented!();
+//    unimplemented!();
     
     // main_thread
-    let primordial = vm.primordial.read().unwrap();
-    if primordial.is_some() {
-        let primordial = primordial.as_ref().unwrap();
-    }
+//    let primordial = vm.primordial.read().unwrap();
+//    if primordial.is_some() {
+//        let primordial = primordial.as_ref().unwrap();
+//    }
     
     debug!("---finish---");
 }

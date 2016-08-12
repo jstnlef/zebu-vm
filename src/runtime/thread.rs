@@ -12,7 +12,6 @@ use utils::Address;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
-use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -192,6 +191,7 @@ impl MuThread {
     }
     
     #[no_mangle]
+    #[allow(unused_variables)]
     pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vm: &VM) -> JoinHandle<()> {
         match thread::Builder::new().name(format!("Mu Thread #{}", id)).spawn(move || {
             let muthread = Box::new(MuThread::new(id, gc::new_mutator(), stack, user_tls));
@@ -207,9 +207,8 @@ impl MuThread {
     }
     
     /// entry function for launching a mu thread
+    #[allow(unused_variables)]
     pub fn thread_entry(mu_thread: Box<MuThread>) -> ! {
-        let ref stack = mu_thread.stack;
-        
         unimplemented!()
     }
 }
