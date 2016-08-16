@@ -6,6 +6,8 @@ use std::fmt;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+
 #[derive(PartialEq, Debug)]
 pub struct MuType {
     pub hdr: MuEntityHeader,
@@ -20,6 +22,16 @@ impl MuType {
         }
     }
 }
+
+//impl Encodable for MuType {
+//    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+//        //serialize 2 fields
+//        s.emit_struct("MuType", 2, |s| {
+//            // hdr
+//            try!(s.emit_struct_field("hdr", 0, |s| hdr.encode(s)));
+//        })
+//    }
+//} 
 
 #[derive(PartialEq, Debug)]
 pub enum MuType_ {
@@ -95,7 +107,7 @@ impl fmt::Display for MuType_ {
             &MuType_::Vector(ref ty, size)            => write!(f, "vector<{} {}>", ty, size),
             &MuType_::FuncRef(ref sig)                => write!(f, "funcref<{}>", sig),
             &MuType_::UFuncPtr(ref sig)               => write!(f, "ufuncref<{}>", sig),
-            &MuType_::Struct(tag)                     => write!(f, "{}(struct)", tag)
+            &MuType_::Struct(ref tag)                     => write!(f, "{}(struct)", tag)
         }
     }
 }
@@ -159,7 +171,7 @@ impl MuType_ {
     }
     pub fn mustruct_empty(tag: MuName) -> MuType_ {
         let struct_ty_ = StructType_{tys: vec![]};
-        STRUCT_TAG_MAP.write().unwrap().insert(tag, struct_ty_);
+        STRUCT_TAG_MAP.write().unwrap().insert(tag.clone(), struct_ty_);
 
         MuType_::Struct(tag)
     }
@@ -168,7 +180,7 @@ impl MuType_ {
 
         // if there is an attempt to use a same tag for different struct,
         // we panic
-        match STRUCT_TAG_MAP.read().unwrap().get(tag) {
+        match STRUCT_TAG_MAP.read().unwrap().get(&tag) {
             Some(old_struct_ty_) => {
                 if struct_ty_ != *old_struct_ty_ {
                     panic!(format!(
@@ -179,7 +191,7 @@ impl MuType_ {
             None => {}
         }
         // otherwise, store the tag
-        STRUCT_TAG_MAP.write().unwrap().insert(tag, struct_ty_);
+        STRUCT_TAG_MAP.write().unwrap().insert(tag.clone(), struct_ty_);
 
         MuType_::Struct(tag)
     }
@@ -264,7 +276,7 @@ pub fn is_traced(ty: &MuType) -> bool {
             fix_tys.into_iter().map(|ty| is_traced(ty))
                 .fold(false, |ret, this| ret || this)
             },
-        MuType_::Struct(tag) => {
+        MuType_::Struct(ref tag) => {
             let map = STRUCT_TAG_MAP.read().unwrap();
             let struct_ty = map.get(tag).unwrap();
             let ref field_tys = struct_ty.tys;
@@ -293,7 +305,7 @@ pub fn is_native_safe(ty: &MuType) -> bool {
             fix_tys.into_iter().map(|ty| is_native_safe(&ty))
                 .fold(true, |ret, this| ret && this)
         },
-        MuType_::Struct(tag) => {
+        MuType_::Struct(ref tag) => {
             let map = STRUCT_TAG_MAP.read().unwrap();
             let struct_ty = map.get(tag).unwrap();
             let ref field_tys = struct_ty.tys;

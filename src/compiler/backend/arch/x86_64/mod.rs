@@ -23,7 +23,7 @@ macro_rules! GPR {
         {
             let id = new_machine_id();
             P(Value {
-                hdr: MuEntityHeader::named(id, $name),
+                hdr: MuEntityHeader::named(id, $name.to_string()),
                 ty: GPR_TY.clone(),
                 v: Value_::SSAVar(id)
             })
@@ -36,7 +36,7 @@ macro_rules! FPR {
         {
             let id = new_machine_id();
             P(Value {
-                hdr: MuEntityHeader::named(id, $name),
+                hdr: MuEntityHeader::named(id, $name.to_string()),
                 ty: FPR_TY.clone(),
                 v: Value_::SSAVar(id)
             })

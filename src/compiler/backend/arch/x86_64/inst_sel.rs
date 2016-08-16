@@ -455,13 +455,13 @@ impl <'a> InstructionSelection {
     }
     
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>) {
-        let block_name = "prologue";
-        self.backend.start_block(block_name);
+        let block_name = "prologue".to_string();
+        self.backend.start_block(block_name.clone());
         
         // no livein
         // liveout = entry block's args
-        self.backend.set_block_livein(block_name, &vec![]);
-        self.backend.set_block_liveout(block_name, args);
+        self.backend.set_block_livein(block_name.clone(), &vec![]);
+        self.backend.set_block_liveout(block_name.clone(), args);
         
         // push rbp
         self.backend.emit_push_r64(&x86_64::RBP);
@@ -805,16 +805,16 @@ impl CompilerPass for InstructionSelection {
             let block = func.content.as_ref().unwrap().get_block(*block_id);
             let block_label = block.name().unwrap();
             
-            self.backend.start_block(block_label);
+            self.backend.start_block(block_label.clone());
 
             let block_content = block.content.as_ref().unwrap();
             
             // live in is args of the block
-            self.backend.set_block_livein(block_label, &block_content.args);
+            self.backend.set_block_livein(block_label.clone(), &block_content.args);
             
             // live out is the union of all branch args of this block
             let live_out = block_content.get_out_arguments();
-            self.backend.set_block_liveout(block_label, &live_out);
+            self.backend.set_block_liveout(block_label.clone(), &live_out);
 
             for inst in block_content.body.iter() {
                 self.instruction_select(inst, func, vm);

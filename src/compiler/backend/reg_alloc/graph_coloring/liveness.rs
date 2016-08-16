@@ -289,12 +289,12 @@ pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunctionVersion) ->
     
     for block in cf.mc.get_all_blocks() {
         // Current_Live(B) = LiveOut(B)
-        let mut current_live = LinkedHashSet::from_vec(match cf.mc.get_ir_block_liveout(block) {
+        let mut current_live = LinkedHashSet::from_vec(match cf.mc.get_ir_block_liveout(&block) {
             Some(liveout) => liveout.to_vec(),
             None => panic!("cannot find liveout for block {}", block)
         });
         
-        let range = cf.mc.get_block_range(block);
+        let range = cf.mc.get_block_range(&block);
         if range.is_none() {
             continue;
         }

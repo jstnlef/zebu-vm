@@ -80,7 +80,7 @@ impl MachineCode for ASMCode {
     
     fn replace_reg(&mut self, from: MuID, to: MuID) {
         let to_reg_tag : MuName = backend::all_regs().get(&to).unwrap().name().unwrap();
-        let to_reg_string = "%".to_string() + to_reg_tag;
+        let to_reg_string = "%".to_string() + &to_reg_tag;
         
         match self.reg_defines.get(&from) {
             Some(defines) => {
@@ -142,20 +142,20 @@ impl MachineCode for ASMCode {
             self.preds[i], self.succs[i]);
     }
     
-    fn get_ir_block_livein(&self, block: MuName) -> Option<&Vec<MuID>> {
-        self.block_livein.get(&block)
+    fn get_ir_block_livein(&self, block: &str) -> Option<&Vec<MuID>> {
+        self.block_livein.get(&block.to_string())
     }
     
-    fn get_ir_block_liveout(&self, block: MuName) -> Option<&Vec<MuID>> {
-        self.block_liveout.get(&block)
+    fn get_ir_block_liveout(&self, block: &str) -> Option<&Vec<MuID>> {
+        self.block_liveout.get(&block.to_string())
     }
     
     fn get_all_blocks(&self) -> &Vec<MuName> {
         &self.blocks
     }
     
-    fn get_block_range(&self, block: MuName) -> Option<ops::Range<usize>> {
-        match self.block_range.get(&block) {
+    fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>> {
+        match self.block_range.get(&block.to_string()) {
             Some(r) => Some(r.clone()),
             None => None
         }
@@ -252,11 +252,11 @@ impl ASMCodeGen {
         self.cur().code.len()
     }
     
-    fn add_asm_block_label(&mut self, code: String, block_name: &'static str) {
+    fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
         let l = self.line();
         self.cur_mut().code.push(ASM::symbolic(code));
         
-        self.cur_mut().idx_to_blk.insert(l, block_name);
+        self.cur_mut().idx_to_blk.insert(l, block_name.clone());
         self.cur_mut().blk_to_idx.insert(block_name, l);
     }
     
@@ -285,14 +285,14 @@ impl ASMCodeGen {
         self.add_asm_inst(code, vec![], vec![], uses, vec![], false);
     }
     
-    fn add_asm_branch(&mut self, code: String, target: &'static str) {
+    fn add_asm_branch(&mut self, code: String, target: MuName) {
         let l = self.line();
         self.cur_mut().branches.insert(l, target);
         
         self.add_asm_inst(code, vec![], vec![], vec![], vec![], false);
     }
     
-    fn add_asm_branch2(&mut self, code: String, target: &'static str) {
+    fn add_asm_branch2(&mut self, code: String, target: MuName) {
         let l = self.line();
         self.cur_mut().cond_branches.insert(l, target);
         
@@ -472,8 +472,8 @@ impl ASMCodeGen {
                 result_str.push(')');
                 loc_cursor += 1;
             },
-            Value_::Memory(MemoryLocation::Symbolic{ref base, label}) => {
-                result_str.push_str(&symbol(label));
+            Value_::Memory(MemoryLocation::Symbolic{ref base, ref label}) => {
+                result_str.push_str(&symbol(label.clone()));
                 loc_cursor += label.len();
                 
                 if base.is_some() {
@@ -508,7 +508,7 @@ impl ASMCodeGen {
     }
     
     fn asm_block_label(&self, label: MuName) -> String {
-        symbol(&format!("{}_{}", self.cur().name, label))
+        symbol(format!("{}_{}", self.cur().name, label))
     }
     
     fn control_flow_analysis(&mut self) {
@@ -579,7 +579,7 @@ impl ASMCodeGen {
 impl CodeGenerator for ASMCodeGen {
     fn start_code(&mut self, func_name: MuName) {
         self.cur = Some(Box::new(ASMCode {
-                name: func_name,
+                name: func_name.clone(),
                 code: vec![],
                 reg_defines: HashMap::new(),
                 reg_uses: HashMap::new(),
@@ -603,8 +603,8 @@ impl CodeGenerator for ASMCodeGen {
             }));
         
         // to link with C sources via gcc
-        self.add_asm_symbolic(directive_globl(symbol(func_name)));
-        self.add_asm_symbolic(format!("{}:", symbol(func_name)));
+        self.add_asm_symbolic(directive_globl(symbol(func_name.clone())));
+        self.add_asm_symbolic(format!("{}:", symbol(func_name.clone())));
     }
     
     fn finish_code(&mut self) -> Box<MachineCode> {
@@ -632,9 +632,9 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn start_block(&mut self, block_name: MuName) {
-        let label = format!("{}:", self.asm_block_label(block_name));        
-        self.add_asm_block_label(label, block_name);
-        self.cur_mut().blocks.push(block_name);
+        let label = format!("{}:", self.asm_block_label(block_name.clone()));        
+        self.add_asm_block_label(label, block_name.clone());
+        self.cur_mut().blocks.push(block_name.clone());
         
         let start = self.line();
         self.cur_mut().block_start.insert(block_name, start);
@@ -652,7 +652,7 @@ impl CodeGenerator for ASMCodeGen {
         
         let mut res = {
             if !cur.block_livein.contains_key(&block_name) {
-                cur.block_livein.insert(block_name, vec![]);
+                cur.block_livein.insert(block_name.clone(), vec![]);
             } else {
                 panic!("seems we are inserting livein to block {} twice", block_name);
             }
@@ -670,7 +670,7 @@ impl CodeGenerator for ASMCodeGen {
         
         let mut res = {
             if !cur.block_liveout.contains_key(&block_name) {
-                cur.block_liveout.insert(block_name, vec![]);
+                cur.block_liveout.insert(block_name.clone(), vec![]);
             } else {
                 panic!("seems we are inserting livein to block {} twice", block_name);
             }
@@ -927,7 +927,7 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: jmp {}", dest_name);
         
         // symbolic label, we dont need to patch it
-        let asm = format!("jmp {}", self.asm_block_label(dest_name));
+        let asm = format!("jmp {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch(asm, dest_name)
     }
     
@@ -935,7 +935,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: je {}", dest_name);
         
-        let asm = format!("je {}", self.asm_block_label(dest_name));
+        let asm = format!("je {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
@@ -943,7 +943,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: jne {}", dest_name);
         
-        let asm = format!("jne {}", self.asm_block_label(dest_name));
+        let asm = format!("jne {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);
     }
     
@@ -951,7 +951,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: ja {}", dest_name);
         
-        let asm = format!("ja {}", self.asm_block_label(dest_name));
+        let asm = format!("ja {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);
     }
     
@@ -959,7 +959,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: jae {}", dest_name);
         
-        let asm = format!("jae {}", self.asm_block_label(dest_name));
+        let asm = format!("jae {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
@@ -967,7 +967,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: jb {}", dest_name);
         
-        let asm = format!("jb {}", self.asm_block_label(dest_name));
+        let asm = format!("jb {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);
     }
     
@@ -975,7 +975,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: jbe {}", dest_name);
         
-        let asm = format!("jbe {}", self.asm_block_label(dest_name));
+        let asm = format!("jbe {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
@@ -983,7 +983,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: jg {}", dest_name);
         
-        let asm = format!("jg {}", self.asm_block_label(dest_name));
+        let asm = format!("jg {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
@@ -991,7 +991,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: jge {}", dest_name);
         
-        let asm = format!("jge {}", self.asm_block_label(dest_name));
+        let asm = format!("jge {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
@@ -999,7 +999,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: jl {}", dest_name);
         
-        let asm = format!("jl {}", self.asm_block_label(dest_name));
+        let asm = format!("jl {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
@@ -1007,7 +1007,7 @@ impl CodeGenerator for ASMCodeGen {
         let dest_name = dest.name().unwrap();
         trace!("emit: jle {}", dest_name);
         
-        let asm = format!("jle {}", self.asm_block_label(dest_name));
+        let asm = format!("jle {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }    
     
@@ -1177,11 +1177,11 @@ fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn symbol(name: &str) -> String {
-    name.to_string()
+fn symbol(name: String) -> String {
+    name
 }
 
 #[cfg(target_os = "macos")]
-fn symbol(name: &str) -> String {
+fn symbol(name: String) -> String {
     format!("_{}", name)
 }

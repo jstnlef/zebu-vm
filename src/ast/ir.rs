@@ -15,7 +15,7 @@ use utils::Address;
 
 pub type WPID  = usize;
 pub type MuID  = usize;
-pub type MuName = &'static str;
+pub type MuName = String;
 
 pub type OpIndex = usize;
 
@@ -123,8 +123,8 @@ impl MuFunctionVersion {
     }
 
     pub fn new_ssa(&mut self, id: MuID, tag: MuName, ty: P<MuType>) -> P<TreeNode> {
-        self.context.value_tags.insert(tag, id);
-        self.context.values.insert(id, SSAVarEntry{id: id, name: Some(tag), ty: ty.clone(), use_count: Cell::new(0), expr: None});
+        self.context.value_tags.insert(tag.clone(), id);
+        self.context.values.insert(id, SSAVarEntry{id: id, name: Some(tag.clone()), ty: ty.clone(), use_count: Cell::new(0), expr: None});
 
         P(TreeNode {
             hdr: MuEntityHeader::unnamed(id),
@@ -209,15 +209,15 @@ impl FunctionContext {
         }
     }
 
-    pub fn get_value_by_tag(&self, tag: MuName) -> Option<&SSAVarEntry> {
-        match self.value_tags.get(tag) {
+    pub fn get_value_by_tag(&self, tag: &str) -> Option<&SSAVarEntry> {
+        match self.value_tags.get(&tag.to_string()) {
             Some(id) => self.get_value(*id),
             None => None
         }
     }
 
-    pub fn get_value_mut_by_tag(&mut self, tag: MuName) -> Option<&mut SSAVarEntry> {
-        let id : MuID = match self.value_tags.get(tag) {
+    pub fn get_value_mut_by_tag(&mut self, tag: &str) -> Option<&mut SSAVarEntry> {
+        let id : MuID = match self.value_tags.get(&tag.to_string()) {
             Some(id) => *id,
             None => return None
         };
@@ -559,7 +559,7 @@ impl SSAVarEntry {
 impl fmt::Display for SSAVarEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.name.is_some() {
-            write!(f, "{} {}#{}", self.ty, self.name.unwrap(), self.id)
+            write!(f, "{} {}#{}", self.ty, self.name.as_ref().unwrap(), self.id)
         } else {
             write!(f, "{} {}#{}", self.ty, "???", self.id)
         }
@@ -637,6 +637,34 @@ pub struct MuEntityHeader {
     pub name: RwLock<Option<MuName>>
 }
 
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+impl Encodable for MuEntityHeader {
+    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+        s.emit_struct("MuEntityHeader", 2, |s| {
+            try!(s.emit_struct_field("id", 0, |s| self.id.encode(s)));
+            
+            let name = &self.name.read().unwrap();
+            try!(s.emit_struct_field("name", 1, |s| name.encode(s)));
+            
+            Ok(())
+        })
+    }
+}
+
+impl Decodable for MuEntityHeader {
+    fn decode<D: Decoder>(d: &mut D) -> Result<MuEntityHeader, D::Error> {
+        d.read_struct("MuEntityHeader", 2, |d| {
+            let id = try!(d.read_struct_field("id", 0, |d| {d.read_usize()}));
+            let name = try!(d.read_struct_field("name", 1, |d| Decodable::decode(d)));
+            
+            Ok(MuEntityHeader{
+                    id: id,
+                    name: RwLock::new(name)
+                })
+        })
+    }
+}
+
 impl MuEntityHeader {
     pub fn unnamed(id: MuID) -> MuEntityHeader {
         MuEntityHeader {
@@ -657,7 +685,7 @@ impl MuEntityHeader {
     }
     
     pub fn name(&self) -> Option<MuName> {
-        *self.name.read().unwrap()
+        self.name.read().unwrap().clone()
     }
 }
 

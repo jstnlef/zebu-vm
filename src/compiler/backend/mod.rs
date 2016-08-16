@@ -78,7 +78,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             BackendTypeInfo{size: ele_ty.size * len, alignment: ele_ty.alignment, struct_layout: None}
         }
         // struct
-        MuType_::Struct(name) => {
+        MuType_::Struct(ref name) => {
             let read_lock = STRUCT_TAG_MAP.read().unwrap();
             let struc = read_lock.get(name).unwrap();
             let tys = struc.get_tys();            

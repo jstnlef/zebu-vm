@@ -32,42 +32,42 @@ pub fn sum() -> VM {
 
     // .typedef @int_64 = int<64>
     let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), "int_64");
+    vm.set_name(type_def_int64.as_entity(), "int_64".to_string());
     let type_def_int1  = vm.declare_type(vm.next_id(), MuType_::int(1));
-    vm.set_name(type_def_int1.as_entity(), "int_1");
+    vm.set_name(type_def_int1.as_entity(), "int_1".to_string());
 
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1
     let const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
-    vm.set_name(const_def_int64_0.as_entity(), "int64_0");
+    vm.set_name(const_def_int64_0.as_entity(), "int64_0".to_string());
     let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
-    vm.set_name(const_def_int64_1.as_entity(), "int64_1");
+    vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());
 
     // .funcsig @sum_sig = (@int_64) -> (@int_64)
     let sum_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
-    vm.set_name(sum_sig.as_entity(), "sum_sig");
+    vm.set_name(sum_sig.as_entity(), "sum_sig".to_string());
 
     // .funcdecl @sum <@sum_sig>
     let func = MuFunction::new(vm.next_id(), sum_sig.clone());
-    vm.set_name(func.as_entity(), "sum");
+    vm.set_name(func.as_entity(), "sum".to_string());
     let func_id = func.id();
     vm.declare_func(func);
 
     // .funcdef @sum VERSION @sum_v1 <@sum_sig> 
     let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, sum_sig.clone());
-    vm.set_name(func_ver.as_entity(), "sum_v1");
+    vm.set_name(func_ver.as_entity(), "sum_v1".to_string());
 
     // %entry(<@int_64> %n):
     let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), "entry");
+    vm.set_name(blk_entry.as_entity(), "entry".to_string());
     
-    let blk_entry_n = func_ver.new_ssa(vm.next_id(), "blk_entry_n", type_def_int64.clone());
+    let blk_entry_n = func_ver.new_ssa(vm.next_id(), "blk_entry_n".to_string(), type_def_int64.clone());
     let const_def_int64_0_local = func_ver.new_constant(vm.next_id(), const_def_int64_0.clone()); // FIXME: why we need a local version?
     let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
 
     // BRANCH %head
     let mut blk_head = Block::new(vm.next_id());
-    vm.set_name(blk_head.as_entity(), "head");
+    vm.set_name(blk_head.as_entity(), "head".to_string());
     let blk_entry_term = func_ver.new_inst(vm.next_id(), Instruction {
         value: None,
         ops: RefCell::new(vec![blk_entry_n.clone(), const_def_int64_0_local.clone(), const_def_int64_0_local.clone()]),
@@ -86,12 +86,12 @@ pub fn sum() -> VM {
 
     // %head(<@int_64> %n, <@int_64> %s, <@int_64> %i):
 
-    let blk_head_n = func_ver.new_ssa(vm.next_id(), "blk_head_n", type_def_int64.clone());
-    let blk_head_s = func_ver.new_ssa(vm.next_id(), "blk_head_s", type_def_int64.clone());
-    let blk_head_i = func_ver.new_ssa(vm.next_id(), "blk_head_i", type_def_int64.clone());
+    let blk_head_n = func_ver.new_ssa(vm.next_id(), "blk_head_n".to_string(), type_def_int64.clone());
+    let blk_head_s = func_ver.new_ssa(vm.next_id(), "blk_head_s".to_string(), type_def_int64.clone());
+    let blk_head_i = func_ver.new_ssa(vm.next_id(), "blk_head_i".to_string(), type_def_int64.clone());
 
     // %s2 = ADD %s %i
-    let blk_head_s2 = func_ver.new_ssa(vm.next_id(), "blk_head_s2", type_def_int64.clone());
+    let blk_head_s2 = func_ver.new_ssa(vm.next_id(), "blk_head_s2".to_string(), type_def_int64.clone());
     let blk_head_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_s2.clone_value()]),
         ops: RefCell::new(vec![blk_head_s.clone(), blk_head_i.clone()]),
@@ -99,7 +99,7 @@ pub fn sum() -> VM {
     });
 
     // %i2 = ADD %i 1
-    let blk_head_i2 = func_ver.new_ssa(vm.next_id(), "blk_head_i2", type_def_int64.clone());
+    let blk_head_i2 = func_ver.new_ssa(vm.next_id(), "blk_head_i2".to_string(), type_def_int64.clone());
     let blk_head_inst1 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_i2.clone_value()]),
         ops: RefCell::new(vec![blk_head_i.clone(), const_def_int64_1_local.clone()]),
@@ -107,7 +107,7 @@ pub fn sum() -> VM {
     });
 
     // %cond = UGT %i %n
-    let blk_head_cond = func_ver.new_ssa(vm.next_id(), "blk_head_cond", type_def_int1.clone());
+    let blk_head_cond = func_ver.new_ssa(vm.next_id(), "blk_head_cond".to_string(), type_def_int1.clone());
     let blk_head_inst2 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_cond.clone_value()]),
         ops: RefCell::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
@@ -116,7 +116,7 @@ pub fn sum() -> VM {
 
     // BRANCH2 %cond %ret(%s2) %head(%n %s2 %i2)
     let mut blk_ret = Block::new(vm.next_id());
-    vm.set_name(blk_ret.as_entity(), "ret");    
+    vm.set_name(blk_ret.as_entity(), "ret".to_string());    
     let blk_head_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_head_cond.clone(), blk_head_n.clone(), blk_head_s2.clone(), blk_head_i2.clone()]),
@@ -142,7 +142,7 @@ pub fn sum() -> VM {
     blk_head.content = Some(blk_head_content);
 
     // %ret(<@int_64> %s):
-    let blk_ret_s = func_ver.new_ssa(vm.next_id(), "blk_ret_s", type_def_int64.clone());
+    let blk_ret_s = func_ver.new_ssa(vm.next_id(), "blk_ret_s".to_string(), type_def_int64.clone());
 
     // RET %s
     let blk_ret_term = func_ver.new_inst(vm.next_id(), Instruction{
@@ -187,33 +187,33 @@ pub fn factorial() -> VM {
     // .typedef @int_8 = int<8>
     // .typedef @int_32 = int<32>
     let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), "int_64");
+    vm.set_name(type_def_int64.as_entity(), "int_64".to_string());
     let type_def_int1  = vm.declare_type(vm.next_id(), MuType_::int(1));
-    vm.set_name(type_def_int1.as_entity(), "int_1");
+    vm.set_name(type_def_int1.as_entity(), "int_1".to_string());
     let type_def_float = vm.declare_type(vm.next_id(), MuType_::float());
-    vm.set_name(type_def_float.as_entity(), "float");
+    vm.set_name(type_def_float.as_entity(), "float".to_string());
     let type_def_double = vm.declare_type(vm.next_id(), MuType_::double());
-    vm.set_name(type_def_double.as_entity(), "double");
+    vm.set_name(type_def_double.as_entity(), "double".to_string());
     let type_def_void  = vm.declare_type(vm.next_id(), MuType_::void());
-    vm.set_name(type_def_void.as_entity(), "void");
+    vm.set_name(type_def_void.as_entity(), "void".to_string());
     let type_def_int8  = vm.declare_type(vm.next_id(), MuType_::int(8));
-    vm.set_name(type_def_int8.as_entity(), "int8");
+    vm.set_name(type_def_int8.as_entity(), "int8".to_string());
     let type_def_int32 = vm.declare_type(vm.next_id(), MuType_::int(32));
-    vm.set_name(type_def_int32.as_entity(), "int32");
+    vm.set_name(type_def_int32.as_entity(), "int32".to_string());
 
     // .const @int_64_1 <@int_64> = 1
     let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
-    vm.set_name(const_def_int64_1.as_entity(), "int64_1");
+    vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());
 
     // .funcsig @fac_sig = (@int_64) -> (@int_64)
     let fac_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
-    vm.set_name(fac_sig.as_entity(), "fac_sig");
+    vm.set_name(fac_sig.as_entity(), "fac_sig".to_string());
     let type_def_funcref_fac = vm.declare_type(vm.next_id(), MuType_::funcref(fac_sig.clone()));
-    vm.set_name(type_def_funcref_fac.as_entity(), "fac_sig");
+    vm.set_name(type_def_funcref_fac.as_entity(), "fac_sig".to_string());
 
     // .funcdecl @fac <@fac_sig>
     let func = MuFunction::new(vm.next_id(), fac_sig.clone());
-    vm.set_name(func.as_entity(), "fac");
+    vm.set_name(func.as_entity(), "fac".to_string());
     let func_id = func.id();
     vm.declare_func(func);
 
@@ -223,12 +223,12 @@ pub fn factorial() -> VM {
 
     // %blk_0(<@int_64> %n_3):
     let mut blk_0 = Block::new(vm.next_id());
-    vm.set_name(blk_0.as_entity(), "blk_0");
-    let blk_0_n_3 = func_ver.new_ssa(vm.next_id(), "blk_0_n_3", type_def_int64.clone());
+    vm.set_name(blk_0.as_entity(), "blk_0".to_string());
+    let blk_0_n_3 = func_ver.new_ssa(vm.next_id(), "blk_0_n_3".to_string(), type_def_int64.clone());
     let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
 
     //   %v48 = EQ <@int_64> %n_3 @int_64_1
-    let blk_0_v48 = func_ver.new_ssa(vm.next_id(), "blk_0_v48", type_def_int64.clone());
+    let blk_0_v48 = func_ver.new_ssa(vm.next_id(), "blk_0_v48".to_string(), type_def_int64.clone());
     let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
             value: Some(vec![blk_0_v48.clone_value()]),
             ops: RefCell::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
@@ -237,9 +237,9 @@ pub fn factorial() -> VM {
 
     //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)
     let mut blk_1 = Block::new(vm.next_id());
-    vm.set_name(blk_1.as_entity(), "blk_1");    
+    vm.set_name(blk_1.as_entity(), "blk_1".to_string());    
     let mut blk_2 = Block::new(vm.next_id());
-    vm.set_name(blk_2.as_entity(), "blk_2");
+    vm.set_name(blk_2.as_entity(), "blk_2".to_string());
     let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
         ops: RefCell::new(vec![blk_0_v48.clone(), const_def_int64_1_local.clone(), blk_0_n_3.clone()]),
@@ -265,7 +265,7 @@ pub fn factorial() -> VM {
     blk_0.content = Some(blk_0_content);
 
     // %blk_2(<@int_64> %v53):
-    let blk_2_v53 = func_ver.new_ssa(vm.next_id(), "blk_2_v53", type_def_int64.clone());
+    let blk_2_v53 = func_ver.new_ssa(vm.next_id(), "blk_2_v53".to_string(), type_def_int64.clone());
 
     //   RET %v53
     let blk_2_term = func_ver.new_inst(vm.next_id(), Instruction{
@@ -282,10 +282,10 @@ pub fn factorial() -> VM {
     blk_2.content = Some(blk_2_content);
 
     // %blk_1(<@int_64> %n_3):
-    let blk_1_n_3 = func_ver.new_ssa(vm.next_id(), "blk_1_n_3", type_def_int64.clone());
+    let blk_1_n_3 = func_ver.new_ssa(vm.next_id(), "blk_1_n_3".to_string(), type_def_int64.clone());
 
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
-    let blk_1_v50 = func_ver.new_ssa(vm.next_id(), "blk_1_v50", type_def_int64.clone());
+    let blk_1_v50 = func_ver.new_ssa(vm.next_id(), "blk_1_v50".to_string(), type_def_int64.clone());
     let blk_1_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v50.clone_value()]),
         ops: RefCell::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
@@ -293,7 +293,7 @@ pub fn factorial() -> VM {
     });
 
     //   %v51 = CALL <@fac_sig> @fac (%v50)
-    let blk_1_v51 = func_ver.new_ssa(vm.next_id(), "blk_1_v51", type_def_int64.clone());
+    let blk_1_v51 = func_ver.new_ssa(vm.next_id(), "blk_1_v51".to_string(), type_def_int64.clone());
     let blk_1_fac = func_ver.new_constant(vm.next_id(), const_func_fac.clone());
     let blk_1_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v51.clone_value()]),
@@ -309,7 +309,7 @@ pub fn factorial() -> VM {
     });
 
     //   %v52 = MUL <@int_64> %n_3 %v51
-    let blk_1_v52 = func_ver.new_ssa(vm.next_id(), "blk_1_v52", type_def_int64.clone());
+    let blk_1_v52 = func_ver.new_ssa(vm.next_id(), "blk_1_v52".to_string(), type_def_int64.clone());
     let blk_1_inst2 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v52.clone_value()]),
         ops: RefCell::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
@@ -357,28 +357,28 @@ pub fn global_access() -> VM {
     // .typedef @int64 = int<64>
     // .typedef @iref_int64 = iref<int<64>>
     let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), "int64");
+    vm.set_name(type_def_int64.as_entity(), "int64".to_string());
     let type_def_iref_int64 = vm.declare_type(vm.next_id(), MuType_::iref(type_def_int64.clone()));
-    vm.set_name(type_def_iref_int64.as_entity(), "iref_int64");
+    vm.set_name(type_def_iref_int64.as_entity(), "iref_int64".to_string());
     
     // .const @int_64_0 <@int_64> = 0
     // .const @int_64_1 <@int_64> = 1
     let const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
-    vm.set_name(const_def_int64_0.as_entity(), "int64_0");
+    vm.set_name(const_def_int64_0.as_entity(), "int64_0".to_string());
     let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
-    vm.set_name(const_def_int64_1.as_entity(), "int64_1");
+    vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());
     
     // .global @a <@int_64>
     let global_a = vm.declare_global(vm.next_id(), type_def_int64.clone());
-    vm.set_name(global_a.as_entity(), "a");
+    vm.set_name(global_a.as_entity(), "a".to_string());
     
     // .funcsig @global_access_sig = () -> ()
     let func_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![]);
-    vm.set_name(func_sig.as_entity(), "global_access_sig");
+    vm.set_name(func_sig.as_entity(), "global_access_sig".to_string());
 
     // .funcdecl @global_access <@global_access_sig>
     let func = MuFunction::new(vm.next_id(), func_sig.clone());
-    vm.set_name(func.as_entity(), "global_access");
+    vm.set_name(func.as_entity(), "global_access".to_string());
     let func_id = func.id();
     vm.declare_func(func);
     
@@ -387,7 +387,7 @@ pub fn global_access() -> VM {
     
     // %blk_0():
     let mut blk_0 = Block::new(vm.next_id());
-    vm.set_name(blk_0.as_entity(), "blk_0");
+    vm.set_name(blk_0.as_entity(), "blk_0".to_string());
     
     // STORE <@int_64> @a @int_64_1
     let blk_0_a = func_ver.new_global(vm.next_id(), global_a.clone());
@@ -404,7 +404,7 @@ pub fn global_access() -> VM {
     });
         
     // %x = LOAD <@int_64> @a
-    let blk_0_x = func_ver.new_ssa(vm.next_id(), "blk_0_x", type_def_int64.clone());
+    let blk_0_x = func_ver.new_ssa(vm.next_id(), "blk_0_x".to_string(), type_def_int64.clone());
     let blk_0_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_0_x.clone_value()]),
         ops: RefCell::new(vec![blk_0_a.clone()]),

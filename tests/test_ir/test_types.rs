@@ -41,7 +41,7 @@ fn create_types() -> Vec<P<MuType>> {
     let t6 = MuType::new(6, MuType_::uptr(types[0].clone()));
     types.push(P(t6));
     
-    let t7 = MuType::new(7, MuType_::mustruct("MyStructTag1", vec![types[0].clone(), types[1].clone()]));
+    let t7 = MuType::new(7, MuType_::mustruct("MyStructTag1".to_string(), vec![types[0].clone(), types[1].clone()]));
     types.push(P(t7));
     
     let t8 = MuType::new(8, MuType_::array(types[0].clone(), 5));
@@ -108,7 +108,7 @@ fn test_type_constructors() {
 #[test]
 fn test_cyclic_struct() {
     // .typedef @cyclic_struct_ty = struct<ref<@cyclic_struct_ty> int<32>>
-    let ty = P(MuType::new(0, MuType_::mustruct_empty("MyStructTag2")));
+    let ty = P(MuType::new(0, MuType_::mustruct_empty("MyStructTag2".to_string())));
     let ref_ty = P(MuType::new(1, MuType_::muref(ty.clone())));
     let i32_ty = P(MuType::new(2, MuType_::int(32)));
     
@@ -134,9 +134,9 @@ fn test_is_traced() {
     assert_eq!(is_traced(&types[5]), true);
     assert_eq!(is_traced(&types[6]), false);
     assert_eq!(is_traced(&types[7]), false);
-    let struct3 = MuType::new(100, MuType_::mustruct("MyStructTag3", vec![types[3].clone(), types[0].clone()]));
+    let struct3 = MuType::new(100, MuType_::mustruct("MyStructTag3".to_string(), vec![types[3].clone(), types[0].clone()]));
     assert_eq!(is_traced(&struct3), true);
-    let struct4 = MuType::new(101, MuType_::mustruct("MyStructTag4", vec![types[3].clone(), types[4].clone()]));
+    let struct4 = MuType::new(101, MuType_::mustruct("MyStructTag4".to_string(), vec![types[3].clone(), types[4].clone()]));
     assert_eq!(is_traced(&struct4), true);
     assert_eq!(is_traced(&types[8]), false);
     let ref_array = MuType::new(102, MuType_::array(types[3].clone(), 5));
@@ -167,9 +167,9 @@ fn test_is_native_safe() {
     assert_eq!(is_native_safe(&types[5]), false);
     assert_eq!(is_native_safe(&types[6]), true);
     assert_eq!(is_native_safe(&types[7]), true);
-    let struct3 = MuType::new(100, MuType_::mustruct("MyStructTag3", vec![types[3].clone(), types[0].clone()]));
+    let struct3 = MuType::new(100, MuType_::mustruct("MyStructTag3".to_string(), vec![types[3].clone(), types[0].clone()]));
     assert_eq!(is_native_safe(&struct3), false);
-    let struct4 = MuType::new(101, MuType_::mustruct("MyStructTag4", vec![types[3].clone(), types[4].clone()]));
+    let struct4 = MuType::new(101, MuType_::mustruct("MyStructTag4".to_string(), vec![types[3].clone(), types[4].clone()]));
     assert_eq!(is_native_safe(&struct4), false);
     assert_eq!(is_native_safe(&types[8]), true);
     let ref_array = MuType::new(102, MuType_::array(types[3].clone(), 5));

@@ -62,12 +62,12 @@ impl MuVM {
         Box::into_raw(ctx)
     }
     
-    pub fn id_of(&self, name: MuName) -> MuID {
-        self.internal.get_id_of(name)
+    pub fn id_of(&self, name: &str) -> MuID {
+        self.internal.id_of(name)
     }
     
     pub fn name_of(&self, id: MuID) -> MuName {
-        self.internal.get_name_of(id)
+        self.internal.name_of(id)
     }
 }
 
@@ -236,12 +236,12 @@ struct MuCtxInternal {
 }
 
 impl MuCtx {
-    pub fn id_of(&self, name: MuName) -> MuID {
-        self.internal.vm.get_id_of(name)
+    pub fn id_of(&self, name: &str) -> MuID {
+        self.internal.vm.id_of(name)
     }
     
     pub fn name_of(&self, id: MuID) -> MuName {
-        self.internal.vm.get_name_of(id)
+        self.internal.vm.name_of(id)
     }
     
     pub fn close_context(ctx: *mut MuCtx) {

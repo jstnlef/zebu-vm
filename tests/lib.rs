@@ -1,6 +1,11 @@
+extern crate mu;
+extern crate log;
+extern crate simple_logger;
+
 mod test_ir;
 mod test_compiler;
 mod test_vm;
+mod test_api;
 
 #[macro_use]
 mod common {

@@ -12,32 +12,76 @@ use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::Address;
 
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 use std::thread::JoinHandle;
 
 pub struct VM {
+    // serialize
+    // 1
     next_id: AtomicUsize,
-    is_running: AtomicBool,
-    
+    // 2
     id_name_map: RwLock<HashMap<MuID, MuName>>,
+    // 3
     name_id_map: RwLock<HashMap<MuName, MuID>>,
-    
+    // 4
     types: RwLock<HashMap<MuID, P<MuType>>>,
+    // 5
     backend_type_info: RwLock<HashMap<MuID, P<BackendTypeInfo>>>,
-    
+    // 6
     constants: RwLock<HashMap<MuID, P<Value>>>,
+    // 7
     globals: RwLock<HashMap<MuID, P<Value>>>,
-    
+    // 8
     func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
+    // 9
     // key: (func_id, func_ver_id)
-    func_vers: RwLock<HashMap<(MuID, MuID), RwLock<MuFunctionVersion>>>,
     funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,
+    // 10
+    pub primordial: RwLock<Option<MuPrimordialThread>>,
     
-    compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
+    // partially serialize
+    // 11
+    func_vers: RwLock<HashMap<(MuID, MuID), RwLock<MuFunctionVersion>>>,
+    // 12    
+    compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,    
     
+    // no serialize
+    is_running: AtomicBool,
     threads: RwLock<Vec<JoinHandle<()>>>,
-    pub primordial: RwLock<Option<MuPrimordialThread>>
+}
+
+impl Encodable for VM {
+    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+        // serialize 12 fields
+        s.emit_struct("VM", 12, |s| {
+            // next_id
+            try!(s.emit_struct_field("next_id", 0, |s| {
+                s.emit_usize(self.next_id.load(Ordering::SeqCst))
+            }));
+                
+            // id_name_map
+            {
+                let map : &HashMap<MuID, MuName> = &self.id_name_map.read().unwrap();            
+                try!(s.emit_struct_field("id_name_map", 1, |s| map.encode(s)));
+            }
+            
+            // name_id_map
+            {
+                let map : &HashMap<MuName, MuID> = &self.name_id_map.read().unwrap(); 
+                try!(s.emit_struct_field("name_id_map", 2, |s| map.encode(s)));
+            }
+            
+            // types
+            {
+                let types = &self.types.read().unwrap();
+            }
+            
+            Ok(())
+        })
+    }
 }
 
 impl <'a> VM {
@@ -88,23 +132,23 @@ impl <'a> VM {
     
     pub fn set_name(&self, entity: &MuEntity, name: MuName) {
         let id = entity.id();
-        entity.set_name(name);
+        entity.set_name(name.clone());
         
         let mut map = self.id_name_map.write().unwrap();
-        map.insert(id, name);
+        map.insert(id, name.clone());
         
         let mut map2 = self.name_id_map.write().unwrap();
         map2.insert(name, id);
     }
     
-    pub fn id_of(&self, name: MuName) -> MuID {
+    pub fn id_of(&self, name: &str) -> MuID {
         let map = self.name_id_map.read().unwrap();
-        *map.get(name).unwrap()
+        *map.get(&name.to_string()).unwrap()
     }
     
     pub fn name_of(&self, id: MuID) -> MuName {
         let map = self.id_name_map.read().unwrap();
-        map.get(&id).unwrap()
+        map.get(&id).unwrap().clone()
     }
     
     pub fn declare_const(&self, id: MuID, ty: P<MuType>, val: Constant) -> P<Value> {
@@ -206,14 +250,6 @@ impl <'a> VM {
         write_lock.insert(tyid, resolved.clone());
         
         resolved        
-    }
-    
-    pub fn get_id_of(&self, name: MuName) -> MuID {
-        *self.name_id_map.read().unwrap().get(&name).unwrap()
-    }
-    
-    pub fn get_name_of(&self, id: MuID) -> MuName {
-        *self.id_name_map.read().unwrap().get(&id).unwrap()
     }
     
     pub fn globals(&self) -> &RwLock<HashMap<MuID, P<Value>>> {

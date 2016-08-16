@@ -9,7 +9,7 @@ use ast::ir::*;
 use compiler::backend::Word;
 use compiler::backend::RegGroup;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum ValueLocation {
     Register(RegGroup, MuID),
     Direct(RegGroup, Address),
