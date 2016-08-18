@@ -6,6 +6,9 @@ use mu::vm::*;
 use std::sync::Arc;
 
 use self::rustc_serialize::json;
+use self::rustc_serialize::base64::ToBase64;
+use self::rustc_serialize::hex::ToHex;
+use self::rustc_serialize::base64::STANDARD;
 
 #[test]
 fn test_vm_serialize_factorial() {
@@ -13,11 +16,21 @@ fn test_vm_serialize_factorial() {
     
     let vm = Arc::new(factorial());
     
-    let serialized = json::encode(&vm).unwrap();
-    println!("{}", serialized);
+    let serialized_json = json::encode(&vm).unwrap();
+    println!("JSON(len={}):", serialized_json.len());
+    println!("{}", serialized_json);
     
-    let reconstruct_vm : VM = json::decode(&serialized).unwrap();
+    let base64 = serialized_json.as_bytes().to_base64(STANDARD);
+    println!("base64(len={}):", base64.len());
+    println!("{}", base64);
+
+    let hex = serialized_json.as_bytes().to_hex();
+    println!("hex(len={}):", hex.len());
+    println!("{}", hex);
+    
+    let reconstruct_vm : VM = json::decode(&serialized_json).unwrap();
     let serialized_again = json::encode(&reconstruct_vm).unwrap();
+    println!("JSON for reconstructed VM(len={}):", serialized_again.len());
     println!("{}", serialized_again);
     
 //    check_string_eq_char_by_char(serialized, serialized_again);
