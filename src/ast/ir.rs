@@ -54,7 +54,7 @@ pub fn new_internal_id() -> MuID {
     ret
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct MuFunction {
     pub hdr: MuEntityHeader,
     
@@ -89,7 +89,7 @@ impl fmt::Display for MuFunction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct MuFunctionVersion {
     pub hdr: MuEntityHeader,
          
@@ -153,8 +153,8 @@ impl MuFunctionVersion {
         })
     }
 
-    pub fn new_inst(&mut self, id: MuID, v: Instruction) -> P<TreeNode> {
-        P(TreeNode{
+    pub fn new_inst(&mut self, id: MuID, v: Instruction) -> Box<TreeNode> {
+        Box::new(TreeNode{
             hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
@@ -162,7 +162,7 @@ impl MuFunctionVersion {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: HashMap<MuID, Block>
@@ -195,7 +195,7 @@ impl FunctionContent {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct FunctionContext {
     pub value_tags: HashMap<MuName, MuID>,
     pub values: HashMap<MuID, SSAVarEntry>
@@ -234,7 +234,7 @@ impl FunctionContext {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct Block {
     pub hdr: MuEntityHeader,
     pub content: Option<BlockContent>,
@@ -247,7 +247,7 @@ impl Block {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct ControlFlow {
     pub preds : Vec<MuID>,
     pub succs : Vec<BlockEdge>
@@ -286,7 +286,7 @@ impl default::Default for ControlFlow {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct BlockEdge {
     pub target: MuID,
     pub kind: EdgeKind,
@@ -300,15 +300,15 @@ impl fmt::Display for BlockEdge {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
 pub enum EdgeKind {
     Forward, Backward
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
-    pub body: Vec<P<TreeNode>>,
+    pub body: Vec<Box<TreeNode>>,
     pub keepalives: Option<Vec<P<Value>>>
 }
 
@@ -321,7 +321,7 @@ impl BlockContent {
         
         match last_inst.v {
             TreeNode_::Instruction(ref inst) => {
-                let ops = inst.ops.borrow();
+                let ops = inst.ops.read().unwrap();
                 match inst.v {
                     Instruction_::Return(_)
                     | Instruction_::ThreadExit
@@ -383,7 +383,7 @@ impl BlockContent {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
     pub hdr: MuEntityHeader,
@@ -447,14 +447,14 @@ impl fmt::Display for TreeNode {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub enum TreeNode_ {
     Value(P<Value>),
     Instruction(Instruction)
 }
 
 /// always use with P<Value>
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub struct Value {
     pub hdr: MuEntityHeader,
     pub ty: P<MuType>,
@@ -528,7 +528,7 @@ impl fmt::Display for Value {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant),
@@ -536,7 +536,7 @@ pub enum Value_ {
     Memory(MemoryLocation)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct SSAVarEntry {
     pub id: MuID,
     pub name: Option<MuName>,
@@ -566,12 +566,12 @@ impl fmt::Display for SSAVarEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Constant {
     Int(u64),
     Float(f32),
     Double(f64),
-    IRef(Address),
+//    IRef(Address),
     FuncRef(MuID),
     UFuncRef(MuID),
     Vector(Vec<Constant>),
@@ -583,7 +583,7 @@ impl fmt::Display for Constant {
             &Constant::Int(v) => write!(f, "{}", v),
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
-            &Constant::IRef(v) => write!(f, "{}", v),
+//            &Constant::IRef(v) => write!(f, "{}", v),
             &Constant::FuncRef(v) => write!(f, "{}", v),
             &Constant::UFuncRef(v) => write!(f, "{}", v),
             &Constant::Vector(ref v) => {
@@ -600,7 +600,7 @@ impl fmt::Display for Constant {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum MemoryLocation {
     Address{
         base: P<Value>,

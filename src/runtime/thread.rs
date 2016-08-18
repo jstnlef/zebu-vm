@@ -213,6 +213,7 @@ impl MuThread {
     }
 }
 
+#[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct MuPrimordialThread {
     pub func_id: MuID,
     pub args: Vec<Constant>

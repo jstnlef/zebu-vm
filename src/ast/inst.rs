@@ -6,13 +6,57 @@ use utils::vec_utils::as_str as vector_as_str;
 use utils::vec_utils;
 
 use std::fmt;
-use std::cell::RefCell;
+use std::sync::RwLock;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Instruction {
     pub value : Option<Vec<P<Value>>>,
-    pub ops : RefCell<Vec<P<TreeNode>>>,
+    pub ops : RwLock<Vec<P<TreeNode>>>,
     pub v: Instruction_
+}
+
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+impl Encodable for Instruction {
+    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+        s.emit_struct("Instruction", 3, |s| {
+            try!(s.emit_struct_field("value", 0, |s| self.value.encode(s)));
+            
+            let ops = &self.ops.read().unwrap();
+            try!(s.emit_struct_field("ops", 1, |s| ops.encode(s)));
+            
+            try!(s.emit_struct_field("v", 2, |s| self.v.encode(s)));
+            
+            Ok(()) 
+        })        
+    }
+}
+
+impl Decodable for Instruction {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Instruction, D::Error> {
+        d.read_struct("Instruction", 3, |d| {
+            let value = try!(d.read_struct_field("value", 0, |d| Decodable::decode(d)));
+            
+            let ops = try!(d.read_struct_field("ops", 1, |d| Decodable::decode(d)));
+            
+            let v = try!(d.read_struct_field("v", 2, |d| Decodable::decode(d)));
+            
+            Ok(Instruction{
+                value: value,
+                ops: RwLock::new(ops),
+                v: v
+            })
+        })
+    }
+}
+
+impl Clone for Instruction {
+    fn clone(&self) -> Self {
+        Instruction {
+            value: self.value.clone(),
+            ops: RwLock::new(self.ops.read().unwrap().clone()),
+            v: self.v.clone()
+        }
+    }
 }
 
 impl Instruction {
@@ -23,7 +67,7 @@ impl Instruction {
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let ops = &self.ops.borrow();
+        let ops = &self.ops.read().unwrap();
         if self.value.is_some() {
             write!(f, "{} = {}", vector_as_str(self.value.as_ref().unwrap()), self.v.debug_str(ops))
         } else {
@@ -32,7 +76,7 @@ impl fmt::Display for Instruction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub enum Instruction_ {
     // non-terminal instruction
 
@@ -189,7 +233,7 @@ pub enum Instruction_ {
         branches: Vec<(OpIndex, Destination)>
     },
     ExnInstruction{
-        inner: P<Instruction>,
+        inner: Box<Instruction>,
         resume: ResumptionData
     }
 }
@@ -297,7 +341,7 @@ impl Instruction_ {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
 pub enum MemoryOrder {
     NotAtomic,
     Relaxed,
@@ -308,18 +352,18 @@ pub enum MemoryOrder {
     SeqCst
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
 pub enum CallConvention {
     Mu,
     Foreign(ForeignFFI)
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
 pub enum ForeignFFI {
     C
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct CallData {
     pub func: OpIndex,
     pub args: Vec<OpIndex>,
@@ -332,7 +376,7 @@ impl CallData {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
     pub exn_dest: Destination
@@ -344,7 +388,7 @@ impl ResumptionData {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct Destination {
     pub target: MuID,
     pub args: Vec<DestArg>
@@ -377,7 +421,7 @@ impl Destination {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub enum DestArg {
     Normal(OpIndex),
     Freshbound(usize)

@@ -54,7 +54,7 @@ impl CompilerPass for DefUse {
         // if an SSA appears in operands of instrs, its use count increases
         match node.v {
             TreeNode_::Instruction(ref inst) => {
-                for op in inst.ops.borrow().iter() {
+                for op in inst.ops.read().unwrap().iter() {
                     use_op(op, func_context);
                 }
             },

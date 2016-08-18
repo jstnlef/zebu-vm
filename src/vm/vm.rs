@@ -20,43 +20,45 @@ use std::thread::JoinHandle;
 
 pub struct VM {
     // serialize
-    // 1
+    // 0
     next_id: AtomicUsize,
-    // 2
+    // 1
     id_name_map: RwLock<HashMap<MuID, MuName>>,
-    // 3
+    // 2
     name_id_map: RwLock<HashMap<MuName, MuID>>,
-    // 4
+    // 3
     types: RwLock<HashMap<MuID, P<MuType>>>,
+    // 4
+    backend_type_info: RwLock<HashMap<MuID, Box<BackendTypeInfo>>>,
     // 5
-    backend_type_info: RwLock<HashMap<MuID, P<BackendTypeInfo>>>,
-    // 6
     constants: RwLock<HashMap<MuID, P<Value>>>,
-    // 7
+    // 6
     globals: RwLock<HashMap<MuID, P<Value>>>,
-    // 8
+    // 7
     func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
-    // 9
-    // key: (func_id, func_ver_id)
+    // 8
     funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,
+    // 9
+    func_vers: RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>>,
     // 10
     pub primordial: RwLock<Option<MuPrimordialThread>>,
+    // 11
+    is_running: AtomicBool,
     
     // partially serialize
-    // 11
-    func_vers: RwLock<HashMap<(MuID, MuID), RwLock<MuFunctionVersion>>>,
-    // 12    
+    // 12
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,    
     
     // no serialize
-    is_running: AtomicBool,
     threads: RwLock<Vec<JoinHandle<()>>>,
 }
 
+const VM_SERIALIZE_FIELDS : usize = 12;
+
 impl Encodable for VM {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        // serialize 12 fields
-        s.emit_struct("VM", 12, |s| {
+        // serialize 11 fields
+        s.emit_struct("VM", VM_SERIALIZE_FIELDS, |s| {
             // next_id
             try!(s.emit_struct_field("next_id", 0, |s| {
                 s.emit_usize(self.next_id.load(Ordering::SeqCst))
@@ -77,9 +79,167 @@ impl Encodable for VM {
             // types
             {
                 let types = &self.types.read().unwrap();
+                try!(s.emit_struct_field("types", 3, |s| types.encode(s)));
+            }
+            
+            // backend_type_info
+            {
+                let backend_type_info : &HashMap<_, _> = &self.backend_type_info.read().unwrap();
+                try!(s.emit_struct_field("backend_type_info", 4, |s| backend_type_info.encode(s)));
+            }
+            
+            // constants
+            {
+                let constants : &HashMap<_, _> = &self.constants.read().unwrap();
+                try!(s.emit_struct_field("constants", 5, |s| constants.encode(s)));
+            }
+            
+            // globals
+            {
+                let globals: &HashMap<_, _> = &self.globals.read().unwrap();
+                try!(s.emit_struct_field("globals", 6, |s| globals.encode(s)));
+            }
+            
+            // func sigs
+            {
+                let func_sigs: &HashMap<_, _> = &self.func_sigs.read().unwrap();
+                try!(s.emit_struct_field("func_sigs", 7, |s| func_sigs.encode(s)));
+            }
+            
+            // funcs
+            {
+                let funcs : &HashMap<_, _> = &self.funcs.read().unwrap();
+                try!(s.emit_struct_field("funcs", 8, |s| {
+                    s.emit_map(funcs.len(), |s| {
+                        let mut i = 0;
+                        for (k,v) in funcs.iter() {
+                            s.emit_map_elt_key(i, |s| k.encode(s)).ok();
+                            let func : &MuFunction = &v.read().unwrap();
+                            s.emit_map_elt_val(i, |s| func.encode(s)).ok();
+                            i += 1;
+                        }
+                        Ok(())
+                    })
+                }));
+            }
+            
+            // func_vers
+            {
+                let func_vers : &HashMap<_, _> = &self.func_vers.read().unwrap();
+                try!(s.emit_struct_field("func_vers", 9, |s| {
+                    s.emit_map(func_vers.len(), |s| {
+                        let mut i = 0;
+                        for (k, v) in func_vers.iter() {
+                            try!(s.emit_map_elt_key(i, |s| k.encode(s)));
+                            let func_ver : &MuFunctionVersion = &v.read().unwrap();
+                            try!(s.emit_map_elt_val(i, |s| func_ver.encode(s)));
+                            i += 1;
+                        }
+                        Ok(())
+                    })
+                }));
+            }
+            
+            // primordial
+            {
+                let primordial = &self.primordial.read().unwrap();
+                try!(s.emit_struct_field("primordial", 10, |s| primordial.encode(s)));
+            }
+            
+            // is_running
+            {
+                try!(s.emit_struct_field("is_running", 11, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
             }
             
             Ok(())
+        })
+    }
+}
+
+impl Decodable for VM {
+    fn decode<D: Decoder>(d: &mut D) -> Result<VM, D::Error> {
+        d.read_struct("VM", VM_SERIALIZE_FIELDS, |d| {
+            // next_id
+            let next_id = try!(d.read_struct_field("next_id", 0, |d| {
+                d.read_usize()
+            }));
+            
+            // id_name_map
+            let id_name_map = try!(d.read_struct_field("id_name_map", 1, |d| Decodable::decode(d)));
+            
+            // name_id_map
+            let name_id_map = try!(d.read_struct_field("name_id_map", 2, |d| Decodable::decode(d)));
+            
+            // types
+            let types = try!(d.read_struct_field("types", 3, |d| Decodable::decode(d)));
+            
+            // backend_type_info
+            let backend_type_info = try!(d.read_struct_field("backend_type_info", 4, |d| Decodable::decode(d)));
+            
+            // constants
+            let constants = try!(d.read_struct_field("constants", 5, |d| Decodable::decode(d)));
+            
+            // globals
+            let globals = try!(d.read_struct_field("globals", 6, |d| Decodable::decode(d)));
+            
+            // func sigs
+            let func_sigs = try!(d.read_struct_field("func_sigs", 7, |d| Decodable::decode(d)));
+            
+            // funcs
+            let funcs = try!(d.read_struct_field("funcs", 8, |d| {
+                d.read_map(|d, len| {
+                    let mut map = HashMap::new();
+                    for i in 0..len {
+                        let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
+                        let val = RwLock::new(try!(d.read_map_elt_val(i, |d| Decodable::decode(d))));
+                        map.insert(key, val);
+                    }
+                    Ok(map)
+                })
+            }));
+            
+            // func_vers
+            let func_vers = try!(d.read_struct_field("func_vers", 9, |d| {
+                d.read_map(|d, len| {
+                    let mut map = HashMap::new();
+                    for i in 0..len {
+                        let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
+                        let val = RwLock::new(try!(d.read_map_elt_val(i, |d| Decodable::decode(d))));
+                        map.insert(key, val);
+                    }
+                    Ok(map)
+                })
+            }));
+            
+            // primordial
+            let primordial = try!(d.read_struct_field("primordial", 10, |d| Decodable::decode(d)));
+            
+            let is_running = try!(d.read_struct_field("is_running", 11, |d| Decodable::decode(d)));
+            
+            let vm = VM{
+                next_id: ATOMIC_USIZE_INIT,
+                id_name_map: RwLock::new(id_name_map),
+                name_id_map: RwLock::new(name_id_map),
+                types: RwLock::new(types),
+                backend_type_info: RwLock::new(backend_type_info),
+                constants: RwLock::new(constants),
+                globals: RwLock::new(globals),
+                func_sigs: RwLock::new(func_sigs),
+                funcs: RwLock::new(funcs),
+                func_vers: RwLock::new(func_vers),
+                primordial: RwLock::new(primordial),
+                is_running: ATOMIC_BOOL_INIT,
+                
+                // not serialized
+                compiled_funcs: RwLock::new(HashMap::new()),
+                
+                threads: RwLock::new(vec![]) 
+            };
+            
+            vm.next_id.store(next_id, Ordering::SeqCst);
+            vm.is_running.store(is_running, Ordering::SeqCst);
+            
+            Ok(vm)
         })
     }
 }
@@ -204,15 +364,15 @@ impl <'a> VM {
     pub fn define_func_version (&self, func_ver: MuFunctionVersion) {
         info!("define function version {}", func_ver);
         // record this version
-        let func_ver_key = (func_ver.func_id, func_ver.id());
+        let func_ver_id = func_ver.id();
         {
             let mut func_vers = self.func_vers.write().unwrap();
-            func_vers.insert(func_ver_key, RwLock::new(func_ver));
+            func_vers.insert(func_ver_id, RwLock::new(func_ver));
         }
         
         // acquire a reference to the func_ver
         let func_vers = self.func_vers.read().unwrap();
-        let func_ver = func_vers.get(&func_ver_key).unwrap().write().unwrap();
+        let func_ver = func_vers.get(&func_ver_id).unwrap().write().unwrap();
         
         // change current version to this (obsolete old versions)
         let funcs = self.funcs.read().unwrap();
@@ -227,12 +387,12 @@ impl <'a> VM {
     
     pub fn add_compiled_func (&self, func: CompiledFunction) {
         debug_assert!(self.funcs.read().unwrap().contains_key(&func.func_id));
-        debug_assert!(self.func_vers.read().unwrap().contains_key(&(func.func_id, func.func_ver_id)));
+        debug_assert!(self.func_vers.read().unwrap().contains_key(&func.func_ver_id));
 
         self.compiled_funcs.write().unwrap().insert(func.func_ver_id, RwLock::new(func));
     }
     
-    pub fn get_backend_type_info(&self, tyid: MuID) -> P<BackendTypeInfo> {        
+    pub fn get_backend_type_info(&self, tyid: MuID) -> Box<BackendTypeInfo> {        
         {
             let read_lock = self.backend_type_info.read().unwrap();
         
@@ -244,7 +404,7 @@ impl <'a> VM {
 
         let types = self.types.read().unwrap();
         let ty = types.get(&tyid).unwrap();
-        let resolved = P(backend::resolve_backend_type_info(ty, self));
+        let resolved = Box::new(backend::resolve_backend_type_info(ty, self));
         
         let mut write_lock = self.backend_type_info.write().unwrap();
         write_lock.insert(tyid, resolved.clone());
@@ -260,7 +420,7 @@ impl <'a> VM {
         &self.funcs
     }
     
-    pub fn func_vers(&self) -> &RwLock<HashMap<(MuID, MuID), RwLock<MuFunctionVersion>>> {
+    pub fn func_vers(&self) -> &RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>> {
         &self.func_vers
     }
     

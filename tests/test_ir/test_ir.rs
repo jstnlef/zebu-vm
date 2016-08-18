@@ -6,7 +6,7 @@ use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
 
-use std::cell::RefCell;
+use std::sync::RwLock;
 use std::collections::HashMap;
 
 #[test]
@@ -70,7 +70,7 @@ pub fn sum() -> VM {
     vm.set_name(blk_head.as_entity(), "head".to_string());
     let blk_entry_term = func_ver.new_inst(vm.next_id(), Instruction {
         value: None,
-        ops: RefCell::new(vec![blk_entry_n.clone(), const_def_int64_0_local.clone(), const_def_int64_0_local.clone()]),
+        ops: RwLock::new(vec![blk_entry_n.clone(), const_def_int64_0_local.clone(), const_def_int64_0_local.clone()]),
         v: Instruction_::Branch1(Destination{
             target: blk_head.id(),
             args: vec![DestArg::Normal(0), DestArg::Normal(1), DestArg::Normal(2)]
@@ -94,7 +94,7 @@ pub fn sum() -> VM {
     let blk_head_s2 = func_ver.new_ssa(vm.next_id(), "blk_head_s2".to_string(), type_def_int64.clone());
     let blk_head_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_s2.clone_value()]),
-        ops: RefCell::new(vec![blk_head_s.clone(), blk_head_i.clone()]),
+        ops: RwLock::new(vec![blk_head_s.clone(), blk_head_i.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
@@ -102,7 +102,7 @@ pub fn sum() -> VM {
     let blk_head_i2 = func_ver.new_ssa(vm.next_id(), "blk_head_i2".to_string(), type_def_int64.clone());
     let blk_head_inst1 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_i2.clone_value()]),
-        ops: RefCell::new(vec![blk_head_i.clone(), const_def_int64_1_local.clone()]),
+        ops: RwLock::new(vec![blk_head_i.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
@@ -110,7 +110,7 @@ pub fn sum() -> VM {
     let blk_head_cond = func_ver.new_ssa(vm.next_id(), "blk_head_cond".to_string(), type_def_int1.clone());
     let blk_head_inst2 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_cond.clone_value()]),
-        ops: RefCell::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
+        ops: RwLock::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
         v: Instruction_::CmpOp(CmpOp::UGT, 0, 1)
     });
 
@@ -119,7 +119,7 @@ pub fn sum() -> VM {
     vm.set_name(blk_ret.as_entity(), "ret".to_string());    
     let blk_head_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
-        ops: RefCell::new(vec![blk_head_cond.clone(), blk_head_n.clone(), blk_head_s2.clone(), blk_head_i2.clone()]),
+        ops: RwLock::new(vec![blk_head_cond.clone(), blk_head_n.clone(), blk_head_s2.clone(), blk_head_i2.clone()]),
         v: Instruction_::Branch2 {
             cond: 0,
             true_dest: Destination {
@@ -147,7 +147,7 @@ pub fn sum() -> VM {
     // RET %s
     let blk_ret_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
-        ops: RefCell::new(vec![blk_ret_s.clone()]),
+        ops: RwLock::new(vec![blk_ret_s.clone()]),
         v: Instruction_::Return(vec![0])
     });
 
@@ -231,7 +231,7 @@ pub fn factorial() -> VM {
     let blk_0_v48 = func_ver.new_ssa(vm.next_id(), "blk_0_v48".to_string(), type_def_int64.clone());
     let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
             value: Some(vec![blk_0_v48.clone_value()]),
-            ops: RefCell::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
+            ops: RwLock::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
             v: Instruction_::CmpOp(CmpOp::EQ, 0, 1)
     });
 
@@ -242,7 +242,7 @@ pub fn factorial() -> VM {
     vm.set_name(blk_2.as_entity(), "blk_2".to_string());
     let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
-        ops: RefCell::new(vec![blk_0_v48.clone(), const_def_int64_1_local.clone(), blk_0_n_3.clone()]),
+        ops: RwLock::new(vec![blk_0_v48.clone(), const_def_int64_1_local.clone(), blk_0_n_3.clone()]),
         v: Instruction_::Branch2 {
             cond: 0,
             true_dest: Destination {
@@ -270,7 +270,7 @@ pub fn factorial() -> VM {
     //   RET %v53
     let blk_2_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
-        ops: RefCell::new(vec![blk_2_v53.clone()]),
+        ops: RwLock::new(vec![blk_2_v53.clone()]),
         v: Instruction_::Return(vec![0])
     });
 
@@ -288,7 +288,7 @@ pub fn factorial() -> VM {
     let blk_1_v50 = func_ver.new_ssa(vm.next_id(), "blk_1_v50".to_string(), type_def_int64.clone());
     let blk_1_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v50.clone_value()]),
-        ops: RefCell::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
+        ops: RwLock::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Sub, 0, 1)
     });
 
@@ -297,7 +297,7 @@ pub fn factorial() -> VM {
     let blk_1_fac = func_ver.new_constant(vm.next_id(), const_func_fac.clone());
     let blk_1_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v51.clone_value()]),
-        ops: RefCell::new(vec![blk_1_fac, blk_1_v50.clone()]),
+        ops: RwLock::new(vec![blk_1_fac, blk_1_v50.clone()]),
         v: Instruction_::ExprCall {
             data: CallData {
                 func: 0,
@@ -312,14 +312,14 @@ pub fn factorial() -> VM {
     let blk_1_v52 = func_ver.new_ssa(vm.next_id(), "blk_1_v52".to_string(), type_def_int64.clone());
     let blk_1_inst2 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v52.clone_value()]),
-        ops: RefCell::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
+        ops: RwLock::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
         v: Instruction_::BinOp(BinOp::Mul, 0, 1)
     });
 
     // BRANCH blk_2 (%blk_1_v52)
     let blk_1_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
-        ops: RefCell::new(vec![blk_1_v52.clone()]),
+        ops: RwLock::new(vec![blk_1_v52.clone()]),
         v: Instruction_::Branch1(Destination {
                 target: blk_2.id(),
                 args: vec![DestArg::Normal(0)]
@@ -394,7 +394,7 @@ pub fn global_access() -> VM {
     let blk_0_const_int64_1 = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
     let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
-        ops: RefCell::new(vec![blk_0_a.clone(), blk_0_const_int64_1.clone()]),
+        ops: RwLock::new(vec![blk_0_a.clone(), blk_0_const_int64_1.clone()]),
         v: Instruction_::Store{
             is_ptr: false,
             order: MemoryOrder::Relaxed,
@@ -407,7 +407,7 @@ pub fn global_access() -> VM {
     let blk_0_x = func_ver.new_ssa(vm.next_id(), "blk_0_x".to_string(), type_def_int64.clone());
     let blk_0_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_0_x.clone_value()]),
-        ops: RefCell::new(vec![blk_0_a.clone()]),
+        ops: RwLock::new(vec![blk_0_a.clone()]),
         v: Instruction_::Load{
             is_ptr: false,
             order: MemoryOrder::Relaxed,
@@ -417,7 +417,7 @@ pub fn global_access() -> VM {
     
     let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
-        ops: RefCell::new(vec![blk_0_x.clone()]),
+        ops: RwLock::new(vec![blk_0_x.clone()]),
         v: Instruction_::Return(vec![0])
     });
     

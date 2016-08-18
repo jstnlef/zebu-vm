@@ -38,7 +38,7 @@ impl <'a> InstructionSelection {
     // 3. we need to backup/restore all the callee-saved registers
     // if any of these assumption breaks, we will need to re-emit the code
     #[allow(unused_variables)]
-    fn instruction_select(&mut self, node: &'a P<TreeNode>, cur_func: &MuFunctionVersion, vm: &VM) {
+    fn instruction_select(&mut self, node: &'a TreeNode, cur_func: &MuFunctionVersion, vm: &VM) {
         trace!("instsel on node {}", node);
         
         match node.v {
@@ -55,7 +55,7 @@ impl <'a> InstructionSelection {
                             }
                         };
                         
-                        let ops = inst.ops.borrow();
+                        let ops = inst.ops.read().unwrap();
                         
                         self.process_dest(&ops, fallthrough_dest, cur_func, vm);
                         self.process_dest(&ops, branch_dest, cur_func, vm);
@@ -94,7 +94,7 @@ impl <'a> InstructionSelection {
                     },
                     
                     Instruction_::Branch1(ref dest) => {
-                        let ops = inst.ops.borrow();
+                        let ops = inst.ops.read().unwrap();
                                             
                         self.process_dest(&ops, dest, cur_func, vm);
                         
@@ -108,7 +108,7 @@ impl <'a> InstructionSelection {
                     Instruction_::ExprCall{ref data, is_abort} => {
                         trace!("deal with pre-call convention");
                         
-                        let ops = inst.ops.borrow();
+                        let ops = inst.ops.read().unwrap();
                         let rets = inst.value.as_ref().unwrap();
                         let ref func = ops[data.func];
                         let ref func_sig = match func.v {
@@ -206,7 +206,7 @@ impl <'a> InstructionSelection {
                     },
                     
                     Instruction_::BinOp(op, op1, op2) => {
-                        let ops = inst.ops.borrow();
+                        let ops = inst.ops.read().unwrap();
                         
                         match op {
                             op::BinOp::Add => {
@@ -352,7 +352,7 @@ impl <'a> InstructionSelection {
                     // load on x64 generates mov inst (no matter what order is specified)
                     // https://www.cl.cam.ac.uk/~pes20/cpp/cpp0xmappings.html
                     Instruction_::Load{is_ptr, order, mem_loc} => {
-                        let ops = inst.ops.borrow();
+                        let ops = inst.ops.read().unwrap();
                         let ref loc_op = ops[mem_loc];
                         
                         // check order
@@ -377,7 +377,7 @@ impl <'a> InstructionSelection {
                     }
                     
                     Instruction_::Store{is_ptr, order, mem_loc, value} => {
-                        let ops = inst.ops.borrow();
+                        let ops = inst.ops.read().unwrap();
                         let ref loc_op = ops[mem_loc];
                         let ref val_op = ops[value];
                         
@@ -504,7 +504,7 @@ impl <'a> InstructionSelection {
         // FIXME: this may change in the future
         
         // prepare return regs
-        let ref ops = ret_inst.ops.borrow();
+        let ref ops = ret_inst.ops.read().unwrap();
         let ret_val_indices = match ret_inst.v {
             Instruction_::Return(ref vals) => vals,
             _ => panic!("expected ret inst")
@@ -556,7 +556,7 @@ impl <'a> InstructionSelection {
     fn emit_cmp_res(&mut self, cond: &P<TreeNode>, cur_func: &MuFunctionVersion, vm: &VM) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
-                let ops = inst.ops.borrow();                
+                let ops = inst.ops.read().unwrap();                
                 
                 match inst.v {
                     Instruction_::CmpOp(op, op1, op2) => {
@@ -591,7 +591,7 @@ impl <'a> InstructionSelection {
         }
     }    
     
-    fn match_ireg(&mut self, op: &P<TreeNode>) -> bool {
+    fn match_ireg(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
                 if inst.value.is_some() {
@@ -737,7 +737,7 @@ impl <'a> InstructionSelection {
         unimplemented!()
     }
     
-    fn emit_get_result(&mut self, node: &P<TreeNode>) -> P<Value> {
+    fn emit_get_result(&mut self, node: &TreeNode) -> P<Value> {
         match node.v {
             TreeNode_::Instruction(ref inst) => {
                 if inst.value.is_some() {
@@ -817,7 +817,7 @@ impl CompilerPass for InstructionSelection {
             self.backend.set_block_liveout(block_label.clone(), &live_out);
 
             for inst in block_content.body.iter() {
-                self.instruction_select(inst, func, vm);
+                self.instruction_select(&inst, func, vm);
             }
             
             self.backend.end_block(block_label);

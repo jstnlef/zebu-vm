@@ -8,7 +8,7 @@ use std::sync::RwLock;
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
 pub struct MuType {
     pub hdr: MuEntityHeader,
     pub v: MuType_
@@ -23,17 +23,7 @@ impl MuType {
     }
 }
 
-//impl Encodable for MuType {
-//    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-//        //serialize 2 fields
-//        s.emit_struct("MuType", 2, |s| {
-//            // hdr
-//            try!(s.emit_struct_field("hdr", 0, |s| hdr.encode(s)));
-//        })
-//    }
-//} 
-
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
 pub enum MuType_ {
     /// int <length>
     Int          (usize),
@@ -117,7 +107,7 @@ lazy_static! {
     pub static ref STRUCT_TAG_MAP : RwLock<HashMap<MuName, StructType_>> = RwLock::new(HashMap::new());
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
 pub struct StructType_ {
     tys: Vec<P<MuType>>
 }
@@ -335,7 +325,7 @@ macro_rules! is_type (
     )
 );
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
 pub struct MuFuncSig {
     pub hdr: MuEntityHeader,
     pub ret_tys : Vec<P<MuType>>,

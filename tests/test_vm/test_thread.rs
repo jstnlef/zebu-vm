@@ -25,7 +25,7 @@ fn test_thread_create() {
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&func_id).unwrap().read().unwrap();
     let func_vers = vm.func_vers().read().unwrap();
-    let mut func_ver = func_vers.get(&(func.id(), func.cur_ver.unwrap())).unwrap().write().unwrap();
+    let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
     
     compiler.compile(&mut func_ver);
     

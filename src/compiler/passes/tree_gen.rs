@@ -49,7 +49,7 @@ impl CompilerPass for TreeGen {
                             {
                                 trace!("check if we can replace any operand with inst");
                                 
-                                let mut ops = inst.ops.borrow_mut();
+                                let mut ops = inst.ops.write().unwrap();
                                 for index in 0..ops.len() {
                                     let possible_ssa_id = ops[index].extract_ssa_id();
                                     if possible_ssa_id.is_some() {

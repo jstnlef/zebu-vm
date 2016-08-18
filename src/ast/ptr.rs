@@ -36,37 +36,28 @@
 //!   implementation changes (using a special thread-local heap, for example).
 //!   Moreover, a switch to, e.g. `P<'a, T>` would be easy and mostly automated.
 
-//use std::fmt::{self, Display, Debug};
-//use std::hash::{Hash, Hasher};
-//use std::ops::Deref;
-//use std::ops::DerefMut;
+use std::fmt::{self, Display, Debug};
+use std::hash::{Hash, Hasher};
+use std::ops::Deref;
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 use std::sync::Arc;
 
-pub type P<T> = Arc<T>;
+use ast::ir::MuEntity;
 
-///// An owned smart pointer.
-//pub struct P<T> {
-//    ptr: Box<T>
+pub type P<T> = Arc<T>;
+//pub struct P<T: MuEntity> {
+//    ptr: Arc<T>
 //}
 
 #[allow(non_snake_case)]
 /// Construct a `P<T>` from a `T` value.
-pub fn P<T: 'static>(value: T) -> P<T> {
+pub fn P<T: MuEntity>(value: T) -> P<T> {
+//    P {ptr: Arc::new(value)}
     Arc::new(value)
 }
 
-//impl<T: 'static> P<T> {
-//    /// Move out of the pointer.
-//    /// Intended for chaining transformations not covered by `map`.
-//    pub fn and_then<U, F>(self, f: F) -> U where
-//        F: FnOnce(T) -> U,
-//    {
-//        f(*self.ptr)
-//    }
-//}
-//
-//impl<T> Deref for P<T> {
+//impl<T: MuEntity> Deref for P<T> {
 //    type Target = T;
 //
 //    fn deref<'a>(&'a self) -> &'a T {
@@ -74,45 +65,45 @@ pub fn P<T: 'static>(value: T) -> P<T> {
 //    }
 //}
 //
-//impl<T> DerefMut for P<T> {
-//    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
-//        &mut *self.ptr
-//    }
-//}
-//
-//impl<T: 'static + Clone> Clone for P<T> {
+//impl<T: MuEntity> Clone for P<T> {
 //    fn clone(&self) -> P<T> {
-//        P((**self).clone())
+//        P {ptr: self.ptr.clone()}
 //    }
 //}
 //
-//impl<T: PartialEq> PartialEq for P<T> {
+//impl<T: MuEntity + PartialEq> PartialEq for P<T> {
 //    fn eq(&self, other: &P<T>) -> bool {
 //        **self == **other
 //    }
 //}
 //
-//impl<T: Eq> Eq for P<T> {}
+//impl<T: MuEntity + Eq> Eq for P<T> {}
 //
-//impl<T: Debug> Debug for P<T> {
+//impl<T: MuEntity + Debug> Debug for P<T> {
 //    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 //        Debug::fmt(&**self, f)
 //    }
 //}
-//impl<T: Display> Display for P<T> {
+//impl<T: MuEntity + Display> Display for P<T> {
 //    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 //        Display::fmt(&**self, f)
 //    }
 //}
 //
-//impl<T> fmt::Pointer for P<T> {
+//impl<T: MuEntity> fmt::Pointer for P<T> {
 //    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 //        fmt::Pointer::fmt(&self.ptr, f)
 //    }
 //}
 //
-//impl<T: Hash> Hash for P<T> {
+//impl<T: MuEntity + Hash> Hash for P<T> {
 //    fn hash<H: Hasher>(&self, state: &mut H) {
 //        (**self).hash(state);
+//    }
+//}
+
+//impl<T: MuEntity> Encodable for P<T> {
+//    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+//        s.emit_usize(self.id())
 //    }
 //}
