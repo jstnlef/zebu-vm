@@ -1119,6 +1119,7 @@ pub fn emit_context(vm: &VM) {
     use std::path;
     use std::fs::File;
     use std::io::prelude::*;
+    use rustc_serialize::json;
     
     debug!("---Emit VM Context---");
     create_emit_directory();
@@ -1132,32 +1133,36 @@ pub fn emit_context(vm: &VM) {
         Ok(file) => file
     };
     
-    // put globals into bss section
-    file.write_fmt(format_args!("\t.bss\n")).unwrap();
-    
-    let globals = vm.globals().read().unwrap();
-    for global in globals.values() {
-        debug!("emit global: {}", global);
-        let (size, align) = {
-            let alloc_ty = {
-                match global.v {
-                    Value_::Global(ref ty) => ty,
-                    _ => panic!("expected a global")
-                }
+    {
+        // put globals into bss section
+        file.write_fmt(format_args!("\t.bss\n")).unwrap();
+        
+        let globals = vm.globals().read().unwrap();
+        for global in globals.values() {
+            debug!("emit global: {}", global);
+            let (size, align) = {
+                let alloc_ty = {
+                    match global.v {
+                        Value_::Global(ref ty) => ty,
+                        _ => panic!("expected a global")
+                    }
+                };
+                
+                debug!("getting type: {:?}", alloc_ty);
+                let ty_info = vm.get_backend_type_info(alloc_ty.id());
+                (ty_info.size, ty_info.alignment)
             };
             
-            debug!("getting type: {:?}", alloc_ty);
-            let ty_info = vm.get_backend_type_info(alloc_ty.id());
-            (ty_info.size, ty_info.alignment)
-        };
-        
-        file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name().unwrap())))).unwrap();
-        file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name().unwrap()), size, align))).unwrap();
-        file.write("\n".as_bytes()).unwrap();
+            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name().unwrap())))).unwrap();
+            file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name().unwrap()), size, align))).unwrap();
+            file.write("\n".as_bytes()).unwrap();
+        }
     }
     
     // serialize vm
-//    unimplemented!();
+    file.write("\t.data\n".as_bytes()).unwrap();
+    file.write_fmt(format_args!("vm: .asciiz \"{}\"", json::encode(&vm).unwrap())).unwrap();
+    file.write("\n".as_bytes()).unwrap();
     
     // main_thread
 //    let primordial = vm.primordial.read().unwrap();

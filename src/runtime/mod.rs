@@ -29,4 +29,8 @@ impl ValueLocation {
             &ValueLocation::Relocatable(_, _) => panic!("expect a runtime value")
         }
     }
+    
+    pub fn from_constant(c: Constant) -> ValueLocation {
+        unimplemented!()
+    }
 }

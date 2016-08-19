@@ -52,9 +52,6 @@ pub struct VM {
     // partially serialize
     // 12
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,    
-    
-    // no serialize
-    threads: RwLock<Vec<JoinHandle<()>>>,
 }
 
 const VM_SERIALIZE_FIELDS : usize = 12;
@@ -252,8 +249,6 @@ impl Decodable for VM {
                 
                 // not serialized
                 compiled_funcs: RwLock::new(HashMap::new()),
-                
-                threads: RwLock::new(vec![]) 
             };
             
             vm.next_id.store(next_id, Ordering::SeqCst);
@@ -285,7 +280,6 @@ impl <'a> VM {
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
             
-            threads: RwLock::new(vec!()),
             primordial: RwLock::new(None)
         };
         
@@ -479,8 +473,7 @@ impl <'a> VM {
         *guard = Some(MuPrimordialThread{func_id: func_id, args: args});
     }
     
-    #[deprecated]
-    pub fn new_thread_normal(&self, mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>) {
+    pub fn new_thread_normal(&self, mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>) -> JoinHandle<()> {
         let user_tls = {
             if threadlocal.is_zero() {
                 None
@@ -492,10 +485,7 @@ impl <'a> VM {
         // set up arguments on stack
         stack.runtime_load_args(vals);
         
-        let handle = MuThread::mu_thread_launch(self.next_id(), stack, user_tls, self);
-        
-        let mut threads = self.threads.write().unwrap();
-        threads.push(handle);
+        MuThread::mu_thread_launch(self.next_id(), stack, user_tls, self)
     }
     
     #[allow(unused_variables)]
@@ -508,12 +498,28 @@ impl <'a> VM {
     }
     
     #[no_mangle]
-    pub extern fn mu_primorial_main(serialized_vm : *const c_char, len: usize) {
+    pub extern fn mu_main(serialized_vm : *const c_char, len: usize) {
         use rustc_serialize::json;
         let str_vm = unsafe {String::from_raw_parts(serialized_vm as *mut u8, len, len)};
         
         let vm : Arc<VM> = Arc::new(json::decode(&str_vm).unwrap());
         
-        unimplemented!()
+        let primordial = vm.primordial.read().unwrap();
+        if primordial.is_none() {
+            panic!("no primordial thread/stack/function. Client should provide an entry point");
+        } else {
+            let primordial = primordial.as_ref().unwrap();
+            
+            // create mu stack
+            let stack = vm.new_stack(primordial.func_id);
+            
+            let args : Vec<ValueLocation> = primordial.args.iter().map(|arg| ValueLocation::from_constant(arg.clone())).collect();
+            
+            // FIXME: currently assumes no user defined thread local
+            // will need to fix this after we can serialize heap object
+            let thread = vm.new_thread_normal(stack, unsafe{Address::zero()}, args);
+            
+            thread.join().unwrap();
+        }
     }
 }
