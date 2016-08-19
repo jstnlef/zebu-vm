@@ -1,5 +1,3 @@
-pub extern crate immix_rust as gc;
-
 pub use gc::common::Address;
 pub use gc::common::ObjectReference;
 

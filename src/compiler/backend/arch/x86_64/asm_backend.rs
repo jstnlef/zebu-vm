@@ -1160,9 +1160,13 @@ pub fn emit_context(vm: &VM) {
     }
     
     // serialize vm
-    file.write("\t.data\n".as_bytes()).unwrap();
-    file.write_fmt(format_args!("vm: .asciiz \"{}\"", json::encode(&vm).unwrap())).unwrap();
-    file.write("\n".as_bytes()).unwrap();
+    {
+        let serialize_vm = json::encode(&vm).unwrap();
+        
+        file.write("\t.data\n".as_bytes()).unwrap();
+        file.write_fmt(format_args!("vm: .asciiz \"{}\"", serialize_vm)).unwrap();
+        file.write("\n".as_bytes()).unwrap();
+    }
     
     // main_thread
 //    let primordial = vm.primordial.read().unwrap();

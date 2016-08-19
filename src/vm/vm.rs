@@ -8,10 +8,10 @@ use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use vm::machine_code::CompiledFunction;
 use vm::vm_options::VMOptions;
-use runtime::gc;
 use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::Address;
+use gc;
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
@@ -60,7 +60,7 @@ impl Encodable for VM {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
         // serialize VM_SERIALIZE_FIELDS fields
         // PLUS ONE extra global STRUCT_TAG_MAP
-        s.emit_struct("VM", VM_SERIALIZE_FIELDS, |s| {
+        s.emit_struct("VM", VM_SERIALIZE_FIELDS + 1, |s| {
             // next_id
             try!(s.emit_struct_field("next_id", 0, |s| {
                 s.emit_usize(self.next_id.load(Ordering::SeqCst))

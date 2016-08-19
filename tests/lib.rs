@@ -1,6 +1,7 @@
 extern crate mu;
 extern crate log;
 extern crate simple_logger;
+extern crate immix_rust as gc;
 
 mod test_ir;
 mod test_compiler;

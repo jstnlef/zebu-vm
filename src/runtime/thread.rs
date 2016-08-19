@@ -5,7 +5,7 @@ use ast::ptr::*;
 use ast::types::*;
 use vm::VM;
 use runtime::ValueLocation;
-use runtime::gc;
+use gc;
 
 use utils::ByteSize;
 use utils::Address;
