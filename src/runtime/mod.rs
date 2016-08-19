@@ -1,7 +1,9 @@
-pub use gc::common::Address;
-pub use gc::common::ObjectReference;
-
+pub mod mem;
 pub mod thread;
+
+pub use runtime::mem::common::Address;
+pub use runtime::mem::common::ObjectReference;
+
 
 use ast::ir::*;
 use compiler::backend::Word;
@@ -28,6 +30,7 @@ impl ValueLocation {
         }
     }
     
+    #[allow(unused_variables)]
     pub fn from_constant(c: Constant) -> ValueLocation {
         unimplemented!()
     }

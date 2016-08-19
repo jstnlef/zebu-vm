@@ -4,7 +4,6 @@ extern crate simple_logger;
 
 use test_ir::test_ir::factorial;
 use self::mu::compiler::*;
-use self::mu::ast::ir::*;
 
 use std::sync::Arc;
 

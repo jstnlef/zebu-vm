@@ -5,9 +5,6 @@ version = "0.0.1"
 authors = [ "Your name <you@example.com>" ]
 build = "build.rs"
 
-[dependencies.immix_rust]
-path = "gc"
-
 [build-dependencies.gcc]
 git = "https://github.com/alexcrichton/gcc-rs"
 
@@ -21,3 +18,7 @@ hprof = "0.1.3"
 memmap = "0.4.0"
 memsec = "0.1.9"
 rustc-serialize = "*"
+
+time = "0.1.34"
+aligned_alloc = "0.1.2"
+crossbeam = "0.2.8"

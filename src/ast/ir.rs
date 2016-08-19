@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::fmt;
 use std::default;
 use std::sync::RwLock;
-use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
 pub type WPID  = usize;

@@ -11,7 +11,7 @@ use vm::vm_options::VMOptions;
 use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::Address;
-use gc;
+use runtime::mem as gc;
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
