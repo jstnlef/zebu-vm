@@ -61,7 +61,8 @@ pub fn sum() -> VM {
     let mut blk_entry = Block::new(vm.next_id());
     vm.set_name(blk_entry.as_entity(), "entry".to_string());
     
-    let blk_entry_n = func_ver.new_ssa(vm.next_id(), "blk_entry_n".to_string(), type_def_int64.clone());
+    let blk_entry_n = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_entry_n.as_entity(), "blk_entry_n".to_string());
     let const_def_int64_0_local = func_ver.new_constant(vm.next_id(), const_def_int64_0.clone()); // FIXME: why we need a local version?
     let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
 
@@ -86,12 +87,16 @@ pub fn sum() -> VM {
 
     // %head(<@int_64> %n, <@int_64> %s, <@int_64> %i):
 
-    let blk_head_n = func_ver.new_ssa(vm.next_id(), "blk_head_n".to_string(), type_def_int64.clone());
-    let blk_head_s = func_ver.new_ssa(vm.next_id(), "blk_head_s".to_string(), type_def_int64.clone());
-    let blk_head_i = func_ver.new_ssa(vm.next_id(), "blk_head_i".to_string(), type_def_int64.clone());
+    let blk_head_n = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_head_n.as_entity(), "blk_head_n".to_string());
+    let blk_head_s = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_head_s.as_entity(), "blk_head_s".to_string());
+    let blk_head_i = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_head_i.as_entity(), "blk_head_i".to_string());
 
     // %s2 = ADD %s %i
-    let blk_head_s2 = func_ver.new_ssa(vm.next_id(), "blk_head_s2".to_string(), type_def_int64.clone());
+    let blk_head_s2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_head_s2.as_entity(), "blk_head_s2".to_string());
     let blk_head_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_s2.clone_value()]),
         ops: RwLock::new(vec![blk_head_s.clone(), blk_head_i.clone()]),
@@ -99,7 +104,8 @@ pub fn sum() -> VM {
     });
 
     // %i2 = ADD %i 1
-    let blk_head_i2 = func_ver.new_ssa(vm.next_id(), "blk_head_i2".to_string(), type_def_int64.clone());
+    let blk_head_i2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_head_i2.as_entity(), "blk_head_i2".to_string());
     let blk_head_inst1 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_i2.clone_value()]),
         ops: RwLock::new(vec![blk_head_i.clone(), const_def_int64_1_local.clone()]),
@@ -107,7 +113,8 @@ pub fn sum() -> VM {
     });
 
     // %cond = UGT %i %n
-    let blk_head_cond = func_ver.new_ssa(vm.next_id(), "blk_head_cond".to_string(), type_def_int1.clone());
+    let blk_head_cond = func_ver.new_ssa(vm.next_id(), type_def_int1.clone());
+    vm.set_name(blk_head_cond.as_entity(), "blk_head_cond".to_string());
     let blk_head_inst2 = func_ver.new_inst(vm.next_id(), Instruction {
         value: Some(vec![blk_head_cond.clone_value()]),
         ops: RwLock::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
@@ -142,7 +149,8 @@ pub fn sum() -> VM {
     blk_head.content = Some(blk_head_content);
 
     // %ret(<@int_64> %s):
-    let blk_ret_s = func_ver.new_ssa(vm.next_id(), "blk_ret_s".to_string(), type_def_int64.clone());
+    let blk_ret_s = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_ret_s.as_entity(), "blk_ret_s".to_string());
 
     // RET %s
     let blk_ret_term = func_ver.new_inst(vm.next_id(), Instruction{
@@ -224,11 +232,13 @@ pub fn factorial() -> VM {
     // %blk_0(<@int_64> %n_3):
     let mut blk_0 = Block::new(vm.next_id());
     vm.set_name(blk_0.as_entity(), "blk_0".to_string());
-    let blk_0_n_3 = func_ver.new_ssa(vm.next_id(), "blk_0_n_3".to_string(), type_def_int64.clone());
+    let blk_0_n_3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_0_n_3.as_entity(), "blk_0_n_3".to_string());
     let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
 
     //   %v48 = EQ <@int_64> %n_3 @int_64_1
-    let blk_0_v48 = func_ver.new_ssa(vm.next_id(), "blk_0_v48".to_string(), type_def_int64.clone());
+    let blk_0_v48 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_0_v48.as_entity(), "blk_0_v48".to_string());
     let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
             value: Some(vec![blk_0_v48.clone_value()]),
             ops: RwLock::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
@@ -265,7 +275,8 @@ pub fn factorial() -> VM {
     blk_0.content = Some(blk_0_content);
 
     // %blk_2(<@int_64> %v53):
-    let blk_2_v53 = func_ver.new_ssa(vm.next_id(), "blk_2_v53".to_string(), type_def_int64.clone());
+    let blk_2_v53 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_2_v53.as_entity(), "blk_2_v53".to_string());
 
     //   RET %v53
     let blk_2_term = func_ver.new_inst(vm.next_id(), Instruction{
@@ -282,10 +293,12 @@ pub fn factorial() -> VM {
     blk_2.content = Some(blk_2_content);
 
     // %blk_1(<@int_64> %n_3):
-    let blk_1_n_3 = func_ver.new_ssa(vm.next_id(), "blk_1_n_3".to_string(), type_def_int64.clone());
+    let blk_1_n_3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_1_n_3.as_entity(), "blk_1_n_3".to_string());
 
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
-    let blk_1_v50 = func_ver.new_ssa(vm.next_id(), "blk_1_v50".to_string(), type_def_int64.clone());
+    let blk_1_v50 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_1_v50.as_entity(), "blk_1_v50".to_string());
     let blk_1_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v50.clone_value()]),
         ops: RwLock::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
@@ -293,7 +306,8 @@ pub fn factorial() -> VM {
     });
 
     //   %v51 = CALL <@fac_sig> @fac (%v50)
-    let blk_1_v51 = func_ver.new_ssa(vm.next_id(), "blk_1_v51".to_string(), type_def_int64.clone());
+    let blk_1_v51 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_1_v51.as_entity(), "blk_1_v51".to_string());
     let blk_1_fac = func_ver.new_constant(vm.next_id(), const_func_fac.clone());
     let blk_1_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v51.clone_value()]),
@@ -309,7 +323,8 @@ pub fn factorial() -> VM {
     });
 
     //   %v52 = MUL <@int_64> %n_3 %v51
-    let blk_1_v52 = func_ver.new_ssa(vm.next_id(), "blk_1_v52".to_string(), type_def_int64.clone());
+    let blk_1_v52 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_1_v52.as_entity(), "blk_1_v52".to_string());
     let blk_1_inst2 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_1_v52.clone_value()]),
         ops: RwLock::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
@@ -404,7 +419,8 @@ pub fn global_access() -> VM {
     });
         
     // %x = LOAD <@int_64> @a
-    let blk_0_x = func_ver.new_ssa(vm.next_id(), "blk_0_x".to_string(), type_def_int64.clone());
+    let blk_0_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_0_x.as_entity(), "blk_0_x".to_string());
     let blk_0_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
         value: Some(vec![blk_0_x.clone_value()]),
         ops: RwLock::new(vec![blk_0_a.clone()]),

@@ -6,6 +6,8 @@ use vm::VM;
 use compiler::CompilerPass;
 use compiler::PassExecutionResult;
 
+use std::sync::atomic::Ordering;
+
 pub struct TreeGen {
     name: &'static str
 } 
@@ -77,7 +79,7 @@ impl CompilerPass for TreeGen {
                                 // we can put the expression as a child node to its use
                                 if left.len() == 1 {
                                     let lhs = context.get_value_mut(left[0].extract_ssa_id().unwrap()).unwrap(); 
-                                    if lhs.use_count.get() == 1{
+                                    if lhs.use_count.load(Ordering::SeqCst) == 1{
                                         if is_movable(&inst.v) {
                                             lhs.expr = Some(inst.clone()); // FIXME: should be able to move the inst here 
                                             

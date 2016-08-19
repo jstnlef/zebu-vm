@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use ast::ptr::P;
 use ast::ir::*;
+use ast::types;
 use ast::types::*;
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
@@ -14,9 +15,12 @@ use utils::Address;
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
+use std::path;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 use std::thread::JoinHandle;
+use std::os::raw::c_char;
+use std::sync::Arc;
 
 pub struct VM {
     // serialize
@@ -57,7 +61,8 @@ const VM_SERIALIZE_FIELDS : usize = 12;
 
 impl Encodable for VM {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        // serialize 11 fields
+        // serialize VM_SERIALIZE_FIELDS fields
+        // PLUS ONE extra global STRUCT_TAG_MAP
         s.emit_struct("VM", VM_SERIALIZE_FIELDS, |s| {
             // next_id
             try!(s.emit_struct_field("next_id", 0, |s| {
@@ -81,35 +86,40 @@ impl Encodable for VM {
                 let types = &self.types.read().unwrap();
                 try!(s.emit_struct_field("types", 3, |s| types.encode(s)));
             }
+            // STRUCT_TAG_MAP
+            {
+                let struct_tag_map = types::STRUCT_TAG_MAP.read().unwrap();
+                try!(s.emit_struct_field("struct_tag_map", 4, |s| struct_tag_map.encode(s)));
+            }
             
             // backend_type_info
             {
                 let backend_type_info : &HashMap<_, _> = &self.backend_type_info.read().unwrap();
-                try!(s.emit_struct_field("backend_type_info", 4, |s| backend_type_info.encode(s)));
+                try!(s.emit_struct_field("backend_type_info", 5, |s| backend_type_info.encode(s)));
             }
             
             // constants
             {
                 let constants : &HashMap<_, _> = &self.constants.read().unwrap();
-                try!(s.emit_struct_field("constants", 5, |s| constants.encode(s)));
+                try!(s.emit_struct_field("constants", 6, |s| constants.encode(s)));
             }
             
             // globals
             {
                 let globals: &HashMap<_, _> = &self.globals.read().unwrap();
-                try!(s.emit_struct_field("globals", 6, |s| globals.encode(s)));
+                try!(s.emit_struct_field("globals", 7, |s| globals.encode(s)));
             }
             
             // func sigs
             {
                 let func_sigs: &HashMap<_, _> = &self.func_sigs.read().unwrap();
-                try!(s.emit_struct_field("func_sigs", 7, |s| func_sigs.encode(s)));
+                try!(s.emit_struct_field("func_sigs", 8, |s| func_sigs.encode(s)));
             }
             
             // funcs
             {
                 let funcs : &HashMap<_, _> = &self.funcs.read().unwrap();
-                try!(s.emit_struct_field("funcs", 8, |s| {
+                try!(s.emit_struct_field("funcs", 9, |s| {
                     s.emit_map(funcs.len(), |s| {
                         let mut i = 0;
                         for (k,v) in funcs.iter() {
@@ -126,7 +136,7 @@ impl Encodable for VM {
             // func_vers
             {
                 let func_vers : &HashMap<_, _> = &self.func_vers.read().unwrap();
-                try!(s.emit_struct_field("func_vers", 9, |s| {
+                try!(s.emit_struct_field("func_vers", 10, |s| {
                     s.emit_map(func_vers.len(), |s| {
                         let mut i = 0;
                         for (k, v) in func_vers.iter() {
@@ -143,12 +153,12 @@ impl Encodable for VM {
             // primordial
             {
                 let primordial = &self.primordial.read().unwrap();
-                try!(s.emit_struct_field("primordial", 10, |s| primordial.encode(s)));
+                try!(s.emit_struct_field("primordial", 11, |s| primordial.encode(s)));
             }
             
             // is_running
             {
-                try!(s.emit_struct_field("is_running", 11, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
+                try!(s.emit_struct_field("is_running", 12, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
             }
             
             Ok(())
@@ -158,7 +168,7 @@ impl Encodable for VM {
 
 impl Decodable for VM {
     fn decode<D: Decoder>(d: &mut D) -> Result<VM, D::Error> {
-        d.read_struct("VM", VM_SERIALIZE_FIELDS, |d| {
+        d.read_struct("VM", VM_SERIALIZE_FIELDS + 1, |d| {
             // next_id
             let next_id = try!(d.read_struct_field("next_id", 0, |d| {
                 d.read_usize()
@@ -172,6 +182,16 @@ impl Decodable for VM {
             
             // types
             let types = try!(d.read_struct_field("types", 3, |d| Decodable::decode(d)));
+            {
+                // struct tag map
+                let mut struct_tag_map : HashMap<MuName, StructType_> = try!(d.read_struct_field("struct_tag_map", 4, |d| Decodable::decode(d)));
+                
+                let mut map_guard = types::STRUCT_TAG_MAP.write().unwrap();
+                map_guard.clear();
+                for (k, v) in struct_tag_map.drain() {
+                    map_guard.insert(k, v);
+                }
+            }
             
             // backend_type_info
             let backend_type_info = try!(d.read_struct_field("backend_type_info", 4, |d| Decodable::decode(d)));
@@ -476,5 +496,24 @@ impl <'a> VM {
         
         let mut threads = self.threads.write().unwrap();
         threads.push(handle);
+    }
+    
+    #[allow(unused_variables)]
+    pub fn make_boot_image(self, output: &path::Path) {
+        use rustc_serialize::json;
+        
+        let serialized = json::encode(&self).unwrap();
+        
+        unimplemented!() 
+    }
+    
+    #[no_mangle]
+    pub extern fn mu_primorial_main(serialized_vm : *const c_char, len: usize) {
+        use rustc_serialize::json;
+        let str_vm = unsafe {String::from_raw_parts(serialized_vm as *mut u8, len, len)};
+        
+        let vm : Arc<VM> = Arc::new(json::decode(&str_vm).unwrap());
+        
+        unimplemented!()
     }
 }

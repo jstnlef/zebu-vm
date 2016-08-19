@@ -11,7 +11,6 @@ use std::default;
 use std::sync::RwLock;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
-use utils::Address;
 
 pub type WPID  = usize;
 pub type MuID  = usize;
@@ -122,15 +121,14 @@ impl MuFunctionVersion {
         self.content = Some(content)
     }
 
-    pub fn new_ssa(&mut self, id: MuID, tag: MuName, ty: P<MuType>) -> P<TreeNode> {
-        self.context.value_tags.insert(tag.clone(), id);
-        self.context.values.insert(id, SSAVarEntry{id: id, name: Some(tag.clone()), ty: ty.clone(), use_count: Cell::new(0), expr: None});
+    pub fn new_ssa(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
+        self.context.values.insert(id, SSAVarEntry::new(id, ty.clone()));
 
         P(TreeNode {
             hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_ssa(&ty),
             v: TreeNode_::Value(P(Value{
-                hdr: MuEntityHeader::named(id, tag),
+                hdr: MuEntityHeader::unnamed(id),
                 ty: ty,
                 v: Value_::SSAVar(id)
             }))
@@ -197,32 +195,14 @@ impl FunctionContent {
 
 #[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct FunctionContext {
-    pub value_tags: HashMap<MuName, MuID>,
     pub values: HashMap<MuID, SSAVarEntry>
 }
 
 impl FunctionContext {
     fn new() -> FunctionContext {
         FunctionContext {
-            value_tags: HashMap::new(),
             values: HashMap::new()
         }
-    }
-
-    pub fn get_value_by_tag(&self, tag: &str) -> Option<&SSAVarEntry> {
-        match self.value_tags.get(&tag.to_string()) {
-            Some(id) => self.get_value(*id),
-            None => None
-        }
-    }
-
-    pub fn get_value_mut_by_tag(&mut self, tag: &str) -> Option<&mut SSAVarEntry> {
-        let id : MuID = match self.value_tags.get(&tag.to_string()) {
-            Some(id) => *id,
-            None => return None
-        };
-
-        self.get_value_mut(id)
     }
 
     pub fn get_value(&self, id: MuID) -> Option<&SSAVarEntry> {
@@ -536,21 +516,67 @@ pub enum Value_ {
     Memory(MemoryLocation)
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Debug)]
 pub struct SSAVarEntry {
-    pub id: MuID,
-    pub name: Option<MuName>,
+    id: MuID,
     pub ty: P<MuType>,
 
     // how many times this entry is used
     // availalbe after DefUse pass
-    pub use_count: Cell<usize>,
+    pub use_count: AtomicUsize,
 
     // this field is only used during TreeGeneration pass
     pub expr: Option<Instruction>
 }
 
+impl Encodable for SSAVarEntry {
+    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+        s.emit_struct("SSAVarEntry", 4, |s| {
+            try!(s.emit_struct_field("id", 0, |s| self.id.encode(s)));
+            try!(s.emit_struct_field("ty", 1, |s| self.ty.encode(s)));
+            let count = self.use_count.load(Ordering::SeqCst);
+            try!(s.emit_struct_field("use_count", 2, |s| s.emit_usize(count)));
+            try!(s.emit_struct_field("expr", 3, |s| self.expr.encode(s)));
+            Ok(())
+        })
+    }
+}
+
+impl Decodable for SSAVarEntry {
+    fn decode<D: Decoder>(d: &mut D) -> Result<SSAVarEntry, D::Error> {
+        d.read_struct("SSAVarEntry", 4, |d| {
+            let id = try!(d.read_struct_field("id", 0, |d| Decodable::decode(d)));
+            let ty = try!(d.read_struct_field("ty", 1, |d| Decodable::decode(d)));
+            let count = try!(d.read_struct_field("use_count", 2, |d| d.read_usize()));
+            let expr = try!(d.read_struct_field("expr", 3, |d| Decodable::decode(d)));
+            
+            let ret = SSAVarEntry {
+                id: id,
+                ty: ty,
+                use_count: ATOMIC_USIZE_INIT,
+                expr: expr
+            };
+            
+            ret.use_count.store(count, Ordering::SeqCst);
+            
+            Ok(ret)
+        })
+    }
+}
+
 impl SSAVarEntry {
+    pub fn new(id: MuID, ty: P<MuType>) -> SSAVarEntry {
+        let ret = SSAVarEntry {
+            id: id,
+            ty: ty,
+            use_count: ATOMIC_USIZE_INIT,
+            expr: None
+        };
+        
+        ret.use_count.store(0, Ordering::SeqCst);
+        
+        ret
+    }
     pub fn assign_expr(&mut self, expr: Instruction) {
         self.expr = Some(expr)
     }
@@ -558,11 +584,7 @@ impl SSAVarEntry {
 
 impl fmt::Display for SSAVarEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.name.is_some() {
-            write!(f, "{} {}#{}", self.ty, self.name.as_ref().unwrap(), self.id)
-        } else {
-            write!(f, "{} {}#{}", self.ty, "???", self.id)
-        }
+        write!(f, "{} #{}", self.ty, self.id)
     }
 }
 

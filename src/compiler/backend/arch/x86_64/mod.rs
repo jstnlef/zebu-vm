@@ -247,19 +247,10 @@ lazy_static! {
 }
 
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
-    use std::cell::Cell;
-    
     for reg in ALL_MACHINE_REGs.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
-        let entry = SSAVarEntry {
-            id: reg_id,
-            name: reg.name(), 
-            ty: reg.ty.clone(),
-            use_count: Cell::new(0),
-            expr: None
-        };
+        let entry = SSAVarEntry::new(reg_id, reg.ty.clone());
         
-        func_context.value_tags.insert(reg.name().unwrap(), reg_id);
         func_context.values.insert(reg_id, entry);
     }
 }

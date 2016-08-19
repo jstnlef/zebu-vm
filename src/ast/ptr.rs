@@ -36,10 +36,10 @@
 //!   implementation changes (using a special thread-local heap, for example).
 //!   Moreover, a switch to, e.g. `P<'a, T>` would be easy and mostly automated.
 
-use std::fmt::{self, Display, Debug};
-use std::hash::{Hash, Hasher};
-use std::ops::Deref;
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+//use std::fmt::{self, Display, Debug};
+//use std::hash::{Hash, Hasher};
+//use std::ops::Deref;
+//use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 use std::sync::Arc;
 

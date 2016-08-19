@@ -6,8 +6,6 @@ use std::fmt;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-
 #[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
 pub struct MuType {
     pub hdr: MuEntityHeader,
