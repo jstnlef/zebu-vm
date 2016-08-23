@@ -22,18 +22,6 @@ const LO_SPACE_SIZE    : usize = 500 << 20;
 #[test]
 fn test_exhaust_alloc() {
     mem::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
-    
-    let shared_space : Arc<ImmixSpace> = {
-        let space : ImmixSpace = ImmixSpace::new(heap::IMMIX_SPACE_SIZE.load(Ordering::SeqCst));
-        
-        Arc::new(space)
-    };
-    let lo_space : Arc<RwLock<FreeListSpace>> = {
-        let space : FreeListSpace = FreeListSpace::new(heap::LO_SPACE_SIZE.load(Ordering::SeqCst));
-        Arc::new(RwLock::new(space))
-    };
-    heap::gc::init(shared_space.clone(), lo_space.clone());
-
     let mut mutator = mem::new_mutator();
     
     println!("Trying to allocate {} objects of (size {}, align {}). ", WORK_LOAD, OBJECT_SIZE, OBJECT_ALIGN);
@@ -101,6 +89,7 @@ fn test_alloc_mark() {
     } 
 }
 
+#[allow(dead_code)]
 struct Node<'a> {
     hdr  : u64,
     next : &'a Node<'a>,

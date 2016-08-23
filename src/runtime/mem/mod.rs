@@ -97,7 +97,7 @@ pub extern fn alloc_slow(mutator: &mut Box<ImmixMutatorLocal>, size: usize, alig
 }
 
 #[no_mangle]
-pub extern fn alloc_large(mutator: &mut Box<ImmixMutatorLocal>, size: usize) -> ObjectReference {
-    let ret = freelist::alloc_large(size, 8, mutator, MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone());
+pub extern fn alloc_large(mutator: &mut Box<ImmixMutatorLocal>, size: usize, align: usize) -> ObjectReference {
+    let ret = freelist::alloc_large(size, align, mutator, MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone());
     unsafe {ret.to_object_reference()}
 }
