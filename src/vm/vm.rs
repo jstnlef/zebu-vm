@@ -11,16 +11,19 @@ use vm::vm_options::VMOptions;
 use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::Address;
-use runtime::mem as gc;
+use runtime::mm as gc;
 
+use log;
+use simple_logger;
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 use std::path;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 use std::thread::JoinHandle;
-use std::os::raw::c_char;
 use std::sync::Arc;
+use std::os::raw::c_char;
+use std::ffi::CStr;   
 
 pub struct VM {
     // serialize
@@ -292,6 +295,17 @@ impl <'a> VM {
         ret
     }
     
+    pub fn resume_vm(serialized_vm: &str) -> VM {
+        use rustc_serialize::json;
+        
+        let vm = json::decode(serialized_vm).unwrap();
+        
+        let options = VMOptions::default();
+        gc::gc_init(options.immix_size, options.lo_size, options.n_gcthreads);
+        
+        vm
+    }
+    
     pub fn next_id(&self) -> MuID {
         self.next_id.fetch_add(1, Ordering::SeqCst)
     }
@@ -498,14 +512,19 @@ impl <'a> VM {
     }
     
     #[no_mangle]
-    pub extern fn mu_main(serialized_vm : *const c_char, len: usize) {
-        use rustc_serialize::json;
+    pub extern fn mu_trace_level_log() {
+        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    }
+    
+    #[no_mangle]
+    pub extern fn mu_main(serialized_vm : *const c_char) {      
+        debug!("mu_main() started...");
         
-        println!("mu_main() started...");
+        // clone it, otherwise rust allocator will try deallocate
+        // since the char* points to data section, the deallocation will fail
+        let str_vm = unsafe{CStr::from_ptr(serialized_vm)}.to_str().unwrap();
         
-        let str_vm = unsafe {String::from_raw_parts(serialized_vm as *mut u8, len, len)};
-        
-        let vm : Arc<VM> = Arc::new(json::decode(&str_vm).unwrap());
+        let vm : Arc<VM> = Arc::new(VM::resume_vm(str_vm));
         
         let primordial = vm.primordial.read().unwrap();
         if primordial.is_none() {

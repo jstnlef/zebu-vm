@@ -1,11 +1,11 @@
-use mu::runtime::mem;
-use mu::runtime::mem::heap;
-use mu::runtime::mem::heap::immix::ImmixMutatorLocal;
-use mu::runtime::mem::heap::immix::ImmixSpace;
-use mu::runtime::mem::heap::freelist::FreeListSpace;
-use mu::runtime::mem::common::Address;
-use mu::runtime::mem::common::ObjectReference;
-use mu::runtime::mem::objectmodel;
+use mu::runtime::mm;
+use mu::runtime::mm::heap;
+use mu::runtime::mm::heap::immix::ImmixMutatorLocal;
+use mu::runtime::mm::heap::immix::ImmixSpace;
+use mu::runtime::mm::heap::freelist::FreeListSpace;
+use mu::runtime::mm::common::Address;
+use mu::runtime::mm::common::ObjectReference;
+use mu::runtime::mm::objectmodel;
 
 use std::sync::RwLock;
 use std::sync::Arc;
@@ -21,8 +21,8 @@ const LO_SPACE_SIZE    : usize = 500 << 20;
 
 #[test]
 fn test_exhaust_alloc() {
-    mem::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
-    let mut mutator = mem::new_mutator();
+    mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    let mut mutator = mm::new_mutator();
     
     println!("Trying to allocate {} objects of (size {}, align {}). ", WORK_LOAD, OBJECT_SIZE, OBJECT_ALIGN);
     const ACTUAL_OBJECT_SIZE : usize = OBJECT_SIZE;

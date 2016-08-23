@@ -1,6 +1,6 @@
-use runtime::mem::common::LOG_POINTER_SIZE;
-use runtime::mem::common::Address;
-use runtime::mem::common::bitmap::Bitmap;
+use runtime::mm::common::LOG_POINTER_SIZE;
+use runtime::mm::common::Address;
+use runtime::mm::common::bitmap::Bitmap;
 
 #[derive(Clone)]
 pub struct AddressBitmap {

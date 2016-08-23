@@ -1,5 +1,5 @@
-use runtime::mem::common::Address;
-use runtime::mem::heap::immix;
+use runtime::mm::common::Address;
+use runtime::mm::heap::immix;
 
 extern crate aligned_alloc;
 
@@ -121,7 +121,7 @@ pub fn alloc_large(size: usize, align: usize, mutator: &mut immix::ImmixMutatorL
                 return addr;
             },
             None => {
-                use runtime::mem::heap::gc;
+                use runtime::mm::heap::gc;
                 gc::trigger_gc();
             }
         }

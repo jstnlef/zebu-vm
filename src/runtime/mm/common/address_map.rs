@@ -1,7 +1,7 @@
 use std::mem;
-use runtime::mem::common::LOG_POINTER_SIZE;
-use runtime::mem::common::Address;
-use runtime::mem::heap::gc::malloc_zero;
+use runtime::mm::common::LOG_POINTER_SIZE;
+use runtime::mm::common::Address;
+use runtime::mm::heap::gc::malloc_zero;
 
 #[derive(Clone)]
 pub struct AddressMap<T: Copy> {

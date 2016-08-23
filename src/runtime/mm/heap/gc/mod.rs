@@ -1,14 +1,14 @@
-use runtime::mem::heap::immix::MUTATORS;
-use runtime::mem::heap::immix::N_MUTATORS;
-use runtime::mem::heap::immix::ImmixMutatorLocal;
-use runtime::mem::heap::immix::ImmixSpace;
-use runtime::mem::heap::immix::ImmixLineMarkTable;
-use runtime::mem::heap::freelist::FreeListSpace;
-use runtime::mem::objectmodel;
+use runtime::mm::heap::immix::MUTATORS;
+use runtime::mm::heap::immix::N_MUTATORS;
+use runtime::mm::heap::immix::ImmixMutatorLocal;
+use runtime::mm::heap::immix::ImmixSpace;
+use runtime::mm::heap::immix::ImmixLineMarkTable;
+use runtime::mm::heap::freelist::FreeListSpace;
+use runtime::mm::objectmodel;
 
-use runtime::mem::common;
-use runtime::mem::common::{Address, ObjectReference};
-use runtime::mem::common::AddressMap;
+use runtime::mm::common;
+use runtime::mm::common::{Address, ObjectReference};
+use runtime::mm::common::AddressMap;
 
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::{Arc, Mutex, Condvar, RwLock};
@@ -298,7 +298,7 @@ pub fn start_trace(work_stack: &mut Vec<ObjectReference>, immix_space: Arc<Immix
 #[inline(never)]
 #[cfg(not(feature = "mt-trace"))]
 pub fn start_trace(local_queue: &mut Vec<ObjectReference>, immix_space: Arc<ImmixSpace>, lo_space: Arc<RwLock<FreeListSpace>>) {
-    use runtime::mem::objectmodel;
+    use runtime::mm::objectmodel;
     let mark_state = objectmodel::MARK_STATE.load(Ordering::SeqCst) as u8;
     
     while !local_queue.is_empty() {
@@ -401,7 +401,7 @@ pub fn steal_process_edge(addr: Address, local_queue:&mut Vec<ObjectReference>, 
 
 #[inline(always)]
 pub fn trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectReference>, alloc_map: *mut u8, trace_map: *mut u8, line_mark_table: &ImmixLineMarkTable, immix_start: Address, immix_end: Address, mark_state: u8) {
-    use runtime::mem::objectmodel;
+    use runtime::mm::objectmodel;
     
     objectmodel::mark_as_traced(trace_map, immix_start, obj, mark_state);
 
@@ -448,7 +448,7 @@ pub fn trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectReference>
 
 #[inline(always)]
 pub fn process_edge(addr: Address, local_queue:&mut Vec<ObjectReference>, trace_map: *mut u8, space_start: Address, mark_state: u8) {
-    use runtime::mem::objectmodel;
+    use runtime::mm::objectmodel;
     
     let obj_addr : ObjectReference = unsafe{addr.load()};
 

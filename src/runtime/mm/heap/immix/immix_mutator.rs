@@ -1,10 +1,10 @@
-use runtime::mem::heap::immix;
-use runtime::mem::heap::immix::ImmixSpace;
-use runtime::mem::heap::immix::immix_space::ImmixBlock;
-use runtime::mem::heap::gc;
+use runtime::mm::heap::immix;
+use runtime::mm::heap::immix::ImmixSpace;
+use runtime::mm::heap::immix::immix_space::ImmixBlock;
+use runtime::mm::heap::gc;
 
-use runtime::mem::common::LOG_POINTER_SIZE;
-use runtime::mem::common::Address;
+use runtime::mm::common::LOG_POINTER_SIZE;
+use runtime::mm::common::Address;
 
 use std::*;
 use std::sync::Arc;

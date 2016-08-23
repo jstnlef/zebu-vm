@@ -1,9 +1,9 @@
 use std::sync::atomic;
 pub static MARK_STATE : atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 
-use runtime::mem::common::ObjectReference;
-use runtime::mem::common::Address;
-use runtime::mem::common::LOG_POINTER_SIZE;
+use runtime::mm::common::ObjectReference;
+use runtime::mm::common::Address;
+use runtime::mm::common::LOG_POINTER_SIZE;
 
 pub fn init() {
     MARK_STATE.store(1, atomic::Ordering::SeqCst);

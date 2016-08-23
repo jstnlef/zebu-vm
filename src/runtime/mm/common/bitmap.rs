@@ -1,6 +1,6 @@
 use std::mem;
 
-use runtime::mem::heap::gc::malloc_zero;
+use runtime::mm::heap::gc::malloc_zero;
 
 #[derive(Clone)]
 pub struct Bitmap {    

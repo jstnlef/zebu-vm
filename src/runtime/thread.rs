@@ -5,7 +5,7 @@ use ast::ptr::*;
 use ast::types::*;
 use vm::VM;
 use runtime::ValueLocation;
-use runtime::mem as gc;
+use runtime::mm;
 
 use utils::ByteSize;
 use utils::Address;
@@ -167,7 +167,7 @@ pub enum MuStackState {
 
 pub struct MuThread {
     pub hdr: MuEntityHeader,
-    allocator: Box<gc::Mutator>,
+    allocator: Box<mm::Mutator>,
     stack: Option<Box<MuStack>>,
     
     user_tls: Option<Address>
@@ -181,7 +181,7 @@ extern "C" {
 }
 
 impl MuThread {
-    pub fn new(id: MuID, allocator: Box<gc::Mutator>, stack: Box<MuStack>, user_tls: Option<Address>) -> MuThread {
+    pub fn new(id: MuID, allocator: Box<mm::Mutator>, stack: Box<MuStack>, user_tls: Option<Address>) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator: allocator,
@@ -194,7 +194,7 @@ impl MuThread {
     #[allow(unused_variables)]
     pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vm: &VM) -> JoinHandle<()> {
         match thread::Builder::new().name(format!("Mu Thread #{}", id)).spawn(move || {
-            let muthread = Box::new(MuThread::new(id, gc::new_mutator(), stack, user_tls));
+            let muthread = Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls));
             
             // set thread local
             let addr = unsafe {init_thread_local(&muthread)};

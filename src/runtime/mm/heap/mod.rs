@@ -1,4 +1,4 @@
-use runtime::mem::common::Address;
+use runtime::mm::common::Address;
 use std::sync::atomic::AtomicUsize;
 
 pub mod immix;

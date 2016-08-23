@@ -4,12 +4,12 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use mu::runtime::mem;
-use mu::runtime::mem::heap;
-use mu::runtime::mem::heap::immix::ImmixMutatorLocal;
-use mu::runtime::mem::heap::immix::ImmixSpace;
-use mu::runtime::mem::heap::freelist;
-use mu::runtime::mem::heap::freelist::FreeListSpace;
+use mu::runtime::mm;
+use mu::runtime::mm::heap;
+use mu::runtime::mm::heap::immix::ImmixMutatorLocal;
+use mu::runtime::mm::heap::immix::ImmixSpace;
+use mu::runtime::mm::heap::freelist;
+use mu::runtime::mm::heap::freelist::FreeListSpace;
 use std::mem::size_of;
 use std::sync::atomic::Ordering;
 
@@ -114,8 +114,8 @@ fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
 fn start() {
     unsafe {heap::gc::set_low_water_mark();}
     
-    mem::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
-    let mut mutator = mem::new_mutator();
+    mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    let mut mutator = mm::new_mutator();
     
     println!("Garbage Collector Test");
     println!(" Live storage will peak at {} bytes.\n", 

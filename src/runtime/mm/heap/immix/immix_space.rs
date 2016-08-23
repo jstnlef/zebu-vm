@@ -1,8 +1,8 @@
-use runtime::mem::heap::immix;
-use runtime::mem::heap::gc;
-use runtime::mem::common::Address;
-use runtime::mem::common::AddressMap;
-use runtime::mem::heap::gc::malloc_zero;
+use runtime::mm::heap::immix;
+use runtime::mm::heap::gc;
+use runtime::mm::common::Address;
+use runtime::mm::common::AddressMap;
+use runtime::mm::heap::gc::malloc_zero;
 
 extern crate std;
 extern crate memmap;

@@ -4,12 +4,12 @@ pub mod common;
 pub mod objectmodel;
 pub mod heap;
 
-pub use runtime::mem::heap::immix::ImmixMutatorLocal as Mutator;
-use runtime::mem::common::ObjectReference;
-use runtime::mem::heap::immix::ImmixSpace;
-use runtime::mem::heap::immix::ImmixMutatorLocal;
-use runtime::mem::heap::freelist;
-use runtime::mem::heap::freelist::FreeListSpace;
+pub use runtime::mm::heap::immix::ImmixMutatorLocal as Mutator;
+use runtime::mm::common::ObjectReference;
+use runtime::mm::heap::immix::ImmixSpace;
+use runtime::mm::heap::immix::ImmixMutatorLocal;
+use runtime::mm::heap::freelist;
+use runtime::mm::heap::freelist::FreeListSpace;
 
 use std::sync::Arc;
 use std::sync::RwLock;
