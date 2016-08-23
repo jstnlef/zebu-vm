@@ -500,6 +500,9 @@ impl <'a> VM {
     #[no_mangle]
     pub extern fn mu_main(serialized_vm : *const c_char, len: usize) {
         use rustc_serialize::json;
+        
+        println!("mu_main() started...");
+        
         let str_vm = unsafe {String::from_raw_parts(serialized_vm as *mut u8, len, len)};
         
         let vm : Arc<VM> = Arc::new(json::decode(&str_vm).unwrap());

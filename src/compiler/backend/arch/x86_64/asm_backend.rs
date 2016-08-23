@@ -1133,6 +1133,7 @@ pub fn emit_context(vm: &VM) {
         Ok(file) => file
     };
     
+    // bss
     {
         // put globals into bss section
         file.write_fmt(format_args!("\t.bss\n")).unwrap();
@@ -1159,12 +1160,17 @@ pub fn emit_context(vm: &VM) {
         }
     }
     
+    // data
     // serialize vm
     {
         let serialize_vm = json::encode(&vm).unwrap();
         
         file.write("\t.data\n".as_bytes()).unwrap();
-        file.write_fmt(format_args!("vm: .asciiz \"{}\"", serialize_vm)).unwrap();
+        
+        let vm_symbol = symbol("vm".to_string());
+        file.write_fmt(format_args!("{}\n", directive_globl(vm_symbol.clone()))).unwrap();
+        let escape_serialize_vm = serialize_vm.replace("\"", "\\\"");
+        file.write_fmt(format_args!("\t{}: .asciz \"{}\"", vm_symbol, escape_serialize_vm)).unwrap();
         file.write("\n".as_bytes()).unwrap();
     }
     
