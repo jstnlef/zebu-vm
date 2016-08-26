@@ -1192,11 +1192,11 @@ fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn symbol(name: String) -> String {
+pub fn symbol(name: String) -> String {
     name
 }
 
 #[cfg(target_os = "macos")]
-fn symbol(name: String) -> String {
+pub fn symbol(name: String) -> String {
     format!("_{}", name)
 }

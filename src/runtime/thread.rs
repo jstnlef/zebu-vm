@@ -4,6 +4,7 @@ use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
 use vm::VM;
+use runtime;
 use runtime::ValueLocation;
 use runtime::mm;
 
@@ -12,6 +13,7 @@ use utils::Address;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
+use std::mem;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -23,6 +25,7 @@ pub const PAGE_SIZE  : ByteSize = (4 << 10); // 4kb
 impl_mu_entity!(MuThread);
 impl_mu_entity!(MuStack);
 
+#[repr(C)]
 pub struct MuStack {
     pub hdr: MuEntityHeader,
     
@@ -156,6 +159,38 @@ impl MuStack {
         debug_assert!(self.sp.diff(stack_ptr) == 12 * WORD_SIZE);
         // save it back
         self.sp = stack_ptr;
+        
+        self.print_stack(Some(20));
+    }
+    
+    pub fn print_stack(&self, n_entries: Option<usize>) {
+        use compiler::backend::Word;
+        use compiler::backend::WORD_SIZE;
+        
+        let mut cursor = self.upper_bound.sub(WORD_SIZE);
+        let mut count = 0;
+        
+        println!("0x{:x} | UPPER_BOUND", self.upper_bound); 
+        while cursor >= self.lower_bound {
+            let val = unsafe{cursor.load::<Word>()};
+            print!("0x{:x} | 0x{:x} ({})", cursor, val, val);
+            
+            if cursor == self.sp {
+                print!(" <- SP");
+            }
+            
+            println!("");
+            
+            cursor = cursor.sub(WORD_SIZE);
+            count += 1;
+            
+            if n_entries.is_some() && count > n_entries.unwrap() {
+                println!("...");
+                break;
+            }
+        }
+        
+        println!("0x{:x} | LOWER_BOUND", self.lower_bound); 
     }
 }
 
@@ -165,11 +200,13 @@ pub enum MuStackState {
     Dead
 }
 
+#[repr(C)]
 pub struct MuThread {
     pub hdr: MuEntityHeader,
     allocator: Box<mm::Mutator>,
     stack: Option<Box<MuStack>>,
     
+    native_sp_loc: Address,
     user_tls: Option<Address>
 }
 
@@ -177,7 +214,16 @@ pub struct MuThread {
 #[cfg(target_os = "macos")]
 #[link(name = "runtime")]
 extern "C" {
-    fn init_thread_local(thread: &Box<MuThread>) -> Address;
+    #[allow(improper_ctypes)]
+    fn init_thread_local(thread: *mut MuThread) -> Address;
+}
+
+#[cfg(target_arch = "x86_64")]
+#[cfg(target_os = "macos")]
+#[link(name = "swap_stack")]
+extern "C" {
+    fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
+    fn swap_back_to_native_stack(sp_loc: Address);
 }
 
 impl MuThread {
@@ -186,6 +232,7 @@ impl MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator: allocator,
             stack: Some(stack),
+            native_sp_loc: unsafe {Address::zero()},
             user_tls: user_tls
         }
     }
@@ -193,23 +240,29 @@ impl MuThread {
     #[no_mangle]
     #[allow(unused_variables)]
     pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vm: &VM) -> JoinHandle<()> {
+        let new_sp = stack.sp;
+        let entry = runtime::resolve_symbol(vm.name_of(stack.func_id));
+        debug!("entry : 0x{:x}", entry);
+        
         match thread::Builder::new().name(format!("Mu Thread #{}", id)).spawn(move || {
-            let muthread = Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls));
+            let muthread : *mut MuThread = Box::into_raw(Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls)));
             
             // set thread local
-            let addr = unsafe {init_thread_local(&muthread)};
+            let addr = unsafe {init_thread_local(muthread)};
+            let sp_threadlocal_loc = addr.plus(mem::size_of::<MuEntityHeader>())
+                .plus(mem::size_of::<Box<mm::Mutator>>())
+                .plus(mem::size_of::<Option<Box<MuStack>>>());
             
-            MuThread::thread_entry(muthread);
+            debug!("new sp: 0x{:x}", new_sp);
+            debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
+            
+            unsafe {
+                swap_to_mu_stack(new_sp, entry, sp_threadlocal_loc); 
+            }
         }) {
             Ok(handle) => handle,
             Err(_) => panic!("failed to create a thread")
         }
-    }
-    
-    /// entry function for launching a mu thread
-    #[allow(unused_variables)]
-    pub fn thread_entry(mu_thread: Box<MuThread>) -> ! {
-        unimplemented!()
     }
 }
 

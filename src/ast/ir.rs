@@ -652,6 +652,7 @@ impl fmt::Display for MemoryLocation {
     }
 }
 
+#[repr(C)]
 #[derive(Debug)] // Display, PartialEq
 pub struct MuEntityHeader {
     pub id: MuID,

@@ -116,6 +116,12 @@ impl fmt::UpperHex for Address {
     }
 }
 
+impl fmt::LowerHex for Address {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:x}", self.0) 
+    }
+}
+
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "0x{:X}", self.0)
@@ -166,6 +172,12 @@ impl PartialEq for ObjectReference {
 impl fmt::UpperHex for ObjectReference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:X}", self.0) 
+    }
+}
+
+impl fmt::LowerHex for ObjectReference {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:x}", self.0) 
     }
 }
 

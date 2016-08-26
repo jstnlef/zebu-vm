@@ -410,6 +410,10 @@ impl <'a> InstructionSelection {
                             unimplemented!()
                         }
                     }
+                    
+                    Instruction_::ThreadExit => {
+                        // do nothing for now
+                    }
     
                     _ => unimplemented!()
                 } // main switch

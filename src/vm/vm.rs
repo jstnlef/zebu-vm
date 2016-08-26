@@ -520,8 +520,6 @@ impl <'a> VM {
     pub extern fn mu_main(serialized_vm : *const c_char) {      
         debug!("mu_main() started...");
         
-        // clone it, otherwise rust allocator will try deallocate
-        // since the char* points to data section, the deallocation will fail
         let str_vm = unsafe{CStr::from_ptr(serialized_vm)}.to_str().unwrap();
         
         let vm : Arc<VM> = Arc::new(VM::resume_vm(str_vm));

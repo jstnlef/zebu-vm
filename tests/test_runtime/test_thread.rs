@@ -14,14 +14,16 @@ use self::mu::compiler::*;
 use test_ir::test_ir::factorial;
 
 use std::sync::Arc;
+use std::sync::RwLock;
+use std::collections::HashMap;
 
 #[test]
 fn test_thread_create() {
-    let vm = Arc::new(factorial());
+    let vm = Arc::new(primordial_main());
     
     let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
     
-    let func_id = vm.id_of("fac");    
+    let func_id = vm.id_of("primordial_main");    
     {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
@@ -31,6 +33,46 @@ fn test_thread_create() {
         compiler.compile(&mut func_ver);
     }
     
-    vm.make_primordial_thread(func_id, vec![Constant::Int(5)]);
+    vm.make_primordial_thread(func_id, vec![]);
     backend::emit_context(&vm);
+}
+
+fn primordial_main() -> VM {
+    let vm = VM::new();
+    
+    let sig = vm.declare_func_sig(vm.next_id(), vec![], vec![]);
+    let func = MuFunction::new(vm.next_id(), sig.clone());
+    vm.set_name(func.as_entity(), "primordial_main".to_string());
+    let func_id = func.id();
+    vm.declare_func(func);
+    
+    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, sig.clone());
+    
+    let mut blk_entry = Block::new(vm.next_id());
+    vm.set_name(blk_entry.as_entity(), "entry".to_string());
+    let thread_exit = func_ver.new_inst(vm.next_id(), Instruction {
+        value: None,
+        ops: RwLock::new(vec![]),
+        v: Instruction_::ThreadExit
+    });
+    
+    let blk_entry_content = BlockContent {
+        args: vec![],
+        body: vec![thread_exit],
+        keepalives: None
+    };
+    blk_entry.content = Some(blk_entry_content);
+    
+    func_ver.define(FunctionContent {
+        entry: blk_entry.id(),
+        blocks: {
+            let mut blocks = HashMap::new();
+            blocks.insert(blk_entry.id(), blk_entry);
+            blocks
+        }
+    });
+    
+    vm.define_func_version(func_ver);
+    
+    vm
 }

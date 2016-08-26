@@ -9,6 +9,29 @@ use ast::ir::*;
 use compiler::backend::Word;
 use compiler::backend::RegGroup;
 
+use std::os::raw::c_char;
+use std::os::raw::c_void;
+use std::ffi::CString;
+
+#[link(name="dl")]
+extern "C" {
+    fn dlopen(filename: *const c_char, flags: isize) -> *const c_void;
+    fn dlsym(handle: *const c_void, symbol: *const c_char) -> *const c_void;
+}
+
+pub fn resolve_symbol(symbol: String) -> Address {
+    use std::ptr;
+    
+    let rtld_default = unsafe {dlopen(ptr::null(), 0)};
+    let ret = unsafe {dlsym(rtld_default, CString::new(symbol.clone()).unwrap().as_ptr())};
+    
+    if ret == 0 as *const c_void {
+        panic!("cannot find symbol {}", symbol);
+    }
+    
+    Address::from_ptr(ret)
+}
+
 #[derive(Clone, Debug)]
 pub enum ValueLocation {
     Register(RegGroup, MuID),
