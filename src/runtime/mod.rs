@@ -1,10 +1,15 @@
 pub mod mm;
 pub mod thread;
+pub mod entrypoints;
 
 pub use runtime::mm::common::Address;
 pub use runtime::mm::common::ObjectReference;
 
 use utils;
+use ast::ir;
+use ast::ptr::*;
+use ast::types::MuType_;
+use ast::types::MuType;
 use ast::ir::*;
 use compiler::backend::Word;
 use compiler::backend::RegGroup;
@@ -12,6 +17,12 @@ use compiler::backend::RegGroup;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::ffi::CString;
+
+lazy_static! {
+    pub static ref ADDRESS_TYPE : P<MuType> = P(
+        MuType::new(ir::new_internal_id(), MuType_::int(64))
+    );
+}
 
 #[link(name="dl")]
 extern "C" {

@@ -412,7 +412,7 @@ impl <'a> InstructionSelection {
                     }
                     
                     Instruction_::ThreadExit => {
-                        // do nothing for now
+                        // emit a call to swap_back_to_native_stack(sp_loc: Address)
                     }
     
                     _ => unimplemented!()
