@@ -844,9 +844,9 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_add_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
         
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
         
-        let asm = format!("addq {},${}", src, reg1);
+        let asm = format!("addq ${},{}", src, reg1);
         
         self.add_asm_inst(
             asm,

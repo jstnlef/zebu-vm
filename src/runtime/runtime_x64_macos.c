@@ -5,10 +5,14 @@
 
 __thread void* mu_tls;
 
-void* init_thread_local(void* thread) {
+void set_thread_local(void* thread) {
+    printf("setting mu_tls to %p\n", thread);
     mu_tls = thread;
+}
 
-    return &mu_tls;
+void* get_thread_local() {
+    printf("getting mu_tls as %p\n", mu_tls);
+    return mu_tls;
 }
 
 void* resolve_symbol(const char* sym) {

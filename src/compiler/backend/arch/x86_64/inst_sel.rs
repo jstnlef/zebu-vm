@@ -10,6 +10,10 @@ use ast::types;
 use ast::types::*;
 use vm::VM;
 use vm::CompiledFunction;
+use runtime::ValueLocation;
+use runtime::thread;
+use runtime::entrypoints;
+use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 use compiler::backend::x86_64;
@@ -38,7 +42,7 @@ impl <'a> InstructionSelection {
     // 3. we need to backup/restore all the callee-saved registers
     // if any of these assumption breaks, we will need to re-emit the code
     #[allow(unused_variables)]
-    fn instruction_select(&mut self, node: &'a TreeNode, cur_func: &MuFunctionVersion, vm: &VM) {
+    fn instruction_select(&mut self, node: &'a TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         trace!("instsel on node {}", node);
         
         match node.v {
@@ -57,16 +61,16 @@ impl <'a> InstructionSelection {
                         
                         let ops = inst.ops.read().unwrap();
                         
-                        self.process_dest(&ops, fallthrough_dest, cur_func, vm);
-                        self.process_dest(&ops, branch_dest, cur_func, vm);
+                        self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
+                        self.process_dest(&ops, branch_dest, f_content, f_context, vm);
                         
-                        let branch_target = cur_func.content.as_ref().unwrap().get_block(branch_dest.target);
+                        let branch_target = f_content.get_block(branch_dest.target);
     
                         let ref cond = ops[cond];
                         
                         if self.match_cmp_res(cond) {
                             trace!("emit cmp_eq-branch2");
-                            match self.emit_cmp_res(cond, cur_func, vm) {
+                            match self.emit_cmp_res(cond, f_content, f_context, vm) {
                                 op::CmpOp::EQ => self.backend.emit_je(branch_target),
                                 op::CmpOp::NE => self.backend.emit_jne(branch_target),
                                 op::CmpOp::UGE => self.backend.emit_jae(branch_target),
@@ -82,7 +86,7 @@ impl <'a> InstructionSelection {
                         } else if self.match_ireg(cond) {
                             trace!("emit ireg-branch2");
                             
-                            let cond_reg = self.emit_ireg(cond, cur_func, vm);
+                            let cond_reg = self.emit_ireg(cond, f_content, f_context, vm);
                             
                             // emit: cmp cond_reg 1
                             self.backend.emit_cmp_r64_imm32(&cond_reg, 1);
@@ -96,9 +100,9 @@ impl <'a> InstructionSelection {
                     Instruction_::Branch1(ref dest) => {
                         let ops = inst.ops.read().unwrap();
                                             
-                        self.process_dest(&ops, dest, cur_func, vm);
+                        self.process_dest(&ops, dest, f_content, f_context, vm);
                         
-                        let target = cur_func.content.as_ref().unwrap().get_block(dest.target);
+                        let target = f_content.get_block(dest.target);
                         
                         trace!("emit branch1");
                         // jmp
@@ -133,7 +137,7 @@ impl <'a> InstructionSelection {
                             trace!("arg {}", arg);
                             
                             if self.match_ireg(arg) {
-                                let arg = self.emit_ireg(arg, cur_func, vm);
+                                let arg = self.emit_ireg(arg, f_content, f_context, vm);
                                 
                                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
                                     self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
@@ -169,7 +173,7 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_call_near_rel32(target.name().unwrap());
                             }
                         } else if self.match_ireg(func) {
-                            let target = self.emit_ireg(func, cur_func, vm);
+                            let target = self.emit_ireg(func, f_content, f_context, vm);
                             
                             self.backend.emit_call_near_r64(&target);
                         } else if self.match_mem(func) {
@@ -200,7 +204,7 @@ impl <'a> InstructionSelection {
                     },
                     
                     Instruction_::Return(_) => {
-                        self.emit_common_epilogue(inst, cur_func, vm);
+                        self.emit_common_epilogue(inst, f_content, f_context, vm);
                         
                         self.backend.emit_ret();
                     },
@@ -213,8 +217,8 @@ impl <'a> InstructionSelection {
                                 if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
                                     trace!("emit add-ireg-ireg");
                                     
-                                    let reg_op1 = self.emit_ireg(&ops[op1], cur_func, vm);
-                                    let reg_op2 = self.emit_ireg(&ops[op2], cur_func, vm);
+                                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
+                                    let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
                                     let res_tmp = self.emit_get_result(node);
                                     
                                     // mov op1, res
@@ -224,7 +228,7 @@ impl <'a> InstructionSelection {
                                 } else if self.match_ireg(&ops[op1]) && self.match_iimm(&ops[op2]) {
                                     trace!("emit add-ireg-imm");
                                     
-                                    let reg_op1 = self.emit_ireg(&ops[op1], cur_func, vm);
+                                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let reg_op2 = self.emit_get_iimm(&ops[op2]);
                                     let res_tmp = self.emit_get_result(node);
                                     
@@ -238,7 +242,7 @@ impl <'a> InstructionSelection {
                                 } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
                                     trace!("emit add-ireg-mem");
                                     
-                                    let reg_op1 = self.emit_ireg(&ops[op1], cur_func, vm);
+                                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let reg_op2 = self.emit_mem(&ops[op2]);
                                     let res_tmp = self.emit_get_result(node);
                                     
@@ -257,8 +261,8 @@ impl <'a> InstructionSelection {
                                 if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
                                     trace!("emit sub-ireg-ireg");
                                     
-                                    let reg_op1 = self.emit_ireg(&ops[op1], cur_func, vm);
-                                    let reg_op2 = self.emit_ireg(&ops[op2], cur_func, vm);
+                                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
+                                    let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
                                     let res_tmp = self.emit_get_result(node);
                                     
                                     // mov op1, res
@@ -268,7 +272,7 @@ impl <'a> InstructionSelection {
                                 } else if self.match_ireg(&ops[op1]) && self.match_iimm(&ops[op2]) {
                                     trace!("emit sub-ireg-imm");
 
-                                    let reg_op1 = self.emit_ireg(&ops[op1], cur_func, vm);
+                                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let imm_op2 = self.emit_get_iimm(&ops[op2]);
                                     let res_tmp = self.emit_get_result(node);
                                     
@@ -282,7 +286,7 @@ impl <'a> InstructionSelection {
                                 } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
                                     trace!("emit sub-ireg-mem");
                                     
-                                    let reg_op1 = self.emit_ireg(&ops[op1], cur_func, vm);
+                                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let mem_op2 = self.emit_mem(&ops[op2]);
                                     let res_tmp = self.emit_get_result(node);
                                     
@@ -302,7 +306,7 @@ impl <'a> InstructionSelection {
                                 let rax = x86_64::RAX.clone();
                                 let op1 = &ops[op1];
                                 if self.match_ireg(op1) {
-                                    let reg_op1 = self.emit_ireg(op1, cur_func, vm);
+                                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
                                     
                                     self.backend.emit_mov_r64_r64(&rax, &reg_op1);
                                 } else if self.match_iimm(op1) {
@@ -320,7 +324,7 @@ impl <'a> InstructionSelection {
                                 // mul op2 -> rax
                                 let op2 = &ops[op2];
                                 if self.match_ireg(op2) {
-                                    let reg_op2 = self.emit_ireg(op2, cur_func, vm);
+                                    let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
                                     
                                     self.backend.emit_mul_r64(&reg_op2);
                                 } else if self.match_iimm(op2) {
@@ -392,7 +396,7 @@ impl <'a> InstructionSelection {
                         let resolved_loc = self.emit_get_mem(loc_op, vm);
                         
                         if self.match_ireg(val_op) {
-                            let val = self.emit_ireg(val_op, cur_func, vm);
+                            let val = self.emit_ireg(val_op, f_content, f_context, vm);
                             if generate_plain_mov {
                                 self.backend.emit_mov_mem64_r64(&resolved_loc, &val);
                             } else {
@@ -413,6 +417,12 @@ impl <'a> InstructionSelection {
                     
                     Instruction_::ThreadExit => {
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
+                        
+                        // get thread local and add offset to get sp_loc
+                        let tl = self.emit_get_threadlocal(f_content, f_context, vm);
+                        self.backend.emit_add_r64_imm32(&tl, *thread::NATIVE_SP_LOC_OFFSET as u32);
+                        
+                        self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], f_content, f_context, vm);
                     }
     
                     _ => unimplemented!()
@@ -420,13 +430,114 @@ impl <'a> InstructionSelection {
             },
             
             TreeNode_::Value(ref p) => {
-
+        
             }
         }
     }
     
+    fn emit_get_threadlocal (&mut self, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        let mut rets = self.emit_runtime_entry(&entrypoints::GET_THREAD_LOCAL, vec![], f_content, f_context, vm);
+        
+        rets.pop().unwrap()
+    }
+    
+    fn emit_runtime_entry (&mut self, entry: &RuntimeEntrypoint, args: Vec<P<Value>>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> {
+        let sig = entry.sig.clone();
+        
+        let entry_name = {
+            if vm.is_running() {
+                unimplemented!()
+            } else {
+                let ref entry_loc = entry.aot;
+                
+                match entry_loc {
+                    &ValueLocation::Relocatable(_, ref name) => name.clone(),
+                    _ => panic!("expecting a relocatable value")
+                }
+            }
+        };
+        
+        self.emit_c_call(entry_name, sig, args, None, f_content, f_context, vm)
+    }
+    
     #[allow(unused_variables)]
-    fn process_dest(&mut self, ops: &Vec<P<TreeNode>>, dest: &Destination, cur_func: &MuFunctionVersion, vm: &VM) {
+    fn emit_c_call (&mut self, func_name: CName, sig: P<CFuncSig>, args: Vec<P<Value>>, rets: Option<Vec<P<Value>>>, 
+        f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> 
+    {
+        let mut gpr_arg_count = 0;
+        for arg in args.iter() {
+            if arg.is_int_reg() {
+                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                    self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
+                    gpr_arg_count += 1;
+                } else {
+                    // use stack to pass argument
+                    unimplemented!()
+                }
+            } else if arg.is_int_const() {
+                if x86_64::is_valid_x86_imm(arg) {                
+                    let int_const = arg.extract_int_const() as u32;
+                    
+                    if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                        self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], int_const);
+                        gpr_arg_count += 1;
+                    } else {
+                        // use stack to pass argument
+                        unimplemented!()
+                    }
+                } else {
+                    // put the constant to memory
+                    unimplemented!()
+                }
+            } else {
+                // floating point
+                unimplemented!()
+            }
+        }
+        
+        // make call
+        if vm.is_running() {
+            unimplemented!()
+        } else {
+            self.backend.emit_call_near_rel32(func_name);
+        }
+        
+        // deal with ret vals
+        let mut return_vals = vec![];
+        
+        let mut gpr_ret_count = 0;
+        for ret_index in 0..sig.ret_tys.len() {
+            let ref ty = sig.ret_tys[ret_index];
+            
+            let ret_val = match rets {
+                Some(ref rets) => rets[ret_index].clone(),
+                None => {
+                    let tmp_node = f_context.make_temporary(vm.next_id(), ty.clone());
+                    tmp_node.clone_value()
+                }
+            };
+            
+            if ret_val.is_int_reg() {
+                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                    self.backend.emit_mov_r64_r64(&ret_val, &x86_64::RETURN_GPRs[gpr_ret_count]);
+                    gpr_ret_count += 1;
+                } else {
+                    // get return value by stack
+                    unimplemented!()
+                }
+            } else {
+                // floating point register
+                unimplemented!()
+            }
+            
+            return_vals.push(ret_val);            
+        }
+        
+        return_vals
+    }
+    
+    #[allow(unused_variables)]
+    fn process_dest(&mut self, ops: &Vec<P<TreeNode>>, dest: &Destination, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         for i in 0..dest.args.len() {
             let ref dest_arg = dest.args[i];
             match dest_arg {
@@ -448,10 +559,10 @@ impl <'a> InstructionSelection {
 //                        }
 //                    }
 //                    
-                    let ref target_args = cur_func.content.as_ref().unwrap().get_block(dest.target).content.as_ref().unwrap().args;
+                    let ref target_args = f_content.get_block(dest.target).content.as_ref().unwrap().args;
                     let ref target_arg = target_args[i];
                     
-                    self.emit_general_move(&arg, target_arg, cur_func, vm);
+                    self.emit_general_move(&arg, target_arg, f_content, f_context, vm);
                 },
                 &DestArg::Freshbound(_) => unimplemented!()
             }
@@ -503,7 +614,7 @@ impl <'a> InstructionSelection {
         self.backend.end_block(block_name);
     }
     
-    fn emit_common_epilogue(&mut self, ret_inst: &Instruction, cur_func: &MuFunctionVersion, vm: &VM) {
+    fn emit_common_epilogue(&mut self, ret_inst: &Instruction, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         // epilogue is not a block (its a few instruction inserted before return)
         // FIXME: this may change in the future
         
@@ -519,7 +630,7 @@ impl <'a> InstructionSelection {
         for i in ret_val_indices {
             let ref ret_val = ops[*i];
             if self.match_ireg(ret_val) {
-                let reg_ret_val = self.emit_ireg(ret_val, cur_func, vm);
+                let reg_ret_val = self.emit_ireg(ret_val, f_content, f_context, vm);
                 
                 self.backend.emit_mov_r64_r64(&x86_64::RETURN_GPRs[gpr_ret_count], &reg_ret_val);
                 gpr_ret_count += 1;
@@ -557,7 +668,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_cmp_res(&mut self, cond: &P<TreeNode>, cur_func: &MuFunctionVersion, vm: &VM) -> op::CmpOp {
+    fn emit_cmp_res(&mut self, cond: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
                 let ops = inst.ops.read().unwrap();                
@@ -569,12 +680,12 @@ impl <'a> InstructionSelection {
                         
                         if op::is_int_cmp(op) {                        
                             if self.match_ireg(op1) && self.match_ireg(op2) {
-                                let reg_op1 = self.emit_ireg(op1, cur_func, vm);
-                                let reg_op2 = self.emit_ireg(op2, cur_func, vm);
+                                let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                                let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
                                 
                                 self.backend.emit_cmp_r64_r64(&reg_op1, &reg_op2);
                             } else if self.match_ireg(op1) && self.match_iimm(op2) {
-                                let reg_op1 = self.emit_ireg(op1, cur_func, vm);
+                                let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
                                 let iimm_op2 = self.emit_get_iimm(op2);
                                 
                                 self.backend.emit_cmp_r64_imm32(&reg_op1, iimm_op2);
@@ -621,10 +732,10 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_ireg(&mut self, op: &P<TreeNode>, cur_func: &MuFunctionVersion, vm: &VM) -> P<Value> {
+    fn emit_ireg(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
-                self.instruction_select(op, cur_func, vm);
+                self.instruction_select(op, f_content, f_context, vm);
                 
                 self.emit_get_result(op)
             },
@@ -763,12 +874,12 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_general_move(&mut self, src: &P<TreeNode>, dest: &P<Value>, cur_func: &MuFunctionVersion, vm: &VM) {
+    fn emit_general_move(&mut self, src: &P<TreeNode>, dest: &P<Value>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         let ref dst_ty = dest.ty;
         
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
             if self.match_ireg(src) {
-                let src_reg = self.emit_ireg(src, cur_func, vm);
+                let src_reg = self.emit_ireg(src, f_content, f_context, vm);
                 self.backend.emit_mov_r64_r64(dest, &src_reg);
             } else if self.match_iimm(src) {
                 let src_imm = self.emit_get_iimm(src);
@@ -805,8 +916,10 @@ impl CompilerPass for InstructionSelection {
 
     #[allow(unused_variables)]
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        let f_content = func.content.as_ref().unwrap();
+        
         for block_id in func.block_trace.as_ref().unwrap() {
-            let block = func.content.as_ref().unwrap().get_block(*block_id);
+            let block = f_content.get_block(*block_id);
             let block_label = block.name().unwrap();
             
             self.backend.start_block(block_label.clone());
@@ -821,7 +934,7 @@ impl CompilerPass for InstructionSelection {
             self.backend.set_block_liveout(block_label.clone(), &live_out);
 
             for inst in block_content.body.iter() {
-                self.instruction_select(&inst, func, vm);
+                self.instruction_select(&inst, f_content, &mut func.context, vm);
             }
             
             self.backend.end_block(block_label);

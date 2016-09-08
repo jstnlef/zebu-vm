@@ -210,12 +210,20 @@ pub struct MuThread {
     user_tls: Option<Address>
 }
 
+// this depends on the layout of MuThread
+lazy_static! {
+    pub static ref NATIVE_SP_LOC_OFFSET : usize = mem::size_of::<MuEntityHeader>() 
+                + mem::size_of::<Box<mm::Mutator>>()
+                + mem::size_of::<Option<Box<MuStack>>>();
+}
+
 #[cfg(target_arch = "x86_64")]
 #[cfg(target_os = "macos")]
 #[link(name = "runtime")]
 extern "C" {
     #[allow(improper_ctypes)]
-    fn init_thread_local(thread: *mut MuThread) -> Address;
+    fn set_thread_local(thread: *mut MuThread);
+    pub fn get_thread_local() -> Address;
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -248,10 +256,15 @@ impl MuThread {
             let muthread : *mut MuThread = Box::into_raw(Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls)));
             
             // set thread local
-            let addr = unsafe {init_thread_local(muthread)};
-            let sp_threadlocal_loc = addr.plus(mem::size_of::<MuEntityHeader>())
-                .plus(mem::size_of::<Box<mm::Mutator>>())
-                .plus(mem::size_of::<Option<Box<MuStack>>>());
+            unsafe {set_thread_local(muthread)};
+            
+            let addr = unsafe {get_thread_local()};
+            unsafe {get_thread_local()};
+            unsafe {get_thread_local()};
+            unsafe {get_thread_local()};
+            unsafe {get_thread_local()};
+            unsafe {get_thread_local()};
+            let sp_threadlocal_loc = addr.plus(*NATIVE_SP_LOC_OFFSET);
             
             debug!("new sp: 0x{:x}", new_sp);
             debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
@@ -259,6 +272,8 @@ impl MuThread {
             unsafe {
                 swap_to_mu_stack(new_sp, entry, sp_threadlocal_loc); 
             }
+            
+            debug!("returned to Rust stack. Going to quit");
         }) {
             Ok(handle) => handle,
             Err(_) => panic!("failed to create a thread")

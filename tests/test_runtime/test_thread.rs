@@ -19,6 +19,8 @@ use std::collections::HashMap;
 
 #[test]
 fn test_thread_create() {
+    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    
     let vm = Arc::new(primordial_main());
     
     let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());

@@ -323,6 +323,8 @@ macro_rules! is_type (
     )
 );
 
+pub type CFuncSig = MuFuncSig;
+
 #[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
 pub struct MuFuncSig {
     pub hdr: MuEntityHeader,

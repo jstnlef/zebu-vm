@@ -12,12 +12,22 @@ use std::sync::RwLock;
 pub type EntryFuncSig = MuFuncSig;
 
 pub struct RuntimeEntrypoint {
-    sig: P<MuFuncSig>,
-    aot: ValueLocation,
-    jit: RwLock<Option<ValueLocation>>
+    pub sig: P<MuFuncSig>,
+    pub aot: ValueLocation,
+    pub jit: RwLock<Option<ValueLocation>>
 }
 
 lazy_static! {
+    pub static ref GET_THREAD_LOCAL : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![runtime::ADDRESS_TYPE.clone()],
+            arg_tys: vec![]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("get_thread_local")),
+        jit: RwLock::new(None),
+    };
+    
     pub static ref SWAP_BACK_TO_NATIVE_STACK : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{
             hdr: MuEntityHeader::unnamed(ir::new_internal_id()),

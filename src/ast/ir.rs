@@ -14,6 +14,7 @@ use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 pub type WPID  = usize;
 pub type MuID  = usize;
 pub type MuName = String;
+pub type CName  = MuName;
 
 pub type OpIndex = usize;
 
@@ -203,6 +204,20 @@ impl FunctionContext {
             values: HashMap::new()
         }
     }
+    
+    pub fn make_temporary(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
+        self.values.insert(id, SSAVarEntry::new(id, ty.clone()));
+
+        P(TreeNode {
+            hdr: MuEntityHeader::unnamed(id),
+            op: pick_op_code_for_ssa(&ty),
+            v: TreeNode_::Value(P(Value{
+                hdr: MuEntityHeader::unnamed(id),
+                ty: ty,
+                v: Value_::SSAVar(id)
+            }))
+        })
+    }    
 
     pub fn get_value(&self, id: MuID) -> Option<&SSAVarEntry> {
         self.values.get(&id)
@@ -477,6 +492,18 @@ impl Value {
                 }
             }
             _ => false
+        }
+    }
+    
+    pub fn extract_int_const(&self) -> u64 {
+        match self.v {
+            Value_::Constant(ref c) => {
+                match c {
+                    &Constant::Int(val) => val,
+                    _ => panic!("expect int const")
+                }
+            },
+            _ => panic!("expect int const")
         }
     }
 
