@@ -5,18 +5,24 @@ pub mod entrypoints;
 pub use runtime::mm::common::Address;
 pub use runtime::mm::common::ObjectReference;
 
+use log;
+use simple_logger;
 use utils;
 use ast::ir;
 use ast::ptr::*;
 use ast::types::MuType_;
 use ast::types::MuType;
 use ast::ir::*;
+use vm::VM;
 use compiler::backend::Word;
 use compiler::backend::RegGroup;
 
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::ffi::CString;
+use std::ffi::CStr;
+
+use std::sync::Arc;
 
 lazy_static! {
     pub static ref ADDRESS_TYPE : P<MuType> = P(
@@ -76,5 +82,37 @@ impl ValueLocation {
             
             _ => unimplemented!()
         }
+    }
+}
+
+#[no_mangle]
+pub extern fn mu_trace_level_log() {
+    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+}
+
+#[no_mangle]
+pub extern fn mu_main(serialized_vm : *const c_char) {      
+    debug!("mu_main() started...");
+    
+    let str_vm = unsafe{CStr::from_ptr(serialized_vm)}.to_str().unwrap();
+    
+    let vm : Arc<VM> = Arc::new(VM::resume_vm(str_vm));
+    
+    let primordial = vm.primordial.read().unwrap();
+    if primordial.is_none() {
+        panic!("no primordial thread/stack/function. Client should provide an entry point");
+    } else {
+        let primordial = primordial.as_ref().unwrap();
+        
+        // create mu stack
+        let stack = vm.new_stack(primordial.func_id);
+        
+        let args : Vec<ValueLocation> = primordial.args.iter().map(|arg| ValueLocation::from_constant(arg.clone())).collect();
+        
+        // FIXME: currently assumes no user defined thread local
+        // will need to fix this after we can serialize heap object
+        let thread = vm.new_thread_normal(stack, unsafe{Address::zero()}, args);
+        
+        thread.join().unwrap();
     }
 }
