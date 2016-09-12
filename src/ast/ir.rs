@@ -16,6 +16,9 @@ pub type MuID  = usize;
 pub type MuName = String;
 pub type CName  = MuName;
 
+#[allow(non_snake_case)]
+pub fn Mu(str: &'static str) -> MuName {str.to_string()}
+
 pub type OpIndex = usize;
 
 lazy_static! {

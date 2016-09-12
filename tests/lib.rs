@@ -34,9 +34,22 @@ mod aot {
     use mu::runtime;
     use mu::compiler::backend;
     use std::path::PathBuf;
-    use std::process::Command;        
+    use std::process::Command;
+    use std::process::Output;
     
-    fn link (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
+    fn exec (mut cmd: Command) -> Output {
+        println!("executing: {:?}", cmd); 
+        let output = cmd.output().expect("failed to execute");
+        
+        println!("---out---");
+        println!("{}", String::from_utf8_lossy(&output.stdout));
+        println!("---err---");
+        println!("{}", String::from_utf8_lossy(&output.stderr));
+        
+        output
+    } 
+    
+    fn link_executable_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
         let mut gcc = Command::new("gcc");
         
         for file in files {
@@ -48,16 +61,60 @@ mod aot {
         gcc.arg("-o");
         gcc.arg(out.as_os_str());
         
-        println!("executing: {:?}", gcc);
-        
-        let status = gcc.status().expect("failed to link generated code");
-        assert!(status.success());
+        assert!(exec(gcc).status.success());
         
         out
     }
     
+    fn link_dylib_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
+        let mut object_files : Vec<PathBuf> = vec![];
+        
+        for file in files {
+            let mut gcc = Command::new("gcc");
+            
+            gcc.arg("-c");
+            gcc.arg("-fpic");
+            
+            let mut out = file.clone();
+            out.set_extension("o");
+            
+            gcc.arg(file.as_os_str());
+            gcc.arg("-o");
+            gcc.arg(out.as_os_str());
+            
+            object_files.push(out);
+            exec(gcc);
+        }
+        
+        let mut gcc = Command::new("gcc");
+        gcc.arg("-shared");
+        for obj in object_files {
+            gcc.arg(obj.as_os_str());
+        }
+        gcc.arg("-o");
+        gcc.arg(out.as_os_str());
+        
+        exec(gcc);
+        
+        out
+    }
+    
+    fn get_path_for_mu_func (f: MuName) -> PathBuf {
+        let mut ret = PathBuf::from(backend::AOT_EMIT_DIR);
+        ret.push(f);
+        ret.set_extension("s");
+        
+        ret
+    }
+    
+    fn get_path_for_mu_context () -> PathBuf {
+        let mut ret = PathBuf::from(backend::AOT_EMIT_DIR);
+        ret.push(backend::AOT_EMIT_CONTEXT_FILE);
+        ret
+    }
+    
     pub fn link_primordial (funcs: Vec<MuName>, out: &str) -> PathBuf {
-        let emit_dir = PathBuf::from(backend::AOT_EMIT_DIR);        
+        let emit_dir = PathBuf::from(backend::AOT_EMIT_DIR);
         
         let files : Vec<PathBuf> = {
             use std::fs;
@@ -66,17 +123,11 @@ mod aot {
             
             // all interested mu funcs
             for func in funcs {
-                let mut p = emit_dir.clone();
-                p.push(func);
-                p.set_extension("s");
-                
-                ret.push(p);
+                ret.push(get_path_for_mu_func(func));
             }
             
             // mu context
-            let mut p = emit_dir.clone();
-            p.push(backend::AOT_EMIT_CONTEXT_FILE);
-            ret.push(p);
+            ret.push(get_path_for_mu_context());
             
             // copy primoridal entry
             let source   = PathBuf::from(runtime::PRIMORDIAL_ENTRY);
@@ -96,19 +147,30 @@ mod aot {
         let mut out_path = emit_dir.clone();
         out_path.push(out);
         
-        link(files, out_path)
+        link_executable_internal(files, out_path)
     }
     
-    pub fn execute(exec: PathBuf) {
-        let mut run = Command::new(exec.as_os_str());
+    pub fn execute(executable: PathBuf) {
+        let run = Command::new(executable.as_os_str());
+        assert!(exec(run).status.success());
+    }
+    
+    pub fn link_dylib (funcs: Vec<MuName>, out: &str) -> PathBuf {
+        let files = {
+            let mut ret = vec![];
+            
+            for func in funcs {
+                ret.push(get_path_for_mu_func(func));
+            }
+            
+            ret.push(get_path_for_mu_context());
+            
+            ret
+        };
         
-        let output = run.output().expect("failed to execute");
+        let mut out_path = PathBuf::from(backend::AOT_EMIT_DIR);
+        out_path.push(out);
         
-        println!("---out---");
-        println!("{}", String::from_utf8_lossy(&output.stdout));
-        println!("---err---");
-        println!("{}", String::from_utf8_lossy(&output.stderr));
-        
-        assert!(output.status.success());
+        link_dylib_internal(files, out_path)
     }
 }
