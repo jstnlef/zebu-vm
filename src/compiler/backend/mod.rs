@@ -8,6 +8,9 @@ use utils::ByteSize;
 pub type Word = usize;
 pub const WORD_SIZE : ByteSize = 8;
 
+pub const AOT_EMIT_DIR : &'static str = "emit";
+pub const AOT_EMIT_CONTEXT_FILE : &'static str = "context.s";
+
 // X86_64
 
 #[cfg(target_arch = "x86_64")]

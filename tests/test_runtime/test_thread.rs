@@ -11,7 +11,7 @@ use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
 
-use test_ir::test_ir::factorial;
+use aot;
 
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -37,6 +37,9 @@ fn test_thread_create() {
     
     vm.make_primordial_thread(func_id, vec![]);
     backend::emit_context(&vm);
+    
+    let executable = aot::link_primordial(vec!["primordial_main".to_string()], "primordial_main_test");
+    aot::execute(executable);
 }
 
 fn primordial_main() -> VM {

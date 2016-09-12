@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include <stdlib.h>
+#include <string.h>
 
 void* malloc_zero(size_t size) {
     void* ret = malloc(size);

@@ -1,6 +1,8 @@
 #![allow(unused_variables)]
 
 use compiler::backend;
+use compiler::backend::AOT_EMIT_CONTEXT_FILE;
+use compiler::backend::AOT_EMIT_DIR;
 use utils::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
@@ -1074,11 +1076,9 @@ impl CodeGenerator for ASMCodeGen {
     }    
 }
 
-const EMIT_DIR : &'static str = "emit";
-
 fn create_emit_directory() {
     use std::fs;    
-    match fs::create_dir(EMIT_DIR) {
+    match fs::create_dir(AOT_EMIT_DIR) {
         Ok(_) => {},
         Err(_) => {}
     }    
@@ -1101,7 +1101,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     create_emit_directory();
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(EMIT_DIR);
+    file_path.push(AOT_EMIT_DIR);
     file_path.push(func.name().unwrap().to_string() + ".s");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
@@ -1114,7 +1114,6 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     }
 }
 
-const CONTEXT_FILE : &'static str = "context.s";
 pub fn emit_context(vm: &VM) {
     use std::path;
     use std::fs::File;
@@ -1125,8 +1124,8 @@ pub fn emit_context(vm: &VM) {
     create_emit_directory();
     
     let mut file_path = path::PathBuf::new();
-    file_path.push(EMIT_DIR);
-    file_path.push(CONTEXT_FILE);
+    file_path.push(AOT_EMIT_DIR);
+    file_path.push(AOT_EMIT_CONTEXT_FILE);
     
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create context file {}: {}", file_path.to_str().unwrap(), why),
