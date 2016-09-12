@@ -201,6 +201,7 @@ pub enum MuStackState {
 }
 
 #[repr(C)]
+#[allow(improper_ctypes)]
 pub struct MuThread {
     pub hdr: MuEntityHeader,
     allocator: Box<mm::Mutator>,
@@ -221,7 +222,6 @@ lazy_static! {
 #[cfg(target_os = "macos")]
 #[link(name = "runtime")]
 extern "C" {
-    #[allow(improper_ctypes)]
     fn set_thread_local(thread: *mut MuThread);
     pub fn get_thread_local() -> Address;
 }

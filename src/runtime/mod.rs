@@ -30,6 +30,9 @@ lazy_static! {
     );
 }
 
+// consider using libloading crate instead of the raw c functions for dynalic libraries
+// however i am not sure if libloading can load symbols from current process (not from an actual dylib)
+// so here i use dlopen/dlsym from C
 #[link(name="dl")]
 extern "C" {
     fn dlopen(filename: *const c_char, flags: isize) -> *const c_void;

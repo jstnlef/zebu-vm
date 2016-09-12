@@ -4,7 +4,6 @@ use mu::runtime::mm::heap::immix::ImmixMutatorLocal;
 use mu::runtime::mm::heap::immix::ImmixSpace;
 use mu::runtime::mm::heap::freelist::FreeListSpace;
 use mu::runtime::mm::common::Address;
-use mu::runtime::mm::common::ObjectReference;
 use mu::runtime::mm::objectmodel;
 
 use std::sync::RwLock;
