@@ -12,6 +12,8 @@ use mu::runtime::mm::heap::freelist;
 use mu::runtime::mm::heap::freelist::FreeListSpace;
 use std::mem::size_of;
 use std::sync::atomic::Ordering;
+use log;
+use simple_logger;
 
 extern crate time;
 
@@ -112,9 +114,12 @@ fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
 
 #[test]
 fn start() {
+    simple_logger::init_with_level(log::LogLevel::Trace).ok();    
     unsafe {heap::gc::set_low_water_mark();}
     
     mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    mm::gc_stats();
+    
     let mut mutator = mm::new_mutator();
     
     println!("Garbage Collector Test");
@@ -136,7 +141,7 @@ fn start() {
     Populate(kLongLivedTreeDepth, longLivedTree, &mut mutator);
     
     println!(" Creating a long-lived array of {} doubles", kArraySize);
-    mem::alloc_large(&mut mutator, size_of::<Array>(), 8);
+    mm::alloc_large(&mut mutator, size_of::<Array>(), 8);
     
     PrintDiagnostics();
     

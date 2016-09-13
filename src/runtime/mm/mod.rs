@@ -11,6 +11,7 @@ use runtime::mm::heap::immix::ImmixMutatorLocal;
 use runtime::mm::heap::freelist;
 use runtime::mm::heap::freelist::FreeListSpace;
 
+use std::fmt;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::boxed::Box;
@@ -21,8 +22,23 @@ pub struct GC {
     lo_space   : Arc<RwLock<FreeListSpace>>
 }
 
+impl fmt::Debug for GC {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "GC\n").unwrap();
+        write!(f, "{}", self.immix_space).unwrap();
+        
+        let lo_lock = self.lo_space.read().unwrap();
+        write!(f, "{}", *lo_lock)
+    }
+}
+
 lazy_static! {
     pub static ref MY_GC : RwLock<Option<GC>> = RwLock::new(None);
+}
+
+#[no_mangle]
+pub extern fn gc_stats() {
+    println!("{:?}", MY_GC.read().unwrap().as_ref().unwrap());
 }
 
 #[no_mangle]
