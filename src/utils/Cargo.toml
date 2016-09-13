@@ -1,0 +1,13 @@
+[package]
+name = "utils"
+version = "0.0.1"
+authors = ["qinsoon <qinsoon@gmail.com>"]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+memmap = "0.4.0"
+memsec = "0.1.9"
+linked-hash-map = "0.0.10"
+byteorder = "0.5.3"

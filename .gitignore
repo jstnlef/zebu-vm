@@ -1,4 +1,4 @@
-target/*
+**/target/*
 emit/*
 Cargo.lock
 *.log

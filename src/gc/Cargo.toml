@@ -1,0 +1,20 @@
+[package]
+name = "gc"
+version = "0.0.1"
+authors = ["qinsoon <qinsoon@gmail.com>"]
+build = "build.rs"
+
+[lib]
+crate-type = ["rlib"]
+
+[build-dependencies]
+gcc = "0.3"
+
+[dependencies]
+utils = {path = "../utils"}
+
+lazy_static = "0.1.15"
+log = "0.3.5"
+simple_logger = "0.4.0"
+aligned_alloc = "0.1.2"
+crossbeam = "0.2.8"

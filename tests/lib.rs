@@ -8,7 +8,6 @@ mod test_compiler;
 mod test_runtime;
 mod test_api;
 
-#[macro_use]
 mod common {
     use std::fmt;
     

@@ -3,8 +3,8 @@ use mu::runtime::mm::heap;
 use mu::runtime::mm::heap::immix::ImmixMutatorLocal;
 use mu::runtime::mm::heap::immix::ImmixSpace;
 use mu::runtime::mm::heap::freelist::FreeListSpace;
-use mu::runtime::mm::common::Address;
 use mu::runtime::mm::objectmodel;
+use mu::utils::Address;
 
 use std::sync::RwLock;
 use std::sync::Arc;

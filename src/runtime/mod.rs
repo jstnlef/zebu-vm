@@ -1,10 +1,3 @@
-pub mod mm;
-pub mod thread;
-pub mod entrypoints;
-
-pub use runtime::mm::common::Address;
-pub use runtime::mm::common::ObjectReference;
-
 use log;
 use simple_logger;
 use utils;
@@ -16,13 +9,17 @@ use ast::ir::*;
 use vm::VM;
 use compiler::backend::Word;
 use compiler::backend::RegGroup;
+use utils::Address;
 
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::ffi::CString;
 use std::ffi::CStr;
-
 use std::sync::Arc;
+
+pub extern crate gc as mm;
+pub mod thread;
+pub mod entrypoints;
 
 lazy_static! {
     pub static ref ADDRESS_TYPE : P<MuType> = P(
