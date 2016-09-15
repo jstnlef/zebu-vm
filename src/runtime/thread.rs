@@ -259,11 +259,6 @@ impl MuThread {
             unsafe {set_thread_local(muthread)};
             
             let addr = unsafe {get_thread_local()};
-            unsafe {get_thread_local()};
-            unsafe {get_thread_local()};
-            unsafe {get_thread_local()};
-            unsafe {get_thread_local()};
-            unsafe {get_thread_local()};
             let sp_threadlocal_loc = addr.plus(*NATIVE_SP_LOC_OFFSET);
             
             debug!("new sp: 0x{:x}", new_sp);

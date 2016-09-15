@@ -6,7 +6,6 @@ use heap::immix::ImmixLineMarkTable;
 use heap::freelist::FreeListSpace;
 use objectmodel;
 
-use common::AddressMap;
 use utils::{Address, ObjectReference};
 use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
 use utils::bit_utils;
@@ -342,13 +341,16 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
     if cfg!(debug_assertions) {
         // check if this object in within the heap, if it is an object
         if !is_valid_object(obj.to_address(), immix_start, immix_end, alloc_map) {
+            use std::process;
+            
             println!("trying to trace an object that is not valid");
             println!("address: 0x{:x}", obj);
             println!("---");
             println!("immix space: 0x{:x} - 0x{:x}", immix_start, immix_end);
             println!("lo space: {}", *lo_space.read().unwrap());
             
-            panic!("invalid object during tracing");
+            println!("invalid object during tracing");
+            process::exit(101);
         }
     }
     
@@ -401,17 +403,19 @@ pub fn steal_process_edge(base: Address, offset: usize, local_queue:&mut Vec<Obj
     let edge = unsafe{field_addr.load::<ObjectReference>()};
     
     if cfg!(debug_assertions) {
+        use std::process;        
         // check if this object in within the heap, if it is an object
-        if !is_valid_object(edge.to_address(), immix_start, immix_end, alloc_map) {
+        if !edge.to_address().is_zero() && !is_valid_object(edge.to_address(), immix_start, immix_end, alloc_map) {
             println!("trying to follow an edge that is not a valid object");
-            println!("edge address: 0x{:x}", edge);
+            println!("edge address: 0x{:x} from 0x{:x}", edge, field_addr);
             println!("base address: 0x{:x}", base);
             println!("---");
             objectmodel::print_object(base, immix_start, trace_map, alloc_map);
             println!("---");
             println!("immix space: 0x{:x} - 0x{:x}", immix_start, immix_end);
             
-            panic!("invalid object during tracing");
+            println!("invalid object during tracing");
+            process::exit(101);
         }
     }
 

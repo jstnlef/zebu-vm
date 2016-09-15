@@ -51,6 +51,14 @@ pub extern fn gc_stats() {
 }
 
 #[no_mangle]
+pub extern fn get_spaces() -> (Arc<ImmixSpace>, Arc<RwLock<FreeListSpace>>) {
+    let space_lock = MY_GC.read().unwrap();
+    let space = space_lock.as_ref().unwrap();
+    
+    (space.immix_space.clone(), space.lo_space.clone())
+}
+
+#[no_mangle]
 pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
     // set this line to turn on certain level of debugging info
 //    simple_logger::init_with_level(log::LogLevel::Trace).ok();
@@ -86,7 +94,9 @@ pub extern fn new_mutator() -> Box<ImmixMutatorLocal> {
 
 #[no_mangle]
 #[allow(unused_variables)]
-pub extern fn drop_mutator(mutator: Box<ImmixMutatorLocal>) {
+pub extern fn drop_mutator(mut mutator: Box<ImmixMutatorLocal>) {
+    mutator.destroy();
+    
     // rust will reclaim the boxed mutator
 }
 

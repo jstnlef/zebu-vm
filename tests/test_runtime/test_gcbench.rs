@@ -114,8 +114,7 @@ fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
 }
 
 #[test]
-fn start() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();    
+fn start() {    
     unsafe {heap::gc::set_low_water_mark();}
     
     mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
@@ -165,5 +164,7 @@ fn start() {
     
     PrintDiagnostics();
     println!("Completed in {} msec", tElapsed);
-    println!("Finished with {} collections", heap::gc::GC_COUNT.load(Ordering::SeqCst)); 
+    println!("Finished with {} collections", heap::gc::GC_COUNT.load(Ordering::SeqCst));
+    
+    mm::drop_mutator(mutator); 
 }

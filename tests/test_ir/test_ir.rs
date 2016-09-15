@@ -11,20 +11,8 @@ use std::collections::HashMap;
 
 #[test]
 #[allow(unused_variables)]
-fn test_factorial() {
-    let vm = factorial();
-}
-
-#[test]
-#[allow(unused_variables)]
 fn test_sum() {
     let vm = sum();
-}
-
-#[test]
-#[allow(unused_variables)]
-fn test_global_access() {
-    let vm = global_access();
 }
 
 pub fn sum() -> VM {
@@ -181,6 +169,12 @@ pub fn sum() -> VM {
     vm.define_func_version(func_ver);
 
     vm
+}
+
+#[test]
+#[allow(unused_variables)]
+fn test_factorial() {
+    let vm = factorial();
 }
 
 #[allow(unused_variables)]
@@ -365,6 +359,12 @@ pub fn factorial() -> VM {
     vm
 }
 
+#[test]
+#[allow(unused_variables)]
+fn test_global_access() {
+    let vm = global_access();
+}
+
 #[allow(unused_variables)]
 pub fn global_access() -> VM {
     let vm = VM::new();
@@ -388,7 +388,7 @@ pub fn global_access() -> VM {
     vm.set_name(global_a.as_entity(), "a".to_string());
     
     // .funcsig @global_access_sig = () -> ()
-    let func_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![]);
+    let func_sig = vm.declare_func_sig(vm.next_id(), vec![], vec![]);
     vm.set_name(func_sig.as_entity(), "global_access_sig".to_string());
 
     // .funcdecl @global_access <@global_access_sig>
@@ -440,6 +440,120 @@ pub fn global_access() -> VM {
     let blk_0_content = BlockContent {
         args: vec![],
         body: vec![blk_0_inst0, blk_0_inst1, blk_0_term],
+        keepalives: None
+    };
+    blk_0.content = Some(blk_0_content);
+    
+    func_ver.define(FunctionContent{
+        entry: blk_0.id(),
+        blocks: {
+            let mut ret = HashMap::new();
+            ret.insert(blk_0.id(), blk_0);
+            ret
+        }
+    });
+    
+    vm.define_func_version(func_ver);
+    
+    vm
+}
+
+#[test]
+#[allow(unused_variables)]
+fn test_alloc_new() {
+    let vm = alloc_new();
+}
+
+#[allow(unused_variables)]
+pub fn alloc_new() -> VM {
+    let vm = VM::new();
+    
+    // .typedef @int64 = int<64>
+    // .typedef @iref_int64 = iref<int<64>>
+    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    vm.set_name(type_def_int64.as_entity(), "int64".to_string());
+    let type_def_iref_int64 = vm.declare_type(vm.next_id(), MuType_::iref(type_def_int64.clone()));
+    vm.set_name(type_def_iref_int64.as_entity(), "iref_int64".to_string());
+    let type_def_ref_int64 = vm.declare_type(vm.next_id(), MuType_::muref(type_def_int64.clone()));
+    vm.set_name(type_def_ref_int64.as_entity(), "ref_int64".to_string());
+    
+    // .const @int_64_0 <@int_64> = 0
+    // .const @int_64_1 <@int_64> = 1
+    let const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
+    vm.set_name(const_def_int64_0.as_entity(), "int64_0".to_string());
+    let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
+    vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());
+    
+    // .funcsig @alloc_new_sig = () -> ()
+    let func_sig = vm.declare_func_sig(vm.next_id(), vec![], vec![]);
+    vm.set_name(func_sig.as_entity(), "alloc_new_sig".to_string());
+
+    // .funcdecl @alloc_new <@alloc_new_sig>
+    let func = MuFunction::new(vm.next_id(), func_sig.clone());
+    vm.set_name(func.as_entity(), "alloc_new".to_string());
+    let func_id = func.id();
+    vm.declare_func(func);
+    
+    // .funcdef @alloc VERSION @v1 <@alloc_new_sig>
+    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, func_sig.clone());
+    
+    // %blk_0():
+    let mut blk_0 = Block::new(vm.next_id());
+    vm.set_name(blk_0.as_entity(), "blk_0".to_string());
+    
+    // %a = NEW <@int64_t>
+    let blk_0_a = func_ver.new_ssa(vm.next_id(), type_def_ref_int64.clone());
+    vm.set_name(blk_0_a.as_entity(), "blk_0_a".to_string());
+    let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
+        value: Some(vec![blk_0_a.clone_value()]),
+        ops: RwLock::new(vec![]),
+        v: Instruction_::New(type_def_int64.clone())
+    });
+    
+    // STORE <@int_64> @a @int_64_1
+    let blk_0_const_int64_1 = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
+    let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
+        value: None,
+        ops: RwLock::new(vec![blk_0_a.clone(), blk_0_const_int64_1.clone()]),
+        v: Instruction_::Store{
+            is_ptr: false,
+            order: MemoryOrder::Relaxed,
+            mem_loc: 0,
+            value: 1
+        }
+    });
+    
+    // %a_iref = GETIREF <@int_64> @a
+    let blk_0_a_iref = func_ver.new_ssa(vm.next_id(), type_def_iref_int64.clone());
+    vm.set_name(blk_0_a.as_entity(), "blk_0_a_iref".to_string());
+    let blk_0_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
+        value: Some(vec![blk_0_a_iref.clone_value()]),
+        ops: RwLock::new(vec![blk_0_a.clone()]),
+        v: Instruction_::GetIRef(0)
+    });
+        
+    // %x = LOAD <@int_64> @a_iref
+    let blk_0_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+    vm.set_name(blk_0_x.as_entity(), "blk_0_x".to_string());
+    let blk_0_inst2 = func_ver.new_inst(vm.next_id(), Instruction{
+        value: Some(vec![blk_0_x.clone_value()]),
+        ops: RwLock::new(vec![blk_0_a_iref.clone()]),
+        v: Instruction_::Load{
+            is_ptr: false,
+            order: MemoryOrder::Relaxed,
+            mem_loc: 0
+        }
+    });
+    
+    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
+        value: None,
+        ops: RwLock::new(vec![blk_0_x.clone()]),
+        v: Instruction_::Return(vec![0])
+    });
+    
+    let blk_0_content = BlockContent {
+        args: vec![],
+        body: vec![blk_0_inst0, blk_0_inst1, blk_0_inst2, blk_0_term],
         keepalives: None
     };
     blk_0.content = Some(blk_0_content);

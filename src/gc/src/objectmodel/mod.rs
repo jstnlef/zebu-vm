@@ -18,6 +18,7 @@ pub fn flip_mark_state() {
     }
 }
 
+#[allow(unused_variables)]
 pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, alloc_map: *mut u8) {
     let mut cursor = obj;
     println!("OBJECT 0x{:x}", obj);
@@ -29,31 +30,30 @@ pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, allo
         );
         
         
-        println!("0x{:x} | val: 0x{:x} | {}, hdr: {:b}", 
+        println!("0x{:x} | val: 0x{:15x} | {}, hdr: {:b}", 
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 0), hdr);
-        
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:x} | {}", 
+        println!("0x{:x} | val: 0x{:15x} | {}", 
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 1));
         
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:x} | {}", 
+        println!("0x{:x} | val: 0x{:15x} | {}", 
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 2));
         
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:x} | {}", 
+        println!("0x{:x} | val: 0x{:15x} | {}", 
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 3));
         
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:x} | {}", 
+        println!("0x{:x} | val: 0x{:15x} | {}", 
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 4));
         
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:x} | {}， {}", 
+        println!("0x{:x} | val: 0x{:15x} | {} {}", 
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 5), 
             {
                 if !short_encode {
-                    "MORE"
+                    "MORE..."
                 } else {
                     ""
                 }

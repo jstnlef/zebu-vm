@@ -1,19 +1,13 @@
 use mu::runtime::mm;
 use mu::runtime::mm::heap;
-use mu::runtime::mm::heap::immix::ImmixMutatorLocal;
-use mu::runtime::mm::heap::immix::ImmixSpace;
-use mu::runtime::mm::heap::freelist::FreeListSpace;
 use mu::runtime::mm::objectmodel;
 use mu::utils::Address;
-
-use std::sync::RwLock;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 const OBJECT_SIZE : usize = 24;
 const OBJECT_ALIGN: usize = 8;
 
-const WORK_LOAD : usize = 500000;
+const WORK_LOAD : usize = 250000;
 
 const IMMIX_SPACE_SIZE : usize = 500 << 20;
 const LO_SPACE_SIZE    : usize = 500 << 20; 
@@ -34,11 +28,14 @@ fn test_exhaust_alloc() {
         let res = mutator.alloc(OBJECT_SIZE, OBJECT_ALIGN);
         mutator.init_object(res, 0b1100_0011);  
     }
+    
+    mm::drop_mutator(mutator);
 }
 
 const LARGE_OBJECT_SIZE : usize = 256;
 
 #[test]
+#[allow(unused_variables)]
 fn test_exhaust_alloc_large() {
     mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
     let mut mutator = mm::new_mutator();
@@ -49,25 +46,14 @@ fn test_exhaust_alloc_large() {
         
         let res = mm::alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
     }
+    
+    mm::drop_mutator(mutator);
 }
 
 #[test]
 fn test_alloc_mark() {
-    heap::IMMIX_SPACE_SIZE.store(IMMIX_SPACE_SIZE, Ordering::SeqCst);
-    heap::LO_SPACE_SIZE.store(LO_SPACE_SIZE, Ordering::SeqCst);
-    
-    let shared_space : Arc<ImmixSpace> = {
-        let space : ImmixSpace = ImmixSpace::new(heap::IMMIX_SPACE_SIZE.load(Ordering::SeqCst));
-        
-        Arc::new(space)
-    };
-    let lo_space : Arc<RwLock<FreeListSpace>> = {
-        let space : FreeListSpace = FreeListSpace::new(heap::LO_SPACE_SIZE.load(Ordering::SeqCst));
-        Arc::new(RwLock::new(space))
-    };
-    heap::gc::init(shared_space.clone(), lo_space.clone());
-
-    let mut mutator = ImmixMutatorLocal::new(shared_space.clone());
+    mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    let mut mutator = mm::new_mutator();
     
     println!("Trying to allocate 1 object of (size {}, align {}). ", OBJECT_SIZE, OBJECT_ALIGN);
     const ACTUAL_OBJECT_SIZE : usize = OBJECT_SIZE;
@@ -81,6 +67,8 @@ fn test_alloc_mark() {
         
         objs.push(unsafe {res.to_object_reference()});
     }
+    
+    let (shared_space, _) = mm::get_spaces();
     
     println!("Start marking");
     let mark_state = objectmodel::MARK_STATE.load(Ordering::SeqCst) as u8;
@@ -100,7 +88,9 @@ fn test_alloc_mark() {
         if obj.to_address() >= space_start && obj.to_address() < space_end {
             line_mark_table.mark_line_live2(space_start, obj.to_address());
         } 
-    } 
+    }
+    
+    mm::drop_mutator(mutator);
 }
 
 #[allow(dead_code)]
@@ -114,21 +104,9 @@ struct Node<'a> {
 
 #[test]
 fn test_alloc_trace() {
-    heap::IMMIX_SPACE_SIZE.store(IMMIX_SPACE_SIZE, Ordering::SeqCst);
-    heap::LO_SPACE_SIZE.store(LO_SPACE_SIZE, Ordering::SeqCst);
-    
-    let shared_space : Arc<ImmixSpace> = {
-        let space : ImmixSpace = ImmixSpace::new(heap::IMMIX_SPACE_SIZE.load(Ordering::SeqCst));
-        
-        Arc::new(space)
-    };
-    let lo_space : Arc<RwLock<FreeListSpace>> = {
-        let space : FreeListSpace = FreeListSpace::new(heap::LO_SPACE_SIZE.load(Ordering::SeqCst));
-        Arc::new(RwLock::new(space))
-    };
-    heap::gc::init(shared_space.clone(), lo_space.clone());
-
-    let mut mutator = ImmixMutatorLocal::new(shared_space.clone());
+    mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    let mut mutator = mm::new_mutator();
+    let (shared_space, lo_space) = mm::get_spaces();
     
     println!("Trying to allocate 1 object of (size {}, align {}). ", OBJECT_SIZE, OBJECT_ALIGN);
     const ACTUAL_OBJECT_SIZE : usize = OBJECT_SIZE;
@@ -153,4 +131,6 @@ fn test_alloc_trace() {
     let mut roots = vec![unsafe {root.to_object_reference()}];
 
     heap::gc::start_trace(&mut roots, shared_space, lo_space);
+    
+    mm::drop_mutator(mutator);
 }

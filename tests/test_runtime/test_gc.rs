@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 const OBJECT_SIZE : usize = 24;
 const OBJECT_ALIGN: usize = 8;
 
-const WORK_LOAD : usize = 50000000;
+const WORK_LOAD : usize = 10000000;
 
 const IMMIX_SPACE_SIZE : usize = 40 << 20;
 const LO_SPACE_SIZE    : usize = 40 << 20; 
@@ -28,4 +28,6 @@ fn test_gc_no_alive() {
         let res = mutator.alloc(OBJECT_SIZE, OBJECT_ALIGN);
         mutator.init_object(res, 0b1100_0011);  
     }
+    
+    mm::drop_mutator(mutator);
 }
