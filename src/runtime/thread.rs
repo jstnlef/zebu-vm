@@ -216,13 +216,15 @@ lazy_static! {
     pub static ref NATIVE_SP_LOC_OFFSET : usize = mem::size_of::<MuEntityHeader>() 
                 + mem::size_of::<Box<mm::Mutator>>()
                 + mem::size_of::<Option<Box<MuStack>>>();
+    
+    pub static ref ALLOCATOR_OFFSET : usize = mem::size_of::<MuEntityHeader>();
 }
 
 #[cfg(target_arch = "x86_64")]
 #[cfg(target_os = "macos")]
 #[link(name = "runtime")]
 extern "C" {
-    fn set_thread_local(thread: *mut MuThread);
+    pub fn set_thread_local(thread: *mut MuThread);
     pub fn get_thread_local() -> Address;
 }
 
@@ -242,6 +244,16 @@ impl MuThread {
             stack: Some(stack),
             native_sp_loc: unsafe {Address::zero()},
             user_tls: user_tls
+        }
+    }
+    
+    pub fn fake_thread(id: MuID, allocator: Box<mm::Mutator>) -> MuThread {
+        MuThread {
+            hdr: MuEntityHeader::unnamed(id),
+            allocator: allocator,
+            stack: None,
+            native_sp_loc: unsafe {Address::zero()},
+            user_tls: None
         }
     }
     

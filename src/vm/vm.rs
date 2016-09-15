@@ -189,19 +189,19 @@ impl Decodable for VM {
             }
             
             // backend_type_info
-            let backend_type_info = try!(d.read_struct_field("backend_type_info", 4, |d| Decodable::decode(d)));
+            let backend_type_info = try!(d.read_struct_field("backend_type_info", 5, |d| Decodable::decode(d)));
             
             // constants
-            let constants = try!(d.read_struct_field("constants", 5, |d| Decodable::decode(d)));
+            let constants = try!(d.read_struct_field("constants", 6, |d| Decodable::decode(d)));
             
             // globals
-            let globals = try!(d.read_struct_field("globals", 6, |d| Decodable::decode(d)));
+            let globals = try!(d.read_struct_field("globals", 7, |d| Decodable::decode(d)));
             
             // func sigs
-            let func_sigs = try!(d.read_struct_field("func_sigs", 7, |d| Decodable::decode(d)));
+            let func_sigs = try!(d.read_struct_field("func_sigs", 8, |d| Decodable::decode(d)));
             
             // funcs
-            let funcs = try!(d.read_struct_field("funcs", 8, |d| {
+            let funcs = try!(d.read_struct_field("funcs", 9, |d| {
                 d.read_map(|d, len| {
                     let mut map = HashMap::new();
                     for i in 0..len {
@@ -214,7 +214,7 @@ impl Decodable for VM {
             }));
             
             // func_vers
-            let func_vers = try!(d.read_struct_field("func_vers", 9, |d| {
+            let func_vers = try!(d.read_struct_field("func_vers", 10, |d| {
                 d.read_map(|d, len| {
                     let mut map = HashMap::new();
                     for i in 0..len {
@@ -227,9 +227,9 @@ impl Decodable for VM {
             }));
             
             // primordial
-            let primordial = try!(d.read_struct_field("primordial", 10, |d| Decodable::decode(d)));
+            let primordial = try!(d.read_struct_field("primordial", 11, |d| Decodable::decode(d)));
             
-            let is_running = try!(d.read_struct_field("is_running", 11, |d| Decodable::decode(d)));
+            let is_running = try!(d.read_struct_field("is_running", 12, |d| Decodable::decode(d)));
             
             let vm = VM{
                 next_id: ATOMIC_USIZE_INIT,

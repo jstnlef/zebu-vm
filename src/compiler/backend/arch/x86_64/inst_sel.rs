@@ -10,6 +10,7 @@ use ast::types;
 use ast::types::*;
 use vm::VM;
 use vm::CompiledFunction;
+use runtime::mm;
 use runtime::ValueLocation;
 use runtime::thread;
 use runtime::entrypoints;
@@ -423,6 +424,20 @@ impl <'a> InstructionSelection {
                         self.backend.emit_add_r64_imm32(&tl, *thread::NATIVE_SP_LOC_OFFSET as u32);
                         
                         self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], f_content, f_context, vm);
+                    }
+                    
+                    Instruction_::New(ref ty) => {
+                        let ty_info = vm.get_backend_type_info(ty.id());
+                        
+                        if ty_info.size > mm::LARGE_OBJECT_THRESHOLD {
+                            // emit large object allocation
+                            unimplemented!()
+                        } else {
+                            // emit immix allocation
+                            
+                            // get allocator
+                            let tl = self.emit_get_threadlocal(f_content, f_context, vm);
+                        }
                     }
     
                     _ => unimplemented!()

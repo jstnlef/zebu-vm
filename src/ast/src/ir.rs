@@ -669,7 +669,17 @@ impl fmt::Display for MemoryLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &MemoryLocation::Address{ref base, ref offset, ref index, scale} => {
-                write!(f, "{} + {} + {} * {}", base, offset.as_ref().unwrap(), index.as_ref().unwrap(), scale.unwrap())
+                // base
+                write!(f, "[{}", base).unwrap();
+                // offset
+                if offset.is_some() {
+                    write!(f, " + {}", offset.as_ref().unwrap()).unwrap();
+                }
+                // index/scale
+                if index.is_some() && scale.is_some() {
+                    write!(f, " + {} * {}", index.as_ref().unwrap(), scale.unwrap()).unwrap();
+                }
+                write!(f, "]")
             }
             &MemoryLocation::Symbolic{ref base, ref label} => {
                 if base.is_some() {

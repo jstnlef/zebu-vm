@@ -15,6 +15,7 @@ pub mod heap;
 
 pub use heap::immix::ImmixMutatorLocal as Mutator;
 use utils::ObjectReference;
+use heap::immix::BYTES_IN_LINE;
 use heap::immix::ImmixSpace;
 use heap::immix::ImmixMutatorLocal;
 use heap::freelist;
@@ -24,6 +25,8 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::boxed::Box;
+
+pub const LARGE_OBJECT_THRESHOLD : usize = BYTES_IN_LINE;
 
 #[repr(C)]
 pub struct GC {

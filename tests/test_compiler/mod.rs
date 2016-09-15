@@ -3,3 +3,4 @@ mod test_instsel;
 mod test_regalloc;
 mod test_global;
 mod test_compiler;
+mod test_alloc;
