@@ -89,11 +89,29 @@ pub fn is_valid_object(addr: Address, start: Address, end: Address, live_map: *m
     
     let index = (addr.diff(start) >> LOG_POINTER_SIZE) as isize;
     
-    bit_utils::test_nth_bit(unsafe {*live_map.offset(index)}, objectmodel::OBJ_START_BIT)
+    if !bit_utils::test_nth_bit(unsafe {*live_map.offset(index)}, objectmodel::OBJ_START_BIT) {
+        return false;
+    }
+    
+    if !addr.is_aligned_to(POINTER_SIZE) {
+        return false;
+    }
+    
+    true
 }
 
 pub fn stack_scan() -> Vec<ObjectReference> {
+    trace!("stack scanning...");
     let stack_ptr : Address = unsafe {immmix_get_stack_ptr()};
+    
+    if cfg!(debug_assertions) {
+        if !stack_ptr.is_aligned_to(8) {
+            use std::process;
+            println!("trying to scanning stack, however the current stack pointer is 0x{:x}, which is not aligned to 8bytes", stack_ptr);
+            process::exit(102);
+        }
+    }
+    
     let low_water_mark : Address = unsafe {get_low_water_mark()};
     
     let mut cursor = stack_ptr;

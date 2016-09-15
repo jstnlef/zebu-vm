@@ -110,6 +110,7 @@ fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
     let addr = mutator.alloc(size_of::<Node>(), 8);
     mutator.init_object(addr, 0b1100_0011);
 //    objectmodel::init_header(unsafe{addr.to_object_reference()}, HEADER_INIT_U64);
+
     addr.to_ptr_mut::<Node>()
 }
 

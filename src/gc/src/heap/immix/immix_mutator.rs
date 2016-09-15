@@ -128,9 +128,25 @@ impl ImmixMutatorLocal {
         // println!("cursor = {:#X}, after align = {:#X}", c, start);
         
         if end > self.limit {
-            self.try_alloc_from_local(size, align)
+            let ret = self.try_alloc_from_local(size, align);
+            
+            if cfg!(debug_assertions) {
+                if !ret.is_aligned_to(align) {
+                    use std::process;
+                    println!("wrong alignment on 0x{:x}, expected align: {}", ret, align);
+                    process::exit(102);
+                }
+            }
+            
+            ret
         } else {
-//            fill_alignment_gap(self.cursor, start);
+            if cfg!(debug_assertions) {
+                if !start.is_aligned_to(align) {
+                    use std::process;
+                    println!("wrong alignment on 0x{:x}, expected align: {}", start, align);
+                    process::exit(102);
+                }
+            }
             self.cursor = end;
             
             start            
