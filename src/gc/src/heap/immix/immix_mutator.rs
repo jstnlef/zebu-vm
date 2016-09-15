@@ -226,6 +226,7 @@ impl ImmixMutatorLocal {
 
     fn return_block(&mut self) {
         if self.block.is_some() {
+            trace!("finishing block {:?}", self.block.as_ref().unwrap());
             self.space.return_used_block(self.block.take().unwrap());
         }        
     }

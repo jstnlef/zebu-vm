@@ -116,6 +116,7 @@ pub extern fn alloc(mutator: &mut Box<ImmixMutatorLocal>, size: usize, align: us
 }
 
 #[no_mangle]
+#[inline(never)]
 pub extern fn alloc_slow(mutator: &mut Box<ImmixMutatorLocal>, size: usize, align: usize) -> ObjectReference {
     let ret = mutator.try_alloc_from_local(size, align);
     unsafe {ret.to_object_reference()}

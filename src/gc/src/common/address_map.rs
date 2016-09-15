@@ -1,4 +1,5 @@
 use std::mem;
+use utils::POINTER_SIZE;
 use utils::LOG_POINTER_SIZE;
 use utils::Address;
 use heap::gc::malloc_zero;
@@ -18,6 +19,16 @@ impl <T> AddressMap<T> where T: Copy{
         let ptr = unsafe{malloc_zero(mem::size_of::<T>() * len)} as *mut T;
         
         AddressMap{start: start, end: end, ptr: ptr, len: len}
+    }
+    
+    pub fn init_all (&self, init: T) {
+        println!("check valid");
+        let mut cursor = self.start;
+        
+        while cursor < self.end {
+            self.set(cursor, init);
+            cursor = cursor.plus(POINTER_SIZE);	
+        }
     }
     
     #[inline(always)]

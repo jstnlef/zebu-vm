@@ -142,7 +142,7 @@ fn start() {
     Populate(kLongLivedTreeDepth, longLivedTree, &mut mutator);
     
     println!(" Creating a long-lived array of {} doubles", kArraySize);
-    mm::alloc_large(&mut mutator, size_of::<Array>(), 8);
+//    mm::alloc_large(&mut mutator, size_of::<Array>(), 8);
     
     PrintDiagnostics();
     

@@ -4,6 +4,10 @@ version = "0.0.1"
 authors = ["qinsoon <qinsoon@gmail.com>"]
 build = "build.rs"
 
+[features]
+default = ["parallel-gc"]
+parallel-gc = []
+
 [lib]
 crate-type = ["rlib"]
 

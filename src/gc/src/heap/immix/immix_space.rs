@@ -150,14 +150,24 @@ impl ImmixSpace {
         
         let line_mark_table = LineMarkTable::new(start, end);
         
+        let trace_map = AddressMap::new(start, end);
+        if cfg!(debug_assertions) {
+            // access every of its cells
+            trace_map.init_all(0);
+        }
+        let alloc_map = AddressMap::new(start, end);
+        if cfg!(debug_assertions) {
+            alloc_map.init_all(0);
+        }
+        
         let mut ret = ImmixSpace {
             start: start, 
             end: end, 
             mmap: anon_mmap,
 
             line_mark_table: line_mark_table,
-            trace_map: Arc::new(AddressMap::new(start, end)),
-            alloc_map: Arc::new(AddressMap::new(start, end)),
+            trace_map: Arc::new(trace_map),
+            alloc_map: Arc::new(alloc_map),
             usable_blocks: Mutex::new(LinkedList::new()),
             used_blocks: Mutex::new(LinkedList::new()),
             total_blocks: 0
@@ -369,6 +379,12 @@ impl fmt::Display for ImmixSpace {
 }
 
 impl fmt::Display for ImmixBlock {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ImmixBlock#{}(state={:?}, address=0x{:X})", self.id, self.state, self.start)
+    }    
+}
+
+impl fmt::Debug for ImmixBlock {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ImmixBlock#{}(state={:?}, address={:#X}, line_table={:?}", self.id, self.state, self.start, self.line_mark_table.ptr).unwrap();
     
