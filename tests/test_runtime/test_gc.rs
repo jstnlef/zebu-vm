@@ -29,5 +29,5 @@ fn test_gc_no_alive() {
         mutator.init_object(res, 0b1100_0011);  
     }
     
-    mm::drop_mutator(mutator);
+    mutator.destroy();
 }

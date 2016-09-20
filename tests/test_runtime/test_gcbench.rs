@@ -167,5 +167,5 @@ fn start() {
     println!("Completed in {} msec", tElapsed);
     println!("Finished with {} collections", heap::gc::GC_COUNT.load(Ordering::SeqCst));
     
-    mm::drop_mutator(mutator); 
+    mutator.destroy(); 
 }

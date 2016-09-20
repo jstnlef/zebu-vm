@@ -10,6 +10,7 @@ use ast::types;
 use ast::types::*;
 use vm::VM;
 use vm::CompiledFunction;
+use runtime;
 use runtime::mm;
 use runtime::ValueLocation;
 use runtime::thread;
@@ -26,14 +27,17 @@ use std::collections::HashMap;
 pub struct InstructionSelection {
     name: &'static str,
     
-    backend: Box<CodeGenerator>
+    backend: Box<CodeGenerator>,
+    
+    current_block: Option<MuName>
 }
 
 impl <'a> InstructionSelection {
     pub fn new() -> InstructionSelection {
         InstructionSelection{
             name: "Instruction Selection (x64)",
-            backend: Box::new(ASMCodeGen::new())
+            backend: Box::new(ASMCodeGen::new()),
+            current_block: None
         }
     }
     
@@ -65,7 +69,7 @@ impl <'a> InstructionSelection {
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
                         self.process_dest(&ops, branch_dest, f_content, f_context, vm);
                         
-                        let branch_target = f_content.get_block(branch_dest.target);
+                        let branch_target = f_content.get_block(branch_dest.target).name().unwrap();
     
                         let ref cond = ops[cond];
                         
@@ -103,7 +107,7 @@ impl <'a> InstructionSelection {
                                             
                         self.process_dest(&ops, dest, f_content, f_context, vm);
                         
-                        let target = f_content.get_block(dest.target);
+                        let target = f_content.get_block(dest.target).name().unwrap();
                         
                         trace!("emit branch1");
                         // jmp
@@ -416,6 +420,15 @@ impl <'a> InstructionSelection {
                         }
                     }
                     
+                    Instruction_::GetIRef(op_index) => {
+                        let ops = inst.ops.read().unwrap();
+                        
+                        let ref op = ops[op_index];
+                        let res_tmp = self.emit_get_result(node);
+                        
+                        self.emit_lea_base_offset(&res_tmp, &op.clone_value(), 0, vm);
+                    }
+                    
                     Instruction_::ThreadExit => {
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
                         
@@ -423,20 +436,93 @@ impl <'a> InstructionSelection {
                         let tl = self.emit_get_threadlocal(f_content, f_context, vm);
                         self.backend.emit_add_r64_imm32(&tl, *thread::NATIVE_SP_LOC_OFFSET as u32);
                         
-                        self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], f_content, f_context, vm);
+                        self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, f_content, f_context, vm);
                     }
                     
                     Instruction_::New(ref ty) => {
                         let ty_info = vm.get_backend_type_info(ty.id());
+                        let ty_size = ty_info.size;
+                        let ty_align= ty_info.alignment;
                         
-                        if ty_info.size > mm::LARGE_OBJECT_THRESHOLD {
+                        if ty_size > mm::LARGE_OBJECT_THRESHOLD {
                             // emit large object allocation
                             unimplemented!()
                         } else {
-                            // emit immix allocation
+                            // emit immix allocation fast path
                             
-                            // get allocator
-                            let tl = self.emit_get_threadlocal(f_content, f_context, vm);
+                            // ASM: %tl = get_thread_local()
+                            let tmp_tl = self.emit_get_threadlocal(f_content, f_context, vm);
+                            
+                            // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
+                            let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
+                            let tmp_cursor = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
+                            self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as u32, vm);
+                            
+                            // alignup cursor (cursor + align - 1 & !(align - 1))
+                            // ASM: lea align-1(%cursor) -> %start
+                            let align = ty_info.alignment;
+                            let tmp_start = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
+                            self.emit_lea_base_offset(&tmp_start, &tmp_tl, (align - 1) as u32, vm);
+                            // ASM: and %start, !(align-1) -> %start
+                            self.backend.emit_and_r64_imm32(&tmp_start, !(align-1) as u32);
+                            
+                            // bump cursor
+                            // ASM: lea size(%start) -> %end
+                            let tmp_end = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
+                            self.emit_lea_base_offset(&tmp_end, &tmp_start, ty_size as u32, vm);
+                            
+                            // check with limit
+                            // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
+                            let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
+                            let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as u32, runtime::ADDRESS_TYPE.clone(), vm);
+                            self.backend.emit_cmp_r64_mem64(&tmp_end, &mem_limit);
+                            
+                            // branch to slow path if end > limit
+                            // ASM: jg alloc_slow
+                            let slowpath = format!("{}_allocslow", node.id());
+                            self.backend.emit_jg(slowpath.clone());
+                            
+                            // update cursor
+                            // ASM: mov %end -> [%tl + allocator_offset + limit_offset]
+                            self.emit_store_base_offset(&tmp_tl, limit_offset as u32, &tmp_end, vm);
+                            
+                            // put start as result
+                            // ASM: mov %start -> %result
+                            let tmp_res = self.emit_get_result(node);
+                            self.backend.emit_mov_r64_r64(&tmp_res, &tmp_start);
+                            
+                            // ASM jmp alloc_end
+                            let allocend = format!("{}_allocend", node.id());
+                            self.backend.emit_jmp(allocend.clone());
+                            
+                            // finishing current block
+                            self.backend.end_block(self.current_block.as_ref().unwrap().clone());
+                            
+                            // alloc_slow: 
+                            // call alloc_slow(size, align) -> %ret
+                            // new block (no livein)
+                            self.current_block = Some(slowpath.clone());
+                            self.backend.start_block(slowpath.clone());
+                            self.backend.set_block_livein(slowpath.clone(), &vec![]); 
+                            
+                            let const_size = self.make_value_int_const(ty_size as u64, vm);
+                            let const_align= self.make_value_int_const(ty_align as u64, vm);
+                            let rets = self.emit_runtime_entry(
+                                &entrypoints::ALLOC_SLOW,
+                                vec![const_size, const_align],
+                                Some(vec![
+                                    tmp_res.clone()
+                                ]),
+                                f_content, f_context, vm
+                            );
+                            
+                            // end block (no liveout)
+                            self.backend.end_block(slowpath.clone());
+                            self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
+                            
+                            // block: alloc_end
+                            self.backend.start_block(allocend.clone());
+                            self.current_block = Some(allocend.clone());
                         }
                     }
     
@@ -450,13 +536,60 @@ impl <'a> InstructionSelection {
         }
     }
     
+    fn make_temporary(&mut self, f_context: &mut FunctionContext, ty: P<MuType>, vm: &VM) -> P<Value> {
+        f_context.make_temporary(vm.next_id(), ty).clone_value()
+    }
+    
+    fn make_memory_op_base_offset (&mut self, base: &P<Value>, offset: u32, ty: P<MuType>, vm: &VM) -> P<Value> {
+        P(Value{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty: ty.clone(),
+            v: Value_::Memory(MemoryLocation::Address{
+                base: base.clone(),
+                offset: Some(self.make_value_int_const(offset as u64, vm)),
+                index: None,
+                scale: None
+            })
+        })
+    }
+    
+    fn make_value_int_const (&mut self, val: u64, vm: &VM) -> P<Value> {
+        P(Value{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty: runtime::UINT64_TYPE.clone(),
+            v: Value_::Constant(Constant::Int(val))
+        })
+    } 
+    
+    fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: u32, vm: &VM) {
+        let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
+        
+        self.backend.emit_mov_r64_mem64(dest, &mem);
+    }
+    
+    fn emit_store_base_offset (&mut self, base: &P<Value>, offset: u32, src: &P<Value>, vm: &VM) {
+        let mem = self.make_memory_op_base_offset(base, offset, src.ty.clone(), vm);
+        
+        self.backend.emit_mov_mem64_r64(&mem, src);
+    }
+    
+    fn emit_lea_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: u32, vm: &VM) {
+        let mem = self.make_memory_op_base_offset(base, offset, runtime::ADDRESS_TYPE.clone(), vm);
+        
+        self.backend.emit_lea_r64(dest, &mem);
+    }
+    
     fn emit_get_threadlocal (&mut self, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
-        let mut rets = self.emit_runtime_entry(&entrypoints::GET_THREAD_LOCAL, vec![], f_content, f_context, vm);
+        let mut rets = self.emit_runtime_entry(&entrypoints::GET_THREAD_LOCAL, vec![], None, f_content, f_context, vm);
         
         rets.pop().unwrap()
     }
     
-    fn emit_runtime_entry (&mut self, entry: &RuntimeEntrypoint, args: Vec<P<Value>>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> {
+    // ret: Option<Vec<P<Value>>
+    // if ret is Some, return values will put stored in given temporaries
+    // otherwise create temporaries
+    // always returns result temporaries (given or created)
+    fn emit_runtime_entry (&mut self, entry: &RuntimeEntrypoint, args: Vec<P<Value>>, rets: Option<Vec<P<Value>>>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> {
         let sig = entry.sig.clone();
         
         let entry_name = {
@@ -472,10 +605,14 @@ impl <'a> InstructionSelection {
             }
         };
         
-        self.emit_c_call(entry_name, sig, args, None, f_content, f_context, vm)
+        self.emit_c_call(entry_name, sig, args, rets, f_content, f_context, vm)
     }
     
     #[allow(unused_variables)]
+    // ret: Option<Vec<P<Value>>
+    // if ret is Some, return values will put stored in given temporaries
+    // otherwise create temporaries
+    // always returns result temporaries (given or created)
     fn emit_c_call (&mut self, func_name: CName, sig: P<CFuncSig>, args: Vec<P<Value>>, rets: Option<Vec<P<Value>>>, 
         f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> 
     {
@@ -938,6 +1075,7 @@ impl CompilerPass for InstructionSelection {
             let block_label = block.name().unwrap();
             
             self.backend.start_block(block_label.clone());
+            self.current_block = Some(block_label.clone());
 
             let block_content = block.content.as_ref().unwrap();
             
@@ -946,13 +1084,19 @@ impl CompilerPass for InstructionSelection {
             
             // live out is the union of all branch args of this block
             let live_out = block_content.get_out_arguments();
-            self.backend.set_block_liveout(block_label.clone(), &live_out);
 
             for inst in block_content.body.iter() {
                 self.instruction_select(&inst, f_content, &mut func.context, vm);
             }
             
-            self.backend.end_block(block_label);
+            // we may start block a, and end with block b (instruction selection may create blocks)
+            // we set liveout to current block 
+            {
+                let current_block = self.current_block.as_ref().unwrap();
+                self.backend.set_block_liveout(current_block.clone(), &live_out);
+                self.backend.end_block(current_block.clone());
+            }            
+            self.current_block = None;
         }
     }
     

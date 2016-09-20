@@ -25,6 +25,14 @@ lazy_static! {
     pub static ref ADDRESS_TYPE : P<MuType> = P(
         MuType::new(ir::new_internal_id(), MuType_::int(64))
     );
+    
+    pub static ref UINT32_TYPE : P<MuType> = P(
+        MuType::new(ir::new_internal_id(), MuType_::int(32))
+    );
+    
+    pub static ref UINT64_TYPE : P<MuType> = P(
+        MuType::new(ir::new_internal_id(), MuType_::int(64))
+    );
 }
 
 // consider using libloading crate instead of the raw c functions for dynalic libraries

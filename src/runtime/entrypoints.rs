@@ -37,4 +37,14 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("swap_back_to_native_stack")),
         jit: RwLock::new(None),
     };
+    
+    pub static ref ALLOC_SLOW : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![runtime::ADDRESS_TYPE.clone()],
+            arg_tys: vec![runtime::UINT64_TYPE.clone(), runtime::UINT64_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("alloc_slow")),
+        jit: RwLock::new(None),
+    };
 }

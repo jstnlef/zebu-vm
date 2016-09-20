@@ -29,7 +29,7 @@ fn test_exhaust_alloc() {
         mutator.init_object(res, 0b1100_0011);  
     }
     
-    mm::drop_mutator(mutator);
+    mutator.destroy();
 }
 
 const LARGE_OBJECT_SIZE : usize = 256;
@@ -47,7 +47,7 @@ fn test_exhaust_alloc_large() {
         let res = mm::alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
     }
     
-    mm::drop_mutator(mutator);
+    mutator.destroy();
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn test_alloc_mark() {
         } 
     }
     
-    mm::drop_mutator(mutator);
+    mutator.destroy();
 }
 
 #[allow(dead_code)]
@@ -132,5 +132,5 @@ fn test_alloc_trace() {
 
     heap::gc::start_trace(&mut roots, shared_space, lo_space);
     
-    mm::drop_mutator(mutator);
+    mutator.destroy();
 }

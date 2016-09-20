@@ -25,6 +25,7 @@ lazy_static! {
 }
 
 #[repr(C)]
+// do not change the layout (unless change the offset of fields correspondingly)
 pub struct ImmixMutatorLocal {
     id        : usize,
     
@@ -45,6 +46,15 @@ pub struct ImmixMutatorLocal {
     
     space     : Arc<ImmixSpace>,
     block     : Option<Box<ImmixBlock>>,
+}
+
+lazy_static! {
+    pub static ref CURSOR_OFFSET : usize = mem::size_of::<usize>()
+                + mem::size_of::<*mut u8>()
+                + mem::size_of::<Address>();
+                
+    pub static ref LIMIT_OFFSET : usize = *CURSOR_OFFSET
+                + mem::size_of::<Address>();
 }
 
 pub struct ImmixMutatorGlobal {

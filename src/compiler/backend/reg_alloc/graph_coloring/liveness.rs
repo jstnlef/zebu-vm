@@ -260,8 +260,14 @@ pub fn is_machine_reg(reg: MuID) -> bool {
     }
 }
 
+fn build_live_set(cf: &CompiledFunction, func: &MuFunctionVersion) {
+    
+}
+
 // from Tailoring Graph-coloring Register Allocation For Runtime Compilation, Figure 4
-pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
+pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
+    build_live_set(cf, func);
+    
     let mut ig = InterferenceGraph::new();
     
     // precolor machine register nodes
@@ -285,7 +291,7 @@ pub fn build_chaitin_briggs (cf: &CompiledFunction, func: &MuFunctionVersion) ->
     }
     
     // all nodes has been added, we init graph (create adjacency matrix)
-    ig.init_graph();    
+    ig.init_graph();
     
     for block in cf.mc.get_all_blocks() {
         // Current_Live(B) = LiveOut(B)

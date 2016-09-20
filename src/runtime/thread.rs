@@ -202,9 +202,10 @@ pub enum MuStackState {
 
 #[repr(C)]
 #[allow(improper_ctypes)]
+// do not change the layout (unless change the offset of fields correspondingly)
 pub struct MuThread {
     pub hdr: MuEntityHeader,
-    allocator: Box<mm::Mutator>,
+    allocator: mm::Mutator,
     stack: Option<Box<MuStack>>,
     
     native_sp_loc: Address,
@@ -237,7 +238,7 @@ extern "C" {
 }
 
 impl MuThread {
-    pub fn new(id: MuID, allocator: Box<mm::Mutator>, stack: Box<MuStack>, user_tls: Option<Address>) -> MuThread {
+    pub fn new(id: MuID, allocator: mm::Mutator, stack: Box<MuStack>, user_tls: Option<Address>) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator: allocator,
@@ -247,7 +248,7 @@ impl MuThread {
         }
     }
     
-    pub fn fake_thread(id: MuID, allocator: Box<mm::Mutator>) -> MuThread {
+    pub fn fake_thread(id: MuID, allocator: mm::Mutator) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator: allocator,

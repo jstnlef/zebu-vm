@@ -28,6 +28,8 @@ pub trait MachineCode {
     
     fn get_ir_block_livein(&self, block: &str) -> Option<&Vec<MuID>>;
     fn get_ir_block_liveout(&self, block: &str) -> Option<&Vec<MuID>>;
+    fn set_ir_block_livein(&mut self, block: &str, set: Vec<MuID>);
+    fn set_ir_block_liveout(&mut self, block: &str, set: Vec<MuID>);
     
     fn get_all_blocks(&self) -> &Vec<MuName>;
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;

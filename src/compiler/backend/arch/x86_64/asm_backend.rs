@@ -152,6 +152,14 @@ impl MachineCode for ASMCode {
         self.block_liveout.get(&block.to_string())
     }
     
+    fn set_ir_block_livein(&mut self, block: &str, set: Vec<MuID>) {
+        self.block_livein.insert(block.to_string(), set);
+    }
+    
+    fn set_ir_block_liveout(&mut self, block: &str, set: Vec<MuID>) {
+        self.block_liveout.insert(block.to_string(), set);
+    }
+    
     fn get_all_blocks(&self) -> &Vec<MuName> {
         &self.blocks
     }
@@ -252,6 +260,11 @@ impl ASMCodeGen {
     
     fn line(&self) -> usize {
         self.cur().code.len()
+    }
+    
+    fn add_asm_label(&mut self, code: String) {
+        let l = self.line();
+        self.cur_mut().code.push(ASM::symbolic(code));
     }
     
     fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
@@ -376,17 +389,38 @@ impl ASMCodeGen {
     }
     
     fn prepare_reg(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
+        if cfg!(debug_assertions) {
+            match op.v {
+                Value_::SSAVar(_) => {},
+                _ => panic!("expecting register op")
+            }
+        }
+        
         let str = self.asm_reg_op(op);
         let len = str.len();
         (str, op.extract_ssa_id().unwrap(), ASMLocation::new(loc, len)) 
     }
     
     fn prepare_machine_reg(&self, op: &P<Value>) -> MuID {
+        if cfg!(debug_assertions) {
+            match op.v {
+                Value_::SSAVar(_) => {},
+                _ => panic!("expecting machine register op")
+            }
+        }        
+        
         op.extract_ssa_id().unwrap()
     }
     
     #[allow(unused_assignments)]
     fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, Vec<MuID>, Vec<ASMLocation>) {
+        if cfg!(debug_assertions) {
+            match op.v {
+                Value_::Memory(_) => {},
+                _ => panic!("expecting register op")
+            }
+        }        
+        
         let mut ids : Vec<MuID> = vec![];
         let mut locs : Vec<ASMLocation> = vec![];
         let mut result_str : String = "".to_string();
@@ -526,6 +560,8 @@ impl ASMCodeGen {
             let is_block_start = code.idx_to_blk.get(&i);
             if is_block_start.is_none() {
                 if i > 0 {
+                    trace!("inst {}: not a block start", i);
+                    trace!("inst {}: set PREDS as previous inst {}", i, i-1);
                     code.preds[i].push(i - 1);
                 }
             } else {
@@ -538,31 +574,44 @@ impl ASMCodeGen {
             if is_branch.is_some() {
                 // branch to target
                 let target = is_branch.unwrap();
+                trace!("inst {}: is a branch to {}", i, target);
+                                
                 let target_n = code.blk_to_idx.get(target).unwrap();
+                trace!("inst {}: branch target index is {}", i, target_n);
                 
                 // cur inst's succ is target
+                trace!("inst {}: set SUCCS as branch target {}", i, target_n);
                 code.succs[i].push(*target_n);
                 
                 // target's pred is cur
+                trace!("inst {}: set PREDS as branch source {}", target_n, i);
                 code.preds[*target_n].push(i);
             } else {
                 let is_cond_branch = code.cond_branches.get(&i);
                 if is_cond_branch.is_some() {
                     // branch to target
                     let target = is_cond_branch.unwrap();
+                    trace!("inst {}: is a cond branch to {}", i, target);
+                    
                     let target_n = code.blk_to_idx.get(target).unwrap();
+                    trace!("inst {}: branch target index is {}", i, target_n);
                     
                     // cur insts' succ is target and next inst
                     code.succs[i].push(*target_n);
+                    trace!("inst {}: set SUCCS as branch target {}", i, target_n);
                     if i < n_insts - 1 {
+                        trace!("inst {}: set SUCCS as next inst", i + 1);                        
                         code.succs[i].push(i + 1);
                     }
                     
                     // target's pred is cur
                     code.preds[*target_n].push(i);
+                    trace!("inst {}: set PREDS as {}", *target_n, i);
                 } else {
                     // not branch nor cond branch, succ is next inst
+                    trace!("inst {}: not a branch inst", i);
                     if i < n_insts - 1 {
+                        trace!("inst {}: set SUCCS as next inst {}", i, i + 1);
                         code.succs[i].push(i + 1);
                     }
                 }
@@ -725,7 +774,24 @@ impl CodeGenerator for ASMCodeGen {
     
     fn emit_cmp_r64_mem64(&mut self, op1: &P<Value>, op2: &P<Value>) {
         trace!("emit: cmp {} {}", op1, op2);
-        unimplemented!()
+        
+        let (reg, id1, loc1) = self.prepare_reg(op1, 4 + 1);
+        let (mem, mut id2, mut loc2) = self.prepare_mem(op2, 4 + 1 + reg.len() + 1);
+        
+        let asm = format!("cmpq {},{}", reg, mem);
+        
+        // merge use vec
+        id2.push(id1);
+        loc2.push(loc1);
+        
+        self.add_asm_inst(
+            asm,
+            vec![],
+            vec![],
+            id2,
+            loc2,
+            true
+        )
     }
     
     fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
@@ -745,6 +811,7 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
     
+    // load
     fn emit_mov_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: mov {} -> {}", src, dest);
         
@@ -763,6 +830,7 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
     
+    // store
     fn emit_mov_mem64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: mov {} -> {}", src, dest);
         
@@ -770,6 +838,7 @@ impl CodeGenerator for ASMCodeGen {
         let (mem, mut id2, mut loc2) = self.prepare_mem(dest, 4 + 1 + reg.len() + 1);
         
         // the register we used for the memory location is counted as 'use'
+        // use the vec from mem as 'use' (push use reg from src to it)
         id2.push(id1);
         loc2.push(loc1);
         
@@ -837,6 +906,59 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
+    
+    fn emit_lea_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: lea {} -> {}", src, dest);
+        
+        let (mem, id1, loc1) = self.prepare_mem(src, 4 + 1);
+        let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
+        
+        let asm = format!("leaq {},{}", mem, reg);
+        
+        self.add_asm_inst(
+            asm,
+            vec![id2],
+            vec![loc2],
+            id1,
+            loc1,
+            true
+        ) 
+    }
+    
+    fn emit_and_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
+        trace!("emit: and {}, {} -> {}", src, dest, dest);
+        
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("andq ${},{}", src, reg1);
+        
+        self.add_asm_inst(
+            asm,
+            vec![id1],
+            vec![loc1.clone()],
+            vec![id1],
+            vec![loc1],
+            false
+        )
+    }
+    
+    fn emit_and_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: and {}, {} -> {}", src, dest, dest);
+        
+        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1); 
+
+        let asm = format!("andq {},{}", reg1, reg2);
+        
+        self.add_asm_inst(
+            asm,
+            vec![id2],
+            vec![loc2.clone()],
+            vec![id1, id2],
+            vec![loc1, loc2],
+            false
+        )
+    }    
     
     fn emit_add_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
@@ -924,8 +1046,7 @@ impl CodeGenerator for ASMCodeGen {
         unimplemented!()
     }
     
-    fn emit_jmp(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jmp(&mut self, dest_name: MuName) {
         trace!("emit: jmp {}", dest_name);
         
         // symbolic label, we dont need to patch it
@@ -933,80 +1054,70 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_branch(asm, dest_name)
     }
     
-    fn emit_je(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_je(&mut self, dest_name: MuName) {
         trace!("emit: je {}", dest_name);
         
         let asm = format!("je {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jne(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jne(&mut self, dest_name: MuName) {
         trace!("emit: jne {}", dest_name);
         
         let asm = format!("jne {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);
     }
     
-    fn emit_ja(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_ja(&mut self, dest_name: MuName) {
         trace!("emit: ja {}", dest_name);
         
         let asm = format!("ja {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);
     }
     
-    fn emit_jae(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jae(&mut self, dest_name: MuName) {
         trace!("emit: jae {}", dest_name);
         
         let asm = format!("jae {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jb(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jb(&mut self, dest_name: MuName) {
         trace!("emit: jb {}", dest_name);
         
         let asm = format!("jb {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);
     }
     
-    fn emit_jbe(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jbe(&mut self, dest_name: MuName) {
         trace!("emit: jbe {}", dest_name);
         
         let asm = format!("jbe {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jg(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jg(&mut self, dest_name: MuName) {
         trace!("emit: jg {}", dest_name);
         
         let asm = format!("jg {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jge(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jge(&mut self, dest_name: MuName) {
         trace!("emit: jge {}", dest_name);
         
         let asm = format!("jge {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jl(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jl(&mut self, dest_name: MuName) {
         trace!("emit: jl {}", dest_name);
         
         let asm = format!("jl {}", self.asm_block_label(dest_name.clone()));
         self.add_asm_branch2(asm, dest_name);        
     }
     
-    fn emit_jle(&mut self, dest: &Block) {
-        let dest_name = dest.name().unwrap();
+    fn emit_jle(&mut self, dest_name: MuName) {
         trace!("emit: jle {}", dest_name);
         
         let asm = format!("jle {}", self.asm_block_label(dest_name.clone()));

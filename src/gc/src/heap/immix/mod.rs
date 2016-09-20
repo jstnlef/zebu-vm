@@ -7,6 +7,8 @@ pub use self::immix_mutator::ImmixMutatorGlobal;
 pub use self::immix_space::LineMarkTable as ImmixLineMarkTable;
 pub use self::immix_mutator::MUTATORS;
 pub use self::immix_mutator::N_MUTATORS;
+pub use self::immix_mutator::CURSOR_OFFSET;
+pub use self::immix_mutator::LIMIT_OFFSET;
 
 use std::sync::Arc;
 use std::sync::RwLock;

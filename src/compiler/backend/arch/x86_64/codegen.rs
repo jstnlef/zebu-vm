@@ -19,10 +19,15 @@ pub trait CodeGenerator {
     fn emit_cmp_r64_mem64(&mut self, op1: &P<Value>, op2: &P<Value>);
     
     fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: u32);
-    fn emit_mov_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_mov_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>); // load
     fn emit_mov_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_mov_mem64_r64(&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_mov_mem64_r64(&mut self, dest: &P<Value>, src: &P<Value>); // store
     fn emit_mov_mem64_imm32(&mut self, dest: &P<Value>, src: u32);
+    
+    fn emit_lea_r64(&mut self, dest: &P<Value>, src: &P<Value>);
+    
+    fn emit_and_r64_imm32(&mut self, dest: &P<Value>, src: u32);
+    fn emit_and_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>);
     
     fn emit_add_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>);
     fn emit_add_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
@@ -35,17 +40,17 @@ pub trait CodeGenerator {
     fn emit_mul_r64(&mut self, src: &P<Value>);
     fn emit_mul_mem64(&mut self, src: &P<Value>);
     
-    fn emit_jmp(&mut self, dest: &Block);
-    fn emit_je(&mut self, dest: &Block);
-    fn emit_jne(&mut self, dest: &Block);
-    fn emit_ja(&mut self, dest: &Block);
-    fn emit_jae(&mut self, dest: &Block);
-    fn emit_jb(&mut self, dest: &Block);
-    fn emit_jbe(&mut self, dest: &Block);
-    fn emit_jg(&mut self, dest: &Block);
-    fn emit_jge(&mut self, dest: &Block);
-    fn emit_jl(&mut self, dest: &Block);
-    fn emit_jle(&mut self, dest: &Block);
+    fn emit_jmp(&mut self, dest: MuName);
+    fn emit_je(&mut self, dest: MuName);
+    fn emit_jne(&mut self, dest: MuName);
+    fn emit_ja(&mut self, dest: MuName);
+    fn emit_jae(&mut self, dest: MuName);
+    fn emit_jb(&mut self, dest: MuName);
+    fn emit_jbe(&mut self, dest: MuName);
+    fn emit_jg(&mut self, dest: MuName);
+    fn emit_jge(&mut self, dest: MuName);
+    fn emit_jl(&mut self, dest: MuName);
+    fn emit_jle(&mut self, dest: MuName);
     
     fn emit_call_near_rel32(&mut self, func: MuName);
     fn emit_call_near_r64(&mut self, func: &P<Value>);
