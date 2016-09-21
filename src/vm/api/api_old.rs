@@ -3,6 +3,8 @@
 use ast::ptr::*;
 use ast::ir::*;
 use ast::types::*;
+#[macro_use]
+use vm::api;
 use vm::VM;
 use vm::bundle::*;
 
@@ -26,7 +28,7 @@ macro_rules! api {
     }
 }
 
-fn unimplemented_api() {
+pub fn unimplemented_api() {
     unimplemented!()
 }
 
