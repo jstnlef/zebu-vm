@@ -5,6 +5,8 @@ use utils::{Address, ObjectReference};
 use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
 use utils::bit_utils;
 
+pub const OBJECT_HEADER_SIZE : usize = 0;
+
 pub fn init() {
     MARK_STATE.store(1, atomic::Ordering::SeqCst);
 }

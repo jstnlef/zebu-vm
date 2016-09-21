@@ -36,30 +36,21 @@ fn test_instruction_new() {
         compiler.compile(&mut func_ver);
     }
     
+    vm.make_primordial_thread(func_id, vec![]);
     backend::emit_context(&vm);
     
-    let dylib = aot::link_dylib(vec![Mu("fac")], "liballoc_new.dylib");
-    
-    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
-    unsafe {
-        let alloc_new : libloading::Symbol<unsafe extern fn() -> u64> = lib.get(b"alloc_new").unwrap();
-        
-        // before invoking it, we need to disguise current thread as mu thread (having an allocator)
-        fake_mutator_for_cur_thread(&vm);
-        
-        let ret = alloc_new();
-        println!("return value from alloc_new is {}", ret);
-        assert!(ret == 1);
-    }
+    let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test");
+    aot::execute(executable);
 }
 
+#[allow(dead_code)]
 fn fake_mutator_for_cur_thread(vm: &VM) {
     // init gc
     const IMMIX_SPACE_SIZE : ByteSize = 500 << 20;
     const LO_SPACE_SIZE    : ByteSize = 500 << 20;
     mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
     
-    let mut mutator = mm::new_mutator();
+    let mutator = mm::new_mutator();
     
     let muthread : *mut MuThread = Box::into_raw(Box::new(MuThread::fake_thread(vm.next_id(), mutator)));
     
@@ -87,7 +78,7 @@ pub fn alloc_new() -> VM {
     vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());
     
     // .funcsig @alloc_new_sig = () -> (@int64)
-    let func_sig = vm.declare_func_sig(vm.next_id(), vec![], vec![type_def_int64.clone()]);
+    let func_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![]);
     vm.set_name(func_sig.as_entity(), "alloc_new_sig".to_string());
 
     // .funcdecl @alloc_new <@alloc_new_sig>
@@ -121,11 +112,11 @@ pub fn alloc_new() -> VM {
         v: Instruction_::GetIRef(0)
     });
     
-    // STORE <@int_64> @a @int_64_1
+    // STORE <@int_64> @a_iref @int_64_1
     let blk_0_const_int64_1 = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
     let blk_0_inst2 = func_ver.new_inst(vm.next_id(), Instruction{
         value: None,
-        ops: RwLock::new(vec![blk_0_a.clone(), blk_0_const_int64_1.clone()]),
+        ops: RwLock::new(vec![blk_0_a_iref.clone(), blk_0_const_int64_1.clone()]),
         v: Instruction_::Store{
             is_ptr: false,
             order: MemoryOrder::Relaxed,
@@ -134,23 +125,23 @@ pub fn alloc_new() -> VM {
         }
     });    
         
-    // %x = LOAD <@int_64> @a_iref
-    let blk_0_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_0_x.as_entity(), "blk_0_x".to_string());
-    let blk_0_inst3 = func_ver.new_inst(vm.next_id(), Instruction{
-        value: Some(vec![blk_0_x.clone_value()]),
-        ops: RwLock::new(vec![blk_0_a_iref.clone()]),
-        v: Instruction_::Load{
-            is_ptr: false,
-            order: MemoryOrder::Relaxed,
-            mem_loc: 0
-        }
-    });
+//    // %x = LOAD <@int_64> @a_iref
+//    let blk_0_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
+//    vm.set_name(blk_0_x.as_entity(), "blk_0_x".to_string());
+//    let blk_0_inst3 = func_ver.new_inst(vm.next_id(), Instruction{
+//        value: Some(vec![blk_0_x.clone_value()]),
+//        ops: RwLock::new(vec![blk_0_a_iref.clone()]),
+//        v: Instruction_::Load{
+//            is_ptr: false,
+//            order: MemoryOrder::Relaxed,
+//            mem_loc: 0
+//        }
+//    });
     
-    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction {
         value: None,
-        ops: RwLock::new(vec![blk_0_x.clone()]),
-        v: Instruction_::Return(vec![0])
+        ops: RwLock::new(vec![]),
+        v: Instruction_::ThreadExit
     });
     
     let blk_0_content = BlockContent {

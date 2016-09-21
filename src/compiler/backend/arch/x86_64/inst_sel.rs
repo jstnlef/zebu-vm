@@ -426,7 +426,12 @@ impl <'a> InstructionSelection {
                         let ref op = ops[op_index];
                         let res_tmp = self.emit_get_result(node);
                         
-                        self.emit_lea_base_offset(&res_tmp, &op.clone_value(), 0, vm);
+                        let hdr_size = mm::objectmodel::OBJECT_HEADER_SIZE;
+                        if hdr_size == 0 {
+                            self.emit_general_move(&op, &res_tmp, f_content, f_context, vm);
+                        } else {
+                            self.emit_lea_base_offset(&res_tmp, &op.clone_value(), hdr_size as i32, vm);
+                        }
                     }
                     
                     Instruction_::ThreadExit => {
@@ -434,7 +439,7 @@ impl <'a> InstructionSelection {
                         
                         // get thread local and add offset to get sp_loc
                         let tl = self.emit_get_threadlocal(f_content, f_context, vm);
-                        self.backend.emit_add_r64_imm32(&tl, *thread::NATIVE_SP_LOC_OFFSET as u32);
+                        self.backend.emit_add_r64_imm32(&tl, *thread::NATIVE_SP_LOC_OFFSET as i32);
                         
                         self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, f_content, f_context, vm);
                     }
@@ -456,35 +461,35 @@ impl <'a> InstructionSelection {
                             // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
                             let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
                             let tmp_cursor = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
-                            self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as u32, vm);
+                            self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
                             
                             // alignup cursor (cursor + align - 1 & !(align - 1))
                             // ASM: lea align-1(%cursor) -> %start
-                            let align = ty_info.alignment;
+                            let align = ty_info.alignment as i32;
                             let tmp_start = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
-                            self.emit_lea_base_offset(&tmp_start, &tmp_tl, (align - 1) as u32, vm);
+                            self.emit_lea_base_offset(&tmp_start, &tmp_cursor, align - 1, vm);
                             // ASM: and %start, !(align-1) -> %start
-                            self.backend.emit_and_r64_imm32(&tmp_start, !(align-1) as u32);
+                            self.backend.emit_and_r64_imm32(&tmp_start, !(align - 1));
                             
                             // bump cursor
                             // ASM: lea size(%start) -> %end
                             let tmp_end = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
-                            self.emit_lea_base_offset(&tmp_end, &tmp_start, ty_size as u32, vm);
+                            self.emit_lea_base_offset(&tmp_end, &tmp_start, ty_size as i32, vm);
                             
                             // check with limit
                             // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
                             let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
-                            let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as u32, runtime::ADDRESS_TYPE.clone(), vm);
+                            let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, runtime::ADDRESS_TYPE.clone(), vm);
                             self.backend.emit_cmp_r64_mem64(&tmp_end, &mem_limit);
                             
                             // branch to slow path if end > limit
-                            // ASM: jg alloc_slow
+                            // ASM: jl alloc_slow
                             let slowpath = format!("{}_allocslow", node.id());
-                            self.backend.emit_jg(slowpath.clone());
+                            self.backend.emit_jl(slowpath.clone());
                             
                             // update cursor
-                            // ASM: mov %end -> [%tl + allocator_offset + limit_offset]
-                            self.emit_store_base_offset(&tmp_tl, limit_offset as u32, &tmp_end, vm);
+                            // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
+                            self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
                             
                             // put start as result
                             // ASM: mov %start -> %result
@@ -504,19 +509,26 @@ impl <'a> InstructionSelection {
                             self.current_block = Some(slowpath.clone());
                             self.backend.start_block(slowpath.clone());
                             self.backend.set_block_livein(slowpath.clone(), &vec![]); 
-                            
+
+                            // arg1: allocator address                            
+                            let allocator_offset = *thread::ALLOCATOR_OFFSET;
+                            let tmp_allocator = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
+                            self.emit_lea_base_offset(&tmp_allocator, &tmp_tl, allocator_offset as i32, vm);
+                            // arg2: size                            
                             let const_size = self.make_value_int_const(ty_size as u64, vm);
+                            // arg3: align
                             let const_align= self.make_value_int_const(ty_align as u64, vm);
+                            
                             let rets = self.emit_runtime_entry(
                                 &entrypoints::ALLOC_SLOW,
-                                vec![const_size, const_align],
+                                vec![tmp_allocator, const_size, const_align],
                                 Some(vec![
                                     tmp_res.clone()
                                 ]),
                                 f_content, f_context, vm
                             );
                             
-                            // end block (no liveout)
+                            // end block (no liveout other than result)
                             self.backend.end_block(slowpath.clone());
                             self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
                             
@@ -540,7 +552,7 @@ impl <'a> InstructionSelection {
         f_context.make_temporary(vm.next_id(), ty).clone_value()
     }
     
-    fn make_memory_op_base_offset (&mut self, base: &P<Value>, offset: u32, ty: P<MuType>, vm: &VM) -> P<Value> {
+    fn make_memory_op_base_offset (&mut self, base: &P<Value>, offset: i32, ty: P<MuType>, vm: &VM) -> P<Value> {
         P(Value{
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: ty.clone(),
@@ -561,19 +573,19 @@ impl <'a> InstructionSelection {
         })
     } 
     
-    fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: u32, vm: &VM) {
+    fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
         
         self.backend.emit_mov_r64_mem64(dest, &mem);
     }
     
-    fn emit_store_base_offset (&mut self, base: &P<Value>, offset: u32, src: &P<Value>, vm: &VM) {
+    fn emit_store_base_offset (&mut self, base: &P<Value>, offset: i32, src: &P<Value>, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, src.ty.clone(), vm);
         
         self.backend.emit_mov_mem64_r64(&mem, src);
     }
     
-    fn emit_lea_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: u32, vm: &VM) {
+    fn emit_lea_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, runtime::ADDRESS_TYPE.clone(), vm);
         
         self.backend.emit_lea_r64(dest, &mem);
@@ -628,7 +640,7 @@ impl <'a> InstructionSelection {
                 }
             } else if arg.is_int_const() {
                 if x86_64::is_valid_x86_imm(arg) {                
-                    let int_const = arg.extract_int_const() as u32;
+                    let int_const = arg.extract_int_const() as i32;
                     
                     if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
                         self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], int_const);
@@ -639,6 +651,14 @@ impl <'a> InstructionSelection {
                     }
                 } else {
                     // put the constant to memory
+                    unimplemented!()
+                }
+            } else if arg.is_mem() {
+                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                    self.backend.emit_mov_r64_mem64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
+                    gpr_arg_count += 1;
+                } else {
+                    // use stack to pass argument
                     unimplemented!()
                 }
             } else {
@@ -916,12 +936,12 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_get_iimm(&mut self, op: &P<TreeNode>) -> u32 {
+    fn emit_get_iimm(&mut self, op: &P<TreeNode>) -> i32 {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::Constant(Constant::Int(val)) => {
-                        val as u32
+                        val as i32
                     },
                     _ => panic!("expected iimm")
                 }
@@ -964,7 +984,25 @@ impl <'a> InstructionSelection {
                     Value_::Constant(_) => unimplemented!()
                 }
             }
-            TreeNode_::Instruction(_) => unimplemented!()
+            TreeNode_::Instruction(_) => self.emit_get_mem_from_inst(op, vm)
+        }
+    }
+    
+    fn emit_get_mem_from_inst(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
+        match op.v {
+            TreeNode_::Instruction(ref inst) => {
+                let ref ops = inst.ops.read().unwrap();
+                
+                match inst.v {
+                    Instruction_::GetIRef(op_index) => {
+                        let ref op = ops[op_index];
+                        
+                        self.make_memory_op_base_offset(&op.clone_value(), mm::objectmodel::OBJECT_HEADER_SIZE as i32, runtime::ADDRESS_TYPE.clone(), vm) 
+                    }
+                    _ => unimplemented!()
+                }
+            },
+            _ => panic!("expecting a instruction that yields a memory address")
         }
     }
     

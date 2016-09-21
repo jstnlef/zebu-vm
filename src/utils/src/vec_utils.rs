@@ -12,6 +12,25 @@
         a == b
     }
     
+    pub fn is_identical_ignore_order<T: Ord + Clone> (vec: &Vec<T>, vec2: &Vec<T>) -> bool {
+        if vec.len() != vec2.len() {
+            return false;
+        }
+        
+        let mut vec = vec.to_vec();
+        let mut vec2 = vec2.to_vec();
+        vec.sort();
+        vec2.sort();
+        
+        for i in 0..vec.len() {
+            if vec[i] != vec2[i] {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
     pub fn as_str<T: fmt::Display>(vec: &Vec<T>) -> String {
         let mut ret = String::new();
         for i in 0..vec.len() {
@@ -46,6 +65,12 @@
         while !vec2.is_empty() {
             let val = vec2.pop().unwrap();
             add_unique(vec, val);
+        }
+    }
+    
+    pub fn append_clone_unique<T: PartialEq + Clone> (vec: &mut Vec<T>, vec2: &Vec<T>) {
+        for ele in vec2 {
+            add_unique(vec, ele.clone());
         }
     }
 

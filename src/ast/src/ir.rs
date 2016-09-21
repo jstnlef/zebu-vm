@@ -459,6 +459,13 @@ pub struct Value {
 }
 
 impl Value {
+    pub fn is_mem(&self) -> bool {
+        match self.v {
+            Value_::Memory(_) => true,
+            _ => false
+        }
+    }
+    
     pub fn is_int_reg(&self) -> bool {
         match self.v {
             Value_::SSAVar(_) => {

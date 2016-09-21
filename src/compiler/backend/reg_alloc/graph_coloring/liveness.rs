@@ -260,8 +260,66 @@ pub fn is_machine_reg(reg: MuID) -> bool {
     }
 }
 
-fn build_live_set(cf: &CompiledFunction, func: &MuFunctionVersion) {
+#[allow(unused_variables)]
+fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
+    let n_insts = cf.mc.number_of_insts();
     
+    let mut livein  : Vec<Vec<MuID>> = vec![vec![]; n_insts];
+    let mut liveout : Vec<Vec<MuID>> = vec![vec![]; n_insts];    
+    
+    let mut is_changed = true;
+    
+    while is_changed {
+        // reset
+        is_changed = false;
+        
+        for n in 0..n_insts {
+            let in_set_old = livein[n].to_vec(); // copy to new vec
+            let out_set_old = liveout[n].to_vec();
+            
+            // in[n] <- use[n] + (out[n] - def[n])
+            // (1) in[n] = use[n]
+            let mut in_set_new = vec![];
+            in_set_new.extend_from_slice(&cf.mc.get_inst_reg_uses(n));
+            // (2) diff = out[n] - def[n]
+            let mut diff = liveout[n].to_vec();
+            for def in cf.mc.get_inst_reg_defines(n) {
+                vec_utils::remove_value(&mut diff, *def);
+            }
+            // (3) in[n] = in[n] + diff
+            vec_utils::append_unique(&mut in_set_new, &mut diff);
+            
+            // update livein[n]
+            livein[n].clear();
+            livein[n].extend_from_slice(&in_set_new);
+            
+            // out[n] <- union(in[s] for every successor s of n)
+            let mut union = vec![];
+            for s in cf.mc.get_succs(n) {
+                vec_utils::append_clone_unique(&mut union, &livein[*s]);
+            }
+            
+            // update liveout[n]
+            liveout[n].clear();
+            liveout[n].extend_from_slice(&union);
+            
+            let n_changed = !vec_utils::is_identical_ignore_order(&livein[n], &in_set_old)
+                || !vec_utils::is_identical_ignore_order(&liveout[n], &out_set_old);
+            is_changed = is_changed || n_changed;
+        }
+    }
+    
+    for block in cf.mc.get_all_blocks().to_vec() {
+        if cf.mc.get_ir_block_livein(&block).is_none() {
+            let start_inst = cf.mc.get_block_range(&block).unwrap().start;
+            cf.mc.set_ir_block_livein(&block, livein[start_inst].to_vec());
+        }
+        
+        if cf.mc.get_ir_block_liveout(&block).is_none() {
+            let end_inst = cf.mc.get_block_range(&block).unwrap().end;
+            cf.mc.set_ir_block_liveout(&block, liveout[end_inst].to_vec());
+        }
+    }
 }
 
 // from Tailoring Graph-coloring Register Allocation For Runtime Compilation, Figure 4

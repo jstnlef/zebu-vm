@@ -37,6 +37,8 @@ mod aot {
     use std::process::Command;
     use std::process::Output;
     
+    const CC : &'static str = "clang";
+    
     fn exec (mut cmd: Command) -> Output {
         println!("executing: {:?}", cmd); 
         let output = cmd.output().expect("failed to execute");
@@ -50,7 +52,7 @@ mod aot {
     } 
     
     fn link_executable_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
-        let mut gcc = Command::new("gcc");
+        let mut gcc = Command::new(CC);
         
         for file in files {
             println!("link with {:?}", file.as_path());
@@ -70,7 +72,7 @@ mod aot {
         let mut object_files : Vec<PathBuf> = vec![];
         
         for file in files {
-            let mut gcc = Command::new("gcc");
+            let mut gcc = Command::new(CC);
             
             gcc.arg("-c");
             gcc.arg("-fpic");
@@ -86,8 +88,11 @@ mod aot {
             exec(gcc);
         }
         
-        let mut gcc = Command::new("gcc");
+        let mut gcc = Command::new(CC);
         gcc.arg("-shared");
+        gcc.arg("-Wl");
+        gcc.arg("-undefined");
+        gcc.arg("dynamic_lookup");
         for obj in object_files {
             gcc.arg(obj.as_os_str());
         }

@@ -425,7 +425,7 @@ impl ASMCodeGen {
         let mut locs : Vec<ASMLocation> = vec![];
         let mut result_str : String = "".to_string();
         
-        let mut loc_cursor : usize = 0;
+        let mut loc_cursor : usize = loc;
         
         match op.v {
             // offset(base,index,scale)
@@ -755,7 +755,7 @@ impl CodeGenerator for ASMCodeGen {
         );
     }
     
-    fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: u32) {
+    fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: i32) {
         trace!("emit: cmp {} {}", op1, op2);
         
         let (reg1, id1, loc1) = self.prepare_reg(op1, 4 + 1 + 1 + op2.to_string().len() + 1);
@@ -794,7 +794,7 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
     
-    fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
+    fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
         trace!("emit: mov {} -> {}", src, dest);
         
         let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
@@ -854,7 +854,7 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
     
-    fn emit_mov_mem64_imm32(&mut self, dest: &P<Value>, src: u32) {
+    fn emit_mov_mem64_imm32(&mut self, dest: &P<Value>, src: i32) {
         trace!("emit: mov {} -> {}", src, dest);
         
         let (mem, id, loc) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
@@ -925,7 +925,7 @@ impl CodeGenerator for ASMCodeGen {
         ) 
     }
     
-    fn emit_and_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
+    fn emit_and_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
         trace!("emit: and {}, {} -> {}", src, dest, dest);
         
         let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
@@ -965,7 +965,7 @@ impl CodeGenerator for ASMCodeGen {
         unimplemented!()
     }
     
-    fn emit_add_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
+    fn emit_add_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
         
         let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
@@ -1005,7 +1005,7 @@ impl CodeGenerator for ASMCodeGen {
         unimplemented!()
     }
     
-    fn emit_sub_r64_imm32(&mut self, dest: &P<Value>, src: u32) {
+    fn emit_sub_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
         trace!("emit: sub {}, {} -> {}", dest, src, dest);
         
         let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
