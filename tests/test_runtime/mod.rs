@@ -1,4 +1,3 @@
-mod test_thread;
 mod test_gc_harness;
 mod test_gc;
 

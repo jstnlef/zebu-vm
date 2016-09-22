@@ -68,6 +68,7 @@ pub fn sum() -> VM {
 
     let blk_entry_content = BlockContent {
         args: vec![blk_entry_n.clone_value()],
+        exn_arg: None,
         body: vec![blk_entry_term],
         keepalives: None
     };
@@ -131,6 +132,7 @@ pub fn sum() -> VM {
 
     let blk_head_content = BlockContent {
         args: vec![blk_head_n.clone_value(), blk_head_s.clone_value(), blk_head_i.clone_value()],
+        exn_arg: None,
         body: vec![blk_head_inst0, blk_head_inst1, blk_head_inst2, blk_head_term],
         keepalives: None
     };
@@ -149,6 +151,7 @@ pub fn sum() -> VM {
 
     let blk_ret_content = BlockContent {
         args: vec![blk_ret_s.clone_value()],
+        exn_arg: None,
         body: vec![blk_ret_term],
         keepalives: None
     };
@@ -263,6 +266,7 @@ pub fn factorial() -> VM {
 
     let blk_0_content = BlockContent {
         args: vec![blk_0_n_3.clone_value()],
+        exn_arg: None,
         body: vec![blk_0_inst0, blk_0_term],
         keepalives: None
     };
@@ -281,6 +285,7 @@ pub fn factorial() -> VM {
 
     let blk_2_content = BlockContent {
         args: vec![blk_2_v53.clone_value()],
+        exn_arg: None,
         body: vec![blk_2_term],
         keepalives: None
     };
@@ -337,6 +342,7 @@ pub fn factorial() -> VM {
 
     let blk_1_content = BlockContent {
         args: vec![blk_1_n_3.clone_value()],
+        exn_arg: None,
         body: vec![blk_1_inst0, blk_1_inst1, blk_1_inst2, blk_1_term],
         keepalives: None
     };
@@ -439,6 +445,7 @@ pub fn global_access() -> VM {
     
     let blk_0_content = BlockContent {
         args: vec![],
+        exn_arg: None,
         body: vec![blk_0_inst0, blk_0_inst1, blk_0_term],
         keepalives: None
     };

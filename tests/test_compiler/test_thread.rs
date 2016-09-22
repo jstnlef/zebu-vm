@@ -63,6 +63,7 @@ fn primordial_main() -> VM {
     
     let blk_entry_content = BlockContent {
         args: vec![],
+        exn_arg: None,
         body: vec![thread_exit],
         keepalives: None
     };

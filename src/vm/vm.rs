@@ -344,6 +344,14 @@ impl <'a> VM {
         ret
     }
     
+    pub fn get_const(&self, id: MuID) -> P<Value> {
+        let const_lock = self.constants.read().unwrap();
+        match const_lock.get(&id) {
+            Some(ret) => ret.clone(),
+            None => panic!("cannot find const #{}", id)
+        }
+    }
+    
     pub fn declare_global(&self, id: MuID, ty: P<MuType>) -> P<Value> {
         let global = P(Value{
             hdr: MuEntityHeader::unnamed(id),
@@ -368,6 +376,14 @@ impl <'a> VM {
         ty
     }
     
+    pub fn get_type(&self, id: MuID) -> P<MuType> {
+        let type_lock = self.types.read().unwrap();
+        match type_lock.get(&id) {
+            Some(ret) => ret.clone(),
+            None => panic!("cannot find type #{}", id)
+        }
+    }    
+    
     pub fn declare_func_sig(&self, id: MuID, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
         let mut func_sigs = self.func_sigs.write().unwrap();
         debug_assert!(!func_sigs.contains_key(&id));
@@ -376,6 +392,14 @@ impl <'a> VM {
         func_sigs.insert(id, ret.clone());
         
         ret
+    }
+    
+    pub fn get_func_sig(&self, id: MuID) -> P<MuFuncSig> {
+        let func_sig_lock = self.func_sigs.read().unwrap();
+        match func_sig_lock.get(&id) {
+            Some(ret) => ret.clone(),
+            None => panic!("cannot find func sig #{}", id)
+        }
     }
     
     pub fn declare_func (&self, func: MuFunction) {

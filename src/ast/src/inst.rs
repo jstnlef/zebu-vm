@@ -194,7 +194,7 @@ pub enum Instruction_ {
     // terminal instruction
     Return(Vec<OpIndex>),
     ThreadExit, // TODO:  common inst
-    Throw(Vec<OpIndex>),
+    Throw(OpIndex),
     TailCall(CallData),
     Branch1(Destination),
     Branch2{
@@ -298,7 +298,7 @@ impl Instruction_ {
 
             &Instruction_::Return(ref vals) => format!("RET {}", op_vector_str(vals, ops)),
             &Instruction_::ThreadExit => "THREADEXIT".to_string(),
-            &Instruction_::Throw(ref vals) => format!("THROW {}", op_vector_str(vals, ops)),
+            &Instruction_::Throw(ref val) => format!("THROW {}", val),
             &Instruction_::TailCall(ref call) => format!("TAILCALL {}", call.debug_str(ops)),
             &Instruction_::Branch1(ref dest) => format!("BRANCH {}", dest.debug_str(ops)),
             &Instruction_::Branch2{cond, ref true_dest, ref false_dest, ..} => {

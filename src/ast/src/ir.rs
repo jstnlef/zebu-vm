@@ -305,6 +305,7 @@ pub enum EdgeKind {
 #[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
+    pub exn_arg: Option<P<Value>>,
     pub body: Vec<Box<TreeNode>>,
     pub keepalives: Option<Vec<P<Value>>>
 }

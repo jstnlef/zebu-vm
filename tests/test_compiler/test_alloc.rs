@@ -146,6 +146,7 @@ pub fn alloc_new() -> VM {
     
     let blk_0_content = BlockContent {
         args: vec![],
+        exn_arg: None,
         body: vec![blk_0_inst0, blk_0_inst1, blk_0_inst2, blk_0_term],
         keepalives: None
     };
