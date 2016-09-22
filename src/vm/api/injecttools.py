@@ -35,7 +35,7 @@ def find_line(lines: List[str], substr: Predicate, start: int = 0) -> int:
         if pred(lines[i], substr):
             return i
 
-    raise KeyError("Not found: " + str(substr) + "\n text:" + str(lines) )
+    raise Exception("Not found: " + str(substr) + "\n text:" + str(lines) )
 
 def extract_lines(parent: str, begin: Predicate, end: Predicate) -> str:
     """

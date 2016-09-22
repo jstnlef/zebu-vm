@@ -4,3 +4,4 @@ emit/*
 Cargo.lock
 *.log
 *.DS_Store
+*.swp
