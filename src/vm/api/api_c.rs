@@ -11,9 +11,9 @@
 use std::os::raw::*;
 
 // some hand-written function pointer types
-pub type C_MuCFP_Func = extern fn();
-pub type C_MuValuesFreer_Func = extern fn(*mut CMuValue, CMuCPtr);
-pub type C_MuTrapHandler_Func = extern fn(
+pub type CMuCFP = extern fn();
+pub type CMuValuesFreer = extern fn(*mut CMuValue, CMuCPtr);
+pub type CMuTrapHandler = extern fn(
     // input parameters
     *mut CMuCtx,
     CMuThreadRefValue,
@@ -54,14 +54,11 @@ pub type CMuCString = *mut c_char;
 pub type CMuID = u32;
 pub type CMuName = CMuCString;
 pub type CMuCPtr = *mut c_void;
-pub type CMuCFP = *mut C_MuCFP_Func;
 pub type CMuBool = c_int;
 pub type CMuArraySize = usize;
 pub type CMuWPID = u32;
 pub type CMuFlag = u32;
 pub type CMuTrapHandlerResult = CMuFlag;
-pub type CMuValuesFreer = *mut C_MuValuesFreer_Func;
-pub type CMuTrapHandler = *mut C_MuTrapHandler_Func;
 pub type CMuBinOpStatus = CMuFlag;
 pub type CMuBinOptr = CMuFlag;
 pub type CMuCmpOptr = CMuFlag;

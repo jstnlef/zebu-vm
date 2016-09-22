@@ -487,6 +487,10 @@ def generate_enums(ast):
 def generate_types(ast):
     types = []
     for c, p in ast["typedefs_order"]:
+        if p.startswith("_"):
+            # Such types are function types. The muapiparser is not smart enough
+            # to parse C funcptr types, so we define these types manually.
+            continue
         rc = to_rust_type(c)
         rp = to_rust_type(p)
         types.append("pub type {} = {};".format(rc, rp))
