@@ -7,6 +7,7 @@
 
 // This file is for interfacing with C, so it is not idiomatic Rust code.
 #![allow(non_camel_case_types)]
+#![allow(dead_code)]
 
 use std::os::raw::*;
 

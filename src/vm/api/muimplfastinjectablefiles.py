@@ -13,4 +13,6 @@ muapi_h_path = os.path.join(_my_dir, "muapi.h")
 injectable_files = injecttools.make_injectable_file_set(_mu_impl_fast_root, [
     ("api_c.rs", "src/vm/api/api_c.rs",
         ["Types", "Structs", "Enums"]),
+    ("api_bridge.rs", "src/vm/api/api_bridge.rs",
+        ["Fillers", "Forwarders"]),
     ])

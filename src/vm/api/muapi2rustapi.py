@@ -11,7 +11,7 @@ import sys
 import os, os.path
 import re
 import tempfile
-from typing import Tuple
+from typing import Tuple, List
 
 import muapiparser
 import injecttools
@@ -405,16 +405,20 @@ def generate_enum_converters(ast):
 
     return "\n".join(lines)
 
-def generate_things(ast):
-    stubs = generate_stubs(ast)
+__rust_kw_rewrite = {
+        "ref": "reff",
+        }
 
-    enums = generate_enums(ast)
+def avoid_rust_kws(name):
+    return __rust_kw_rewrite.get(name, name)
 
-    enum_convs = generate_enum_converters(ast)
+def filler_name_for(struct_name):
+    return "_fill__" + struct_name
 
-    return "\n".join([stubs, enums, enum_convs])
+def forwarder_name_for(struct_name, meth_name):
+    return "_forwarder__" + struct_name + "__" + meth_name
 
-def generate_method_field(meth):
+def generate_struct_field(meth) -> str:
     name    = meth['name']
     params  = meth['params']
     ret_ty  = meth['ret_ty']
@@ -426,24 +430,123 @@ def generate_method_field(meth):
         rust_param_tys.append(rust_ty)
 
     rust_ret_ty = None if ret_ty == "void" else to_rust_type(ret_ty)
+    ret_ty_text = "" if rust_ret_ty == None else "-> {}".format(rust_ret_ty)
     
     field_def = "    pub {}: fn({}){},".format(
-            name, ", ".join(rust_param_tys),
-            "" if rust_ret_ty == None else "-> {}".format(rust_ret_ty))
+            name, ", ".join(rust_param_tys), ret_ty_text)
 
     return field_def
 
-def generate_struct(st) -> str:
+def generate_forwarder(st, meth) -> str:
+    name    = meth['name']
+    params  = meth['params']
+    ret_ty  = meth['ret_ty']
+
+    stmts = []
+
+    forwarder_name = forwarder_name_for(st["name"], name)
+
+    # formal parameter list
+
+    param_nts = []
+
+    for param in params:
+        cpn = param['name']
+        rpn = avoid_rust_kws(cpn)
+        cty = param['type']
+        rty = to_rust_type(cty)
+        param_nts.append("{}: {}".format(rpn, rty))
+
+    formal_param_list = ", ".join(param_nts)
+    
+    # return type
+    
+    rust_ret_ty = None if ret_ty == "void" else to_rust_type(ret_ty)
+    ret_ty_text = "" if rust_ret_ty == None else "-> {}".format(rust_ret_ty)
+
+    # preparing args
+    for param in params:
+        is_sz_param = param.get("is_sz_param", False)
+
+        if is_sz_param:
+            continue
+
+        cpn = param['name']
+        rpn = avoid_rust_kws(cpn)
+        cty = param['type']
+        rty = to_rust_type(cty)
+
+        arg_name = "_arg_" + rpn
+
+        array_sz_param = param.get("array_sz_param", None)
+        is_optional    = param.get("is_optional", False)
+
+        if array_sz_param != None:
+            assert cty.endswith("*")
+            c_base_ty = cty[:-1]
+
+            sz_cpn = array_sz_param
+            sz_rpn = avoid_rust_kws(sz_cpn)
+            if type_is_ptr(c_base_ty):
+                converter = "from_ptr_array({}, {})".format(
+                        rpn, sz_rpn)
+            elif type_is_node(c_base_ty):
+                converter = "from_MuID_array({}, {})".format(
+                        rpn, sz_rpn)
+            else:
+                converter = "from_{}_array({}, {})".format(
+                        c_base_ty, rpn, sz_rpn)
+        elif is_optional:
+            if type_is_ptr(cty):
+                converter = "from_ptr_optional({})".format(rpn)
+            elif type_is_node(cty):
+                converter = "from_node_optional({})".format(rpn)
+            elif cty in ["MuCString", "MuID"]:
+                converter = "from_{}_optional({})".format(cty, rpn)
+            else:
+                raise Exception("Not expecting {} to be optional".format(cty))
+        else:
+            if cty.endswith("*"):
+                c_base_ty = cty[:-1]
+                converter = "from_{}_ptr({})".format(c_base_ty, rpn)
+            else:
+                converter = "from_{}({})".format(cty, rpn)
+
+        stmt = "    let mut {} = {};".format(arg_name, converter)
+        stmts.append(stmt)
+
+    # call
+
+    stmts.append('    panic!("not implemented")')
+    all_stmts = "\n".join(stmts)
+
+    bridge = """\
+fn {forwarder_name}({formal_param_list}){ret_ty_text} {{
+{all_stmts}
+}}
+""".format(**locals())
+
+    return bridge
+
+def visit_method(st, meth) -> Tuple[str, str]:
+    field_def = generate_struct_field(meth)
+    bridge = generate_forwarder(st, meth)
+
+    return field_def, bridge
+
+def visit_struct(st) -> Tuple[str, List[str]]:
     name    = st["name"]
     methods = st["methods"]
 
     rust_name = "C" + name
 
     field_defs = []
+    forwarders = []
 
     for meth in methods:
-        field_def = generate_method_field(meth)
+        field_def, forwarder = visit_method(st, meth)
         field_defs.append(field_def)
+        forwarders.append(forwarder)
 
     fields = "\n".join(field_defs)
 
@@ -457,21 +560,23 @@ pub struct {rust_name} {{
 }}
 """.format(**locals())
 
-    return struct_def
+    return struct_def, forwarders
 
 
-def generate_structs(ast) -> str:
+def visit_structs(ast) -> Tuple[str, str]:
     struct_defs = []
+    forwarders = []
 
     structs = ast["structs"]
 
     for struct in structs:
-        struct_def = generate_struct(struct)
+        struct_def, my_forwarders = visit_struct(struct)
         struct_defs.append(struct_def)
+        forwarders.extend(my_forwarders)
 
-    return "\n".join(struct_defs)
+    return "\n".join(struct_defs), "\n".join(forwarders)
 
-def generate_enums(ast):
+def visit_enums(ast):
     const_defs = []
 
     for enum in ast['enums']:
@@ -484,7 +589,7 @@ def generate_enums(ast):
 
     return "\n".join(const_defs)
 
-def generate_types(ast):
+def visit_types(ast):
     types = []
     for c, p in ast["typedefs_order"]:
         if p.startswith("_"):
@@ -503,16 +608,20 @@ def main():
 
     ast = muapiparser.parse_muapi(src_text)
 
-    types = generate_types(ast)
+    types = visit_types(ast)
 
-    structs = generate_structs(ast)
+    structs, forwarders = visit_structs(ast)
 
-    enums = generate_enums(ast)
+    enums = visit_enums(ast)
 
     injectable_files["api_c.rs"].inject_many({
         "Types": types,
         "Structs": structs,
         "Enums": enums,
+        })
+
+    injectable_files["api_bridge.rs"].inject_many({
+        "Forwarders": forwarders,
         })
 
 if __name__=='__main__':
