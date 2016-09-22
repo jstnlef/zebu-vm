@@ -147,7 +147,6 @@ fn create_catch_exception_func (vm: &VM) {
         ops: RwLock::new(vec![]),
         v: Instruction_::ThreadExit
     });
-    
     blk_normal_cont.content = Some(BlockContent {
         args: vec![],
         exn_arg: None,
@@ -243,6 +242,14 @@ fn create_throw_exception_func (vm: &VM) {
         ops: RwLock::new(vec![blk_0_exception_obj.clone()]),
         v: Instruction_::Throw(0)
     });
+    
+    let blk_0_content = BlockContent {
+        args: vec![],
+        exn_arg: None,
+        body: vec![blk_0_inst0, blk_0_inst1, blk_0_inst2, blk_0_term],
+        keepalives: None
+    };
+    blk_0.content = Some(blk_0_content);
     
     func_ver.define(FunctionContent {
         entry: blk_0.id(),

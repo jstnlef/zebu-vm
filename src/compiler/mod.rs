@@ -11,14 +11,15 @@ pub mod backend;
 
 pub use compiler::passes::CompilerPass;
 pub use compiler::passes::PassExecutionResult;
-pub use compiler::passes::PASS0_DEF_USE;
-pub use compiler::passes::PASS1_TREE_GEN;
-pub use compiler::passes::PASS2_CFA;
-pub use compiler::passes::PASS3_TRACE_GEN;
-pub use compiler::passes::PASS4_INST_SEL;
-pub use compiler::passes::PASS5_REG_ALLOC;
-pub use compiler::passes::PASS6_PEEPHOLE;
-pub use compiler::passes::PASS7_CODE_EMIT;
+pub use compiler::passes::PASS_IR_CHECK;
+pub use compiler::passes::PASS_DEF_USE;
+pub use compiler::passes::PASS_TREE_GEN;
+pub use compiler::passes::PASS_CFA;
+pub use compiler::passes::PASS_TRACE_GEN;
+pub use compiler::passes::PASS_INST_SEL;
+pub use compiler::passes::PASS_REG_ALLOC;
+pub use compiler::passes::PASS_PEEPHOLE;
+pub use compiler::passes::PASS_CODE_EMIT;
 
 pub struct Compiler {
     policy: RefCell<CompilerPolicy>,
@@ -34,6 +35,8 @@ impl Compiler {
     }
 
     pub fn compile(&self, func: &mut MuFunctionVersion) {
+        trace!("{:?}", func);
+        
         // FIXME: should use function name here (however hprof::enter only accept &'static str)
         let _p = hprof::enter("Function Compilation");
 

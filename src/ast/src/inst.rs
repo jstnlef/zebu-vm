@@ -298,7 +298,7 @@ impl Instruction_ {
 
             &Instruction_::Return(ref vals) => format!("RET {}", op_vector_str(vals, ops)),
             &Instruction_::ThreadExit => "THREADEXIT".to_string(),
-            &Instruction_::Throw(ref val) => format!("THROW {}", val),
+            &Instruction_::Throw(exn_obj) => format!("THROW {}", ops[exn_obj]),
             &Instruction_::TailCall(ref call) => format!("TAILCALL {}", call.debug_str(ops)),
             &Instruction_::Branch1(ref dest) => format!("BRANCH {}", dest.debug_str(ops)),
             &Instruction_::Branch2{cond, ref true_dest, ref false_dest, ..} => {

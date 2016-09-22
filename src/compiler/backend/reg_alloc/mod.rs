@@ -80,7 +80,9 @@ impl CompilerPass for RegisterAllocation {
             
             PassExecutionResult::ProceedToNext
         } else {
-            PassExecutionResult::GoBackTo(compiler::PASS4_INST_SEL)
+            // PassExecutionResult::GoBackTo(compiler::PASS_INST_SEL)
+                        
+            unimplemented!()
         }
     }
 }

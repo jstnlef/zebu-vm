@@ -11,14 +11,15 @@ pub use compiler::passes::tree_gen::TreeGen;
 pub use compiler::passes::control_flow::ControlFlowAnalysis;
 pub use compiler::passes::trace_gen::TraceGen;
 
-pub const PASS0_DEF_USE   : usize = 0;
-pub const PASS1_TREE_GEN  : usize = 1;
-pub const PASS2_CFA       : usize = 2;
-pub const PASS3_TRACE_GEN : usize = 3;
-pub const PASS4_INST_SEL  : usize = 4;
-pub const PASS5_REG_ALLOC : usize = 5;
-pub const PASS6_PEEPHOLE  : usize = 6;
-pub const PASS7_CODE_EMIT : usize = 7;
+pub const PASS_IR_CHECK  : usize = 0;
+pub const PASS_DEF_USE   : usize = 1;
+pub const PASS_TREE_GEN  : usize = 2;
+pub const PASS_CFA       : usize = 3;
+pub const PASS_TRACE_GEN : usize = 4;
+pub const PASS_INST_SEL  : usize = 5;
+pub const PASS_REG_ALLOC : usize = 6;
+pub const PASS_PEEPHOLE  : usize = 7;
+pub const PASS_CODE_EMIT : usize = 8;
 
 pub enum PassExecutionResult {
     ProceedToNext,

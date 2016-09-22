@@ -91,7 +91,7 @@ impl fmt::Display for MuFunction {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable)]
 pub struct MuFunctionVersion {
     pub hdr: MuEntityHeader,
          
@@ -106,6 +106,24 @@ pub struct MuFunctionVersion {
 impl fmt::Display for MuFunctionVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "FuncVer {} of Func #{}", self.hdr, self.func_id)
+    }
+}
+
+impl fmt::Debug for MuFunctionVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "FuncVer {} of Func #{}\n", self.hdr, self.func_id).unwrap();
+        write!(f, "Signature: {}\n", self.sig).unwrap();
+        write!(f, "IR:\n").unwrap();
+        if self.content.is_some() {
+            write!(f, "{:?}\n", self.content.as_ref().unwrap()).unwrap();
+        } else {
+            write!(f, "Empty\n").unwrap();
+        }
+        if self.block_trace.is_some() {
+            write!(f, "{:?}\n", self.block_trace.as_ref().unwrap())
+        } else {
+            write!(f, "Trace not available\n")
+        }
     }
 }
 
@@ -163,10 +181,23 @@ impl MuFunctionVersion {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable)]
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: HashMap<MuID, Block>
+}
+
+impl fmt::Debug for FunctionContent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let entry = self.get_entry_block();
+        write!(f, "{:?}\n", entry).unwrap();
+        
+        for blk_id in self.blocks.keys() {
+            let block = self.get_block(*blk_id);
+            write!(f, "{:?}\n", block).unwrap();
+        }
+        Ok(())
+    }
 }
 
 impl FunctionContent {
@@ -231,11 +262,25 @@ impl FunctionContext {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable)]
 pub struct Block {
     pub hdr: MuEntityHeader,
     pub content: Option<BlockContent>,
     pub control_flow: ControlFlow
+}
+
+impl fmt::Debug for Block {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Block {}", self.hdr).unwrap();
+        writeln!(f, "with preds: {:?}", self.control_flow.preds).unwrap();
+        writeln!(f, "     succs: {:?}", self.control_flow.succs).unwrap();
+        if self.content.is_some() {
+            writeln!(f, "{:?}", self.content.as_ref().unwrap()).unwrap();
+        } else {
+            writeln!(f, "Empty").unwrap();
+        }
+        Ok(())
+    }
 }
 
 impl Block {
@@ -302,12 +347,24 @@ pub enum EdgeKind {
     Forward, Backward
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable)]
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
     pub exn_arg: Option<P<Value>>,
     pub body: Vec<Box<TreeNode>>,
     pub keepalives: Option<Vec<P<Value>>>
+}
+
+impl fmt::Debug for BlockContent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "args: {:?}", self.args).unwrap();
+        writeln!(f, "exception arg: {:?}", self.args).unwrap();
+        writeln!(f, "keepalives: {:?}", self.keepalives).unwrap();
+        for node in self.body.iter() {
+            writeln!(f, "{}", node).unwrap();
+        }
+        Ok(())
+    }
 }
 
 impl BlockContent {
