@@ -55,8 +55,7 @@ impl MuVM {
         Box::into_raw(vm)
     }
     
-    pub fn new_context(*mut self) -> *mut MuCtx {
-        let a : &mut self = self.as_mut().unwarp()
+    pub fn new_context(&mut self) -> *mut MuCtx {
         unimplemented!()
     }
     
