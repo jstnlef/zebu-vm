@@ -6,3 +6,18 @@ mod api_c;
 mod api_bridge;
 mod api_impl;
 
+/// This is for testing. In the productional setting, replace them with the definitions from
+/// `src/ast/src/ir.rs` and `src/ast/src/bundle.rs`
+mod deps { 
+
+    // should import from ast/src/ir.rs
+    pub type WPID  = usize;
+    pub type MuID  = usize;
+    pub type MuName = String;
+    pub type CName  = MuName;
+
+    pub struct APIMuValue {
+        // stub
+    }
+
+}

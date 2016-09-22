@@ -343,67 +343,67 @@ def to_rust_type(raw_type):
 #    footer = "}"
 #
 #    return (valname, "\n".join([header] + stmts + [footer]))
-
-def generate_stubs_for_struct(typedefs, st) -> str:
-    name    = st["name"]
-    methods = st["methods"]
-
-    results = []
-    ptrs    = []
-
-    for meth in methods:
-        ptrname, code = generate_method(typedefs, name, meth)
-        ptrs.append(ptrname)
-        results.append(code)
-
-    results.append("val stubsOf{} = new Array[Word]({})".format(name, len(ptrs)))
-    for i,ptr in enumerate(ptrs):
-        results.append("stubsOf{}({}) = {}.address".format(name, i, ptr))
-
-    return "\n".join(results)
-
-def generate_stubs(ast):
-    struct_codes = []
-
-    for st in ast["structs"]:
-        code = generate_stubs_for_struct(ast["typedefs"], st)
-        struct_codes.append(code)
-
-    return "\n".join(struct_codes)
-
-_enum_types_to_generate_converters = [
-        ("MuBinOptr",       "BinOptr",       'MU_BINOP_'),
-        ("MuCmpOptr",       "CmpOptr",       'MU_CMP_'),
-        ("MuConvOptr",      "ConvOptr",      'MU_CONV_'),
-        ("MuMemOrd",        "MemoryOrder",   'MU_ORD_'),
-        ("MuAtomicRMWOptr", "AtomicRMWOptr", 'MU_ARMW_'),
-        ]
-
-def generate_enum_converters(ast):
-    enums = ast['enums']
-    edict = {}
-
-    for e in enums:
-        edict[e['name']] = e['defs']
-
-    lines = []
-
-    for cty, sty, prefix in _enum_types_to_generate_converters:
-        func_name = "to"+sty
-        lines.append("def {}(cval: {}): {}.Value = cval match {{".format(
-            func_name, cty, sty))
-
-        defs = edict[cty]
-        for d in defs:
-            dn = d['name']
-            dv = d['value']
-            assert(dn.startswith(prefix))
-            sn = dn[len(prefix):]
-            lines.append("  case {} => {}.{}".format(dv, sty, sn))
-
-        lines.append("}")
-
-    return "\n".join(lines)
+#
+#def generate_stubs_for_struct(typedefs, st) -> str:
+#    name    = st["name"]
+#    methods = st["methods"]
+#
+#    results = []
+#    ptrs    = []
+#
+#    for meth in methods:
+#        ptrname, code = generate_method(typedefs, name, meth)
+#        ptrs.append(ptrname)
+#        results.append(code)
+#
+#    results.append("val stubsOf{} = new Array[Word]({})".format(name, len(ptrs)))
+#    for i,ptr in enumerate(ptrs):
+#        results.append("stubsOf{}({}) = {}.address".format(name, i, ptr))
+#
+#    return "\n".join(results)
+#
+#def generate_stubs(ast):
+#    struct_codes = []
+#
+#    for st in ast["structs"]:
+#        code = generate_stubs_for_struct(ast["typedefs"], st)
+#        struct_codes.append(code)
+#
+#    return "\n".join(struct_codes)
+#
+#_enum_types_to_generate_converters = [
+#        ("MuBinOptr",       "BinOptr",       'MU_BINOP_'),
+#        ("MuCmpOptr",       "CmpOptr",       'MU_CMP_'),
+#        ("MuConvOptr",      "ConvOptr",      'MU_CONV_'),
+#        ("MuMemOrd",        "MemoryOrder",   'MU_ORD_'),
+#        ("MuAtomicRMWOptr", "AtomicRMWOptr", 'MU_ARMW_'),
+#        ]
+#
+#def generate_enum_converters(ast):
+#    enums = ast['enums']
+#    edict = {}
+#
+#    for e in enums:
+#        edict[e['name']] = e['defs']
+#
+#    lines = []
+#
+#    for cty, sty, prefix in _enum_types_to_generate_converters:
+#        func_name = "to"+sty
+#        lines.append("def {}(cval: {}): {}.Value = cval match {{".format(
+#            func_name, cty, sty))
+#
+#        defs = edict[cty]
+#        for d in defs:
+#            dn = d['name']
+#            dv = d['value']
+#            assert(dn.startswith(prefix))
+#            sn = dn[len(prefix):]
+#            lines.append("  case {} => {}.{}".format(dv, sty, sn))
+#
+#        lines.append("}")
+#
+#    return "\n".join(lines)
 
 __rust_kw_rewrite = {
         "ref": "reff",
@@ -436,6 +436,31 @@ def generate_struct_field(meth) -> str:
             name, ", ".join(rust_param_tys), ret_ty_text)
 
     return field_def
+
+_no_conversion = {
+        # These are used as raw data.
+        # Even the implementation layer has to use the raw C types.
+        "MuCPtr",
+        "MuCFP",
+
+        # These are C functions provided and regisered by the client.
+        # They should be treated like C functions.
+        "MuValueFreer",
+        "MuTrapHandler",
+
+        # Watch point ID is considered as primitive.
+        "MuWPID",
+
+        # These are enum types. Passed to the micro VM as is.
+        "MuBinOpStatus",
+        "MuBinOptr",
+        "MuCmpOptr",
+        "MuConvOptr",
+        "MuMemOrd",
+        "MuAtomicRMWOptr",
+        "MuCallConv",
+        "MuCommInst",
+        } | _primitive_types.keys()
 
 def generate_forwarder(st, meth) -> str:
     name    = meth['name']
@@ -480,15 +505,20 @@ def generate_forwarder(st, meth) -> str:
 
         array_sz_param = param.get("array_sz_param", None)
         is_optional    = param.get("is_optional", False)
+        is_out         = param.get("is_out", False)
 
-        if array_sz_param != None:
-            assert cty.endswith("*")
+        if is_out:
+            assert type_is_explicit_ptr(cty)
+            converter = rpn     # Do not convert out param.
+            # Keep as ptr so that Rust prog can store into it.
+        elif array_sz_param != None:
+            assert type_is_explicit_ptr(cty)
             c_base_ty = cty[:-1]
 
             sz_cpn = array_sz_param
             sz_rpn = avoid_rust_kws(sz_cpn)
-            if type_is_ptr(c_base_ty):
-                converter = "from_ptr_array({}, {})".format(
+            if type_is_handle(c_base_ty):
+                converter = "from_handle_array({}, {})".format(
                         rpn, sz_rpn)
             elif type_is_node(c_base_ty):
                 converter = "from_MuID_array({}, {})".format(
@@ -497,10 +527,10 @@ def generate_forwarder(st, meth) -> str:
                 converter = "from_{}_array({}, {})".format(
                         c_base_ty, rpn, sz_rpn)
         elif is_optional:
-            if type_is_ptr(cty):
-                converter = "from_ptr_optional({})".format(rpn)
+            if type_is_handle(cty):
+                converter = "from_handle_optional({})".format(rpn)
             elif type_is_node(cty):
-                converter = "from_node_optional({})".format(rpn)
+                converter = "from_MuID_optional({})".format(rpn)
             elif cty in ["MuCString", "MuID"]:
                 converter = "from_{}_optional({})".format(cty, rpn)
             else:
@@ -509,6 +539,12 @@ def generate_forwarder(st, meth) -> str:
             if cty.endswith("*"):
                 c_base_ty = cty[:-1]
                 converter = "from_{}_ptr({})".format(c_base_ty, rpn)
+            elif type_is_handle(cty):
+                converter = "from_handle({})".format(rpn)
+            elif type_is_node(cty):
+                converter = "from_MuID({})".format(rpn)
+            elif cty in _no_conversion:
+                converter = rpn     # Do not convert primitive types.
             else:
                 converter = "from_{}({})".format(cty, rpn)
 

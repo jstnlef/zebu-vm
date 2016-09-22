@@ -12,7 +12,13 @@
 use std::os::raw::*;
 
 // some hand-written function pointer types
-pub type CMuCFP = extern fn();
+
+// Don't treat void(*)() as Rust funcptr fn(), because fn() is not nullable.
+//
+// In this Mu API, the MuCFP type is only used as raw data, representing a C-level function
+// pointer, and is treated as so by the micro VM itself. So we keep it as raw pointer here.
+pub type CMuCFP = *mut c_void;
+
 pub type CMuValuesFreer = extern fn(*mut CMuValue, CMuCPtr);
 pub type CMuTrapHandler = extern fn(
     // input parameters
