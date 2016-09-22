@@ -3,10 +3,8 @@
 use ast::ptr::*;
 use ast::ir::*;
 use ast::types::*;
-#[macro_use]
-use vm::api;
+use ast::bundle::*;
 use vm::VM;
-use vm::bundle::*;
 
 use std::mem;
 use std::os::raw;
@@ -75,23 +73,23 @@ impl MuVM {
 
 pub type MuArraySize = usize;
 
-pub type MuIntValue   = MuValue;
+pub type MuIntValue   = APIMuValue;
 
-pub type MuBundleNode = MuValue;
-pub type MuChildNode  = MuValue;
-pub type MuTypeNode   = MuValue;
-pub type MuFuncSigNode= MuValue;
-pub type MuConstNode  = MuValue;
-pub type MuGlobalNode = MuValue;
-pub type MuFuncNode   = MuValue;
-pub type MuFuncVerNode= MuValue;
-pub type MuBBNode     = MuValue;
-pub type MuNorParamNode = MuValue;
-pub type MuExcParamNode = MuValue;
-pub type MuInstNode     = MuValue;
-pub type MuInstResNode  = MuValue;
-pub type MuLocalVarNode = MuValue;
-pub type MuVarNode      = MuValue;
+pub type MuBundleNode = APIMuValue;
+pub type MuChildNode  = APIMuValue;
+pub type MuTypeNode   = APIMuValue;
+pub type MuFuncSigNode= APIMuValue;
+pub type MuConstNode  = APIMuValue;
+pub type MuGlobalNode = APIMuValue;
+pub type MuFuncNode   = APIMuValue;
+pub type MuFuncVerNode= APIMuValue;
+pub type MuBBNode     = APIMuValue;
+pub type MuNorParamNode = APIMuValue;
+pub type MuExcParamNode = APIMuValue;
+pub type MuInstNode     = APIMuValue;
+pub type MuInstResNode  = APIMuValue;
+pub type MuLocalVarNode = APIMuValue;
+pub type MuVarNode      = APIMuValue;
 
 pub type MuFlag          = usize;
 pub type MuDestKind      = MuFlag;

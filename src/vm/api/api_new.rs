@@ -1,14 +1,15 @@
-use ast::ptr::*;
-use ast::ir::*;
-use ast::types::*;
-use vm::api;
 use vm::VM;
-use vm::bundle::*;
+use ast::bundle::*;
 
 use std::mem;
-use std::os::raw;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+use std::ffi::CStr;
+use std::os::raw::c_int;
+use std::os::raw::c_char;
+use ast::ir::MuID;
+pub type APIMuName = *const c_char;
 
 macro_rules! unimplemented_api {
     () => {
@@ -19,7 +20,7 @@ macro_rules! unimplemented_api {
 
 macro_rules! api {
     ($func: expr) => {
-        unsafe {mem::transmute($func as usize)}
+        mem::transmute($func as usize)
     }
 }
 
@@ -34,46 +35,47 @@ pub struct MuVM {
     
     pub new_context: fn (mvm: *mut MuVM) -> *mut MuCtx,
     
-    id_of: fn (mvm: *const MuVM, name: MuName) -> MuID,
-    name_of : fn (mvm: *const MuVM, id: MuID) -> MuName,
+    id_of: fn (mvm: *const MuVM, name: APIMuName) -> MuID,
+    name_of : fn (mvm: *const MuVM, id: MuID) -> APIMuName,
     
-    // set_trap_handler: fn(mvm: *mut MuVM, trap_handler: MuTrapHandler, user_data: MuCPtr)
+    // unimplemented api
+    set_trap_handler: fn () -> ()
 }
 
 impl MuVM {
     pub fn new() -> *mut MuVM {
         let vm = Box::new(MuVM {
             internal: Arc::new(VM::new()),
-            new_context: api!(MuVM::new_context),
-            id_of: api!(MuVM::id_of),
-            name_of: api!(MuVM::name_of)
+            new_context: unsafe{api!(MuVM::new_context)},
+            id_of: unsafe{api!(MuVM::id_of)},
+            name_of: unsafe{api!(MuVM::name_of)},
+            set_trap_handler: unimplemented_api!()
         });
         
         Box::into_raw(vm)
     }
     
-    pub fn new_context(&mut self) -> *mut MuCtx {
-        let ctx = Box::new(MuCtx::new(self.internal.clone()));
-        
-        Box::into_raw(ctx)
+    pub fn new_context(*mut self) -> *mut MuCtx {
+        let a : &mut self = self.as_mut().unwarp()
+        unimplemented!()
     }
     
-    pub fn id_of(&self, name: &str) -> MuID {
+    pub fn id_of(&self, name: APIMuName) -> MuID {
+        let name = unsafe {CStr::from_ptr(name)}.to_str().unwrap();
         self.internal.id_of(name)
     }
     
-    pub fn name_of(&self, id: MuID) -> MuName {
-        self.internal.name_of(id)
+    pub fn name_of(&self, id: MuID) -> APIMuName {
+        self.internal.name_of(id).as_ptr() as *const c_char
     }
 }
 
 #[repr(C)]
 pub struct MuCtx {
-    // void* header - current not planed to use this
-    internal: Box<MuCtxInternal>,
-}
-
-struct MuCtxInternal {
-    vm: Arc<VM>,
-    cur_bundles: HashMap<MuID, MuBundle>
+    // void* header
+    internal: Arc<VM>,
+    
+    // GENERATE_BEGIN: MuCtx
+    
+    // GENERATE_END: MuCtx
 }

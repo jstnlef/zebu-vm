@@ -1,6 +1,6 @@
-use ast::ir::*;
-use ast::ptr::*;
-use ast::types::*;
+use ir::*;
+use ptr::*;
+use types::*;
 
 use std::collections::HashMap;
 
@@ -37,13 +37,13 @@ impl MuBundle {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct MuValue {
+pub struct APIMuValue {
     pub id: MuID,
-    pub v: MuValueKind
+    pub v: APIMuValueKind
 } 
 
 #[derive(Copy, Clone, Debug)]
-pub enum MuValueKind {
+pub enum APIMuValueKind {
     Int,
     Float,
     Double,
@@ -88,9 +88,9 @@ pub enum MuValueKind {
 
 macro_rules! handle_constructor {
     ($fn_name: ident, $kind: ident) => {
-        pub fn $fn_name(id: MuID) -> MuValue {
-            MuValue{
-                id: id, v: MuValueKind::$kind
+        pub fn $fn_name(id: MuID) -> APIMuValue {
+            APIMuValue{
+                id: id, v: APIMuValueKind::$kind
             }
         }
     }
