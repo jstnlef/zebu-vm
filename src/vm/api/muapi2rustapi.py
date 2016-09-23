@@ -462,7 +462,48 @@ _no_conversion = {
         "MuCommInst",
         } | _primitive_types.keys()
 
-def generate_forwarder(st, meth) -> str:
+_cty_to_high_level_ty = {
+        "MuVM*": "*mut CMuVM",
+        "MuCtx*": "*mut CMuCtx",
+        "MuIRBuilder*": "*mut CMuIRBuilder",
+        "MuBool": "bool",
+        "MuID": "MuID"
+        }
+
+_cty_to_high_level_param_ty = {
+        **_cty_to_high_level_ty,
+
+        # If the micro VM wants a string, we make it convenient.
+        "MuName": "MuName",
+        "MuCString": "String",
+        }
+
+_cty_to_high_level_ret_ty = {
+        **_cty_to_high_level_ty,
+
+        # If the client wants a string, it has to be kept permanent in the micro VM.
+        "MuName": "CMuCString",
+        }
+
+def to_high_level_ret_ty(cty, rty):
+    assert cty != "void"
+    if cty in _cty_to_high_level_ret_ty:
+        hlt = _cty_to_high_level_ret_ty[cty]
+    if type_is_handle(cty):
+        hlt = "*mut APIMuValue"
+    elif type_is_node(cty):
+        hlt = "MuID"
+    else:
+        hlt = rty
+
+    return hlt
+
+_special_self_style = {
+        }
+
+def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
+    st_name = st['name']
+
     name    = meth['name']
     params  = meth['params']
     ret_ty  = meth['ret_ty']
@@ -487,9 +528,19 @@ def generate_forwarder(st, meth) -> str:
     # return type
     
     rust_ret_ty = None if ret_ty == "void" else to_rust_type(ret_ty)
-    ret_ty_text = "" if rust_ret_ty == None else "-> {}".format(rust_ret_ty)
+    ret_ty_text = "" if rust_ret_ty == None else " -> {}".format(rust_ret_ty)
+
+    # parameters and ret ty for the stub
+
+    stub_param_nts = []
+
+    stub_ret_ty = None if rust_ret_ty is None else to_high_level_ret_ty(ret_ty, rust_ret_ty)
+    stub_ret_ty_text = "" if stub_ret_ty == None else " -> {}".format(stub_ret_ty)
 
     # preparing args
+
+    args = []
+
     for param in params:
         is_sz_param = param.get("is_sz_param", False)
 
@@ -511,49 +562,87 @@ def generate_forwarder(st, meth) -> str:
             assert type_is_explicit_ptr(cty)
             converter = rpn     # Do not convert out param.
             # Keep as ptr so that Rust prog can store into it.
+            stub_rty = rty
         elif array_sz_param != None:
             assert type_is_explicit_ptr(cty)
             c_base_ty = cty[:-1]
+            r_base_ty = to_rust_type(c_base_ty)
 
             sz_cpn = array_sz_param
             sz_rpn = avoid_rust_kws(sz_cpn)
             if type_is_handle(c_base_ty):
                 converter = "from_handle_array({}, {})".format(
                         rpn, sz_rpn)
-            elif type_is_node(c_base_ty):
+                stub_rty = "Vec<&APIMuValue>"
+            elif type_is_node(c_base_ty) or c_base_ty == "MuID":
                 converter = "from_MuID_array({}, {})".format(
                         rpn, sz_rpn)
+                stub_rty = "Vec<MuID>"
             else:
                 converter = "from_{}_array({}, {})".format(
                         c_base_ty, rpn, sz_rpn)
+                if c_base_ty == "MuCString":
+                    stub_rty = "Vec<String>"
+                else:
+                    stub_rty = "&[{}]".format(r_base_ty)
         elif is_optional:
             if type_is_handle(cty):
                 converter = "from_handle_optional({})".format(rpn)
+                stub_rty = "Option<&APIMuValue>"
             elif type_is_node(cty):
                 converter = "from_MuID_optional({})".format(rpn)
+                stub_rty = "Option<MuID>"
             elif cty in ["MuCString", "MuID"]:
                 converter = "from_{}_optional({})".format(cty, rpn)
+                stub_rty = "Option<{}>".format(_cty_to_high_level_param_ty[cty])
             else:
                 raise Exception("Not expecting {} to be optional".format(cty))
         else:
-            if cty.endswith("*"):
+            if cty.endswith("*"):   # MuVM*, MuCtx*, MuIRBuilder*
                 c_base_ty = cty[:-1]
                 converter = "from_{}_ptr({})".format(c_base_ty, rpn)
+                stub_rty = to_rust_type(c_base_ty)
             elif type_is_handle(cty):
                 converter = "from_handle({})".format(rpn)
+                stub_rty = "&APIMuValue"
             elif type_is_node(cty):
                 converter = "from_MuID({})".format(rpn)
+                stub_rty = "MuID"
             elif cty in _no_conversion:
                 converter = rpn     # Do not convert primitive types.
-            else:
+                stub_rty = rty
+            elif cty in _cty_to_high_level_param_ty:
                 converter = "from_{}({})".format(cty, rpn)
-
+                stub_rty = _cty_to_high_level_param_ty[cty]
+            else:
+                raise Exception("Don't know how to handle param type {}".format(cty))
+                
         stmt = "    let mut {} = {};".format(arg_name, converter)
         stmts.append(stmt)
 
+        args.append(arg_name)
+
+        stub_param_nts.append("{}: {}".format(rpn, stub_rty))
+
     # call
 
+    self_arg = args[0]
+    other_args = args[1:]
+    args_joined = ", ".join(other_args)
+    ret_val_bind = "" if rust_ret_ty is None else "let _rv = "
+    stmts.append("    unsafe {")
+    call_stmt = '        {}(*{}).{}({});'.format(
+            ret_val_bind, self_arg, name, args_joined)
+    stmts.append(call_stmt)
+    stmts.append("    }")
+
+    # TODO: return values
+
     stmts.append('    panic!("not implemented")')
+
+
+    # forwarder
+
     all_stmts = "\n".join(stmts)
 
     bridge = """\
@@ -562,7 +651,18 @@ extern fn {forwarder_name}({formal_param_list}){ret_ty_text} {{
 }}
 """.format(**locals())
 
-    return bridge
+    # stub
+
+    stub_param_nts[0] = _special_self_style.get((st_name, name), "&mut self")
+    stub_params_joined = ", ".join(stub_param_nts)
+
+    stub = """\
+    pub fn {name}({stub_params_joined}){stub_ret_ty_text} {{
+        panic!("Not implemented")
+    }}
+""".format(**locals())
+
+    return bridge, stub
 
 def generate_filler_stmt(st, meth) -> str:
     name = meth['name']
@@ -574,14 +674,14 @@ def generate_filler_stmt(st, meth) -> str:
     return stmt
 
 
-def visit_method(st, meth) -> Tuple[str, str, str]:
+def visit_method(st, meth) -> Tuple[str, str, str, str]:
     field_def = generate_struct_field(meth)
-    bridge = generate_forwarder(st, meth)
+    bridge, stub = generate_forwarder_and_stub(st, meth)
     filler_stmt = generate_filler_stmt(st, meth)
 
-    return field_def, bridge, filler_stmt
+    return field_def, bridge, filler_stmt, stub
 
-def visit_struct(st) -> Tuple[str, List[str], str]:
+def visit_struct(st) -> Tuple[str, List[str], str, str]:
     name    = st["name"]
     methods = st["methods"]
 
@@ -590,12 +690,14 @@ def visit_struct(st) -> Tuple[str, List[str], str]:
     field_defs = []
     forwarders = []
     filler_stmts = []
+    stubs = []
 
     for meth in methods:
-        field_def, forwarder, filler_stmt = visit_method(st, meth)
+        field_def, forwarder, filler_stmt, stub = visit_method(st, meth)
         field_defs.append(field_def)
         forwarders.append(forwarder)
         filler_stmts.append(filler_stmt)
+        stubs.append(stub)
 
     fields = "\n".join(field_defs)
 
@@ -613,32 +715,43 @@ pub struct {rust_name} {{
 
     filler = """\
 pub fn make_new_{name}(header: *mut c_void) -> *mut {rust_name} {{
-    let box = Box::new({rust_name} {{
+    let bx = Box::new({rust_name} {{
         header: header,
 {filler_stmts_joined}
     }});
 
-    Box::into_raw(box)
+    Box::into_raw(bx)
 }}
 """.format(**locals())
 
-    return struct_def, forwarders, filler
+    stubs_joined = "\n".join(stubs)
+
+    stub_impl = """\
+impl {name} {{
+{stubs_joined}
+}}
+""".format(**locals())
+
+    return struct_def, forwarders, filler, stub_impl
 
 
-def visit_structs(ast) -> Tuple[str, str, str]:
+def visit_structs(ast) -> Tuple[str, str, str, str]:
     struct_defs = []
     forwarders = []
     fillers = []
+    stub_impls = []
 
     structs = ast["structs"]
 
     for struct in structs:
-        struct_def, my_forwarders, filler = visit_struct(struct)
+        struct_def, my_forwarders, filler, stub_impl = visit_struct(struct)
         struct_defs.append(struct_def)
         forwarders.extend(my_forwarders)
         fillers.append(filler)
+        stub_impls.append(stub_impl)
 
-    return "\n".join(struct_defs), "\n".join(forwarders), "\n".join(fillers)
+    return ("\n".join(struct_defs), "\n".join(forwarders), "\n".join(fillers),
+            "\n".join(stub_impls))
 
 def visit_enums(ast):
     const_defs = []
@@ -674,7 +787,7 @@ def main():
 
     types = visit_types(ast)
 
-    structs, forwarders, fillers = visit_structs(ast)
+    structs, forwarders, fillers, stub_impls = visit_structs(ast)
 
     enums = visit_enums(ast)
 
@@ -687,6 +800,10 @@ def main():
     injectable_files["api_bridge.rs"].inject_many({
         "Forwarders": forwarders,
         "Fillers": fillers,
+        })
+
+    injectable_files["__api_impl_stubs.rs"].inject_many({
+        "StubImpls": stub_impls,
         })
 
 if __name__=='__main__':

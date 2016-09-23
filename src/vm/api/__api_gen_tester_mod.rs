@@ -4,7 +4,10 @@
 
 mod api_c;
 mod api_bridge;
-mod api_impl;
+mod __api_impl_stubs;
+mod api_impl {
+    pub use __api_impl_stubs::*;
+}
 
 /// This is for testing. In the productional setting, replace them with the definitions from
 /// `src/ast/src/ir.rs` and `src/ast/src/bundle.rs`

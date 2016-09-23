@@ -15,4 +15,6 @@ injectable_files = injecttools.make_injectable_file_set(_mu_impl_fast_root, [
         ["Types", "Structs", "Enums"]),
     ("api_bridge.rs", "src/vm/api/api_bridge.rs",
         ["Fillers", "Forwarders"]),
+    ("__api_impl_stubs.rs", "src/vm/api/__api_impl_stubs.rs",
+        ["StubImpls"]),
     ])
