@@ -430,9 +430,9 @@ def generate_struct_field(meth) -> str:
         rust_param_tys.append(rust_ty)
 
     rust_ret_ty = None if ret_ty == "void" else to_rust_type(ret_ty)
-    ret_ty_text = "" if rust_ret_ty == None else "-> {}".format(rust_ret_ty)
+    ret_ty_text = "" if rust_ret_ty == None else " -> {}".format(rust_ret_ty)
     
-    field_def = "    pub {}: fn({}){},".format(
+    field_def = "    pub {}: extern fn({}){},".format(
             name, ", ".join(rust_param_tys), ret_ty_text)
 
     return field_def
@@ -557,20 +557,31 @@ def generate_forwarder(st, meth) -> str:
     all_stmts = "\n".join(stmts)
 
     bridge = """\
-fn {forwarder_name}({formal_param_list}){ret_ty_text} {{
+extern fn {forwarder_name}({formal_param_list}){ret_ty_text} {{
 {all_stmts}
 }}
 """.format(**locals())
 
     return bridge
 
-def visit_method(st, meth) -> Tuple[str, str]:
+def generate_filler_stmt(st, meth) -> str:
+    name = meth['name']
+    forwarder_name = forwarder_name_for(st["name"], name)
+
+    stmt = "        {}: {},".format(
+            name, forwarder_name)
+
+    return stmt
+
+
+def visit_method(st, meth) -> Tuple[str, str, str]:
     field_def = generate_struct_field(meth)
     bridge = generate_forwarder(st, meth)
+    filler_stmt = generate_filler_stmt(st, meth)
 
-    return field_def, bridge
+    return field_def, bridge, filler_stmt
 
-def visit_struct(st) -> Tuple[str, List[str]]:
+def visit_struct(st) -> Tuple[str, List[str], str]:
     name    = st["name"]
     methods = st["methods"]
 
@@ -578,11 +589,13 @@ def visit_struct(st) -> Tuple[str, List[str]]:
 
     field_defs = []
     forwarders = []
+    filler_stmts = []
 
     for meth in methods:
-        field_def, forwarder = visit_method(st, meth)
+        field_def, forwarder, filler_stmt = visit_method(st, meth)
         field_defs.append(field_def)
         forwarders.append(forwarder)
+        filler_stmts.append(filler_stmt)
 
     fields = "\n".join(field_defs)
 
@@ -596,21 +609,36 @@ pub struct {rust_name} {{
 }}
 """.format(**locals())
 
-    return struct_def, forwarders
+    filler_stmts_joined = "\n".join(filler_stmts)
+
+    filler = """\
+pub fn make_new_{name}(header: *mut c_void) -> *mut {rust_name} {{
+    let box = Box::new({rust_name} {{
+        header: header,
+{filler_stmts_joined}
+    }});
+
+    Box::into_raw(box)
+}}
+""".format(**locals())
+
+    return struct_def, forwarders, filler
 
 
-def visit_structs(ast) -> Tuple[str, str]:
+def visit_structs(ast) -> Tuple[str, str, str]:
     struct_defs = []
     forwarders = []
+    fillers = []
 
     structs = ast["structs"]
 
     for struct in structs:
-        struct_def, my_forwarders = visit_struct(struct)
+        struct_def, my_forwarders, filler = visit_struct(struct)
         struct_defs.append(struct_def)
         forwarders.extend(my_forwarders)
+        fillers.append(filler)
 
-    return "\n".join(struct_defs), "\n".join(forwarders)
+    return "\n".join(struct_defs), "\n".join(forwarders), "\n".join(fillers)
 
 def visit_enums(ast):
     const_defs = []
@@ -646,7 +674,7 @@ def main():
 
     types = visit_types(ast)
 
-    structs, forwarders = visit_structs(ast)
+    structs, forwarders, fillers = visit_structs(ast)
 
     enums = visit_enums(ast)
 
@@ -658,6 +686,7 @@ def main():
 
     injectable_files["api_bridge.rs"].inject_many({
         "Forwarders": forwarders,
+        "Fillers": fillers,
         })
 
 if __name__=='__main__':
