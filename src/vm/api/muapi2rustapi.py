@@ -485,11 +485,23 @@ _cty_to_high_level_ret_ty = {
         "MuName": "CMuCString",
         }
 
+_cty_directly_returned = {
+        *_no_conversion,
+        # see above
+        "MuCString",
+        "MuName",
+
+        # To be safe, let the micro VM fill up the structs.
+        "MuVM*",
+        "MuCtx*",
+        "MuIRBuilder*", 
+        }
+
 def to_high_level_ret_ty(cty, rty):
     assert cty != "void"
     if cty in _cty_to_high_level_ret_ty:
         hlt = _cty_to_high_level_ret_ty[cty]
-    if type_is_handle(cty):
+    elif type_is_handle(cty):
         hlt = "*mut APIMuValue"
     elif type_is_node(cty):
         hlt = "MuID"
@@ -630,16 +642,27 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
     other_args = args[1:]
     args_joined = ", ".join(other_args)
     ret_val_bind = "" if rust_ret_ty is None else "let _rv = "
-    stmts.append("    unsafe {")
-    call_stmt = '        {}(*{}).{}({});'.format(
-            ret_val_bind, self_arg, name, args_joined)
+    stmts.append("    {}unsafe {{".format(ret_val_bind))
+    call_stmt = '        (*{}).{}({})'.format(
+            self_arg, name, args_joined)
     stmts.append(call_stmt)
-    stmts.append("    }")
+    stmts.append("    };")
 
-    # TODO: return values
+    # return values
 
-    stmts.append('    panic!("not implemented")')
+    if rust_ret_ty is not None:
+        if ret_ty in _cty_directly_returned:
+            converter = "_rv"
+        elif type_is_handle(ret_ty):
+            converter = "to_handle(_rv)"
+        elif type_is_node(ret_ty):
+            converter = "to_MuID(_rv)"
+        else:
+            converter = "to_{}(_rv)".format(ret_ty)
+        stmts.append("    let _rv_prep = {};".format(converter))
+        stmts.append("    _rv_prep")
 
+    # stmts.append('    panic!("not implemented")')
 
     # forwarder
 

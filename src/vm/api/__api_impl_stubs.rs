@@ -32,11 +32,11 @@ impl MuVM {
         panic!("Not implemented")
     }
 
-    pub fn id_of(&mut self, name: MuName) -> CMuID {
+    pub fn id_of(&mut self, name: MuName) -> MuID {
         panic!("Not implemented")
     }
 
-    pub fn name_of(&mut self, id: MuID) -> CMuName {
+    pub fn name_of(&mut self, id: MuID) -> CMuCString {
         panic!("Not implemented")
     }
 
@@ -47,11 +47,11 @@ impl MuVM {
 }
 
 impl MuCtx {
-    pub fn id_of(&mut self, name: MuName) -> CMuID {
+    pub fn id_of(&mut self, name: MuName) -> MuID {
         panic!("Not implemented")
     }
 
-    pub fn name_of(&mut self, id: MuID) -> CMuName {
+    pub fn name_of(&mut self, id: MuID) -> CMuCString {
         panic!("Not implemented")
     }
 
@@ -187,11 +187,11 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn ref_eq(&mut self, lhs: &APIMuValue, rhs: &APIMuValue) -> CMuBool {
+    pub fn ref_eq(&mut self, lhs: &APIMuValue, rhs: &APIMuValue) -> bool {
         panic!("Not implemented")
     }
 
-    pub fn ref_ult(&mut self, lhs: &APIMuValue, rhs: &APIMuValue) -> CMuBool {
+    pub fn ref_ult(&mut self, lhs: &APIMuValue, rhs: &APIMuValue) -> bool {
         panic!("Not implemented")
     }
 
@@ -303,15 +303,15 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn cur_func(&mut self, cursor: &APIMuValue) -> CMuID {
+    pub fn cur_func(&mut self, cursor: &APIMuValue) -> MuID {
         panic!("Not implemented")
     }
 
-    pub fn cur_func_ver(&mut self, cursor: &APIMuValue) -> CMuID {
+    pub fn cur_func_ver(&mut self, cursor: &APIMuValue) -> MuID {
         panic!("Not implemented")
     }
 
-    pub fn cur_inst(&mut self, cursor: &APIMuValue) -> CMuID {
+    pub fn cur_inst(&mut self, cursor: &APIMuValue) -> MuID {
         panic!("Not implemented")
     }
 
@@ -327,15 +327,15 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn tr64_is_fp(&mut self, value: &APIMuValue) -> CMuBool {
+    pub fn tr64_is_fp(&mut self, value: &APIMuValue) -> bool {
         panic!("Not implemented")
     }
 
-    pub fn tr64_is_int(&mut self, value: &APIMuValue) -> CMuBool {
+    pub fn tr64_is_int(&mut self, value: &APIMuValue) -> bool {
         panic!("Not implemented")
     }
 
-    pub fn tr64_is_ref(&mut self, value: &APIMuValue) -> CMuBool {
+    pub fn tr64_is_ref(&mut self, value: &APIMuValue) -> bool {
         panic!("Not implemented")
     }
 
@@ -414,7 +414,7 @@ impl MuIRBuilder {
         panic!("Not implemented")
     }
 
-    pub fn gen_sym(&mut self, name: Option<String>) -> CMuID {
+    pub fn gen_sym(&mut self, name: Option<String>) -> MuID {
         panic!("Not implemented")
     }
 
