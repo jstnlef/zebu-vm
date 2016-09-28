@@ -2,6 +2,10 @@ RUSTC=rustc
 MUAPI_H_DIR=..
 INCLUDE_DIR=$(MUAPI_H_DIR)
 
+.PHONY: all
+
+all: cclient
+
 rustpart.a: *.rs
 	$(RUSTC) --crate-type=staticlib -o rustpart.a mock.rs
 

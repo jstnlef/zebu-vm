@@ -1,13 +1,42 @@
 #![allow(unused_variables)] // stubs
 #![allow(dead_code)]        // stubs
 
+/**
+ * This is a mock micro VM implementation. The purpose is to check whether the `api_c.rs` structs,
+ * the `api_bridge.rs` forwarder and the filler codes are correctly implemented (specifically,
+ * whether the parameters and the return values are correctly passed), and whether the
+ * auto-generated stubs are reasonable.
+ *
+ * This file can be used as a guideline for implementing the API. Some concerns are highlighted in
+ * the docstrings.
+ */
+
 use std::os::raw::*;
 use std::ffi::CStr;
+use std::ffi::CString;
+
+use std::collections::HashMap;
 
 use api_c::*;
 use api_bridge::*;
 use deps::*;
 
+/**
+ * NOTE: This could be one of the two top-level functions that are exposed to the client.
+ *
+ * Unlike the MuVM, MuCtx and MuIRBuilder structs, this function is not standardised. The reason is
+ * that in a production setting, the micro VM may not even be created by the client. For example,
+ * if we use boot-images, the micro VM exists since the beginning of the execution. The pointer to
+ * the MuVM struct may be held by a global (static) variable and can never be freed.
+ *
+ * If the micro VM implementation allows the client to create new micro VM instances as requested,
+ * it can provide functions that return the C-level `struct MuVM*` pointers, such as this one, and
+ * the `mu_refimpl2_new` and `mu_refimpl2_new_ex` functions found in the reference implementation.
+ *
+ * In this example, the micro VM instance is created on the heap, using Box. The C-visible struct
+ * is created by the `make_new_MuVM` function generated in `api_bridge`, which populates the
+ * method table and sets the "real" MuVM pointer as its header.
+ */
 #[no_mangle]
 pub extern fn new_mock_micro_vm(name: CMuCString) -> *mut CMuVM {
     println!("name: {:?}", name);
@@ -17,9 +46,12 @@ pub extern fn new_mock_micro_vm(name: CMuCString) -> *mut CMuVM {
 
     println!("The client asked to create a micro VM: {}", rust_name);
     
+    // let mut muvm: Box<MuVM> = Default::default();
+    // muvm.my_name = rust_name;
+    
     let muvm = Box::new(MuVM {
         my_name: rust_name,
-        contexts: Vec::new(),
+        ..Default::default()
     });
 
     let muvm_ptr = Box::into_raw(muvm);
@@ -46,11 +78,32 @@ pub extern fn free_mock_micro_vm(cmvm: *mut CMuVM) {
     println!("All structures re-boxed and ready for deallocation. By the way, is it really possible to destroy a micro VM in a productional setting?");
 }
 
-
-
+/**
+ * The micro VM itself.
+ *
+ * NOTE: If the "real" micro VM is implemented in a different place (such as `../VM.rs`), it could
+ * be defined as:
+ *
+ * ```rust
+ * pub type MuVM = vm.VM;
+ *
+ * // in vm.rs:
+ * impl VM {
+ *   // copy the stubs here.
+ * }
+ * ```
+ *
+ * Neither the client nor the `api_bridge.rs` can tell which is the actual MuVM struct, because it
+ * is not exposed to C, and the `api_bridge.rs` forwarders never access any field in the high-level
+ * MuVM struct.
+ */
+#[derive(Default)]
 pub struct MuVM {
     my_name: String,
     contexts: Vec<MuCtx>,
+    cname_dict: HashMap<MuID, CString>,
+    trap_handler: Option<CMuTrapHandler>,
+    trap_handler_user_data: Option<CMuCPtr>,
 }
 
 pub struct MuCtx {
@@ -67,19 +120,40 @@ impl MuVM {
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
-        if name == "@truth" {
+        if name == "@forty_two" {
             42
         } else {
-            panic!("I don't know the id of it")
+            panic!("I don't know the id of {}", name)
         }
     }
 
+    /**
+     * The client expects a "const char*" (expressed in the muapi.h as "char*", but "const char*"
+     * should be more appropriate). The client does not know when it should free that string, so
+     * the micro VM has to immortalise a CString object. In this example, the Rust-level MuVM
+     * struct holds a `cname_dict` hashmap which owns all CString instances.
+     */
     pub fn name_of(&mut self, id: MuID) -> CMuCString {
-        panic!("Not implemented")
+        let c_string = self.cname_dict.entry(id).or_insert_with(|| {
+            println!("Creating name for ID {}...", id);
+            let rust_string = format!("@mvm.id{}", id);
+            CString::new(rust_string).unwrap()
+        });
+
+        // Indeed the returned string is const, but the C API does not properly express the
+        // constness. Perhaps the C API can be improved without adding too much complexity.
+        c_string.as_ptr() as CMuCString
     }
 
     pub fn set_trap_handler(&mut self, trap_handler: CMuTrapHandler, userdata: CMuCPtr) {
-        panic!("Not implemented")
+        self.trap_handler = Some(trap_handler);
+        self.trap_handler_user_data = Some(userdata);
+
+        println!("Set the trap handler to {:?} and the userdata to {:?}", trap_handler, userdata);
+        println!("Let's call the trap handler now.");
+
+        // TODO: Call the trap handler to test it.
+
     }
 
 }
