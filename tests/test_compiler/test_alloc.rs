@@ -43,20 +43,6 @@ fn test_instruction_new() {
     aot::execute(executable);
 }
 
-#[allow(dead_code)]
-fn fake_mutator_for_cur_thread(vm: &VM) {
-    // init gc
-    const IMMIX_SPACE_SIZE : ByteSize = 500 << 20;
-    const LO_SPACE_SIZE    : ByteSize = 500 << 20;
-    mm::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
-    
-    let mutator = mm::new_mutator();
-    
-    let muthread : *mut MuThread = Box::into_raw(Box::new(MuThread::fake_thread(vm.next_id(), mutator)));
-    
-    unsafe {thread::set_thread_local(muthread)};
-}
-
 #[allow(unused_variables)]
 pub fn alloc_new() -> VM {
     let vm = VM::new();

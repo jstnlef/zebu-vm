@@ -13,7 +13,7 @@ pub struct CompiledFunction {
     pub temps: HashMap<MuID, MuID>, // assumes one temperary maps to one register
     
     // not emitting this
-    pub mc: Option<Box<MachineCode>>,
+    pub mc: Option<Box<MachineCode + Send + Sync>>,
     
     pub frame: Frame,
     pub start: ValueLocation,
@@ -67,7 +67,7 @@ impl Decodable for CompiledFunction {
 }
 
 impl CompiledFunction {
-    pub fn mc(&self) -> &Box<MachineCode> {
+    pub fn mc(&self) -> &Box<MachineCode + Send + Sync> {
         match self.mc {
             Some(ref mc) => mc,
             None => panic!("trying to get mc from a compiled function. 
@@ -76,7 +76,7 @@ impl CompiledFunction {
         }
     }
     
-    pub fn mc_mut(&mut self) -> &mut Box<MachineCode> {
+    pub fn mc_mut(&mut self) -> &mut Box<MachineCode + Send + Sync> {
         match self.mc {
             Some(ref mut mc) => mc,
             None => panic!("no mc found from a compiled function")

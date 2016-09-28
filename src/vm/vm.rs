@@ -17,6 +17,7 @@ use runtime::mm as gc;
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 use std::path;
+use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 use std::thread::JoinHandle;
@@ -547,21 +548,6 @@ impl <'a> VM {
     pub fn make_primordial_thread(&self, func_id: MuID, args: Vec<Constant>) {
         let mut guard = self.primordial.write().unwrap();
         *guard = Some(MuPrimordialThread{func_id: func_id, args: args});
-    }
-    
-    pub fn new_thread_normal(&self, mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>) -> JoinHandle<()> {
-        let user_tls = {
-            if threadlocal.is_zero() {
-                None
-            } else {
-                Some(threadlocal)
-            }
-        };
-        
-        // set up arguments on stack
-        stack.runtime_load_args(vals);
-        
-        MuThread::mu_thread_launch(self.next_id(), stack, user_tls, self)
     }
     
     #[allow(unused_variables)]

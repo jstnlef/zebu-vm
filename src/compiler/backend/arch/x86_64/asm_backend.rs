@@ -664,7 +664,7 @@ impl CodeGenerator for ASMCodeGen {
         ValueLocation::Relocatable(RegGroup::GPR, func_symbol)
     }
     
-    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode>, ValueLocation) {
+    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation) {
         let func_end_symbol = {
             let mut symbol = symbol(func_name.clone());
             symbol.push_str("_end");

@@ -6,7 +6,7 @@ use compiler::machine_code::MachineCode;
 
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName) -> ValueLocation;
-    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode>, ValueLocation);
+    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
     
     fn print_cur_code(&self);
     

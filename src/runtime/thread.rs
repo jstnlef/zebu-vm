@@ -16,6 +16,7 @@ use utils::mem::memsec;
 use std::mem;
 use std::thread;
 use std::thread::JoinHandle;
+use std::sync::Arc;
 
 pub const STACK_SIZE : ByteSize = (4 << 20); // 4mb
 
@@ -209,7 +210,10 @@ pub struct MuThread {
     stack: Option<Box<MuStack>>,
     
     native_sp_loc: Address,
-    user_tls: Option<Address>
+    user_tls: Option<Address>,
+    
+    vm: Arc<VM>,
+    exception_obj: Address
 }
 
 // this depends on the layout of MuThread
@@ -219,6 +223,12 @@ lazy_static! {
                 + mem::size_of::<Option<Box<MuStack>>>();
     
     pub static ref ALLOCATOR_OFFSET : usize = mem::size_of::<MuEntityHeader>();
+    
+    pub static ref VM_OFFSET : usize = mem::size_of::<MuEntityHeader>() 
+                + mem::size_of::<Box<mm::Mutator>>()
+                + mem::size_of::<Option<Box<MuStack>>>()
+                + mem::size_of::<Address>()
+                + mem::size_of::<Option<Address>>();
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -238,35 +248,54 @@ extern "C" {
 }
 
 impl MuThread {
-    pub fn new(id: MuID, allocator: mm::Mutator, stack: Box<MuStack>, user_tls: Option<Address>) -> MuThread {
+    pub fn new(id: MuID, allocator: mm::Mutator, stack: Box<MuStack>, user_tls: Option<Address>, vm: Arc<VM>) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator: allocator,
             stack: Some(stack),
             native_sp_loc: unsafe {Address::zero()},
-            user_tls: user_tls
+            user_tls: user_tls,
+            vm: vm,
+            exception_obj: unsafe {Address::zero()}
         }
     }
     
-    pub fn fake_thread(id: MuID, allocator: mm::Mutator) -> MuThread {
-        MuThread {
-            hdr: MuEntityHeader::unnamed(id),
-            allocator: allocator,
-            stack: None,
-            native_sp_loc: unsafe {Address::zero()},
-            user_tls: None
+    pub fn current() -> &'static MuThread {
+        unsafe{
+            get_thread_local().to_ptr::<MuThread>().as_ref().unwrap()
         }
     }
+    
+    pub fn current_mut() -> &'static mut MuThread {
+        unsafe{
+            get_thread_local().to_ptr_mut::<MuThread>().as_mut().unwrap()
+        }
+    }
+    
+    pub fn new_thread_normal(mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>, vm: Arc<VM>) -> JoinHandle<()> {
+        let user_tls = {
+            if threadlocal.is_zero() {
+                None
+            } else {
+                Some(threadlocal)
+            }
+        };
+        
+        // set up arguments on stack
+        stack.runtime_load_args(vals);
+        
+        MuThread::mu_thread_launch(vm.next_id(), stack, user_tls, vm)
+    }    
     
     #[no_mangle]
     #[allow(unused_variables)]
-    pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vm: &VM) -> JoinHandle<()> {
+    pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vm: Arc<VM>) -> JoinHandle<()> {
         let new_sp = stack.sp;
         let entry = runtime::resolve_symbol(vm.name_of(stack.func_id));
         debug!("entry : 0x{:x}", entry);
         
         match thread::Builder::new().name(format!("Mu Thread #{}", id)).spawn(move || {
-            let muthread : *mut MuThread = Box::into_raw(Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls)));
+            let muthread : *mut MuThread = Box::into_raw(Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls, vm)));
             
             // set thread local
             unsafe {set_thread_local(muthread)};

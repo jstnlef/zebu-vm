@@ -16,6 +16,7 @@ use std::sync::Arc;
 pub extern crate gc as mm;
 pub mod thread;
 pub mod entrypoints;
+pub mod exception;
 
 // consider using libloading crate instead of the raw c functions for dynalic libraries
 // however i am not sure if libloading can load symbols from current process (not from an actual dylib)
@@ -173,7 +174,7 @@ pub extern fn mu_main(serialized_vm : *const c_char) {
         
         // FIXME: currently assumes no user defined thread local
         // will need to fix this after we can serialize heap object
-        let thread = vm.new_thread_normal(stack, unsafe{Address::zero()}, args);
+        let thread = thread::MuThread::new_thread_normal(stack, unsafe{Address::zero()}, args, vm.clone());
         
         thread.join().unwrap();
     }
