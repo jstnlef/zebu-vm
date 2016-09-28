@@ -517,6 +517,14 @@ pub struct Value {
 }
 
 impl Value {
+    pub fn make_int_const(id: MuID, val: u64) -> P<Value> {
+        P(Value{
+            hdr: MuEntityHeader::unnamed(id),
+            ty: UINT32_TYPE.clone(),
+            v: Value_::Constant(Constant::Int(val))
+        })
+    }
+    
     pub fn is_mem(&self) -> bool {
         match self.v {
             Value_::Memory(_) => true,

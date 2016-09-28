@@ -3,12 +3,14 @@
 use compiler::backend;
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::AOT_EMIT_DIR;
+use compiler::backend::RegGroup;
 use utils::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::machine_code::CompiledFunction;
 use compiler::machine_code::MachineCode;
 use vm::VM;
+use runtime::ValueLocation;
 
 use utils::string_utils;
 
@@ -629,7 +631,7 @@ impl ASMCodeGen {
 }
 
 impl CodeGenerator for ASMCodeGen {
-    fn start_code(&mut self, func_name: MuName) {
+    fn start_code(&mut self, func_name: MuName) -> ValueLocation {
         self.cur = Some(Box::new(ASMCode {
                 name: func_name.clone(),
                 code: vec![],
@@ -655,13 +657,27 @@ impl CodeGenerator for ASMCodeGen {
             }));
         
         // to link with C sources via gcc
-        self.add_asm_symbolic(directive_globl(symbol(func_name.clone())));
-        self.add_asm_symbolic(format!("{}:", symbol(func_name.clone())));
+        let func_symbol = symbol(func_name.clone());
+        self.add_asm_symbolic(directive_globl(func_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
+        
+        ValueLocation::Relocatable(RegGroup::GPR, func_symbol)
     }
     
-    fn finish_code(&mut self) -> Box<MachineCode> {
+    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode>, ValueLocation) {
+        let func_end_symbol = {
+            let mut symbol = symbol(func_name.clone());
+            symbol.push_str("_end");
+            symbol
+        };
+        self.add_asm_symbolic(directive_globl(func_end_symbol.clone()));        
+        
         self.control_flow_analysis();
-        self.cur.take().unwrap()
+        
+        (
+            self.cur.take().unwrap(),
+            ValueLocation::Relocatable(RegGroup::GPR, func_end_symbol)
+        )
     }
     
     fn print_cur_code(&self) {
@@ -1207,7 +1223,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     let compiled_funcs = vm.compiled_funcs().read().unwrap();
     let cf = compiled_funcs.get(&fv.id()).unwrap().read().unwrap();
 
-    let code = cf.mc.emit();
+    let code = cf.mc.as_ref().unwrap().emit();
 
     // create 'emit' directory
     create_emit_directory();

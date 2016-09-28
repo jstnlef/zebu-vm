@@ -1,11 +1,12 @@
 use ast::ptr::P;
 use ast::ir::*;
+use runtime::ValueLocation;
 
 use compiler::machine_code::MachineCode;
 
 pub trait CodeGenerator {
-    fn start_code(&mut self, func_name: MuName);
-    fn finish_code(&mut self) -> Box<MachineCode>;
+    fn start_code(&mut self, func_name: MuName) -> ValueLocation;
+    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode>, ValueLocation);
     
     fn print_cur_code(&self);
     

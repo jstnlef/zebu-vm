@@ -10,6 +10,7 @@ use compiler::machine_code::CompiledFunction;
 use vm::vm_options::VMOptions;
 use runtime::thread::*;
 use runtime::ValueLocation;
+use utils::ByteSize;
 use utils::Address;
 use runtime::mm as gc;
 
@@ -52,7 +53,7 @@ pub struct VM {
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,    
 }
 
-const VM_SERIALIZE_FIELDS : usize = 12;
+const VM_SERIALIZE_FIELDS : usize = 13;
 
 impl Encodable for VM {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
@@ -156,6 +157,23 @@ impl Encodable for VM {
                 try!(s.emit_struct_field("is_running", 12, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
             }
             
+            // compiled_funcs
+            {
+                let compiled_funcs : &HashMap<_, _> = &self.compiled_funcs.read().unwrap();
+                try!(s.emit_struct_field("compiled_funcs", 13, |s| {
+                    s.emit_map(compiled_funcs.len(), |s| {
+                        let mut i = 0;
+                        for (k, v) in compiled_funcs.iter() {
+                            try!(s.emit_map_elt_key(i, |s| k.encode(s)));
+                            let compiled_func : &CompiledFunction = &v.read().unwrap();
+                            try!(s.emit_map_elt_val(i, |s| compiled_func.encode(s)));
+                            i += 1;
+                        }
+                        Ok(())
+                    })
+                }));
+            }
+            
             Ok(())
         })
     }
@@ -231,6 +249,19 @@ impl Decodable for VM {
             
             let is_running = try!(d.read_struct_field("is_running", 12, |d| Decodable::decode(d)));
             
+            // compiled funcs
+            let compiled_funcs = try!(d.read_struct_field("compiled_funcs", 13, |d| {
+                d.read_map(|d, len| {
+                    let mut map = HashMap::new();
+                    for i in 0..len {
+                        let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
+                        let val = RwLock::new(try!(d.read_map_elt_val(i, |d| Decodable::decode(d))));
+                        map.insert(key, val);
+                    }
+                    Ok(map)
+                })
+            }));
+            
             let vm = VM{
                 next_id: ATOMIC_USIZE_INIT,
                 id_name_map: RwLock::new(id_name_map),
@@ -244,9 +275,7 @@ impl Decodable for VM {
                 func_vers: RwLock::new(func_vers),
                 primordial: RwLock::new(primordial),
                 is_running: ATOMIC_BOOL_INIT,
-                
-                // not serialized
-                compiled_funcs: RwLock::new(HashMap::new()),
+                compiled_funcs: RwLock::new(compiled_funcs),
             };
             
             vm.next_id.store(next_id, Ordering::SeqCst);
@@ -280,6 +309,13 @@ impl <'a> VM {
             
             primordial: RwLock::new(None)
         };
+        
+        {
+            let mut types = ret.types.write().unwrap();
+            for ty in INTERNAL_TYPES.iter() {
+                types.insert(ty.id(), ty.clone());
+            }
+        }
         
         ret.is_running.store(false, Ordering::SeqCst);
         ret.next_id.store(USER_ID_START, Ordering::SeqCst);
@@ -450,7 +486,10 @@ impl <'a> VM {
         }
 
         let types = self.types.read().unwrap();
-        let ty = types.get(&tyid).unwrap();
+        let ty = match types.get(&tyid) {
+            Some(ty) => ty,
+            None => panic!("invalid type id during get_backend_type_info(): {}", tyid)
+        };
         let resolved = Box::new(backend::resolve_backend_type_info(ty, self));
         
         let mut write_lock = self.backend_type_info.write().unwrap();

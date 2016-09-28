@@ -1,15 +1,87 @@
 use ast::ir::*;
 use compiler::frame::*;
+use runtime::ValueLocation;
+
 use std::ops;
 use std::collections::HashMap;
+
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 pub struct CompiledFunction {
     pub func_id: MuID,
     pub func_ver_id: MuID,
     pub temps: HashMap<MuID, MuID>, // assumes one temperary maps to one register
-    pub mc: Box<MachineCode>,
     
-    pub frame: Frame
+    // not emitting this
+    pub mc: Option<Box<MachineCode>>,
+    
+    pub frame: Frame,
+    pub start: ValueLocation,
+    pub end: ValueLocation
+}
+
+const CF_SERIALIZE_FIELDS : usize = 6;
+
+impl Encodable for CompiledFunction {
+    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+        s.emit_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |s| {
+            try!(s.emit_struct_field("func_id",     0, |s| self.func_id.encode(s)));
+            try!(s.emit_struct_field("func_ver_id", 1, |s| self.func_ver_id.encode(s)));
+            try!(s.emit_struct_field("temps",       2, |s| self.temps.encode(s)));
+            try!(s.emit_struct_field("frame",       3, |s| self.frame.encode(s)));
+            try!(s.emit_struct_field("start",       4, |s| self.start.encode(s)));
+            try!(s.emit_struct_field("end",         5, |s| self.end.encode(s)));
+            
+            Ok(())
+        })
+    }
+}
+
+impl Decodable for CompiledFunction {
+    fn decode<D: Decoder>(d: &mut D) -> Result<CompiledFunction, D::Error> {
+        d.read_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |d| {
+            let func_id = 
+                try!(d.read_struct_field("func_id",     0, |d| Decodable::decode(d)));
+            let func_ver_id = 
+                try!(d.read_struct_field("func_ver_id", 1, |d| Decodable::decode(d)));
+            let temps = 
+                try!(d.read_struct_field("temps",       2, |d| Decodable::decode(d)));
+            let frame = 
+                try!(d.read_struct_field("frame",       3, |d| Decodable::decode(d)));
+            let start = 
+                try!(d.read_struct_field("start",       4, |d| Decodable::decode(d)));
+            let end =
+                try!(d.read_struct_field("end",         5, |d| Decodable::decode(d)));
+            
+            Ok(CompiledFunction{
+                func_id: func_id,
+                func_ver_id: func_ver_id,
+                temps: temps,
+                mc: None,
+                frame: frame,
+                start: start,
+                end: end
+            })
+        })
+    }
+}
+
+impl CompiledFunction {
+    pub fn mc(&self) -> &Box<MachineCode> {
+        match self.mc {
+            Some(ref mc) => mc,
+            None => panic!("trying to get mc from a compiled function. 
+                But machine code is None (probably this compiled function is restored from
+                boot image and mc is thrown away)")
+        }
+    }
+    
+    pub fn mc_mut(&mut self) -> &mut Box<MachineCode> {
+        match self.mc {
+            Some(ref mut mc) => mc,
+            None => panic!("no mc found from a compiled function")
+        }
+    }
 }
 
 pub trait MachineCode {

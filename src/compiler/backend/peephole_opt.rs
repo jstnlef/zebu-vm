@@ -15,18 +15,18 @@ impl PeepholeOptimization {
     }
     
     pub fn remove_redundant_move(&mut self, inst: usize, cf: &mut CompiledFunction) {
-        if cf.mc.is_move(inst) && !cf.mc.is_using_mem_op(inst) {
-            cf.mc.trace_inst(inst);
+        if cf.mc().is_move(inst) && !cf.mc().is_using_mem_op(inst) {
+            cf.mc().trace_inst(inst);
             
             let src : MuID = {
-                let uses = cf.mc.get_inst_reg_uses(inst);
+                let uses = cf.mc().get_inst_reg_uses(inst);
                 if uses.len() != 1 {
                     // moving immediate to register, its not redundant
                     return;
                 }                
                 uses[0]
             };
-            let dst : MuID = cf.mc.get_inst_reg_defines(inst)[0];
+            let dst : MuID = cf.mc().get_inst_reg_defines(inst)[0];
             
             let src_machine_reg : MuID = {
                 match cf.temps.get(&src) {
@@ -44,7 +44,7 @@ impl PeepholeOptimization {
             if src_machine_reg == dst_machine_reg {
                 trace!("Redundant! removed");
                 // redundant, remove this move
-                cf.mc.set_inst_nop(inst);
+                cf.mc_mut().set_inst_nop(inst);
             }
         }
     }
@@ -59,11 +59,11 @@ impl CompilerPass for PeepholeOptimization {
         let compiled_funcs = vm.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
         
-        for i in 0..cf.mc.number_of_insts() {
+        for i in 0..cf.mc().number_of_insts() {
             self.remove_redundant_move(i, &mut cf);
         }
         
         trace!("after peephole optimization:");
-        cf.mc.trace_mc();
+        cf.mc().trace_mc();
     }
 }

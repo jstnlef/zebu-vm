@@ -262,7 +262,7 @@ pub fn is_machine_reg(reg: MuID) -> bool {
 
 #[allow(unused_variables)]
 fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
-    let n_insts = cf.mc.number_of_insts();
+    let n_insts = cf.mc().number_of_insts();
     
     let mut livein  : Vec<Vec<MuID>> = vec![vec![]; n_insts];
     let mut liveout : Vec<Vec<MuID>> = vec![vec![]; n_insts];    
@@ -280,10 +280,10 @@ fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
             // in[n] <- use[n] + (out[n] - def[n])
             // (1) in[n] = use[n]
             let mut in_set_new = vec![];
-            in_set_new.extend_from_slice(&cf.mc.get_inst_reg_uses(n));
+            in_set_new.extend_from_slice(&cf.mc().get_inst_reg_uses(n));
             // (2) diff = out[n] - def[n]
             let mut diff = liveout[n].to_vec();
-            for def in cf.mc.get_inst_reg_defines(n) {
+            for def in cf.mc().get_inst_reg_defines(n) {
                 vec_utils::remove_value(&mut diff, *def);
             }
             // (3) in[n] = in[n] + diff
@@ -295,7 +295,7 @@ fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
             
             // out[n] <- union(in[s] for every successor s of n)
             let mut union = vec![];
-            for s in cf.mc.get_succs(n) {
+            for s in cf.mc().get_succs(n) {
                 vec_utils::append_clone_unique(&mut union, &livein[*s]);
             }
             
@@ -309,15 +309,15 @@ fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
         }
     }
     
-    for block in cf.mc.get_all_blocks().to_vec() {
-        if cf.mc.get_ir_block_livein(&block).is_none() {
-            let start_inst = cf.mc.get_block_range(&block).unwrap().start;
-            cf.mc.set_ir_block_livein(&block, livein[start_inst].to_vec());
+    for block in cf.mc().get_all_blocks().to_vec() {
+        if cf.mc().get_ir_block_livein(&block).is_none() {
+            let start_inst = cf.mc().get_block_range(&block).unwrap().start;
+            cf.mc_mut().set_ir_block_livein(&block, livein[start_inst].to_vec());
         }
         
-        if cf.mc.get_ir_block_liveout(&block).is_none() {
-            let end_inst = cf.mc.get_block_range(&block).unwrap().end;
-            cf.mc.set_ir_block_liveout(&block, liveout[end_inst].to_vec());
+        if cf.mc().get_ir_block_liveout(&block).is_none() {
+            let end_inst = cf.mc().get_block_range(&block).unwrap().end;
+            cf.mc_mut().set_ir_block_liveout(&block, liveout[end_inst].to_vec());
         }
     }
 }
@@ -336,13 +336,13 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
     }
     
     // Initialize and creates nodes for all the involved temps/regs
-    for i in 0..cf.mc.number_of_insts() {
-        for reg_id in cf.mc.get_inst_reg_defines(i) {
+    for i in 0..cf.mc().number_of_insts() {
+        for reg_id in cf.mc().get_inst_reg_defines(i) {
             let reg_id = *reg_id;
             ig.new_node(reg_id, &func.context);
         }
         
-        for reg_id in cf.mc.get_inst_reg_uses(i) {
+        for reg_id in cf.mc().get_inst_reg_uses(i) {
             let reg_id = *reg_id;
             ig.new_node(reg_id, &func.context);
         }
@@ -351,14 +351,14 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
     // all nodes has been added, we init graph (create adjacency matrix)
     ig.init_graph();
     
-    for block in cf.mc.get_all_blocks() {
+    for block in cf.mc().get_all_blocks() {
         // Current_Live(B) = LiveOut(B)
-        let mut current_live = LinkedHashSet::from_vec(match cf.mc.get_ir_block_liveout(&block) {
+        let mut current_live = LinkedHashSet::from_vec(match cf.mc().get_ir_block_liveout(&block) {
             Some(liveout) => liveout.to_vec(),
             None => panic!("cannot find liveout for block {}", block)
         });
         
-        let range = cf.mc.get_block_range(&block);
+        let range = cf.mc().get_block_range(&block);
         if range.is_none() {
             continue;
         }
@@ -366,14 +366,14 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
         // for every inst I in reverse order
         for i in range.unwrap().rev() {
             let src : Option<MuID> = {
-                if cf.mc.is_move(i) {
-                    let src = cf.mc.get_inst_reg_uses(i);
-                    let dst = cf.mc.get_inst_reg_defines(i);
+                if cf.mc().is_move(i) {
+                    let src = cf.mc().get_inst_reg_uses(i);
+                    let dst = cf.mc().get_inst_reg_defines(i);
                     
                     // src:  reg/imm/mem
                     // dest: reg/mem
                     // we dont care if src/dest is mem
-                    if cf.mc.is_using_mem_op(i) {
+                    if cf.mc().is_using_mem_op(i) {
                         None
                     } else {
                         if src.len() == 1 {
@@ -392,7 +392,7 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
             };
             
             // for every definition D in I
-            for d in cf.mc.get_inst_reg_defines(i) {
+            for d in cf.mc().get_inst_reg_defines(i) {
                 // add an interference from D to every element E in Current_Live - {D}
                 // creating nodes if necessary
                 for e in current_live.iter() {
@@ -413,13 +413,13 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
             }
             
             // for every definition D in I
-            for d in cf.mc.get_inst_reg_defines(i) {
+            for d in cf.mc().get_inst_reg_defines(i) {
                 // remove D from Current_Live
                 current_live.remove(d);
             }
             
             // for every use U in I
-            for u in cf.mc.get_inst_reg_uses(i) {
+            for u in cf.mc().get_inst_reg_uses(i) {
                 // add U to Current_live
                 current_live.insert(*u);
             }
@@ -443,7 +443,7 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
     }
     
     // Liveness Analysis
-    let n_insts = cf.mc.number_of_insts();
+    let n_insts = cf.mc().number_of_insts();
     let mut live_in : Vec<Vec<MuID>> = vec![vec![]; n_insts];
     let mut live_out : Vec<Vec<MuID>> = vec![vec![]; n_insts];
     let mut work_list : LinkedList<usize> = LinkedList::new();
@@ -453,12 +453,12 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
     for i in 0..n_insts {
         let ref mut in_set = live_in[i];
         
-        for reg_id in cf.mc.get_inst_reg_defines(i) {
+        for reg_id in cf.mc().get_inst_reg_defines(i) {
             let reg_id = *reg_id;
             ig.new_node(reg_id, &func.context);
         }
         
-        for reg_id in cf.mc.get_inst_reg_uses(i) {
+        for reg_id in cf.mc().get_inst_reg_uses(i) {
             let reg_id = *reg_id;
             ig.new_node(reg_id, &func.context);
             
@@ -479,14 +479,14 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
         let ref mut out_set = live_out[n];
         
         // out = union(in[succ]) for all succs
-        for succ in cf.mc.get_succs(n) {
+        for succ in cf.mc().get_succs(n) {
             trace!("add successor's livein {:?} to #{}", &live_in[*succ], n); 
             vec_utils::add_all(out_set, &live_in[*succ]);
         }
         
         // in = use(i.e. live_in) + (out - def) 
         let mut diff = out_set.clone();
-        for def in cf.mc.get_inst_reg_defines(n) {
+        for def in cf.mc().get_inst_reg_defines(n) {
             vec_utils::remove_value(&mut diff, *def);
             trace!("removing def: {}", *def);
             trace!("diff = {:?}", diff);
@@ -498,7 +498,7 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
             trace!("in = (use) {:?}", in_set);
             
             if vec_utils::add_all(in_set, &diff) {
-                for p in cf.mc.get_preds(n) {
+                for p in cf.mc().get_preds(n) {
                     work_list.push_front(*p);
                 }
             }
@@ -520,9 +520,9 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
         let ref mut live = live_out[n];
         
         let src : Option<MuID> = {
-            if cf.mc.is_move(n) {
-                let src = cf.mc.get_inst_reg_uses(n);
-                let dst = cf.mc.get_inst_reg_defines(n);
+            if cf.mc().is_move(n) {
+                let src = cf.mc().get_inst_reg_uses(n);
+                let dst = cf.mc().get_inst_reg_defines(n);
                 
                 // src may be an immediate number
                 // but dest is definitly a register
@@ -542,7 +542,7 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
             }
         };
         
-        for d in cf.mc.get_inst_reg_defines(n) {
+        for d in cf.mc().get_inst_reg_defines(n) {
             for t in live.iter() {
                 if src.is_none() || (src.is_some() && *t != src.unwrap()) {
                     let from = ig.get_node(*d);
@@ -560,11 +560,11 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
             }
         }
         
-        for d in cf.mc.get_inst_reg_defines(n) {
+        for d in cf.mc().get_inst_reg_defines(n) {
             vec_utils::remove_value(live, *d);
         }
         
-        for u in cf.mc.get_inst_reg_uses(n) {
+        for u in cf.mc().get_inst_reg_uses(n) {
             live.push(*u);
         }
     }

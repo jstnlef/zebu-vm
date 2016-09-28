@@ -24,7 +24,7 @@ macro_rules! GPR {
             let id = new_machine_id();
             P(Value {
                 hdr: MuEntityHeader::named(id, $name.to_string()),
-                ty: GPR_TY.clone(),
+                ty: UINT64_TYPE.clone(),
                 v: Value_::SSAVar(id)
             })
         }
@@ -37,16 +37,11 @@ macro_rules! FPR {
             let id = new_machine_id();
             P(Value {
                 hdr: MuEntityHeader::named(id, $name.to_string()),
-                ty: FPR_TY.clone(),
+                ty: DOUBLE_TYPE.clone(),
                 v: Value_::SSAVar(id)
             })
         }
     };
-}
-
-lazy_static! {
-    pub static ref GPR_TY : P<MuType> = P(MuType::new(new_internal_id(), MuType_::int(64)));
-    pub static ref FPR_TY : P<MuType> = P(MuType::new(new_internal_id(), MuType_::double()));
 }
 
 // put into several segments to avoid 'recursion limit reached' error

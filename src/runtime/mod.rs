@@ -1,10 +1,6 @@
 use log;
 use simple_logger;
 use utils;
-use ast::ir;
-use ast::ptr::*;
-use ast::types::MuType_;
-use ast::types::MuType;
 use ast::ir::*;
 use vm::VM;
 use compiler::backend::Word;
@@ -20,20 +16,6 @@ use std::sync::Arc;
 pub extern crate gc as mm;
 pub mod thread;
 pub mod entrypoints;
-
-lazy_static! {
-    pub static ref ADDRESS_TYPE : P<MuType> = P(
-        MuType::new(ir::new_internal_id(), MuType_::int(64))
-    );
-    
-    pub static ref UINT32_TYPE : P<MuType> = P(
-        MuType::new(ir::new_internal_id(), MuType_::int(32))
-    );
-    
-    pub static ref UINT64_TYPE : P<MuType> = P(
-        MuType::new(ir::new_internal_id(), MuType_::int(64))
-    );
-}
 
 // consider using libloading crate instead of the raw c functions for dynalic libraries
 // however i am not sure if libloading can load symbols from current process (not from an actual dylib)
@@ -57,14 +39,84 @@ pub fn resolve_symbol(symbol: String) -> Address {
     Address::from_ptr(ret)
 }
 
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+
 #[derive(Clone, Debug)]
 pub enum ValueLocation {
-    Register(RegGroup, MuID),
-    Direct(RegGroup, Address),
-    Indirect(RegGroup, Address),
-    Constant(RegGroup, Word),
+    Register(RegGroup, MuID),     // 0
+    Constant(RegGroup, Word),     // 1    
+    Relocatable(RegGroup, MuName),// 2
     
-    Relocatable(RegGroup, MuName)
+    Direct(RegGroup, Address),    // 3
+    Indirect(RegGroup, Address),  // 4
+}
+
+impl Encodable for ValueLocation {
+    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+        s.emit_enum("ValueLocation", |s| {
+            match self {
+                &ValueLocation::Register(grp, id) => {
+                    s.emit_enum_variant("Register", 0, 2, |s| {
+                        try!(s.emit_enum_variant_arg(0, |s| grp.encode(s)));
+                        try!(s.emit_enum_variant_arg(1, |s| id.encode(s)));
+                        Ok(())
+                    })
+                }
+                &ValueLocation::Constant(grp, val) => {
+                    s.emit_enum_variant("Constant", 1, 2, |s| {
+                        try!(s.emit_enum_variant_arg(0, |s| grp.encode(s)));
+                        try!(s.emit_enum_variant_arg(1, |s| val.encode(s)));
+                        Ok(())
+                    })    
+                }                
+                &ValueLocation::Relocatable(grp, ref name) => {
+                    s.emit_enum_variant("Relocatable", 2, 2, |s| {
+                        try!(s.emit_enum_variant_arg(0, |s| grp.encode(s)));
+                        try!(s.emit_enum_variant_arg(1, |s| name.encode(s)));
+                        Ok(())
+                    })
+                }
+                &ValueLocation::Direct(_, _)
+                | &ValueLocation::Indirect(_, _) => {
+                    panic!("trying to encode an address location (not persistent)")
+                }
+            }
+        })
+    }
+}
+
+impl Decodable for ValueLocation {
+    fn decode<D: Decoder>(d: &mut D) -> Result<ValueLocation, D::Error> {
+        d.read_enum("ValueLocation", |d| {
+            d.read_enum_variant(
+                &vec!["Register", "Constant", "Relocatable"],
+                |d, idx| {
+                    match idx {
+                        0 => {
+                            // Register variant
+                            let grp = try!(d.read_enum_variant_arg(0, |d| Decodable::decode(d)));
+                            let id = try!(d.read_enum_variant_arg(1, |d| Decodable::decode(d)));
+                            
+                            Ok(ValueLocation::Register(grp, id))
+                        }
+                        1 => {
+                            // Constant
+                            let grp = try!(d.read_enum_variant_arg(0, |d| Decodable::decode(d)));
+                            let val = try!(d.read_enum_variant_arg(1, |d| Decodable::decode(d)));
+                            Ok(ValueLocation::Constant(grp, val))
+                        }
+                        2 => {
+                            // Relocatable
+                            let grp = try!(d.read_enum_variant_arg(0, |d| Decodable::decode(d)));
+                            let name = try!(d.read_enum_variant_arg(1, |d| Decodable::decode(d)));
+                            Ok(ValueLocation::Relocatable(grp, name))
+                        }
+                        _ => panic!("unexpected enum variant for ValueLocation: {}", idx)
+                    }
+                }
+             ) 
+        })
+    }
 }
 
 impl ValueLocation {

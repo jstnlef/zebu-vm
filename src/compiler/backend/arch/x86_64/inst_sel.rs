@@ -30,7 +30,9 @@ pub struct InstructionSelection {
     
     backend: Box<CodeGenerator>,
     
-    current_block: Option<MuName>
+    current_frame: Option<Frame>,
+    current_block: Option<MuName>,
+    current_func_start: Option<ValueLocation>
 }
 
 impl <'a> InstructionSelection {
@@ -38,7 +40,10 @@ impl <'a> InstructionSelection {
         InstructionSelection{
             name: "Instruction Selection (x64)",
             backend: Box::new(ASMCodeGen::new()),
-            current_block: None
+            
+            current_frame: None,
+            current_block: None,
+            current_func_start: None,
         }
     }
     
@@ -461,26 +466,26 @@ impl <'a> InstructionSelection {
                             
                             // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
                             let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
-                            let tmp_cursor = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
+                            let tmp_cursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
                             self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
                             
                             // alignup cursor (cursor + align - 1 & !(align - 1))
                             // ASM: lea align-1(%cursor) -> %start
                             let align = ty_info.alignment as i32;
-                            let tmp_start = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
+                            let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
                             self.emit_lea_base_offset(&tmp_start, &tmp_cursor, align - 1, vm);
                             // ASM: and %start, !(align-1) -> %start
                             self.backend.emit_and_r64_imm32(&tmp_start, !(align - 1));
                             
                             // bump cursor
                             // ASM: lea size(%start) -> %end
-                            let tmp_end = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
+                            let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
                             self.emit_lea_base_offset(&tmp_end, &tmp_start, ty_size as i32, vm);
                             
                             // check with limit
                             // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
                             let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
-                            let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, runtime::ADDRESS_TYPE.clone(), vm);
+                            let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
                             self.backend.emit_cmp_r64_mem64(&tmp_end, &mem_limit);
                             
                             // branch to slow path if end > limit
@@ -513,7 +518,7 @@ impl <'a> InstructionSelection {
 
                             // arg1: allocator address                            
                             let allocator_offset = *thread::ALLOCATOR_OFFSET;
-                            let tmp_allocator = self.make_temporary(f_context, runtime::ADDRESS_TYPE.clone(), vm);
+                            let tmp_allocator = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
                             self.emit_lea_base_offset(&tmp_allocator, &tmp_tl, allocator_offset as i32, vm);
                             // arg2: size                            
                             let const_size = self.make_value_int_const(ty_size as u64, vm);
@@ -569,7 +574,7 @@ impl <'a> InstructionSelection {
     fn make_value_int_const (&mut self, val: u64, vm: &VM) -> P<Value> {
         P(Value{
             hdr: MuEntityHeader::unnamed(vm.next_id()),
-            ty: runtime::UINT64_TYPE.clone(),
+            ty: UINT64_TYPE.clone(),
             v: Value_::Constant(Constant::Int(val))
         })
     } 
@@ -587,7 +592,7 @@ impl <'a> InstructionSelection {
     }
     
     fn emit_lea_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
-        let mem = self.make_memory_op_base_offset(base, offset, runtime::ADDRESS_TYPE.clone(), vm);
+        let mem = self.make_memory_op_base_offset(base, offset, ADDRESS_TYPE.clone(), vm);
         
         self.backend.emit_lea_r64(dest, &mem);
     }
@@ -742,7 +747,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_common_prologue(&mut self, args: &Vec<P<Value>>) {
+    fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, vm: &VM) {
         let block_name = "prologue".to_string();
         self.backend.start_block(block_name.clone());
         
@@ -757,11 +762,15 @@ impl <'a> InstructionSelection {
         self.backend.emit_mov_r64_r64(&x86_64::RBP, &x86_64::RSP);
         
         // push all callee-saved registers
-        for i in 0..x86_64::CALLEE_SAVED_GPRs.len() {
-            let ref reg = x86_64::CALLEE_SAVED_GPRs[i];
-            // not pushing rbp (as we have done taht)
-            if reg.extract_ssa_id().unwrap() != x86_64::RBP.extract_ssa_id().unwrap() {
-                self.backend.emit_push_r64(&reg);
+        {
+            let frame = self.current_frame.as_mut().unwrap();
+            for i in 0..x86_64::CALLEE_SAVED_GPRs.len() {
+                let ref reg = x86_64::CALLEE_SAVED_GPRs[i];
+                // not pushing rbp (as we have done taht)
+                if reg.extract_ssa_id().unwrap() != x86_64::RBP.extract_ssa_id().unwrap() {
+                    self.backend.emit_push_r64(&reg);
+                    frame.alloc_slot_for_callee_saved_reg(reg.clone(), vm);
+                }
             }
         }
         
@@ -998,7 +1007,7 @@ impl <'a> InstructionSelection {
                     Instruction_::GetIRef(op_index) => {
                         let ref op = ops[op_index];
                         
-                        self.make_memory_op_base_offset(&op.clone_value(), mm::objectmodel::OBJECT_HEADER_SIZE as i32, runtime::ADDRESS_TYPE.clone(), vm) 
+                        self.make_memory_op_base_offset(&op.clone_value(), mm::objectmodel::OBJECT_HEADER_SIZE as i32, ADDRESS_TYPE.clone(), vm) 
                     }
                     _ => unimplemented!()
                 }
@@ -1095,14 +1104,17 @@ impl CompilerPass for InstructionSelection {
     fn start_function(&mut self, vm: &VM, func_ver: &mut MuFunctionVersion) {
         debug!("{}", self.name());
         
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
-        self.backend.start_code(func.name().unwrap());
+        self.current_frame = Some(Frame::new());
+        self.current_func_start = Some({
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
+            self.backend.start_code(func.name().unwrap())        
+        });
         
         // prologue (get arguments from entry block first)        
         let entry_block = func_ver.content.as_ref().unwrap().get_entry_block();
         let ref args = entry_block.content.as_ref().unwrap().args;
-        self.emit_common_prologue(args);
+        self.emit_common_prologue(args, vm);
     }
 
     #[allow(unused_variables)]
@@ -1143,13 +1155,21 @@ impl CompilerPass for InstructionSelection {
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         self.backend.print_cur_code();
         
-        let mc = self.backend.finish_code();
+        let func_name = {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func.func_id).unwrap().read().unwrap();
+            func.name().unwrap()
+        };
+        
+        let (mc, func_end) = self.backend.finish_code(func_name);
         let compiled_func = CompiledFunction {
             func_id: func.func_id,
             func_ver_id: func.id(),
             temps: HashMap::new(),
-            mc: mc,
-            frame: Frame::new()
+            mc: Some(mc),
+            frame: self.current_frame.take().unwrap(),
+            start: self.current_func_start.take().unwrap(),
+            end: func_end 
         };
         
         vm.add_compiled_func(compiled_func);

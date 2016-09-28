@@ -152,9 +152,9 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
 
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct BackendTypeInfo {
-    size: ByteSize,
-    alignment: ByteSize,
-    struct_layout: Option<Vec<ByteSize>>
+    pub size: ByteSize,
+    pub alignment: ByteSize,
+    pub struct_layout: Option<Vec<ByteSize>>
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
