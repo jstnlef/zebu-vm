@@ -9,7 +9,6 @@ use ast::op;
 use ast::types;
 use ast::types::*;
 use vm::VM;
-use vm::CompiledFunction;
 use runtime;
 use runtime::mm;
 use runtime::ValueLocation;
@@ -21,6 +20,8 @@ use compiler::CompilerPass;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::x86_64::ASMCodeGen;
+use compiler::machine_code::CompiledFunction;
+use compiler::frame::Frame;
 
 use std::collections::HashMap;
 
@@ -1147,7 +1148,8 @@ impl CompilerPass for InstructionSelection {
             func_id: func.func_id,
             func_ver_id: func.id(),
             temps: HashMap::new(),
-            mc: mc
+            mc: mc,
+            frame: Frame::new()
         };
         
         vm.add_compiled_func(compiled_func);

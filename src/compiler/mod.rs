@@ -8,6 +8,8 @@ use std::sync::Arc;
 
 pub mod passes;
 pub mod backend;
+pub mod frame;
+pub mod machine_code;
 
 pub use compiler::passes::CompilerPass;
 pub use compiler::passes::PassExecutionResult;

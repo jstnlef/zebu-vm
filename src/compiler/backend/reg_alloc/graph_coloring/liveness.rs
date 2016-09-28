@@ -1,6 +1,6 @@
 extern crate nalgebra;
 
-use vm::CompiledFunction;
+use compiler::machine_code::CompiledFunction;
 use ast::ir::*;
 use ast::types;
 use compiler::backend;

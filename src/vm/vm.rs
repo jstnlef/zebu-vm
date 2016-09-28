@@ -6,7 +6,7 @@ use ast::types;
 use ast::types::*;
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
-use vm::machine_code::CompiledFunction;
+use compiler::machine_code::CompiledFunction;
 use vm::vm_options::VMOptions;
 use runtime::thread::*;
 use runtime::ValueLocation;
@@ -457,6 +457,10 @@ impl <'a> VM {
         write_lock.insert(tyid, resolved.clone());
         
         resolved        
+    }
+    
+    pub fn get_type_size(&self, tyid: MuID) -> ByteSize {
+        self.get_backend_type_info(tyid).size
     }
     
     pub fn globals(&self) -> &RwLock<HashMap<MuID, P<Value>>> {

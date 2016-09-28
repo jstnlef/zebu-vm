@@ -1,7 +1,7 @@
 use compiler::CompilerPass;
 use ast::ir::*;
 use vm::VM;
-use vm::CompiledFunction;
+use compiler::machine_code::CompiledFunction;
 
 pub struct PeepholeOptimization {
     name: &'static str

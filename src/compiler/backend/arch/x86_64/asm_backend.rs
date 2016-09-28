@@ -6,7 +6,8 @@ use compiler::backend::AOT_EMIT_DIR;
 use utils::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
-use vm::MachineCode;
+use compiler::machine_code::CompiledFunction;
+use compiler::machine_code::MachineCode;
 use vm::VM;
 
 use utils::string_utils;

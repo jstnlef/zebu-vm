@@ -1,4 +1,5 @@
 use ast::ir::*;
+use compiler::frame::*;
 use std::ops;
 use std::collections::HashMap;
 
@@ -6,7 +7,9 @@ pub struct CompiledFunction {
     pub func_id: MuID,
     pub func_ver_id: MuID,
     pub temps: HashMap<MuID, MuID>, // assumes one temperary maps to one register
-    pub mc: Box<MachineCode>
+    pub mc: Box<MachineCode>,
+    
+    pub frame: Frame
 }
 
 pub trait MachineCode {

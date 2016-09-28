@@ -1,7 +1,7 @@
 use ast::ptr::P;
 use ast::ir::*;
 
-use vm::MachineCode;
+use compiler::machine_code::MachineCode;
 
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName);
