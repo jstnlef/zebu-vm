@@ -13,4 +13,4 @@ cpart.o: cpart.c cpart.h
 	$(CC) -c -I $(INCLUDE_DIR) -o $@ $<
 
 cclient: cclient.c cpart.h rustpart.a cpart.o ../muapi.h
-	$(CC) -I $(INCLUDE_DIR) -o $@ cclient.c cpart.o rustpart.a
+	$(CC) -I $(INCLUDE_DIR) -ldl -pthread -lm -lrt -lutil -o $@ cclient.c cpart.o rustpart.a
