@@ -1,13 +1,17 @@
-/*
+#![allow(non_camel_case_types)] // Generated code
+#![allow(dead_code)]            // This is a public module that mirrors muapi.h
+/**
  * This file contains the C-facing interfaces.
  *
  * It is basically the muapi.h header written in Rust. It does not contain any
  * implementation-specific code. Most codes are simply generated from muapi.h.
+ *
+ * NOTE: Parts of this file (between GEN:BEGIN:* and GEN:END:*) are automatically generated. Do not
+ * edit those parts manually because they will be overwritten. Instead, edit the muapi2rustapi.py
+ * script to generate the desired code.
  */
 
 // This file is for interfacing with C, so it is not idiomatic Rust code.
-#![allow(non_camel_case_types)]
-#![allow(dead_code)]
 
 use std::os::raw::*;
 

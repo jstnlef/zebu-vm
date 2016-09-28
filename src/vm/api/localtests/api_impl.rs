@@ -1,21 +1,56 @@
-/*!
- * Stubs for api_impl.rs
- *
- * Parts of this file (between GEN:BEGIN:* and GEN:END:*) are automatically generated. Do not edit
- * those parts manually because they will be overwritten. Instead, edit the muapi2rustapi.py script
- * to generate the desired code.
- *
- * To implement these functions, copy the generated stubs to api_impl.rs and add the function body.
- */
+#![allow(unused_variables)] // stubs
+#![allow(dead_code)]        // stubs
 
 use std::os::raw::*;
+use std::ffi::CStr;
 
 use api_c::*;
 use api_bridge::*;
 use deps::*;
 
+#[no_mangle]
+pub extern fn new_mock_micro_vm(name: CMuCString) -> *mut CMuVM {
+    println!("name: {:?}", name);
+    let rust_name = unsafe {
+        CStr::from_ptr(name)
+    }.to_string_lossy().into_owned();
+
+    println!("The client asked to create a micro VM: {}", rust_name);
+    
+    let muvm = Box::new(MuVM {
+        my_name: rust_name,
+        contexts: Vec::new(),
+    });
+
+    let muvm_ptr = Box::into_raw(muvm);
+
+    println!("The header address: {:?}", muvm_ptr);
+
+    let cmuvm = make_new_MuVM(muvm_ptr as *mut c_void);
+
+    println!("The C-visible CMuVM struct address: {:?}", cmuvm);
+
+    cmuvm
+}
+
+#[no_mangle]
+pub extern fn free_mock_micro_vm(cmvm: *mut CMuVM) {
+    println!("The client asked to deallocate a micro VM: {:?}", cmvm);
+
+    let cmvm_box = unsafe { Box::from_raw(cmvm) };
+
+    let mvm_ptr = cmvm_box.header as *mut MuVM;
+    println!("The MuVM pointer is {:?}", mvm_ptr);
+
+    let mvm_box = unsafe { Box::from_raw(mvm_ptr) };
+    println!("All structures re-boxed and ready for deallocation. By the way, is it really possible to destroy a micro VM in a productional setting?");
+}
+
+
+
 pub struct MuVM {
-    // Stub
+    my_name: String,
+    contexts: Vec<MuCtx>,
 }
 
 pub struct MuCtx {
@@ -26,14 +61,17 @@ pub struct MuIRBuilder {
     // Stub
 }
 
-// GEN:BEGIN:StubImpls
 impl MuVM {
     pub fn new_context(&mut self) -> *mut CMuCtx {
         panic!("Not implemented")
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
-        panic!("Not implemented")
+        if name == "@truth" {
+            42
+        } else {
+            panic!("I don't know the id of it")
+        }
     }
 
     pub fn name_of(&mut self, id: MuID) -> CMuCString {
@@ -727,4 +765,3 @@ impl MuIRBuilder {
     }
 
 }
-// GEN:END:StubImpls

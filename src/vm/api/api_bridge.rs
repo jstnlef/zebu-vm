@@ -1,6 +1,21 @@
+#![allow(non_snake_case)]   // It's generated code.
+#![allow(dead_code)]        // Seems Rust do not consider "taking the function pointer" as "use"
+
+/**
+ * This file contains the bridge between the C interface and the Rust implementation.
+ *
+ * This file contains the the functions in the C-API's `MuVM`, `MuCtx` and `MuIRBuilder` structs.
+ * These functions will convert the low-level C-style argument types to the high-level Rust-level
+ * argument types, and attempt to call the methods of the same name on the corresponding Rust
+ * structs in api_impl.
+ *
+ * NOTE: Parts of this file (between GEN:BEGIN:* and GEN:END:*) are automatically generated. Do not
+ * edit those parts manually because they will be overwritten. Instead, edit the muapi2rustapi.py
+ * script to generate the desired code.
+ */
 use std::ptr;
 use std::os::raw::*;
-use std::ffi::CString;
+use std::ffi::CStr;
 use std::slice;
 
 use super::api_c::*;
@@ -54,11 +69,11 @@ fn from_MuName(cname: CMuName) -> MuName {
 #[inline(always)]
 fn from_MuCString(cstring: CMuCString) -> String {
     debug_assert!(!cstring.is_null());
-    let ffi_cstring = unsafe {
-        CString::from_raw(cstring)
+    let ffi_cstr = unsafe {
+        CStr::from_ptr(cstring)
     };
 
-    ffi_cstring.into_string().unwrap()
+    ffi_cstr.to_string_lossy().into_owned()
 }
 
 #[inline(always)]
@@ -1891,19 +1906,19 @@ extern fn _forwarder__MuIRBuilder__new_cmpxchg(b: *mut CMuIRBuilder, id: CMuID, 
     };
 }
 
-extern fn _forwarder__MuIRBuilder__new_atomicrmw(b: *mut CMuIRBuilder, id: CMuID, result_id: CMuID, is_ptr: CMuBool, ord: CMuMemOrd, optr: CMuAtomicRMWOptr, refTy: CMuTypeNode, loc: CMuVarNode, opnd: CMuVarNode, exc_clause: CMuExcClause) {
+extern fn _forwarder__MuIRBuilder__new_atomicrmw(b: *mut CMuIRBuilder, id: CMuID, result_id: CMuID, is_ptr: CMuBool, ord: CMuMemOrd, optr: CMuAtomicRMWOptr, ref_ty: CMuTypeNode, loc: CMuVarNode, opnd: CMuVarNode, exc_clause: CMuExcClause) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_result_id = from_MuID(result_id);
     let mut _arg_is_ptr = from_MuBool(is_ptr);
     let mut _arg_ord = ord;
     let mut _arg_optr = optr;
-    let mut _arg_refTy = from_MuID(refTy);
+    let mut _arg_ref_ty = from_MuID(ref_ty);
     let mut _arg_loc = from_MuID(loc);
     let mut _arg_opnd = from_MuID(opnd);
     let mut _arg_exc_clause = from_MuID_optional(exc_clause);
     unsafe {
-        (*_arg_b).new_atomicrmw(_arg_id, _arg_result_id, _arg_is_ptr, _arg_ord, _arg_optr, _arg_refTy, _arg_loc, _arg_opnd, _arg_exc_clause)
+        (*_arg_b).new_atomicrmw(_arg_id, _arg_result_id, _arg_is_ptr, _arg_ord, _arg_optr, _arg_ref_ty, _arg_loc, _arg_opnd, _arg_exc_clause)
     };
 }
 

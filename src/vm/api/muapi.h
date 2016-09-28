@@ -693,7 +693,7 @@ struct MuIRBuilder {
                           MuExcClause exc_clause); /// MUAPIPARSER exc_clause:optional
     void (*new_atomicrmw)(MuIRBuilder *b, MuID id, MuID result_id,
                           MuBool is_ptr, MuMemOrd ord, MuAtomicRMWOptr optr,
-                          MuTypeNode refTy, MuVarNode loc, MuVarNode opnd,
+                          MuTypeNode ref_ty, MuVarNode loc, MuVarNode opnd,
                           MuExcClause exc_clause); /// MUAPIPARSER exc_clause:optional
     void (*new_fence    )(MuIRBuilder *b, MuID id, MuMemOrd ord);
     
