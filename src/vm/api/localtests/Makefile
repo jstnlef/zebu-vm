@@ -2,6 +2,13 @@ RUSTC=rustc
 MUAPI_H_DIR=..
 INCLUDE_DIR=$(MUAPI_H_DIR)
 
+UNAME := $(shell uname)
+ifeq ($(UNAME),Darwin)
+    LDFLAGS = -lm
+else
+    LDFLAGS = -ldl -pthread -lm -lrt -lutil
+endif
+
 .PHONY: all
 
 all: cclient
@@ -13,4 +20,4 @@ cpart.o: cpart.c cpart.h
 	$(CC) -c -I $(INCLUDE_DIR) -o $@ $<
 
 cclient: cclient.c cpart.h rustpart.a cpart.o ../muapi.h
-	$(CC) -I $(INCLUDE_DIR) -ldl -pthread -lm -lrt -lutil -o $@ cclient.c cpart.o rustpart.a
+	$(CC) -I $(INCLUDE_DIR) $(LDFLAGS) -o $@ cclient.c cpart.o rustpart.a

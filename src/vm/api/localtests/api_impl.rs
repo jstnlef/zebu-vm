@@ -12,6 +12,8 @@
  */
 
 use std::os::raw::*;
+use std::ptr;
+use std::slice;
 use std::ffi::CStr;
 use std::ffi::CString;
 
@@ -152,7 +154,47 @@ impl MuVM {
         println!("Set the trap handler to {:?} and the userdata to {:?}", trap_handler, userdata);
         println!("Let's call the trap handler now.");
 
-        // TODO: Call the trap handler to test it.
+        let ctx: *mut CMuCtx = ptr::null_mut();
+        let thread: CMuValue = Box::into_raw(Box::new(APIMuValue{ty: 100, vb: ValueBox::BoxThread})) as CMuValue;
+        let stack: CMuValue = Box::into_raw(Box::new(APIMuValue{ty: 200, vb: ValueBox::BoxStack})) as CMuValue;
+        let wpid: u32 = 99;
+
+        let mut result: CMuTrapHandlerResult = 0;
+        let mut new_stack: CMuValue = ptr::null_mut();
+        let mut values: *mut CMuValue = ptr::null_mut();
+        let mut nvalues: usize = 0;
+        let mut freer: Option<CMuValuesFreer> = None;
+        let mut freerdata: CMuCPtr = ptr::null_mut();
+        let mut exception: CMuValue = ptr::null_mut();
+
+        trap_handler(ctx, thread, stack, wpid,
+                     &mut result, &mut new_stack, &mut values, &mut nvalues,
+                     &mut freer as *mut Option<CMuValuesFreer> as *mut CMuValuesFreer, &mut freerdata, &mut exception,
+                     userdata);
+
+        println!("Back to Rust! result = {}", result);
+        let new_stack_proper = new_stack as *const APIMuValue;
+        let values_proper = values as *const *const APIMuValue;
+        let values_slice = unsafe { slice::from_raw_parts(values_proper, nvalues) };
+        unsafe {
+            println!("  new_stack = {}, {:?}", (*new_stack_proper).ty, (*new_stack_proper).vb);
+            println!("  nvalues = {}", nvalues);
+            for &v in values_slice {
+                println!("    {}, {:?}", (*v).ty, (*v).vb);
+            }
+        }
+
+        println!("freer = {:?}, freerdata = {:?}", freer, freerdata);
+
+        println!("Calling freer...");
+        let the_freer = freer.unwrap()(values, freerdata);
+        println!("Back to Rust from freer!");
+
+        // free memory
+        unsafe {
+            Box::from_raw(stack);
+            Box::from_raw(thread); 
+        }
 
     }
 
