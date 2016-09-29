@@ -287,6 +287,10 @@ impl Block {
     pub fn new(id: MuID) -> Block {
         Block{hdr: MuEntityHeader::unnamed(id), content: None, control_flow: ControlFlow::default()}
     }
+    
+    pub fn is_exception_block(&self) -> bool {
+        return self.content.as_ref().unwrap().exn_arg.is_some()
+    }
 }
 
 #[derive(Debug, RustcEncodable, RustcDecodable)]

@@ -88,7 +88,7 @@ pub enum Instruction_ {
     // yields a tuple of results from the call
     ExprCall{
         data: CallData,
-        is_abort: bool, // T to abort, F to rethrow
+        is_abort: bool, // T to abort, F to rethrow - FIXME: current, always rethrow for now
     },
 
     // yields the memory value
@@ -221,6 +221,10 @@ pub enum Instruction_ {
         data: CallData,
         resume: ResumptionData
     },
+    CCall{
+        data: CallData,
+        resume: ResumptionData
+    },
     SwapStack{
         stack: OpIndex,
         is_exception: bool,
@@ -318,6 +322,7 @@ impl Instruction_ {
                 format!("WPBRANCH {} {} {}", wp, disable_dest.debug_str(ops), enable_dest.debug_str(ops))
             },
             &Instruction_::Call{ref data, ref resume} => format!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
+            &Instruction_::CCall{ref data, ref resume} => format!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
             &Instruction_::SwapStack{stack, is_exception, ref args, ref resume} => {
                 format!("SWAPSTACK {} {} {} {}", ops[stack], is_exception, op_vector_str(args, ops), resume.debug_str(ops))
             },
@@ -396,7 +401,7 @@ pub struct Destination {
 
 impl Destination {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        let mut ret = format!("{}", self.target);
+        let mut ret = format!("{} with ", self.target);
         ret.push('[');
         for i in 0..self.args.len() {
             let ref arg = self.args[i];

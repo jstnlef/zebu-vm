@@ -49,8 +49,8 @@ _swap_to_mu_stack:
 
 # _swap_back_to_native_stack(sp_loc: Address)
 #                            %rdi
-.globl _swap_back_to_native_stack
-_swap_back_to_native_stack:
+.globl _muentry_swap_back_to_native_stack
+_muentry_swap_back_to_native_stack:
           movq 0(%rdi), %rsp
 
           popq %r15
@@ -60,4 +60,10 @@ _swap_back_to_native_stack:
           popq %rbx
 
           popq %rbp
+          ret
+
+# _get_current_frame_rbp() -> Address
+.globl _get_current_frame_rbp
+_get_current_frame_rbp:
+          movq %rbp, %rax
           ret

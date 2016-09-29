@@ -1,12 +1,11 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
+use runtime::ValueLocation;
 
 use std::collections::HashMap;
 use utils::POINTER_SIZE;
 use vm::VM;
-
-type SlotID = usize;
 
 // | previous frame ...
 // |---------------
@@ -21,18 +20,21 @@ use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 #[derive(RustcEncodable, RustcDecodable)]
 pub struct Frame {
-    cur_slot_id: SlotID,
+    func_ver_id: MuID,
     cur_offset: isize, // offset to rbp
     
-    allocated: HashMap<SlotID, FrameSlot>,
+    pub allocated: HashMap<MuID, FrameSlot>,
+    // key: callsite, val: destination address
+    pub exception_callsites: HashMap<ValueLocation, ValueLocation>
 }
 
 impl Frame {
-    pub fn new() -> Frame {
+    pub fn new(func_ver_id: MuID) -> Frame {
         Frame {
-            cur_slot_id: 0,
+            func_ver_id: func_ver_id,
             cur_offset: - (POINTER_SIZE as isize * 1), // reserve for old RBP
-            allocated: HashMap::new()
+            allocated: HashMap::new(),
+            exception_callsites: HashMap::new()
         }
     }
     
@@ -46,29 +48,28 @@ impl Frame {
         slot.make_memory_op(reg.ty.clone(), vm)
     }
     
+    pub fn add_exception_callsite(&mut self, callsite: ValueLocation, dest: ValueLocation) {
+        self.exception_callsites.insert(callsite, dest);
+    }
+    
     fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {
-        let id = self.cur_slot_id;
+        let id = val.id();
         let ret = FrameSlot {
-            id: id,
             offset: self.cur_offset,
             value: val.clone()
         };
         
-        self.cur_slot_id += 1;
         self.cur_offset -= vm.get_type_size(val.ty.id()) as isize;
         
         self.allocated.insert(id, ret);
-        
         self.allocated.get(&id).unwrap()
     }
 }
 
 #[derive(RustcEncodable, RustcDecodable)]
-struct FrameSlot {
-    id: SlotID,
-    offset: isize,
-    
-    value: P<Value>
+pub struct FrameSlot {
+    pub offset: isize,
+    pub value: P<Value>
 }
 
 impl FrameSlot {

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::cmp;
 use std::fmt;
 use std::mem;
@@ -11,13 +13,18 @@ impl Address {
     pub fn plus(&self, bytes: usize) -> Self {
         Address(self.0 + bytes)
     }
-    #[allow(dead_code)]
     #[inline(always)]
     pub fn sub(&self, bytes: usize) -> Self {
         Address(self.0 - bytes)
     }
     #[inline(always)]
-    pub fn offset<T>(&self, offset: isize) -> Self {
+    pub fn offset(&self, offset: isize) -> Self {
+        debug_assert!((self.0 as isize) < 0);
+        Address((self.0 as isize + offset) as usize)
+    }
+    #[inline(always)]
+    pub fn shift<T>(&self, offset: isize) -> Self {
+        debug_assert!((self.0 as isize) < 0);
         Address((self.0 as isize + mem::size_of::<T>() as isize * offset) as usize)
     }
     #[inline(always)]

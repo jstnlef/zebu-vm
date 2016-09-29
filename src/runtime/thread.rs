@@ -207,13 +207,13 @@ pub enum MuStackState {
 pub struct MuThread {
     pub hdr: MuEntityHeader,
     allocator: mm::Mutator,
-    stack: Option<Box<MuStack>>,
+    pub stack: Option<Box<MuStack>>,
     
     native_sp_loc: Address,
     user_tls: Option<Address>,
     
-    vm: Arc<VM>,
-    exception_obj: Address
+    pub vm: Arc<VM>,
+    pub exception_obj: Address
 }
 
 // this depends on the layout of MuThread
@@ -236,7 +236,7 @@ lazy_static! {
 #[link(name = "runtime")]
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
-    pub fn get_thread_local() -> Address;
+    pub fn muentry_get_thread_local() -> Address;
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -244,7 +244,8 @@ extern "C" {
 #[link(name = "swap_stack")]
 extern "C" {
     fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
-    fn swap_back_to_native_stack(sp_loc: Address);
+    fn muentry_swap_back_to_native_stack(sp_loc: Address);
+    pub fn get_current_frame_rbp() -> Address;
 }
 
 impl MuThread {
@@ -260,15 +261,17 @@ impl MuThread {
         }
     }
     
+    #[inline(always)]
     pub fn current() -> &'static MuThread {
         unsafe{
-            get_thread_local().to_ptr::<MuThread>().as_ref().unwrap()
+            muentry_get_thread_local().to_ptr::<MuThread>().as_ref().unwrap()
         }
     }
     
+    #[inline(always)]
     pub fn current_mut() -> &'static mut MuThread {
         unsafe{
-            get_thread_local().to_ptr_mut::<MuThread>().as_mut().unwrap()
+            muentry_get_thread_local().to_ptr_mut::<MuThread>().as_mut().unwrap()
         }
     }
     
@@ -300,7 +303,7 @@ impl MuThread {
             // set thread local
             unsafe {set_thread_local(muthread)};
             
-            let addr = unsafe {get_thread_local()};
+            let addr = unsafe {muentry_get_thread_local()};
             let sp_threadlocal_loc = addr.plus(*NATIVE_SP_LOC_OFFSET);
             
             debug!("new sp: 0x{:x}", new_sp);
