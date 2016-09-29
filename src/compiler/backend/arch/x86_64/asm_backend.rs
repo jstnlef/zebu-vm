@@ -670,7 +670,8 @@ impl CodeGenerator for ASMCodeGen {
             symbol.push_str("_end");
             symbol
         };
-        self.add_asm_symbolic(directive_globl(func_end_symbol.clone()));        
+        self.add_asm_symbolic(directive_globl(func_end_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", func_end_symbol.clone()));
         
         self.control_flow_analysis();
         
@@ -706,6 +707,16 @@ impl CodeGenerator for ASMCodeGen {
         
         let start = self.line();
         self.cur_mut().block_start.insert(block_name, start);
+    }
+    
+    fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation {
+        let block_symbol = symbol(self.asm_block_label(block_name.clone()));
+        self.add_asm_symbolic(directive_globl(block_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", block_symbol.clone()));
+        
+        self.start_block(block_name);
+        
+        ValueLocation::Relocatable(RegGroup::GPR, block_symbol)
     }
     
     fn end_block(&mut self, block_name: MuName) {
@@ -1141,21 +1152,25 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_branch2(asm, dest_name);        
     }    
     
-    fn emit_call_near_rel32(&mut self, func: MuName) {
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation {
         trace!("emit: call {}", func);
+        
+        let callsite_symbol = symbol(callsite);
+        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));        
         
         let asm = format!("call {}", symbol(func));
         self.add_asm_call(asm);
         
-        // FIXME: call interferes with machine registers
+        ValueLocation::Relocatable(RegGroup::GPR, callsite_symbol)
     }
     
-    fn emit_call_near_r64(&mut self, func: &P<Value>) {
+    fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation {
         trace!("emit: call {}", func);
         unimplemented!()
     }
     
-    fn emit_call_near_mem64(&mut self, func: &P<Value>) {
+    fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation {
         trace!("emit: call {}", func);
         unimplemented!()
     }

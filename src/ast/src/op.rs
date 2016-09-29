@@ -27,6 +27,7 @@ pub enum OpCode {
     Watchpoint,
     WPBranch,
     Call,
+    CCall,
     SwapStack,
     Switch,
     ExnInstruction,
@@ -233,6 +234,7 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
         Instruction_::Watchpoint{..} => OpCode::Watchpoint,
         Instruction_::WPBranch{..} => OpCode::WPBranch,
         Instruction_::Call{..} => OpCode::Call,
+        Instruction_::CCall{..} => OpCode::CCall,
         Instruction_::SwapStack{..} => OpCode::SwapStack,
         Instruction_::Switch{..} => OpCode::Switch,
         Instruction_::ExnInstruction{..} => OpCode::ExnInstruction

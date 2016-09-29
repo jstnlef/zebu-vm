@@ -11,6 +11,7 @@ pub trait CodeGenerator {
     fn print_cur_code(&self);
     
     fn start_block(&mut self, block_name: MuName);
+    fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation;
     fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>);
     fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
     fn end_block(&mut self, block_name: MuName);
@@ -53,9 +54,9 @@ pub trait CodeGenerator {
     fn emit_jl(&mut self, dest: MuName);
     fn emit_jle(&mut self, dest: MuName);
     
-    fn emit_call_near_rel32(&mut self, func: MuName);
-    fn emit_call_near_r64(&mut self, func: &P<Value>);
-    fn emit_call_near_mem64(&mut self, func: &P<Value>);
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation;
+    fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation;
+    fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation;
     
     fn emit_ret(&mut self);
     

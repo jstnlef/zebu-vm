@@ -317,7 +317,7 @@ pub fn factorial() -> VM {
                 args: vec![1],
                 convention: CallConvention::Mu
             },
-            is_abort: true
+            is_abort: false
         }
     });
 

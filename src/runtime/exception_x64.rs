@@ -11,7 +11,7 @@ use std::sync::RwLockReadGuard;
 use std::collections::HashMap;
 
 #[no_mangle]
-pub extern fn mu_throw_exception(exception_obj: Address) {
+pub extern fn muentry_throw_exception(exception_obj: Address) {
     trace!("throwing exception: {}", exception_obj);
     
     let mut cur_thread = thread::MuThread::current_mut();
@@ -50,6 +50,8 @@ pub extern fn mu_throw_exception(exception_obj: Address) {
             panic!("cannot find exception catch block, throws by {}", throw_func_id);
         }
         
+        let callsite = cursor.return_addr;
+        
         let rwlock_cf = match cf_lock.get(&cursor.func_id) {
             Some(ret) => ret,
             None => panic!("cannot find compiled func with func_id {}, possibly didnt find the right frame for return address", cursor.func_id)
@@ -70,7 +72,20 @@ pub extern fn mu_throw_exception(exception_obj: Address) {
         
         cursor.to_previous_frame(&cf_lock);
         
-        // find exception block (if available)
+        // find exception block - comparing callsite with frame info
+        let ref exception_callsites = frame.exception_callsites;
+        for (possible_callsite, dest) in exception_callsites {
+            let possible_callsite_addr = possible_callsite.to_address();
+            
+            if callsite == possible_callsite_addr {
+                // found an exception block
+                let dest_addr = dest.to_address();
+                
+                // restore callee saved register and jump to dest_addr
+            }
+        }
+        
+        // keep unwinding
     }
 }
 

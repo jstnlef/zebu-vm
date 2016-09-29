@@ -1,6 +1,7 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
+use runtime::ValueLocation;
 
 use std::collections::HashMap;
 use utils::POINTER_SIZE;
@@ -23,6 +24,8 @@ pub struct Frame {
     cur_offset: isize, // offset to rbp
     
     pub allocated: HashMap<MuID, FrameSlot>,
+    // key: callsite, val: destination address
+    pub exception_callsites: HashMap<ValueLocation, ValueLocation>
 }
 
 impl Frame {
@@ -30,7 +33,8 @@ impl Frame {
         Frame {
             func_ver_id: func_ver_id,
             cur_offset: - (POINTER_SIZE as isize * 1), // reserve for old RBP
-            allocated: HashMap::new()
+            allocated: HashMap::new(),
+            exception_callsites: HashMap::new()
         }
     }
     
@@ -42,6 +46,10 @@ impl Frame {
     pub fn alloc_slot_for_spilling(&mut self, reg: P<Value>, vm: &VM) -> P<Value> {
         let slot = self.alloc_slot(&reg, vm);
         slot.make_memory_op(reg.ty.clone(), vm)
+    }
+    
+    pub fn add_exception_callsite(&mut self, callsite: ValueLocation, dest: ValueLocation) {
+        self.exception_callsites.insert(callsite, dest);
     }
     
     fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {

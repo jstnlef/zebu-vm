@@ -1,11 +1,8 @@
 use ast::ir::*;
 use ast::ptr::*;
-use ast::inst::Instruction;
-use ast::inst::Destination;
-use ast::inst::DestArg;
-use ast::inst::Instruction_;
-use ast::inst::MemoryOrder;
+use ast::inst::*;
 use ast::op;
+use ast::op::OpCode;
 use ast::types;
 use ast::types::*;
 use vm::VM;
@@ -30,9 +27,14 @@ pub struct InstructionSelection {
     
     backend: Box<CodeGenerator>,
     
+    current_callsite_id: usize,
     current_frame: Option<Frame>,
     current_block: Option<MuName>,
-    current_func_start: Option<ValueLocation>
+    current_func_start: Option<ValueLocation>,
+    // key: block id, val: callsite that names the block as exception block
+    current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
+    // key: block id, val: block location
+    current_exn_blocks: HashMap<MuID, ValueLocation>     
 }
 
 impl <'a> InstructionSelection {
@@ -41,9 +43,13 @@ impl <'a> InstructionSelection {
             name: "Instruction Selection (x64)",
             backend: Box::new(ASMCodeGen::new()),
             
+            current_callsite_id: 0,
             current_frame: None,
             current_block: None,
             current_func_start: None,
+            // key: block id, val: callsite that names the block as exception block
+            current_exn_callsites: HashMap::new(), 
+            current_exn_blocks: HashMap::new()
         }
     }
     
@@ -121,98 +127,26 @@ impl <'a> InstructionSelection {
                     },
                     
                     Instruction_::ExprCall{ref data, is_abort} => {
-                        trace!("deal with pre-call convention");
-                        
-                        let ops = inst.ops.read().unwrap();
-                        let rets = inst.value.as_ref().unwrap();
-                        let ref func = ops[data.func];
-                        let ref func_sig = match func.v {
-                            TreeNode_::Value(ref pv) => {
-                                let ty : &MuType = &pv.ty;
-                                match ty.v {
-                                    MuType_::FuncRef(ref sig)
-                                    | MuType_::UFuncPtr(ref sig) => sig,
-                                    _ => panic!("expected funcref/ptr type")
-                                }
-                            },
-                            _ => panic!("expected funcref/ptr type")
-                        };
-                        
-                        debug_assert!(func_sig.ret_tys.len() == data.args.len());
-                        debug_assert!(func_sig.arg_tys.len() == rets.len());
-                                                
-                        let mut gpr_arg_count = 0;
-                        // TODO: let mut fpr_arg_count = 0;
-                        for arg_index in data.args.iter() {
-                            let ref arg = ops[*arg_index];
-                            trace!("arg {}", arg);
-                            
-                            if self.match_ireg(arg) {
-                                let arg = self.emit_ireg(arg, f_content, f_context, vm);
-                                
-                                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                                    self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
-                                    gpr_arg_count += 1;
-                                } else {
-                                    // use stack to pass argument
-                                    unimplemented!();
-                                }
-                            } else if self.match_iimm(arg) {
-                                let arg = self.emit_get_iimm(arg);
-                                
-                                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                                    self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], arg);
-                                    gpr_arg_count += 1;
-                                } else {
-                                    // use stack to pass argument
-                                    unimplemented!();
-                                }
-                            } else {
-                                unimplemented!();
-                            }
+                        if is_abort {
+                            unimplemented!()
                         }
                         
-                        // check direct call or indirect
-                        if self.match_funcref_const(func) {
-                            let target_id = self.emit_get_funcref_const(func);
-                            let funcs = vm.funcs().read().unwrap();
-                            let target = funcs.get(&target_id).unwrap().read().unwrap();
-                                                        
-                            if vm.is_running() {
-                                unimplemented!()
-                            } else {
-                                self.backend.emit_call_near_rel32(target.name().unwrap());
-                            }
-                        } else if self.match_ireg(func) {
-                            let target = self.emit_ireg(func, f_content, f_context, vm);
-                            
-                            self.backend.emit_call_near_r64(&target);
-                        } else if self.match_mem(func) {
-                            let target = self.emit_mem(func);
-                            
-                            self.backend.emit_call_near_mem64(&target);
-                        } else {
-                            unimplemented!();
-                        }
-                        
-                        // deal with ret vals
-                        let mut gpr_ret_count = 0;
-                        // TODO: let mut fpr_ret_count = 0;
-                        for val in rets {
-                            if val.is_int_reg() {
-                                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
-                                    self.backend.emit_mov_r64_r64(&val, &x86_64::RETURN_GPRs[gpr_ret_count]);
-                                    gpr_ret_count += 1;
-                                } else {
-                                    // get return value by stack
-                                    unimplemented!();
-                                }
-                            } else {
-                                // floating point register
-                                unimplemented!();
-                            }
-                        }
+                        self.emit_mu_call(
+                            inst, // inst: &Instruction,
+                            data, // calldata: &CallData,
+                            None, // resumption: Option<&ResumptionData>,
+                            node, // cur_node: &TreeNode, 
+                            f_content, f_context, vm);                         
                     },
+                    
+                    Instruction_::Call{ref data, ref resume} => {
+                        self.emit_mu_call(
+                            inst, 
+                            data, 
+                            Some(resume), 
+                            node, 
+                            f_content, f_context, vm);
+                    }
                     
                     Instruction_::Return(_) => {
                         self.emit_common_epilogue(inst, f_content, f_context, vm);
@@ -444,10 +378,10 @@ impl <'a> InstructionSelection {
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
                         
                         // get thread local and add offset to get sp_loc
-                        let tl = self.emit_get_threadlocal(f_content, f_context, vm);
+                        let tl = self.emit_get_threadlocal(node, f_content, f_context, vm);
                         self.backend.emit_add_r64_imm32(&tl, *thread::NATIVE_SP_LOC_OFFSET as i32);
                         
-                        self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, f_content, f_context, vm);
+                        self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, node, f_content, f_context, vm);
                     }
                     
                     Instruction_::New(ref ty) => {
@@ -462,7 +396,7 @@ impl <'a> InstructionSelection {
                             // emit immix allocation fast path
                             
                             // ASM: %tl = get_thread_local()
-                            let tmp_tl = self.emit_get_threadlocal(f_content, f_context, vm);
+                            let tmp_tl = self.emit_get_threadlocal(node, f_content, f_context, vm);
                             
                             // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
                             let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
@@ -531,7 +465,7 @@ impl <'a> InstructionSelection {
                                 Some(vec![
                                     tmp_res.clone()
                                 ]),
-                                f_content, f_context, vm
+                                node, f_content, f_context, vm
                             );
                             
                             // end block (no liveout other than result)
@@ -542,6 +476,17 @@ impl <'a> InstructionSelection {
                             self.backend.start_block(allocend.clone());
                             self.current_block = Some(allocend.clone());
                         }
+                    }
+                    
+                    Instruction_::Throw(op_index) => {
+                        let ops = inst.ops.read().unwrap();
+                        let ref exception_obj = ops[op_index];
+                        
+                        self.emit_runtime_entry(
+                            &entrypoints::THROW_EXCEPTION, 
+                            vec![exception_obj.clone_value()], 
+                            None,
+                            node, f_content, f_context, vm);
                     }
     
                     _ => unimplemented!()
@@ -597,8 +542,13 @@ impl <'a> InstructionSelection {
         self.backend.emit_lea_r64(dest, &mem);
     }
     
-    fn emit_get_threadlocal (&mut self, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
-        let mut rets = self.emit_runtime_entry(&entrypoints::GET_THREAD_LOCAL, vec![], None, f_content, f_context, vm);
+    fn emit_get_threadlocal (
+        &mut self, 
+        cur_node: &TreeNode,
+        f_content: &FunctionContent, 
+        f_context: &mut FunctionContext, 
+        vm: &VM) -> P<Value> {
+        let mut rets = self.emit_runtime_entry(&entrypoints::GET_THREAD_LOCAL, vec![], None, cur_node, f_content, f_context, vm);
         
         rets.pop().unwrap()
     }
@@ -607,7 +557,15 @@ impl <'a> InstructionSelection {
     // if ret is Some, return values will put stored in given temporaries
     // otherwise create temporaries
     // always returns result temporaries (given or created)
-    fn emit_runtime_entry (&mut self, entry: &RuntimeEntrypoint, args: Vec<P<Value>>, rets: Option<Vec<P<Value>>>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> {
+    fn emit_runtime_entry (
+        &mut self, 
+        entry: &RuntimeEntrypoint, 
+        args: Vec<P<Value>>, 
+        rets: Option<Vec<P<Value>>>,
+        cur_node: &TreeNode, 
+        f_content: &FunctionContent, 
+        f_context: &mut FunctionContext, 
+        vm: &VM) -> Vec<P<Value>> {
         let sig = entry.sig.clone();
         
         let entry_name = {
@@ -623,7 +581,7 @@ impl <'a> InstructionSelection {
             }
         };
         
-        self.emit_c_call(entry_name, sig, args, rets, f_content, f_context, vm)
+        self.emit_c_call(entry_name, sig, args, rets, cur_node, f_content, f_context, vm)
     }
     
     #[allow(unused_variables)]
@@ -631,8 +589,16 @@ impl <'a> InstructionSelection {
     // if ret is Some, return values will put stored in given temporaries
     // otherwise create temporaries
     // always returns result temporaries (given or created)
-    fn emit_c_call (&mut self, func_name: CName, sig: P<CFuncSig>, args: Vec<P<Value>>, rets: Option<Vec<P<Value>>>, 
-        f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> 
+    fn emit_c_call (
+        &mut self, 
+        func_name: CName, 
+        sig: P<CFuncSig>, 
+        args: Vec<P<Value>>, 
+        rets: Option<Vec<P<Value>>>,
+        cur_node: &TreeNode,
+        f_content: &FunctionContent, 
+        f_context: &mut FunctionContext, 
+        vm: &VM) -> Vec<P<Value>> 
     {
         let mut gpr_arg_count = 0;
         for arg in args.iter() {
@@ -677,7 +643,13 @@ impl <'a> InstructionSelection {
         if vm.is_running() {
             unimplemented!()
         } else {
-            self.backend.emit_call_near_rel32(func_name);
+            let callsite = self.new_callsite_label(cur_node.id());
+            self.backend.emit_call_near_rel32(callsite, func_name);
+            
+            // record exception block (CCall may have an exception block)
+            if cur_node.op == OpCode::CCall {
+                unimplemented!()
+            }
         }
         
         // deal with ret vals
@@ -712,6 +684,141 @@ impl <'a> InstructionSelection {
         }
         
         return_vals
+    }
+    
+    fn emit_mu_call(
+        &mut self,
+        inst: &Instruction,
+        calldata: &CallData,
+        resumption: Option<&ResumptionData>,
+        cur_node: &TreeNode, 
+        f_content: &FunctionContent, 
+        f_context: &mut FunctionContext, 
+        vm: &VM) {
+        trace!("deal with pre-call convention");
+        
+        let ops = inst.ops.read().unwrap();
+        let ref func = ops[calldata.func];
+        let ref func_sig = match func.v {
+            TreeNode_::Value(ref pv) => {
+                let ty : &MuType = &pv.ty;
+                match ty.v {
+                    MuType_::FuncRef(ref sig)
+                    | MuType_::UFuncPtr(ref sig) => sig,
+                    _ => panic!("expected funcref/ptr type")
+                }
+            },
+            _ => panic!("expected funcref/ptr type")
+        };
+        
+        debug_assert!(func_sig.ret_tys.len() == calldata.args.len());
+        if cfg!(debug_assertions) {
+            if inst.value.is_some() {
+                assert!(func_sig.arg_tys.len() == inst.value.as_ref().unwrap().len());
+            } else {
+                assert!(func_sig.arg_tys.len() == 0);
+            }
+        }
+                                
+        let mut gpr_arg_count = 0;
+        // TODO: let mut fpr_arg_count = 0;
+        for arg_index in calldata.args.iter() {
+            let ref arg = ops[*arg_index];
+            trace!("arg {}", arg);
+            
+            if self.match_ireg(arg) {
+                let arg = self.emit_ireg(arg, f_content, f_context, vm);
+                
+                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                    self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
+                    gpr_arg_count += 1;
+                } else {
+                    // use stack to pass argument
+                    unimplemented!();
+                }
+            } else if self.match_iimm(arg) {
+                let arg = self.emit_get_iimm(arg);
+                
+                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                    self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], arg);
+                    gpr_arg_count += 1;
+                } else {
+                    // use stack to pass argument
+                    unimplemented!();
+                }
+            } else {
+                unimplemented!();
+            }
+        }
+        
+        trace!("genearting call inst");
+        // check direct call or indirect
+        let callsite = {
+            if self.match_funcref_const(func) {
+                let target_id = self.emit_get_funcref_const(func);
+                let funcs = vm.funcs().read().unwrap();
+                let target = funcs.get(&target_id).unwrap().read().unwrap();
+                                            
+                if vm.is_running() {
+                    unimplemented!()
+                } else {
+                    let callsite = self.new_callsite_label(cur_node.id());
+                    self.backend.emit_call_near_rel32(callsite, target.name().unwrap())
+                }
+            } else if self.match_ireg(func) {
+                let target = self.emit_ireg(func, f_content, f_context, vm);
+                
+                let callsite = self.new_callsite_label(cur_node.id());
+                self.backend.emit_call_near_r64(callsite, &target)
+            } else if self.match_mem(func) {
+                let target = self.emit_mem(func);
+                
+                let callsite = self.new_callsite_label(cur_node.id());
+                self.backend.emit_call_near_mem64(callsite, &target)
+            } else {
+                unimplemented!()
+            }
+        };
+        
+        // record exception branch
+        if resumption.is_some() {
+            let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
+            let target_block = exn_dest.target;
+            
+            if self.current_exn_callsites.contains_key(&target_block) {
+                let callsites = self.current_exn_callsites.get_mut(&target_block).unwrap();
+                callsites.push(callsite);
+            } else {
+                let mut callsites = vec![];
+                callsites.push(callsite);
+                self.current_exn_callsites.insert(target_block, callsites);
+            } 
+        }
+        
+        // deal with ret vals
+        if inst.value.is_some() {
+            let rets = inst.value.as_ref().unwrap();
+            trace!("deal with return values");
+            let mut gpr_ret_count = 0;
+            // TODO: let mut fpr_ret_count = 0;
+            for val in rets {
+                if val.is_int_reg() {
+                    if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                        self.backend.emit_mov_r64_r64(&val, &x86_64::RETURN_GPRs[gpr_ret_count]);
+                        gpr_ret_count += 1;
+                    } else {
+                        // get return value by stack
+                        unimplemented!();
+                    }
+                } else {
+                    // floating point register
+                    unimplemented!();
+                }
+            }
+        } else {
+            trace!("no return value");
+        }
+
     }
     
     #[allow(unused_variables)]
@@ -1093,6 +1200,12 @@ impl <'a> InstructionSelection {
             panic!("unexpected type for move");
         } 
     }
+    
+    fn new_callsite_label(&mut self, node_id: MuID) -> String {
+        let ret = format!("callsite_{}_{}", node_id, self.current_callsite_id);
+        self.current_callsite_id += 1;
+        ret
+    }
 }
 
 impl CompilerPass for InstructionSelection {
@@ -1110,6 +1223,9 @@ impl CompilerPass for InstructionSelection {
             let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
             self.backend.start_code(func.name().unwrap())        
         });
+        self.current_callsite_id = 0;
+        self.current_exn_callsites.clear();
+        self.current_exn_blocks.clear();
         
         // prologue (get arguments from entry block first)        
         let entry_block = func_ver.content.as_ref().unwrap().get_entry_block();
@@ -1124,9 +1240,17 @@ impl CompilerPass for InstructionSelection {
         for block_id in func.block_trace.as_ref().unwrap() {
             let block = f_content.get_block(*block_id);
             let block_label = block.name().unwrap();
+            self.current_block = Some(block_label.clone());            
             
-            self.backend.start_block(block_label.clone());
-            self.current_block = Some(block_label.clone());
+            if block.is_exception_block() {
+                let loc = self.backend.start_exception_block(block_label.clone());
+                self.current_exn_blocks.insert(block.id(), loc);
+                
+                // need to insert a landing pad
+                unimplemented!()
+            } else {
+                self.backend.start_block(block_label.clone());    
+            }
 
             let block_content = block.content.as_ref().unwrap();
             
@@ -1162,12 +1286,24 @@ impl CompilerPass for InstructionSelection {
         };
         
         let (mc, func_end) = self.backend.finish_code(func_name);
+        
+        // insert exception branch info
+        let mut frame = self.current_frame.take().unwrap();
+        for block_id in self.current_exn_blocks.keys() {
+            let block_loc = self.current_exn_blocks.get(&block_id).unwrap();
+            let callsites = self.current_exn_callsites.get(&block_id).unwrap();
+            
+            for callsite in callsites {
+                frame.add_exception_callsite(callsite.clone(), block_loc.clone());
+            }
+        }
+        
         let compiled_func = CompiledFunction {
             func_id: func.func_id,
             func_ver_id: func.id(),
             temps: HashMap::new(),
             mc: Some(mc),
-            frame: self.current_frame.take().unwrap(),
+            frame: frame,
             start: self.current_func_start.take().unwrap(),
             end: func_end 
         };

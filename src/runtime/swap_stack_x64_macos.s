@@ -49,8 +49,8 @@ _swap_to_mu_stack:
 
 # _swap_back_to_native_stack(sp_loc: Address)
 #                            %rdi
-.globl _swap_back_to_native_stack
-_swap_back_to_native_stack:
+.globl _muentry_swap_back_to_native_stack
+_muentry_swap_back_to_native_stack:
           movq 0(%rdi), %rsp
 
           popq %r15

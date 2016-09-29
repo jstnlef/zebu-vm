@@ -45,7 +45,7 @@ pub fn resolve_symbol(symbol: String) -> Address {
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum ValueLocation {
     Register(RegGroup, MuID),     // 0
     Constant(RegGroup, Word),     // 1    
@@ -145,6 +145,16 @@ impl ValueLocation {
             Constant::Double(f64_val) => ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val)),
             
             _ => unimplemented!()
+        }
+    }
+    
+    pub fn to_address(&self) -> Address {
+        match self {
+            &ValueLocation::Register(_, _)
+            | &ValueLocation::Constant(_, _) => panic!("a register/constant cannot be turned into address"),
+            &ValueLocation::Direct(_, addr) => addr, 
+            &ValueLocation::Indirect(_, addr) => unsafe {addr.load::<Address>()},
+            &ValueLocation::Relocatable(_, ref symbol) => resolve_symbol(symbol.clone())
         }
     }
 }

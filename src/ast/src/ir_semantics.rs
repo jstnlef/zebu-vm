@@ -33,6 +33,7 @@ pub fn is_terminal_inst(inst: &Instruction_) -> bool {
         | &Watchpoint{..}
         | &WPBranch{..}
         | &Call{..}
+        | &CCall{..}
         | &SwapStack{..}
         | &Switch{..}
         | &ExnInstruction{..} => true
@@ -76,6 +77,7 @@ pub fn has_side_effect(inst: &Instruction_) -> bool {
         &Watchpoint{..} => true,
         &WPBranch{..} => true,
         &Call{..} => true,
+        &CCall{..} => true,
         &SwapStack{..} => true,
         &Switch{..} => true,
         &ExnInstruction{..} => true
