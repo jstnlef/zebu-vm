@@ -6,8 +6,6 @@ use std::collections::HashMap;
 use utils::POINTER_SIZE;
 use vm::VM;
 
-type SlotID = usize;
-
 // | previous frame ...
 // |---------------
 // | return address
@@ -21,16 +19,16 @@ use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 #[derive(RustcEncodable, RustcDecodable)]
 pub struct Frame {
-    cur_slot_id: SlotID,
+    func_ver_id: MuID,
     cur_offset: isize, // offset to rbp
     
-    allocated: HashMap<SlotID, FrameSlot>,
+    pub allocated: HashMap<MuID, FrameSlot>,
 }
 
 impl Frame {
-    pub fn new() -> Frame {
+    pub fn new(func_ver_id: MuID) -> Frame {
         Frame {
-            cur_slot_id: 0,
+            func_ver_id: func_ver_id,
             cur_offset: - (POINTER_SIZE as isize * 1), // reserve for old RBP
             allocated: HashMap::new()
         }
@@ -47,28 +45,23 @@ impl Frame {
     }
     
     fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {
-        let id = self.cur_slot_id;
+        let id = val.id();
         let ret = FrameSlot {
-            id: id,
             offset: self.cur_offset,
             value: val.clone()
         };
         
-        self.cur_slot_id += 1;
         self.cur_offset -= vm.get_type_size(val.ty.id()) as isize;
         
         self.allocated.insert(id, ret);
-        
         self.allocated.get(&id).unwrap()
     }
 }
 
 #[derive(RustcEncodable, RustcDecodable)]
-struct FrameSlot {
-    id: SlotID,
-    offset: isize,
-    
-    value: P<Value>
+pub struct FrameSlot {
+    pub offset: isize,
+    pub value: P<Value>
 }
 
 impl FrameSlot {

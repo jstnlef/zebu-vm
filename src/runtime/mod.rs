@@ -16,6 +16,9 @@ use std::sync::Arc;
 pub extern crate gc as mm;
 pub mod thread;
 pub mod entrypoints;
+
+#[cfg(target_arch = "x86_64")]
+#[path = "exception_x64.rs"]
 pub mod exception;
 
 // consider using libloading crate instead of the raw c functions for dynalic libraries

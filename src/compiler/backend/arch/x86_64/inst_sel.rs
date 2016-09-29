@@ -1104,7 +1104,7 @@ impl CompilerPass for InstructionSelection {
     fn start_function(&mut self, vm: &VM, func_ver: &mut MuFunctionVersion) {
         debug!("{}", self.name());
         
-        self.current_frame = Some(Frame::new());
+        self.current_frame = Some(Frame::new(func_ver.id()));
         self.current_func_start = Some({
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();

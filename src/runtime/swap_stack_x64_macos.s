@@ -61,3 +61,9 @@ _swap_back_to_native_stack:
 
           popq %rbp
           ret
+
+# _get_current_frame_rbp() -> Address
+.globl _get_current_frame_rbp
+_get_current_frame_rbp:
+          movq %rbp, %rax
+          ret
