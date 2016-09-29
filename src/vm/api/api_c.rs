@@ -41,8 +41,15 @@ pub type CMuTrapHandler = extern fn(
     // input parameter (userdata)
     CMuCPtr);
 
+// some hand-written pointer types
+
+/// C strings should not be changed by the callee, whether the callee is in C or Mu.
+pub type CMuCString = *const c_char;
+
+/// Handles are immutable from both the micro VM and the client's point of view.
+pub type CMuValue = *const c_void;
+
 // GEN:BEGIN:Types
-pub type CMuValue = *mut c_void;
 pub type CMuSeqValue = CMuValue;
 pub type CMuGenRefValue = CMuValue;
 pub type CMuIntValue = CMuValue;
@@ -61,7 +68,6 @@ pub type CMuThreadRefValue = CMuGenRefValue;
 pub type CMuStackRefValue = CMuGenRefValue;
 pub type CMuFCRefValue = CMuGenRefValue;
 pub type CMuIBRefValue = CMuGenRefValue;
-pub type CMuCString = *mut c_char;
 pub type CMuID = u32;
 pub type CMuName = CMuCString;
 pub type CMuCPtr = *mut c_void;

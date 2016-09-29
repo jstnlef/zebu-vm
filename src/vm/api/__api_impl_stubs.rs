@@ -67,55 +67,55 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_sint8(&mut self, num: i8, len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_sint8(&mut self, num: i8, len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_uint8(&mut self, num: u8, len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_uint8(&mut self, num: u8, len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_sint16(&mut self, num: i16, len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_sint16(&mut self, num: i16, len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_uint16(&mut self, num: u16, len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_uint16(&mut self, num: u16, len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_sint32(&mut self, num: i32, len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_sint32(&mut self, num: i32, len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_uint32(&mut self, num: u32, len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_uint32(&mut self, num: u32, len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_sint64(&mut self, num: i64, len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_sint64(&mut self, num: i64, len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_uint64(&mut self, num: u64, len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_uint64(&mut self, num: u64, len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_uint64s(&mut self, nums: &[u64], len: c_int) -> *mut APIMuValue {
+    pub fn handle_from_uint64s(&mut self, nums: &[u64], len: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_float(&mut self, num: f32) -> *mut APIMuValue {
+    pub fn handle_from_float(&mut self, num: f32) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_double(&mut self, num: f64) -> *mut APIMuValue {
+    pub fn handle_from_double(&mut self, num: f64) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_ptr(&mut self, mu_type: MuID, ptr: CMuCPtr) -> *mut APIMuValue {
+    pub fn handle_from_ptr(&mut self, mu_type: MuID, ptr: CMuCPtr) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_fp(&mut self, mu_type: MuID, fp: CMuCFP) -> *mut APIMuValue {
+    pub fn handle_from_fp(&mut self, mu_type: MuID, fp: CMuCFP) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -167,19 +167,19 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_const(&mut self, id: MuID) -> *mut APIMuValue {
+    pub fn handle_from_const(&mut self, id: MuID) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_global(&mut self, id: MuID) -> *mut APIMuValue {
+    pub fn handle_from_global(&mut self, id: MuID) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_func(&mut self, id: MuID) -> *mut APIMuValue {
+    pub fn handle_from_func(&mut self, id: MuID) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn handle_from_expose(&mut self, id: MuID) -> *mut APIMuValue {
+    pub fn handle_from_expose(&mut self, id: MuID) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -195,55 +195,55 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn extract_value(&mut self, str: &APIMuValue, index: c_int) -> *mut APIMuValue {
+    pub fn extract_value(&mut self, str: &APIMuValue, index: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn insert_value(&mut self, str: &APIMuValue, index: c_int, newval: &APIMuValue) -> *mut APIMuValue {
+    pub fn insert_value(&mut self, str: &APIMuValue, index: c_int, newval: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn extract_element(&mut self, str: &APIMuValue, index: &APIMuValue) -> *mut APIMuValue {
+    pub fn extract_element(&mut self, str: &APIMuValue, index: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn insert_element(&mut self, str: &APIMuValue, index: &APIMuValue, newval: &APIMuValue) -> *mut APIMuValue {
+    pub fn insert_element(&mut self, str: &APIMuValue, index: &APIMuValue, newval: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn new_fixed(&mut self, mu_type: MuID) -> *mut APIMuValue {
+    pub fn new_fixed(&mut self, mu_type: MuID) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn new_hybrid(&mut self, mu_type: MuID, length: &APIMuValue) -> *mut APIMuValue {
+    pub fn new_hybrid(&mut self, mu_type: MuID, length: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn refcast(&mut self, opnd: &APIMuValue, new_type: MuID) -> *mut APIMuValue {
+    pub fn refcast(&mut self, opnd: &APIMuValue, new_type: MuID) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn get_iref(&mut self, opnd: &APIMuValue) -> *mut APIMuValue {
+    pub fn get_iref(&mut self, opnd: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn get_field_iref(&mut self, opnd: &APIMuValue, field: c_int) -> *mut APIMuValue {
+    pub fn get_field_iref(&mut self, opnd: &APIMuValue, field: c_int) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn get_elem_iref(&mut self, opnd: &APIMuValue, index: &APIMuValue) -> *mut APIMuValue {
+    pub fn get_elem_iref(&mut self, opnd: &APIMuValue, index: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn shift_iref(&mut self, opnd: &APIMuValue, offset: &APIMuValue) -> *mut APIMuValue {
+    pub fn shift_iref(&mut self, opnd: &APIMuValue, offset: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn get_var_part_iref(&mut self, opnd: &APIMuValue) -> *mut APIMuValue {
+    pub fn get_var_part_iref(&mut self, opnd: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn load(&mut self, ord: CMuMemOrd, loc: &APIMuValue) -> *mut APIMuValue {
+    pub fn load(&mut self, ord: CMuMemOrd, loc: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -251,11 +251,11 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn cmpxchg(&mut self, ord_succ: CMuMemOrd, ord_fail: CMuMemOrd, weak: bool, loc: &APIMuValue, expected: &APIMuValue, desired: &APIMuValue, is_succ: *mut CMuBool) -> *mut APIMuValue {
+    pub fn cmpxchg(&mut self, ord_succ: CMuMemOrd, ord_fail: CMuMemOrd, weak: bool, loc: &APIMuValue, expected: &APIMuValue, desired: &APIMuValue, is_succ: *mut CMuBool) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn atomicrmw(&mut self, ord: CMuMemOrd, op: CMuAtomicRMWOptr, loc: &APIMuValue, opnd: &APIMuValue) -> *mut APIMuValue {
+    pub fn atomicrmw(&mut self, ord: CMuMemOrd, op: CMuAtomicRMWOptr, loc: &APIMuValue, opnd: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -263,15 +263,15 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn new_stack(&mut self, func: &APIMuValue) -> *mut APIMuValue {
+    pub fn new_stack(&mut self, func: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn new_thread_nor(&mut self, stack: &APIMuValue, threadlocal: Option<&APIMuValue>, vals: Vec<&APIMuValue>) -> *mut APIMuValue {
+    pub fn new_thread_nor(&mut self, stack: &APIMuValue, threadlocal: Option<&APIMuValue>, vals: Vec<&APIMuValue>) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn new_thread_exc(&mut self, stack: &APIMuValue, threadlocal: Option<&APIMuValue>, exc: &APIMuValue) -> *mut APIMuValue {
+    pub fn new_thread_exc(&mut self, stack: &APIMuValue, threadlocal: Option<&APIMuValue>, exc: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -283,11 +283,11 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn get_threadlocal(&mut self, thread: &APIMuValue) -> *mut APIMuValue {
+    pub fn get_threadlocal(&mut self, thread: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn new_cursor(&mut self, stack: &APIMuValue) -> *mut APIMuValue {
+    pub fn new_cursor(&mut self, stack: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -295,7 +295,7 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn copy_cursor(&mut self, cursor: &APIMuValue) -> *mut APIMuValue {
+    pub fn copy_cursor(&mut self, cursor: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -339,31 +339,31 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn tr64_to_fp(&mut self, value: &APIMuValue) -> *mut APIMuValue {
+    pub fn tr64_to_fp(&mut self, value: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn tr64_to_int(&mut self, value: &APIMuValue) -> *mut APIMuValue {
+    pub fn tr64_to_int(&mut self, value: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn tr64_to_ref(&mut self, value: &APIMuValue) -> *mut APIMuValue {
+    pub fn tr64_to_ref(&mut self, value: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn tr64_to_tag(&mut self, value: &APIMuValue) -> *mut APIMuValue {
+    pub fn tr64_to_tag(&mut self, value: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn tr64_from_fp(&mut self, value: &APIMuValue) -> *mut APIMuValue {
+    pub fn tr64_from_fp(&mut self, value: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn tr64_from_int(&mut self, value: &APIMuValue) -> *mut APIMuValue {
+    pub fn tr64_from_int(&mut self, value: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn tr64_from_ref(&mut self, reff: &APIMuValue, tag: &APIMuValue) -> *mut APIMuValue {
+    pub fn tr64_from_ref(&mut self, reff: &APIMuValue, tag: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -375,7 +375,7 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn pin(&mut self, loc: &APIMuValue) -> *mut APIMuValue {
+    pub fn pin(&mut self, loc: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
@@ -383,11 +383,11 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn get_addr(&mut self, loc: &APIMuValue) -> *mut APIMuValue {
+    pub fn get_addr(&mut self, loc: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 
-    pub fn expose(&mut self, func: &APIMuValue, call_conv: CMuCallConv, cookie: &APIMuValue) -> *mut APIMuValue {
+    pub fn expose(&mut self, func: &APIMuValue, call_conv: CMuCallConv, cookie: &APIMuValue) -> *const APIMuValue {
         panic!("Not implemented")
     }
 

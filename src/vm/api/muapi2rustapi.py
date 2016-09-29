@@ -38,372 +38,37 @@ _primitive_types = {
         "double"    : "f64",
         }
 
-_other_ptr_types = {
-        # In the most recent muapi.h, these can be identified as explicit pointers.
-        #"MuName", "MuCFP", "MuTrapHandler", "MuValueFreer"
-        # Add more types here if the regexp cannot identify some pointer types.
-        }
+def cty_is_explicit_ptr(cty):
+    return cty.endswith("*")
 
-_self_getters = {
-        "MuVM*": "getMicroVM",
-        "MuCtx*": "getMuCtx",
-        "MuIRBuilder*": "getMuIRBuilder",
-        }
-
-def type_is_explicit_ptr(ty):
-    return ty.endswith("*")
+def cty_get_base_type(cty):
+    assert(cty_is_explicit_ptr(cty))
+    return cty[:-1]
 
 r_handle_ty = re.compile(r'^Mu\w*(Value)$')
 
-def type_is_handle(ty):
-    return r_handle_ty.match(ty) is not None
+def cty_is_handle(cty):
+    return r_handle_ty.match(cty) is not None
 
 r_node_ty = re.compile(r'^Mu\w*(Node|Clause)$')
 
-def type_is_node(ty):
-    return r_node_ty.match(ty) is not None
+def cty_is_node(cty):
+    return r_node_ty.match(cty) is not None
 
-def type_is_ptr(ty):
-    return type_is_explicit_ptr(ty) or type_is_handle(ty) or ty in _other_ptr_types
+def cty_should_be_mutable(base_cty):
+    return not cty_is_handle(base_cty)
 
-def type_is_handle_array(ty):
-    return type_is_ptr(ty) and type_is_handle(ty[:-1])
-
-def type_is_node_array(ty):
-    return type_is_ptr(ty) and type_is_node(ty[:-1])
-
-def to_rust_type(raw_type):
-    if type_is_explicit_ptr(raw_type):
-        base_type = raw_type[:-1]
+def to_rust_type(cty):
+    if cty in _primitive_types:
+        rty = _primitive_types[cty]
+    elif cty_is_explicit_ptr(cty):
+        base_type = cty_get_base_type(cty)
         base_rust_type = to_rust_type(base_type)
-        rust_type = "*mut " + base_rust_type
-    elif raw_type in _primitive_types:
-        rust_type = _primitive_types[raw_type]
+        rty = "*mut " + base_rust_type
     else:
-        rust_type = "C" + raw_type
+        rty = "C" + cty
 
-    return rust_type
-
-#def to_jffi_getter(raw_type):
-#    if raw_type in _primitive_types:
-#        getter = _primitive_types[raw_type][2]
-#    elif type_is_ptr(raw_type):
-#        getter = "getAddress"
-#    else:
-#        raise ValueError("No JFFI Buffer getter: " + raw_type)
-#
-#    return getter
-#
-#def to_jffi_setter(raw_type):
-#    if raw_type in _primitive_types:
-#        getter = _primitive_types[raw_type][3]
-#    elif type_is_ptr(raw_type):
-#        getter = "setAddressReturn"
-#    else:
-#        raise ValueError("No JFFI Buffer getter: " + raw_type)
-#
-#    return getter
-#
-#_special_cases = {
-#        "id":             "ID",
-#        "sint8":          "SInt8",
-#        "uint8":          "UInt8",
-#        "sint16":         "SInt16",
-#        "uint16":         "UInt16",
-#        "sint32":         "SInt32",
-#        "uint32":         "UInt32",
-#        "sint64":         "SInt64",
-#        "uint64":         "UInt64",
-#        "uint64s":        "UInt64s",
-#        "fp":             "FP",
-#        "uptr":           "UPtr",
-#        "ufuncptr":       "UFuncPtr",
-#        "iref":           "IRef",
-#        "weakref":        "WeakRef",
-#        "funcref":        "FuncRef",
-#        "tagref64":       "TagRef64",
-#        "threadref":      "ThreadRef",
-#        "stackref":       "StackRef",
-#        "framecursorref": "FrameCursorRef",
-#        "irnoderef":      "IRNodeRef",
-#        "funcsig":        "FuncSig",
-#        "bb":             "BB",
-#        "binop":          "BinOp",
-#        "tailcall":       "TailCall",
-#        "extractvalue":   "ExtractValue",
-#        "insertvalue":    "InsertValue",
-#        "extractelement": "ExtractElement",
-#        "insertelement":  "InsertElement",
-#        "shufflevector":  "ShuffleVector",
-#        "newhybrid":      "NewHybrid",
-#        "allocahybrid":   "AllocaHybrid",
-#        "getiref":        "GetIRef",
-#        "getfieldiref":   "GetFieldIRef",
-#        "getelemiref":    "GetElemIRef",
-#        "shiftiref":      "ShiftIRef",
-#        "getvarpartiref": "GetVarPartIRef",
-#        "cmpxchg":        "CmpXchg",
-#        "atomicrmw":      "AtomicRMW",
-#        "watchpoint":     "WatchPoint",
-#        "wpbranch":       "WPBranch",
-#        "ccall":          "CCall",
-#        "newthread":      "NewThread",
-#        "newstack":       "NewStack",
-#        "swapstack":      "SwapStack",
-#        "comminst":       "CommInst",
-#        "ir":             "IR",
-#        "irbuilderref":   "IRBuilderRef",
-#        }
-#
-#def toCamelCase(name):
-#    ins = name.split("_")
-#    outs = [ins[0]]
-#    for inn in ins[1:]:
-#        if inn in _special_cases:
-#            outs.append(_special_cases[inn])
-#        else:
-#            outs.append(inn[0].upper()+inn[1:])
-#
-#    return "".join(outs)
-#
-#def to_basic_type(typedefs, name):
-#    while name in typedefs:
-#        name = typedefs[name]
-#    return name
-#
-#_no_conversion = {
-#        # "MuID",          # It may be optional, in which case it needs conversion.
-#        "MuTrapHandler", # It is a function pointer. Handle in Scala.
-#        "MuCPtr",        # Intended to be raw pointer. Passed directly.
-#        "MuCFP",         # ditto
-#        "MuWPID",        # Just Int
-#        # "MuCommInst",    # same as MuID
-#        }
-#
-#_array_converters = {
-#        "char*"     : "readCharArray",
-#        "uint64_t*" : "readLongArray",
-#        "MuFlag*"   : "readFlagArray",
-#        "MuID*"     : "readIntArray",
-#        "MuCString*": "readCStringArray",
-#        }
-#
-#_special_converters = {
-#        "MuBool"          : "intToBoolean",
-#        "MuName"          : "readCString",
-#        "MuCString"       : "readCString",
-#        "MuMemOrd"        : "toMemoryOrder",
-#        "MuAtomicRMWOptr" : "toAtomicRMWOptr",
-#        "MuBinOpStatus"   : "toBinOpStatus",
-#        "MuBinOptr"       : "toBinOptr",
-#        "MuCmpOptr"       : "toCmpOptr",
-#        "MuConvOptr"      : "toConvOptr",
-#        "MuCallConv"      : "toCallConv",
-#        "MuCommInst"      : "toCommInst",
-#        }
-#
-#_special_return_converters = {
-#        "MuBool" : "booleanToInt",
-#        "MuName" : "exposeString",
-#        "MuVM*"  : "exposeMicroVM",
-#        "MuCtx*" : "exposeMuCtx",
-#        "MuIRBuilder*" : "exposeMuIRBuilder",
-#        }
-#
-#def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_out):
-#    if pt == "void":
-#        raise ValueError("Parameter cannot be void. Param name: {}".format(pn))
-#
-#    if pt in _primitive_types or pt in _no_conversion or is_out:
-#        return rn   # does not need conversion
-#
-#    if type_is_node(pt) or pt == "MuID":
-#        if is_optional:
-#            return "readMuIDOptional({})".format(rn)
-#        return rn   # does not need conversion
-#
-#    if array_sz is not None:
-#        if type_is_handle_array(pt):
-#            ac = "readMuValueArray"
-#        elif type_is_node_array(pt):
-#            ac = "readMuIDArray"
-#        elif pt in _array_converters:
-#            ac = _array_converters[pt]
-#        else:
-#            raise ValueError("I don't know how to convert array {}. "
-#                    "Param name: {}, array size: {}".format(pt, pn, array_sz))
-#        return "{}({}, {})".format(ac, rn, "_raw_"+array_sz)
-#
-#    if type_is_handle(pt):
-#        if is_optional:
-#            return "getMuValueNullable({}).asInstanceOf[Option[{}]]".format(rn, pt)
-#        else:
-#            return "getMuValueNotNull({}).asInstanceOf[{}]".format(rn, pt)
-#
-#    if pt in _special_converters:
-#        converter = _special_converters[pt]
-#        if is_optional:
-#            converter = converter + "Optional"
-#        return "{}({})".format(converter, rn)
-#
-#    raise ValueError("I don't know how to convert {}. Param name: {}".format(
-#        pt, pn))
-#
-#def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
-#    name    = meth['name']
-#    params  = meth['params']
-#    ret_ty  = meth['ret_ty']
-#
-#    valname = strname.upper() + "__" + name.upper()
-#
-#    jffi_retty = to_jffi_ty(to_basic_type(typedefs, ret_ty))
-#    jffi_paramtys = [to_jffi_ty(to_basic_type(typedefs, p["type"])) for p in params]
-#
-#    pretty_name = "{}.{}".format(strname, name)
-#
-#    header = 'val {} = exposedMethod("{}", {}, Array({})) {{ _jffiBuffer =>'.format(
-#            valname, pretty_name, jffi_retty, ", ".join(jffi_paramtys))
-#
-#    stmts = []
-#
-#    # get raw parameters
-#    for i in range(len(params)):
-#        param = params[i]
-#        pn = param['name']
-#        pt = param['type']
-#        rt = to_basic_type(typedefs, pt) # raw type
-#        jffi_getter = to_jffi_getter(rt)
-#
-#        rn = "_raw_" + pn # raw name
-#
-#        stmts.append("val {} = _jffiBuffer.{}({})".format(rn,
-#            jffi_getter, i))
-#
-#    self_param_name = params[0]["name"]
-#    self_param_type = params[0]["type"]
-#
-#    # get the self object (MuVM or MuCtx)
-#
-#    stmts.append("val {} = {}({})".format(
-#        self_param_name,
-#        _self_getters[self_param_type],
-#        "_raw_"+self_param_name))
-#
-#    # convert parameters
-#    args_to_pass = []
-#
-#    for i in range(1, len(params)):
-#        param = params[i]
-#        pn = param['name']
-#
-#        if param.get("is_sz_param", False):
-#            continue    # Array sizes don't need to be passed explicitly.
-#
-#        args_to_pass.append(pn)
-#
-#        pt = param['type']
-#        rn = "_raw_" + pn
-#        rt = to_basic_type(typedefs, pt)
-#
-#        array_sz = param.get("array_sz_param", None)
-#        is_optional = param.get("is_optional", False)
-#        is_out = param.get("is_out", False)
-#
-#        pc = param_converter(pn, pt, rn, rt, is_optional, array_sz, is_out)
-#
-#        stmts.append("val {} = {}".format(pn, pc))
-#
-#    # make the call
-#
-#    camelName = toCamelCase(name)
-#    stmts.append("val _RV = {}.{}({})".format(
-#        self_param_name, camelName, ", ".join(args_to_pass)))
-#
-#    # return value
-#
-#    if ret_ty != "void":
-#        raw_ret_ty = to_basic_type(typedefs, ret_ty)
-#        jffi_setter = to_jffi_setter(raw_ret_ty)
-#
-#        if type_is_handle(ret_ty):
-#            assert(strname == "MuCtx")
-#            assert(jffi_setter == "setAddressReturn")
-#            stmts.append("val _RV_FAK = exposeMuValue({}, _RV)".format(
-#                self_param_name))
-#            stmts.append("_jffiBuffer.{}(_RV_FAK)".format(jffi_setter))
-#        elif ret_ty in _special_return_converters:
-#            assert(ret_ty == "MuBool" or jffi_setter == "setAddressReturn")
-#            stmts.append("val _RV_FAK = {}(_RV)".format(
-#                _special_return_converters[ret_ty]))
-#            stmts.append("_jffiBuffer.{}(_RV_FAK)".format(jffi_setter))
-#        else:
-#            stmts.append("_jffiBuffer.{}(_RV)".format(jffi_setter))
-#
-#
-#    footer = "}"
-#
-#    return (valname, "\n".join([header] + stmts + [footer]))
-#
-#def generate_stubs_for_struct(typedefs, st) -> str:
-#    name    = st["name"]
-#    methods = st["methods"]
-#
-#    results = []
-#    ptrs    = []
-#
-#    for meth in methods:
-#        ptrname, code = generate_method(typedefs, name, meth)
-#        ptrs.append(ptrname)
-#        results.append(code)
-#
-#    results.append("val stubsOf{} = new Array[Word]({})".format(name, len(ptrs)))
-#    for i,ptr in enumerate(ptrs):
-#        results.append("stubsOf{}({}) = {}.address".format(name, i, ptr))
-#
-#    return "\n".join(results)
-#
-#def generate_stubs(ast):
-#    struct_codes = []
-#
-#    for st in ast["structs"]:
-#        code = generate_stubs_for_struct(ast["typedefs"], st)
-#        struct_codes.append(code)
-#
-#    return "\n".join(struct_codes)
-#
-#_enum_types_to_generate_converters = [
-#        ("MuBinOptr",       "BinOptr",       'MU_BINOP_'),
-#        ("MuCmpOptr",       "CmpOptr",       'MU_CMP_'),
-#        ("MuConvOptr",      "ConvOptr",      'MU_CONV_'),
-#        ("MuMemOrd",        "MemoryOrder",   'MU_ORD_'),
-#        ("MuAtomicRMWOptr", "AtomicRMWOptr", 'MU_ARMW_'),
-#        ]
-#
-#def generate_enum_converters(ast):
-#    enums = ast['enums']
-#    edict = {}
-#
-#    for e in enums:
-#        edict[e['name']] = e['defs']
-#
-#    lines = []
-#
-#    for cty, sty, prefix in _enum_types_to_generate_converters:
-#        func_name = "to"+sty
-#        lines.append("def {}(cval: {}): {}.Value = cval match {{".format(
-#            func_name, cty, sty))
-#
-#        defs = edict[cty]
-#        for d in defs:
-#            dn = d['name']
-#            dv = d['value']
-#            assert(dn.startswith(prefix))
-#            sn = dn[len(prefix):]
-#            lines.append("  case {} => {}.{}".format(dv, sty, sn))
-#
-#        lines.append("}")
-#
-#    return "\n".join(lines)
+    return rty
 
 __rust_kw_rewrite = {
         "ref": "reff",
@@ -438,6 +103,8 @@ def generate_struct_field(meth) -> str:
     return field_def
 
 _no_conversion = {
+        *_primitive_types.keys(),
+
         # These are used as raw data.
         # Even the implementation layer has to use the raw C types.
         "MuCPtr",
@@ -460,14 +127,14 @@ _no_conversion = {
         "MuAtomicRMWOptr",
         "MuCallConv",
         "MuCommInst",
-        } | _primitive_types.keys()
+        }
 
 _cty_to_high_level_ty = {
         "MuVM*": "*mut CMuVM",
         "MuCtx*": "*mut CMuCtx",
         "MuIRBuilder*": "*mut CMuIRBuilder",
         "MuBool": "bool",
-        "MuID": "MuID"
+        "MuID": "MuID",
         }
 
 _cty_to_high_level_param_ty = {
@@ -501,9 +168,9 @@ def to_high_level_ret_ty(cty, rty):
     assert cty != "void"
     if cty in _cty_to_high_level_ret_ty:
         hlt = _cty_to_high_level_ret_ty[cty]
-    elif type_is_handle(cty):
-        hlt = "*mut APIMuValue"
-    elif type_is_node(cty):
+    elif cty_is_handle(cty):
+        hlt = "*const APIMuValue"
+    elif cty_is_node(cty):
         hlt = "MuID"
     else:
         hlt = rty
@@ -522,34 +189,35 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
 
     stmts = []
 
-    forwarder_name = forwarder_name_for(st["name"], name)
+    fwdr_name = forwarder_name_for(st["name"], name)
 
-    # formal parameter list
+    # forwarder formal parameter list
 
-    param_nts = []
+    fwdr_param_list = []
 
     for param in params:
         cpn = param['name']
         rpn = avoid_rust_kws(cpn)
         cty = param['type']
         rty = to_rust_type(cty)
-        param_nts.append("{}: {}".format(rpn, rty))
+        fwdr_param_list.append("{}: {}".format(rpn, rty))
 
-    formal_param_list = ", ".join(param_nts)
+    fwdr_param_list_joined = ", ".join(fwdr_param_list)
     
-    # return type
+    # forwarder return type
     
     rust_ret_ty = None if ret_ty == "void" else to_rust_type(ret_ty)
-    ret_ty_text = "" if rust_ret_ty == None else " -> {}".format(rust_ret_ty)
+    fwdr_ret_ty_text = "" if rust_ret_ty == None else " -> {}".format(rust_ret_ty)
 
-    # parameters and ret ty for the stub
+    # stub formal parameter list and return type
 
-    stub_param_nts = []
+    stub_param_list = []
 
     stub_ret_ty = None if rust_ret_ty is None else to_high_level_ret_ty(ret_ty, rust_ret_ty)
     stub_ret_ty_text = "" if stub_ret_ty == None else " -> {}".format(stub_ret_ty)
 
-    # preparing args
+    # Preparing actual arguments in the forwarder body,
+    # and compute the corresponding stub formal parameter type.
 
     args = []
 
@@ -557,6 +225,7 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
         is_sz_param = param.get("is_sz_param", False)
 
         if is_sz_param:
+            # Skip size parameters. Instead, make slices from them.
             continue
 
         cpn = param['name']
@@ -570,23 +239,31 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
         is_optional    = param.get("is_optional", False)
         is_out         = param.get("is_out", False)
 
+        # Compute `converter` (the expression to get the actual argument)
+        # and `stub_rty` (the stub's corresponding formal parameter type).
         if is_out:
-            assert type_is_explicit_ptr(cty)
-            converter = rpn     # Do not convert out param.
+            assert cty_is_explicit_ptr(cty)
+            # Do not convert out param.
+            converter = rpn
             # Keep as ptr so that Rust prog can store into it.
             stub_rty = rty
         elif array_sz_param != None:
-            assert type_is_explicit_ptr(cty)
-            c_base_ty = cty[:-1]
+            assert cty_is_explicit_ptr(cty)
+
+            # It is array. Make a slice out of it.
+
+            c_base_ty = cty_get_base_type(cty)
+            # We don't have array of explicit pointers, but we do have array of MuValue or MuCPtr.
+            assert not cty_is_explicit_ptr(c_base_ty)
             r_base_ty = to_rust_type(c_base_ty)
 
             sz_cpn = array_sz_param
             sz_rpn = avoid_rust_kws(sz_cpn)
-            if type_is_handle(c_base_ty):
+            if cty_is_handle(c_base_ty):
                 converter = "from_handle_array({}, {})".format(
                         rpn, sz_rpn)
                 stub_rty = "Vec<&APIMuValue>"
-            elif type_is_node(c_base_ty) or c_base_ty == "MuID":
+            elif cty_is_node(c_base_ty) or c_base_ty == "MuID":
                 converter = "from_MuID_array({}, {})".format(
                         rpn, sz_rpn)
                 stub_rty = "Vec<MuID>"
@@ -598,10 +275,12 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
                 else:
                     stub_rty = "&[{}]".format(r_base_ty)
         elif is_optional:
-            if type_is_handle(cty):
+            # The parameter is optional. Wrap it with Option<>
+
+            if cty_is_handle(cty):
                 converter = "from_handle_optional({})".format(rpn)
                 stub_rty = "Option<&APIMuValue>"
-            elif type_is_node(cty):
+            elif cty_is_node(cty):
                 converter = "from_MuID_optional({})".format(rpn)
                 stub_rty = "Option<MuID>"
             elif cty in ["MuCString", "MuID"]:
@@ -610,14 +289,15 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
             else:
                 raise Exception("Not expecting {} to be optional".format(cty))
         else:
-            if cty.endswith("*"):   # MuVM*, MuCtx*, MuIRBuilder*
-                c_base_ty = cty[:-1]
+            # scalar value
+            if cty_is_explicit_ptr(cty):   # MuVM*, MuCtx*, MuIRBuilder*
+                c_base_ty = cty_get_base_type(cty)
                 converter = "from_{}_ptr({})".format(c_base_ty, rpn)
                 stub_rty = to_rust_type(c_base_ty)
-            elif type_is_handle(cty):
+            elif cty_is_handle(cty):
                 converter = "from_handle({})".format(rpn)
                 stub_rty = "&APIMuValue"
-            elif type_is_node(cty):
+            elif cty_is_node(cty):
                 converter = "from_MuID({})".format(rpn)
                 stub_rty = "MuID"
             elif cty in _no_conversion:
@@ -634,7 +314,7 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
 
         args.append(arg_name)
 
-        stub_param_nts.append("{}: {}".format(rpn, stub_rty))
+        stub_param_list.append("{}: {}".format(rpn, stub_rty))
 
     # call
 
@@ -653,9 +333,9 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
     if rust_ret_ty is not None:
         if ret_ty in _cty_directly_returned:
             converter = "_rv"
-        elif type_is_handle(ret_ty):
+        elif cty_is_handle(ret_ty):
             converter = "to_handle(_rv)"
-        elif type_is_node(ret_ty):
+        elif cty_is_node(ret_ty):
             converter = "to_MuID(_rv)"
         else:
             converter = "to_{}(_rv)".format(ret_ty)
@@ -669,18 +349,18 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
     all_stmts = "\n".join(stmts)
 
     bridge = """\
-extern fn {forwarder_name}({formal_param_list}){ret_ty_text} {{
+extern fn {fwdr_name}({fwdr_param_list_joined}){fwdr_ret_ty_text} {{
 {all_stmts}
 }}
 """.format(**locals())
 
     # stub
 
-    stub_param_nts[0] = _special_self_style.get((st_name, name), "&mut self")
-    stub_params_joined = ", ".join(stub_param_nts)
+    stub_param_list[0] = _special_self_style.get((st_name, name), "&mut self")
+    stub_param_list_joined = ", ".join(stub_param_list)
 
     stub = """\
-    pub fn {name}({stub_params_joined}){stub_ret_ty_text} {{
+    pub fn {name}({stub_param_list_joined}){stub_ret_ty_text} {{
         panic!("Not implemented")
     }}
 """.format(**locals())
@@ -789,12 +469,21 @@ def visit_enums(ast):
 
     return "\n".join(const_defs)
 
+# Manually define the following types in Rust, disregarding the typedefs in muapi.h
+_manual_typedefs = {
+        "MuCString",
+        "MuValue",
+        }
+
 def visit_types(ast):
     types = []
     for c, p in ast["typedefs_order"]:
         if p.startswith("_"):
             # Such types are function types. The muapiparser is not smart enough
             # to parse C funcptr types, so we define these types manually.
+            continue
+        elif c in _manual_typedefs:
+            # These types are defined manually, overriding the muapi.h
             continue
         rc = to_rust_type(c)
         rp = to_rust_type(p)

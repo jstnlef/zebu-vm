@@ -190,7 +190,7 @@ fn to_MuID(value: MuID) -> CMuID {
 }
 
 #[inline(always)]
-fn to_handle(muvalue: *mut APIMuValue) -> CMuValue {
+fn to_handle(muvalue: *const APIMuValue) -> CMuValue {
     debug_assert!(!muvalue.is_null());
     muvalue as CMuValue
 }
