@@ -18,6 +18,7 @@ use std::ffi::CStr;
 use std::ffi::CString;
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use api_c::*;
 use api_bridge::*;
@@ -102,14 +103,15 @@ pub extern fn free_mock_micro_vm(cmvm: *mut CMuVM) {
 #[derive(Default)]
 pub struct MuVM {
     my_name: String,
-    contexts: Vec<MuCtx>,
     cname_dict: HashMap<MuID, CString>,
     trap_handler: Option<CMuTrapHandler>,
     trap_handler_user_data: Option<CMuCPtr>,
 }
 
 pub struct MuCtx {
-    // Stub
+    mvm: *mut MuVM,
+    c_struct: *mut CMuCtx,
+    handles: HashSet<*const APIMuValue>,
 }
 
 pub struct MuIRBuilder {
@@ -118,7 +120,35 @@ pub struct MuIRBuilder {
 
 impl MuVM {
     pub fn new_context(&mut self) -> *mut CMuCtx {
-        panic!("Not implemented")
+        println!("Creating Mu context...");
+
+        let ctx = Box::new(MuCtx {
+            mvm: self,
+            c_struct: ptr::null_mut(),
+            handles: Default::default(),
+        });
+
+        let ctx_ptr = Box::into_raw(ctx);
+
+        println!("The header address: {:?}", ctx_ptr);
+
+        let cctx = make_new_MuCtx(ctx_ptr as *mut c_void);
+
+        println!("The C-visible CMuCtx struct address: {:?}", cctx);
+
+        unsafe{ (*ctx_ptr).c_struct = cctx; }
+
+        cctx
+    }
+
+    fn dealloc_context(&mut self, ctx: &mut MuCtx) {
+        let c_struct = ctx.c_struct;
+        let ctx_ptr = ctx as *mut MuCtx;
+        println!("Deallocating MuCtx {:?} and CMuCtx {:?}...", ctx_ptr, c_struct);
+        unsafe {
+            Box::from_raw(c_struct);
+            Box::from_raw(ctx_ptr);
+        }
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
@@ -198,16 +228,25 @@ impl MuVM {
 }
 
 impl MuCtx {
+    fn get_mvm<'a>(&mut self) -> &'a mut MuVM {
+        unsafe { &mut * self.mvm }
+    }
+
     pub fn id_of(&mut self, name: MuName) -> MuID {
-        panic!("Not implemented")
+        println!("MuCtx is looking up the ID for the client..");
+        self.get_mvm().id_of(name)
     }
 
     pub fn name_of(&mut self, id: MuID) -> CMuCString {
-        panic!("Not implemented")
+        println!("MuCtx is looking up the name for the client..");
+        self.get_mvm().name_of(id)
     }
 
     pub fn close_context(&mut self) {
-        panic!("Not implemented")
+        for &ptr in self.handles.iter() {
+            MuCtx::dealloc_handle(ptr);
+        }
+        self.get_mvm().dealloc_context(self)
     }
 
     pub fn load_bundle(&mut self, buf: &[c_char]) {
@@ -216,6 +255,15 @@ impl MuCtx {
 
     pub fn load_hail(&mut self, buf: &[c_char]) {
         panic!("Not implemented")
+    }
+
+    #[inline(always)]
+    fn expose_handle(&mut self, handle: APIMuValue) -> *const APIMuValue {
+        let box_ptr = Box::into_raw(Box::new(handle));
+
+        self.handles.insert(box_ptr);
+
+        box_ptr
     }
 
     pub fn handle_from_sint8(&mut self, num: i8, len: c_int) -> *const APIMuValue {
@@ -235,7 +283,10 @@ impl MuCtx {
     }
 
     pub fn handle_from_sint32(&mut self, num: i32, len: c_int) -> *const APIMuValue {
-        panic!("Not implemented")
+        self.expose_handle(APIMuValue {
+            ty: 300,
+            vb: ValueBox::BoxInt(num as u64, len),
+        })
     }
 
     pub fn handle_from_uint32(&mut self, num: u32, len: c_int) -> *const APIMuValue {
@@ -334,8 +385,18 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
+    #[inline(always)]
+    fn dealloc_handle(ptr: *const APIMuValue) {
+        unsafe {
+            println!("Deallocating handle {:?}", *ptr);
+            Box::from_raw(ptr as *mut APIMuValue);
+        }
+    }
+
     pub fn delete_value(&mut self, opnd: &APIMuValue) {
-        panic!("Not implemented")
+        let ptr = opnd as *const APIMuValue;
+        self.handles.remove(&ptr);
+        MuCtx::dealloc_handle(opnd);
     }
 
     pub fn ref_eq(&mut self, lhs: &APIMuValue, rhs: &APIMuValue) -> bool {

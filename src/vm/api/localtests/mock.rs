@@ -13,7 +13,7 @@ mod deps {
 
     #[derive(Debug)]
     pub enum ValueBox {
-        BoxInt(usize),
+        BoxInt(u64, i32),
         BoxF32(f32),
         BoxF64(f64),
         BoxRef(Cell<usize>),    // so that GC can update the pointer
@@ -22,6 +22,7 @@ mod deps {
         BoxStack,
     }
 
+    #[derive(Debug)]
     pub struct APIMuValue {
         pub ty: MuID,
         pub vb: ValueBox,
