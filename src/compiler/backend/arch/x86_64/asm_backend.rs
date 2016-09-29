@@ -661,23 +661,23 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(directive_globl(func_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
         
-        ValueLocation::Relocatable(RegGroup::GPR, func_symbol)
+        ValueLocation::Relocatable(RegGroup::GPR, func_name)
     }
     
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation) {
-        let func_end_symbol = {
-            let mut symbol = symbol(func_name.clone());
+        let func_end = {
+            let mut symbol = func_name.clone();
             symbol.push_str("_end");
             symbol
         };
-        self.add_asm_symbolic(directive_globl(func_end_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", func_end_symbol.clone()));
+        self.add_asm_symbolic(directive_globl(symbol(func_end.clone())));
+        self.add_asm_symbolic(format!("{}:", symbol(func_end.clone())));
         
         self.control_flow_analysis();
         
         (
             self.cur.take().unwrap(),
-            ValueLocation::Relocatable(RegGroup::GPR, func_end_symbol)
+            ValueLocation::Relocatable(RegGroup::GPR, func_end)
         )
     }
     
@@ -710,13 +710,13 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation {
-        let block_symbol = symbol(self.asm_block_label(block_name.clone()));
-        self.add_asm_symbolic(directive_globl(block_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", block_symbol.clone()));
+        let block = self.asm_block_label(block_name.clone());
+        self.add_asm_symbolic(directive_globl(symbol(block.clone())));
+        self.add_asm_symbolic(format!("{}:", symbol(block.clone())));
         
         self.start_block(block_name);
         
-        ValueLocation::Relocatable(RegGroup::GPR, block_symbol)
+        ValueLocation::Relocatable(RegGroup::GPR, block)
     }
     
     fn end_block(&mut self, block_name: MuName) {
@@ -1155,14 +1155,14 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation {
         trace!("emit: call {}", func);
         
-        let callsite_symbol = symbol(callsite);
+        let callsite_symbol = symbol(callsite.clone());
         self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));        
         
         let asm = format!("call {}", symbol(func));
         self.add_asm_call(asm);
         
-        ValueLocation::Relocatable(RegGroup::GPR, callsite_symbol)
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
     
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation {

@@ -7,6 +7,7 @@ use compiler::backend::Word;
 use compiler::backend::RegGroup;
 use utils::Address;
 
+use std::fmt;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::ffi::CString;
@@ -53,6 +54,18 @@ pub enum ValueLocation {
     
     Direct(RegGroup, Address),    // 3
     Indirect(RegGroup, Address),  // 4
+}
+
+impl fmt::Display for ValueLocation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ValueLocation::Register(_, id) => write!(f, "VL_Reg: {}", id),
+            &ValueLocation::Constant(_, val) => write!(f, "VL_Const: {}", val),
+            &ValueLocation::Relocatable(_, ref name) => write!(f, "VL_Reloc: {}", name),
+            &ValueLocation::Direct(_, addr) => write!(f, "VL_Direct: 0x{:x}", addr),
+            &ValueLocation::Indirect(_, addr) => write!(f, "VL_Indirect: 0x{:x}", addr)
+        }
+    }
 }
 
 impl Encodable for ValueLocation {

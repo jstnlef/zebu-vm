@@ -157,6 +157,9 @@ fn create_catch_exception_func (vm: &VM) {
     // %blk_exn_cont() %EXN:
     let mut blk_exn_cont = Block::new(blk_exn_cont_id);
     vm.set_name(blk_exn_cont.as_entity(), Mu("blk_exn_cont"));
+    let type_ref_int64 = vm.get_type(vm.id_of("ref_int64"));    
+    let blk_exn_cont_exception_arg = func_ver.new_ssa(vm.next_id(), type_ref_int64.clone());
+    vm.set_name(blk_exn_cont_exception_arg.as_entity(), Mu("blk_0_exception_arg"));
     let blk_exn_cont_thread_exit = func_ver.new_inst(vm.next_id(), Instruction {
         value: None,
         ops: RwLock::new(vec![]),
@@ -164,7 +167,7 @@ fn create_catch_exception_func (vm: &VM) {
     });
     blk_exn_cont.content = Some(BlockContent {
         args: vec![],
-        exn_arg: None,
+        exn_arg: Some(blk_exn_cont_exception_arg.clone_value()),
         body: vec![blk_exn_cont_thread_exit],
         keepalives: None
     });    

@@ -3,6 +3,7 @@ use ast::ptr::*;
 use ast::types::*;
 use runtime::ValueLocation;
 
+use std::fmt;
 use std::collections::HashMap;
 use utils::POINTER_SIZE;
 use vm::VM;
@@ -28,6 +29,21 @@ pub struct Frame {
     pub exception_callsites: HashMap<ValueLocation, ValueLocation>
 }
 
+impl fmt::Display for Frame {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Frame for FuncVer {} {{", self.func_ver_id).unwrap();
+        writeln!(f, "  allocated slots:").unwrap();
+        for slot in self.allocated.values() {
+            writeln!(f, "    {}", slot).unwrap();
+        }
+        writeln!(f, "  exception callsites:").unwrap();
+        for (callsite, dest) in self.exception_callsites.iter() {
+            writeln!(f, "    callsite: {} -> {}", callsite, dest).unwrap()
+        }
+        writeln!(f, "}}")
+    }
+}
+
 impl Frame {
     pub fn new(func_ver_id: MuID) -> Frame {
         Frame {
@@ -49,6 +65,7 @@ impl Frame {
     }
     
     pub fn add_exception_callsite(&mut self, callsite: ValueLocation, dest: ValueLocation) {
+        trace!("add exception callsite: {} to dest {}", callsite, dest);
         self.exception_callsites.insert(callsite, dest);
     }
     
@@ -70,6 +87,12 @@ impl Frame {
 pub struct FrameSlot {
     pub offset: isize,
     pub value: P<Value>
+}
+
+impl fmt::Display for FrameSlot {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}(RBP): {}", self.offset, self.value)
+    }
 }
 
 impl FrameSlot {
