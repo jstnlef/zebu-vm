@@ -25,8 +25,8 @@ pub struct Frame {
     cur_offset: isize, // offset to rbp
     
     pub allocated: HashMap<MuID, FrameSlot>,
-    // key: callsite, val: destination address
-    pub exception_callsites: HashMap<ValueLocation, ValueLocation>
+    // (callsite, destination address)
+    exception_callsites: Vec<(ValueLocation, ValueLocation)>
 }
 
 impl fmt::Display for Frame {
@@ -37,7 +37,7 @@ impl fmt::Display for Frame {
             writeln!(f, "    {}", slot).unwrap();
         }
         writeln!(f, "  exception callsites:").unwrap();
-        for (callsite, dest) in self.exception_callsites.iter() {
+        for &(ref callsite, ref dest) in self.exception_callsites.iter() {
             writeln!(f, "    callsite: {} -> {}", callsite, dest).unwrap()
         }
         writeln!(f, "}}")
@@ -50,7 +50,7 @@ impl Frame {
             func_ver_id: func_ver_id,
             cur_offset: - (POINTER_SIZE as isize * 1), // reserve for old RBP
             allocated: HashMap::new(),
-            exception_callsites: HashMap::new()
+            exception_callsites: vec![]
         }
     }
     
@@ -64,9 +64,13 @@ impl Frame {
         slot.make_memory_op(reg.ty.clone(), vm)
     }
     
+    pub fn get_exception_callsites(&self) -> &Vec<(ValueLocation, ValueLocation)> {
+        &self.exception_callsites
+    }
+    
     pub fn add_exception_callsite(&mut self, callsite: ValueLocation, dest: ValueLocation) {
         trace!("add exception callsite: {} to dest {}", callsite, dest);
-        self.exception_callsites.insert(callsite, dest);
+        self.exception_callsites.push((callsite, dest));
     }
     
     fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {

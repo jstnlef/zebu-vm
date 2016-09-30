@@ -19,12 +19,10 @@ impl Address {
     }
     #[inline(always)]
     pub fn offset(&self, offset: isize) -> Self {
-        debug_assert!((self.0 as isize) < 0);
         Address((self.0 as isize + offset) as usize)
     }
     #[inline(always)]
     pub fn shift<T>(&self, offset: isize) -> Self {
-        debug_assert!((self.0 as isize) < 0);
         Address((self.0 as isize + mem::size_of::<T>() as isize * offset) as usize)
     }
     #[inline(always)]

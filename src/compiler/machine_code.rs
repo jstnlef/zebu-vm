@@ -25,11 +25,18 @@ const CF_SERIALIZE_FIELDS : usize = 6;
 impl Encodable for CompiledFunction {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
         s.emit_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |s| {
+            trace!("......serializing func_id");    
             try!(s.emit_struct_field("func_id",     0, |s| self.func_id.encode(s)));
+            trace!("......serializing func_ver_id");
             try!(s.emit_struct_field("func_ver_id", 1, |s| self.func_ver_id.encode(s)));
+            trace!("......serializing temps");
             try!(s.emit_struct_field("temps",       2, |s| self.temps.encode(s)));
+            trace!("......serializing frame");
+            trace!("{}", self.frame);
             try!(s.emit_struct_field("frame",       3, |s| self.frame.encode(s)));
+            trace!("......serializing start");
             try!(s.emit_struct_field("start",       4, |s| self.start.encode(s)));
+            trace!("......serializing end");
             try!(s.emit_struct_field("end",         5, |s| self.end.encode(s)));
             
             Ok(())

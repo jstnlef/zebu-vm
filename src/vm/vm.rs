@@ -62,58 +62,68 @@ impl Encodable for VM {
         // PLUS ONE extra global STRUCT_TAG_MAP
         s.emit_struct("VM", VM_SERIALIZE_FIELDS + 1, |s| {
             // next_id
+            trace!("...serializing next_id");
             try!(s.emit_struct_field("next_id", 0, |s| {
                 s.emit_usize(self.next_id.load(Ordering::SeqCst))
             }));
                 
             // id_name_map
+            trace!("...serializing id_name_map");
             {
                 let map : &HashMap<MuID, MuName> = &self.id_name_map.read().unwrap();            
                 try!(s.emit_struct_field("id_name_map", 1, |s| map.encode(s)));
             }
             
             // name_id_map
+            trace!("...serializing name_id_map");
             {
                 let map : &HashMap<MuName, MuID> = &self.name_id_map.read().unwrap(); 
                 try!(s.emit_struct_field("name_id_map", 2, |s| map.encode(s)));
             }
             
             // types
+            trace!("...serializing types");
             {
                 let types = &self.types.read().unwrap();
                 try!(s.emit_struct_field("types", 3, |s| types.encode(s)));
             }
             // STRUCT_TAG_MAP
+            trace!("...serializing struct_tag_map");
             {
                 let struct_tag_map = types::STRUCT_TAG_MAP.read().unwrap();
                 try!(s.emit_struct_field("struct_tag_map", 4, |s| struct_tag_map.encode(s)));
             }
             
             // backend_type_info
+            trace!("...serializing backend_type_info");
             {
                 let backend_type_info : &HashMap<_, _> = &self.backend_type_info.read().unwrap();
                 try!(s.emit_struct_field("backend_type_info", 5, |s| backend_type_info.encode(s)));
             }
             
             // constants
+            trace!("...serializing constants");
             {
                 let constants : &HashMap<_, _> = &self.constants.read().unwrap();
                 try!(s.emit_struct_field("constants", 6, |s| constants.encode(s)));
             }
             
             // globals
+            trace!("...serializing globals");
             {
                 let globals: &HashMap<_, _> = &self.globals.read().unwrap();
                 try!(s.emit_struct_field("globals", 7, |s| globals.encode(s)));
             }
             
             // func sigs
+            trace!("...serializing func_sigs");
             {
                 let func_sigs: &HashMap<_, _> = &self.func_sigs.read().unwrap();
                 try!(s.emit_struct_field("func_sigs", 8, |s| func_sigs.encode(s)));
             }
             
             // funcs
+            trace!("...serializing funcs");
             {
                 let funcs : &HashMap<_, _> = &self.funcs.read().unwrap();
                 try!(s.emit_struct_field("funcs", 9, |s| {
@@ -131,6 +141,7 @@ impl Encodable for VM {
             }
             
             // func_vers
+            trace!("...serializing func_vers");
             {
                 let func_vers : &HashMap<_, _> = &self.func_vers.read().unwrap();
                 try!(s.emit_struct_field("func_vers", 10, |s| {
@@ -148,17 +159,20 @@ impl Encodable for VM {
             }
             
             // primordial
+            trace!("...serializing primordial");
             {
                 let primordial = &self.primordial.read().unwrap();
                 try!(s.emit_struct_field("primordial", 11, |s| primordial.encode(s)));
             }
             
             // is_running
+            trace!("...serializing is_running");
             {
                 try!(s.emit_struct_field("is_running", 12, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
             }
             
             // compiled_funcs
+            trace!("...serializing compiled_funcs");
             {
                 let compiled_funcs : &HashMap<_, _> = &self.compiled_funcs.read().unwrap();
                 try!(s.emit_struct_field("compiled_funcs", 13, |s| {
@@ -175,6 +189,7 @@ impl Encodable for VM {
                 }));
             }
             
+            trace!("serializing finished");
             Ok(())
         })
     }

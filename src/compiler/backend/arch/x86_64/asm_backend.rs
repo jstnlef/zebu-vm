@@ -1304,6 +1304,7 @@ pub fn emit_context(vm: &VM) {
     
     // data
     // serialize vm
+    trace!("start serializing vm");
     {
         let serialize_vm = json::encode(&vm).unwrap();
         

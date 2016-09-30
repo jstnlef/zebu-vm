@@ -229,6 +229,8 @@ lazy_static! {
                 + mem::size_of::<Option<Box<MuStack>>>()
                 + mem::size_of::<Address>()
                 + mem::size_of::<Option<Address>>();
+
+    pub static ref EXCEPTION_OBJ_OFFSET : usize = *VM_OFFSET + mem::size_of::<Arc<VM>>();                
 }
 
 #[cfg(target_arch = "x86_64")]

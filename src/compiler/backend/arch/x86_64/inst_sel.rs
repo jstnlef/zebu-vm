@@ -378,10 +378,10 @@ impl <'a> InstructionSelection {
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
                         
                         // get thread local and add offset to get sp_loc
-                        let tl = self.emit_get_threadlocal(node, f_content, f_context, vm);
+                        let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
                         self.backend.emit_add_r64_imm32(&tl, *thread::NATIVE_SP_LOC_OFFSET as i32);
                         
-                        self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, node, f_content, f_context, vm);
+                        self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, Some(node), f_content, f_context, vm);
                     }
                     
                     Instruction_::New(ref ty) => {
@@ -396,7 +396,7 @@ impl <'a> InstructionSelection {
                             // emit immix allocation fast path
                             
                             // ASM: %tl = get_thread_local()
-                            let tmp_tl = self.emit_get_threadlocal(node, f_content, f_context, vm);
+                            let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
                             
                             // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
                             let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
@@ -465,7 +465,7 @@ impl <'a> InstructionSelection {
                                 Some(vec![
                                     tmp_res.clone()
                                 ]),
-                                node, f_content, f_context, vm
+                                Some(node), f_content, f_context, vm
                             );
                             
                             // end block (no liveout other than result)
@@ -486,7 +486,7 @@ impl <'a> InstructionSelection {
                             &entrypoints::THROW_EXCEPTION, 
                             vec![exception_obj.clone_value()], 
                             None,
-                            node, f_content, f_context, vm);
+                            Some(node), f_content, f_context, vm);
                     }
     
                     _ => unimplemented!()
@@ -544,7 +544,7 @@ impl <'a> InstructionSelection {
     
     fn emit_get_threadlocal (
         &mut self, 
-        cur_node: &TreeNode,
+        cur_node: Option<&TreeNode>,
         f_content: &FunctionContent, 
         f_context: &mut FunctionContext, 
         vm: &VM) -> P<Value> {
@@ -562,7 +562,7 @@ impl <'a> InstructionSelection {
         entry: &RuntimeEntrypoint, 
         args: Vec<P<Value>>, 
         rets: Option<Vec<P<Value>>>,
-        cur_node: &TreeNode, 
+        cur_node: Option<&TreeNode>, 
         f_content: &FunctionContent, 
         f_context: &mut FunctionContext, 
         vm: &VM) -> Vec<P<Value>> {
@@ -595,7 +595,7 @@ impl <'a> InstructionSelection {
         sig: P<CFuncSig>, 
         args: Vec<P<Value>>, 
         rets: Option<Vec<P<Value>>>,
-        cur_node: &TreeNode,
+        cur_node: Option<&TreeNode>,
         f_content: &FunctionContent, 
         f_context: &mut FunctionContext, 
         vm: &VM) -> Vec<P<Value>> 
@@ -643,12 +643,15 @@ impl <'a> InstructionSelection {
         if vm.is_running() {
             unimplemented!()
         } else {
-            let callsite = self.new_callsite_label(cur_node.id());
+            let callsite = self.new_callsite_label(cur_node);
             self.backend.emit_call_near_rel32(callsite, func_name);
             
             // record exception block (CCall may have an exception block)
-            if cur_node.op == OpCode::CCall {
-                unimplemented!()
+            if cur_node.is_some() {
+                let cur_node = cur_node.unwrap(); 
+                if cur_node.op == OpCode::CCall {
+                    unimplemented!()
+                }
             }
         }
         
@@ -762,18 +765,18 @@ impl <'a> InstructionSelection {
                 if vm.is_running() {
                     unimplemented!()
                 } else {
-                    let callsite = self.new_callsite_label(cur_node.id());
+                    let callsite = self.new_callsite_label(Some(cur_node));
                     self.backend.emit_call_near_rel32(callsite, target.name().unwrap())
                 }
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
                 
-                let callsite = self.new_callsite_label(cur_node.id());
+                let callsite = self.new_callsite_label(Some(cur_node));
                 self.backend.emit_call_near_r64(callsite, &target)
             } else if self.match_mem(func) {
                 let target = self.emit_mem(func);
                 
-                let callsite = self.new_callsite_label(cur_node.id());
+                let callsite = self.new_callsite_label(Some(cur_node));
                 self.backend.emit_call_near_mem64(callsite, &target)
             } else {
                 unimplemented!()
@@ -1201,8 +1204,20 @@ impl <'a> InstructionSelection {
         } 
     }
     
-    fn new_callsite_label(&mut self, node_id: MuID) -> String {
-        let ret = format!("callsite_{}_{}", node_id, self.current_callsite_id);
+    fn emit_landingpad(&mut self, exception_arg: &P<Value>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
+        // get thread local and add offset to get exception_obj
+        let tl = self.emit_get_threadlocal(None, f_content, f_context, vm);
+        self.emit_load_base_offset(exception_arg, &tl, *thread::EXCEPTION_OBJ_OFFSET as i32, vm);
+    }
+    
+    fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
+        let ret = {
+            if cur_node.is_some() {
+                format!("callsite_{}_{}", cur_node.unwrap().id(), self.current_callsite_id)
+            } else {
+                format!("callsite_anon_{}", self.current_callsite_id)
+            }
+        };
         self.current_callsite_id += 1;
         ret
     }
@@ -1242,20 +1257,27 @@ impl CompilerPass for InstructionSelection {
             let block_label = block.name().unwrap();
             self.current_block = Some(block_label.clone());            
             
+            let block_content = block.content.as_ref().unwrap();
+            
             if block.is_exception_block() {
                 let loc = self.backend.start_exception_block(block_label.clone());
                 self.current_exn_blocks.insert(block.id(), loc);
                 
+                let exception_arg = block_content.exn_arg.as_ref().unwrap();
+                
+                // live in is args of the block + exception arg
+                let mut livein = block_content.args.to_vec();
+                livein.push(exception_arg.clone());
+                self.backend.set_block_livein(block_label.clone(), &livein);
+                
                 // need to insert a landing pad
-                unimplemented!()
+                self.emit_landingpad(&exception_arg, f_content, &mut func.context, vm);
             } else {
-                self.backend.start_block(block_label.clone());    
+                self.backend.start_block(block_label.clone());
+                
+                // live in is args of the block
+                self.backend.set_block_livein(block_label.clone(), &block_content.args);                    
             }
-
-            let block_content = block.content.as_ref().unwrap();
-            
-            // live in is args of the block
-            self.backend.set_block_livein(block_label.clone(), &block_content.args);
             
             // live out is the union of all branch args of this block
             let live_out = block_content.get_out_arguments();

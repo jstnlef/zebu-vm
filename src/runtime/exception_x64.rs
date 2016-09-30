@@ -3,6 +3,7 @@ use compiler::machine_code::CompiledFunction;
 use compiler::frame::*;
 use compiler::backend::x86_64;
 use utils::Address;
+use utils::Word;
 use utils::POINTER_SIZE;
 use runtime::thread;
 
@@ -23,7 +24,8 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
     
     // rbp of current frame (mu_throw_exception(), Rust frame)
     let rust_frame_rbp = unsafe {thread::get_current_frame_rbp()};
-    trace!("current frame RBP: 0x{:x}", rust_frame_rbp);    
+    trace!("current frame RBP: 0x{:x}", rust_frame_rbp);
+    inspect_nearby_address(rust_frame_rbp, 5);    
     let rust_frame_return_addr = unsafe {rust_frame_rbp.plus(POINTER_SIZE).load::<Address>()};
     trace!("return address   : 0x{:x} - throw instruction", rust_frame_return_addr);
     
@@ -76,8 +78,8 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
         
         // find exception block - comparing callsite with frame info
         trace!("checking catch block: looking for callsite 0x{:x}", callsite);
-        let ref exception_callsites = frame.exception_callsites;
-        for (possible_callsite, dest) in exception_callsites {
+        let exception_callsites = frame.get_exception_callsites();
+        for &(ref possible_callsite, ref dest) in exception_callsites.iter() {
             let possible_callsite_addr = possible_callsite.to_address();
             
             if callsite == possible_callsite_addr {
@@ -95,6 +97,18 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
         callsite = cursor.return_addr;
         cursor.to_previous_frame(&cf_lock);
         trace!("cursor unwinds to previous frame: {}", cursor);        
+    }
+}
+
+fn inspect_nearby_address(base: Address, n: isize) {
+    let mut i = n;
+    while i >= -n {
+        unsafe {
+            let addr = base.offset(i * POINTER_SIZE as isize);
+            let val  = addr.load::<Word>();
+            trace!("addr: 0x{:x} | val: 0x{:x}", addr, val);
+        }
+        i -= 1;
     }
 }
 
