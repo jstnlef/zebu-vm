@@ -21,3 +21,8 @@ cpart.o: cpart.c cpart.h
 
 cclient: cclient.c cpart.h rustpart.a cpart.o ../muapi.h
 	$(CC) -I $(INCLUDE_DIR) $(LDFLAGS) -o $@ cclient.c cpart.o rustpart.a
+
+.PHONY: clean
+
+clean:
+	rm *.a *.o cclient
