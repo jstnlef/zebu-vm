@@ -765,6 +765,21 @@ impl CodeGenerator for ASMCodeGen {
         }        
     }
     
+    fn emit_nop(&mut self, bytes: usize) {
+        trace!("emit: nop ({} bytes)", bytes);
+        
+        let asm = String::from("nop");
+        
+        self.add_asm_inst(
+            asm,
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            false
+        );
+    }
+    
     fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>) {
         trace!("emit: cmp {} {}", op1, op2);
         
@@ -1155,12 +1170,12 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation {
         trace!("emit: call {}", func);
         
-        let callsite_symbol = symbol(callsite.clone());
-        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));        
-        
         let asm = format!("call {}", symbol(func));
         self.add_asm_call(asm);
+        
+        let callsite_symbol = symbol(callsite.clone());
+        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));            
         
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }

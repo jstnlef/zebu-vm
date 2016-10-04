@@ -16,6 +16,8 @@ pub trait CodeGenerator {
     fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
     fn end_block(&mut self, block_name: MuName);
     
+    fn emit_nop(&mut self, bytes: usize);
+    
     fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>);
     fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: i32);
     fn emit_cmp_r64_mem64(&mut self, op1: &P<Value>, op2: &P<Value>);

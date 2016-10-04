@@ -56,12 +56,17 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
         // get return address (the slot above RBP slot)
 //        let return_addr = unsafe {rbp.plus(POINTER_SIZE).load::<Address>()};
         
-        let rwlock_cf = match cf_lock.get(&cursor.func_ver_id) {
-            Some(ret) => ret,
-            None => panic!("cannot find compiled func with func_id {}, possibly didnt find the right frame for return address", cursor.func_id)
+        // release the locks, and keep a clone of the frame
+        // because we may improperly leave this function
+        // FIXME: consider using Rust () -> ! to tell Rust compiler that we may not finish the func
+        let frame = {
+            let rwlock_cf = match cf_lock.get(&cursor.func_ver_id) {
+                Some(ret) => ret,
+                None => panic!("cannot find compiled func with func_id {}, possibly didnt find the right frame for return address", cursor.func_id)
+            };
+            let rwlock_cf = rwlock_cf.read().unwrap();
+            rwlock_cf.frame.clone()
         };
-        let rwlock_cf = rwlock_cf.read().unwrap();
-        let ref frame = rwlock_cf.frame;
         trace!("frame info: {}", frame);
         
         // update callee saved register location
@@ -81,9 +86,10 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
         let exception_callsites = frame.get_exception_callsites();
         for &(ref possible_callsite, ref dest) in exception_callsites.iter() {
             let possible_callsite_addr = possible_callsite.to_address();
+            trace!("..check {} at 0x{:x}", possible_callsite, possible_callsite_addr);
             
             if callsite == possible_callsite_addr {
-                trace!("found catch block at {}", dest);                
+                trace!("found catch block at {}", dest);
                 // found an exception block
                 let dest_addr = dest.to_address();
                 
@@ -160,11 +166,12 @@ fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunc
         let end = func.end.to_address();
         trace!("CompiledFunction: func_id={}, fv_id={}, start=0x{:x}, end=0x{:x}", func.func_id, func.func_ver_id, start, end);
         
-        if pc_addr >= start && pc_addr <= end {
+        // pc won't be the start of a function, but could be the end
+        if pc_addr > start && pc_addr <= end {
             trace!("Found CompiledFunction: func_id={}, fv_id={}", func.func_id, func.func_ver_id);
             return (func.func_id, func.func_ver_id);
         }
     }
     
-    panic!("cannot find compiled function for pc 0x{:x}");
+    panic!("cannot find compiled function for pc 0x{:x}", pc_addr);
 }

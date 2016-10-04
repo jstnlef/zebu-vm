@@ -19,7 +19,7 @@ use vm::VM;
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct Frame {
     func_ver_id: MuID,
     cur_offset: isize, // offset to rbp
@@ -87,7 +87,7 @@ impl Frame {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct FrameSlot {
     pub offset: isize,
     pub value: P<Value>
