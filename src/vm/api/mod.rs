@@ -1,9 +1,13 @@
-//mod api_old;
-//mod api_new;
-
 mod api_c;
-//mod api_bridge;   // FIXME: Implement the bridges
+mod api_bridge;
 mod api_impl;
 
-//pub use vm::api::api_new::*;
+mod deps {
+    pub use ast::ir::WPID;
+    pub use ast::ir::MuID;
+    pub use ast::ir::MuName;
+    pub use ast::ir::CName;
+    pub use ast::bundle::APIMuValue;
+    extern crate ast;
+}
 
