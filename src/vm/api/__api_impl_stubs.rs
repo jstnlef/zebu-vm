@@ -18,11 +18,13 @@ pub struct MuVM {
     // Stub
 }
 
-pub struct MuCtx {
+pub struct MuCtx<'v> {
+    mvm: &'v mut MuVM,
     // Stub
 }
 
-pub struct MuIRBuilder {
+pub struct MuIRBuilder<'c> {
+    ctx: &'c mut MuCtx<'c>,
     // Stub
 }
 
@@ -46,7 +48,7 @@ impl MuVM {
 
 }
 
-impl MuCtx {
+impl<'v> MuCtx<'v> {
     pub fn id_of(&mut self, name: MuName) -> MuID {
         panic!("Not implemented")
     }
@@ -405,7 +407,7 @@ impl MuCtx {
 
 }
 
-impl MuIRBuilder {
+impl<'c> MuIRBuilder<'c> {
     pub fn load(&mut self) {
         panic!("Not implemented")
     }

@@ -1,6 +1,8 @@
-mod api_c;
-mod api_bridge;
-mod api_impl;
+pub mod api_c;      // This is pub because `api_c` can be used directly. It is just an interface.
+mod api_bridge;     // This is mostly auto-generatd code, and should not be used externally.
+mod api_impl;       // Mostly private. 
+
+pub use self::api_impl::mu_fastimpl_new;
 
 mod deps {
     pub use ast::ir::WPID;

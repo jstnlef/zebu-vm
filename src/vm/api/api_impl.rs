@@ -18,29 +18,126 @@ use std::ffi::CString;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use std::sync::Mutex;
+
+use super::super::vm::VM;
+
 use super::api_c::*;
+use super::api_bridge::*;
 use super::deps::*;
 
+/**
+ * Create a micro VM instance, and expose it as a C-visible `*mut CMuVM` pointer.
+ *
+ * NOTE: When used as an API (such as in tests), please use `mu::vm::api::mu_fastimpl_new` instead.
+ *
+ * This method is not part of the API defined by the Mu spec. It is used **when the client starts
+ * the process and creates the micor VM**. For example, it is used if the client wants to build
+ * boot images, or if the client implements most of its parts in C and onlu uses the micro VM as
+ * the JIT compiler.
+ *
+ * The boot image itself should use `VM::resume_vm` to restore the saved the micro VM. There is no
+ * need in the boot image itself to expose the `MuVM` structure to the trap handler. Trap handlers
+ * only see `MuCtx`, and it is enough for most of the works.
+ */
+#[no_mangle]
+pub extern fn mu_fastimpl_new() -> *mut CMuVM {
+    info!("Creating Mu micro VM fast implementation instance...");
+
+    let mvm = Box::new(MuVM::new());
+    let mvm_ptr = Box::into_raw(mvm);
+
+    debug!("The MuVM instance address: {:?}", mvm_ptr);
+
+    let c_mvm = make_new_MuVM(mvm_ptr as *mut c_void);
+
+    debug!("The C-visible CMuVM struct address: {:?}", c_mvm);
+
+    c_mvm
+}
+
 pub struct MuVM {
+    // The actual VM
+    vm: VM,
+
+    // Cache C strings. The C client expects `char*` from `name_of`. We assume the client won't
+    // call `name_of` very often, so that we don't need to initialise this hashmap on startup.
+    name_cache: Mutex<HashMap<MuID, CString>>,
 }
 
-pub struct MuCtx {
+pub struct MuCtx<'v> {
+    // ref to the MuVM struct.
+    mvm: &'v mut MuVM,
+
+    // Point to the C-visible CMuCtx so that `close_context` can deallocate itself.
+    c_struct: *mut CMuCtx,
 }
 
-pub struct MuIRBuilder {
+pub struct MuIRBuilder<'c> {
+    // ref to the MuCtx struct.
+    ctx: &'c mut MuCtx<'c>,
+
+    // Point to the C-visible CMuIRBuilder so that `load` and `abort` can deallocate itself.
+    c_struct: *mut CMuIRBuilder,
 }
 
+/**
+ * Implement the methods of MuVM. Most methods implement the C-level methods, and others are
+ * rust-level helpers. Most methods are forwarded to the underlying `VM.*` methods.
+ */
 impl MuVM {
+    /**
+     * Create a new micro VM instance from scratch.
+     */
+    pub fn new() -> MuVM {
+        MuVM {
+            vm: VM::new(),
+            // Cache C strings. The C client expects `char*` from `name_of`. We assume the client
+            // won't call `name_of` very often, so that we don't need to initialise this hashmap on
+            // startup.
+            //
+            // RwLock won't work because Rust will not let me release the lock after reading
+            // because other threads will remove that element from the cache, even though I only
+            // monotonically add elements into the `name_cache`. I can't upgrade the lock from read
+            // lock to write lock, otherwise it will deadlock.
+            name_cache: Mutex::new(HashMap::new()),
+        }
+    }
+
     pub fn new_context(&mut self) -> *mut CMuCtx {
-        panic!("Not implemented")
+        info!("Creating MuCtx...");
+
+        let ctx = Box::new(MuCtx {
+            mvm: self,
+            c_struct: ptr::null_mut(),
+        });
+
+        let ctx_ptr = Box::into_raw(ctx);
+
+        debug!("The MuCtx address: {:?}", ctx_ptr);
+
+        let cctx = make_new_MuCtx(ctx_ptr as *mut c_void);
+
+        debug!("The C-visible CMuCtx struct address: {:?}", cctx);
+
+        unsafe{ (*ctx_ptr).c_struct = cctx; }
+
+        cctx
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
-        panic!("Not implemented")
+        self.vm.id_of_by_refstring(&name)
     }
 
     pub fn name_of(&mut self, id: MuID) -> CMuCString {
-        panic!("Not implemented")
+        let mut map = self.name_cache.lock().unwrap();
+
+        let cname = map.entry(id).or_insert_with(|| {
+            let rustname = self.vm.name_of(id);
+            CString::new(rustname).unwrap()
+        });
+
+        cname.as_ptr()
     }
 
     pub fn set_trap_handler(&mut self, trap_handler: CMuTrapHandler, userdata: CMuCPtr) {
@@ -49,25 +146,41 @@ impl MuVM {
 
 }
 
-impl MuCtx {
+impl<'v> MuCtx<'v> {
+    #[inline(always)]
+    fn get_mvm(&mut self) -> &mut MuVM {
+        self.mvm
+    }
+
     pub fn id_of(&mut self, name: MuName) -> MuID {
-        panic!("Not implemented")
+        self.get_mvm().id_of(name)
     }
 
     pub fn name_of(&mut self, id: MuID) -> CMuCString {
-        panic!("Not implemented")
+        self.get_mvm().name_of(id)
+    }
+
+    fn deallocate(&mut self) {
+        let c_struct = self.c_struct;
+        let ctx_ptr = self as *mut MuCtx;
+        debug!("Deallocating MuCtx {:?} and CMuCtx {:?}...", ctx_ptr, c_struct);
+        unsafe {
+            Box::from_raw(c_struct);
+            Box::from_raw(ctx_ptr);
+        }
     }
 
     pub fn close_context(&mut self) {
-        panic!("Not implemented")
+        info!("Closing MuCtx...");
+        self.deallocate();
     }
 
     pub fn load_bundle(&mut self, buf: &[c_char]) {
-        panic!("Not implemented")
+        panic!("The fast implementation does not support the text form.")
     }
 
     pub fn load_hail(&mut self, buf: &[c_char]) {
-        panic!("Not implemented")
+        panic!("The fast implementation does not support the text form.")
     }
 
     pub fn handle_from_sint8(&mut self, num: i8, len: c_int) -> *const APIMuValue {
@@ -398,8 +511,25 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn new_ir_builder(&mut self) -> *mut CMuIRBuilder {
-        panic!("Not implemented")
+    pub fn new_ir_builder(&'v mut self) -> *mut CMuIRBuilder {
+        info!("Creating MuIRBuilder...");
+
+        let b: Box<MuIRBuilder<'v>> = Box::new(MuIRBuilder {
+            ctx: self,
+            c_struct: ptr::null_mut(),
+        });
+
+        let b_ptr = Box::into_raw(b);
+
+        debug!("The MuIRBuilder address: {:?}", b_ptr);
+
+        let cb = make_new_MuIRBuilder(b_ptr as *mut c_void);
+
+        debug!("The C-visible CMuIRBuilder struct address: {:?}", cb);
+
+        unsafe{ (*b_ptr).c_struct = cb; }
+
+        cb
     }
 
     pub fn make_boot_image(&mut self, whitelist: Vec<MuID>, primordial_func: Option<&APIMuValue>, primordial_stack: Option<&APIMuValue>, primordial_threadlocal: Option<&APIMuValue>, sym_fields: Vec<&APIMuValue>, sym_strings: Vec<String>, reloc_fields: Vec<&APIMuValue>, reloc_strings: Vec<String>, output_file: String) {
@@ -408,16 +538,49 @@ impl MuCtx {
 
 }
 
-impl MuIRBuilder {
+impl<'c> MuIRBuilder<'c> {
+    #[inline(always)]
+    fn get_ctx(&'c mut self) -> &mut MuCtx {
+        self.ctx
+    }
+
+    #[inline(always)]
+    fn get_mvm(&'c mut self) -> &mut MuVM {
+        self.get_ctx().get_mvm()
+    }
+
+    #[inline(always)]
+    fn get_vm(&'c mut self) -> &mut VM {
+        &mut self.get_mvm().vm
+    }
+
+    #[inline(always)]
+    fn next_id(&'c mut self) -> MuID {
+        self.get_vm().next_id()
+    }
+
+    fn deallocate(&mut self) {
+        let c_struct = self.c_struct;
+        let b_ptr = self as *mut MuIRBuilder;
+        debug!("Deallocating MuIRBuilder {:?} and CMuIRBuilder {:?}...", b_ptr, c_struct);
+        unsafe {
+            Box::from_raw(c_struct);
+            Box::from_raw(b_ptr);
+        }
+    }
+
     pub fn load(&mut self) {
-        panic!("Not implemented")
+        panic!("Please implement bundle loading before deallocating itself.");
+        self.deallocate();
     }
 
     pub fn abort(&mut self) {
-        panic!("Not implemented")
+        info!("Aborting boot image building...");
+        self.deallocate();
     }
 
-    pub fn gen_sym(&mut self, name: Option<String>) -> MuID {
+    pub fn gen_sym(&'c mut self, name: Option<String>) -> MuID {
+        let my_id = self.next_id();
         panic!("Not implemented")
     }
 

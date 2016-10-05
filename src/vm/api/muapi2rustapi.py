@@ -384,6 +384,12 @@ def visit_method(st, meth) -> Tuple[str, str, str, str]:
 
     return field_def, bridge, filler_stmt, stub
 
+_lifetime_params = {
+        "MuVM": "",
+        "MuCtx": "<'v>",
+        "MuIRBuilder": "<'c>",
+        }
+
 def visit_struct(st) -> Tuple[str, List[str], str, str]:
     name    = st["name"]
     methods = st["methods"]
@@ -429,8 +435,10 @@ pub fn make_new_{name}(header: *mut c_void) -> *mut {rust_name} {{
 
     stubs_joined = "\n".join(stubs)
 
+    lifetime_params = _lifetime_params[name]
+
     stub_impl = """\
-impl {name} {{
+impl{lifetime_params} {name}{lifetime_params} {{
 {stubs_joined}
 }}
 """.format(**locals())

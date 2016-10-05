@@ -46,18 +46,18 @@ fn from_MuVM_ptr(ptr: *mut CMuVM) -> *mut MuVM {
 }
 
 #[inline(always)]
-fn from_MuCtx_ptr(ptr: *mut CMuCtx) -> *mut MuCtx {
+fn from_MuCtx_ptr<'v>(ptr: *mut CMuCtx) -> *mut MuCtx<'v> {
     debug_assert!(!ptr.is_null());
     unsafe {
-        (*ptr).header as *mut MuCtx
+        (*ptr).header as *mut MuCtx<'v>
     }
 }
 
 #[inline(always)]
-fn from_MuIRBuilder_ptr(ptr: *mut CMuIRBuilder) -> *mut MuIRBuilder {
+fn from_MuIRBuilder_ptr<'c>(ptr: *mut CMuIRBuilder) -> *mut MuIRBuilder<'c> {
     debug_assert!(!ptr.is_null());
     unsafe {
-        (*ptr).header as *mut MuIRBuilder
+        (*ptr).header as *mut MuIRBuilder<'c>
     }
 }
 

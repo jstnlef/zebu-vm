@@ -108,13 +108,14 @@ pub struct MuVM {
     trap_handler_user_data: Option<CMuCPtr>,
 }
 
-pub struct MuCtx {
-    mvm: *mut MuVM,
+pub struct MuCtx<'v> {
+    mvm: &'v mut MuVM,
     c_struct: *mut CMuCtx,
     handles: HashSet<*const APIMuValue>,
 }
 
-pub struct MuIRBuilder {
+pub struct MuIRBuilder<'c> {
+    ctx: &'c mut MuCtx<'c>,
     // Stub
 }
 
@@ -142,13 +143,6 @@ impl MuVM {
     }
 
     fn dealloc_context(&mut self, ctx: &mut MuCtx) {
-        let c_struct = ctx.c_struct;
-        let ctx_ptr = ctx as *mut MuCtx;
-        println!("Deallocating MuCtx {:?} and CMuCtx {:?}...", ctx_ptr, c_struct);
-        unsafe {
-            Box::from_raw(c_struct);
-            Box::from_raw(ctx_ptr);
-        }
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
@@ -227,9 +221,9 @@ impl MuVM {
 
 }
 
-impl MuCtx {
-    fn get_mvm<'a>(&mut self) -> &'a mut MuVM {
-        unsafe { &mut * self.mvm }
+impl<'v> MuCtx<'v> {
+    fn get_mvm(&mut self) -> &mut MuVM {
+        self.mvm
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
@@ -246,7 +240,13 @@ impl MuCtx {
         for &ptr in self.handles.iter() {
             MuCtx::dealloc_handle(ptr);
         }
-        self.get_mvm().dealloc_context(self)
+        let c_struct = self.c_struct;
+        let ctx_ptr = self as *mut MuCtx;
+        println!("Deallocating MuCtx {:?} and CMuCtx {:?}...", ctx_ptr, c_struct);
+        unsafe {
+            Box::from_raw(c_struct);
+            Box::from_raw(ctx_ptr);
+        }
     }
 
     pub fn load_bundle(&mut self, buf: &[c_char]) {
@@ -617,7 +617,7 @@ impl MuCtx {
 
 }
 
-impl MuIRBuilder {
+impl<'c> MuIRBuilder<'c> {
     pub fn load(&mut self) {
         panic!("Not implemented")
     }

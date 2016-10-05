@@ -336,7 +336,16 @@ impl <'a> VM {
         }
         
         ret.is_running.store(false, Ordering::SeqCst);
-        ret.next_id.store(USER_ID_START, Ordering::SeqCst);
+
+        // Does not need SeqCst.
+        //
+        // If VM creates Mu threads and Mu threads calls traps, the trap handler still "happens
+        // after" the creation of the VM itself. Rust does not have a proper memory model, but this
+        // is how C++ works.
+        //
+        // If the client needs to create client-level threads, however, the client should properly
+        // synchronise at the time of inter-thread communication, rather than creation of the VM.
+        ret.next_id.store(USER_ID_START, Ordering::Relaxed);
         
         let options = VMOptions::default();
         gc::gc_init(options.immix_size, options.lo_size, options.n_gcthreads);
@@ -356,7 +365,10 @@ impl <'a> VM {
     }
     
     pub fn next_id(&self) -> MuID {
-        self.next_id.fetch_add(1, Ordering::SeqCst)
+        // This only needs to be atomic, and does not need to be a synchronisation operation. The
+        // only requirement for IDs is that all IDs obtained from `next_id()` are different. So
+        // `Ordering::Relaxed` is sufficient.
+        self.next_id.fetch_add(1, Ordering::Relaxed)
     }
     
     pub fn run_vm(&self) {
@@ -378,9 +390,13 @@ impl <'a> VM {
         map2.insert(name, id);
     }
     
-    pub fn id_of(&self, name: &str) -> MuID {
+    pub fn id_of_by_refstring(&self, name: &String) -> MuID {
         let map = self.name_id_map.read().unwrap();
-        *map.get(&name.to_string()).unwrap()
+        *map.get(name).unwrap()
+    }
+    
+    pub fn id_of(&self, name: &str) -> MuID {
+        self.id_of_by_refstring(&name.to_string())
     }
     
     pub fn name_of(&self, id: MuID) -> MuName {
