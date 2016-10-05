@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 #[no_mangle]
+#[allow(unreachable_code)]
 pub extern fn muentry_throw_exception(exception_obj: Address) {
     trace!("throwing exception: {}", exception_obj);
     
@@ -72,12 +73,20 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
         // update callee saved register location
         for reg in x86_64::CALLEE_SAVED_GPRs.iter() {
             let reg_id = reg.id();
+            trace!("update callee saved register {}", reg_id);
             if frame.allocated.contains_key(&reg_id) {
                 let offset_from_rbp = frame.allocated.get(&reg_id).unwrap().offset;
                 let reg_restore_addr = cursor.rbp.offset(offset_from_rbp);
                 
                 trace!("update callee saved register {} with loc 0x{:x}", reg_id, reg_restore_addr);
                 cursor.callee_saved_locs.insert(reg_id, reg_restore_addr);
+            } else {
+                // rbp won't find a location
+                if reg_id == x86_64::RBP.id() {
+                    
+                } else {
+                    warn!("failed to find an entry for it in current frame");
+                }
             }
         }
         
@@ -94,7 +103,33 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
                 let dest_addr = dest.to_address();
                 
                 // restore callee saved register and jump to dest_addr
-                unimplemented!()
+                
+                // prepare a plain array [rbx, rbp, r12, r13, r14, r15]
+                macro_rules! unpack_callee_saved_from_cursor {
+                    ($reg: expr) => {
+                        match cursor.callee_saved_locs.get(&$reg.id()) {
+                            Some(addr) => unsafe {addr.load::<Word>()},
+                            None => {
+                                warn!("no {} value was saved along unwinding, please check", $reg.name().unwrap());
+                                0
+                            }
+                        }
+                    }
+                };
+                
+                let rbx = unpack_callee_saved_from_cursor!(x86_64::RBX);
+                let r12 = unpack_callee_saved_from_cursor!(x86_64::R12);
+                let r13 = unpack_callee_saved_from_cursor!(x86_64::R13);
+                let r14 = unpack_callee_saved_from_cursor!(x86_64::R14);
+                let r15 = unpack_callee_saved_from_cursor!(x86_64::R15);
+                let rbp = cursor.rbp.as_usize() as Word;
+                let array = vec![rbx, rbp, r12, r13, r14, r15];
+                
+                let rsp = cursor.rbp.offset(frame.cur_offset());
+                
+                unsafe {thread::exception_restore(dest_addr, array.as_ptr(), rsp)};
+                
+                unreachable!()
             }
         }
         trace!("didnt find a catch block");

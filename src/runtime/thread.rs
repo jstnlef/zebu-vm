@@ -10,6 +10,7 @@ use runtime::mm;
 
 use utils::ByteSize;
 use utils::Address;
+use utils::Word;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
@@ -248,6 +249,7 @@ extern "C" {
     fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
     fn muentry_swap_back_to_native_stack(sp_loc: Address);
     pub fn get_current_frame_rbp() -> Address;
+    pub fn exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !;
 }
 
 impl MuThread {

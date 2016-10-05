@@ -54,6 +54,10 @@ impl Frame {
         }
     }
     
+    pub fn cur_offset(&self) -> isize {
+        self.cur_offset
+    }
+    
     pub fn alloc_slot_for_callee_saved_reg(&mut self, reg: P<Value>, vm: &VM) -> P<Value> {
         let slot = self.alloc_slot(&reg, vm);
         slot.make_memory_op(reg.ty.clone(), vm)

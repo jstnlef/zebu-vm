@@ -67,3 +67,18 @@ _muentry_swap_back_to_native_stack:
 _get_current_frame_rbp:
           movq %rbp, %rax
           ret
+
+# _exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !
+#                    %rdi           %rsi                   %rdx
+# callee_saved: [rbx, rbp, r12, r13, r14, r15]
+.globl _exception_restore
+_exception_restore:
+          movq 0(%rsi), %rbx
+          movq 8(%rsi), %rbp
+          movq 16(%rsi),%r12
+          movq 24(%rsi),%r13
+          movq 32(%rsi),%r14
+          movq 40(%rsi),%r15
+
+          movq %rdx, %rsp
+          jmpq *%rdi

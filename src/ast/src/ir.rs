@@ -40,6 +40,11 @@ pub const  INTERNAL_ID_START: usize = 101;
 pub const  INTERNAL_ID_END  : usize = 200;
 pub const  USER_ID_START    : usize = 201;
 
+#[deprecated]
+#[allow(dead_code)]
+/// it could happen that one same machine register get different IDs
+/// during serialization and restoring
+/// currently I hand-write fixed ID for each machine register
 pub fn new_machine_id() -> MuID {
     let ret = MACHINE_ID.fetch_add(1, Ordering::SeqCst);
     if ret >= MACHINE_ID_END {

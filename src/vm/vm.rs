@@ -22,6 +22,11 @@ use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 use std::thread::JoinHandle;
 
+// FIXME:
+// besides fields in VM, there are some 'globals' we need to persist
+// such as STRUCT_TAG_MAP
+// possibly INTERNAL_ID in ir.rs, internal types, etc
+
 pub struct VM {
     // serialize
     // 0
