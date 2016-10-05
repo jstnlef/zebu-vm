@@ -6,7 +6,6 @@ use ast::op::OpCode;
 use ast::types;
 use ast::types::*;
 use vm::VM;
-use runtime;
 use runtime::mm;
 use runtime::ValueLocation;
 use runtime::thread;

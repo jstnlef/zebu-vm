@@ -2,8 +2,6 @@
 
 use compiler::CompilerPass;
 use compiler::PassExecutionResult;
-use compiler;
-use compiler::machine_code::CompiledFunction;
 use ast::ir::*;
 use vm::VM;
 

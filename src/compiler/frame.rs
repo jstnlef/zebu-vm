@@ -17,8 +17,6 @@ use vm::VM;
 // |---------------
 // | alloca area
 
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-
 #[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct Frame {
     func_ver_id: MuID,

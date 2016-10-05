@@ -8,10 +8,6 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
-use self::mu::runtime::thread;
-use self::mu::runtime::thread::MuThread;
-use self::mu::runtime::mm;
-use self::mu::utils::ByteSize;
 
 use aot;
 
@@ -187,7 +183,6 @@ fn create_catch_exception_func (vm: &VM) {
 }
 
 fn create_throw_exception_func (vm: &VM) {
-    let type_int64 = vm.get_type(vm.id_of("int64"));
     let type_ref_int64 = vm.get_type(vm.id_of("ref_int64"));
     let type_iref_int64 = vm.get_type(vm.id_of("iref_int64"));
     

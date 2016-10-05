@@ -8,10 +8,6 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
-use self::mu::runtime::thread;
-use self::mu::runtime::thread::MuThread;
-use self::mu::runtime::mm;
-use self::mu::utils::ByteSize;
 
 use std::sync::Arc;
 use std::sync::RwLock;

@@ -1,3 +1,4 @@
+#![allow(unused_imports)]   // work in progress
 #![allow(unused_variables)] // stubs
 #![allow(dead_code)]        // stubs
 
@@ -18,7 +19,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use super::api_c::*;
-use super::api_bridge::*;
 use super::deps::*;
 
 pub struct MuVM {

@@ -11,16 +11,13 @@ use vm::vm_options::VMOptions;
 use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::ByteSize;
-use utils::Address;
 use runtime::mm as gc;
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 use std::path;
-use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
-use std::thread::JoinHandle;
 
 // FIXME:
 // besides fields in VM, there are some 'globals' we need to persist

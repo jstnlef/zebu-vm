@@ -7,7 +7,6 @@ use compiler::backend::RegGroup;
 use utils::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
-use compiler::machine_code::CompiledFunction;
 use compiler::machine_code::MachineCode;
 use vm::VM;
 use runtime::ValueLocation;

@@ -1,6 +1,5 @@
 use ast::ir::*;
 use compiler::machine_code::CompiledFunction;
-use compiler::frame::*;
 use compiler::backend::x86_64;
 use utils::Address;
 use utils::Word;
@@ -194,7 +193,7 @@ impl FrameCursor {
 
 fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, pc_addr: Address) -> (MuID, MuID) {
     trace!("trying to find FuncVersion for address 0x{:x}", pc_addr);
-    for (id, func) in cf.iter() {
+    for (_, func) in cf.iter() {
         let func = func.read().unwrap();
         
         let start = func.start.to_address();

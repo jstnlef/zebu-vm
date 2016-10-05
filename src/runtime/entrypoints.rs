@@ -1,4 +1,3 @@
-use runtime;
 use runtime::ValueLocation;
 
 use ast::ir;
