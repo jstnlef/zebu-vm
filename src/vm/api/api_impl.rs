@@ -66,19 +66,23 @@ pub struct MuVM {
 }
 
 pub struct MuCtx<'v> {
-    // ref to the MuVM struct.
-    mvm: &'v mut MuVM,
+    /// ref to MuVM
+    mvm: &'v MuVM,
 
-    // Point to the C-visible CMuCtx so that `close_context` can deallocate itself.
+    /// Point to the C-visible CMuCtx so that `close_context` can deallocate itself.
     c_struct: *mut CMuCtx,
 }
 
-pub struct MuIRBuilder<'c> {
-    // ref to the MuCtx struct.
-    ctx: &'c mut MuCtx<'c>,
+pub struct MuIRBuilder<'v> {
+    /// ref to MuVM
+    mvm: &'v MuVM,
 
-    // Point to the C-visible CMuIRBuilder so that `load` and `abort` can deallocate itself.
+    /// Point to the C-visible CMuIRBuilder so that `load` and `abort` can deallocate itself.
     c_struct: *mut CMuIRBuilder,
+
+    /// Map IDs to names. Items are inserted during `gen_sym`. MuIRBuilder is supposed to be used
+    /// by one thread, so there is no need for locking.
+    id_name_map: HashMap<MuID, MuName>,
 }
 
 /**
@@ -104,7 +108,7 @@ impl MuVM {
         }
     }
 
-    pub fn new_context(&mut self) -> *mut CMuCtx {
+    pub fn new_context(&self) -> *mut CMuCtx {
         info!("Creating MuCtx...");
 
         let ctx = Box::new(MuCtx {
@@ -125,11 +129,11 @@ impl MuVM {
         cctx
     }
 
-    pub fn id_of(&mut self, name: MuName) -> MuID {
+    pub fn id_of(&self, name: MuName) -> MuID {
         self.vm.id_of_by_refstring(&name)
     }
 
-    pub fn name_of(&mut self, id: MuID) -> CMuCString {
+    pub fn name_of(&self, id: MuID) -> CMuCString {
         let mut map = self.name_cache.lock().unwrap();
 
         let cname = map.entry(id).or_insert_with(|| {
@@ -140,7 +144,7 @@ impl MuVM {
         cname.as_ptr()
     }
 
-    pub fn set_trap_handler(&mut self, trap_handler: CMuTrapHandler, userdata: CMuCPtr) {
+    pub fn set_trap_handler(&self, trap_handler: CMuTrapHandler, userdata: CMuCPtr) {
         panic!("Not implemented")
     }
 
@@ -148,8 +152,9 @@ impl MuVM {
 
 impl<'v> MuCtx<'v> {
     #[inline(always)]
-    fn get_mvm(&mut self) -> &mut MuVM {
+    fn get_mvm(&mut self) -> &MuVM {
         self.mvm
+        //unsafe { &mut *self.mvm }
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
@@ -511,12 +516,13 @@ impl<'v> MuCtx<'v> {
         panic!("Not implemented")
     }
 
-    pub fn new_ir_builder(&'v mut self) -> *mut CMuIRBuilder {
+    pub fn new_ir_builder(&mut self) -> *mut CMuIRBuilder {
         info!("Creating MuIRBuilder...");
 
-        let b: Box<MuIRBuilder<'v>> = Box::new(MuIRBuilder {
-            ctx: self,
+        let b: Box<MuIRBuilder> = Box::new(MuIRBuilder {
+            mvm: self.mvm,
             c_struct: ptr::null_mut(),
+            id_name_map: Default::default(),
         });
 
         let b_ptr = Box::into_raw(b);
@@ -538,24 +544,19 @@ impl<'v> MuCtx<'v> {
 
 }
 
-impl<'c> MuIRBuilder<'c> {
+impl<'v> MuIRBuilder<'v> {
     #[inline(always)]
-    fn get_ctx(&'c mut self) -> &mut MuCtx {
-        self.ctx
+    fn get_mvm(&mut self) -> &MuVM {
+        self.mvm
     }
 
     #[inline(always)]
-    fn get_mvm(&'c mut self) -> &mut MuVM {
-        self.get_ctx().get_mvm()
+    fn get_vm(&mut self) -> &VM {
+        &self.get_mvm().vm
     }
 
     #[inline(always)]
-    fn get_vm(&'c mut self) -> &mut VM {
-        &mut self.get_mvm().vm
-    }
-
-    #[inline(always)]
-    fn next_id(&'c mut self) -> MuID {
+    fn next_id(&mut self) -> MuID {
         self.get_vm().next_id()
     }
 
@@ -579,9 +580,21 @@ impl<'c> MuIRBuilder<'c> {
         self.deallocate();
     }
 
-    pub fn gen_sym(&'c mut self, name: Option<String>) -> MuID {
+    pub fn gen_sym(&mut self, name: Option<String>) -> MuID {
         let my_id = self.next_id();
-        panic!("Not implemented")
+
+        debug!("gen_sym({:?}) -> {}", name, my_id);
+
+        match name {
+            None => {},
+            Some(the_name) => {
+                let old = self.id_name_map.insert(my_id, the_name);
+                debug_assert!(old.is_none(), "ID already exists: {}, new name: {}, old name: {}",
+                my_id, self.id_name_map.get(&my_id).unwrap(), old.unwrap());
+            },
+        };
+
+        my_id
     }
 
     pub fn new_type_int(&mut self, id: MuID, len: c_int) {
