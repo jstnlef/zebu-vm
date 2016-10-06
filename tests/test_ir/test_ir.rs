@@ -214,7 +214,7 @@ pub fn factorial() -> VM {
     let fac_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone()]);
     vm.set_name(fac_sig.as_entity(), "fac_sig".to_string());
     let type_def_funcref_fac = vm.declare_type(vm.next_id(), MuType_::funcref(fac_sig.clone()));
-    vm.set_name(type_def_funcref_fac.as_entity(), "fac_sig".to_string());
+    vm.set_name(type_def_funcref_fac.as_entity(), "funcref_fac".to_string());
 
     // .funcdecl @fac <@fac_sig>
     let func = MuFunction::new(vm.next_id(), fac_sig.clone());
