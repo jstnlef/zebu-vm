@@ -19,12 +19,18 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use std::sync::Mutex;
+use std::sync::RwLock;
 
 use super::super::vm::VM;
 
 use super::api_c::*;
 use super::api_bridge::*;
-use super::deps::*;
+//use super::deps::*;   // maybe it is better to import * here.
+
+use ast::bundle::*;
+use ast::ir::*;
+use ast::ptr::*;
+use ast::types::*;
 
 /**
  * Create a micro VM instance, and expose it as a C-visible `*mut CMuVM` pointer.
@@ -83,6 +89,15 @@ pub struct MuIRBuilder<'v> {
     /// Map IDs to names. Items are inserted during `gen_sym`. MuIRBuilder is supposed to be used
     /// by one thread, so there is no need for locking.
     id_name_map: HashMap<MuID, MuName>,
+
+    /// The "trantient bundle" includes everything being built here.
+    bundle: TrantientBundle,
+}
+
+/// A trantient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
+#[derive(Default)]
+pub struct TrantientBundle {
+    types: Vec<P<MuType>>,
 }
 
 /**
@@ -523,6 +538,7 @@ impl<'v> MuCtx<'v> {
             mvm: self.mvm,
             c_struct: ptr::null_mut(),
             id_name_map: Default::default(),
+            bundle: Default::default(),
         });
 
         let b_ptr = Box::into_raw(b);
@@ -570,6 +586,13 @@ impl<'v> MuIRBuilder<'v> {
         }
     }
 
+    /// Get the Mu name of the `id`. This will consume the entry in the `id_name_map`. For this
+    /// reason, this function is only called when the actual MuEntity that has this ID is created
+    /// (such as `new_type_int`).
+    fn consume_name_of(&mut self, id: MuID) -> Option<MuName> {
+        self.id_name_map.remove(&id)
+    }
+
     pub fn load(&mut self) {
         panic!("Please implement bundle loading before deallocating itself.");
         self.deallocate();
@@ -598,7 +621,16 @@ impl<'v> MuIRBuilder<'v> {
     }
 
     pub fn new_type_int(&mut self, id: MuID, len: c_int) {
-        panic!("Not implemented")
+        let maybe_name = self.consume_name_of(id);
+        let pty = P(MuType {
+            hdr: MuEntityHeader {
+                id: id,
+                name: RwLock::new(maybe_name),
+            },
+            v: MuType_::Int(len as usize),
+        });
+
+        self.bundle.types.push(pty);
     }
 
     pub fn new_type_float(&mut self, id: MuID) {
