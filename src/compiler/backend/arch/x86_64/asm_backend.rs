@@ -1214,6 +1214,23 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
     
+    fn emit_push_imm32(&mut self, src: i32) {
+        trace!("emit: push {}", src);
+        
+        let rsp = self.prepare_machine_reg(&x86_64::RSP);
+        
+        let asm = format!("pushq {}", src);
+        
+        self.add_asm_inst(
+            asm,
+            vec![rsp],
+            vec![],
+            vec![rsp],
+            vec![],
+            false
+        )
+    }
+    
     fn emit_pop_r64(&mut self, dest: &P<Value>) {
         trace!("emit: pop {}", dest);
         

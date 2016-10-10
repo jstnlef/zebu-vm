@@ -150,6 +150,12 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
     }
 }
 
+pub fn sequetial_layout(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, ByteSize, Vec<ByteSize>) {
+    let ret = layout_struct(tys, vm);
+    
+    (ret.size, ret.alignment, ret.struct_layout.unwrap())
+} 
+
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct BackendTypeInfo {
     pub size: ByteSize,

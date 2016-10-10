@@ -144,9 +144,10 @@ fn create_spill1() -> VM {
     let blk_entry_t10= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t10"));
     
-    // CALL spill1(%t1, %t2, ... t10)
+    // %x = CALL spill1(%t1, %t2, ... t10)
+    let blk_entry_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     let blk_entry_call = func_ver.new_inst(vm.next_id(), Instruction{
-        value: None,
+        value: Some(vec![blk_entry_x.clone_value()]),
         ops: RwLock::new(vec![
                 blk_entry_spill1_funcref,
                 blk_entry_t1.clone(),

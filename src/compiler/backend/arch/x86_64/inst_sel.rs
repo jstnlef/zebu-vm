@@ -13,6 +13,7 @@ use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
+use compiler::backend;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::x86_64::ASMCodeGen;
@@ -583,6 +584,87 @@ impl <'a> InstructionSelection {
         self.emit_c_call(entry_name, sig, args, rets, cur_node, f_content, f_context, vm)
     }
     
+    // returns the stack arg offset - we will need this to collapse stack after the call
+    fn emit_precall_convention(
+        &mut self,
+        args: &Vec<P<Value>>, 
+        vm: &VM) -> i32 {
+        // if we need to save caller saved regs
+        // put it here (since this is fastpath compile, we wont have them)
+        
+        // put args into registers if we can
+        // in the meantime record args that do not fit in registers
+        let mut stack_args : Vec<P<Value>> = vec![];        
+        let mut gpr_arg_count = 0;
+        for arg in args.iter() {
+            if arg.is_int_reg() {
+                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                    self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
+                    gpr_arg_count += 1;
+                } else {
+                    // use stack to pass argument
+                    stack_args.push(arg.clone());
+                }
+            } else if arg.is_int_const() {
+                if x86_64::is_valid_x86_imm(arg) {                
+                    let int_const = arg.extract_int_const() as i32;
+                    
+                    if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                        self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], int_const);
+                        gpr_arg_count += 1;
+                    } else {
+                        // use stack to pass argument
+                        stack_args.push(arg.clone());
+                    }
+                } else {
+                    // put the constant to memory
+                    unimplemented!()
+                }
+            } else if arg.is_mem() {
+                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                    self.backend.emit_mov_r64_mem64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
+                    gpr_arg_count += 1;
+                } else {
+                    // use stack to pass argument
+                    stack_args.push(arg.clone());
+                }
+            } else {
+                // floating point
+                unimplemented!()
+            }
+        }
+        
+        // deal with stack arg, put them on stack
+        // in reverse order, i.e. push the rightmost arg first to stack
+        stack_args.reverse();
+        // "The end of the input argument area shall be aligned on a 16 
+        // (32, if __m256 is passed on stack) byte boundary." - x86 ABI 
+        // if we need to special align the args, we do it now
+        // (then the args will be put to stack following their regular alignment)
+        let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
+        let (stack_arg_size, _, stack_arg_offsets) = backend::sequetial_layout(&stack_arg_tys, vm);
+        if stack_arg_size % 16 == 0 {
+            // do not need to adjust rsp
+        } else if stack_arg_size % 8 == 0 {
+            // adjust rsp by -8 (push a random padding value)
+            self.backend.emit_push_imm32(0x7777);
+        } else {
+            panic!("expecting stack arguments to be at least 8-byte aligned, but it has size of {}", stack_arg_size); 
+        }
+        // now, we just put all the args on the stack
+        {
+            let mut index = 0;
+            for arg in stack_args {
+                self.emit_store_base_offset(&x86_64::RSP, - (stack_arg_offsets[index] as i32), &arg, vm);
+                index += 1;
+            }
+            
+            self.backend.emit_add_r64_imm32(&x86_64::RSP, - (stack_arg_size as i32));
+        }
+        
+        - (stack_arg_size as i32)
+    }
+    
     #[allow(unused_variables)]
     // ret: Option<Vec<P<Value>>
     // if ret is Some, return values will put stored in given temporaries
@@ -599,44 +681,7 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext, 
         vm: &VM) -> Vec<P<Value>> 
     {
-        let mut gpr_arg_count = 0;
-        for arg in args.iter() {
-            if arg.is_int_reg() {
-                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                    self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
-                    gpr_arg_count += 1;
-                } else {
-                    // use stack to pass argument
-                    unimplemented!()
-                }
-            } else if arg.is_int_const() {
-                if x86_64::is_valid_x86_imm(arg) {                
-                    let int_const = arg.extract_int_const() as i32;
-                    
-                    if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                        self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], int_const);
-                        gpr_arg_count += 1;
-                    } else {
-                        // use stack to pass argument
-                        unimplemented!()
-                    }
-                } else {
-                    // put the constant to memory
-                    unimplemented!()
-                }
-            } else if arg.is_mem() {
-                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                    self.backend.emit_mov_r64_mem64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
-                    gpr_arg_count += 1;
-                } else {
-                    // use stack to pass argument
-                    unimplemented!()
-                }
-            } else {
-                // floating point
-                unimplemented!()
-            }
-        }
+        self.emit_precall_convention(&args, vm);
         
         // make call
         if vm.is_running() {
@@ -713,45 +758,17 @@ impl <'a> InstructionSelection {
             _ => panic!("expected funcref/ptr type")
         };
         
-        debug_assert!(func_sig.ret_tys.len() == calldata.args.len());
+        debug_assert!(func_sig.arg_tys.len() == calldata.args.len());
         if cfg!(debug_assertions) {
             if inst.value.is_some() {
-                assert!(func_sig.arg_tys.len() == inst.value.as_ref().unwrap().len());
+                assert!(func_sig.ret_tys.len() == inst.value.as_ref().unwrap().len());
             } else {
-                assert!(func_sig.arg_tys.len() == 0);
+                assert!(func_sig.ret_tys.len() == 0, "expect call inst's value doesnt match reg args. value: {:?}, ret args: {:?}", inst.value, func_sig.ret_tys);
             }
         }
-                                
-        let mut gpr_arg_count = 0;
-        // TODO: let mut fpr_arg_count = 0;
-        for arg_index in calldata.args.iter() {
-            let ref arg = ops[*arg_index];
-            trace!("arg {}", arg);
-            
-            if self.match_ireg(arg) {
-                let arg = self.emit_ireg(arg, f_content, f_context, vm);
-                
-                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                    self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
-                    gpr_arg_count += 1;
-                } else {
-                    // use stack to pass argument
-                    unimplemented!();
-                }
-            } else if self.match_iimm(arg) {
-                let arg = self.emit_get_iimm(arg);
-                
-                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                    self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], arg);
-                    gpr_arg_count += 1;
-                } else {
-                    // use stack to pass argument
-                    unimplemented!();
-                }
-            } else {
-                unimplemented!();
-            }
-        }
+
+        let arg_values = calldata.args.iter().map(|x| ops[*x].clone_value()).collect();
+        self.emit_precall_convention(&arg_values, vm);
         
         trace!("genearting call inst");
         // check direct call or indirect
@@ -886,6 +903,11 @@ impl <'a> InstructionSelection {
         // unload arguments
         let mut gpr_arg_count = 0;
         // TODO: let mut fpr_arg_count = 0;
+        // initial stack arg is at RBP+16
+        //   arg           <- RBP + 16
+        //   return addr
+        //   old RBP       <- RBP
+        let mut stack_arg_offset : i32 = 16;
         for arg in args {
             if arg.is_int_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
@@ -893,12 +915,17 @@ impl <'a> InstructionSelection {
                     gpr_arg_count += 1;
                 } else {
                     // unload from stack
-                    unimplemented!();
+                    self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+                    
+                    // move stack_arg_offset by the size of 'arg'
+                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
+                    stack_arg_offset += arg_size as i32;
                 }
             } else if arg.is_fp_reg() {
                 unimplemented!();
             } else {
-                panic!("expect an arg value to be either int reg or fp reg");
+                // args that are not fp or int (possibly struct/array/etc)
+                unimplemented!();
             }
         }
         

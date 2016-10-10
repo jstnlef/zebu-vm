@@ -63,5 +63,6 @@ pub trait CodeGenerator {
     fn emit_ret(&mut self);
     
     fn emit_push_r64(&mut self, src: &P<Value>);
+    fn emit_push_imm32(&mut self, src: i32);
     fn emit_pop_r64(&mut self, dest: &P<Value>);
 }
