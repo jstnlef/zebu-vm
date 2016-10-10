@@ -13,16 +13,7 @@ fn test_global_access() {
     
     let vm = Arc::new(global_access());
     
-    let compiler = Compiler::new(CompilerPolicy::new(vec![
-        Box::new(passes::DefUse::new()),
-        Box::new(passes::TreeGen::new()),
-        Box::new(passes::ControlFlowAnalysis::new()),
-        Box::new(passes::TraceGen::new()),
-        Box::new(backend::inst_sel::InstructionSelection::new()),
-        Box::new(backend::reg_alloc::RegisterAllocation::new()),
-        Box::new(backend::peephole_opt::PeepholeOptimization::new()),
-        Box::new(backend::code_emission::CodeEmission::new())
-    ]), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
     
     {
         let func_id = vm.id_of("global_access");

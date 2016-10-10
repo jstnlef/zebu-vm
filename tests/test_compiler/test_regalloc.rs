@@ -27,7 +27,7 @@ fn test_ir_liveness_fac() {
             Box::new(passes::TreeGen::new()),
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new()),
-            Box::new(backend::inst_sel::InstructionSelection::new()),
+            Box::new(backend::inst_sel::InstructionSelection::new(true)),
     ]), vm.clone());
     
     let func_id = vm.id_of("fac");

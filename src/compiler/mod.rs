@@ -69,21 +69,23 @@ pub struct CompilerPolicy {
 }
 
 impl CompilerPolicy {
-    pub fn default() -> CompilerPolicy {
+    pub fn new(passes: Vec<Box<CompilerPass>>) -> CompilerPolicy {
+        CompilerPolicy{passes: passes}
+    }
+}
+
+impl Default for CompilerPolicy {
+    fn default() -> Self {
         let mut passes : Vec<Box<CompilerPass>> = vec![];
         passes.push(Box::new(passes::DefUse::new()));
         passes.push(Box::new(passes::TreeGen::new()));
         passes.push(Box::new(passes::ControlFlowAnalysis::new()));
         passes.push(Box::new(passes::TraceGen::new()));
-        passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
-        passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new()));
+        passes.push(Box::new(backend::inst_sel::InstructionSelection::new(true)));
+        passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new(true)));
         passes.push(Box::new(backend::peephole_opt::PeepholeOptimization::new()));
         passes.push(Box::new(backend::code_emission::CodeEmission::new()));
 
-        CompilerPolicy{passes: passes}
-    }
-
-    pub fn new(passes: Vec<Box<CompilerPass>>) -> CompilerPolicy {
         CompilerPolicy{passes: passes}
     }
 }

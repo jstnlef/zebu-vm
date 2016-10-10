@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Rust &lt;mu&gt;">
+    <CLASSES>
+      <root url="file://$USER_HOME$/rustc/src/libstd" />
+      <root url="file://$USER_HOME$/rustc/src/libcore" />
+      <root url="file://$USER_HOME$/rustc/src/libcollections" />
+      <root url="file://$USER_HOME$/rustc/src/liballoc" />
+      <root url="file://$USER_HOME$/rustc/src/librustc_unicode" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

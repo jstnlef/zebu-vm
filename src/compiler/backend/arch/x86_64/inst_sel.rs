@@ -24,8 +24,8 @@ use std::collections::HashMap;
 
 pub struct InstructionSelection {
     name: &'static str,
-    
     backend: Box<CodeGenerator>,
+    is_fastpath: bool,
     
     current_callsite_id: usize,
     current_frame: Option<Frame>,
@@ -38,10 +38,11 @@ pub struct InstructionSelection {
 }
 
 impl <'a> InstructionSelection {
-    pub fn new() -> InstructionSelection {
+    pub fn new(is_fastpath: bool) -> InstructionSelection {
         InstructionSelection{
             name: "Instruction Selection (x64)",
             backend: Box::new(ASMCodeGen::new()),
+            is_fastpath: is_fastpath,
             
             current_callsite_id: 0,
             current_frame: None,
@@ -174,7 +175,7 @@ impl <'a> InstructionSelection {
                                     trace!("emit add-ireg-imm");
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                                    let reg_op2 = self.emit_get_iimm(&ops[op2]);
+                                    let reg_op2 = self.node_iimm_to_i32(&ops[op2]);
                                     let res_tmp = self.emit_get_result(node);
                                     
                                     // mov op1, res
@@ -218,7 +219,7 @@ impl <'a> InstructionSelection {
                                     trace!("emit sub-ireg-imm");
 
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                                    let imm_op2 = self.emit_get_iimm(&ops[op2]);
+                                    let imm_op2 = self.node_iimm_to_i32(&ops[op2]);
                                     let res_tmp = self.emit_get_result(node);
                                     
                                     // mov op1, res
@@ -255,7 +256,7 @@ impl <'a> InstructionSelection {
                                     
                                     self.backend.emit_mov_r64_r64(&rax, &reg_op1);
                                 } else if self.match_iimm(op1) {
-                                    let imm_op1 = self.emit_get_iimm(op1);
+                                    let imm_op1 = self.node_iimm_to_i32(op1);
                                     
                                     self.backend.emit_mov_r64_imm32(&rax, imm_op1);
                                 } else if self.match_mem(op1) {
@@ -273,7 +274,7 @@ impl <'a> InstructionSelection {
                                     
                                     self.backend.emit_mul_r64(&reg_op2);
                                 } else if self.match_iimm(op2) {
-                                    let imm_op2 = self.emit_get_iimm(op2);
+                                    let imm_op2 = self.node_iimm_to_i32(op2);
                                     
                                     // put imm in a temporary
                                     // here we use result reg as temporary
@@ -313,7 +314,7 @@ impl <'a> InstructionSelection {
                             _ => panic!("didnt expect order {:?} with store inst", order)
                         }                        
 
-                        let resolved_loc = self.emit_get_mem(loc_op, vm);                        
+                        let resolved_loc = self.node_mem_to_value(loc_op, vm);
                         let res_temp = self.emit_get_result(node);
                         
                         if self.match_ireg(node) {
@@ -338,7 +339,7 @@ impl <'a> InstructionSelection {
                             }
                         };
                         
-                        let resolved_loc = self.emit_get_mem(loc_op, vm);
+                        let resolved_loc = self.node_mem_to_value(loc_op, vm);
                         
                         if self.match_ireg(val_op) {
                             let val = self.emit_ireg(val_op, f_content, f_context, vm);
@@ -348,7 +349,7 @@ impl <'a> InstructionSelection {
                                 unimplemented!()
                             }
                         } else if self.match_iimm(val_op) {
-                            let val = self.emit_get_iimm(val_op);
+                            let val = self.node_iimm_to_i32(val_op);
                             if generate_plain_mov {
                                 self.backend.emit_mov_mem64_imm32(&resolved_loc, val);
                             } else {
@@ -588,7 +589,7 @@ impl <'a> InstructionSelection {
     fn emit_precall_convention(
         &mut self,
         args: &Vec<P<Value>>, 
-        vm: &VM) -> i32 {
+        vm: &VM) -> usize {
         // if we need to save caller saved regs
         // put it here (since this is fastpath compile, we wont have them)
         
@@ -633,36 +634,91 @@ impl <'a> InstructionSelection {
                 unimplemented!()
             }
         }
-        
-        // deal with stack arg, put them on stack
-        // in reverse order, i.e. push the rightmost arg first to stack
-        stack_args.reverse();
-        // "The end of the input argument area shall be aligned on a 16 
-        // (32, if __m256 is passed on stack) byte boundary." - x86 ABI 
-        // if we need to special align the args, we do it now
-        // (then the args will be put to stack following their regular alignment)
-        let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
-        let (stack_arg_size, _, stack_arg_offsets) = backend::sequetial_layout(&stack_arg_tys, vm);
-        if stack_arg_size % 16 == 0 {
-            // do not need to adjust rsp
-        } else if stack_arg_size % 8 == 0 {
-            // adjust rsp by -8 (push a random padding value)
-            self.backend.emit_push_imm32(0x7777);
-        } else {
-            panic!("expecting stack arguments to be at least 8-byte aligned, but it has size of {}", stack_arg_size); 
-        }
-        // now, we just put all the args on the stack
-        {
-            let mut index = 0;
-            for arg in stack_args {
-                self.emit_store_base_offset(&x86_64::RSP, - (stack_arg_offsets[index] as i32), &arg, vm);
-                index += 1;
+
+        if !stack_args.is_empty() {
+            // deal with stack arg, put them on stack
+            // in reverse order, i.e. push the rightmost arg first to stack
+            stack_args.reverse();
+
+            // "The end of the input argument area shall be aligned on a 16
+            // (32, if __m256 is passed on stack) byte boundary." - x86 ABI
+            // if we need to special align the args, we do it now
+            // (then the args will be put to stack following their regular alignment)
+            let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
+            let (stack_arg_size, _, stack_arg_offsets) = backend::sequetial_layout(&stack_arg_tys, vm);
+            let mut stack_arg_size_with_padding = stack_arg_size;
+            if stack_arg_size % 16 == 0 {
+                // do not need to adjust rsp
+            } else if stack_arg_size % 8 == 0 {
+                // adjust rsp by -8 (push a random padding value)
+                self.backend.emit_push_imm32(0x7777);
+                stack_arg_size_with_padding += 8;
+            } else {
+                panic!("expecting stack arguments to be at least 8-byte aligned, but it has size of {}", stack_arg_size);
             }
-            
-            self.backend.emit_add_r64_imm32(&x86_64::RSP, - (stack_arg_size as i32));
+
+            // now, we just put all the args on the stack
+            {
+                let mut index = 0;
+                for arg in stack_args {
+                    self.emit_store_base_offset(&x86_64::RSP, - (stack_arg_offsets[index] as i32), &arg, vm);
+                    index += 1;
+                }
+
+                self.backend.emit_add_r64_imm32(&x86_64::RSP, - (stack_arg_size as i32));
+            }
+
+            stack_arg_size_with_padding
+        } else {
+            0
         }
-        
-        - (stack_arg_size as i32)
+    }
+
+    fn emit_postcall_convention(
+        &mut self,
+        sig: &P<CFuncSig>,
+        rets: &Option<Vec<P<Value>>>,
+        precall_stack_arg_size: usize,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> Vec<P<Value>> {
+        // deal with ret vals
+        let mut return_vals = vec![];
+
+        let mut gpr_ret_count = 0;
+        for ret_index in 0..sig.ret_tys.len() {
+            let ref ty = sig.ret_tys[ret_index];
+
+            let ret_val = match rets {
+                &Some(ref rets) => rets[ret_index].clone(),
+                &None => {
+                    let tmp_node = f_context.make_temporary(vm.next_id(), ty.clone());
+                    tmp_node.clone_value()
+                }
+            };
+
+            if ret_val.is_int_reg() {
+                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                    self.backend.emit_mov_r64_r64(&ret_val, &x86_64::RETURN_GPRs[gpr_ret_count]);
+                    gpr_ret_count += 1;
+                } else {
+                    // get return value by stack
+                    unimplemented!()
+                }
+            } else {
+                // floating point register
+                unimplemented!()
+            }
+
+            return_vals.push(ret_val);
+        }
+
+        // remove stack_args
+        if precall_stack_arg_size != 0 {
+            self.backend.emit_add_r64_imm32(&x86_64::RSP, precall_stack_arg_size as i32);
+        }
+
+        return_vals
     }
     
     #[allow(unused_variables)]
@@ -681,7 +737,7 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext, 
         vm: &VM) -> Vec<P<Value>> 
     {
-        self.emit_precall_convention(&args, vm);
+        let stack_arg_size = self.emit_precall_convention(&args, vm);
         
         // make call
         if vm.is_running() {
@@ -699,38 +755,7 @@ impl <'a> InstructionSelection {
             }
         }
         
-        // deal with ret vals
-        let mut return_vals = vec![];
-        
-        let mut gpr_ret_count = 0;
-        for ret_index in 0..sig.ret_tys.len() {
-            let ref ty = sig.ret_tys[ret_index];
-            
-            let ret_val = match rets {
-                Some(ref rets) => rets[ret_index].clone(),
-                None => {
-                    let tmp_node = f_context.make_temporary(vm.next_id(), ty.clone());
-                    tmp_node.clone_value()
-                }
-            };
-            
-            if ret_val.is_int_reg() {
-                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
-                    self.backend.emit_mov_r64_r64(&ret_val, &x86_64::RETURN_GPRs[gpr_ret_count]);
-                    gpr_ret_count += 1;
-                } else {
-                    // get return value by stack
-                    unimplemented!()
-                }
-            } else {
-                // floating point register
-                unimplemented!()
-            }
-            
-            return_vals.push(ret_val);            
-        }
-        
-        return_vals
+        self.emit_postcall_convention(&sig, &rets, stack_arg_size, f_context, vm)
     }
     
     fn emit_mu_call(
@@ -767,14 +792,28 @@ impl <'a> InstructionSelection {
             }
         }
 
-        let arg_values = calldata.args.iter().map(|x| ops[*x].clone_value()).collect();
-        self.emit_precall_convention(&arg_values, vm);
+        // prepare args (they could be instructions, we need to emit inst and get value)
+        let mut arg_values = vec![];
+        for arg_index in calldata.args.iter() {
+            let ref arg = ops[*arg_index];
+
+            if self.match_ireg(arg) {
+                let arg = self.emit_ireg(arg, f_content, f_context, vm);
+                arg_values.push(arg);
+            } else if self.match_iimm(arg) {
+                let arg = self.node_iimm_to_value(arg);
+                arg_values.push(arg);
+            } else {
+                unimplemented!();
+            }
+        }
+        let stack_arg_size = self.emit_precall_convention(&arg_values, vm);
         
-        trace!("genearting call inst");
+        trace!("generating call inst");
         // check direct call or indirect
         let callsite = {
             if self.match_funcref_const(func) {
-                let target_id = self.emit_get_funcref_const(func);
+                let target_id = self.node_funcref_const_to_id(func);
                 let funcs = vm.funcs().read().unwrap();
                 let target = funcs.get(&target_id).unwrap().read().unwrap();
                                             
@@ -815,29 +854,9 @@ impl <'a> InstructionSelection {
         }
         
         // deal with ret vals
-        if inst.value.is_some() {
-            let rets = inst.value.as_ref().unwrap();
-            trace!("deal with return values");
-            let mut gpr_ret_count = 0;
-            // TODO: let mut fpr_ret_count = 0;
-            for val in rets {
-                if val.is_int_reg() {
-                    if gpr_ret_count < x86_64::RETURN_GPRs.len() {
-                        self.backend.emit_mov_r64_r64(&val, &x86_64::RETURN_GPRs[gpr_ret_count]);
-                        gpr_ret_count += 1;
-                    } else {
-                        // get return value by stack
-                        unimplemented!();
-                    }
-                } else {
-                    // floating point register
-                    unimplemented!();
-                }
-            }
-        } else {
-            trace!("no return value");
-        }
-
+        self.emit_postcall_convention(
+            &func_sig, &inst.value,
+            stack_arg_size, f_context, vm);
     }
     
     #[allow(unused_variables)]
@@ -953,7 +972,7 @@ impl <'a> InstructionSelection {
                 self.backend.emit_mov_r64_r64(&x86_64::RETURN_GPRs[gpr_ret_count], &reg_ret_val);
                 gpr_ret_count += 1;
             } else if self.match_iimm(ret_val) {
-                let imm_ret_val = self.emit_get_iimm(ret_val);
+                let imm_ret_val = self.node_iimm_to_i32(ret_val);
                 
                 self.backend.emit_mov_r64_imm32(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
                 gpr_ret_count += 1;
@@ -1004,7 +1023,7 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_cmp_r64_r64(&reg_op1, &reg_op2);
                             } else if self.match_ireg(op1) && self.match_iimm(op2) {
                                 let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                                let iimm_op2 = self.emit_get_iimm(op2);
+                                let iimm_op2 = self.node_iimm_to_i32(op2);
                                 
                                 self.backend.emit_cmp_r64_imm32(&reg_op1, iimm_op2);
                             } else {
@@ -1082,7 +1101,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_get_iimm(&mut self, op: &P<TreeNode>) -> i32 {
+    fn node_iimm_to_i32(&mut self, op: &P<TreeNode>) -> i32 {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
@@ -1095,8 +1114,17 @@ impl <'a> InstructionSelection {
             _ => panic!("expected iimm")
         }
     }
+
+    fn node_iimm_to_value(&mut self, op: &P<TreeNode>) -> P<Value> {
+        match op.v {
+            TreeNode_::Value(ref pv) => {
+                pv.clone()
+            }
+            _ => panic!("expected iimm")
+        }
+    }
     
-    fn emit_get_mem(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
+    fn node_mem_to_value(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
@@ -1165,7 +1193,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_get_funcref_const(&mut self, op: &P<TreeNode>) -> MuID {
+    fn node_funcref_const_to_id(&mut self, op: &P<TreeNode>) -> MuID {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
@@ -1218,7 +1246,7 @@ impl <'a> InstructionSelection {
                 let src_reg = self.emit_ireg(src, f_content, f_context, vm);
                 self.backend.emit_mov_r64_r64(dest, &src_reg);
             } else if self.match_iimm(src) {
-                let src_imm = self.emit_get_iimm(src);
+                let src_imm = self.node_iimm_to_i32(src);
                 self.backend.emit_mov_r64_imm32(dest, src_imm);
             } else {
                 panic!("expected an int type op");

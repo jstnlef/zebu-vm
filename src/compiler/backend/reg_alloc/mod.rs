@@ -9,14 +9,22 @@ use compiler::backend::init_machine_regs_for_func;
 
 mod graph_coloring;
 
+enum RegAllocResult {
+    Success,
+    FailedForSpilling,
+    FailedForUsingCallerSaved
+}
+
 pub struct RegisterAllocation {
-    name: &'static str
+    name: &'static str,
+    is_fastpath: bool
 }
 
 impl RegisterAllocation {
-    pub fn new() -> RegisterAllocation {
+    pub fn new(is_fastpath: bool) -> RegisterAllocation {
         RegisterAllocation {
-            name: "Register Allcoation"
+            name: "Register Allcoation",
+            is_fastpath: is_fastpath
         }
     }
     
