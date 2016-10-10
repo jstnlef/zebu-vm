@@ -2,6 +2,16 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a9fb8ce1-31f4-4114-9e10-52bba8d53672" name="Default" comment="">
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/compiler.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/copyright/profiles_settings.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/dictionaries/qinsoon.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Cargo__mu_.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/libraries/Rust__mu_.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/modules.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/vcs.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/mu.iml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/ast/src/ir.rs" afterPath="$PROJECT_DIR$/src/ast/src/ir.rs" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/compiler/backend/arch/x86_64/inst_sel.rs" afterPath="$PROJECT_DIR$/src/compiler/backend/arch/x86_64/inst_sel.rs" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/compiler/backend/reg_alloc/mod.rs" afterPath="$PROJECT_DIR$/src/compiler/backend/reg_alloc/mod.rs" />
@@ -66,7 +76,7 @@
           <file leaf-file-name="inst_sel.rs" pinned="false" current-in-tab="true">
             <entry file="file://$PROJECT_DIR$/src/compiler/backend/arch/x86_64/inst_sel.rs">
               <provider selected="true" editor-type-id="text-editor">
-                <state relative-caret-position="78">
+                <state relative-caret-position="123">
                   <caret line="859" column="5" selection-start-line="859" selection-start-column="5" selection-end-line="859" selection-end-column="5" />
                   <folding />
                 </state>
@@ -864,12 +874,12 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1476066618559</updated>
-      <workItem from="1476066622084" duration="5998000" />
+      <workItem from="1476066622084" duration="6056000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="5998000" />
+    <option name="totallyTimeSpent" value="6056000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="23" width="1920" height="1002" extended-state="6" />
@@ -1031,7 +1041,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/compiler/backend/arch/x86_64/inst_sel.rs">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="78">
+        <state relative-caret-position="123">
           <caret line="859" column="5" selection-start-line="859" selection-start-column="5" selection-end-line="859" selection-end-column="5" />
           <folding />
         </state>
