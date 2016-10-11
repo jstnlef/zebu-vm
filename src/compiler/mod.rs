@@ -18,10 +18,8 @@ pub use compiler::passes::PASS_DEF_USE;
 pub use compiler::passes::PASS_TREE_GEN;
 pub use compiler::passes::PASS_CFA;
 pub use compiler::passes::PASS_TRACE_GEN;
-pub use compiler::passes::PASS_FAST_INST_SEL;
-pub use compiler::passes::PASS_FAST_REG_ALLOC;
-pub use compiler::passes::PASS_SLOW_INST_SEL;
-pub use compiler::passes::PASS_SLOW_REG_ALLOC;
+pub use compiler::passes::PASS_INST_SEL;
+pub use compiler::passes::PASS_REG_ALLOC;
 pub use compiler::passes::PASS_PEEPHOLE;
 pub use compiler::passes::PASS_CODE_EMIT;
 
@@ -86,12 +84,9 @@ impl Default for CompilerPolicy {
         passes.push(Box::new(passes::ControlFlowAnalysis::new()));
         passes.push(Box::new(passes::TraceGen::new()));
 
-        // fast path compilation - use callee saved registers only
-        passes.push(Box::new(backend::inst_sel::InstructionSelection::new(true)));
-        passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new(true)));
-        // slow path compilation - use all registers
-        passes.push(Box::new(backend::inst_sel::InstructionSelection::new(false)));
-        passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new(false)));
+        // compilation
+        passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
+        passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new()));
 
         // machine code level passes
         passes.push(Box::new(backend::peephole_opt::PeepholeOptimization::new()));

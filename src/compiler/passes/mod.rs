@@ -15,17 +15,16 @@ pub use compiler::passes::tree_gen::TreeGen;
 pub use compiler::passes::control_flow::ControlFlowAnalysis;
 pub use compiler::passes::trace_gen::TraceGen;
 
+// make sure the pass IDs are sequential
 pub const PASS_IR_CHECK  : PassID = PassID(0);
 pub const PASS_DEF_USE   : PassID = PassID(1);
 pub const PASS_TREE_GEN  : PassID = PassID(2);
 pub const PASS_CFA       : PassID = PassID(3);
 pub const PASS_TRACE_GEN : PassID = PassID(4);
-pub const PASS_FAST_INST_SEL  : PassID = PassID(5);
-pub const PASS_FAST_REG_ALLOC : PassID = PassID(6);
-pub const PASS_SLOW_INST_SEL  : PassID = PassID(7);
-pub const PASS_SLOW_REG_ALLOC : PassID = PassID(8);
-pub const PASS_PEEPHOLE  : PassID = PassID(9);
-pub const PASS_CODE_EMIT : PassID = PassID(10);
+pub const PASS_INST_SEL  : PassID = PassID(5);
+pub const PASS_REG_ALLOC : PassID = PassID(6);
+pub const PASS_PEEPHOLE  : PassID = PassID(7);
+pub const PASS_CODE_EMIT : PassID = PassID(8);
 
 pub enum PassExecutionResult {
     ProceedToNext,

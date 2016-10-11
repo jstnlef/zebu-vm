@@ -563,7 +563,7 @@ impl GraphColoring {
                 trace!("Color {} as {}", self.node_info(n), first_available_color);
                 
                 if !backend::is_callee_saved(first_available_color) {
-                    return Err(RegAllocFailure::FailedForUsingCallerSaved);
+                    warn!("Use caller saved register {}", first_available_color);
                 }
                 
                 self.colored_nodes.push(n);

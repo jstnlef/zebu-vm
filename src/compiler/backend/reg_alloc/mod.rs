@@ -12,19 +12,16 @@ mod graph_coloring;
 
 pub enum RegAllocFailure {
     FailedForSpilling,
-    FailedForUsingCallerSaved
 }
 
 pub struct RegisterAllocation {
     name: &'static str,
-    is_fastpath: bool
 }
 
 impl RegisterAllocation {
-    pub fn new(is_fastpath: bool) -> RegisterAllocation {
+    pub fn new() -> RegisterAllocation {
         RegisterAllocation {
             name: "Register Allcoation",
-            is_fastpath: is_fastpath
         }
     }
     
@@ -52,7 +49,9 @@ impl RegisterAllocation {
         let spills = coloring.spills();
         
         if !spills.is_empty() {
-            return Err(RegAllocFailure::FailedForSpilling);
+            unimplemented!();
+
+            // return Err(RegAllocFailure::FailedForSpilling);
         }
         
         // replace regs
@@ -87,20 +86,13 @@ impl CompilerPass for RegisterAllocation {
     
     fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func);
-
-        if !self.is_fastpath {
-            unimplemented!()
-        }
         
         match self.coloring(vm, func) {
             // skip slow path
             Ok(_) => PassExecutionResult::ProceedTo(compiler::PASS_PEEPHOLE),
 
             // go back to instruction selection for spilled operands
-            Err(RegAllocFailure::FailedForSpilling) => PassExecutionResult::GoBackTo(compiler::PASS_FAST_INST_SEL),
-
-            // proceed to slow path
-            Err(RegAllocFailure::FailedForUsingCallerSaved) => PassExecutionResult::ProceedToNext
+            Err(RegAllocFailure::FailedForSpilling) => PassExecutionResult::GoBackTo(compiler::PASS_INST_SEL),
         }
     }
 }

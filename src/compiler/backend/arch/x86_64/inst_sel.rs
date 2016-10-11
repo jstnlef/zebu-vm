@@ -13,7 +13,6 @@ use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
-use compiler::PassExecutionResult;
 use compiler::backend;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
@@ -26,7 +25,6 @@ use std::collections::HashMap;
 pub struct InstructionSelection {
     name: &'static str,
     backend: Box<CodeGenerator>,
-    is_fastpath: bool,
     
     current_callsite_id: usize,
     current_frame: Option<Frame>,
@@ -39,11 +37,10 @@ pub struct InstructionSelection {
 }
 
 impl <'a> InstructionSelection {
-    pub fn new(is_fastpath: bool) -> InstructionSelection {
+    pub fn new() -> InstructionSelection {
         InstructionSelection{
             name: "Instruction Selection (x64)",
             backend: Box::new(ASMCodeGen::new()),
-            is_fastpath: is_fastpath,
             
             current_callsite_id: 0,
             current_frame: None,
@@ -1281,22 +1278,6 @@ impl <'a> InstructionSelection {
 impl CompilerPass for InstructionSelection {
     fn name(&self) -> &'static str {
         self.name
-    }
-
-    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
-        debug!("---CompilerPass {} for {}---", self.name(), func);
-
-        if !self.is_fastpath {
-            unimplemented!()
-        }
-
-        self.start_function(vm, func);
-        self.visit_function(vm, func);
-        self.finish_function(vm, func);
-
-        debug!("---finish---");
-
-        PassExecutionResult::ProceedToNext
     }
 
     #[allow(unused_variables)]
