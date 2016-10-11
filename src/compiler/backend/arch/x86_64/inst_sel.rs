@@ -13,6 +13,7 @@ use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
+use compiler::PassExecutionResult;
 use compiler::backend;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
@@ -1280,6 +1281,22 @@ impl <'a> InstructionSelection {
 impl CompilerPass for InstructionSelection {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
+        debug!("---CompilerPass {} for {}---", self.name(), func);
+
+        if !self.is_fastpath {
+            unimplemented!()
+        }
+
+        self.start_function(vm, func);
+        self.visit_function(vm, func);
+        self.finish_function(vm, func);
+
+        debug!("---finish---");
+
+        PassExecutionResult::ProceedToNext
     }
 
     #[allow(unused_variables)]

@@ -6,24 +6,31 @@ mod tree_gen;
 mod control_flow;
 mod trace_gen;
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct PassID(usize);
+impl PassID {pub fn get(&self) -> usize{self.0}}
+
 pub use compiler::passes::def_use::DefUse;
 pub use compiler::passes::tree_gen::TreeGen;
 pub use compiler::passes::control_flow::ControlFlowAnalysis;
 pub use compiler::passes::trace_gen::TraceGen;
 
-pub const PASS_IR_CHECK  : usize = 0;
-pub const PASS_DEF_USE   : usize = 1;
-pub const PASS_TREE_GEN  : usize = 2;
-pub const PASS_CFA       : usize = 3;
-pub const PASS_TRACE_GEN : usize = 4;
-pub const PASS_INST_SEL  : usize = 5;
-pub const PASS_REG_ALLOC : usize = 6;
-pub const PASS_PEEPHOLE  : usize = 7;
-pub const PASS_CODE_EMIT : usize = 8;
+pub const PASS_IR_CHECK  : PassID = PassID(0);
+pub const PASS_DEF_USE   : PassID = PassID(1);
+pub const PASS_TREE_GEN  : PassID = PassID(2);
+pub const PASS_CFA       : PassID = PassID(3);
+pub const PASS_TRACE_GEN : PassID = PassID(4);
+pub const PASS_FAST_INST_SEL  : PassID = PassID(5);
+pub const PASS_FAST_REG_ALLOC : PassID = PassID(6);
+pub const PASS_SLOW_INST_SEL  : PassID = PassID(7);
+pub const PASS_SLOW_REG_ALLOC : PassID = PassID(8);
+pub const PASS_PEEPHOLE  : PassID = PassID(9);
+pub const PASS_CODE_EMIT : PassID = PassID(10);
 
 pub enum PassExecutionResult {
     ProceedToNext,
-    GoBackTo(usize)
+    ProceedTo(PassID),
+    GoBackTo(PassID)
 }
 
 #[allow(unused_variables)]
