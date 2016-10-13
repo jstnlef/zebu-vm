@@ -25,7 +25,6 @@ use std::collections::HashMap;
 pub struct InstructionSelection {
     name: &'static str,
     backend: Box<CodeGenerator>,
-    is_fastpath: bool,
     
     current_callsite_id: usize,
     current_frame: Option<Frame>,
@@ -38,11 +37,10 @@ pub struct InstructionSelection {
 }
 
 impl <'a> InstructionSelection {
-    pub fn new(is_fastpath: bool) -> InstructionSelection {
+    pub fn new() -> InstructionSelection {
         InstructionSelection{
             name: "Instruction Selection (x64)",
             backend: Box::new(ASMCodeGen::new()),
-            is_fastpath: is_fastpath,
             
             current_callsite_id: 0,
             current_frame: None,

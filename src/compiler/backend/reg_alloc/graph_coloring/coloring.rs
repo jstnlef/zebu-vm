@@ -1,8 +1,9 @@
 use ast::ir::MuID;
 use compiler::backend::reg_alloc::graph_coloring::liveness::InterferenceGraph;
 use compiler::backend::reg_alloc::graph_coloring::liveness::{Node, Move};
-
 use compiler::backend;
+use compiler::backend::reg_alloc::RegAllocFailure;
+
 use utils::vec_utils;
 use utils::LinkedHashSet;
 
@@ -41,7 +42,7 @@ pub struct GraphColoring {
 }
 
 impl GraphColoring {
-    pub fn start (ig: InterferenceGraph) -> GraphColoring {
+    pub fn start (ig: InterferenceGraph) -> Result<GraphColoring, RegAllocFailure> {
         let mut coloring = GraphColoring {
             ig: ig,
             
@@ -76,12 +77,13 @@ impl GraphColoring {
             select_stack: Vec::new()
         };
         
-        coloring.init();
-        
-        coloring
+        match coloring.init() {
+            Ok(_) => Ok(coloring),
+            Err(fail) => Err(fail)
+        }
     }
     
-    fn init (&mut self) {
+    fn init (&mut self) -> Result<(), RegAllocFailure> {
         trace!("Initializing coloring allocator...");
         
         // precolor for all machine registers
@@ -127,7 +129,7 @@ impl GraphColoring {
             && self.worklist_spill.is_empty())
         } {}
         
-        self.assign_colors();
+        self.assign_colors()
     }
     
     fn build(&mut self) {
@@ -537,7 +539,7 @@ impl GraphColoring {
         self.freeze_moves(m);
     }
     
-    fn assign_colors(&mut self) {
+    fn assign_colors(&mut self) -> Result<(), RegAllocFailure> {
         trace!("---coloring done---");
         while !self.select_stack.is_empty() {
             let n = self.select_stack.pop().unwrap();
@@ -561,7 +563,7 @@ impl GraphColoring {
                 trace!("Color {} as {}", self.node_info(n), first_available_color);
                 
                 if !backend::is_callee_saved(first_available_color) {
-                    panic!("using a non-callee-saved register. need to go to compiler slowpath. Unimplemented");
+                    warn!("Use caller saved register {}", first_available_color);
                 }
                 
                 self.colored_nodes.push(n);
@@ -578,6 +580,8 @@ impl GraphColoring {
             trace!("Color {} as {}", self.node_info(n), alias_color);
             self.ig.color_node(n, alias_color);
         }
+
+        Ok(())
     }
     
     pub fn spills(&self) -> Vec<MuID> {

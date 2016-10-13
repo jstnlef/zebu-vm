@@ -53,7 +53,8 @@ impl Compiler {
 
             match result {
                 PassExecutionResult::ProceedToNext => cur_pass += 1,
-                PassExecutionResult::GoBackTo(next) => cur_pass = next
+                PassExecutionResult::ProceedTo(next)
+                | PassExecutionResult::GoBackTo(next) => cur_pass = next.get()
             }
 
             drop(_p);
@@ -77,12 +78,17 @@ impl CompilerPolicy {
 impl Default for CompilerPolicy {
     fn default() -> Self {
         let mut passes : Vec<Box<CompilerPass>> = vec![];
+        // ir level passes
         passes.push(Box::new(passes::DefUse::new()));
         passes.push(Box::new(passes::TreeGen::new()));
         passes.push(Box::new(passes::ControlFlowAnalysis::new()));
         passes.push(Box::new(passes::TraceGen::new()));
-        passes.push(Box::new(backend::inst_sel::InstructionSelection::new(true)));
-        passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new(true)));
+
+        // compilation
+        passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
+        passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new()));
+
+        // machine code level passes
         passes.push(Box::new(backend::peephole_opt::PeepholeOptimization::new()));
         passes.push(Box::new(backend::code_emission::CodeEmission::new()));
 
