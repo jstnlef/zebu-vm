@@ -7,6 +7,11 @@ build = "build.rs"
 [lib]
 crate-type = ["staticlib", "rlib"]
 
+[features]
+default = ["aot"]
+aot = []
+jit = []
+
 [build-dependencies]
 gcc = "0.3"
 

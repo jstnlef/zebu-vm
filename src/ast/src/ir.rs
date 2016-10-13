@@ -102,6 +102,7 @@ pub struct MuFunctionVersion {
          
     pub func_id: MuID,
     pub sig: P<MuFuncSig>,
+    pub original_ir: Option<FunctionContent>,
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
 
@@ -138,26 +139,31 @@ impl MuFunctionVersion {
             hdr: MuEntityHeader::unnamed(id),
             func_id: func,
             sig: sig,
+            original_ir: None,
             content: None,
             context: FunctionContext::new(),
-            block_trace: None}
+            block_trace: None
+        }
     }
 
     pub fn define(&mut self, content: FunctionContent) {
-        self.content = Some(content)
+        self.original_ir = Some(content.clone());
+        self.content = Some(content);
     }
 
     pub fn new_ssa(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
-        self.context.values.insert(id, SSAVarEntry::new(id, ty.clone()));
+        let val = P(Value{
+            hdr: MuEntityHeader::unnamed(id),
+            ty: ty,
+            v: Value_::SSAVar(id)
+        });
+
+        self.context.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
             hdr: MuEntityHeader::unnamed(id),
-            op: pick_op_code_for_ssa(&ty),
-            v: TreeNode_::Value(P(Value{
-                hdr: MuEntityHeader::unnamed(id),
-                ty: ty,
-                v: Value_::SSAVar(id)
-            }))
+            op: pick_op_code_for_ssa(&val.ty),
+            v: TreeNode_::Value(val)
         })
     }
 
@@ -186,7 +192,7 @@ impl MuFunctionVersion {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: HashMap<MuID, Block>
@@ -245,16 +251,18 @@ impl FunctionContext {
     }
     
     pub fn make_temporary(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
-        self.values.insert(id, SSAVarEntry::new(id, ty.clone()));
+        let val = P(Value{
+            hdr: MuEntityHeader::unnamed(id),
+            ty: ty,
+            v: Value_::SSAVar(id)
+        });
+
+        self.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
             hdr: MuEntityHeader::unnamed(id),
-            op: pick_op_code_for_ssa(&ty),
-            v: TreeNode_::Value(P(Value{
-                hdr: MuEntityHeader::unnamed(id),
-                ty: ty,
-                v: Value_::SSAVar(id)
-            }))
+            op: pick_op_code_for_ssa(&val.ty),
+            v: TreeNode_::Value(val)
         })
     }    
 
@@ -267,7 +275,7 @@ impl FunctionContext {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct Block {
     pub hdr: MuEntityHeader,
     pub content: Option<BlockContent>,
@@ -298,7 +306,7 @@ impl Block {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
 pub struct ControlFlow {
     pub preds : Vec<MuID>,
     pub succs : Vec<BlockEdge>
@@ -356,7 +364,7 @@ pub enum EdgeKind {
     Forward, Backward
 }
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
     pub exn_arg: Option<P<Value>>,
@@ -447,7 +455,7 @@ impl BlockContent {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
     pub hdr: MuEntityHeader,
@@ -511,7 +519,7 @@ impl fmt::Display for TreeNode {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
     Instruction(Instruction)
@@ -629,25 +637,23 @@ pub enum Value_ {
 
 #[derive(Debug)]
 pub struct SSAVarEntry {
-    id: MuID,
-    pub ty: P<MuType>,
+    val: P<Value>,
 
     // how many times this entry is used
     // availalbe after DefUse pass
-    pub use_count: AtomicUsize,
+    use_count: AtomicUsize,
 
     // this field is only used during TreeGeneration pass
-    pub expr: Option<Instruction>
+    expr: Option<Instruction>
 }
 
 impl Encodable for SSAVarEntry {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("SSAVarEntry", 4, |s| {
-            try!(s.emit_struct_field("id", 0, |s| self.id.encode(s)));
-            try!(s.emit_struct_field("ty", 1, |s| self.ty.encode(s)));
+        s.emit_struct("SSAVarEntry", 3, |s| {
+            try!(s.emit_struct_field("val", 0, |s| self.val.encode(s)));
             let count = self.use_count.load(Ordering::SeqCst);
-            try!(s.emit_struct_field("use_count", 2, |s| s.emit_usize(count)));
-            try!(s.emit_struct_field("expr", 3, |s| self.expr.encode(s)));
+            try!(s.emit_struct_field("use_count", 1, |s| s.emit_usize(count)));
+            try!(s.emit_struct_field("expr", 2, |s| self.expr.encode(s)));
             Ok(())
         })
     }
@@ -655,15 +661,13 @@ impl Encodable for SSAVarEntry {
 
 impl Decodable for SSAVarEntry {
     fn decode<D: Decoder>(d: &mut D) -> Result<SSAVarEntry, D::Error> {
-        d.read_struct("SSAVarEntry", 4, |d| {
-            let id = try!(d.read_struct_field("id", 0, |d| Decodable::decode(d)));
-            let ty = try!(d.read_struct_field("ty", 1, |d| Decodable::decode(d)));
-            let count = try!(d.read_struct_field("use_count", 2, |d| d.read_usize()));
-            let expr = try!(d.read_struct_field("expr", 3, |d| Decodable::decode(d)));
+        d.read_struct("SSAVarEntry", 3, |d| {
+            let val = try!(d.read_struct_field("val", 0, |d| Decodable::decode(d)));
+            let count = try!(d.read_struct_field("use_count", 1, |d| d.read_usize()));
+            let expr = try!(d.read_struct_field("expr", 2, |d| Decodable::decode(d)));
             
             let ret = SSAVarEntry {
-                id: id,
-                ty: ty,
+                val: val,
                 use_count: ATOMIC_USIZE_INIT,
                 expr: expr
             };
@@ -676,10 +680,9 @@ impl Decodable for SSAVarEntry {
 }
 
 impl SSAVarEntry {
-    pub fn new(id: MuID, ty: P<MuType>) -> SSAVarEntry {
+    pub fn new(val: P<Value>) -> SSAVarEntry {
         let ret = SSAVarEntry {
-            id: id,
-            ty: ty,
+            val: val,
             use_count: ATOMIC_USIZE_INIT,
             expr: None
         };
@@ -688,14 +691,37 @@ impl SSAVarEntry {
         
         ret
     }
+
+    pub fn ty(&self) -> &P<MuType> {
+        &self.val.ty
+    }
+
+    pub fn value(&self) -> &P<Value> {
+        &self.val
+    }
+
+    pub fn use_count(&self) -> usize {
+        self.use_count.load(Ordering::SeqCst)
+    }
+    pub fn increase_use_count(&self) {
+        self.use_count.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn has_expr(&self) -> bool {
+        self.expr.is_some()
+    }
     pub fn assign_expr(&mut self, expr: Instruction) {
         self.expr = Some(expr)
+    }
+    pub fn take_expr(&mut self) -> Instruction {
+        debug_assert!(self.has_expr());
+        self.expr.take().unwrap()
     }
 }
 
 impl fmt::Display for SSAVarEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} #{}", self.ty, self.id)
+        write!(f, "{}", self.val)
     }
 }
 
@@ -775,10 +801,19 @@ impl fmt::Display for MemoryLocation {
 }
 
 #[repr(C)]
-#[derive(Debug)] // Display, PartialEq
+#[derive(Debug)] // Display, PartialEq, Clone
 pub struct MuEntityHeader {
     pub id: MuID,
     pub name: RwLock<Option<MuName>>
+}
+
+impl Clone for MuEntityHeader {
+    fn clone(&self) -> Self {
+        MuEntityHeader {
+            id: self.id,
+            name: RwLock::new(self.name.read().unwrap().clone())
+        }
+    }
 }
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};

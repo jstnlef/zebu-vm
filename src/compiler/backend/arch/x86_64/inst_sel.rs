@@ -37,6 +37,7 @@ pub struct InstructionSelection {
 }
 
 impl <'a> InstructionSelection {
+    #[cfg(feature = "aot")]
     pub fn new() -> InstructionSelection {
         InstructionSelection{
             name: "Instruction Selection (x64)",
@@ -50,6 +51,11 @@ impl <'a> InstructionSelection {
             current_exn_callsites: HashMap::new(), 
             current_exn_blocks: HashMap::new()
         }
+    }
+
+    #[cfg(feature = "jit")]
+    pub fn new() -> InstructionSelection {
+        unimplemented!()
     }
     
     // in this pass, we assume that

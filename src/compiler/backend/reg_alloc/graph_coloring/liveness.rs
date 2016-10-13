@@ -55,7 +55,7 @@ impl InterferenceGraph {
             
             // add node property
             let group = {
-                let ref ty = entry.ty;
+                let ref ty = entry.ty();
                 if types::is_scalar(ty) {
                     if types::is_fp(ty) {
                         backend::RegGroup::FPR

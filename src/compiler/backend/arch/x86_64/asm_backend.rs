@@ -11,6 +11,7 @@ use compiler::machine_code::MachineCode;
 use vm::VM;
 use runtime::ValueLocation;
 
+use utils::vec_utils;
 use utils::string_utils;
 
 use ast::ptr::P;
@@ -112,6 +113,9 @@ impl MachineCode for ASMCode {
     }
     
     fn set_inst_nop(&mut self, index: usize) {
+        // FIXME: need to make sure it is fine that
+        // we do not update any information about this instruction
+        // e.g. uses, defines, etc.
         self.code.remove(index);
         self.code.insert(index, ASM::nop());
     }
@@ -286,11 +290,16 @@ impl ASMCodeGen {
     } 
     
     fn add_asm_call(&mut self, code: String) {
+        // a call instruction will use all the argument registers
         let mut uses : Vec<MuID> = self.prepare_machine_regs(x86_64::ARGUMENT_GPRs.iter());
         uses.append(&mut self.prepare_machine_regs(x86_64::ARGUMENT_FPRs.iter()));
-        
+
+        // defines: return registers
         let mut defines : Vec<MuID> = self.prepare_machine_regs(x86_64::RETURN_GPRs.iter());
         defines.append(&mut self.prepare_machine_regs(x86_64::RETURN_FPRs.iter()));
+        // defines: caller saved registers
+        vec_utils::append_unique(&mut defines, &mut self.prepare_machine_regs(x86_64::CALLER_SAVED_GPRs.iter()));
+        vec_utils::append_unique(&mut defines, &mut self.prepare_machine_regs(x86_64::CALLER_SAVED_FPRs.iter()));
           
         self.add_asm_inst(code, defines, vec![], uses, vec![], false);
     }

@@ -57,9 +57,9 @@ impl CompilerPass for TreeGen {
                                     if possible_ssa_id.is_some() {
                                         let entry_value = context.get_value_mut(possible_ssa_id.unwrap()).unwrap();
                                         
-                                        if entry_value.expr.is_some() {
+                                        if entry_value.has_expr() {
                                             // replace the node with its expr
-                                            let expr = entry_value.expr.take().unwrap();
+                                            let expr = entry_value.take_expr();
                                             
                                             trace!("{} replaced by {}", ops[index], expr);
                                             ops[index] = TreeNode::new_inst(vm.next_id(), expr);
@@ -79,9 +79,9 @@ impl CompilerPass for TreeGen {
                                 // we can put the expression as a child node to its use
                                 if left.len() == 1 {
                                     let lhs = context.get_value_mut(left[0].extract_ssa_id().unwrap()).unwrap(); 
-                                    if lhs.use_count.load(Ordering::SeqCst) == 1{
+                                    if lhs.use_count() == 1{
                                         if is_movable(&inst.v) {
-                                            lhs.expr = Some(inst.clone()); // FIXME: should be able to move the inst here 
+                                            lhs.assign_expr(inst.clone()); // FIXME: should be able to move the inst here
                                             
                                             trace!("yes");
                                             trace!("");
