@@ -113,9 +113,44 @@ impl MachineCode for ASMCode {
     }
     
     fn set_inst_nop(&mut self, index: usize) {
-        // FIXME: need to make sure it is fine that
-        // we do not update any information about this instruction
-        // e.g. uses, defines, etc.
+        // FIXME: changing these info is inefficient - plus we probably do not need to
+
+        // remove any reg use of this instruction
+        // clone the vec otherwise since we need to borrow 'self' again
+        for reg in self.get_inst_reg_uses(index).to_vec() {
+            let mut locs = self.reg_uses.get_mut(&reg).unwrap();
+            let mut new_locs : Vec<ASMLocation> = vec![];
+
+            while !locs.is_empty() {
+                let loc = locs.pop().unwrap();
+                if loc.line != index {
+                    new_locs.push(loc);
+                }
+            }
+
+            debug_assert!(locs.is_empty());
+            locs.append(&mut new_locs);
+        }
+
+        // remove any reg define of this instruction
+        for reg in self.get_inst_reg_defines(index).to_vec() {
+            let mut locs = self.reg_defines.get_mut(&reg).unwrap();
+            let mut new_locs : Vec<ASMLocation> = vec![];
+
+            while !locs.is_empty() {
+                let loc = locs.pop().unwrap();
+                if loc.line != index {
+                    new_locs.push(loc);
+                }
+            }
+
+            debug_assert!(locs.is_empty());
+            locs.append(&mut new_locs);
+        }
+
+        // nop doesnt use memop
+        self.mem_op_used.insert(index, false);
+
         self.code.remove(index);
         self.code.insert(index, ASM::nop());
     }
