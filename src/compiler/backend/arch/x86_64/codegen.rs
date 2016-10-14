@@ -3,10 +3,15 @@ use ast::ir::*;
 use runtime::ValueLocation;
 
 use compiler::machine_code::MachineCode;
+use compiler::backend::x86_64::ASMCodeGen;
 
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName) -> ValueLocation;
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
+
+    // generate unnamed sequence of linear code (no branch)
+    fn start_code_sequence(&mut self);
+    fn finish_code_sequence(&mut self) -> Box<MachineCode + Sync + Send>;
     
     fn print_cur_code(&self);
     
@@ -65,4 +70,88 @@ pub trait CodeGenerator {
     fn emit_push_r64(&mut self, src: &P<Value>);
     fn emit_push_imm32(&mut self, src: i32);
     fn emit_pop_r64(&mut self, dest: &P<Value>);
+}
+
+use std::collections::HashMap;
+use compiler::machine_code::CompiledFunction;
+use vm::VM;
+
+#[cfg(feature = "aot")]
+pub fn spill_rewrite(
+    spills: &HashMap<MuID, P<Value>>,
+    func: &mut MuFunctionVersion,
+    cf: &mut CompiledFunction,
+    vm: &VM)
+{
+    // record code and their insertion point, so we can do the copy/insertion all at once
+    let mut spill_code_before: HashMap<usize, Vec<Box<MachineCode>>> = HashMap::new();
+    let mut spill_code_after: HashMap<usize, Vec<Box<MachineCode>>> = HashMap::new();
+
+    // iterate through all instructions
+    for i in 0..cf.mc().number_of_insts() {
+        // find use of any register that gets spilled
+        {
+            let reg_uses = cf.mc().get_inst_reg_uses(i).to_vec();
+            for reg in reg_uses {
+                if spills.contains_key(&reg) {
+                    // a register used here is spilled
+                    let spill_mem = spills.get(&reg).unwrap();
+
+                    // generate a random new temporary
+                    let temp_ty = func.context.get_value(reg).unwrap().ty().clone();
+                    let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
+
+                    // generate a load
+                    let code = {
+                        let mut codegen = ASMCodeGen::new();
+                        codegen.start_code_sequence();
+                        codegen.emit_mov_r64_mem64(&temp, spill_mem);
+
+                        codegen.finish_code_sequence()
+                    };
+                    // record that this load will be inserted at i
+                    if spill_code_before.contains_key(&i) {
+                        spill_code_before.get_mut(&i).unwrap().push(code);
+                    } else {
+                        spill_code_before.insert(i, vec![code]);
+                    }
+
+                    // replace register reg with temp
+                    cf.mc_mut().replace_reg_for_inst(reg, temp.id(), i);
+                }
+            }
+        }
+
+        // fine define of any register that gets spilled
+        {
+            let reg_defines = cf.mc().get_inst_reg_defines(i).to_vec();
+            for reg in reg_defines {
+                if spills.contains_key(&reg) {
+                    let spill_mem = spills.get(&reg).unwrap();
+
+                    let temp_ty = func.context.get_value(reg).unwrap().ty().clone();
+                    let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
+
+                    let code = {
+                        let mut codegen = ASMCodeGen::new();
+                        codegen.start_code_sequence();
+                        codegen.emit_mov_mem64_r64(spill_mem, &temp);
+
+                        codegen.finish_code_sequence()
+                    };
+
+                    if spill_code_after.contains_key(&i) {
+                        spill_code_after.get_mut(&i).unwrap().push(code);
+                    } else {
+                        spill_code_after.insert(i, vec![code]);
+                    }
+
+                    cf.mc_mut().replace_reg_for_inst(reg, temp.id(), i);
+                }
+            }
+        }
+    }
+
+    // copy and insert the code
+    unimplemented!()
 }

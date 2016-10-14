@@ -8,6 +8,7 @@ use compiler::CompilerPass;
 use compiler::machine_code::CompiledFunction;
 use compiler::PassExecutionResult;
 use compiler::backend::init_machine_regs_for_func;
+use compiler::backend;
 
 use std::collections::HashMap;
 
@@ -65,7 +66,7 @@ impl RegisterAllocation {
                 spilled_mem.insert(*reg_id, mem);
             }
 
-            self.spill_rewrite(&spilled_mem, func, &mut cf, vm);
+            backend::spill_rewrite(&spilled_mem, func, &mut cf, vm);
 
             return Err(RegAllocFailure::FailedForSpilling);
         }
@@ -92,17 +93,6 @@ impl RegisterAllocation {
         cf.mc().trace_mc();
         
         Ok(())
-    }
-
-    #[cfg(feature = "aot")]
-    fn spill_rewrite(
-        &mut self,
-        spills: &HashMap<MuID, P<Value>>,
-        func: &mut MuFunctionVersion,
-        compiled_func: &mut CompiledFunction,
-        vm: &VM)
-    {
-        unimplemented!()
     }
 }
 

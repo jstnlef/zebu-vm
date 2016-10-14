@@ -118,5 +118,10 @@ pub trait MachineCode {
 
     // functions for rewrite
     fn replace_reg(&mut self, from: MuID, to: MuID);
+    fn replace_reg_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
     fn set_inst_nop(&mut self, index: usize);
+}
+
+pub trait MachineInst {
+
 }

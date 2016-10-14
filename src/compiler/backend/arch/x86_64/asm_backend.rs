@@ -13,7 +13,6 @@ use runtime::ValueLocation;
 
 use utils::vec_utils;
 use utils::string_utils;
-
 use ast::ptr::P;
 use ast::ir::*;
 
@@ -84,7 +83,10 @@ impl MachineCode for ASMCode {
     }
     
     fn replace_reg(&mut self, from: MuID, to: MuID) {
-        let to_reg_tag : MuName = backend::all_regs().get(&to).unwrap().name().unwrap();
+        let to_reg_tag : MuName = match backend::all_regs().get(&to) {
+            Some(reg) => reg.name().unwrap(),
+            None => panic!("expecting a machine register, but we are required to replace to {}", to)
+        };
         let to_reg_string = "%".to_string() + &to_reg_tag;
         
         match self.reg_defines.get(&from) {
@@ -98,18 +100,108 @@ impl MachineCode for ASMCode {
             },
             None => {}
         }
-        
+
         match self.reg_uses.get(&from) {
             Some(uses) => {
                 for loc in uses {
                     let ref mut inst_to_patch = self.code[loc.line];
                     for i in 0..loc.len {
                         string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
-                    }   
+                    }
                 }
             },
             None => {}
         }
+    }
+
+    fn replace_reg_for_inst(&mut self, from: MuID, to: MuID, inst: usize) {
+        let to_reg_string : MuName = match backend::all_regs().get(&to) {
+            Some(ref machine_reg) => {
+                let name = machine_reg.name().unwrap();
+                "%".to_string() + &name
+            },
+            None => REG_PLACEHOLDER.clone()
+        };
+
+        {
+            let asm = &mut self.code[inst];
+            // if this reg is defined, replace the define
+            if asm.defines.contains(&from) {
+                vec_utils::remove_value(&mut asm.defines, from);
+                asm.defines.push(to);
+            }
+            // if this reg is used, replace the use
+            if asm.uses.contains(&from) {
+                vec_utils::remove_value(&mut asm.uses, from);
+                asm.uses.push(to);
+            }
+        }
+
+        // replace the define
+        // replace code
+        match self.reg_defines.get(&from) {
+            Some(defines) => {
+                for loc in defines {
+                    if loc.line == inst {
+                        let ref mut inst_to_patch = self.code[loc.line];
+                        for i in 0..loc.len {
+                            string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
+                        }
+                    }
+                }
+            },
+            None => {}
+        }
+        // replace info
+        let replaced_define = match self.reg_defines.get_mut(&from) {
+            Some(defines) => {
+                Some(vec_utils::remove_value_if_true(defines, |x| {x.line == inst}))
+            },
+            None => None
+        };
+        match replaced_define {
+            Some(mut defines) => {
+                if self.reg_defines.contains_key(&to) {
+                    self.reg_defines.get_mut(&to).unwrap().append(&mut defines);
+                } else {
+                    self.reg_defines.insert(to, defines);
+                }
+            }
+            None => {}
+        };
+
+        // replace the use
+        // replace code
+        match self.reg_uses.get(&from) {
+            Some(uses) => {
+                for loc in uses {
+                    if loc.line == inst {
+                        let ref mut inst_to_patch = self.code[loc.line];
+                        for i in 0..loc.len {
+                            string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
+                        }
+                    }
+                }
+            },
+            None => {}
+        }
+        // replace info
+        let replaced_use = match self.reg_uses.get_mut(&from) {
+            Some(uses) => {
+                Some(vec_utils::remove_value_if_true(uses, |x| {x.line == inst}))
+            },
+            None => None
+        };
+        match replaced_use {
+            Some(mut uses) => {
+                if self.reg_uses.contains_key(&to) {
+                    self.reg_uses.get_mut(&to).unwrap().append(&mut uses);
+                } else {
+                    self.reg_uses.insert(to, uses);
+                }
+            }
+            None => {}
+        };
     }
     
     fn set_inst_nop(&mut self, index: usize) {
@@ -723,7 +815,37 @@ impl CodeGenerator for ASMCodeGen {
             ValueLocation::Relocatable(RegGroup::GPR, func_end)
         )
     }
-    
+
+    fn start_code_sequence(&mut self) {
+        self.cur = Some(Box::new(ASMCode {
+            name: "snippet".to_string(),
+            code: vec![],
+            reg_defines: HashMap::new(),
+            reg_uses: HashMap::new(),
+
+            mem_op_used: HashMap::new(),
+
+            preds: vec![],
+            succs: vec![],
+
+            idx_to_blk: HashMap::new(),
+            blk_to_idx: HashMap::new(),
+            cond_branches: HashMap::new(),
+            branches: HashMap::new(),
+
+            blocks: vec![],
+            block_start: HashMap::new(),
+            block_range: HashMap::new(),
+
+            block_livein: HashMap::new(),
+            block_liveout: HashMap::new()
+        }));
+    }
+
+    fn finish_code_sequence(&mut self) -> Box<MachineCode + Sync + Send> {
+        self.cur.take().unwrap()
+    }
+
     fn print_cur_code(&self) {
         println!("");
         
