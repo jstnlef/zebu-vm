@@ -49,7 +49,77 @@ struct ASMCode {
 unsafe impl Send for ASMCode {} 
 unsafe impl Sync for ASMCode {}
 
+impl ASMCode {
+    fn rewrite_insert(
+        &self,
+        insert_before: HashMap<usize, Vec<Box<ASMCode>>>,
+        insert_after: HashMap<usize, Vec<Box<ASMCode>>>) -> Box<ASMCode>
+    {
+        let mut ret = ASMCode {
+            name: self.name.clone(),
+            code: vec![],
+            reg_defines: HashMap::new(),
+            reg_uses: HashMap::new(),
+            mem_op_used: HashMap::new(),
+            preds: vec![],
+            succs: vec![],
+            idx_to_blk: HashMap::new(),
+            blk_to_idx: HashMap::new(),
+            cond_branches: HashMap::new(),
+            branches: HashMap::new(),
+            blocks: vec![],
+            block_start: HashMap::new(),
+            block_range: HashMap::new(),
+            block_livein: HashMap::new(),
+            block_liveout: HashMap::new()
+        };
+
+        // iterate through old machine code
+        let mut inst_offset = 0;    // how many instructions has been inserted
+
+        for i in 0..self.number_of_insts() {
+            // insert code before this instruction
+            if insert_before.contains_key(&i) {
+                for insert in insert_before.get(&i).unwrap() {
+                    ret.append_code_sequence_all(insert);
+                    inst_offset += insert.number_of_insts();
+                }
+            }
+
+            // copy this instruction
+
+
+            // insert code after this instruction
+            if insert_after.contains_key(&i) {
+
+            }
+        }
+
+        unimplemented!()
+    }
+
+    fn append_code_sequence(
+        &mut self,
+        another: &Box<ASMCode>,
+        start_inst: usize,
+        n_insts: usize)
+    {
+        let self_index = self.number_of_insts();
+        unimplemented!()
+    }
+
+    fn append_code_sequence_all(&mut self, another: &Box<ASMCode>) {
+        let n_insts = another.number_of_insts();
+        self.append_code_sequence(another, 0, n_insts)
+    }
+}
+
+use std::any::Any;
+
 impl MachineCode for ASMCode {
+    fn as_any(&self) -> &Any {
+        self
+    }
     fn number_of_insts(&self) -> usize {
         self.code.len()
     }
@@ -114,7 +184,7 @@ impl MachineCode for ASMCode {
         }
     }
 
-    fn replace_reg_for_inst(&mut self, from: MuID, to: MuID, inst: usize) {
+    fn replace_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize) {
         let to_reg_string : MuName = match backend::all_regs().get(&to) {
             Some(ref machine_reg) => {
                 let name = machine_reg.name().unwrap();
@@ -763,6 +833,10 @@ impl ASMCodeGen {
             }
         }        
     }
+
+    fn finish_code_sequence_asm(&mut self) -> Box<ASMCode> {
+        self.cur.take().unwrap()
+    }
 }
 
 impl CodeGenerator for ASMCodeGen {
@@ -843,7 +917,7 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     fn finish_code_sequence(&mut self) -> Box<MachineCode + Sync + Send> {
-        self.cur.take().unwrap()
+        self.finish_code_sequence_asm()
     }
 
     fn print_cur_code(&self) {
@@ -1539,4 +1613,91 @@ pub fn symbol(name: String) -> String {
 #[cfg(target_os = "macos")]
 pub fn symbol(name: String) -> String {
     format!("_{}", name)
+}
+
+use compiler::machine_code::CompiledFunction;
+
+pub fn spill_rewrite(
+    spills: &HashMap<MuID, P<Value>>,
+    func: &mut MuFunctionVersion,
+    cf: &mut CompiledFunction,
+    vm: &VM)
+{
+    // record code and their insertion point, so we can do the copy/insertion all at once
+    let mut spill_code_before: HashMap<usize, Vec<Box<ASMCode>>> = HashMap::new();
+    let mut spill_code_after: HashMap<usize, Vec<Box<ASMCode>>> = HashMap::new();
+
+    // iterate through all instructions
+    for i in 0..cf.mc().number_of_insts() {
+        // find use of any register that gets spilled
+        {
+            let reg_uses = cf.mc().get_inst_reg_uses(i).to_vec();
+            for reg in reg_uses {
+                if spills.contains_key(&reg) {
+                    // a register used here is spilled
+                    let spill_mem = spills.get(&reg).unwrap();
+
+                    // generate a random new temporary
+                    let temp_ty = func.context.get_value(reg).unwrap().ty().clone();
+                    let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
+
+                    // generate a load
+                    let code = {
+                        let mut codegen = ASMCodeGen::new();
+                        codegen.start_code_sequence();
+                        codegen.emit_mov_r64_mem64(&temp, spill_mem);
+
+                        codegen.finish_code_sequence_asm()
+                    };
+                    // record that this load will be inserted at i
+                    if spill_code_before.contains_key(&i) {
+                        spill_code_before.get_mut(&i).unwrap().push(code);
+                    } else {
+                        spill_code_before.insert(i, vec![code]);
+                    }
+
+                    // replace register reg with temp
+                    cf.mc_mut().replace_tmp_for_inst(reg, temp.id(), i);
+                }
+            }
+        }
+
+        // find define of any register that gets spilled
+        {
+            let reg_defines = cf.mc().get_inst_reg_defines(i).to_vec();
+            for reg in reg_defines {
+                if spills.contains_key(&reg) {
+                    let spill_mem = spills.get(&reg).unwrap();
+
+                    let temp_ty = func.context.get_value(reg).unwrap().ty().clone();
+                    let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
+
+                    let code = {
+                        let mut codegen = ASMCodeGen::new();
+                        codegen.start_code_sequence();
+                        codegen.emit_mov_mem64_r64(spill_mem, &temp);
+
+                        codegen.finish_code_sequence_asm()
+                    };
+
+                    if spill_code_after.contains_key(&i) {
+                        spill_code_after.get_mut(&i).unwrap().push(code);
+                    } else {
+                        spill_code_after.insert(i, vec![code]);
+                    }
+
+                    cf.mc_mut().replace_tmp_for_inst(reg, temp.id(), i);
+                }
+            }
+        }
+    }
+
+    // copy and insert the code
+    let new_mc = {
+        let old_mc = cf.mc.take().unwrap();
+        let old_mc_ref : &ASMCode = old_mc.as_any().downcast_ref().unwrap();
+        old_mc_ref.rewrite_insert(spill_code_before, spill_code_after)
+    };
+
+    cf.mc = Some(new_mc);
 }

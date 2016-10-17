@@ -10,7 +10,7 @@ use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 pub struct CompiledFunction {
     pub func_id: MuID,
     pub func_ver_id: MuID,
-    pub temps: HashMap<MuID, MuID>, // assumes one temperary maps to one register
+    pub temps: HashMap<MuID, MuID>, // assumes one temporary maps to one register
     
     // not emitting this
     pub mc: Option<Box<MachineCode + Send + Sync>>,
@@ -91,6 +91,8 @@ impl CompiledFunction {
     }
 }
 
+use std::any::Any;
+
 pub trait MachineCode {
     fn trace_mc(&self);
     fn trace_inst(&self, index: usize);
@@ -117,9 +119,13 @@ pub trait MachineCode {
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
 
     // functions for rewrite
+    /// replace a temp with a machine register (to_reg must be a machine register)
     fn replace_reg(&mut self, from: MuID, to: MuID);
-    fn replace_reg_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
+    /// replace a temp with another temp
+    fn replace_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
     fn set_inst_nop(&mut self, index: usize);
+
+    fn as_any(&self) -> &Any;
 }
 
 pub trait MachineInst {

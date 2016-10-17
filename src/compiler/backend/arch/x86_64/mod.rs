@@ -5,12 +5,13 @@ pub mod inst_sel;
 
 mod codegen;
 pub use compiler::backend::x86_64::codegen::CodeGenerator;
-pub use compiler::backend::x86_64::codegen::spill_rewrite;
 
 mod asm_backend;
 pub use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 pub use compiler::backend::x86_64::asm_backend::emit_code;
 pub use compiler::backend::x86_64::asm_backend::emit_context;
+#[cfg(feature = "aot")]
+pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
 
 use ast::ptr::P;
 use ast::ir::*;
