@@ -28,7 +28,7 @@ fn use_value(val: &P<Value>, func_context: &mut FunctionContext) {
         match val.v {
             Value_::SSAVar(ref id) => {
                 let entry = func_context.values.get_mut(id).unwrap();
-                entry.use_count.fetch_add(1, Ordering::SeqCst);
+                entry.increase_use_count();
             },
             _ => {} // dont worry about constants
         }    
@@ -68,7 +68,7 @@ impl CompilerPass for DefUse {
         debug!("check use count for variables");
         
         for entry in func.context.values.values() {
-            debug!("{}: {}", entry, entry.use_count.load(Ordering::SeqCst))
+            debug!("{}: {}", entry, entry.use_count())
         }
     }
 }

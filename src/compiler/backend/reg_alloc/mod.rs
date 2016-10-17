@@ -1,12 +1,16 @@
 #![allow(dead_code)]
 
+use ast::ir::*;
+use ast::ptr::*;
+use vm::VM;
 use compiler;
 use compiler::CompilerPass;
+use compiler::machine_code::CompiledFunction;
 use compiler::PassExecutionResult;
-use ast::ir::*;
-use vm::VM;
-
 use compiler::backend::init_machine_regs_for_func;
+use compiler::backend;
+
+use std::collections::HashMap;
 
 mod graph_coloring;
 
@@ -49,9 +53,22 @@ impl RegisterAllocation {
         let spills = coloring.spills();
         
         if !spills.is_empty() {
-            unimplemented!();
+            let mut spilled_mem = HashMap::new();
 
-            // return Err(RegAllocFailure::FailedForSpilling);
+            // allocating frame slots for every spilled temp
+            for reg_id in spills.iter() {
+                let ssa_entry = match func.context.get_value(*reg_id) {
+                    Some(entry) => entry,
+                    None => panic!("The spilled register {} is not in func context", reg_id)
+                };
+                let mem = cf.frame.alloc_slot_for_spilling(ssa_entry.value().clone(), vm);
+
+                spilled_mem.insert(*reg_id, mem);
+            }
+
+            backend::spill_rewrite(&spilled_mem, func, &mut cf, vm);
+
+            return Err(RegAllocFailure::FailedForSpilling);
         }
         
         // replace regs
@@ -76,7 +93,7 @@ impl RegisterAllocation {
         cf.mc().trace_mc();
         
         Ok(())
-    }    
+    }
 }
 
 impl CompilerPass for RegisterAllocation {

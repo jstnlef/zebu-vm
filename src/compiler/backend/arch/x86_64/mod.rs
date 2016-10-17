@@ -10,6 +10,8 @@ mod asm_backend;
 pub use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 pub use compiler::backend::x86_64::asm_backend::emit_code;
 pub use compiler::backend::x86_64::asm_backend::emit_context;
+#[cfg(feature = "aot")]
+pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
 
 use ast::ptr::P;
 use ast::ir::*;
@@ -85,6 +87,18 @@ lazy_static! {
         R14.clone(),
         R15.clone()
     ];
+
+    pub static ref CALLER_SAVED_GPRs : [P<Value>; 9] = [
+        RAX.clone(),
+        RCX.clone(),
+        RDX.clone(),
+        RSI.clone(),
+        RDI.clone(),
+        R8.clone(),
+        R9.clone(),
+        R10.clone(),
+        R11.clone()
+    ];
     
     pub static ref ALL_GPRs : [P<Value>; 15] = [
         RAX.clone(),
@@ -139,6 +153,25 @@ lazy_static!{
     ];
     
     pub static ref CALLEE_SAVED_FPRs : [P<Value>; 0] = [];
+
+    pub static ref CALLER_SAVED_FPRs : [P<Value>; 16] = [
+        XMM0.clone(),
+        XMM1.clone(),
+        XMM2.clone(),
+        XMM3.clone(),
+        XMM4.clone(),
+        XMM5.clone(),
+        XMM6.clone(),
+        XMM7.clone(),
+        XMM8.clone(),
+        XMM9.clone(),
+        XMM10.clone(),
+        XMM11.clone(),
+        XMM12.clone(),
+        XMM13.clone(),
+        XMM14.clone(),
+        XMM15.clone(),
+    ];
     
     pub static ref ALL_FPRs : [P<Value>; 16] = [
         XMM0.clone(),
@@ -242,7 +275,7 @@ lazy_static! {
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
     for reg in ALL_MACHINE_REGs.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
-        let entry = SSAVarEntry::new(reg_id, reg.ty.clone());
+        let entry = SSAVarEntry::new(reg.clone());
         
         func_context.values.insert(reg_id, entry);
     }

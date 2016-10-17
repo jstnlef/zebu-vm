@@ -55,7 +55,7 @@ impl InterferenceGraph {
             
             // add node property
             let group = {
-                let ref ty = entry.ty;
+                let ref ty = entry.ty();
                 if types::is_scalar(ty) {
                     if types::is_fp(ty) {
                         backend::RegGroup::FPR
@@ -284,7 +284,7 @@ fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
             // (2) diff = out[n] - def[n]
             let mut diff = liveout[n].to_vec();
             for def in cf.mc().get_inst_reg_defines(n) {
-                vec_utils::remove_value(&mut diff, *def);
+                vec_utils::remove_value(&mut diff, def);
             }
             // (3) in[n] = in[n] + diff
             vec_utils::append_unique(&mut in_set_new, &mut diff);
@@ -338,12 +338,10 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
     // Initialize and creates nodes for all the involved temps/regs
     for i in 0..cf.mc().number_of_insts() {
         for reg_id in cf.mc().get_inst_reg_defines(i) {
-            let reg_id = *reg_id;
             ig.new_node(reg_id, &func.context);
         }
         
         for reg_id in cf.mc().get_inst_reg_uses(i) {
-            let reg_id = *reg_id;
             ig.new_node(reg_id, &func.context);
         }
     }
@@ -397,7 +395,7 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
                 // creating nodes if necessary
                 for e in current_live.iter() {
                     if src.is_none() || (src.is_some() && *e != src.unwrap()) {
-                        let from = ig.get_node(*d);
+                        let from = ig.get_node(d);
                         let to = ig.get_node(*e);
                         
                         if !ig.is_same_node(from, to) && !ig.is_adj(from, to) {
@@ -415,13 +413,13 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
             // for every definition D in I
             for d in cf.mc().get_inst_reg_defines(i) {
                 // remove D from Current_Live
-                current_live.remove(d);
+                current_live.remove(&d);
             }
             
             // for every use U in I
             for u in cf.mc().get_inst_reg_uses(i) {
                 // add U to Current_live
-                current_live.insert(*u);
+                current_live.insert(u);
             }
         }
     }
@@ -454,12 +452,10 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
         let ref mut in_set = live_in[i];
         
         for reg_id in cf.mc().get_inst_reg_defines(i) {
-            let reg_id = *reg_id;
             ig.new_node(reg_id, &func.context);
         }
         
         for reg_id in cf.mc().get_inst_reg_uses(i) {
-            let reg_id = *reg_id;
             ig.new_node(reg_id, &func.context);
             
             in_set.push(reg_id);
@@ -487,8 +483,8 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
         // in = use(i.e. live_in) + (out - def) 
         let mut diff = out_set.clone();
         for def in cf.mc().get_inst_reg_defines(n) {
-            vec_utils::remove_value(&mut diff, *def);
-            trace!("removing def: {}", *def);
+            vec_utils::remove_value(&mut diff, def);
+            trace!("removing def: {}", def);
             trace!("diff = {:?}", diff);
         }
         trace!("out - def = {:?}", diff);
@@ -545,7 +541,7 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
         for d in cf.mc().get_inst_reg_defines(n) {
             for t in live.iter() {
                 if src.is_none() || (src.is_some() && *t != src.unwrap()) {
-                    let from = ig.get_node(*d);
+                    let from = ig.get_node(d);
                     let to = ig.get_node(*t);
                     
                     if !ig.is_same_node(from, to) && !ig.is_adj(from, to) {
@@ -561,11 +557,11 @@ pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGr
         }
         
         for d in cf.mc().get_inst_reg_defines(n) {
-            vec_utils::remove_value(live, *d);
+            vec_utils::remove_value(live, d);
         }
         
         for u in cf.mc().get_inst_reg_uses(n) {
-            live.push(*u);
+            live.push(u);
         }
     }
     

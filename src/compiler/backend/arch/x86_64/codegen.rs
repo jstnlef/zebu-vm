@@ -3,10 +3,15 @@ use ast::ir::*;
 use runtime::ValueLocation;
 
 use compiler::machine_code::MachineCode;
+use compiler::backend::x86_64::ASMCodeGen;
 
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName) -> ValueLocation;
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
+
+    // generate unnamed sequence of linear code (no branch)
+    fn start_code_sequence(&mut self);
+    fn finish_code_sequence(&mut self) -> Box<MachineCode + Sync + Send>;
     
     fn print_cur_code(&self);
     

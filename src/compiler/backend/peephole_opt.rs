@@ -20,7 +20,7 @@ impl PeepholeOptimization {
             
             let src : MuID = {
                 let uses = cf.mc().get_inst_reg_uses(inst);
-                if uses.len() != 1 {
+                if uses.len() == 0 {
                     // moving immediate to register, its not redundant
                     return;
                 }                

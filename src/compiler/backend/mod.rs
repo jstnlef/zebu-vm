@@ -36,6 +36,8 @@ pub use compiler::backend::x86_64::is_callee_saved;
 pub use compiler::backend::x86_64::emit_code;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::emit_context;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::spill_rewrite;
 
 // ARM
 

@@ -9,7 +9,6 @@ use self::mu::ast::ir::*;
 use self::mu::compiler::*;
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 #[test]
 fn test_use_count() {
@@ -28,13 +27,13 @@ fn test_use_count() {
     
     compiler.compile(&mut func_ver);
     
-    assert!(func_ver.context.get_value(vm.id_of("blk_0_n_3")).unwrap().use_count.load(Ordering::SeqCst) == 2, "blk_0_n_3 use should be 2");
-    assert!(func_ver.context.get_value(vm.id_of("blk_0_v48")).unwrap().use_count.load(Ordering::SeqCst) == 1, "blk_0_v48 use should be 1");
-    assert!(func_ver.context.get_value(vm.id_of("blk_2_v53")).unwrap().use_count.load(Ordering::SeqCst) == 1, "blk_2_v53 use should be 1");
-    assert!(func_ver.context.get_value(vm.id_of("blk_1_n_3")).unwrap().use_count.load(Ordering::SeqCst) == 2, "blk_1_n_3 use should be 2");
-    assert!(func_ver.context.get_value(vm.id_of("blk_1_v50")).unwrap().use_count.load(Ordering::SeqCst) == 1, "blk_1_v50 use should be 1");
-    assert!(func_ver.context.get_value(vm.id_of("blk_1_v51")).unwrap().use_count.load(Ordering::SeqCst) == 1, "blk_1_v51 use should be 1");
-    assert!(func_ver.context.get_value(vm.id_of("blk_1_v52")).unwrap().use_count.load(Ordering::SeqCst) == 1, "blk_1_v52 use should be 1");
+    assert!(func_ver.context.get_value(vm.id_of("blk_0_n_3")).unwrap().use_count() == 2, "blk_0_n_3 use should be 2");
+    assert!(func_ver.context.get_value(vm.id_of("blk_0_v48")).unwrap().use_count() == 1, "blk_0_v48 use should be 1");
+    assert!(func_ver.context.get_value(vm.id_of("blk_2_v53")).unwrap().use_count() == 1, "blk_2_v53 use should be 1");
+    assert!(func_ver.context.get_value(vm.id_of("blk_1_n_3")).unwrap().use_count() == 2, "blk_1_n_3 use should be 2");
+    assert!(func_ver.context.get_value(vm.id_of("blk_1_v50")).unwrap().use_count() == 1, "blk_1_v50 use should be 1");
+    assert!(func_ver.context.get_value(vm.id_of("blk_1_v51")).unwrap().use_count() == 1, "blk_1_v51 use should be 1");
+    assert!(func_ver.context.get_value(vm.id_of("blk_1_v52")).unwrap().use_count() == 1, "blk_1_v52 use should be 1");
 }
 
 #[test]
