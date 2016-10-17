@@ -11,7 +11,6 @@ use compiler::machine_code::MachineCode;
 use vm::VM;
 use runtime::ValueLocation;
 
-use utils::vec_utils;
 use utils::string_utils;
 use ast::ptr::P;
 use ast::ir::*;
@@ -25,16 +24,8 @@ use std::ops;
 struct ASMCode {
     name: MuName, 
     code: Vec<ASMInst>,
-    
-    idx_to_blk: HashMap<usize, MuName>,
-    blk_to_idx: HashMap<MuName, usize>,
-    
-    blocks: Vec<MuName>,
-    block_start: HashMap<MuName, usize>,
-    block_range: HashMap<MuName, ops::Range<usize>>,
-    
-    block_livein: HashMap<MuName, Vec<MuID>>,
-    block_liveout: HashMap<MuName, Vec<MuID>>
+
+    blocks: HashMap<MuName, ASMBlock>
 }
 
 unsafe impl Send for ASMCode {} 
@@ -71,6 +62,25 @@ impl ASMCode {
         ret
     }
 
+    fn is_block_start(&self, inst: usize) -> bool {
+        for block in self.blocks.values() {
+            if block.start_inst == inst {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn get_block_by_start_inst(&self, inst: usize) -> Option<&ASMBlock> {
+        for block in self.blocks.values() {
+            if block.start_inst == inst {
+                return Some(block);
+            }
+        }
+
+        None
+    }
+
     fn rewrite_insert(
         &self,
         insert_before: HashMap<usize, Vec<Box<ASMCode>>>,
@@ -79,13 +89,7 @@ impl ASMCode {
         let mut ret = ASMCode {
             name: self.name.clone(),
             code: vec![],
-            idx_to_blk: HashMap::new(),
-            blk_to_idx: HashMap::new(),
-            blocks: vec![],
-            block_start: HashMap::new(),
-            block_range: HashMap::new(),
-            block_livein: HashMap::new(),
-            block_liveout: HashMap::new()
+            blocks: hashmap!{},
         };
 
         // iterate through old machine code
@@ -266,28 +270,36 @@ impl MachineCode for ASMCode {
     }
     
     fn get_ir_block_livein(&self, block: &str) -> Option<&Vec<MuID>> {
-        self.block_livein.get(&block.to_string())
+        match self.blocks.get(block) {
+            Some(ref block) => Some(&block.livein),
+            None => None
+        }
     }
     
     fn get_ir_block_liveout(&self, block: &str) -> Option<&Vec<MuID>> {
-        self.block_liveout.get(&block.to_string())
+        match self.blocks.get(block) {
+            Some(ref block) => Some(&block.liveout),
+            None => None
+        }
     }
     
     fn set_ir_block_livein(&mut self, block: &str, set: Vec<MuID>) {
-        self.block_livein.insert(block.to_string(), set);
+        let block = self.blocks.get_mut(block).unwrap();
+        block.livein = set;
     }
     
     fn set_ir_block_liveout(&mut self, block: &str, set: Vec<MuID>) {
-        self.block_liveout.insert(block.to_string(), set);
+        let block = self.blocks.get_mut(block).unwrap();
+        block.liveout = set;
     }
     
-    fn get_all_blocks(&self) -> &Vec<MuName> {
-        &self.blocks
+    fn get_all_blocks(&self) -> Vec<MuName> {
+        self.blocks.keys().map(|x| x.clone()).collect()
     }
     
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>> {
-        match self.block_range.get(&block.to_string()) {
-            Some(r) => Some(r.clone()),
+        match self.blocks.get(block) {
+            Some(ref block) => Some(block.start_inst..block.end_inst),
             None => None
         }
     }
@@ -374,6 +386,27 @@ impl ASMLocation {
     }
 }
 
+#[derive(Clone, Debug)]
+/// [start_inst, end_inst)
+struct ASMBlock {
+    start_inst: usize,
+    end_inst: usize,
+
+    livein: Vec<MuID>,
+    liveout: Vec<MuID>
+}
+
+impl ASMBlock {
+    fn new() -> ASMBlock {
+        ASMBlock {
+            start_inst: usize::MAX,
+            end_inst: usize::MAX,
+            livein: vec![],
+            liveout: vec![]
+        }
+    }
+}
+
 pub struct ASMCodeGen {
     cur: Option<Box<ASMCode>>
 }
@@ -414,9 +447,6 @@ impl ASMCodeGen {
     fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
         let l = self.line();
         self.cur_mut().code.push(ASMInst::symbolic(code));
-        
-        self.cur_mut().idx_to_blk.insert(l, block_name.clone());
-        self.cur_mut().blk_to_idx.insert(block_name, l);
     }
     
     fn add_asm_symbolic(&mut self, code: String){
@@ -460,7 +490,7 @@ impl ASMCodeGen {
     }
     
     fn add_asm_ret(&mut self, code: String) {
-        let mut uses : HashMap<MuID, Vec<ASMLocation>> = {
+        let uses : HashMap<MuID, Vec<ASMLocation>> = {
             let mut ret = HashMap::new();
             for reg in x86_64::RETURN_GPRs.iter() {
                 ret.insert(reg.id(), vec![]);
@@ -690,12 +720,21 @@ impl ASMCodeGen {
         let n_insts = self.line();
 
         let code = self.cur_mut();
+        let ref blocks = code.blocks;
         let ref mut asm = code.code;
+
+        let block_start = {
+            let mut ret = vec![];
+            for block in blocks.values() {
+                ret.push(block.start_inst);
+            }
+            ret
+        };
         
         for i in 0..n_insts {
             // determine predecessor - if cur is not block start, its predecessor is previous insts
-            let is_block_start = code.idx_to_blk.get(&i);
-            if is_block_start.is_none() {
+            let is_block_start = block_start.contains(&i);
+            if !is_block_start {
                 if i > 0 {
                     trace!("inst {}: not a block start", i);
                     trace!("inst {}: set PREDS as previous inst {}", i, i-1);
@@ -713,26 +752,26 @@ impl ASMCodeGen {
                     // branch to target
                     trace!("inst {}: is a branch to {}", i, target);
 
-                    let target_n = code.blk_to_idx.get(target).unwrap();
+                    let target_n = code.blocks.get(target).unwrap().start_inst;
                     trace!("inst {}: branch target index is {}", i, target_n);
 
                     // cur inst's succ is target
                     trace!("inst {}: set SUCCS as branch target {}", i, target_n);
-                    asm[i].succs.push(*target_n);
+                    asm[i].succs.push(target_n);
 
                     // target's pred is cur
                     trace!("inst {}: set PREDS as branch source {}", target_n, i);
-                    asm[*target_n].preds.push(i);
+                    asm[target_n].preds.push(i);
                 },
                 ASMBranchTarget::Conditional(ref target) => {
                     // branch to target
                     trace!("inst {}: is a cond branch to {}", i, target);
 
-                    let target_n = code.blk_to_idx.get(target).unwrap();
+                    let target_n = code.blocks.get(target).unwrap().start_inst;
                     trace!("inst {}: branch target index is {}", i, target_n);
 
                     // cur insts' succ is target and next inst
-                    asm[i].succs.push(*target_n);
+                    asm[i].succs.push(target_n);
                     trace!("inst {}: set SUCCS as branch target {}", i, target_n);
                     if i < n_insts - 1 {
                         trace!("inst {}: set SUCCS as next inst", i + 1);
@@ -740,8 +779,8 @@ impl ASMCodeGen {
                     }
 
                     // target's pred is cur
-                    asm[*target_n].preds.push(i);
-                    trace!("inst {}: set PREDS as {}", *target_n, i);
+                    asm[target_n].preds.push(i);
+                    trace!("inst {}: set PREDS as {}", target_n, i);
                 },
                 ASMBranchTarget::None => {
                     // not branch nor cond branch, succ is next inst
@@ -772,16 +811,7 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(Box::new(ASMCode {
                 name: func_name.clone(),
                 code: vec![],
-                
-                idx_to_blk: HashMap::new(),
-                blk_to_idx: HashMap::new(),
-                
-                blocks: vec![],
-                block_start: HashMap::new(),
-                block_range: HashMap::new(),
-                
-                block_livein: HashMap::new(),
-                block_liveout: HashMap::new()
+                blocks: hashmap!{},
             }));
         
         // to link with C sources via gcc
@@ -813,16 +843,7 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(Box::new(ASMCode {
             name: "snippet".to_string(),
             code: vec![],
-
-            idx_to_blk: HashMap::new(),
-            blk_to_idx: HashMap::new(),
-
-            blocks: vec![],
-            block_start: HashMap::new(),
-            block_range: HashMap::new(),
-
-            block_livein: HashMap::new(),
-            block_liveout: HashMap::new()
+            blocks: hashmap!{}
         }));
     }
 
@@ -852,10 +873,10 @@ impl CodeGenerator for ASMCodeGen {
     fn start_block(&mut self, block_name: MuName) {
         let label = format!("{}:", self.asm_block_label(block_name.clone()));        
         self.add_asm_block_label(label, block_name.clone());
-        self.cur_mut().blocks.push(block_name.clone());
-        
+
+        self.cur_mut().blocks.insert(block_name.clone(), ASMBlock::new());
         let start = self.line();
-        self.cur_mut().block_start.insert(block_name, start);
+        self.cur_mut().blocks.get_mut(&block_name).unwrap().start_inst = start;
     }
     
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation {
@@ -869,49 +890,63 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn end_block(&mut self, block_name: MuName) {
-        let start : usize = *self.cur().block_start.get(&block_name).unwrap();
-        let end : usize = self.line();
-        
-        self.cur_mut().block_range.insert(block_name, (start..end));
+        let line = self.line();
+        match self.cur_mut().blocks.get_mut(&block_name) {
+            Some(ref mut block) => {
+                block.end_inst = line;
+            }
+            None => panic!("trying to end block {} which hasnt been started", block_name)
+        }
     }
     
     fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>) {
         let cur = self.cur_mut();
-        
-        let mut res = {
-            if !cur.block_livein.contains_key(&block_name) {
-                cur.block_livein.insert(block_name.clone(), vec![]);
-            } else {
-                panic!("seems we are inserting livein to block {} twice", block_name);
+
+        match cur.blocks.get_mut(&block_name) {
+            Some(ref mut block) => {
+                if block.livein.is_empty() {
+                    let mut live_in = {
+                        let mut ret = vec![];
+                        for p in live_in {
+                            match p.extract_ssa_id() {
+                                Some(id) => ret.push(id),
+                                None => warn!("{} as live-in of block {} is not SSA", p, block_name)
+                            }
+                        }
+                        ret
+                    };
+                    block.livein.append(&mut live_in);
+                } else {
+                    panic!("seems we are inserting livein to block {} twice", block_name);
+                }
             }
-            
-            cur.block_livein.get_mut(&block_name).unwrap()
-        };
-        
-        for value in live_in {
-            res.push(value.extract_ssa_id().unwrap());
+            None => panic!("haven't created ASMBlock for {}", block_name)
         }
     }
     
     fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>) {
         let cur = self.cur_mut();
-        
-        let mut res = {
-            if !cur.block_liveout.contains_key(&block_name) {
-                cur.block_liveout.insert(block_name.clone(), vec![]);
-            } else {
-                panic!("seems we are inserting livein to block {} twice", block_name);
+
+        match cur.blocks.get_mut(&block_name) {
+            Some(ref mut block) => {
+                if block.liveout.is_empty() {
+                    let mut live_out = {
+                        let mut ret = vec![];
+                        for p in live_out {
+                            match p.extract_ssa_id() {
+                                Some(id) => ret.push(id),
+                                None => warn!("{} as live-out of block {} is not SSA", p, block_name)
+                            }
+                        }
+                        ret
+                    };
+                    block.liveout.append(&mut live_out);
+                } else {
+                    panic!("seems we are inserting liveout to block {} twice", block_name);
+                }
             }
-            
-            cur.block_liveout.get_mut(&block_name).unwrap()
-        };
-        
-        for value in live_out {
-            match value.extract_ssa_id() {
-                Some(id) => res.push(id),
-                None => {}
-            }
-        }        
+            None => panic!("haven't created ASMBlock for {}", block_name)
+        }
     }
     
     fn emit_nop(&mut self, bytes: usize) {

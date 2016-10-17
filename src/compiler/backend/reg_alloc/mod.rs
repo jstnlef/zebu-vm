@@ -1,11 +1,9 @@
 #![allow(dead_code)]
 
 use ast::ir::*;
-use ast::ptr::*;
 use vm::VM;
 use compiler;
 use compiler::CompilerPass;
-use compiler::machine_code::CompiledFunction;
 use compiler::PassExecutionResult;
 use compiler::backend::init_machine_regs_for_func;
 use compiler::backend;

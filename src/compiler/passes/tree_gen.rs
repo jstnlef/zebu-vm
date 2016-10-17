@@ -6,8 +6,6 @@ use vm::VM;
 use compiler::CompilerPass;
 use compiler::PassExecutionResult;
 
-use std::sync::atomic::Ordering;
-
 pub struct TreeGen {
     name: &'static str
 } 

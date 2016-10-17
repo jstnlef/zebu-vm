@@ -3,7 +3,6 @@ use ast::ptr::*;
 use vm::VM;
 
 use compiler::CompilerPass;
-use std::sync::atomic::Ordering;
 
 pub struct DefUse {
     name: &'static str,
