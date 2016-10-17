@@ -24,19 +24,10 @@ use std::ops;
 
 struct ASMCode {
     name: MuName, 
-    code: Vec<ASM>,
-    reg_defines: HashMap<MuID, Vec<ASMLocation>>,
-    reg_uses: HashMap<MuID, Vec<ASMLocation>>,
-    
-    mem_op_used: HashMap<usize, bool>,
-    
-    preds: Vec<Vec<usize>>,
-    succs: Vec<Vec<usize>>,
+    code: Vec<ASMInst>,
     
     idx_to_blk: HashMap<usize, MuName>,
     blk_to_idx: HashMap<MuName, usize>,
-    cond_branches: HashMap<usize, MuName>,
-    branches: HashMap<usize, MuName>,
     
     blocks: Vec<MuName>,
     block_start: HashMap<MuName, usize>,
@@ -50,6 +41,36 @@ unsafe impl Send for ASMCode {}
 unsafe impl Sync for ASMCode {}
 
 impl ASMCode {
+    fn get_use_locations(&self, reg: MuID) -> Vec<ASMLocation> {
+        let mut ret = vec![];
+
+        for inst in self.code.iter() {
+            match inst.uses.get(&reg) {
+                Some(ref locs) => {
+                    ret.append(&mut locs.to_vec());
+                },
+                None => {}
+            }
+        }
+
+        ret
+    }
+
+    fn get_define_locations(&self, reg: MuID) -> Vec<ASMLocation> {
+        let mut ret = vec![];
+
+        for inst in self.code.iter() {
+            match inst.defines.get(&reg) {
+                Some(ref locs) => {
+                    ret.append(&mut locs.to_vec());
+                },
+                None => {}
+            }
+        }
+
+        ret
+    }
+
     fn rewrite_insert(
         &self,
         insert_before: HashMap<usize, Vec<Box<ASMCode>>>,
@@ -58,15 +79,8 @@ impl ASMCode {
         let mut ret = ASMCode {
             name: self.name.clone(),
             code: vec![],
-            reg_defines: HashMap::new(),
-            reg_uses: HashMap::new(),
-            mem_op_used: HashMap::new(),
-            preds: vec![],
-            succs: vec![],
             idx_to_blk: HashMap::new(),
             blk_to_idx: HashMap::new(),
-            cond_branches: HashMap::new(),
-            branches: HashMap::new(),
             blocks: vec![],
             block_start: HashMap::new(),
             block_range: HashMap::new(),
@@ -133,23 +147,23 @@ impl MachineCode for ASMCode {
     }
     
     fn is_using_mem_op(&self, index: usize) -> bool {
-        *self.mem_op_used.get(&index).unwrap()
+        self.code[index].is_mem_op_used
     }
     
     fn get_succs(&self, index: usize) -> &Vec<usize> {
-        &self.succs[index]
+        &self.code[index].succs
     }
     
     fn get_preds(&self, index: usize) -> &Vec<usize> {
-        &self.preds[index]
+        &self.code[index].preds
     }
     
-    fn get_inst_reg_uses(&self, index: usize) -> &Vec<MuID> {
-        &self.code[index].uses
+    fn get_inst_reg_uses(&self, index: usize) -> Vec<MuID> {
+        self.code[index].uses.keys().map(|x| *x).collect()
     }
     
-    fn get_inst_reg_defines(&self, index: usize) -> &Vec<MuID> {
-        &self.code[index].defines
+    fn get_inst_reg_defines(&self, index: usize) -> Vec<MuID> {
+        self.code[index].defines.keys().map(|x| *x).collect()
     }
     
     fn replace_reg(&mut self, from: MuID, to: MuID) {
@@ -158,29 +172,20 @@ impl MachineCode for ASMCode {
             None => panic!("expecting a machine register, but we are required to replace to {}", to)
         };
         let to_reg_string = "%".to_string() + &to_reg_tag;
-        
-        match self.reg_defines.get(&from) {
-            Some(defines) => {
-                for loc in defines {
-                    let ref mut inst_to_patch = self.code[loc.line];
-                    for i in 0..loc.len {
-                        string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
-                    }
-                }
-            },
-            None => {}
+
+        for loc in self.get_define_locations(from) {
+            let ref mut inst_to_patch = self.code[loc.line];
+            for i in 0..loc.len {
+                // FIXME: why loop here?
+                string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
+            }
         }
 
-        match self.reg_uses.get(&from) {
-            Some(uses) => {
-                for loc in uses {
-                    let ref mut inst_to_patch = self.code[loc.line];
-                    for i in 0..loc.len {
-                        string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
-                    }
-                }
-            },
-            None => {}
+        for loc in self.get_use_locations(from) {
+            let ref mut inst_to_patch = self.code[loc.line];
+            for i in 0..loc.len {
+                string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
+            }
         }
     }
 
@@ -193,128 +198,41 @@ impl MachineCode for ASMCode {
             None => REG_PLACEHOLDER.clone()
         };
 
-        {
-            let asm = &mut self.code[inst];
-            // if this reg is defined, replace the define
-            if asm.defines.contains(&from) {
-                vec_utils::remove_value(&mut asm.defines, from);
-                asm.defines.push(to);
+        let asm = &mut self.code[inst];
+        // if this reg is defined, replace the define
+        if asm.defines.contains_key(&from) {
+            let define_locs = asm.defines.get(&from).unwrap().to_vec();
+            // replace temps
+            for loc in define_locs.iter() {
+                for i in 0..loc.len {
+                    string_utils::replace(&mut asm.code, loc.index, &to_reg_string, to_reg_string.len());
+                }
             }
-            // if this reg is used, replace the use
-            if asm.uses.contains(&from) {
-                vec_utils::remove_value(&mut asm.uses, from);
-                asm.uses.push(to);
-            }
+
+            // remove old key, insert new one
+            asm.defines.remove(&from);
+            asm.defines.insert(from, define_locs);
         }
 
-        // replace the define
-        // replace code
-        match self.reg_defines.get(&from) {
-            Some(defines) => {
-                for loc in defines {
-                    if loc.line == inst {
-                        let ref mut inst_to_patch = self.code[loc.line];
-                        for i in 0..loc.len {
-                            string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
-                        }
-                    }
-                }
-            },
-            None => {}
-        }
-        // replace info
-        let replaced_define = match self.reg_defines.get_mut(&from) {
-            Some(defines) => {
-                Some(vec_utils::remove_value_if_true(defines, |x| {x.line == inst}))
-            },
-            None => None
-        };
-        match replaced_define {
-            Some(mut defines) => {
-                if self.reg_defines.contains_key(&to) {
-                    self.reg_defines.get_mut(&to).unwrap().append(&mut defines);
-                } else {
-                    self.reg_defines.insert(to, defines);
+        // if this reg is used, replace the use
+        if asm.uses.contains_key(&from) {
+            let use_locs = asm.uses.get(&from).unwrap().to_vec();
+            // replace temps
+            for loc in use_locs.iter() {
+                for i in 0..loc.len {
+                    string_utils::replace(&mut asm.code, loc.index, &to_reg_string, to_reg_string.len());
                 }
             }
-            None => {}
-        };
 
-        // replace the use
-        // replace code
-        match self.reg_uses.get(&from) {
-            Some(uses) => {
-                for loc in uses {
-                    if loc.line == inst {
-                        let ref mut inst_to_patch = self.code[loc.line];
-                        for i in 0..loc.len {
-                            string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
-                        }
-                    }
-                }
-            },
-            None => {}
+            // remove old key, insert new one
+            asm.uses.remove(&from);
+            asm.uses.insert(from, use_locs);
         }
-        // replace info
-        let replaced_use = match self.reg_uses.get_mut(&from) {
-            Some(uses) => {
-                Some(vec_utils::remove_value_if_true(uses, |x| {x.line == inst}))
-            },
-            None => None
-        };
-        match replaced_use {
-            Some(mut uses) => {
-                if self.reg_uses.contains_key(&to) {
-                    self.reg_uses.get_mut(&to).unwrap().append(&mut uses);
-                } else {
-                    self.reg_uses.insert(to, uses);
-                }
-            }
-            None => {}
-        };
     }
     
     fn set_inst_nop(&mut self, index: usize) {
-        // FIXME: changing these info is inefficient - plus we probably do not need to
-
-        // remove any reg use of this instruction
-        // clone the vec otherwise since we need to borrow 'self' again
-        for reg in self.get_inst_reg_uses(index).to_vec() {
-            let mut locs = self.reg_uses.get_mut(&reg).unwrap();
-            let mut new_locs : Vec<ASMLocation> = vec![];
-
-            while !locs.is_empty() {
-                let loc = locs.pop().unwrap();
-                if loc.line != index {
-                    new_locs.push(loc);
-                }
-            }
-
-            debug_assert!(locs.is_empty());
-            locs.append(&mut new_locs);
-        }
-
-        // remove any reg define of this instruction
-        for reg in self.get_inst_reg_defines(index).to_vec() {
-            let mut locs = self.reg_defines.get_mut(&reg).unwrap();
-            let mut new_locs : Vec<ASMLocation> = vec![];
-
-            while !locs.is_empty() {
-                let loc = locs.pop().unwrap();
-                if loc.line != index {
-                    new_locs.push(loc);
-                }
-            }
-
-            debug_assert!(locs.is_empty());
-            locs.append(&mut new_locs);
-        }
-
-        // nop doesnt use memop
-        self.mem_op_used.insert(index, false);
-
         self.code.remove(index);
-        self.code.insert(index, ASM::nop());
+        self.code.insert(index, ASMInst::nop());
     }
     
     fn emit(&self) -> Vec<u8> {
@@ -344,7 +262,7 @@ impl MachineCode for ASMCode {
     fn trace_inst(&self, i: usize) {
         trace!("#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}", 
             i, self.code[i].code, self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
-            self.preds[i], self.succs[i]);
+            self.code[i].preds, self.code[i].succs);
     }
     
     fn get_ir_block_livein(&self, block: &str) -> Option<&Vec<MuID>> {
@@ -375,42 +293,66 @@ impl MachineCode for ASMCode {
     }
 }
 
-struct ASM {
-    code: String,
-    defines: Vec<MuID>,
-    uses: Vec<MuID>
+#[derive(Clone, Debug)]
+enum ASMBranchTarget {
+    None,
+    Conditional(MuName),
+    Unconditional(MuName)
 }
 
-impl ASM {
-    fn symbolic(line: String) -> ASM {
-        ASM {
+struct ASMInst {
+    code: String,
+
+    defines: HashMap<MuID, Vec<ASMLocation>>,
+    uses: HashMap<MuID, Vec<ASMLocation>>,
+
+    is_mem_op_used: bool,
+    preds: Vec<usize>,
+    succs: Vec<usize>,
+    branch: ASMBranchTarget
+}
+
+impl ASMInst {
+    fn symbolic(line: String) -> ASMInst {
+        ASMInst {
             code: line,
-            defines: vec![],
-            uses: vec![]
+            defines: HashMap::new(),
+            uses: HashMap::new(),
+            is_mem_op_used: false,
+            preds: vec![],
+            succs: vec![],
+            branch: ASMBranchTarget::None
         }
     }
     
-    fn inst(inst: String, defines: Vec<MuID>, uses: Vec<MuID>) -> ASM {
-        ASM {
+    fn inst(
+        inst: String,
+        defines: HashMap<MuID, Vec<ASMLocation>>,
+        uses: HashMap<MuID, Vec<ASMLocation>>,
+        is_mem_op_used: bool,
+        target: ASMBranchTarget
+    ) -> ASMInst
+    {
+        ASMInst {
             code: inst,
             defines: defines,
-            uses: uses
+            uses: uses,
+            is_mem_op_used: is_mem_op_used,
+            preds: vec![],
+            succs: vec![],
+            branch: target
         }
     }
     
-    fn branch(line: String) -> ASM {
-        ASM {
-            code: line,
-            defines: vec![],
-            uses: vec![]
-        }
-    }
-    
-    fn nop() -> ASM {
-        ASM {
+    fn nop() -> ASMInst {
+        ASMInst {
             code: "".to_string(),
-            defines: vec![],
-            uses: vec![]
+            defines: HashMap::new(),
+            uses: HashMap::new(),
+            is_mem_op_used: false,
+            preds: vec![],
+            succs: vec![],
+            branch: ASMBranchTarget::None
         }
     }
 }
@@ -423,10 +365,9 @@ struct ASMLocation {
 }
 
 impl ASMLocation {
-    /// the 'line' field will be updated later
-    fn new(index: usize, len: usize) -> ASMLocation {
+    fn new(line: usize, index: usize, len: usize) -> ASMLocation {
         ASMLocation{
-            line: usize::MAX,
+            line: line,
             index: index,
             len: len
         }
@@ -467,133 +408,106 @@ impl ASMCodeGen {
     
     fn add_asm_label(&mut self, code: String) {
         let l = self.line();
-        self.cur_mut().code.push(ASM::symbolic(code));
+        self.cur_mut().code.push(ASMInst::symbolic(code));
     }
     
     fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
         let l = self.line();
-        self.cur_mut().code.push(ASM::symbolic(code));
+        self.cur_mut().code.push(ASMInst::symbolic(code));
         
         self.cur_mut().idx_to_blk.insert(l, block_name.clone());
         self.cur_mut().blk_to_idx.insert(block_name, l);
     }
     
     fn add_asm_symbolic(&mut self, code: String){
-        self.cur_mut().code.push(ASM::symbolic(code));
+        self.cur_mut().code.push(ASMInst::symbolic(code));
     }
     
     fn prepare_machine_regs(&self, regs: Iter<P<Value>>) -> Vec<MuID> {
         regs.map(|x| self.prepare_machine_reg(x)).collect()
-    } 
+    }
     
     fn add_asm_call(&mut self, code: String) {
         // a call instruction will use all the argument registers
-        let mut uses : Vec<MuID> = self.prepare_machine_regs(x86_64::ARGUMENT_GPRs.iter());
-        uses.append(&mut self.prepare_machine_regs(x86_64::ARGUMENT_FPRs.iter()));
+        let mut uses : HashMap<MuID, Vec<ASMLocation>> = HashMap::new();
+        for reg in x86_64::ARGUMENT_GPRs.iter() {
+            uses.insert(reg.id(), vec![]);
+        }
+        for reg in x86_64::ARGUMENT_FPRs.iter() {
+            uses.insert(reg.id(), vec![]);
+        }
 
         // defines: return registers
-        let mut defines : Vec<MuID> = self.prepare_machine_regs(x86_64::RETURN_GPRs.iter());
-        defines.append(&mut self.prepare_machine_regs(x86_64::RETURN_FPRs.iter()));
-        // defines: caller saved registers
-        vec_utils::append_unique(&mut defines, &mut self.prepare_machine_regs(x86_64::CALLER_SAVED_GPRs.iter()));
-        vec_utils::append_unique(&mut defines, &mut self.prepare_machine_regs(x86_64::CALLER_SAVED_FPRs.iter()));
+        let mut defines : HashMap<MuID, Vec<ASMLocation>> = HashMap::new();
+        for reg in x86_64::RETURN_GPRs.iter() {
+            defines.insert(reg.id(), vec![]);
+        }
+        for reg in x86_64::RETURN_FPRs.iter() {
+            defines.insert(reg.id(), vec![]);
+        }
+        for reg in x86_64::CALLER_SAVED_GPRs.iter() {
+            if !defines.contains_key(&reg.id()) {
+                defines.insert(reg.id(), vec![]);
+            }
+        }
+        for reg in x86_64::CALLER_SAVED_FPRs.iter() {
+            if !defines.contains_key(&reg.id()) {
+                defines.insert(reg.id(), vec![]);
+            }
+        }
           
-        self.add_asm_inst(code, defines, vec![], uses, vec![], false);
+        self.add_asm_inst(code, defines, uses, false);
     }
     
     fn add_asm_ret(&mut self, code: String) {
-        let mut uses : Vec<MuID> = self.prepare_machine_regs(x86_64::RETURN_GPRs.iter());
-        uses.append(&mut self.prepare_machine_regs(x86_64::RETURN_FPRs.iter()));
+        let mut uses : HashMap<MuID, Vec<ASMLocation>> = {
+            let mut ret = HashMap::new();
+            for reg in x86_64::RETURN_GPRs.iter() {
+                ret.insert(reg.id(), vec![]);
+            }
+            for reg in x86_64::RETURN_FPRs.iter() {
+                ret.insert(reg.id(), vec![]);
+            }
+            ret
+        };
         
-        self.add_asm_inst(code, vec![], vec![], uses, vec![], false);
+        self.add_asm_inst(code, hashmap!{}, uses, false);
     }
     
     fn add_asm_branch(&mut self, code: String, target: MuName) {
-        let l = self.line();
-        self.cur_mut().branches.insert(l, target);
-        
-        self.add_asm_inst(code, vec![], vec![], vec![], vec![], false);
+        self.add_asm_inst_internal(code, hashmap!{}, hashmap!{}, false, ASMBranchTarget::Unconditional(target));
     }
     
     fn add_asm_branch2(&mut self, code: String, target: MuName) {
-        let l = self.line();
-        self.cur_mut().cond_branches.insert(l, target);
-        
-        self.add_asm_inst(code, vec![], vec![], vec![], vec![], false);
+        self.add_asm_inst_internal(code, hashmap!{}, hashmap!{}, false, ASMBranchTarget::Conditional(target));
     }
     
     fn add_asm_inst(
         &mut self, 
         code: String, 
-        defines: Vec<MuID>,
-        mut define_locs: Vec<ASMLocation>, 
-        uses: Vec<MuID>,
-        mut use_locs: Vec<ASMLocation>,
-        is_using_mem_op: bool) 
+        defines: HashMap<MuID, Vec<ASMLocation>>,
+        uses: HashMap<MuID, Vec<ASMLocation>>,
+        is_using_mem_op: bool)
+    {
+        self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None)
+    }
+
+    fn add_asm_inst_internal(
+        &mut self,
+        code: String,
+        defines: HashMap<MuID, Vec<ASMLocation>>,
+        uses: HashMap<MuID, Vec<ASMLocation>>,
+        is_using_mem_op: bool,
+        target: ASMBranchTarget)
     {
         let line = self.line();
-        
         trace!("asm: {}", code);
-        trace!("     defines: {:?}, def_locs: {:?}", defines, define_locs);
-        trace!("     uses: {:?}, use_locs: {:?}", uses, use_locs);
+        trace!("     defines: {:?}", defines);
+        trace!("     uses: {:?}", uses);
         let mc = self.cur_mut();
-       
-        // add locations of defined registers
-        for i in 0..define_locs.len() {
-            let id = defines[i];
-            
-            // update line in location
-            let ref mut loc = define_locs[i];
-            loc.line = line;
-            
-            if mc.reg_defines.contains_key(&id) {
-                mc.reg_defines.get_mut(&id).unwrap().push(loc.clone());
-            } else {
-                mc.reg_defines.insert(id, vec![loc.clone()]);
-            }
-        }
-       
-        for i in 0..use_locs.len() {
-            let id = uses[i];
-            
-            // update line in location
-            let ref mut loc = use_locs[i];
-            loc.line = line;
-            
-            if mc.reg_uses.contains_key(&id) {
-                mc.reg_uses.get_mut(&id).unwrap().push(loc.clone());
-            } else {
-                mc.reg_uses.insert(id, vec![loc.clone()]);
-            }
-        }
-       
+
         // put the instruction
-        mc.code.push(ASM::inst(code, defines, uses));
-        mc.mem_op_used.insert(line, is_using_mem_op);
-    }
-    
-    fn define_reg(&mut self, reg: &P<Value>, loc: ASMLocation) {
-        let id = reg.extract_ssa_id().unwrap();
-        
-        let code = self.cur_mut();
-        if code.reg_defines.contains_key(&id) {
-            let regs = code.reg_defines.get_mut(&id).unwrap();
-            regs.push(loc);
-        } else {
-            code.reg_defines.insert(id, vec![loc]);
-        } 
-    }
-    
-    fn use_reg(&mut self, reg: &P<Value>, loc: ASMLocation) {
-        let id = reg.extract_ssa_id().unwrap();
-        
-        let code = self.cur_mut();
-        if code.reg_uses.contains_key(&id) {
-            let reg_uses = code.reg_uses.get_mut(&id).unwrap();
-            reg_uses.push(loc);
-        } else {
-            code.reg_uses.insert(id, vec![loc]);
-        } 
+        mc.code.push(ASMInst::inst(code, defines, uses, is_using_mem_op, target));
     }
     
     fn prepare_reg(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
@@ -606,7 +520,7 @@ impl ASMCodeGen {
         
         let str = self.asm_reg_op(op);
         let len = str.len();
-        (str, op.extract_ssa_id().unwrap(), ASMLocation::new(loc, len)) 
+        (str, op.extract_ssa_id().unwrap(), ASMLocation::new(self.line(), loc, len))
     }
     
     fn prepare_machine_reg(&self, op: &P<Value>) -> MuID {
@@ -621,14 +535,14 @@ impl ASMCodeGen {
     }
     
     #[allow(unused_assignments)]
-    fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, Vec<MuID>, Vec<ASMLocation>) {
+    fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, HashMap<MuID, Vec<ASMLocation>>) {
         if cfg!(debug_assertions) {
             match op.v {
                 Value_::Memory(_) => {},
                 _ => panic!("expecting register op")
             }
         }        
-        
+
         let mut ids : Vec<MuID> = vec![];
         let mut locs : Vec<ASMLocation> = vec![];
         let mut result_str : String = "".to_string();
@@ -729,15 +643,31 @@ impl ASMCodeGen {
                     ids.push(id);
                     locs.push(loc);
                     loc_cursor += str.len();
-                    
+
                     result_str.push(')');
-                    loc_cursor += 1;                    
+                    loc_cursor += 1;
                 }
             },
             _ => panic!("expect mem location as value")
         }
-        
-        (result_str, ids, locs)
+
+        let uses : HashMap<MuID, Vec<ASMLocation>> = {
+            let mut map : HashMap<MuID, Vec<ASMLocation>> = hashmap!{};
+            for i in 0..ids.len() {
+                let id = ids[i];
+                let loc = locs[i].clone();
+
+                if map.contains_key(&id) {
+                    map.get_mut(&id).unwrap().push(loc);
+                } else {
+                    map.insert(id, vec![loc]);
+                }
+            }
+            map
+        };
+
+
+        (result_str, uses)
     }
     
     fn asm_reg_op(&self, op: &P<Value>) -> String {
@@ -758,10 +688,9 @@ impl ASMCodeGen {
     fn control_flow_analysis(&mut self) {
         // control flow analysis
         let n_insts = self.line();
-        
+
         let code = self.cur_mut();
-        code.preds = vec![vec![]; n_insts];
-        code.succs = vec![vec![]; n_insts];
+        let ref mut asm = code.code;
         
         for i in 0..n_insts {
             // determine predecessor - if cur is not block start, its predecessor is previous insts
@@ -770,7 +699,7 @@ impl ASMCodeGen {
                 if i > 0 {
                     trace!("inst {}: not a block start", i);
                     trace!("inst {}: set PREDS as previous inst {}", i, i-1);
-                    code.preds[i].push(i - 1);
+                    asm[i].preds.push(i - 1);
                 }
             } else {
                 // if cur is a branch target, we already set its predecessor
@@ -778,58 +707,57 @@ impl ASMCodeGen {
             }
             
             // determine successor
-            let is_branch = code.branches.get(&i);
-            if is_branch.is_some() {
-                // branch to target
-                let target = is_branch.unwrap();
-                trace!("inst {}: is a branch to {}", i, target);
-                                
-                let target_n = code.blk_to_idx.get(target).unwrap();
-                trace!("inst {}: branch target index is {}", i, target_n);
-                
-                // cur inst's succ is target
-                trace!("inst {}: set SUCCS as branch target {}", i, target_n);
-                code.succs[i].push(*target_n);
-                
-                // target's pred is cur
-                trace!("inst {}: set PREDS as branch source {}", target_n, i);
-                code.preds[*target_n].push(i);
-            } else {
-                let is_cond_branch = code.cond_branches.get(&i);
-                if is_cond_branch.is_some() {
+            let branch = asm[i].branch.clone();
+            match branch {
+                ASMBranchTarget::Unconditional(ref target) => {
                     // branch to target
-                    let target = is_cond_branch.unwrap();
-                    trace!("inst {}: is a cond branch to {}", i, target);
-                    
+                    trace!("inst {}: is a branch to {}", i, target);
+
                     let target_n = code.blk_to_idx.get(target).unwrap();
                     trace!("inst {}: branch target index is {}", i, target_n);
-                    
+
+                    // cur inst's succ is target
+                    trace!("inst {}: set SUCCS as branch target {}", i, target_n);
+                    asm[i].succs.push(*target_n);
+
+                    // target's pred is cur
+                    trace!("inst {}: set PREDS as branch source {}", target_n, i);
+                    asm[*target_n].preds.push(i);
+                },
+                ASMBranchTarget::Conditional(ref target) => {
+                    // branch to target
+                    trace!("inst {}: is a cond branch to {}", i, target);
+
+                    let target_n = code.blk_to_idx.get(target).unwrap();
+                    trace!("inst {}: branch target index is {}", i, target_n);
+
                     // cur insts' succ is target and next inst
-                    code.succs[i].push(*target_n);
+                    asm[i].succs.push(*target_n);
                     trace!("inst {}: set SUCCS as branch target {}", i, target_n);
                     if i < n_insts - 1 {
-                        trace!("inst {}: set SUCCS as next inst", i + 1);                        
-                        code.succs[i].push(i + 1);
+                        trace!("inst {}: set SUCCS as next inst", i + 1);
+                        asm[i].succs.push(i + 1);
                     }
-                    
+
                     // target's pred is cur
-                    code.preds[*target_n].push(i);
+                    asm[*target_n].preds.push(i);
                     trace!("inst {}: set PREDS as {}", *target_n, i);
-                } else {
+                },
+                ASMBranchTarget::None => {
                     // not branch nor cond branch, succ is next inst
                     trace!("inst {}: not a branch inst", i);
                     if i < n_insts - 1 {
                         trace!("inst {}: set SUCCS as next inst {}", i, i + 1);
-                        code.succs[i].push(i + 1);
+                        asm[i].succs.push(i + 1);
                     }
                 }
-            } 
+            }
         }
         
         // a sanity check for fallthrough blocks
         for i in 0..n_insts {
-            if i != 0 && code.preds[i].len() == 0 {
-                code.preds[i].push(i - 1);
+            if i != 0 && asm[i].preds.len() == 0 {
+                asm[i].preds.push(i - 1);
             }
         }        
     }
@@ -844,18 +772,9 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(Box::new(ASMCode {
                 name: func_name.clone(),
                 code: vec![],
-                reg_defines: HashMap::new(),
-                reg_uses: HashMap::new(),
-                
-                mem_op_used: HashMap::new(),
-                
-                preds: vec![],
-                succs: vec![],
                 
                 idx_to_blk: HashMap::new(),
                 blk_to_idx: HashMap::new(),
-                cond_branches: HashMap::new(),
-                branches: HashMap::new(),
                 
                 blocks: vec![],
                 block_start: HashMap::new(),
@@ -894,18 +813,9 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(Box::new(ASMCode {
             name: "snippet".to_string(),
             code: vec![],
-            reg_defines: HashMap::new(),
-            reg_uses: HashMap::new(),
-
-            mem_op_used: HashMap::new(),
-
-            preds: vec![],
-            succs: vec![],
 
             idx_to_blk: HashMap::new(),
             blk_to_idx: HashMap::new(),
-            cond_branches: HashMap::new(),
-            branches: HashMap::new(),
 
             blocks: vec![],
             block_start: HashMap::new(),
@@ -1011,10 +921,8 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![],
-            vec![],
-            vec![],
-            vec![],
+            hashmap!{},
+            hashmap!{},
             false
         );
     }
@@ -1029,10 +937,11 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![],
-            vec![],
-            vec![id1, id2],
-            vec![loc1, loc2],
+            hashmap!{},
+            hashmap!{
+                id1 => vec![loc1],
+                id2 => vec![loc2]
+            },
             false
         );
     }
@@ -1046,10 +955,10 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![],
-            vec![],
-            vec![id1],
-            vec![loc1],
+            hashmap!{},
+            hashmap!{
+                id1 => vec![loc1]
+            },
             false
         )
     }
@@ -1058,20 +967,21 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: cmp {} {}", op1, op2);
         
         let (reg, id1, loc1) = self.prepare_reg(op1, 4 + 1);
-        let (mem, mut id2, mut loc2) = self.prepare_mem(op2, 4 + 1 + reg.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(op2, 4 + 1 + reg.len() + 1);
         
         let asm = format!("cmpq {},{}", reg, mem);
         
         // merge use vec
-        id2.push(id1);
-        loc2.push(loc1);
+        if uses.contains_key(&id1) {
+            uses.get_mut(&id1).unwrap().push(loc1);
+        } else {
+            uses.insert(id1, vec![loc1]);
+        }
         
         self.add_asm_inst(
             asm,
-            vec![],
-            vec![],
-            id2,
-            loc2,
+            hashmap!{},
+            uses,
             true
         )
     }
@@ -1085,10 +995,10 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id1],
-            vec![loc1],
-            vec![],
-            vec![],
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            hashmap!{},
             false
         )
     }
@@ -1097,17 +1007,17 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: mov {} -> {}", src, dest);
         
-        let (mem, id1, loc1) = self.prepare_mem(src, 4 + 1);
+        let (mem, uses) = self.prepare_mem(src, 4 + 1);
         let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
         
         let asm = format!("movq {},{}", mem, reg);
         
         self.add_asm_inst(
             asm,
-            vec![id2],
-            vec![loc2],
-            id1,
-            loc1,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            uses,
             true
         )
     }
@@ -1117,21 +1027,22 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: mov {} -> {}", src, dest);
         
         let (reg, id1, loc1) = self.prepare_reg(src, 4 + 1);
-        let (mem, mut id2, mut loc2) = self.prepare_mem(dest, 4 + 1 + reg.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + reg.len() + 1);
         
         // the register we used for the memory location is counted as 'use'
         // use the vec from mem as 'use' (push use reg from src to it)
-        id2.push(id1);
-        loc2.push(loc1);
+        if uses.contains_key(&id1) {
+            uses.get_mut(&id1).unwrap().push(loc1);
+        } else {
+            uses.insert(id1, vec![loc1]);
+        }
         
         let asm = format!("movq {},{}", reg, mem);
         
         self.add_asm_inst(
             asm,
-            vec![], // not defining anything (write to memory)
-            vec![],
-            id2,
-            loc2,
+            hashmap!{},
+            uses,
             true
         )
     }
@@ -1139,16 +1050,14 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_mem64_imm32(&mut self, dest: &P<Value>, src: i32) {
         trace!("emit: mov {} -> {}", src, dest);
         
-        let (mem, id, loc) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+        let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
         
         let asm = format!("movq ${},{}", src, mem);
         
         self.add_asm_inst(
             asm,
-            vec![],
-            vec![],
-            id,
-            loc,
+            hashmap!{},
+            uses,
             true
         )
     }
@@ -1163,10 +1072,12 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id2],
-            vec![loc2],
-            vec![id1],
-            vec![loc1],
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
             false
         )
     }
@@ -1181,10 +1092,13 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id2],
-            vec![loc2.clone()],
-            vec![id1, id2],
-            vec![loc1, loc2],
+            hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1],
+                id2 => vec![loc2]
+            },
             false
         )
     }
@@ -1192,17 +1106,17 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_lea_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: lea {} -> {}", src, dest);
         
-        let (mem, id1, loc1) = self.prepare_mem(src, 4 + 1);
+        let (mem, uses) = self.prepare_mem(src, 4 + 1);
         let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
         
         let asm = format!("leaq {},{}", mem, reg);
         
         self.add_asm_inst(
             asm,
-            vec![id2],
-            vec![loc2],
-            id1,
-            loc1,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            uses,
             true
         ) 
     }
@@ -1216,10 +1130,12 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id1],
-            vec![loc1.clone()],
-            vec![id1],
-            vec![loc1],
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
             false
         )
     }
@@ -1234,10 +1150,13 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id2],
-            vec![loc2.clone()],
-            vec![id1, id2],
-            vec![loc1, loc2],
+            hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1],
+                id2 => vec![loc2]
+            },
             false
         )
     }    
@@ -1256,10 +1175,12 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id1],
-            vec![loc1.clone()],
-            vec![id1],
-            vec![loc1],
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
             false
         )
     }
@@ -1274,10 +1195,13 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id2],
-            vec![loc2.clone()],
-            vec![id1, id2],
-            vec![loc1, loc2],
+            hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1],
+                id2 => vec![loc2]
+            },
             false
         )        
     }
@@ -1296,10 +1220,12 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id1],
-            vec![loc1.clone()],
-            vec![id1],
-            vec![loc1],
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
             false
         )        
     }
@@ -1315,10 +1241,14 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![rax, rdx],
-            vec![],
-            vec![id, rax],
-            vec![loc],
+            hashmap!{
+                rax => vec![],
+                rdx => vec![]
+            },
+            hashmap!{
+                id => vec![loc],
+                rax => vec![]
+            },
             false
         )
     }
@@ -1446,10 +1376,13 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![rsp],
-            vec![],
-            vec![id, rsp],
-            vec![loc],
+            hashmap!{
+                rsp => vec![]
+            },
+            hashmap!{
+                id => vec![loc],
+                rsp => vec![]
+            },
             false
         )
     }
@@ -1463,10 +1396,12 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![rsp],
-            vec![],
-            vec![rsp],
-            vec![],
+            hashmap!{
+                rsp => vec![]
+            },
+            hashmap!{
+                rsp => vec![]
+            },
             false
         )
     }
@@ -1481,10 +1416,13 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            vec![id, rsp],
-            vec![loc.clone()],
-            vec![rsp],
-            vec![],
+            hashmap!{
+                id => vec![loc.clone()],
+                rsp => vec![]
+            },
+            hashmap!{
+                rsp => vec![]
+            },
             false
         )        
     }    
