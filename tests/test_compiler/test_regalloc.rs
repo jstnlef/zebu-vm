@@ -58,6 +58,8 @@ fn test_ir_liveness_fac() {
     
     let block_1_liveout = cf.mc().get_ir_block_liveout("blk_1").unwrap();
     let blk_1_v52 = vm.id_of("blk_1_v52");
+    trace!("lhs: {:?}", block_1_liveout);
+    trace!("rhs: {:?}", vec![blk_1_v52]);
     assert!(vec_utils::is_identical_to_str_ignore_order(block_1_liveout, vec![blk_1_v52]));
     
     // block 2

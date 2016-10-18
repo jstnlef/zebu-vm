@@ -3,7 +3,6 @@ use ast::ir::*;
 use runtime::ValueLocation;
 
 use compiler::machine_code::MachineCode;
-use compiler::backend::x86_64::ASMCodeGen;
 
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName) -> ValueLocation;
