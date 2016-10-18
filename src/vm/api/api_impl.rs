@@ -26,6 +26,7 @@ use super::super::vm::VM;
 use super::api_c::*;
 use super::api_bridge::*;
 //use super::deps::*;   // maybe it is better to import * here.
+use super::irnodes::*;
 
 use ast::bundle::*;
 use ast::ir::*;
@@ -97,7 +98,18 @@ pub struct MuIRBuilder<'v> {
 /// A trantient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
 #[derive(Default)]
 pub struct TrantientBundle {
-    types: Vec<P<MuType>>,
+    types: Vec<Box<NodeType>>,
+    sigs: Vec<Box<NodeFuncSig>>,
+    consts: Vec<Box<NodeConst>>,
+    globals: Vec<Box<NodeGlobalCell>>,
+    funcs: Vec<Box<NodeFunc>>,
+    expfuncs: Vec<Box<NodeExpFunc>>,
+    funcvers: Vec<Box<NodeFuncVer>>,
+    bbs: Vec<Box<NodeBB>>,
+    insts: Vec<Box<NodeInst>>,
+    dest_clauses: Vec<Box<NodeDestClause>>,
+    exc_clauses: Vec<Box<NodeExcClause>>,
+    ka_clauses: Vec<Box<NodeKeepaliveClause>>,
 }
 
 /**
@@ -621,16 +633,19 @@ impl<'v> MuIRBuilder<'v> {
     }
 
     pub fn new_type_int(&mut self, id: MuID, len: c_int) {
-        let maybe_name = self.consume_name_of(id);
-        let pty = P(MuType {
-            hdr: MuEntityHeader {
-                id: id,
-                name: RwLock::new(maybe_name),
-            },
-            v: MuType_::Int(len as usize),
-        });
+        self.bundle.types.push(Box::new(NodeType::TypeInt { id: id, len: len }));
 
-        self.bundle.types.push(pty);
+
+//        let maybe_name = self.consume_name_of(id);
+//        let pty = P(MuType {
+//            hdr: MuEntityHeader {
+//                id: id,
+//                name: RwLock::new(maybe_name),
+//            },
+//            v: MuType_::Int(len as usize),
+//        });
+//
+//        self.bundle.types.push(pty);
     }
 
     pub fn new_type_float(&mut self, id: MuID) {
@@ -642,7 +657,8 @@ impl<'v> MuIRBuilder<'v> {
     }
 
     pub fn new_type_uptr(&mut self, id: MuID, ty: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.push(Box::new(NodeType::TypeUPtr{ id: id,
+            ty: ty }));
     }
 
     pub fn new_type_ufuncptr(&mut self, id: MuID, sig: MuID) {
@@ -650,7 +666,8 @@ impl<'v> MuIRBuilder<'v> {
     }
 
     pub fn new_type_struct(&mut self, id: MuID, fieldtys: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.types.push(Box::new(NodeType::TypeStruct { id: id,
+            fieldtys: fieldtys }));
     }
 
     pub fn new_type_hybrid(&mut self, id: MuID, fixedtys: Vec<MuID>, varty: MuID) {
@@ -706,11 +723,13 @@ impl<'v> MuIRBuilder<'v> {
     }
 
     pub fn new_funcsig(&mut self, id: MuID, paramtys: Vec<MuID>, rettys: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.sigs.push(Box::new(NodeFuncSig { id: id,
+            paramtys: paramtys, rettys: rettys }));
     }
 
     pub fn new_const_int(&mut self, id: MuID, ty: MuID, value: u64) {
-        panic!("Not implemented")
+        self.bundle.consts.push(Box::new(NodeConst::ConstInt { id: id,
+            ty: ty, value: value }));
     }
 
     pub fn new_const_int_ex(&mut self, id: MuID, ty: MuID, values: &[u64]) {
@@ -738,11 +757,13 @@ impl<'v> MuIRBuilder<'v> {
     }
 
     pub fn new_global_cell(&mut self, id: MuID, ty: MuID) {
-        panic!("Not implemented")
+        self.bundle.globals.push(Box::new(NodeGlobalCell { id: id,
+            ty: ty }));
     }
 
     pub fn new_func(&mut self, id: MuID, sig: MuID) {
-        panic!("Not implemented")
+        self.bundle.funcs.push(Box::new(NodeFunc { id: id,
+            sig: sig }));
     }
 
     pub fn new_exp_func(&mut self, id: MuID, func: MuID, callconv: CMuCallConv, cookie: MuID) {
@@ -750,11 +771,14 @@ impl<'v> MuIRBuilder<'v> {
     }
 
     pub fn new_func_ver(&mut self, id: MuID, func: MuID, bbs: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.funcvers.push(Box::new(NodeFuncVer { id: id,
+            func: func, bbs: bbs }));
     }
 
     pub fn new_bb(&mut self, id: MuID, nor_param_ids: Vec<MuID>, nor_param_types: Vec<MuID>, exc_param_id: Option<MuID>, insts: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.bbs.push(Box::new(NodeBB { id: id,
+            norParamIDs: nor_param_ids, norParamTys: nor_param_types,
+            excParamID: exc_param_id, insts: insts }));
     }
 
     pub fn new_dest_clause(&mut self, id: MuID, dest: MuID, vars: Vec<MuID>) {
@@ -786,7 +810,10 @@ impl<'v> MuIRBuilder<'v> {
     }
 
     pub fn new_binop(&mut self, id: MuID, result_id: MuID, optr: CMuBinOptr, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.bundle.insts.push(Box::new(NodeInst::NodeBinOp {
+            id: id, resultID: result_id, statusResultIDs: vec![],
+            optr: optr, flags: 0, ty: ty, opnd1: opnd1, opnd2: opnd2,
+            excClause: exc_clause}))
     }
 
     pub fn new_binop_with_status(&mut self, id: MuID, result_id: MuID, status_result_ids: Vec<MuID>, optr: CMuBinOptr, status_flags: CMuBinOpStatus, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
