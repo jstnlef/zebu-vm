@@ -14,6 +14,8 @@ use self::mu::vm::*;
 use self::mu::vm::api::*;
 
 use std::mem;
+use std::ptr;
+use std::ffi::CString;
 
 #[test]
 #[allow(unused_variables)]
@@ -41,6 +43,10 @@ fn test_startup_shutdown() {
         let ctx = ((*mvm).new_context)(mvm);
 
         let b = ((*ctx).new_ir_builder)(ctx);
+
+        let id1 = ((*b).gen_sym)(b, ptr::null_mut());
+        let id2 = ((*b).gen_sym)(b, CString::new("@id2").unwrap().as_ptr());
+        let id3 = ((*b).gen_sym)(b, ptr::null_mut());
 
         ((*b).abort)(b);
         ((*ctx).close_context)(ctx);

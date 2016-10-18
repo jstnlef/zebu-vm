@@ -19,12 +19,19 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use std::sync::Mutex;
+use std::sync::RwLock;
 
 use super::super::vm::VM;
 
 use super::api_c::*;
 use super::api_bridge::*;
-use super::deps::*;
+//use super::deps::*;   // maybe it is better to import * here.
+use super::irnodes::*;
+
+use ast::bundle::*;
+use ast::ir::*;
+use ast::ptr::*;
+use ast::types::*;
 
 /**
  * Create a micro VM instance, and expose it as a C-visible `*mut CMuVM` pointer.
@@ -66,19 +73,43 @@ pub struct MuVM {
 }
 
 pub struct MuCtx<'v> {
-    // ref to the MuVM struct.
-    mvm: &'v mut MuVM,
+    /// ref to MuVM
+    mvm: &'v MuVM,
 
-    // Point to the C-visible CMuCtx so that `close_context` can deallocate itself.
+    /// Point to the C-visible CMuCtx so that `close_context` can deallocate itself.
     c_struct: *mut CMuCtx,
 }
 
-pub struct MuIRBuilder<'c> {
-    // ref to the MuCtx struct.
-    ctx: &'c mut MuCtx<'c>,
+pub struct MuIRBuilder<'v> {
+    /// ref to MuVM
+    mvm: &'v MuVM,
 
-    // Point to the C-visible CMuIRBuilder so that `load` and `abort` can deallocate itself.
+    /// Point to the C-visible CMuIRBuilder so that `load` and `abort` can deallocate itself.
     c_struct: *mut CMuIRBuilder,
+
+    /// Map IDs to names. Items are inserted during `gen_sym`. MuIRBuilder is supposed to be used
+    /// by one thread, so there is no need for locking.
+    id_name_map: HashMap<MuID, MuName>,
+
+    /// The "trantient bundle" includes everything being built here.
+    bundle: TrantientBundle,
+}
+
+/// A trantient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
+#[derive(Default)]
+pub struct TrantientBundle {
+    types: Vec<Box<NodeType>>,
+    sigs: Vec<Box<NodeFuncSig>>,
+    consts: Vec<Box<NodeConst>>,
+    globals: Vec<Box<NodeGlobalCell>>,
+    funcs: Vec<Box<NodeFunc>>,
+    expfuncs: Vec<Box<NodeExpFunc>>,
+    funcvers: Vec<Box<NodeFuncVer>>,
+    bbs: Vec<Box<NodeBB>>,
+    insts: Vec<Box<NodeInst>>,
+    dest_clauses: Vec<Box<NodeDestClause>>,
+    exc_clauses: Vec<Box<NodeExcClause>>,
+    ka_clauses: Vec<Box<NodeKeepaliveClause>>,
 }
 
 /**
@@ -104,7 +135,7 @@ impl MuVM {
         }
     }
 
-    pub fn new_context(&mut self) -> *mut CMuCtx {
+    pub fn new_context(&self) -> *mut CMuCtx {
         info!("Creating MuCtx...");
 
         let ctx = Box::new(MuCtx {
@@ -125,11 +156,11 @@ impl MuVM {
         cctx
     }
 
-    pub fn id_of(&mut self, name: MuName) -> MuID {
+    pub fn id_of(&self, name: MuName) -> MuID {
         self.vm.id_of_by_refstring(&name)
     }
 
-    pub fn name_of(&mut self, id: MuID) -> CMuCString {
+    pub fn name_of(&self, id: MuID) -> CMuCString {
         let mut map = self.name_cache.lock().unwrap();
 
         let cname = map.entry(id).or_insert_with(|| {
@@ -140,7 +171,7 @@ impl MuVM {
         cname.as_ptr()
     }
 
-    pub fn set_trap_handler(&mut self, trap_handler: CMuTrapHandler, userdata: CMuCPtr) {
+    pub fn set_trap_handler(&self, trap_handler: CMuTrapHandler, userdata: CMuCPtr) {
         panic!("Not implemented")
     }
 
@@ -148,8 +179,9 @@ impl MuVM {
 
 impl<'v> MuCtx<'v> {
     #[inline(always)]
-    fn get_mvm(&mut self) -> &mut MuVM {
+    fn get_mvm(&mut self) -> &MuVM {
         self.mvm
+        //unsafe { &mut *self.mvm }
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
@@ -511,12 +543,14 @@ impl<'v> MuCtx<'v> {
         panic!("Not implemented")
     }
 
-    pub fn new_ir_builder(&'v mut self) -> *mut CMuIRBuilder {
+    pub fn new_ir_builder(&mut self) -> *mut CMuIRBuilder {
         info!("Creating MuIRBuilder...");
 
-        let b: Box<MuIRBuilder<'v>> = Box::new(MuIRBuilder {
-            ctx: self,
+        let b: Box<MuIRBuilder> = Box::new(MuIRBuilder {
+            mvm: self.mvm,
             c_struct: ptr::null_mut(),
+            id_name_map: Default::default(),
+            bundle: Default::default(),
         });
 
         let b_ptr = Box::into_raw(b);
@@ -538,24 +572,19 @@ impl<'v> MuCtx<'v> {
 
 }
 
-impl<'c> MuIRBuilder<'c> {
+impl<'v> MuIRBuilder<'v> {
     #[inline(always)]
-    fn get_ctx(&'c mut self) -> &mut MuCtx {
-        self.ctx
+    fn get_mvm(&mut self) -> &MuVM {
+        self.mvm
     }
 
     #[inline(always)]
-    fn get_mvm(&'c mut self) -> &mut MuVM {
-        self.get_ctx().get_mvm()
+    fn get_vm(&mut self) -> &VM {
+        &self.get_mvm().vm
     }
 
     #[inline(always)]
-    fn get_vm(&'c mut self) -> &mut VM {
-        &mut self.get_mvm().vm
-    }
-
-    #[inline(always)]
-    fn next_id(&'c mut self) -> MuID {
+    fn next_id(&mut self) -> MuID {
         self.get_vm().next_id()
     }
 
@@ -569,6 +598,13 @@ impl<'c> MuIRBuilder<'c> {
         }
     }
 
+    /// Get the Mu name of the `id`. This will consume the entry in the `id_name_map`. For this
+    /// reason, this function is only called when the actual MuEntity that has this ID is created
+    /// (such as `new_type_int`).
+    fn consume_name_of(&mut self, id: MuID) -> Option<MuName> {
+        self.id_name_map.remove(&id)
+    }
+
     pub fn load(&mut self) {
         panic!("Please implement bundle loading before deallocating itself.");
         self.deallocate();
@@ -579,13 +615,37 @@ impl<'c> MuIRBuilder<'c> {
         self.deallocate();
     }
 
-    pub fn gen_sym(&'c mut self, name: Option<String>) -> MuID {
+    pub fn gen_sym(&mut self, name: Option<String>) -> MuID {
         let my_id = self.next_id();
-        panic!("Not implemented")
+
+        debug!("gen_sym({:?}) -> {}", name, my_id);
+
+        match name {
+            None => {},
+            Some(the_name) => {
+                let old = self.id_name_map.insert(my_id, the_name);
+                debug_assert!(old.is_none(), "ID already exists: {}, new name: {}, old name: {}",
+                my_id, self.id_name_map.get(&my_id).unwrap(), old.unwrap());
+            },
+        };
+
+        my_id
     }
 
     pub fn new_type_int(&mut self, id: MuID, len: c_int) {
-        panic!("Not implemented")
+        self.bundle.types.push(Box::new(NodeType::TypeInt { id: id, len: len }));
+
+
+//        let maybe_name = self.consume_name_of(id);
+//        let pty = P(MuType {
+//            hdr: MuEntityHeader {
+//                id: id,
+//                name: RwLock::new(maybe_name),
+//            },
+//            v: MuType_::Int(len as usize),
+//        });
+//
+//        self.bundle.types.push(pty);
     }
 
     pub fn new_type_float(&mut self, id: MuID) {
@@ -597,7 +657,8 @@ impl<'c> MuIRBuilder<'c> {
     }
 
     pub fn new_type_uptr(&mut self, id: MuID, ty: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.push(Box::new(NodeType::TypeUPtr{ id: id,
+            ty: ty }));
     }
 
     pub fn new_type_ufuncptr(&mut self, id: MuID, sig: MuID) {
@@ -605,7 +666,8 @@ impl<'c> MuIRBuilder<'c> {
     }
 
     pub fn new_type_struct(&mut self, id: MuID, fieldtys: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.types.push(Box::new(NodeType::TypeStruct { id: id,
+            fieldtys: fieldtys }));
     }
 
     pub fn new_type_hybrid(&mut self, id: MuID, fixedtys: Vec<MuID>, varty: MuID) {
@@ -661,11 +723,13 @@ impl<'c> MuIRBuilder<'c> {
     }
 
     pub fn new_funcsig(&mut self, id: MuID, paramtys: Vec<MuID>, rettys: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.sigs.push(Box::new(NodeFuncSig { id: id,
+            paramtys: paramtys, rettys: rettys }));
     }
 
     pub fn new_const_int(&mut self, id: MuID, ty: MuID, value: u64) {
-        panic!("Not implemented")
+        self.bundle.consts.push(Box::new(NodeConst::ConstInt { id: id,
+            ty: ty, value: value }));
     }
 
     pub fn new_const_int_ex(&mut self, id: MuID, ty: MuID, values: &[u64]) {
@@ -693,11 +757,13 @@ impl<'c> MuIRBuilder<'c> {
     }
 
     pub fn new_global_cell(&mut self, id: MuID, ty: MuID) {
-        panic!("Not implemented")
+        self.bundle.globals.push(Box::new(NodeGlobalCell { id: id,
+            ty: ty }));
     }
 
     pub fn new_func(&mut self, id: MuID, sig: MuID) {
-        panic!("Not implemented")
+        self.bundle.funcs.push(Box::new(NodeFunc { id: id,
+            sig: sig }));
     }
 
     pub fn new_exp_func(&mut self, id: MuID, func: MuID, callconv: CMuCallConv, cookie: MuID) {
@@ -705,11 +771,14 @@ impl<'c> MuIRBuilder<'c> {
     }
 
     pub fn new_func_ver(&mut self, id: MuID, func: MuID, bbs: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.funcvers.push(Box::new(NodeFuncVer { id: id,
+            func: func, bbs: bbs }));
     }
 
     pub fn new_bb(&mut self, id: MuID, nor_param_ids: Vec<MuID>, nor_param_types: Vec<MuID>, exc_param_id: Option<MuID>, insts: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.bbs.push(Box::new(NodeBB { id: id,
+            norParamIDs: nor_param_ids, norParamTys: nor_param_types,
+            excParamID: exc_param_id, insts: insts }));
     }
 
     pub fn new_dest_clause(&mut self, id: MuID, dest: MuID, vars: Vec<MuID>) {
@@ -741,7 +810,10 @@ impl<'c> MuIRBuilder<'c> {
     }
 
     pub fn new_binop(&mut self, id: MuID, result_id: MuID, optr: CMuBinOptr, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.bundle.insts.push(Box::new(NodeInst::NodeBinOp {
+            id: id, resultID: result_id, statusResultIDs: vec![],
+            optr: optr, flags: 0, ty: ty, opnd1: opnd1, opnd2: opnd2,
+            excClause: exc_clause}))
     }
 
     pub fn new_binop_with_status(&mut self, id: MuID, result_id: MuID, status_result_ids: Vec<MuID>, optr: CMuBinOptr, status_flags: CMuBinOpStatus, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
