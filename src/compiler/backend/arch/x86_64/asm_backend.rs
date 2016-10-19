@@ -11,6 +11,7 @@ use compiler::machine_code::MachineCode;
 use vm::VM;
 use runtime::ValueLocation;
 
+use utils::vec_utils;
 use utils::string_utils;
 use ast::ptr::P;
 use ast::ir::*;
@@ -71,6 +72,25 @@ impl ASMCode {
         false
     }
 
+    fn is_block_end(&self, inst: usize) -> bool {
+        for block in self.blocks.values() {
+            if block.end_inst == inst + 1 {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn get_block_by_inst(&self, inst: usize) -> (&String, &ASMBlock) {
+        for (name, block) in self.blocks.iter() {
+            if inst >= block.start_inst && inst < block.end_inst {
+                return (name, block);
+            }
+        }
+
+        panic!("didnt find any block for inst {}", inst)
+    }
+
     fn get_block_by_start_inst(&self, inst: usize) -> Option<&ASMBlock> {
         for block in self.blocks.values() {
             if block.start_inst == inst {
@@ -94,8 +114,13 @@ impl ASMCode {
 
         // iterate through old machine code
         let mut inst_offset = 0;    // how many instructions has been inserted
+        let mut cur_block_start = usize::MAX;
 
         for i in 0..self.number_of_insts() {
+            if self.is_block_start(i) {
+                cur_block_start = i + inst_offset;
+            }
+
             // insert code before this instruction
             if insert_before.contains_key(&i) {
                 for insert in insert_before.get(&i).unwrap() {
@@ -105,15 +130,55 @@ impl ASMCode {
             }
 
             // copy this instruction
+            let mut inst = self.code[i].clone();
+
+            // this instruction has been offset by several instructions('inst_offset')
+            // update its info
+            // 1. fix defines and uses
+            for locs in inst.defines.values_mut() {
+                for loc in locs {
+                    debug_assert!(loc.line == i);
+                    loc.line += inst_offset;
+                }
+            }
+            for locs in inst.uses.values_mut() {
+                for loc in locs {
+                    debug_assert!(loc.line == i);
+                    loc.line += inst_offset;
+                }
+            }
+            // 2. we can ignore preds/succs - CFA is required anyway
+            // 3. add the inst
+            ret.code.push(inst);
 
 
             // insert code after this instruction
             if insert_after.contains_key(&i) {
+                for insert in insert_after.get(&i).unwrap() {
+                    ret.append_code_sequence_all(insert);
+                    inst_offset += insert.number_of_insts();
+                }
+            }
 
+            if self.is_block_end(i) {
+                let cur_block_end = i + inst_offset;
+
+                // copy the block
+                let (name, block) = self.get_block_by_inst(i);
+
+                let mut new_block = block.clone();
+                new_block.start_inst = cur_block_start;
+                cur_block_start = usize::MAX;
+                new_block.end_inst = cur_block_end;
+
+                // add to the new code
+                ret.blocks.insert(name.clone(), new_block);
             }
         }
 
-        unimplemented!()
+        ret.control_flow_analysis();
+
+        Box::new(ret)
     }
 
     fn append_code_sequence(
@@ -122,13 +187,139 @@ impl ASMCode {
         start_inst: usize,
         n_insts: usize)
     {
-        let self_index = self.number_of_insts();
-        unimplemented!()
+        let base_line = self.number_of_insts();
+
+        for i in 0..n_insts {
+            let cur_line_in_self = base_line + i;
+            let cur_line_from_copy = start_inst + i;
+
+            let mut inst = another.code[cur_line_from_copy].clone();
+
+            // fix info
+            for locs in inst.defines.values_mut() {
+                for loc in locs {
+                    debug_assert!(loc.line == i);
+                    loc.line = cur_line_in_self;
+                }
+            }
+            for locs in inst.uses.values_mut() {
+                for loc in locs {
+                    debug_assert!(loc.line == i);
+                    loc.line = cur_line_in_self;
+                }
+            }
+            // ignore preds/succs
+
+            // add to self
+            self.code.push(inst);
+        }
     }
 
     fn append_code_sequence_all(&mut self, another: &Box<ASMCode>) {
         let n_insts = another.number_of_insts();
         self.append_code_sequence(another, 0, n_insts)
+    }
+
+    fn control_flow_analysis(&mut self) {
+        const TRACE_CFA : bool = false;
+
+        // control flow analysis
+        let n_insts = self.number_of_insts();
+
+        let ref blocks = self.blocks;
+        let ref mut asm = self.code;
+
+        let block_start = {
+            let mut ret = vec![];
+            for block in blocks.values() {
+                ret.push(block.start_inst);
+            }
+            ret
+        };
+
+        for i in 0..n_insts {
+            // determine predecessor - if cur is not block start, its predecessor is previous insts
+            let is_block_start = block_start.contains(&i);
+            if !is_block_start {
+                if i > 0 {
+                    if TRACE_CFA {
+                        trace!("inst {}: not a block start", i);
+                        trace!("inst {}: set PREDS as previous inst {}", i, i - 1);
+                    }
+                    asm[i].preds.push(i - 1);
+                }
+            } else {
+                // if cur is a branch target, we already set its predecessor
+                // if cur is a fall-through block, we set it in a sanity check pass
+            }
+
+            // determine successor
+            let branch = asm[i].branch.clone();
+            match branch {
+                ASMBranchTarget::Unconditional(ref target) => {
+                    // branch to target
+                    let target_n = self.blocks.get(target).unwrap().start_inst;
+
+                    // cur inst's succ is target
+                    asm[i].succs.push(target_n);
+
+                    // target's pred is cur
+                    asm[target_n].preds.push(i);
+
+                    if TRACE_CFA {
+                        trace!("inst {}: is a branch to {}", i, target);
+                        trace!("inst {}: branch target index is {}", i, target_n);
+                        trace!("inst {}: set SUCCS as branch target {}", i, target_n);
+                        trace!("inst {}: set PREDS as branch source {}", target_n, i);
+                    }
+                },
+                ASMBranchTarget::Conditional(ref target) => {
+                    // branch to target
+                    let target_n = self.blocks.get(target).unwrap().start_inst;
+
+                    // cur insts' succ is target and next inst
+                    asm[i].succs.push(target_n);
+
+                    if TRACE_CFA {
+                        trace!("inst {}: is a cond branch to {}", i, target);
+                        trace!("inst {}: branch target index is {}", i, target_n);
+                        trace!("inst {}: set SUCCS as branch target {}", i, target_n);
+                    }
+
+                    if i < n_insts - 1 {
+                        if TRACE_CFA {
+                            trace!("inst {}: set SUCCS as next inst", i + 1);
+                        }
+                        asm[i].succs.push(i + 1);
+                    }
+
+                    // target's pred is cur
+                    asm[target_n].preds.push(i);
+                    if TRACE_CFA {
+                        trace!("inst {}: set PREDS as {}", target_n, i);
+                    }
+                },
+                ASMBranchTarget::None => {
+                    // not branch nor cond branch, succ is next inst
+                    if TRACE_CFA {
+                        trace!("inst {}: not a branch inst", i);
+                    }
+                    if i < n_insts - 1 {
+                        if TRACE_CFA {
+                            trace!("inst {}: set SUCCS as next inst {}", i, i + 1);
+                        }
+                        asm[i].succs.push(i + 1);
+                    }
+                }
+            }
+        }
+
+        // a sanity check for fallthrough blocks
+        for i in 0..n_insts {
+            if i != 0 && asm[i].preds.len() == 0 {
+                asm[i].preds.push(i - 1);
+            }
+        }
     }
 }
 
@@ -312,6 +503,7 @@ enum ASMBranchTarget {
     Unconditional(MuName)
 }
 
+#[derive(Clone, Debug)]
 struct ASMInst {
     code: String,
 
@@ -910,7 +1102,8 @@ impl CodeGenerator for ASMCodeGen {
                         for p in live_in {
                             match p.extract_ssa_id() {
                                 Some(id) => ret.push(id),
-                                None => warn!("{} as live-in of block {} is not SSA", p, block_name)
+                                // this should not happen
+                                None => error!("{} as live-in of block {} is not SSA", p, block_name)
                             }
                         }
                         ret
@@ -935,7 +1128,9 @@ impl CodeGenerator for ASMCodeGen {
                         for p in live_out {
                             match p.extract_ssa_id() {
                                 Some(id) => ret.push(id),
-                                None => warn!("{} as live-out of block {} is not SSA", p, block_name)
+                                // the liveout are actually args out of this block
+                                // (they can be constants)
+                                None => trace!("{} as live-out of block {} is not SSA", p, block_name)
                             }
                         }
                         ret
@@ -1594,8 +1789,11 @@ pub fn spill_rewrite(
     spills: &HashMap<MuID, P<Value>>,
     func: &mut MuFunctionVersion,
     cf: &mut CompiledFunction,
-    vm: &VM)
+    vm: &VM) -> Vec<P<Value>>
 {
+    trace!("spill rewrite for x86_64 asm backend");
+    let mut new_nodes = vec![];
+
     // record code and their insertion point, so we can do the copy/insertion all at once
     let mut spill_code_before: HashMap<usize, Vec<Box<ASMCode>>> = HashMap::new();
     let mut spill_code_after: HashMap<usize, Vec<Box<ASMCode>>> = HashMap::new();
@@ -1613,6 +1811,7 @@ pub fn spill_rewrite(
                     // generate a random new temporary
                     let temp_ty = func.context.get_value(reg).unwrap().ty().clone();
                     let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
+                    vec_utils::add_unique(&mut new_nodes, temp.clone());
 
                     // generate a load
                     let code = {
@@ -1644,6 +1843,7 @@ pub fn spill_rewrite(
 
                     let temp_ty = func.context.get_value(reg).unwrap().ty().clone();
                     let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
+                    vec_utils::add_unique(&mut new_nodes, temp.clone());
 
                     let code = {
                         let mut codegen = ASMCodeGen::new();
@@ -1673,4 +1873,7 @@ pub fn spill_rewrite(
     };
 
     cf.mc = Some(new_mc);
+
+    trace!("spill rewrite done");
+    new_nodes
 }

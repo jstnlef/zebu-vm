@@ -28,7 +28,6 @@ impl RegisterAllocation {
     }
     
     #[allow(unused_variables)]
-    // returns true if we spill registers (which requires another instruction selection)
     fn coloring(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> Result<(), RegAllocFailure> {
         let compiled_funcs = vm.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
@@ -38,58 +37,32 @@ impl RegisterAllocation {
         // initialize machine registers for the function context
         init_machine_regs_for_func(&mut func.context);
         
-        let liveness = graph_coloring::build_inteference_graph(&mut cf, func);
-        liveness.print();
-
-        let coloring = match graph_coloring::GraphColoring::start(liveness) {
+        let coloring = match graph_coloring::GraphColoring::start(func, &mut cf, vm) {
             Ok(coloring) => coloring,
-            Err(err) => {
-                return Err(err);
-            }
+            Err(_) => panic!("error during coloring - unexpected")
         };
-
-        let spills = coloring.spills();
-        
-        if !spills.is_empty() {
-            let mut spilled_mem = HashMap::new();
-
-            // allocating frame slots for every spilled temp
-            for reg_id in spills.iter() {
-                let ssa_entry = match func.context.get_value(*reg_id) {
-                    Some(entry) => entry,
-                    None => panic!("The spilled register {} is not in func context", reg_id)
-                };
-                let mem = cf.frame.alloc_slot_for_spilling(ssa_entry.value().clone(), vm);
-
-                spilled_mem.insert(*reg_id, mem);
-            }
-
-            backend::spill_rewrite(&spilled_mem, func, &mut cf, vm);
-
-            return Err(RegAllocFailure::FailedForSpilling);
-        }
         
         // replace regs
         trace!("Replacing Registers...");
         for node in coloring.ig.nodes() {
             let temp = coloring.ig.get_temp_of(node);
-            
+
             // skip machine registers
             if temp < MACHINE_ID_END {
                 continue;
             } else {
                 let alias = coloring.get_alias(node);
                 let machine_reg = coloring.ig.get_color_of(alias).unwrap();
-                
+
                 trace!("replacing {} with {}", temp, machine_reg);
                 cf.mc_mut().replace_reg(temp, machine_reg);
-                
+
                 cf.temps.insert(temp, machine_reg);
             }
         }
-        
+
         cf.mc().trace_mc();
-        
+
         Ok(())
     }
 }
