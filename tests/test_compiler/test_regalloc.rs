@@ -123,32 +123,33 @@ fn create_spill1() -> VM {
     vm.set_name(blk_entry.as_entity(), Mu("entry"));
     
     // callee
-    let blk_entry_spill1_funcref = func_ver.new_constant(vm.next_id(), const_func_spill1.clone());
+    let blk_entry_spill1_funcref = func_ver.new_constant(const_func_spill1.clone());
     // args
     let blk_entry_t1 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t1"));
     let blk_entry_t2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t2"));
+    vm.set_name(blk_entry_t2.as_entity(), Mu("blk_entry_t2"));
     let blk_entry_t3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t3"));
+    vm.set_name(blk_entry_t3.as_entity(), Mu("blk_entry_t3"));
     let blk_entry_t4 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t4"));
+    vm.set_name(blk_entry_t4.as_entity(), Mu("blk_entry_t4"));
     let blk_entry_t5 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t5"));
+    vm.set_name(blk_entry_t5.as_entity(), Mu("blk_entry_t5"));
     let blk_entry_t6 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t6"));
+    vm.set_name(blk_entry_t6.as_entity(), Mu("blk_entry_t6"));
     let blk_entry_t7 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t7"));
+    vm.set_name(blk_entry_t7.as_entity(), Mu("blk_entry_t7"));
     let blk_entry_t8 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t8"));
+    vm.set_name(blk_entry_t8.as_entity(), Mu("blk_entry_t8"));
     let blk_entry_t9 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t9"));
+    vm.set_name(blk_entry_t9.as_entity(), Mu("blk_entry_t9"));
     let blk_entry_t10= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t10"));
+    vm.set_name(blk_entry_t10.as_entity(), Mu("blk_entry_t10"));
     
     // %x = CALL spill1(%t1, %t2, ... t10)
     let blk_entry_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    let blk_entry_call = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_entry_call = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_entry_x.clone_value()]),
         ops: RwLock::new(vec![
                 blk_entry_spill1_funcref,
@@ -176,7 +177,8 @@ fn create_spill1() -> VM {
     // %res0 = ADD %t1 %t2
     let blk_entry_res0 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_entry_res0.as_entity(), Mu("blk_entry_res0"));
-    let blk_entry_add0 = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_entry_add0 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_entry_res0.clone_value()]),
         ops: RwLock::new(vec![blk_entry_t1.clone(), blk_entry_t2.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
@@ -185,7 +187,8 @@ fn create_spill1() -> VM {
     // %res1 = ADD %res0 %t3
     let blk_entry_res1 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_entry_res1.as_entity(), Mu("blk_entry_res1"));
-    let blk_entry_add1 = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_entry_add1 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_entry_res1.clone_value()]),
         ops: RwLock::new(vec![blk_entry_res0.clone(), blk_entry_t3.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
@@ -194,7 +197,8 @@ fn create_spill1() -> VM {
     // %res2 = ADD %res1 %t4
     let blk_entry_res2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_entry_res2.as_entity(), Mu("blk_entry_res2"));
-    let blk_entry_add2 = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_entry_add2 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_entry_res2.clone_value()]),
         ops: RwLock::new(vec![blk_entry_res1.clone(), blk_entry_t4.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
@@ -203,14 +207,16 @@ fn create_spill1() -> VM {
     // %res3 = ADD %res2 %t5
     let blk_entry_res3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_entry_res3.as_entity(), Mu("blk_entry_res3"));
-    let blk_entry_add3 = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_entry_add3 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_entry_res3.clone_value()]),
         ops: RwLock::new(vec![blk_entry_res2.clone(), blk_entry_t5.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
     
     // RET %res3
-    let blk_entry_ret = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_entry_ret = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_entry_res3.clone()]),
         v: Instruction_::Return(vec![0])

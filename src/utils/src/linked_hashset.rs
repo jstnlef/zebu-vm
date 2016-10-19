@@ -23,6 +23,10 @@ impl<K: Hash + Eq> LinkedHashSet<K> {
         
         ret
     }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
 }
 
 impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {

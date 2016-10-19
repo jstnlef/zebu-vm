@@ -10,21 +10,25 @@ use std::sync::RwLock;
 
 #[derive(Debug)]
 pub struct Instruction {
+    pub hdr: MuEntityHeader,
     pub value : Option<Vec<P<Value>>>,
     pub ops : RwLock<Vec<P<TreeNode>>>,
     pub v: Instruction_
 }
 
+impl_mu_entity!(Instruction);
+
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 impl Encodable for Instruction {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("Instruction", 3, |s| {
-            try!(s.emit_struct_field("value", 0, |s| self.value.encode(s)));
+        s.emit_struct("Instruction", 4, |s| {
+            try!(s.emit_struct_field("hdr", 0, |s| self.hdr.encode(s)));
+            try!(s.emit_struct_field("value", 1, |s| self.value.encode(s)));
             
             let ops = &self.ops.read().unwrap();
-            try!(s.emit_struct_field("ops", 1, |s| ops.encode(s)));
+            try!(s.emit_struct_field("ops", 2, |s| ops.encode(s)));
             
-            try!(s.emit_struct_field("v", 2, |s| self.v.encode(s)));
+            try!(s.emit_struct_field("v", 3, |s| self.v.encode(s)));
             
             Ok(()) 
         })        
@@ -33,14 +37,16 @@ impl Encodable for Instruction {
 
 impl Decodable for Instruction {
     fn decode<D: Decoder>(d: &mut D) -> Result<Instruction, D::Error> {
-        d.read_struct("Instruction", 3, |d| {
-            let value = try!(d.read_struct_field("value", 0, |d| Decodable::decode(d)));
+        d.read_struct("Instruction", 4, |d| {
+            let hdr = try!(d.read_struct_field("hdr", 0, |d| Decodable::decode(d)));
+            let value = try!(d.read_struct_field("value", 1, |d| Decodable::decode(d)));
             
-            let ops = try!(d.read_struct_field("ops", 1, |d| Decodable::decode(d)));
+            let ops = try!(d.read_struct_field("ops", 2, |d| Decodable::decode(d)));
             
-            let v = try!(d.read_struct_field("v", 2, |d| Decodable::decode(d)));
+            let v = try!(d.read_struct_field("v", 3, |d| Decodable::decode(d)));
             
             Ok(Instruction{
+                hdr: hdr,
                 value: value,
                 ops: RwLock::new(ops),
                 v: v
@@ -52,6 +58,7 @@ impl Decodable for Instruction {
 impl Clone for Instruction {
     fn clone(&self) -> Self {
         Instruction {
+            hdr: self.hdr.clone(),
             value: self.value.clone(),
             ops: RwLock::new(self.ops.read().unwrap().clone()),
             v: self.v.clone()

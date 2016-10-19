@@ -1,8 +1,11 @@
-use ast::ir::MuID;
+use ast::ir::*;
+use compiler::backend;
+use compiler::backend::reg_alloc::graph_coloring;
 use compiler::backend::reg_alloc::graph_coloring::liveness::InterferenceGraph;
 use compiler::backend::reg_alloc::graph_coloring::liveness::{Node, Move};
-use compiler::backend;
 use compiler::backend::reg_alloc::RegAllocFailure;
+use compiler::machine_code::CompiledFunction;
+use vm::VM;
 
 use utils::vec_utils;
 use utils::LinkedHashSet;
@@ -14,7 +17,7 @@ const COALESCING : bool = true;
 
 pub struct GraphColoring {
     pub ig: InterferenceGraph,
-    
+
     precolored: LinkedHashSet<Node>,
     colors: HashMap<backend::RegGroup, LinkedHashSet<MuID>>,
     pub colored_nodes: Vec<Node>,
@@ -42,10 +45,12 @@ pub struct GraphColoring {
 }
 
 impl GraphColoring {
-    pub fn start (ig: InterferenceGraph) -> Result<GraphColoring, RegAllocFailure> {
+    pub fn start (func: &mut MuFunctionVersion, cf: &mut CompiledFunction, vm: &VM) -> Result<GraphColoring, RegAllocFailure> {
+        cf.mc().trace_mc();
+
         let mut coloring = GraphColoring {
-            ig: ig,
-            
+            ig: graph_coloring::build_inteference_graph(cf, func),
+
             precolored: LinkedHashSet::new(),
             colors: {
                 let mut map = HashMap::new();
@@ -77,14 +82,21 @@ impl GraphColoring {
             select_stack: Vec::new()
         };
         
-        match coloring.init() {
+        match coloring.regalloc(func, cf, vm) {
             Ok(_) => Ok(coloring),
             Err(fail) => Err(fail)
         }
     }
     
-    fn init (&mut self) -> Result<(), RegAllocFailure> {
+    fn regalloc(&mut self, func: &mut MuFunctionVersion, cf: &mut CompiledFunction, vm: &VM) -> Result<(), RegAllocFailure> {
         trace!("Initializing coloring allocator...");
+
+        trace!("---InterenceGraph---");
+        self.ig.print();
+        trace!("---All temps---");
+        for entry in func.context.values.values() {
+            trace!("{}", entry);
+        }
         
         // precolor for all machine registers
         for reg in backend::all_regs().values() {
@@ -129,7 +141,23 @@ impl GraphColoring {
             && self.worklist_spill.is_empty())
         } {}
         
-        self.assign_colors()
+        self.assign_colors();
+
+        if !self.spilled_nodes.is_empty() {
+            trace!("spill required");
+            if cfg!(debug_assertions) {
+                trace!("nodes to be spilled:");
+                for node in self.spilled_nodes.iter() {
+                    trace!("{:?}: {:?}", node, self.ig.get_temp_of(*node));
+                }
+            }
+
+            self.rewrite_program(func, cf, vm);
+
+            GraphColoring::start(func, cf, vm);
+        }
+
+        Ok(())
     }
     
     fn build(&mut self) {
@@ -539,7 +567,7 @@ impl GraphColoring {
         self.freeze_moves(m);
     }
     
-    fn assign_colors(&mut self) -> Result<(), RegAllocFailure> {
+    fn assign_colors(&mut self) -> Result<(), ()> {
         trace!("---coloring done---");
         while !self.select_stack.is_empty() {
             let n = self.select_stack.pop().unwrap();
@@ -582,6 +610,49 @@ impl GraphColoring {
         }
 
         Ok(())
+    }
+
+    fn rewrite_program(&mut self, func: &mut MuFunctionVersion, cf: &mut CompiledFunction, vm: &VM) {
+        let spills = self.spills();
+
+        let mut spilled_mem = HashMap::new();
+
+        // allocating frame slots for every spilled temp
+        for reg_id in spills.iter() {
+            let ssa_entry = match func.context.get_value(*reg_id) {
+                Some(entry) => entry,
+                None => panic!("The spilled register {} is not in func context", reg_id)
+            };
+            let mem = cf.frame.alloc_slot_for_spilling(ssa_entry.value().clone(), vm);
+
+            spilled_mem.insert(*reg_id, mem);
+        }
+
+        let new_temps = backend::spill_rewrite(&spilled_mem, func, cf, vm);
+//
+//        self.spilled_nodes.clear();
+//
+//        self.initial = {
+//            let mut ret = vec![];
+//
+//            for node in self.colored_nodes.iter() {
+//                vec_utils::add_unique(&mut ret, node.clone());
+//            }
+//            for node in self.coalesced_nodes.iter() {
+//                vec_utils::add_unique(&mut ret, node.clone());
+//            }
+//
+//            // create nodes for every new temp
+//            for tmp in new_temps {
+//                let node = self.ig.new_node(tmp.id(), &func.context);
+//                vec_utils::add_unique(&mut ret, node.clone());
+//            }
+//
+//            ret
+//        };
+//
+//        self.colored_nodes.clear();
+//        self.coalesced_nodes.clear();
     }
     
     pub fn spills(&self) -> Vec<MuID> {

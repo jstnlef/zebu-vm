@@ -52,7 +52,7 @@ pub type P<T> = Arc<T>;
 
 #[allow(non_snake_case)]
 /// Construct a `P<T>` from a `T` value.
-pub fn P<T: MuEntity>(value: T) -> P<T> {
+pub fn P<T>(value: T) -> P<T> {
 //    P {ptr: Arc::new(value)}
     Arc::new(value)
 }
