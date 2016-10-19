@@ -46,6 +46,8 @@ pub struct GraphColoring {
 
 impl GraphColoring {
     pub fn start (func: &mut MuFunctionVersion, cf: &mut CompiledFunction, vm: &VM) -> Result<GraphColoring, RegAllocFailure> {
+        cf.mc().trace_mc();
+
         let mut coloring = GraphColoring {
             ig: graph_coloring::build_inteference_graph(cf, func),
 
@@ -88,6 +90,13 @@ impl GraphColoring {
     
     fn regalloc(&mut self, func: &mut MuFunctionVersion, cf: &mut CompiledFunction, vm: &VM) -> Result<(), RegAllocFailure> {
         trace!("Initializing coloring allocator...");
+
+        trace!("---InterenceGraph---");
+        self.ig.print();
+        trace!("---All temps---");
+        for entry in func.context.values.values() {
+            trace!("{}", entry);
+        }
         
         // precolor for all machine registers
         for reg in backend::all_regs().values() {
@@ -136,6 +145,13 @@ impl GraphColoring {
 
         if !self.spilled_nodes.is_empty() {
             trace!("spill required");
+            if cfg!(debug_assertions) {
+                trace!("nodes to be spilled:");
+                for node in self.spilled_nodes.iter() {
+                    trace!("{:?}: {:?}", node, self.ig.get_temp_of(*node));
+                }
+            }
+
             self.rewrite_program(func, cf, vm);
 
             GraphColoring::start(func, cf, vm);

@@ -147,7 +147,9 @@ impl ASMCode {
                     loc.line += inst_offset;
                 }
             }
-            // 2. we can ignore preds/succs - CFA is required anyway
+            // 2. we need to delete existing preds/succs - CFA is required later
+            inst.preds.clear();
+            inst.succs.clear();
             // 3. add the inst
             ret.code.push(inst);
 
@@ -790,7 +792,7 @@ impl ASMCodeGen {
                             loc_cursor += str.len();
                         },
                         Value_::Constant(Constant::Int(val)) => {
-                            let str = val.to_string();
+                            let str = (val as i32).to_string();
                             
                             result_str.push_str(&str);
                             loc_cursor += str.len();
@@ -828,7 +830,7 @@ impl ASMCodeGen {
                             loc_cursor += str.len();
                         },
                         Value_::Constant(Constant::Int(val)) => {
-                            let str = val.to_string();
+                            let str = (val as i32).to_string();
                             
                             result_str.push_str(&str);
                             loc_cursor += str.len();
@@ -1822,6 +1824,7 @@ pub fn spill_rewrite(
                         codegen.finish_code_sequence_asm()
                     };
                     // record that this load will be inserted at i
+                    trace!("insert before inst #{}", i);
                     if spill_code_before.contains_key(&i) {
                         spill_code_before.get_mut(&i).unwrap().push(code);
                     } else {
@@ -1853,6 +1856,7 @@ pub fn spill_rewrite(
                         codegen.finish_code_sequence_asm()
                     };
 
+                    trace!("insert after inst #{}", i);
                     if spill_code_after.contains_key(&i) {
                         spill_code_after.get_mut(&i).unwrap().push(code);
                     } else {

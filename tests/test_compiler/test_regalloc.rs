@@ -128,23 +128,23 @@ fn create_spill1() -> VM {
     let blk_entry_t1 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t1"));
     let blk_entry_t2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t2"));
+    vm.set_name(blk_entry_t2.as_entity(), Mu("blk_entry_t2"));
     let blk_entry_t3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t3"));
+    vm.set_name(blk_entry_t3.as_entity(), Mu("blk_entry_t3"));
     let blk_entry_t4 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t4"));
+    vm.set_name(blk_entry_t4.as_entity(), Mu("blk_entry_t4"));
     let blk_entry_t5 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t5"));
+    vm.set_name(blk_entry_t5.as_entity(), Mu("blk_entry_t5"));
     let blk_entry_t6 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t6"));
+    vm.set_name(blk_entry_t6.as_entity(), Mu("blk_entry_t6"));
     let blk_entry_t7 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t7"));
+    vm.set_name(blk_entry_t7.as_entity(), Mu("blk_entry_t7"));
     let blk_entry_t8 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t8"));
+    vm.set_name(blk_entry_t8.as_entity(), Mu("blk_entry_t8"));
     let blk_entry_t9 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t9"));
+    vm.set_name(blk_entry_t9.as_entity(), Mu("blk_entry_t9"));
     let blk_entry_t10= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t10"));
+    vm.set_name(blk_entry_t10.as_entity(), Mu("blk_entry_t10"));
     
     // %x = CALL spill1(%t1, %t2, ... t10)
     let blk_entry_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());

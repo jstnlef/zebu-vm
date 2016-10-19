@@ -32,8 +32,6 @@ impl RegisterAllocation {
         let compiled_funcs = vm.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
         
-        cf.mc().trace_mc();
-        
         // initialize machine registers for the function context
         init_machine_regs_for_func(&mut func.context);
         
@@ -52,7 +50,13 @@ impl RegisterAllocation {
                 continue;
             } else {
                 let alias = coloring.get_alias(node);
-                let machine_reg = coloring.ig.get_color_of(alias).unwrap();
+                let machine_reg = match coloring.ig.get_color_of(alias) {
+                    Some(reg) => reg,
+                    None => panic!(
+                        "Reg{}/{:?} (aliased as Reg{}/{:?}) is not assigned with a color",
+                        coloring.ig.get_temp_of(node), node,
+                        coloring.ig.get_temp_of(alias), alias)
+                };
 
                 trace!("replacing {} with {}", temp, machine_reg);
                 cf.mc_mut().replace_reg(temp, machine_reg);

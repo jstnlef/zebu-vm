@@ -102,7 +102,6 @@ pub struct MuFunctionVersion {
          
     pub func_id: MuID,
     pub sig: P<MuFuncSig>,
-    pub original_ir: Option<FunctionContent>,
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
 
@@ -139,7 +138,6 @@ impl MuFunctionVersion {
             hdr: MuEntityHeader::unnamed(id),
             func_id: func,
             sig: sig,
-            original_ir: None,
             content: None,
             context: FunctionContext::new(),
             block_trace: None
@@ -147,7 +145,6 @@ impl MuFunctionVersion {
     }
 
     pub fn define(&mut self, content: FunctionContent) {
-        self.original_ir = Some(content.clone());
         self.content = Some(content);
     }
 
@@ -374,9 +371,13 @@ pub struct BlockContent {
 
 impl fmt::Debug for BlockContent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "args: {:?}", self.args).unwrap();
-        writeln!(f, "exception arg: {:?}", self.args).unwrap();
-        writeln!(f, "keepalives: {:?}", self.keepalives).unwrap();
+        writeln!(f, "args: {}", vec_utils::as_str(&self.args)).unwrap();
+        if self.exn_arg.is_some() {
+            writeln!(f, "exception arg: {}", self.exn_arg.as_ref().unwrap()).unwrap();
+        }
+        if self.keepalives.is_some() {
+            writeln!(f, "keepalives: {}", vec_utils::as_str(self.keepalives.as_ref().unwrap())).unwrap();
+        }
         for node in self.body.iter() {
             writeln!(f, "{}", node).unwrap();
         }
@@ -877,7 +878,7 @@ impl PartialEq for MuEntityHeader {
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.name().is_none() {
-            write!(f, "#{}", self.id)
+            write!(f, "UNNAMED #{}", self.id)
         } else {
             write!(f, "{} #{}", self.name().unwrap(), self.id)
         }
