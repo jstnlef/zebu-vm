@@ -7,6 +7,7 @@ mod test_ir;
 mod test_compiler;
 mod test_runtime;
 mod test_api;
+mod test_jit;
 
 mod common {
     use std::fmt;
@@ -186,12 +187,9 @@ mod testutil {
     extern crate simple_logger;
     extern crate libloading as ll;
 
-    use test_ir::test_ir::sum;
-    use test_ir::test_ir::factorial;
     use self::mu::compiler::*;
     use self::mu::ast::ir::*;
     use self::mu::vm::*;
-
     use std::sync::Arc;
     use aot;
 
