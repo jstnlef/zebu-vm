@@ -51,13 +51,14 @@ pub fn sum() -> VM {
     
     let blk_entry_n = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_entry_n.as_entity(), "blk_entry_n".to_string());
-    let const_def_int64_0_local = func_ver.new_constant(vm.next_id(), const_def_int64_0.clone()); // FIXME: why we need a local version?
-    let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
+    let const_def_int64_0_local = func_ver.new_constant(const_def_int64_0.clone()); // FIXME: why we need a local version?
+    let const_def_int64_1_local = func_ver.new_constant(const_def_int64_1.clone());
 
     // BRANCH %head
     let mut blk_head = Block::new(vm.next_id());
     vm.set_name(blk_head.as_entity(), "head".to_string());
-    let blk_entry_term = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_entry_term = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_entry_n.clone(), const_def_int64_0_local.clone(), const_def_int64_0_local.clone()]),
         v: Instruction_::Branch1(Destination{
@@ -86,7 +87,8 @@ pub fn sum() -> VM {
     // %s2 = ADD %s %i
     let blk_head_s2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_head_s2.as_entity(), "blk_head_s2".to_string());
-    let blk_head_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_head_inst0 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_head_s2.clone_value()]),
         ops: RwLock::new(vec![blk_head_s.clone(), blk_head_i.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
@@ -95,7 +97,8 @@ pub fn sum() -> VM {
     // %i2 = ADD %i 1
     let blk_head_i2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_head_i2.as_entity(), "blk_head_i2".to_string());
-    let blk_head_inst1 = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_head_inst1 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_head_i2.clone_value()]),
         ops: RwLock::new(vec![blk_head_i.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
@@ -104,7 +107,8 @@ pub fn sum() -> VM {
     // %cond = UGT %i %n
     let blk_head_cond = func_ver.new_ssa(vm.next_id(), type_def_int1.clone());
     vm.set_name(blk_head_cond.as_entity(), "blk_head_cond".to_string());
-    let blk_head_inst2 = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_head_inst2 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_head_cond.clone_value()]),
         ops: RwLock::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
         v: Instruction_::CmpOp(CmpOp::UGT, 0, 1)
@@ -113,7 +117,8 @@ pub fn sum() -> VM {
     // BRANCH2 %cond %ret(%s2) %head(%n %s2 %i2)
     let mut blk_ret = Block::new(vm.next_id());
     vm.set_name(blk_ret.as_entity(), "ret".to_string());    
-    let blk_head_term = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_head_term = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_head_cond.clone(), blk_head_n.clone(), blk_head_s2.clone(), blk_head_i2.clone()]),
         v: Instruction_::Branch2 {
@@ -143,7 +148,8 @@ pub fn sum() -> VM {
     vm.set_name(blk_ret_s.as_entity(), "blk_ret_s".to_string());
 
     // RET %s
-    let blk_ret_term = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_ret_term = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_ret_s.clone()]),
         v: Instruction_::Return(vec![0])
@@ -231,15 +237,16 @@ pub fn factorial() -> VM {
     vm.set_name(blk_0.as_entity(), "blk_0".to_string());
     let blk_0_n_3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_0_n_3.as_entity(), "blk_0_n_3".to_string());
-    let const_def_int64_1_local = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
+    let const_def_int64_1_local = func_ver.new_constant(const_def_int64_1.clone());
 
     //   %v48 = EQ <@int_64> %n_3 @int_64_1
     let blk_0_v48 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_0_v48.as_entity(), "blk_0_v48".to_string());
-    let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
-            value: Some(vec![blk_0_v48.clone_value()]),
-            ops: RwLock::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
-            v: Instruction_::CmpOp(CmpOp::EQ, 0, 1)
+    let blk_0_inst0 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_0_v48.clone_value()]),
+        ops: RwLock::new(vec![blk_0_n_3.clone(), const_def_int64_1_local.clone()]),
+        v: Instruction_::CmpOp(CmpOp::EQ, 0, 1)
     });
 
     //   BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)
@@ -247,7 +254,8 @@ pub fn factorial() -> VM {
     vm.set_name(blk_1.as_entity(), "blk_1".to_string());    
     let mut blk_2 = Block::new(vm.next_id());
     vm.set_name(blk_2.as_entity(), "blk_2".to_string());
-    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_0_term = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_0_v48.clone(), const_def_int64_1_local.clone(), blk_0_n_3.clone()]),
         v: Instruction_::Branch2 {
@@ -277,7 +285,8 @@ pub fn factorial() -> VM {
     vm.set_name(blk_2_v53.as_entity(), "blk_2_v53".to_string());
 
     //   RET %v53
-    let blk_2_term = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_2_term = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_2_v53.clone()]),
         v: Instruction_::Return(vec![0])
@@ -298,7 +307,8 @@ pub fn factorial() -> VM {
     //   %v50 = SUB <@int_64> %n_3 @int_64_1
     let blk_1_v50 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_1_v50.as_entity(), "blk_1_v50".to_string());
-    let blk_1_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_1_inst0 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_1_v50.clone_value()]),
         ops: RwLock::new(vec![blk_1_n_3.clone(), const_def_int64_1_local.clone()]),
         v: Instruction_::BinOp(BinOp::Sub, 0, 1)
@@ -307,8 +317,9 @@ pub fn factorial() -> VM {
     //   %v51 = CALL <@fac_sig> @fac (%v50)
     let blk_1_v51 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_1_v51.as_entity(), "blk_1_v51".to_string());
-    let blk_1_fac = func_ver.new_constant(vm.next_id(), const_func_fac.clone());
-    let blk_1_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_1_fac = func_ver.new_constant(const_func_fac.clone());
+    let blk_1_inst1 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_1_v51.clone_value()]),
         ops: RwLock::new(vec![blk_1_fac, blk_1_v50.clone()]),
         v: Instruction_::ExprCall {
@@ -324,14 +335,16 @@ pub fn factorial() -> VM {
     //   %v52 = MUL <@int_64> %n_3 %v51
     let blk_1_v52 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_1_v52.as_entity(), "blk_1_v52".to_string());
-    let blk_1_inst2 = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_1_inst2 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_1_v52.clone_value()]),
         ops: RwLock::new(vec![blk_1_n_3.clone(), blk_1_v51.clone()]),
         v: Instruction_::BinOp(BinOp::Mul, 0, 1)
     });
 
     // BRANCH blk_2 (%blk_1_v52)
-    let blk_1_term = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_1_term = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_1_v52.clone()]),
         v: Instruction_::Branch1(Destination {
@@ -411,9 +424,10 @@ pub fn global_access() -> VM {
     vm.set_name(blk_0.as_entity(), "blk_0".to_string());
     
     // STORE <@int_64> @a @int_64_1
-    let blk_0_a = func_ver.new_global(vm.next_id(), global_a.clone());
-    let blk_0_const_int64_1 = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
-    let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_0_a = func_ver.new_global(global_a.clone());
+    let blk_0_const_int64_1 = func_ver.new_constant(const_def_int64_1.clone());
+    let blk_0_inst0 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_0_a.clone(), blk_0_const_int64_1.clone()]),
         v: Instruction_::Store{
@@ -427,7 +441,8 @@ pub fn global_access() -> VM {
     // %x = LOAD <@int_64> @a
     let blk_0_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
     vm.set_name(blk_0_x.as_entity(), "blk_0_x".to_string());
-    let blk_0_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_0_inst1 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_0_x.clone_value()]),
         ops: RwLock::new(vec![blk_0_a.clone()]),
         v: Instruction_::Load{
@@ -437,7 +452,8 @@ pub fn global_access() -> VM {
         }
     });
     
-    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_0_term = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_0_x.clone()]),
         v: Instruction_::Return(vec![0])

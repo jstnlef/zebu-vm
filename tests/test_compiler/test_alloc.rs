@@ -79,7 +79,8 @@ pub fn alloc_new() -> VM {
     // %a = NEW <@int64_t>
     let blk_0_a = func_ver.new_ssa(vm.next_id(), type_def_ref_int64.clone());
     vm.set_name(blk_0_a.as_entity(), "blk_0_a".to_string());
-    let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_0_inst0 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_0_a.clone_value()]),
         ops: RwLock::new(vec![]),
         v: Instruction_::New(type_def_int64.clone())
@@ -88,15 +89,17 @@ pub fn alloc_new() -> VM {
     // %a_iref = GETIREF <@int_64> @a
     let blk_0_a_iref = func_ver.new_ssa(vm.next_id(), type_def_iref_int64.clone());
     vm.set_name(blk_0_a.as_entity(), "blk_0_a_iref".to_string());
-    let blk_0_inst1 = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_0_inst1 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_0_a_iref.clone_value()]),
         ops: RwLock::new(vec![blk_0_a.clone()]),
         v: Instruction_::GetIRef(0)
     });
     
     // STORE <@int_64> @a_iref @int_64_1
-    let blk_0_const_int64_1 = func_ver.new_constant(vm.next_id(), const_def_int64_1.clone());
-    let blk_0_inst2 = func_ver.new_inst(vm.next_id(), Instruction{
+    let blk_0_const_int64_1 = func_ver.new_constant(const_def_int64_1.clone());
+    let blk_0_inst2 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_0_a_iref.clone(), blk_0_const_int64_1.clone()]),
         v: Instruction_::Store{
@@ -120,7 +123,8 @@ pub fn alloc_new() -> VM {
 //        }
 //    });
     
-    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_0_term = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![]),
         v: Instruction_::ThreadExit

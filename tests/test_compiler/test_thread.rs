@@ -55,7 +55,8 @@ fn primordial_main() -> VM {
     
     let mut blk_entry = Block::new(vm.next_id());
     vm.set_name(blk_entry.as_entity(), "entry".to_string());
-    let thread_exit = func_ver.new_inst(vm.next_id(), Instruction {
+    let thread_exit = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![]),
         v: Instruction_::ThreadExit

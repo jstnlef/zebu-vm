@@ -158,31 +158,27 @@ impl MuFunctionVersion {
         self.context.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         })
     }
 
-    pub fn new_constant(&mut self, id: MuID, v: P<Value>) -> P<TreeNode> {
+    pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
     
-    pub fn new_global(&mut self, id: MuID, v: P<Value>) -> P<TreeNode> {
+    pub fn new_global(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
 
-    pub fn new_inst(&mut self, id: MuID, v: Instruction) -> Box<TreeNode> {
+    pub fn new_inst(&mut self, v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
-            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
@@ -257,7 +253,6 @@ impl FunctionContext {
         self.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         })
@@ -459,16 +454,14 @@ impl BlockContent {
 #[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
-    pub hdr: MuEntityHeader,
     pub op: OpCode,
     pub v: TreeNode_,
 }
 
 impl TreeNode {
     // this is a hack to allow creating TreeNode without using a &mut MuFunctionVersion
-    pub fn new_inst(id: MuID, v: Instruction) -> P<TreeNode> {
+    pub fn new_inst(v: Instruction) -> P<TreeNode> {
         P(TreeNode{
-            hdr: MuEntityHeader::unnamed(id),
             op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
@@ -895,10 +888,39 @@ pub trait MuEntity {
 impl_mu_entity!(MuFunction);
 impl_mu_entity!(MuFunctionVersion);
 impl_mu_entity!(Block);
-impl_mu_entity!(TreeNode);
 impl_mu_entity!(MuType);
 impl_mu_entity!(Value);
 impl_mu_entity!(MuFuncSig);
+
+impl MuEntity for TreeNode {
+    fn id(&self) -> MuID {
+        match self.v {
+            TreeNode_::Instruction(ref inst) => inst.id(),
+            TreeNode_::Value(ref pv) => pv.id()
+        }
+    }
+
+    fn name(&self) -> Option<MuName> {
+        match self.v {
+            TreeNode_::Instruction(ref inst) => inst.name(),
+            TreeNode_::Value(ref pv) => pv.name()
+        }
+    }
+
+    fn set_name(&self, name: MuName) {
+        match self.v {
+            TreeNode_::Instruction(ref inst) => inst.set_name(name),
+            TreeNode_::Value(ref pv) => pv.set_name(name)
+        }
+    }
+
+    fn as_entity(&self) -> &MuEntity {
+        match self.v {
+            TreeNode_::Instruction(ref inst) => inst.as_entity(),
+            TreeNode_::Value(ref pv) => pv.as_entity()
+        }
+    }
+}
 
 pub fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
     let mut ret = String::new();

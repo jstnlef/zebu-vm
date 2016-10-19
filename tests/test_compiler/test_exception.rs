@@ -104,8 +104,9 @@ fn create_catch_exception_func (vm: &VM) {
     let blk_normal_cont_id = vm.next_id();
     let blk_exn_cont_id = vm.next_id();
     
-    let blk_0_throw = func_ver.new_constant(vm.next_id(), const_funcref_throw_exception.clone());
-    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_0_throw = func_ver.new_constant(const_funcref_throw_exception.clone());
+    let blk_0_term = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_0_throw]),
         v: Instruction_::Call {
@@ -138,7 +139,8 @@ fn create_catch_exception_func (vm: &VM) {
     // %blk_normal_cont():
     let mut blk_normal_cont = Block::new(blk_normal_cont_id);
     vm.set_name(blk_normal_cont.as_entity(), Mu("blk_normal_cont"));
-    let blk_normal_cont_thread_exit = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_normal_cont_thread_exit = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![]),
         v: Instruction_::ThreadExit
@@ -156,7 +158,8 @@ fn create_catch_exception_func (vm: &VM) {
     let type_ref_int64 = vm.get_type(vm.id_of("ref_int64"));    
     let blk_exn_cont_exception_arg = func_ver.new_ssa(vm.next_id(), type_ref_int64.clone());
     vm.set_name(blk_exn_cont_exception_arg.as_entity(), Mu("blk_0_exception_arg"));
-    let blk_exn_cont_thread_exit = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_exn_cont_thread_exit = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![]),
         v: Instruction_::ThreadExit
@@ -206,25 +209,28 @@ fn create_throw_exception_func (vm: &VM) {
     // %exception_obj = NEW <@int64>
     let blk_0_exception_obj = func_ver.new_ssa(vm.next_id(), type_ref_int64.clone());
     vm.set_name(blk_0_exception_obj.as_entity(), Mu("blk_0_exception_obj"));
-    let blk_0_inst0 = func_ver.new_inst(vm.next_id(), Instruction {
-            value: Some(vec![blk_0_exception_obj.clone_value()]),
-            ops: RwLock::new(vec![]),
-            v: Instruction_::New(type_ref_int64.clone())
+    let blk_0_inst0 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_0_exception_obj.clone_value()]),
+        ops: RwLock::new(vec![]),
+        v: Instruction_::New(type_ref_int64.clone())
     });
     
     // %exception_obj_iref = GETIREF <@int64> %exception_obj
     let blk_0_exception_obj_iref = func_ver.new_ssa(vm.next_id(), type_iref_int64.clone());
     vm.set_name(blk_0_exception_obj_iref.as_entity(), Mu("blk_0_exception_obj_iref"));
-    let blk_0_inst1 = func_ver.new_inst(vm.next_id(), Instruction {
-            value: Some(vec![blk_0_exception_obj_iref.clone_value()]),
-            ops: RwLock::new(vec![blk_0_exception_obj.clone()]),
-            v: Instruction_::GetIRef(0)
+    let blk_0_inst1 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_0_exception_obj_iref.clone_value()]),
+        ops: RwLock::new(vec![blk_0_exception_obj.clone()]),
+        v: Instruction_::GetIRef(0)
      });
     
     // STORE <@int64> %exception_obj_iref @int64_1
     let const_int64_1 = vm.get_const(vm.id_of("int64_1"));
-    let blk_0_const_int64_1 = func_ver.new_constant(vm.next_id(), const_int64_1);
-    let blk_0_inst2 = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_0_const_int64_1 = func_ver.new_constant(const_int64_1);
+    let blk_0_inst2 = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_0_exception_obj_iref.clone(), blk_0_const_int64_1.clone()]),
         v: Instruction_::Store {
@@ -235,7 +241,8 @@ fn create_throw_exception_func (vm: &VM) {
         }
     });
     
-    let blk_0_term = func_ver.new_inst(vm.next_id(), Instruction {
+    let blk_0_term = func_ver.new_inst(Instruction {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
         ops: RwLock::new(vec![blk_0_exception_obj.clone()]),
         v: Instruction_::Throw(0)
