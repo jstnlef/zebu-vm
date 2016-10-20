@@ -235,7 +235,7 @@ lazy_static! {
 }
 
 #[cfg(target_arch = "x86_64")]
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 #[link(name = "runtime")]
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
@@ -243,7 +243,7 @@ extern "C" {
 }
 
 #[cfg(target_arch = "x86_64")]
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 #[link(name = "swap_stack")]
 extern "C" {
     fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);

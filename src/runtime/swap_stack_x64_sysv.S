@@ -1,7 +1,8 @@
+#include "asm_common.S.inc"
+
 # swap_stack_to(new_sp: Address, entry: Address, old_sp_loc: Address)
 #               %rdi             %rsi            %rdx
-.globl _swap_to_mu_stack
-_swap_to_mu_stack:
+begin_func swap_to_mu_stack
           # -- on old stack --
           # C calling convention
           pushq %rbp
@@ -46,11 +47,11 @@ _swap_to_mu_stack:
           # push entry function and start it
           pushq %rax
           ret
+end_func swap_to_mu_stack
 
 # _swap_back_to_native_stack(sp_loc: Address)
 #                            %rdi
-.globl _muentry_swap_back_to_native_stack
-_muentry_swap_back_to_native_stack:
+begin_func muentry_swap_back_to_native_stack
           movq 0(%rdi), %rsp
 
           popq %r15
@@ -61,18 +62,18 @@ _muentry_swap_back_to_native_stack:
 
           popq %rbp
           ret
+end_func muentry_swap_back_to_native_stack
 
 # _get_current_frame_rbp() -> Address
-.globl _get_current_frame_rbp
-_get_current_frame_rbp:
+begin_func get_current_frame_rbp
           movq %rbp, %rax
           ret
+end_func get_current_frame_rbp
 
 # _exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !
 #                    %rdi           %rsi                   %rdx
 # callee_saved: [rbx, rbp, r12, r13, r14, r15]
-.globl _exception_restore
-_exception_restore:
+begin_func exception_restore
           movq 0(%rsi), %rbx
           movq 8(%rsi), %rbp
           movq 16(%rsi),%r12
@@ -82,3 +83,4 @@ _exception_restore:
 
           movq %rdx, %rsp
           jmpq *%rdi
+end_func exception_restore
