@@ -1,15 +1,15 @@
 use super::common::*;
 
-pub struct MuCtx<'v> {
+pub struct MuCtx {
     /// ref to MuVM
-    mvm: &'v MuVM,
+    mvm: *const MuVM,
 
     /// Point to the C-visible CMuCtx so that `close_context` can deallocate itself.
     pub c_struct: *mut CMuCtx,
 }
 
-impl<'v> MuCtx<'v> {
-    pub fn new(mvm: &'v MuVM) -> Box<MuCtx> {
+impl MuCtx {
+    pub fn new(mvm: *const MuVM) -> Box<MuCtx> {
         Box::new(MuCtx {
             mvm: mvm,
             c_struct: ptr::null_mut(),
@@ -18,8 +18,8 @@ impl<'v> MuCtx<'v> {
 
     #[inline(always)]
     fn get_mvm(&mut self) -> &MuVM {
-        self.mvm
-        //unsafe { &mut *self.mvm }
+        //self.mvm
+        unsafe { & *self.mvm }
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {

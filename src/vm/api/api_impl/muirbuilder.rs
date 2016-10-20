@@ -1,7 +1,7 @@
 use super::common::*;
-pub struct MuIRBuilder<'v> {
+pub struct MuIRBuilder {
     /// ref to MuVM
-    mvm: &'v MuVM,
+    mvm: *const MuVM,
 
     /// Point to the C-visible CMuIRBuilder so that `load` and `abort` can deallocate itself.
     pub c_struct: *mut CMuIRBuilder,
@@ -33,8 +33,8 @@ pub struct TrantientBundle {
     ka_clauses: IdMap<NodeKeepaliveClause>,
 }
 
-impl<'v> MuIRBuilder<'v> {
-    pub fn new(mvm: &'v MuVM) -> Box<MuIRBuilder> {
+impl MuIRBuilder {
+    pub fn new(mvm: *const MuVM) -> Box<MuIRBuilder> {
         Box::new(MuIRBuilder {
             mvm: mvm,
             c_struct: ptr::null_mut(),
@@ -44,12 +44,13 @@ impl<'v> MuIRBuilder<'v> {
     }
     
     #[inline(always)]
-    fn get_mvm(&mut self) -> &MuVM {
-        self.mvm
+    fn get_mvm<'a, 'b>(&'a mut self) -> &'b MuVM {
+        //self.mvm
+        unsafe { & *self.mvm }
     }
 
     #[inline(always)]
-    fn get_vm(&mut self) -> &VM {
+    fn get_vm<'a, 'b>(&'a mut self) -> &'b VM {
         &self.get_mvm().vm
     }
 
@@ -439,14 +440,77 @@ impl<'v> MuIRBuilder<'v> {
     }
 }
 
-pub fn load_bundle(b: &mut MuIRBuilder) {
-    let mut built_types: IdMap<MuType> = Default::default();
-    let mut built_sigs: IdMap<MuFuncSig> = Default::default();
+type IdPMap<T> = HashMap<MuID, P<T>>;
 
+fn load_bundle(b: &mut MuIRBuilder) {
     let mut visited: HashSet<MuID> = Default::default();
+    let mut built_types: IdPMap<MuType> = Default::default();
+    let mut built_sigs: IdPMap<MuFuncSig> = Default::default();
+
+    let vm = b.get_vm();
 
     for (id, ty) in &b.bundle.types {
-        println!("{} {:?}", id, ty);
+        ensure_type_top(*id, ty, b, &mut visited, &mut built_types, &mut built_sigs, &vm);
+    }
+}
+
+fn ensure_type_top(id: MuID,
+               ty: &Box<NodeType>,
+               b: &MuIRBuilder,
+               visited: &mut HashSet<MuID>,
+               built_types: &mut IdPMap<MuType>,
+               built_sigs: &mut IdPMap<MuFuncSig>,
+               vm: &VM) {
+    if !visited.contains(&id) {
+        build_type(id, ty, b, visited, built_types, built_sigs, vm)
+    }
+}
+
+fn build_type(id: MuID,
+              ty: &Box<NodeType>,
+              b: &MuIRBuilder,
+              visited: &mut HashSet<MuID>,
+              built_types: &mut IdPMap<MuType>,
+              built_sigs: &mut IdPMap<MuFuncSig>,
+              vm: &VM) {
+    trace!("Building type {} {:?}", id, ty);
+    visited.insert(id);
+
+    let impl_ty = MuType::new(id, match **ty {
+        NodeType::TypeInt { id, len } => {
+            MuType_::int(len as usize)
+        },
+        NodeType::TypeUPtr { id, ty: toty } => {
+            let toty_i = ensure_type_rec(toty, ty, b, visited, built_types, built_sigs, vm);
+            MuType_::uptr(toty_i)
+        },
+        ref t => panic!("{:?} not implemented", t),
+    });
+
+    trace!("Type built: {} {:?}", id, impl_ty);
+
+    built_types.insert(id, P(impl_ty));
+}
+
+fn ensure_type_rec(id: MuID,
+               ty: &Box<NodeType>,
+               b: &MuIRBuilder,
+               visited: &mut HashSet<MuID>,
+               built_types: &mut IdPMap<MuType>,
+               built_sigs: &mut IdPMap<MuFuncSig>,
+               vm: &VM) -> P<MuType> {
+    if b.bundle.types.contains_key(&id) {
+        if visited.contains(&id) {
+           match built_types.get(&id) {
+                Some(t) => t.clone(),
+                None => panic!("Cyclic types found. id: {}", id)
+            }
+        } else {
+            build_type(id, ty, b, visited, built_types, built_sigs, vm);
+            built_types.get(&id).unwrap().clone()
+        }
+    } else {
+        vm.get_type(id)
     }
 }
 
