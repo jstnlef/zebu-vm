@@ -3,6 +3,7 @@ use ast::ptr::*;
 use vm::VM;
 
 use compiler::CompilerPass;
+use std::any::Any;
 
 pub struct DefUse {
     name: &'static str,
@@ -36,6 +37,10 @@ fn use_value(val: &P<Value>, func_context: &mut FunctionContext) {
 impl CompilerPass for DefUse {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
     
     #[allow(unused_variables)]

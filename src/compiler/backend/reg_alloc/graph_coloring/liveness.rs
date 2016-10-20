@@ -124,14 +124,19 @@ impl InterferenceGraph {
     fn add_move(&mut self, src: Node, dst: Node) {
         self.moves.insert(Move{from: src, to: dst});
     }
+
+    pub fn is_same_group(&self, node1: Node, node2: Node) -> bool {
+        self.nodes_property.get(&node1).unwrap().group
+            == self.nodes_property.get(&node2).unwrap().group
+    }
     
     pub fn add_interference_edge(&mut self, from: Node, to: Node) {
-        // only if two nodes are from the same RegGroup,
-        // they may interefere
-        if self.nodes_property.get(&from).unwrap().group 
-           == self.nodes_property.get(&to).unwrap().group {
-            self.matrix.as_mut().unwrap()[(from.0, to.0)] = true;
-        }
+        self.matrix.as_mut().unwrap()[(from.0, to.0)] = true;
+    }
+
+    pub fn is_interferenced_with(&self, node1: Node, node2: Node) -> bool {
+        self.matrix.as_ref().unwrap()[(node1.0, node2.0)]
+        || self.matrix.as_ref().unwrap()[(node2.0, node1.0)]
     }
     
     pub fn color_node(&mut self, node: Node, color: MuID) {
@@ -207,18 +212,21 @@ impl InterferenceGraph {
         self.outdegree_of(node) + self.indegree_of(node)
     }
     
-    pub fn print(&self) {
+    pub fn print(&self, context: &FunctionContext) {
         println!("");
         println!("Interference Graph");
 
         println!("nodes:");
         for id in self.nodes.keys() {
-            println!("Reg {} -> {:?}", id, self.nodes.get(&id).unwrap());
+            let val = context.get_value(*id).unwrap().value();
+            println!("Reg {} -> {:?}", val, self.nodes.get(&id).unwrap());
         }
 
         println!("color:");
-        for (n, c) in self.nodes_property.iter() {
-            println!("{:?} -> Color/Reg {:?}", n, c);
+        for (node, color) in self.nodes_property.iter() {
+            let node_val = context.get_value(self.get_temp_of(*node)).unwrap().value();
+            let color_val = context.get_value(color.temp).unwrap().value();
+            println!("Reg {} of {:?} -> Color/Reg {}", node_val, node, color_val);
         }
         println!("moves:");
         for mov in self.moves.iter() {
@@ -242,8 +250,11 @@ impl InterferenceGraph {
                     if matrix[(i, j)] {
                         let from_node = node_to_reg_id.get(&Node(i)).unwrap();
                         let to_node = node_to_reg_id.get(&Node(j)).unwrap();
-                        
-                        println!("Reg {} -> Reg {}", from_node, to_node);
+
+                        let from_val = context.get_value(*from_node).unwrap().value();
+                        let to_val = context.get_value(*to_node).unwrap().value();
+
+                        println!("Reg {} -> Reg {}", from_val, to_val);
                     }
                 }
             }
@@ -355,14 +366,29 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
             Some(liveout) => liveout.to_vec(),
             None => panic!("cannot find liveout for block {}", block)
         });
+        if cfg!(debug_assertions) {
+            trace!("Block{}: live out", block);
+            for ele in current_live.iter() {
+                trace!("{}", func.context.get_temp_display(*ele));
+            }
+        }
         
         let range = cf.mc().get_block_range(&block);
         if range.is_none() {
+            warn!("Block{}: has no range (no instructions?)", block);
             continue;
         }
+        trace!("Block{}: range = {:?}", block, range.as_ref().unwrap());
         
         // for every inst I in reverse order
         for i in range.unwrap().rev() {
+            if cfg!(debug_assertions) {
+                trace!("Block{}: Inst{}: start. current_live:", block, i);
+                for ele in current_live.iter() {
+                    trace!("{}", func.context.get_temp_display(*ele));
+                }
+            }
+
             let src : Option<MuID> = {
                 if cf.mc().is_move(i) {
                     let src = cf.mc().get_inst_reg_uses(i);
@@ -377,6 +403,9 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
                         if src.len() == 1 {
                             let node1 = ig.get_node(src[0]);
                             let node2 = ig.get_node(dst[0]);
+                            trace!("add move between {} and {}",
+                                   func.context.get_temp_display(src[0]),
+                                   func.context.get_temp_display(dst[0]));
                             ig.add_move(node1, node2);
                             
                             Some(src[0])
@@ -388,21 +417,34 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
                     None
                 }
             };
+            trace!("Block{}: Inst{}: src={:?}", block, i, src);
             
             // for every definition D in I
             for d in cf.mc().get_inst_reg_defines(i) {
+                trace!("Block{}: Inst{}: for definition {}", block, i, func.context.get_temp_display(d));
                 // add an interference from D to every element E in Current_Live - {D}
                 // creating nodes if necessary
                 for e in current_live.iter() {
+                    trace!("Block{}: Inst{}: for each live {}",
+                           block, i,
+                           func.context.get_temp_display(*e));
                     if src.is_none() || (src.is_some() && *e != src.unwrap()) {
                         let from = ig.get_node(d);
                         let to = ig.get_node(*e);
                         
-                        if !ig.is_same_node(from, to) && !ig.is_adj(from, to) {
+                        if !ig.is_same_node(from, to) &&ig.is_same_group(from, to) && !ig.is_adj(from, to) {
                             if !ig.is_colored(from) {
+                                trace!("Block{}: Inst{}: add interference between {} and {}",
+                                       block, i,
+                                       func.context.get_temp_display(d),
+                                       func.context.get_temp_display(*e));
                                 ig.add_interference_edge(from, to);
                             }
                             if !ig.is_colored(to) {
+                                trace!("Block{}: Inst{}: add interference between {} and {}",
+                                       block, i,
+                                       func.context.get_temp_display(*e),
+                                       func.context.get_temp_display(d));
                                 ig.add_interference_edge(to, from);
                             }
                         }
@@ -412,14 +454,27 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
             
             // for every definition D in I
             for d in cf.mc().get_inst_reg_defines(i) {
+                trace!("Block{}: Inst{}: remove define {} from current_live",
+                       block, i,
+                       func.context.get_temp_display(d));
                 // remove D from Current_Live
                 current_live.remove(&d);
             }
             
             // for every use U in I
             for u in cf.mc().get_inst_reg_uses(i) {
+                trace!("Block{}: Inst{}: add use {} to current_live",
+                       block, i,
+                       func.context.get_temp_display(u));
                 // add U to Current_live
                 current_live.insert(u);
+            }
+
+            if cfg!(debug_assertions) {
+                trace!("Block{}: Inst{}: done. current_live:", block, i);
+                for ele in current_live.iter() {
+                    trace!("{}", func.context.get_temp_display(*ele));
+                }
             }
         }
     }

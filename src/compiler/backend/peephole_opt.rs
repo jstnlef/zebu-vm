@@ -3,6 +3,8 @@ use ast::ir::*;
 use vm::VM;
 use compiler::machine_code::CompiledFunction;
 
+use std::any::Any;
+
 pub struct PeepholeOptimization {
     name: &'static str
 }
@@ -53,6 +55,10 @@ impl PeepholeOptimization {
 impl CompilerPass for PeepholeOptimization {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
     
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {

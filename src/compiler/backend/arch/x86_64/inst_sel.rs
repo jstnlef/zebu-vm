@@ -21,6 +21,7 @@ use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
 use std::collections::HashMap;
+use std::any::Any;
 
 pub struct InstructionSelection {
     name: &'static str,
@@ -1284,6 +1285,10 @@ impl <'a> InstructionSelection {
 impl CompilerPass for InstructionSelection {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
 
     #[allow(unused_variables)]

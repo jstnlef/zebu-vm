@@ -5,7 +5,7 @@ authors = [ "Your name <you@example.com>" ]
 build = "build.rs"
 
 [lib]
-crate-type = ["staticlib", "rlib"]
+crate-type = ["staticlib", "rlib", "dylib"]
 
 [features]
 default = ["aot"]

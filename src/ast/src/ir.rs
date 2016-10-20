@@ -256,7 +256,14 @@ impl FunctionContext {
             op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         })
-    }    
+    }
+
+    pub fn get_temp_display(&self, id: MuID) -> String {
+        match self.get_value(id) {
+            Some(entry) => format!("{}", entry.value()),
+            None => "CANT_FOUND_ID".to_string()
+        }
+    }
 
     pub fn get_value(&self, id: MuID) -> Option<&SSAVarEntry> {
         self.values.get(&id)
