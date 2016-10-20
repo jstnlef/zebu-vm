@@ -32,9 +32,12 @@ pub enum PassExecutionResult {
     GoBackTo(PassID)
 }
 
+use std::any::Any;
+
 #[allow(unused_variables)]
 pub trait CompilerPass {
     fn name(&self) -> &'static str;
+    fn as_any(&self) -> &Any;
 
     fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
         debug!("---CompilerPass {} for {}---", self.name(), func);

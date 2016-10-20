@@ -2,8 +2,9 @@ use ast::ir::*;
 use ast::inst::Instruction_::*;
 use utils::vec_utils::as_str as vector_as_str;
 use vm::VM;
-
 use compiler::CompilerPass;
+
+use std::any::Any;
 
 pub struct ControlFlowAnalysis {
     name: &'static str
@@ -193,6 +194,10 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
 impl CompilerPass for ControlFlowAnalysis {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
 
     #[allow(unused_variables)]

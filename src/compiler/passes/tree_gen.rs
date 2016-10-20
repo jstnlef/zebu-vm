@@ -6,6 +6,8 @@ use vm::VM;
 use compiler::CompilerPass;
 use compiler::PassExecutionResult;
 
+use std::any::Any;
+
 pub struct TreeGen {
     name: &'static str
 } 
@@ -23,6 +25,10 @@ fn is_movable(expr: &Instruction_) -> bool {
 impl CompilerPass for TreeGen {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
     
     fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {

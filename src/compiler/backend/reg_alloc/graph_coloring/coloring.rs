@@ -15,7 +15,11 @@ use std::collections::HashMap;
 
 const COALESCING : bool = true;
 
-pub struct GraphColoring {
+pub struct GraphColoring<'a> {
+    pub func: &'a mut MuFunctionVersion,
+    pub cf: &'a mut CompiledFunction,
+    pub vm: &'a VM,
+
     pub ig: InterferenceGraph,
 
     precolored: LinkedHashSet<Node>,
@@ -44,12 +48,18 @@ pub struct GraphColoring {
     select_stack: Vec<Node>
 }
 
-impl GraphColoring {
-    pub fn start (func: &mut MuFunctionVersion, cf: &mut CompiledFunction, vm: &VM) -> Result<GraphColoring, RegAllocFailure> {
+impl <'a> GraphColoring<'a> {
+    pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> Result<GraphColoring<'a>, RegAllocFailure> {
         cf.mc().trace_mc();
 
+        let ig = graph_coloring::build_inteference_graph(cf, func);
+
         let mut coloring = GraphColoring {
-            ig: graph_coloring::build_inteference_graph(cf, func),
+            func: func,
+            cf: cf,
+            vm: vm,
+
+            ig: ig,
 
             precolored: LinkedHashSet::new(),
             colors: {
@@ -82,21 +92,14 @@ impl GraphColoring {
             select_stack: Vec::new()
         };
         
-        match coloring.regalloc(func, cf, vm) {
-            Ok(_) => Ok(coloring),
-            Err(fail) => Err(fail)
-        }
+        coloring.regalloc()
     }
     
-    fn regalloc(&mut self, func: &mut MuFunctionVersion, cf: &mut CompiledFunction, vm: &VM) -> Result<(), RegAllocFailure> {
+    fn regalloc(mut self) -> Result<GraphColoring<'a>, RegAllocFailure> {
         trace!("Initializing coloring allocator...");
 
         trace!("---InterenceGraph---");
-        self.ig.print();
-        trace!("---All temps---");
-        for entry in func.context.values.values() {
-            trace!("{}", entry);
-        }
+        self.ig.print(&self.func.context);
         
         // precolor for all machine registers
         for reg in backend::all_regs().values() {
@@ -117,7 +120,11 @@ impl GraphColoring {
                 self.initial.push(node);
                 let outdegree = self.ig.outdegree_of(node);
                 self.degree.insert(node, outdegree);
-                trace!("{} has a degree of {}", self.node_info(node), outdegree);
+
+                trace!("{} has a degree of {}", {
+                    let id = self.ig.get_temp_of(node);
+                    self.func.context.get_temp_display(id)
+                }, outdegree);
             }
         }
         
@@ -152,12 +159,12 @@ impl GraphColoring {
                 }
             }
 
-            self.rewrite_program(func, cf, vm);
+            self.rewrite_program();
 
-            GraphColoring::start(func, cf, vm);
+            return GraphColoring::start(self.func, self.cf, self.vm);
         }
 
-        Ok(())
+        Ok(self)
     }
     
     fn build(&mut self) {
@@ -612,23 +619,23 @@ impl GraphColoring {
         Ok(())
     }
 
-    fn rewrite_program(&mut self, func: &mut MuFunctionVersion, cf: &mut CompiledFunction, vm: &VM) {
+    fn rewrite_program(&mut self) {
         let spills = self.spills();
 
         let mut spilled_mem = HashMap::new();
 
         // allocating frame slots for every spilled temp
         for reg_id in spills.iter() {
-            let ssa_entry = match func.context.get_value(*reg_id) {
+            let ssa_entry = match self.func.context.get_value(*reg_id) {
                 Some(entry) => entry,
                 None => panic!("The spilled register {} is not in func context", reg_id)
             };
-            let mem = cf.frame.alloc_slot_for_spilling(ssa_entry.value().clone(), vm);
+            let mem = self.cf.frame.alloc_slot_for_spilling(ssa_entry.value().clone(), self.vm);
 
             spilled_mem.insert(*reg_id, mem);
         }
 
-        let new_temps = backend::spill_rewrite(&spilled_mem, func, cf, vm);
+        let new_temps = backend::spill_rewrite(&spilled_mem, self.func, self.cf, self.vm);
 //
 //        self.spilled_nodes.clear();
 //

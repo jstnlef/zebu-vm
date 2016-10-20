@@ -2,6 +2,8 @@ use ast::ir::*;
 use vm::VM;
 use compiler::CompilerPass;
 
+use std::any::Any;
+
 pub struct TraceGen {
     name: &'static str
 }
@@ -15,6 +17,10 @@ impl TraceGen {
 impl CompilerPass for TraceGen {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
     
     #[allow(unused_variables)]

@@ -63,6 +63,10 @@ impl Compiler {
         drop(_p);
         hprof::profiler().print_timing();
     }
+
+    pub fn get_policy(&self) -> &RefCell<CompilerPolicy> {
+        &self.policy
+    }
 }
 
 pub struct CompilerPolicy {
