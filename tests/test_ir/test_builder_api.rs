@@ -102,6 +102,16 @@ fn test_types_sigs_loading() {
         let mut fields = vec![id3, id7];
         ((*b).new_type_struct)(b, id6, fields.as_mut_ptr(), fields.len());
         ((*b).new_type_uptr)(b, id7, id6);
+    
+        let id8 = ((*b).gen_sym)(b, csp.get("@sig1"));
+        let id9 = ((*b).gen_sym)(b, csp.get("@funcptr1"));
+
+        let mut ptys = vec![id1, id2];
+        let mut rtys = vec![id3, id7];
+        ((*b).new_funcsig)(b, id8,
+                           ptys.as_mut_ptr(), ptys.len(),
+                           rtys.as_mut_ptr(), rtys.len());
+        ((*b).new_type_ufuncptr)(b, id9, id8);
 
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
