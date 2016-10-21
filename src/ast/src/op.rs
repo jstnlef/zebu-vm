@@ -121,6 +121,7 @@ pub enum BinOp {
     Sdiv,
     Srem,
     Udiv,
+    Urem,
     And,
     Or,
     Xor,
