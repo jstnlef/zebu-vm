@@ -442,75 +442,79 @@ impl MuIRBuilder {
 
 type IdPMap<T> = HashMap<MuID, P<T>>;
 
-fn load_bundle(b: &mut MuIRBuilder) {
-    let mut visited: HashSet<MuID> = Default::default();
-    let mut built_types: IdPMap<MuType> = Default::default();
-    let mut built_sigs: IdPMap<MuFuncSig> = Default::default();
+struct BundleLoader<'lb, 'lvm> {
+    b: &'lb MuIRBuilder,
+    vm: &'lvm VM,
+    visited: HashSet<MuID>,
+    built_types: IdPMap<MuType>,
+    built_sigs: IdPMap<MuFuncSig>,
+}
 
+fn load_bundle(b: &mut MuIRBuilder) {
     let vm = b.get_vm();
 
-    for (id, ty) in &b.bundle.types {
-        ensure_type_top(*id, ty, b, &mut visited, &mut built_types, &mut built_sigs, &vm);
+    let mut bl = BundleLoader {
+        b: b,
+        vm: vm,
+        visited: Default::default(),
+        built_types: Default::default(),
+        built_sigs: Default::default(),
+    };
+
+    bl.load_bundle();
+}
+
+impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
+    fn load_bundle(&mut self) {
+        for id in self.b.bundle.types.keys() {
+            self.ensure_type_top(*id);
+        }
     }
-}
 
-fn ensure_type_top(id: MuID,
-               ty: &Box<NodeType>,
-               b: &MuIRBuilder,
-               visited: &mut HashSet<MuID>,
-               built_types: &mut IdPMap<MuType>,
-               built_sigs: &mut IdPMap<MuFuncSig>,
-               vm: &VM) {
-    if !visited.contains(&id) {
-        build_type(id, ty, b, visited, built_types, built_sigs, vm)
+    fn ensure_type_top(&mut self, id: MuID) {
+        if !self.visited.contains(&id) {
+            self.build_type(id)
+        }
     }
-}
 
-fn build_type(id: MuID,
-              ty: &Box<NodeType>,
-              b: &MuIRBuilder,
-              visited: &mut HashSet<MuID>,
-              built_types: &mut IdPMap<MuType>,
-              built_sigs: &mut IdPMap<MuFuncSig>,
-              vm: &VM) {
-    trace!("Building type {} {:?}", id, ty);
-    visited.insert(id);
+    fn build_type(&mut self, id: MuID) {
+        self.visited.insert(id);
 
-    let impl_ty = MuType::new(id, match **ty {
-        NodeType::TypeInt { id, len } => {
-            MuType_::int(len as usize)
-        },
-        NodeType::TypeUPtr { id, ty: toty } => {
-            let toty_i = ensure_type_rec(toty, ty, b, visited, built_types, built_sigs, vm);
-            MuType_::uptr(toty_i)
-        },
-        ref t => panic!("{:?} not implemented", t),
-    });
+        let ty = self.b.bundle.types.get(&id).unwrap();
+        
+        trace!("Building type {} {:?}", id, ty);
 
-    trace!("Type built: {} {:?}", id, impl_ty);
+        let impl_ty = MuType::new(id, match **ty {
+            NodeType::TypeInt { id, len } => {
+                MuType_::int(len as usize)
+            },
+            NodeType::TypeUPtr { id, ty: toty } => {
+                let toty_i = self.ensure_type_rec(toty);
+                MuType_::uptr(toty_i)
+            },
+            ref t => panic!("{:?} not implemented", t),
+        });
 
-    built_types.insert(id, P(impl_ty));
-}
+        trace!("Type built: {} {:?}", id, impl_ty);
 
-fn ensure_type_rec(id: MuID,
-               ty: &Box<NodeType>,
-               b: &MuIRBuilder,
-               visited: &mut HashSet<MuID>,
-               built_types: &mut IdPMap<MuType>,
-               built_sigs: &mut IdPMap<MuFuncSig>,
-               vm: &VM) -> P<MuType> {
-    if b.bundle.types.contains_key(&id) {
-        if visited.contains(&id) {
-           match built_types.get(&id) {
-                Some(t) => t.clone(),
-                None => panic!("Cyclic types found. id: {}", id)
+        self.built_types.insert(id, P(impl_ty));
+    }
+
+    fn ensure_type_rec(&mut self, id: MuID) -> P<MuType> {
+        if self.b.bundle.types.contains_key(&id) {
+            if self.visited.contains(&id) {
+                match self.built_types.get(&id) {
+                    Some(t) => t.clone(),
+                    None => panic!("Cyclic types found. id: {}", id)
+                }
+            } else {
+                self.build_type(id);
+                self.built_types.get(&id).unwrap().clone()
             }
         } else {
-            build_type(id, ty, b, visited, built_types, built_sigs, vm);
-            built_types.get(&id).unwrap().clone()
+            self.vm.get_type(id)
         }
-    } else {
-        vm.get_type(id)
     }
+
 }
 

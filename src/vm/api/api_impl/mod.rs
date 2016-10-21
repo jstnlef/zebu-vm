@@ -12,6 +12,7 @@
 mod muvm;
 mod muctx;
 mod muirbuilder;
+mod irnodes;
 
 pub use self::muvm::*;
 pub use self::muctx::*;
@@ -33,12 +34,12 @@ mod common {
     pub use super::muvm::*;
     pub use super::muctx::*;
     pub use super::muirbuilder::*;
+    pub use super::irnodes::*;
 
     pub use super::super::super::vm::VM;
 
     pub use super::super::api_c::*;
     pub use super::super::api_bridge::*;
-    pub use super::super::irnodes::*;
 
     pub use ast::bundle::*;
     pub use ast::ir::*;

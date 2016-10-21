@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use super::deps::*;
+use super::common::*;
 
 //pub type MuID = usize;
 pub type MuTypeNode = MuID;

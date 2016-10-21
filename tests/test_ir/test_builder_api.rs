@@ -16,6 +16,7 @@ use self::mu::vm::api::*;
 use std::mem;
 use std::ptr;
 use std::ffi::CString;
+use std::os::raw::c_char;
 
 #[test]
 #[allow(unused_variables)]
@@ -55,9 +56,24 @@ fn test_startup_shutdown() {
     }
 }
 
+#[derive(Default)]
+struct CStringPool {
+    strings: Vec<CString>,
+}
+
+impl CStringPool {
+    fn get(&mut self, s: &str) -> *const c_char {
+        self.strings.push(CString::new(s).unwrap());
+        self.strings.last().unwrap().as_ptr()
+    }
+}
+
+
 #[test]
 #[allow(unused_variables)]
 fn test_types_sigs_loading() {
+    let mut csp: CStringPool = Default::default();
+
     unsafe {
         simple_logger::init_with_level(log::LogLevel::Trace).ok();
         
@@ -69,13 +85,13 @@ fn test_types_sigs_loading() {
 
         let b = ((*ctx).new_ir_builder)(ctx);
 
-        let id1 = ((*b).gen_sym)(b, ptr::null_mut());
-        let id2 = ((*b).gen_sym)(b, CString::new("@id2").unwrap().as_ptr());
-        let id3 = ((*b).gen_sym)(b, ptr::null_mut());
+        let id1 = ((*b).gen_sym)(b, csp.get("@i8"));
+        let id2 = ((*b).gen_sym)(b, csp.get("@i32"));
+        let id3 = ((*b).gen_sym)(b, csp.get("@pi32"));
 
-        ((*b).new_type_int)(b, id1, 8);
-        ((*b).new_type_int)(b, id2, 32);
         ((*b).new_type_uptr)(b, id3, id2);
+        ((*b).new_type_int)(b, id2, 32);
+        ((*b).new_type_int)(b, id1, 8);
 
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
