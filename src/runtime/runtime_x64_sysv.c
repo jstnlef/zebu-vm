@@ -1,3 +1,9 @@
+#ifdef __linux__
+// RTLD_DEFAULT is not defined in POSIX. Linux gcc does not define it unless
+// _GNU_SOURCE is also defined.
+#define _GNU_SOURCE
+#endif // __linux__
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
