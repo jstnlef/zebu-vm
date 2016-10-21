@@ -88,10 +88,20 @@ fn test_types_sigs_loading() {
         let id1 = ((*b).gen_sym)(b, csp.get("@i8"));
         let id2 = ((*b).gen_sym)(b, csp.get("@i32"));
         let id3 = ((*b).gen_sym)(b, csp.get("@pi32"));
+        let id4 = ((*b).gen_sym)(b, csp.get("@str1"));
+        let id5 = ((*b).gen_sym)(b, ptr::null_mut());
+        let id6 = ((*b).gen_sym)(b, csp.get("@str2"));
+        let id7 = ((*b).gen_sym)(b, csp.get("@pstr2"));
 
-        ((*b).new_type_uptr)(b, id3, id2);
-        ((*b).new_type_int)(b, id2, 32);
         ((*b).new_type_int)(b, id1, 8);
+        ((*b).new_type_int)(b, id2, 32);
+        ((*b).new_type_uptr)(b, id3, id2);
+        ((*b).new_type_struct)(b, id4, ptr::null_mut(), 0);
+        ((*b).new_type_struct)(b, id5, ptr::null_mut(), 0);
+
+        let mut fields = vec![id3, id7];
+        ((*b).new_type_struct)(b, id6, fields.as_mut_ptr(), fields.len());
+        ((*b).new_type_uptr)(b, id7, id6);
 
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
