@@ -3,16 +3,16 @@ extern crate libloading as ll;
 
 use test_ir::test_ir::sum;
 use test_ir::test_ir::factorial;
-use self::mu::ast::ir::*;
-use self::mu::ast::op::*;
-use self::mu::ast::inst::*;
-use self::mu::ast::types::*;
-use self::mu::vm::*;
+use mu::ast::ir::*;
+use mu::ast::op::*;
+use mu::ast::inst::*;
+use mu::ast::types::*;
+use mu::vm::*;
 
 use std::sync::RwLock;
 use std::collections::HashMap;
 
-use testutil;
+use mu::testutil::compile_fnc;
 
 
 #[test]
@@ -54,17 +54,19 @@ fn test_add_8bit_wraparound() {
         vm.set_name(blk0.as_entity(), "fnc_v1.blk0".to_string());
 
         // @fnc_v1.blk0.res = ADD <@i8> @0xff_i8 @0x0a_i8
-        let lc_0xff_i8 = fnc_ver.new_constant(vm.next_id(), c_0xff_i8.clone());
-        let lc_0x0a_i8 = fnc_ver.new_constant(vm.next_id(), c_0x0a_i8.clone());
+        let lc_0xff_i8 = fnc_ver.new_constant(c_0xff_i8.clone());
+        let lc_0x0a_i8 = fnc_ver.new_constant(c_0x0a_i8.clone());
         let res = fnc_ver.new_ssa(vm.next_id(), i8.clone());
         vm.set_name(res.as_entity(), "fnc_v1.blk0.res".to_string());
-        let op_add = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_add = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: Some(vec![res.clone_value()]),
             ops: RwLock::new(vec![lc_0xff_i8.clone(), lc_0x0a_i8.clone()]),
             v: Instruction_::BinOp(BinOp::Add, 0, 1)
         });
 
-        let op_ret = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_ret = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: None,
             ops: RwLock::new(vec![res.clone()]),
             v: Instruction_::Return(vec![0])
@@ -87,7 +89,7 @@ fn test_add_8bit_wraparound() {
 
         vm
     }
-    let lib = testutil::compile_fnc("fnc", &build_fn);
+    let lib = compile_fnc("fnc", &build_fn);
     unsafe {
         let fncptr: ll::Symbol<unsafe extern fn () -> u8> = lib.get(b"fnc").unwrap();
         assert!(fncptr() == 9);
@@ -133,17 +135,19 @@ fn test_sub_8bit_wraparound() {
         vm.set_name(blk0.as_entity(), "fnc_v1.blk0".to_string());
 
         // @fnc_v1.blk0.res = SUB <@i8> @0x0a_i8 @0xff_i8
-        let lc_0xff_i8 = fnc_ver.new_constant(vm.next_id(), c_0xff_i8.clone());
-        let lc_0x0a_i8 = fnc_ver.new_constant(vm.next_id(), c_0x0a_i8.clone());
+        let lc_0xff_i8 = fnc_ver.new_constant(c_0xff_i8.clone());
+        let lc_0x0a_i8 = fnc_ver.new_constant(c_0x0a_i8.clone());
         let res = fnc_ver.new_ssa(vm.next_id(), i8.clone());
         vm.set_name(res.as_entity(), "fnc_v1.blk0.res".to_string());
-        let op_add = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_add = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: Some(vec![res.clone_value()]),
             ops: RwLock::new(vec![lc_0x0a_i8.clone(), lc_0xff_i8.clone()]),
             v: Instruction_::BinOp(BinOp::Sub, 0, 1)
         });
 
-        let op_ret = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_ret = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: None,
             ops: RwLock::new(vec![res.clone()]),
             v: Instruction_::Return(vec![0])
@@ -166,7 +170,7 @@ fn test_sub_8bit_wraparound() {
 
         vm
     }
-    let lib = testutil::compile_fnc("fnc", &build_fn);
+    let lib = compile_fnc("fnc", &build_fn);
     unsafe {
         let fncptr: ll::Symbol<unsafe extern fn () -> u8> = lib.get(b"fnc").unwrap();
         assert!(fncptr() == 0xf5);
@@ -212,17 +216,19 @@ fn test_mul_8bit_wraparound() {
         vm.set_name(blk0.as_entity(), "fnc_v1.blk0".to_string());
 
         // @fnc_v1.blk0.res = MUL <@i8> @0x0a_i8 @0xff_i8
-        let lc_0xff_i8 = fnc_ver.new_constant(vm.next_id(), c_0xff_i8.clone());
-        let lc_0x0a_i8 = fnc_ver.new_constant(vm.next_id(), c_0x0a_i8.clone());
+        let lc_0xff_i8 = fnc_ver.new_constant(c_0xff_i8.clone());
+        let lc_0x0a_i8 = fnc_ver.new_constant(c_0x0a_i8.clone());
         let res = fnc_ver.new_ssa(vm.next_id(), i8.clone());
         vm.set_name(res.as_entity(), "fnc_v1.blk0.res".to_string());
-        let op_add = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_add = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: Some(vec![res.clone_value()]),
             ops: RwLock::new(vec![lc_0x0a_i8.clone(), lc_0xff_i8.clone()]),
             v: Instruction_::BinOp(BinOp::Mul, 0, 1)
         });
 
-        let op_ret = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_ret = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: None,
             ops: RwLock::new(vec![res.clone()]),
             v: Instruction_::Return(vec![0])
@@ -245,7 +251,7 @@ fn test_mul_8bit_wraparound() {
 
         vm
     }
-    let lib = testutil::compile_fnc("fnc", &build_fn);
+    let lib = compile_fnc("fnc", &build_fn);
     unsafe {
         let fncptr: ll::Symbol<unsafe extern fn () -> u8> = lib.get(b"fnc").unwrap();
         assert!(fncptr() == 0xf6);
@@ -291,17 +297,19 @@ fn test_sdiv_i8() {
         vm.set_name(blk0.as_entity(), "fnc_v1.blk0".to_string());
 
         // @fnc_v1.blk0.res = SDIV <@i8> @0xff_i8 @0x0a_i8
-        let lc_0xff_i8 = fnc_ver.new_constant(vm.next_id(), c_0xff_i8.clone());
-        let lc_0x0a_i8 = fnc_ver.new_constant(vm.next_id(), c_0x0a_i8.clone());
+        let lc_0xff_i8 = fnc_ver.new_constant(c_0xff_i8.clone());
+        let lc_0x0a_i8 = fnc_ver.new_constant(c_0x0a_i8.clone());
         let res = fnc_ver.new_ssa(vm.next_id(), i8.clone());
         vm.set_name(res.as_entity(), "fnc_v1.blk0.res".to_string());
-        let op_add = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_add = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: Some(vec![res.clone_value()]),
             ops: RwLock::new(vec![lc_0xff_i8.clone(), lc_0x0a_i8.clone()]),
             v: Instruction_::BinOp(BinOp::Sdiv, 0, 1)
         });
 
-        let op_ret = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_ret = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: None,
             ops: RwLock::new(vec![res.clone()]),
             v: Instruction_::Return(vec![0])
@@ -324,7 +332,7 @@ fn test_sdiv_i8() {
 
         vm
     }
-    let lib = testutil::compile_fnc("fnc", &build_fn);
+    let lib = compile_fnc("fnc", &build_fn);
     unsafe {
         let fncptr: ll::Symbol<unsafe extern fn () -> u8> = lib.get(b"fnc").unwrap();
         assert!(fncptr() == 0xf4);    // -12
@@ -370,17 +378,19 @@ fn test_urem_i8() {
         vm.set_name(blk0.as_entity(), "fnc_v1.blk0".to_string());
 
         // @fnc_v1.blk0.res = UREM <@i8> @0xff_i8 @0x0a_i8
-        let lc_0xff_i8 = fnc_ver.new_constant(vm.next_id(), c_0xff_i8.clone());
-        let lc_0x0a_i8 = fnc_ver.new_constant(vm.next_id(), c_0x0a_i8.clone());
+        let lc_0xff_i8 = fnc_ver.new_constant(c_0xff_i8.clone());
+        let lc_0x0a_i8 = fnc_ver.new_constant(c_0x0a_i8.clone());
         let res = fnc_ver.new_ssa(vm.next_id(), i8.clone());
         vm.set_name(res.as_entity(), "fnc_v1.blk0.res".to_string());
-        let op_add = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_add = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: Some(vec![res.clone_value()]),
             ops: RwLock::new(vec![lc_0xff_i8.clone(), lc_0x0a_i8.clone()]),
             v: Instruction_::BinOp(BinOp::Urem, 0, 1)
         });
 
-        let op_ret = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_ret = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: None,
             ops: RwLock::new(vec![res.clone()]),
             v: Instruction_::Return(vec![0])
@@ -403,7 +413,7 @@ fn test_urem_i8() {
 
         vm
     }
-    let lib = testutil::compile_fnc("fnc", &build_fn);
+    let lib = compile_fnc("fnc", &build_fn);
     unsafe {
         let fncptr: ll::Symbol<unsafe extern fn () -> u8> = lib.get(b"fnc").unwrap();
         assert!(fncptr() == 5);
@@ -450,17 +460,19 @@ fn test_shl() {
         vm.set_name(blk0.as_entity(), "fnc_v1.blk0".to_string());
 
         // @fnc_v1.blk0.res = SHL <@i64> @0x6d9f9c1d58324b55 @0x0a_i64
-        let lc_0x6d9f9c1d58324b55_i64 = fnc_ver.new_constant(vm.next_id(), c_0x6d9f9c1d58324b55_i64.clone());
-        let lc_0x0a_i64 = fnc_ver.new_constant(vm.next_id(), c_0x0a_i64.clone());
+        let lc_0x6d9f9c1d58324b55_i64 = fnc_ver.new_constant(c_0x6d9f9c1d58324b55_i64.clone());
+        let lc_0x0a_i64 = fnc_ver.new_constant(c_0x0a_i64.clone());
         let res = fnc_ver.new_ssa(vm.next_id(), i64.clone());
         vm.set_name(res.as_entity(), "fnc_v1.blk0.res".to_string());
-        let op_add = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_add = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: Some(vec![res.clone_value()]),
             ops: RwLock::new(vec![lc_0x6d9f9c1d58324b55_i64.clone(), lc_0x0a_i64.clone()]),
             v: Instruction_::BinOp(BinOp::Shl, 0, 1)
         });
 
-        let op_ret = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_ret = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: None,
             ops: RwLock::new(vec![res.clone()]),
             v: Instruction_::Return(vec![0])
@@ -483,7 +495,7 @@ fn test_shl() {
 
         vm
     }
-    let lib = testutil::compile_fnc("fnc", &build_fn);
+    let lib = compile_fnc("fnc", &build_fn);
     unsafe {
         let fncptr: ll::Symbol<unsafe extern fn () -> u64> = lib.get(b"fnc").unwrap();
         assert!(fncptr() == 0x7e707560c92d5400);
@@ -530,17 +542,19 @@ fn test_lshr() {
         vm.set_name(blk0.as_entity(), "fnc_v1.blk0".to_string());
 
         // @fnc_v1.blk0.res = LSHR <@i64> @0x8d9f9c1d58324b55 @0x0a_i64
-        let lc_0x8d9f9c1d58324b55_i64 = fnc_ver.new_constant(vm.next_id(), c_0x8d9f9c1d58324b55_i64.clone());
-        let lc_0x0a_i64 = fnc_ver.new_constant(vm.next_id(), c_0x0a_i64.clone());
+        let lc_0x8d9f9c1d58324b55_i64 = fnc_ver.new_constant(c_0x8d9f9c1d58324b55_i64.clone());
+        let lc_0x0a_i64 = fnc_ver.new_constant(c_0x0a_i64.clone());
         let res = fnc_ver.new_ssa(vm.next_id(), i64.clone());
         vm.set_name(res.as_entity(), "fnc_v1.blk0.res".to_string());
-        let op_add = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_add = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: Some(vec![res.clone_value()]),
             ops: RwLock::new(vec![lc_0x8d9f9c1d58324b55_i64.clone(), lc_0x0a_i64.clone()]),
             v: Instruction_::BinOp(BinOp::Lshr, 0, 1)
         });
 
-        let op_ret = fnc_ver.new_inst(vm.next_id(), Instruction{
+        let op_ret = fnc_ver.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
             value: None,
             ops: RwLock::new(vec![res.clone()]),
             v: Instruction_::Return(vec![0])
@@ -563,7 +577,7 @@ fn test_lshr() {
 
         vm
     }
-    let lib = testutil::compile_fnc("fnc", &build_fn);
+    let lib = compile_fnc("fnc", &build_fn);
     unsafe {
         let fncptr: ll::Symbol<unsafe extern fn () -> u64> = lib.get(b"fnc").unwrap();
         assert!(fncptr() == 0x2367E707560C92);

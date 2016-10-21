@@ -12,7 +12,7 @@ use self::mu::compiler::*;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::collections::HashMap;
-use aot;
+use self::mu::testutil::aot;
 
 #[test]
 fn test_instruction_new() {
