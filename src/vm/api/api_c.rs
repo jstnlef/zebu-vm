@@ -109,6 +109,8 @@ pub struct CMuVM {
     pub id_of: extern fn(*mut CMuVM, CMuName) -> CMuID,
     pub name_of: extern fn(*mut CMuVM, CMuID) -> CMuName,
     pub set_trap_handler: extern fn(*mut CMuVM, CMuTrapHandler, CMuCPtr),
+    // this function is only used in testing jit
+    pub compile_to_sharedlib: extern fn(*mut CMuVM, CMuCString) -> CMuCString,
 }
 
 #[repr(C)]

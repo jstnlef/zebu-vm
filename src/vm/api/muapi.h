@@ -270,6 +270,8 @@ struct MuVM {
 
     // Set handlers
     void    (*set_trap_handler)(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
+
+    MuCString (*compile_to_sharedlib)(MuVM *mvm, MuCString fncname);
 };
 
 // A local context. It can only be used by one thread at a time. It holds many
