@@ -70,24 +70,26 @@ impl MuVM {
         panic!("Not implemented")
     }
 
-    pub fn compile_to_sharedlib(&self, fnc_name: String) -> CMuCString {
+    pub fn compile_to_sharedlib(&self, fnc_id: MuID) -> CMuCString {
         extern crate libloading as ll;
 
         use compiler::*;
         use testutil::aot;
 
         let compiler = Compiler::new(CompilerPolicy::default(), self.vm.clone());
-        let fnc_id = self.vm.id_of(&fnc_name);
+        let funcs = self.vm.funcs().read().unwrap();
+        // NOTE: this fails because load() API call is not properly implemented yet.
+        let func = funcs.get(&fnc_id).unwrap().read().unwrap();
         {
-            let funcs = self.vm.funcs().read().unwrap();
-            let func = funcs.get(&fnc_id).unwrap().read().unwrap();
             let func_vers = self.vm.func_vers().read().unwrap();
             let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
             compiler.compile(&mut func_ver);
         }
+        let func_name = func.name().unwrap();
+        let asm_filename = backend::get_asm_filename(&func_name);
         backend::emit_context(&self.vm);
-        let libname = &format!("lib{}.dylib", fnc_name);
-        let dylib = aot::link_dylib(vec![fnc_name], libname);
+        let libname = &format!("lib{}.dylib", func_name);
+        let dylib = aot::link_asm_to_dylib(vec![asm_filename], libname);
         dylib.to_str().unwrap().as_ptr() as CMuCString
     }
 
