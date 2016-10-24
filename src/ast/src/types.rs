@@ -152,6 +152,10 @@ impl fmt::Display for StructType_ {
 }
 
 impl StructType_ {
+    // The IR builder needs to create StructType objects, too.
+    pub fn new(tys: Vec<P<MuType>>) -> StructType_ {
+        StructType_ { tys: tys }
+    }
     pub fn set_tys(&mut self, mut list: Vec<P<MuType>>) {
         self.tys.clear();
         self.tys.append(&mut list);

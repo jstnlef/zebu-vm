@@ -132,7 +132,8 @@ impl MuIRBuilder {
     }
 
     pub fn new_type_ufuncptr(&mut self, id: MuID, sig: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeUFuncPtr{ id: id,
+            sig: sig }));
     }
 
     pub fn new_type_struct(&mut self, id: MuID, fieldtys: Vec<MuID>) {
@@ -448,6 +449,7 @@ struct BundleLoader<'lb, 'lvm> {
     visited: HashSet<MuID>,
     built_types: IdPMap<MuType>,
     built_sigs: IdPMap<MuFuncSig>,
+    struct_id_tags: Vec<(MuID, MuName)>,
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -459,6 +461,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         visited: Default::default(),
         built_types: Default::default(),
         built_sigs: Default::default(),
+        struct_id_tags: Default::default(),
     };
 
     bl.load_bundle();
@@ -467,15 +470,41 @@ fn load_bundle(b: &mut MuIRBuilder) {
 impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
         for id in self.b.bundle.types.keys() {
-            self.ensure_type_top(*id);
+            if !self.visited.contains(id) {
+                self.build_type(*id)
+            }
+        }
+
+        let struct_id_tags = self.struct_id_tags.drain(..).collect::<Vec<_>>();
+        for (id, ref tag) in struct_id_tags {
+            self.fill_struct(id, tag)
+        }
+
+        for id in self.b.bundle.sigs.keys() {
+            if !self.visited.contains(id) {
+                self.build_sig(*id)
+            }
         }
     }
 
-    fn ensure_type_top(&mut self, id: MuID) {
-        if !self.visited.contains(&id) {
-            self.build_type(id)
+    fn name_from_id(id: MuID, hint: &str) -> String {
+        format!("@uvm.unnamed{}{}", hint, id)
+    }
+
+//    fn maybe_get_name(&self, id: MuID) -> Option<String> {
+//        self.b.id_name_map.get(id).cloned()
+//    }
+
+    fn get_name_or_make(&self, id: MuID, hint: &str) -> String {
+        match self.b.id_name_map.get(&id) {
+            Some(n) => n.clone(),
+            None => BundleLoader::name_from_id(id, hint),
         }
     }
+
+//    fn make_mu_entity_header(&self, id: MuID, hint: &str) -> MuEntityHeader {
+//        MuEntityHeader::named(id, self.get_name_or_make(id, hint))
+//    }
 
     fn build_type(&mut self, id: MuID) {
         self.visited.insert(id);
@@ -485,12 +514,21 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Building type {} {:?}", id, ty);
 
         let impl_ty = MuType::new(id, match **ty {
-            NodeType::TypeInt { id, len } => {
-                MuType_::int(len as usize)
+            NodeType::TypeInt { id: _, len: len } => {
+                MuType_::Int(len as usize)
             },
-            NodeType::TypeUPtr { id, ty: toty } => {
+            NodeType::TypeUPtr { id: _, ty: toty } => {
                 let toty_i = self.ensure_type_rec(toty);
-                MuType_::uptr(toty_i)
+                MuType_::UPtr(toty_i)
+            },
+            NodeType::TypeUFuncPtr { id: _, sig: sig } => {
+                let sig_i = self.ensure_sig_rec(sig);
+                MuType_::UFuncPtr(sig_i)
+            },
+            NodeType::TypeStruct { id: _, fieldtys: _ } => { 
+                let tag = self.get_name_or_make(id, "struct");
+                self.struct_id_tags.push((id, tag.clone()));
+                MuType_::Struct(tag)
             },
             ref t => panic!("{:?} not implemented", t),
         });
@@ -516,5 +554,69 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
     }
 
+    fn fill_struct(&mut self, id: MuID, tag: &MuName) {
+        let ty = self.b.bundle.types.get(&id).unwrap();
+        
+        trace!("Filling struct {} {:?}", id, ty);
+
+        match **ty {
+            NodeType::TypeStruct { id: _, fieldtys: ref fieldtys } => { 
+                let fieldtys_impl = fieldtys.iter().map(|fid| {
+                    self.ensure_type_rec(*fid)
+                }).collect::<Vec<_>>();
+
+                let struct_ty_ = StructType_::new(fieldtys_impl);
+
+                match STRUCT_TAG_MAP.read().unwrap().get(tag) {
+                    Some(old_struct_ty_) => {
+                        if struct_ty_ != *old_struct_ty_ {
+                            panic!("trying to insert {:?} as {}, while the old struct is defined as {:?}",
+                                   struct_ty_, tag, old_struct_ty_)
+                        }
+                    },
+                    None => {}
+                }
+                STRUCT_TAG_MAP.write().unwrap().insert(tag.clone(), struct_ty_);
+                
+                trace!("Struct {} filled: {:?}", id,
+                    STRUCT_TAG_MAP.read().unwrap().get(tag));
+            },
+            ref t => panic!("{} {:?} should be a Struct type", id, ty),
+        }
+    }
+
+    fn build_sig(&mut self, id: MuID) {
+        self.visited.insert(id);
+
+        let sig = self.b.bundle.sigs.get(&id).unwrap();
+        
+        trace!("Building function signature {} {:?}", id, sig);
+
+        let impl_sig = MuFuncSig{
+            hdr: MuEntityHeader::unnamed(id),
+            ret_tys: sig.rettys.iter().map(|i| self.ensure_type_rec(*i)).collect::<Vec<_>>(),
+            arg_tys: sig.paramtys.iter().map(|i| self.ensure_type_rec(*i)).collect::<Vec<_>>(),
+        };
+
+        trace!("Function signature built: {} {:?}", id, impl_sig);
+
+        self.built_sigs.insert(id, P(impl_sig));
+    }
+
+    fn ensure_sig_rec(&mut self, id: MuID) -> P<MuFuncSig> {
+        if self.b.bundle.sigs.contains_key(&id) {
+            if self.visited.contains(&id) {
+                match self.built_sigs.get(&id) {
+                    Some(t) => t.clone(),
+                    None => panic!("Cyclic signature found. id: {}", id)
+                }
+            } else {
+                self.build_sig(id);
+                self.built_sigs.get(&id).unwrap().clone()
+            }
+        } else {
+            self.vm.get_func_sig(id)
+        }
+    }
 }
 
