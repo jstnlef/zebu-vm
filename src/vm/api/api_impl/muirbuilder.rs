@@ -446,21 +446,27 @@ type IdPMap<T> = HashMap<MuID, P<T>>;
 struct BundleLoader<'lb, 'lvm> {
     b: &'lb MuIRBuilder,
     vm: &'lvm VM,
+    id_name_map: HashMap<MuID, MuName>,
     visited: HashSet<MuID>,
     built_types: IdPMap<MuType>,
     built_sigs: IdPMap<MuFuncSig>,
+    built_values: IdPMap<Value>,
     struct_id_tags: Vec<(MuID, MuName)>,
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
     let vm = b.get_vm();
 
+    let new_map = b.id_name_map.drain().collect::<HashMap<_,_>>();
+
     let mut bl = BundleLoader {
         b: b,
         vm: vm,
+        id_name_map: new_map,
         visited: Default::default(),
         built_types: Default::default(),
         built_sigs: Default::default(),
+        built_values: Default::default(),
         struct_id_tags: Default::default(),
     };
 
@@ -469,6 +475,51 @@ fn load_bundle(b: &mut MuIRBuilder) {
 
 impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
+        self.ensure_names();
+        self.build_toplevels();
+    }
+
+    fn name_from_id(id: MuID, hint: &str) -> String {
+        format!("@uvm.unnamed{}{}", hint, id)
+    }
+
+    fn ensure_name(&mut self, id: MuID, hint: &str) {
+        self.id_name_map.entry(id).or_insert_with(|| {
+            let name = BundleLoader::name_from_id(id, hint);
+            trace!("Making name for ID {} : {}", id, name);
+            name
+        });
+    }
+
+    fn ensure_names(&mut self) {
+        // Make sure structs have names because struct names are used to resolve cyclic
+        // dependencies.
+        for (id, ty) in &self.b.bundle.types {
+            match **ty {
+                NodeType::TypeStruct { id: _, fieldtys: _ } => { 
+                    self.ensure_name(*id, "struct");
+                },
+                _ => {}
+            }
+        }
+    }
+
+    fn get_name(&self, id: MuID) -> String {
+        self.id_name_map.get(&id).unwrap().clone()
+    }
+
+    fn maybe_get_name(&self, id: MuID) -> Option<String> {
+        self.id_name_map.get(&id).cloned()
+    }
+
+    fn make_mu_entity_header(&self, id: MuID) -> MuEntityHeader {
+        match self.maybe_get_name(id) {
+            None => MuEntityHeader::unnamed(id),
+            Some(name) => MuEntityHeader::named(id, name),
+        }
+    }
+
+    fn build_toplevels(&mut self) {
         for id in self.b.bundle.types.keys() {
             if !self.visited.contains(id) {
                 self.build_type(*id)
@@ -485,26 +536,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 self.build_sig(*id)
             }
         }
-    }
 
-    fn name_from_id(id: MuID, hint: &str) -> String {
-        format!("@uvm.unnamed{}{}", hint, id)
-    }
-
-//    fn maybe_get_name(&self, id: MuID) -> Option<String> {
-//        self.b.id_name_map.get(id).cloned()
-//    }
-
-    fn get_name_or_make(&self, id: MuID, hint: &str) -> String {
-        match self.b.id_name_map.get(&id) {
-            Some(n) => n.clone(),
-            None => BundleLoader::name_from_id(id, hint),
+        for id in self.b.bundle.consts.keys() {
+            if !self.visited.contains(id) {
+                self.build_const(*id)
+            }
         }
     }
-
-//    fn make_mu_entity_header(&self, id: MuID, hint: &str) -> MuEntityHeader {
-//        MuEntityHeader::named(id, self.get_name_or_make(id, hint))
-//    }
 
     fn build_type(&mut self, id: MuID) {
         self.visited.insert(id);
@@ -513,7 +551,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         
         trace!("Building type {} {:?}", id, ty);
 
-        let impl_ty = MuType::new(id, match **ty {
+        let hdr = self.make_mu_entity_header(id);
+
+        let impl_ty_ = match **ty {
             NodeType::TypeInt { id: _, len: len } => {
                 MuType_::Int(len as usize)
             },
@@ -526,12 +566,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 MuType_::UFuncPtr(sig_i)
             },
             NodeType::TypeStruct { id: _, fieldtys: _ } => { 
-                let tag = self.get_name_or_make(id, "struct");
+                let tag = self.get_name(id);
                 self.struct_id_tags.push((id, tag.clone()));
                 MuType_::Struct(tag)
             },
             ref t => panic!("{:?} not implemented", t),
-        });
+        };
+
+        let impl_ty = MuType { hdr: hdr, v: impl_ty_ };
 
         trace!("Type built: {} {:?}", id, impl_ty);
 
@@ -592,8 +634,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         
         trace!("Building function signature {} {:?}", id, sig);
 
+        let hdr = self.make_mu_entity_header(id);
+
         let impl_sig = MuFuncSig{
-            hdr: MuEntityHeader::unnamed(id),
+            hdr: hdr,
             ret_tys: sig.rettys.iter().map(|i| self.ensure_type_rec(*i)).collect::<Vec<_>>(),
             arg_tys: sig.paramtys.iter().map(|i| self.ensure_type_rec(*i)).collect::<Vec<_>>(),
         };
@@ -617,6 +661,35 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         } else {
             self.vm.get_func_sig(id)
         }
+    }
+
+    fn build_const(&mut self, id: MuID) {
+        self.visited.insert(id);
+
+        let con = self.b.bundle.consts.get(&id).unwrap();
+        
+        trace!("Building constant {} {:?}", id, con);
+
+        let hdr = self.make_mu_entity_header(id);
+
+        let (impl_con, impl_ty) = match **con {
+            NodeConst::ConstInt { id: _, ty: ty, value: value } => {
+                let t = self.ensure_type_rec(ty);
+                let c = Constant::Int(value);
+                (c, t)
+            },
+            ref c => panic!("{:?} not implemented", c),
+        };
+
+        let impl_val = Value {
+            hdr: hdr,
+            ty: impl_ty,
+            v: Value_::Constant(impl_con),
+        };
+
+        trace!("Constant built: {} {:?}", id, impl_val);
+
+        self.built_values.insert(id, P(impl_val));
     }
 }
 
