@@ -87,8 +87,8 @@ impl MuVM {
         }
         let func_name = func.name().unwrap();
         backend::emit_context(&self.vm);
-        let libname = &format!("lib{}.dylib", fnc_name);
-        let dylib = aot::link_dylib(vec![Mu(fnc_name)], libname);
+        let libname = &format!("lib{}.dylib", func_name);
+        let dylib = aot::link_dylib(vec![func_name], libname);
         dylib.to_str().unwrap().as_ptr() as CMuCString
     }
 
