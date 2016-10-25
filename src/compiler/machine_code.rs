@@ -10,7 +10,9 @@ use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 pub struct CompiledFunction {
     pub func_id: MuID,
     pub func_ver_id: MuID,
-    pub temps: HashMap<MuID, MuID>, // assumes one temporary maps to one register
+
+    // assumes one temporary maps to one register
+    pub temps: HashMap<MuID, MuID>,
     
     // not emitting this
     pub mc: Option<Box<MachineCode + Send + Sync>>,
@@ -122,10 +124,15 @@ pub trait MachineCode {
     // functions for rewrite
     /// replace a temp with a machine register (to_reg must be a machine register)
     fn replace_reg(&mut self, from: MuID, to: MuID);
-    /// replace a temp with another temp
+    /// replace a temp that is defined in the inst with another temp
     fn replace_define_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
+    /// replace a temp that is used in the inst with another temp
     fn replace_use_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
+    /// set an instruction as nop
     fn set_inst_nop(&mut self, index: usize);
+    /// remove unnecessary push/pop if the callee saved register is not used
+    /// returns what registers push/pop have been deleted
+    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID>;
 
     fn as_any(&self) -> &Any;
 }

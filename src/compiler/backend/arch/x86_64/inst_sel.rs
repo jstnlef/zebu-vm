@@ -14,6 +14,7 @@ use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 use compiler::backend;
+use compiler::backend::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::x86_64::ASMCodeGen;
@@ -898,7 +899,7 @@ impl <'a> InstructionSelection {
     }
     
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, vm: &VM) {
-        let block_name = "prologue".to_string();
+        let block_name = PROLOGUE_BLOCK_NAME.to_string();
         self.backend.start_block(block_name.clone());
         
         // no livein
@@ -914,10 +915,12 @@ impl <'a> InstructionSelection {
         // push all callee-saved registers
         {
             let frame = self.current_frame.as_mut().unwrap();
+            let rbp = x86_64::RBP.extract_ssa_id().unwrap();
             for i in 0..x86_64::CALLEE_SAVED_GPRs.len() {
                 let ref reg = x86_64::CALLEE_SAVED_GPRs[i];
-                // not pushing rbp (as we have done taht)
-                if reg.extract_ssa_id().unwrap() != x86_64::RBP.extract_ssa_id().unwrap() {
+                // not pushing rbp (as we have done that)
+                if reg.extract_ssa_id().unwrap() !=  rbp {
+                    trace!("allocate frame slot for reg {}", reg);
                     self.backend.emit_push_r64(&reg);
                     frame.alloc_slot_for_callee_saved_reg(reg.clone(), vm);
                 }

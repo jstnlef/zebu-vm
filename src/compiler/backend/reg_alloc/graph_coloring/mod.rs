@@ -9,6 +9,7 @@ pub use compiler::backend::reg_alloc::graph_coloring::coloring::GraphColoring;
 use ast::ir::*;
 use vm::VM;
 use compiler::CompilerPass;
+use compiler::backend::is_callee_saved;
 use compiler::backend::init_machine_regs_for_func;
 use std::any::Any;
 
@@ -55,6 +56,24 @@ impl RegisterAllocation {
                 coloring.cf.mc_mut().replace_reg(temp, machine_reg);
 
                 coloring.cf.temps.insert(temp, machine_reg);
+            }
+        }
+
+        // find out what callee saved registers are used
+        {
+            use std::collections::HashSet;
+
+            let used_callee_saved: HashSet<MuID> =
+                coloring.cf.temps.values()
+                    .map(|x| *x)
+                    .filter(|x| is_callee_saved(*x))
+                    .collect();
+
+            let used_callee_saved: Vec<MuID> = used_callee_saved.into_iter().collect();
+
+            let removed_callee_saved = coloring.cf.mc_mut().remove_unnecessary_callee_saved(used_callee_saved);
+            for reg in removed_callee_saved {
+                coloring.cf.frame.remove_record_for_callee_saved_reg(reg);
             }
         }
 
