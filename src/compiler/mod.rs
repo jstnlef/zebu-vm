@@ -12,16 +12,6 @@ pub mod frame;
 pub mod machine_code;
 
 pub use compiler::passes::CompilerPass;
-pub use compiler::passes::PassExecutionResult;
-pub use compiler::passes::PASS_IR_CHECK;
-pub use compiler::passes::PASS_DEF_USE;
-pub use compiler::passes::PASS_TREE_GEN;
-pub use compiler::passes::PASS_CFA;
-pub use compiler::passes::PASS_TRACE_GEN;
-pub use compiler::passes::PASS_INST_SEL;
-pub use compiler::passes::PASS_REG_ALLOC;
-pub use compiler::passes::PASS_PEEPHOLE;
-pub use compiler::passes::PASS_CODE_EMIT;
 
 pub struct Compiler {
     policy: RefCell<CompilerPolicy>,
@@ -42,20 +32,12 @@ impl Compiler {
         // FIXME: should use function name here (however hprof::enter only accept &'static str)
         let _p = hprof::enter("Function Compilation");
 
-        let mut cur_pass = 0;
-        let n_passes = self.policy.borrow().passes.len();
-
         let ref mut passes = self.policy.borrow_mut().passes;
 
-        while cur_pass < n_passes {
-            let _p = hprof::enter(passes[cur_pass].name());
-            let result = passes[cur_pass].execute(&self.vm, func);
+        for pass in passes.iter_mut() {
+            let _p = hprof::enter(pass.name());
 
-            match result {
-                PassExecutionResult::ProceedToNext => cur_pass += 1,
-                PassExecutionResult::ProceedTo(next)
-                | PassExecutionResult::GoBackTo(next) => cur_pass = next.get()
-            }
+            pass.execute(&self.vm, func);
 
             drop(_p);
         }

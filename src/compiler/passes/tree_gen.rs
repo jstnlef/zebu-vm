@@ -4,7 +4,6 @@ use ast::ir_semantics::*;
 
 use vm::VM;
 use compiler::CompilerPass;
-use compiler::PassExecutionResult;
 
 use std::any::Any;
 
@@ -31,7 +30,7 @@ impl CompilerPass for TreeGen {
         self
     }
     
-    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
+    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("---CompilerPass {} for {}---", self.name(), func);
         
         {
@@ -123,8 +122,6 @@ impl CompilerPass for TreeGen {
         self.finish_function(vm, func);
         
         debug!("---finish---");
-        
-        PassExecutionResult::ProceedToNext
     }
     
     #[allow(unused_variables)]

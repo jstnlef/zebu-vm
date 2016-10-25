@@ -74,111 +74,6 @@ fn test_ir_liveness_fac() {
     assert!(vec_utils::is_identical_to_str_ignore_order(block_2_liveout, expect));
 }
 
-use mu::compiler::backend::reg_alloc::graph_coloring::GraphColoring;
-use mu::compiler::backend::reg_alloc::graph_coloring::InterferenceGraph;
-use mu::compiler::backend::init_machine_regs_for_func;
-use std::any::Any;
-
-struct InspectInterferenceGraph {
-    name: &'static str,
-    ig: Option<InterferenceGraph>,
-}
-
-impl InspectInterferenceGraph {
-    pub fn new() -> InspectInterferenceGraph {
-        InspectInterferenceGraph {
-            name: "Inspect Interference Graph",
-            ig: None
-        }
-    }
-}
-
-impl CompilerPass for InspectInterferenceGraph {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn as_any(&self) -> &Any {
-        self
-    }
-
-    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
-        debug!("---CompilerPass {} for {}---", self.name(), func);
-
-        let compiled_funcs = vm.compiled_funcs().read().unwrap();
-        let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
-
-        // initialize machine registers for the function context
-        init_machine_regs_for_func(&mut func.context);
-
-        let coloring = match GraphColoring::start(func, &mut cf, vm) {
-            Ok(coloring) => coloring,
-            Err(_) => panic!("error during coloring - unexpected")
-        };
-
-        self.ig = Some(coloring.ig);
-
-        PassExecutionResult::ProceedToNext
-    }
-}
-
-#[test]
-#[allow(unused_variables)]
-fn test_spill1_ig() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
-
-    let vm = Arc::new(create_spill1());
-
-    let compiler = Compiler::new(CompilerPolicy::new({
-        let mut passes : Vec<Box<CompilerPass>> = vec![];
-
-        passes.push(Box::new(passes::DefUse::new()));
-        passes.push(Box::new(passes::TreeGen::new()));
-        passes.push(Box::new(passes::ControlFlowAnalysis::new()));
-        passes.push(Box::new(passes::TraceGen::new()));
-
-        // compilation
-        passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
-        passes.push(Box::new(InspectInterferenceGraph::new()));
-
-        passes
-    }), vm.clone());
-
-    let func_id = vm.id_of("spill1");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-        compiler.compile(&mut func_ver);
-    }
-
-    let compiler_policy = compiler.get_policy().borrow();
-    let inspect_ig : &InspectInterferenceGraph = compiler_policy.passes[5].as_any().downcast_ref().unwrap();
-
-    let ig = inspect_ig.ig.as_ref().unwrap();
-
-    let t1 = ig.get_node(vm.id_of("blk_entry_t1"));
-    let t2 = ig.get_node(vm.id_of("blk_entry_t2"));
-    let t3 = ig.get_node(vm.id_of("blk_entry_t3"));
-    let t4 = ig.get_node(vm.id_of("blk_entry_t4"));
-    let t5 = ig.get_node(vm.id_of("blk_entry_t5"));
-    let t6 = ig.get_node(vm.id_of("blk_entry_t6"));
-    let t7 = ig.get_node(vm.id_of("blk_entry_t7"));
-    let t8 = ig.get_node(vm.id_of("blk_entry_t8"));
-    let t9 = ig.get_node(vm.id_of("blk_entry_t9"));
-    let t10= ig.get_node(vm.id_of("blk_entry_t10"));
-
-    let res0 = ig.get_node(vm.id_of("blk_entry_res0"));
-    let res1 = ig.get_node(vm.id_of("blk_entry_res1"));
-    let res2 = ig.get_node(vm.id_of("blk_entry_res2"));
-    let res3 = ig.get_node(vm.id_of("blk_entry_res3"));
-
-    // t1 interferes with t2
-    assert!(ig.is_interferenced_with(t1, t2));
-}
-
 #[test]
 #[allow(unused_variables)]
 fn test_spill1() {
@@ -208,6 +103,8 @@ fn test_spill1() {
             Ok(symbol) => symbol,
             Err(e) => panic!("cannot find symbol spill1 in dylib: {:?}", e)
         };
+
+        // we cannot call this (it doesnt return)
     }
 }
 
