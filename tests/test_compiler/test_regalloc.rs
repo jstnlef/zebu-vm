@@ -123,6 +123,7 @@ impl CompilerPass for InspectInterferenceGraph {
 }
 
 #[test]
+#[allow(unused_variables)]
 fn test_spill1_ig() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
 
@@ -179,6 +180,7 @@ fn test_spill1_ig() {
 }
 
 #[test]
+#[allow(unused_variables)]
 fn test_spill1() {
     simple_logger::init_with_level(log::LogLevel::Trace).ok();
     
@@ -194,6 +196,18 @@ fn test_spill1() {
         let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
         
         compiler.compile(&mut func_ver);
+    }
+
+    backend::emit_context(&vm);
+
+    let dylib = aot::link_dylib(vec![Mu("spill1")], "libspill1.dylib");
+
+    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
+    unsafe {
+        let simple_spill : libloading::Symbol<unsafe extern fn() -> u64> = match lib.get(b"spill1") {
+            Ok(symbol) => symbol,
+            Err(e) => panic!("cannot find symbol spill1 in dylib: {:?}", e)
+        };
     }
 }
 
