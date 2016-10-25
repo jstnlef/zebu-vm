@@ -183,6 +183,37 @@ fn test_function_loading() {
 
         ((*b).new_func)(b, id4, id3);
 
+        let id5 = ((*b).gen_sym)(b, csp.get("@func.v1"));
+        let id6 = ((*b).gen_sym)(b, csp.get("@func.v1.entry"));
+        let id7 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.x"));
+        let id8 = ((*b).gen_sym)(b, csp.get("@func.v1.bb1"));
+        let id9 = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.exc"));
+        //let id4 = ((*b).gen_sym)(b, csp.get("@func"));
+        
+
+        let mut bbs = vec![id6, id8];
+        ((*b).new_func_ver)(b, id5, id4, bbs.as_mut_ptr(), bbs.len());
+
+        {
+            let mut args = vec![id7];
+            let mut argtys = vec![id1];
+            let mut insts = vec![];
+            ((*b).new_bb)(b, id6,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+        }
+
+        {
+            let mut args = vec![];
+            let mut argtys = vec![];
+            let mut insts = vec![];
+            ((*b).new_bb)(b, id8,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          id9,
+                          insts.as_mut_ptr(), insts.len());
+        }
+
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
 
