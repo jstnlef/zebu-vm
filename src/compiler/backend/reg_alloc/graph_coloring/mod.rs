@@ -8,14 +8,8 @@ pub use compiler::backend::reg_alloc::graph_coloring::coloring::GraphColoring;
 
 use ast::ir::*;
 use vm::VM;
-use compiler;
 use compiler::CompilerPass;
-use compiler::PassExecutionResult;
 use compiler::backend::init_machine_regs_for_func;
-use compiler::backend;
-use compiler::backend::reg_alloc::RegAllocFailure;
-
-use std::collections::HashMap;
 use std::any::Any;
 
 pub struct RegisterAllocation {
@@ -30,17 +24,14 @@ impl RegisterAllocation {
     }
 
     #[allow(unused_variables)]
-    fn coloring(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> Result<(), RegAllocFailure> {
+    fn coloring(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         let compiled_funcs = vm.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
 
         // initialize machine registers for the function context
         init_machine_regs_for_func(&mut func.context);
 
-        let coloring = match GraphColoring::start(func, &mut cf, vm) {
-            Ok(coloring) => coloring,
-            Err(_) => panic!("error during coloring - unexpected")
-        };
+        let coloring = GraphColoring::start(func, &mut cf, vm);
 
         // replace regs
         trace!("Replacing Registers...");
@@ -68,8 +59,6 @@ impl RegisterAllocation {
         }
 
         coloring.cf.mc().trace_mc();
-
-        Ok(())
     }
 }
 
@@ -82,15 +71,7 @@ impl CompilerPass for RegisterAllocation {
         self
     }
 
-    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
-        debug!("---CompilerPass {} for {}---", self.name(), func);
-
-        match self.coloring(vm, func) {
-            // skip slow path
-            Ok(_) => PassExecutionResult::ProceedTo(compiler::PASS_PEEPHOLE),
-
-            // go back to instruction selection for spilled operands
-            Err(RegAllocFailure::FailedForSpilling) => PassExecutionResult::GoBackTo(compiler::PASS_INST_SEL),
-        }
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        self.coloring(vm, func);
     }
 }

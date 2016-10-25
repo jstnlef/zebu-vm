@@ -6,31 +6,10 @@ mod tree_gen;
 mod control_flow;
 mod trace_gen;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct PassID(usize);
-impl PassID {pub fn get(&self) -> usize{self.0}}
-
 pub use compiler::passes::def_use::DefUse;
 pub use compiler::passes::tree_gen::TreeGen;
 pub use compiler::passes::control_flow::ControlFlowAnalysis;
 pub use compiler::passes::trace_gen::TraceGen;
-
-// make sure the pass IDs are sequential
-pub const PASS_IR_CHECK  : PassID = PassID(0);
-pub const PASS_DEF_USE   : PassID = PassID(1);
-pub const PASS_TREE_GEN  : PassID = PassID(2);
-pub const PASS_CFA       : PassID = PassID(3);
-pub const PASS_TRACE_GEN : PassID = PassID(4);
-pub const PASS_INST_SEL  : PassID = PassID(5);
-pub const PASS_REG_ALLOC : PassID = PassID(6);
-pub const PASS_PEEPHOLE  : PassID = PassID(7);
-pub const PASS_CODE_EMIT : PassID = PassID(8);
-
-pub enum PassExecutionResult {
-    ProceedToNext,
-    ProceedTo(PassID),
-    GoBackTo(PassID)
-}
 
 use std::any::Any;
 
@@ -39,7 +18,7 @@ pub trait CompilerPass {
     fn name(&self) -> &'static str;
     fn as_any(&self) -> &Any;
 
-    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> PassExecutionResult {
+    fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("---CompilerPass {} for {}---", self.name(), func);
 
         self.start_function(vm, func);
@@ -47,8 +26,6 @@ pub trait CompilerPass {
         self.finish_function(vm, func);
 
         debug!("---finish---");
-
-        PassExecutionResult::ProceedToNext
     }
 
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {

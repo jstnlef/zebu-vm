@@ -236,14 +236,8 @@ lazy_static! {
         map
     };
     
-    // put callee saved regs first
+    // put caller saved regs first (they imposes no overhead if there is no call instruction)
     pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
-        RBX.clone(),
-        R12.clone(),
-        R13.clone(),
-        R14.clone(),
-        R15.clone(),
-            
         RAX.clone(),
         RCX.clone(),
         RDX.clone(),
@@ -253,6 +247,13 @@ lazy_static! {
         R9.clone(),
         R10.clone(),
         R11.clone(),
+
+        RBX.clone(),
+        R12.clone(),
+        R13.clone(),
+        R14.clone(),
+        R15.clone(),
+
         XMM0.clone(),
         XMM1.clone(),
         XMM2.clone(),

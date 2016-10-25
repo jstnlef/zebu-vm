@@ -3,7 +3,6 @@ use compiler::backend;
 use compiler::backend::reg_alloc::graph_coloring;
 use compiler::backend::reg_alloc::graph_coloring::liveness::InterferenceGraph;
 use compiler::backend::reg_alloc::graph_coloring::liveness::{Node, Move};
-use compiler::backend::reg_alloc::RegAllocFailure;
 use compiler::machine_code::CompiledFunction;
 use vm::VM;
 
@@ -49,13 +48,13 @@ pub struct GraphColoring<'a> {
 }
 
 impl <'a> GraphColoring<'a> {
-    pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> Result<GraphColoring<'a>, RegAllocFailure> {
+    pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
         trace!("Initializing coloring allocator...");
         cf.mc().trace_mc();
 
         let ig = graph_coloring::build_inteference_graph(cf, func);
 
-        let mut coloring = GraphColoring {
+        let coloring = GraphColoring {
             func: func,
             cf: cf,
             vm: vm,
@@ -109,7 +108,7 @@ impl <'a> GraphColoring<'a> {
         format!("Move: {} -> {}", self.display_node(m.from), self.display_node(m.to))
     }
     
-    fn regalloc(mut self) -> Result<GraphColoring<'a>, RegAllocFailure> {
+    fn regalloc(mut self) -> GraphColoring<'a> {
         trace!("---InterenceGraph---");
         self.ig.print(&self.func.context);
         
@@ -173,7 +172,7 @@ impl <'a> GraphColoring<'a> {
             return GraphColoring::start(self.func, self.cf, self.vm);
         }
 
-        Ok(self)
+        self
     }
     
     fn build(&mut self) {
@@ -583,7 +582,7 @@ impl <'a> GraphColoring<'a> {
         self.freeze_moves(m);
     }
     
-    fn assign_colors(&mut self) -> Result<(), ()> {
+    fn assign_colors(&mut self) {
         trace!("---coloring done---");
         while !self.select_stack.is_empty() {
             let n = self.select_stack.pop().unwrap();
@@ -624,8 +623,6 @@ impl <'a> GraphColoring<'a> {
             trace!("Color {} as {}", self.display_node(n), alias_color);
             self.ig.color_node(n, alias_color);
         }
-
-        Ok(())
     }
 
     fn rewrite_program(&mut self) {

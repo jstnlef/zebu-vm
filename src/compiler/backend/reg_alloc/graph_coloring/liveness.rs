@@ -263,14 +263,6 @@ impl InterferenceGraph {
     }
 }
 
-pub fn is_machine_reg(reg: MuID) -> bool {
-    if reg < MACHINE_ID_END {
-        true
-    } else {
-        false
-    }
-}
-
 #[allow(unused_variables)]
 fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
     let n_insts = cf.mc().number_of_insts();
