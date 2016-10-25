@@ -5,10 +5,10 @@ use std::sync::atomic::Ordering;
 const OBJECT_SIZE : usize = 24;
 const OBJECT_ALIGN: usize = 8;
 
-const WORK_LOAD : usize = 10000000;
+const WORK_LOAD : usize = 5000000;
 
-const IMMIX_SPACE_SIZE : usize = 40 << 20;
-const LO_SPACE_SIZE    : usize = 40 << 20; 
+const IMMIX_SPACE_SIZE : usize = 20 << 20;
+const LO_SPACE_SIZE    : usize = 20 << 20;
 
 #[test]
 fn test_gc_no_alive() {
