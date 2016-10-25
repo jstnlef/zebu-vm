@@ -120,3 +120,33 @@ fn test_types_sigs_loading() {
     }
 }
 
+
+#[test]
+#[allow(unused_variables)]
+fn test_consts_loading() {
+    let mut csp: CStringPool = Default::default();
+
+    unsafe {
+        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        
+        info!("Starting micro VM...");
+
+        let mvm = mu_fastimpl_new();
+
+        let ctx = ((*mvm).new_context)(mvm);
+
+        let b = ((*ctx).new_ir_builder)(ctx);
+
+        let id1 = ((*b).gen_sym)(b, csp.get("@i32"));
+        let id2 = ((*b).gen_sym)(b, csp.get("@CONST_I32_42"));
+
+        ((*b).new_type_int)(b, id1, 32);
+        ((*b).new_const_int)(b, id2, id1, 42);
+
+        ((*b).load)(b);
+        ((*ctx).close_context)(ctx);
+
+        info!("Finished.");
+    }
+}
+
