@@ -11,12 +11,11 @@ macro_rules! impl_mu_entity {
     ($entity: ty) => {
         impl MuEntity for $entity {
             #[inline(always)]
-            fn id(&self) -> MuID {self.hdr.id}
+            fn id(&self) -> MuID {self.hdr.id()}
             #[inline(always)]
             fn name(&self) -> Option<MuName> {self.hdr.name()}
             fn set_name(&self, name: MuName) {
-                let mut write_guard = self.hdr.name.write().unwrap();
-                *write_guard = Some(name);
+                self.hdr.set_name(name);
             }
             fn as_entity(&self) -> &MuEntity {
                 let ref_ty : &$entity = self;
