@@ -386,7 +386,7 @@ impl MachineCode for ASMCode {
         }
     }
 
-    fn replace_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize) {
+    fn replace_define_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize) {
         let to_reg_string : MuName = match backend::all_regs().get(&to) {
             Some(ref machine_reg) => {
                 let name = machine_reg.name().unwrap();
@@ -408,8 +408,20 @@ impl MachineCode for ASMCode {
 
             // remove old key, insert new one
             asm.defines.remove(&from);
-            asm.defines.insert(from, define_locs);
+            asm.defines.insert(to, define_locs);
         }
+    }
+
+    fn replace_use_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize) {
+        let to_reg_string : MuName = match backend::all_regs().get(&to) {
+            Some(ref machine_reg) => {
+                let name = machine_reg.name().unwrap();
+                "%".to_string() + &name
+            },
+            None => REG_PLACEHOLDER.clone()
+        };
+
+        let asm = &mut self.code[inst];
 
         // if this reg is used, replace the use
         if asm.uses.contains_key(&from) {
@@ -423,7 +435,7 @@ impl MachineCode for ASMCode {
 
             // remove old key, insert new one
             asm.uses.remove(&from);
-            asm.uses.insert(from, use_locs);
+            asm.uses.insert(to, use_locs);
         }
     }
     
@@ -1802,18 +1814,22 @@ pub fn spill_rewrite(
 
     // iterate through all instructions
     for i in 0..cf.mc().number_of_insts() {
+        trace!("---Inst {}---", i);
         // find use of any register that gets spilled
         {
             let reg_uses = cf.mc().get_inst_reg_uses(i).to_vec();
             for reg in reg_uses {
                 if spills.contains_key(&reg) {
+                    let val_reg = func.context.get_value(reg).unwrap().value().clone();
+
                     // a register used here is spilled
                     let spill_mem = spills.get(&reg).unwrap();
 
                     // generate a random new temporary
-                    let temp_ty = func.context.get_value(reg).unwrap().ty().clone();
+                    let temp_ty = val_reg.ty.clone();
                     let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
                     vec_utils::add_unique(&mut new_nodes, temp.clone());
+                    trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
 
                     // generate a load
                     let code = {
@@ -1832,7 +1848,7 @@ pub fn spill_rewrite(
                     }
 
                     // replace register reg with temp
-                    cf.mc_mut().replace_tmp_for_inst(reg, temp.id(), i);
+                    cf.mc_mut().replace_use_tmp_for_inst(reg, temp.id(), i);
                 }
             }
         }
@@ -1842,11 +1858,14 @@ pub fn spill_rewrite(
             let reg_defines = cf.mc().get_inst_reg_defines(i).to_vec();
             for reg in reg_defines {
                 if spills.contains_key(&reg) {
+                    let val_reg = func.context.get_value(reg).unwrap().value().clone();
+
                     let spill_mem = spills.get(&reg).unwrap();
 
-                    let temp_ty = func.context.get_value(reg).unwrap().ty().clone();
+                    let temp_ty = val_reg.ty.clone();
                     let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
                     vec_utils::add_unique(&mut new_nodes, temp.clone());
+                    trace!("reg {} defined in Inst{} is replaced as {}", val_reg, i, temp);
 
                     let code = {
                         let mut codegen = ASMCodeGen::new();
@@ -1863,7 +1882,7 @@ pub fn spill_rewrite(
                         spill_code_after.insert(i, vec![code]);
                     }
 
-                    cf.mc_mut().replace_tmp_for_inst(reg, temp.id(), i);
+                    cf.mc_mut().replace_define_tmp_for_inst(reg, temp.id(), i);
                 }
             }
         }

@@ -123,7 +123,8 @@ pub trait MachineCode {
     /// replace a temp with a machine register (to_reg must be a machine register)
     fn replace_reg(&mut self, from: MuID, to: MuID);
     /// replace a temp with another temp
-    fn replace_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
+    fn replace_define_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
+    fn replace_use_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
     fn set_inst_nop(&mut self, index: usize);
 
     fn as_any(&self) -> &Any;

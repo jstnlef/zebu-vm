@@ -50,6 +50,7 @@ pub struct GraphColoring<'a> {
 
 impl <'a> GraphColoring<'a> {
     pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> Result<GraphColoring<'a>, RegAllocFailure> {
+        trace!("Initializing coloring allocator...");
         cf.mc().trace_mc();
 
         let ig = graph_coloring::build_inteference_graph(cf, func);
@@ -109,8 +110,6 @@ impl <'a> GraphColoring<'a> {
     }
     
     fn regalloc(mut self) -> Result<GraphColoring<'a>, RegAllocFailure> {
-        trace!("Initializing coloring allocator...");
-
         trace!("---InterenceGraph---");
         self.ig.print(&self.func.context);
         
@@ -646,30 +645,6 @@ impl <'a> GraphColoring<'a> {
         }
 
         let new_temps = backend::spill_rewrite(&spilled_mem, self.func, self.cf, self.vm);
-//
-//        self.spilled_nodes.clear();
-//
-//        self.initial = {
-//            let mut ret = vec![];
-//
-//            for node in self.colored_nodes.iter() {
-//                vec_utils::add_unique(&mut ret, node.clone());
-//            }
-//            for node in self.coalesced_nodes.iter() {
-//                vec_utils::add_unique(&mut ret, node.clone());
-//            }
-//
-//            // create nodes for every new temp
-//            for tmp in new_temps {
-//                let node = self.ig.new_node(tmp.id(), &func.context);
-//                vec_utils::add_unique(&mut ret, node.clone());
-//            }
-//
-//            ret
-//        };
-//
-//        self.colored_nodes.clear();
-//        self.coalesced_nodes.clear();
     }
     
     pub fn spills(&self) -> Vec<MuID> {

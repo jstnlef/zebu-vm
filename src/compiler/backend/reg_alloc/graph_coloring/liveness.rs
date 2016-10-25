@@ -321,15 +321,11 @@ fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
     }
     
     for block in cf.mc().get_all_blocks().to_vec() {
-        if cf.mc().get_ir_block_livein(&block).is_none() {
-            let start_inst = cf.mc().get_block_range(&block).unwrap().start;
-            cf.mc_mut().set_ir_block_livein(&block, livein[start_inst].to_vec());
-        }
-        
-        if cf.mc().get_ir_block_liveout(&block).is_none() {
-            let end_inst = cf.mc().get_block_range(&block).unwrap().end;
-            cf.mc_mut().set_ir_block_liveout(&block, liveout[end_inst].to_vec());
-        }
+        let start_inst = cf.mc().get_block_range(&block).unwrap().start;
+        cf.mc_mut().set_ir_block_livein(&block, livein[start_inst].to_vec());
+
+        let end_inst = cf.mc().get_block_range(&block).unwrap().end;
+        cf.mc_mut().set_ir_block_liveout(&block, liveout[end_inst].to_vec());
     }
 }
 
