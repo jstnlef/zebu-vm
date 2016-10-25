@@ -105,17 +105,6 @@ impl MuIRBuilder {
 
     pub fn new_type_int(&mut self, id: MuID, len: c_int) {
         self.bundle.types.insert(id, Box::new(NodeType::TypeInt { id: id, len: len }));
-
-//        let maybe_name = self.consume_name_of(id);
-//        let pty = P(MuType {
-//            hdr: MuEntityHeader {
-//                id: id,
-//                name: RwLock::new(maybe_name),
-//            },
-//            v: MuType_::Int(len as usize),
-//        });
-//
-//        self.bundle.types.push(pty);
     }
 
     pub fn new_type_float(&mut self, id: MuID) {
@@ -451,6 +440,7 @@ struct BundleLoader<'lb, 'lvm> {
     built_types: IdPMap<MuType>,
     built_sigs: IdPMap<MuFuncSig>,
     built_values: IdPMap<Value>,
+    built_funcs: IdPMap<MuFunction>,
     struct_id_tags: Vec<(MuID, MuName)>,
 }
 
@@ -467,6 +457,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_types: Default::default(),
         built_sigs: Default::default(),
         built_values: Default::default(),
+        built_funcs: Default::default(),
         struct_id_tags: Default::default(),
     };
 
@@ -480,7 +471,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn name_from_id(id: MuID, hint: &str) -> String {
-        format!("@uvm.unnamed{}{}", hint, id)
+        format!("@uvm.unnamed.{}{}", hint, id)
     }
 
     fn ensure_name(&mut self, id: MuID, hint: &str) {
@@ -501,6 +492,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 },
                 _ => {}
             }
+        }
+
+        for id in self.b.bundle.funcvers.keys() {
+            self.ensure_name(*id, "funcver");
+        }
+
+        for id in self.b.bundle.bbs.keys() {
+            self.ensure_name(*id, "funcver");
         }
     }
 
@@ -540,6 +539,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         for id in self.b.bundle.consts.keys() {
             if !self.visited.contains(id) {
                 self.build_const(*id)
+            }
+        }
+
+        for id in self.b.bundle.funcs.keys() {
+            if !self.visited.contains(id) {
+                self.build_func(*id)
             }
         }
     }
@@ -690,6 +695,28 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Constant built: {} {:?}", id, impl_val);
 
         self.built_values.insert(id, P(impl_val));
+    }
+
+    fn build_func(&mut self, id: MuID) {
+        self.visited.insert(id);
+
+        let fun = self.b.bundle.funcs.get(&id).unwrap();
+
+        trace!("Building function {} {:?}", id, fun);
+
+        let hdr = self.make_mu_entity_header(id);
+        let impl_sig = self.ensure_sig_rec(fun.sig);
+
+        let impl_fun = MuFunction {
+            hdr: hdr,
+            sig: impl_sig,
+            cur_ver: None,
+            all_vers: Default::default(),
+        };
+
+        trace!("Function built: {} {:?}", id, impl_fun);
+
+        self.built_funcs.insert(id, P(impl_fun));
     }
 }
 

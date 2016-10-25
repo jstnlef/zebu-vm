@@ -150,3 +150,44 @@ fn test_consts_loading() {
     }
 }
 
+
+#[test]
+#[allow(unused_variables)]
+fn test_function_loading() {
+    let mut csp: CStringPool = Default::default();
+
+    unsafe {
+        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        
+        info!("Starting micro VM...");
+
+        let mvm = mu_fastimpl_new();
+
+        let ctx = ((*mvm).new_context)(mvm);
+
+        let b = ((*ctx).new_ir_builder)(ctx);
+
+        let id1 = ((*b).gen_sym)(b, csp.get("@i32"));
+        let id2 = ((*b).gen_sym)(b, csp.get("@i64"));
+        let id3 = ((*b).gen_sym)(b, csp.get("@sig"));
+        let id4 = ((*b).gen_sym)(b, csp.get("@func"));
+
+        ((*b).new_type_int)(b, id1, 32);
+        ((*b).new_type_int)(b, id2, 64);
+
+        let mut ptys = vec![id1];
+        let mut rtys = vec![id2];
+        ((*b).new_funcsig)(b, id3,
+                           ptys.as_mut_ptr(), ptys.len(),
+                           rtys.as_mut_ptr(), rtys.len());
+
+        ((*b).new_func)(b, id4, id3);
+
+        ((*b).load)(b);
+        ((*ctx).close_context)(ctx);
+
+        info!("Finished.");
+    }
+}
+
+
