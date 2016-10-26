@@ -6,8 +6,8 @@ import os, sys
 import ctypes
 
 CC = 'clang'
-CI_PROJ_DIR = os.environ["CI_PROJECT_DIR"]
-# CI_PROJ_DIR = os.environ["MU_RUST"]
+# CI_PROJ_DIR = os.environ["CI_PROJECT_DIR"]
+CI_PROJ_DIR = os.environ["MU_RUST"]
 CFLAGS = [
     "-std=c99",
     "-I%(CI_PROJ_DIR)s/src/vm/api" % globals(),
@@ -47,11 +47,11 @@ def test_constant_function():
 
     assert fn() == 0
 
-def test_add():
-    src_c = "suite/test_add.c"
-    entry_fnc = "test_fnc"
+def test_factorial():
+    src_c = "suite/test_fib.c"
+    entry_fnc = "fib"
 
     lib = ctypes.CDLL(get_lib(src_c))
     fn = getattr(lib, entry_fnc)
 
-    assert fn() == 9
+    assert fn(20) == 6765
