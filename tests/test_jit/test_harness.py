@@ -38,20 +38,14 @@ def get_lib(src_c):
 
     return out.strip()
 
-def test_constant_function():
-    src_c = "suite/test_constfunc.c"
-    entry_fnc = "test_fnc"
-
+def get_fncptr(src_c, entry_fnc):
     lib = ctypes.CDLL(get_lib(src_c))
-    fn = getattr(lib, entry_fnc)
+    return getattr(lib, entry_fnc)
 
+def test_constant_function():
+    fn = get_fncptr("suite/test_constfunc.c", "test_fnc")
     assert fn() == 0
 
 def test_factorial():
-    src_c = "suite/test_fib.c"
-    entry_fnc = "fib"
-
-    lib = ctypes.CDLL(get_lib(src_c))
-    fn = getattr(lib, entry_fnc)
-
+    fn = get_fncptr("suite/test_fib.c", "fib")
     assert fn(20) == 6765
