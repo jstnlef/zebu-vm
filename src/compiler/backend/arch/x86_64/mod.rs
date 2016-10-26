@@ -143,7 +143,9 @@ lazy_static!{
         XMM1.clone()
     ];
     
-    pub static ref ARGUMENT_FPRs : [P<Value>; 6] = [
+    pub static ref ARGUMENT_FPRs : [P<Value>; 8] = [
+        XMM0.clone(),
+        XMM1.clone(),
         XMM2.clone(),
         XMM3.clone(),
         XMM4.clone(),

@@ -171,7 +171,7 @@ impl <'a> InstructionSelection {
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
-                                    let res_tmp = self.emit_get_result(node);
+                                    let res_tmp = self.get_result_value(node);
                                     
                                     // mov op1, res
                                     self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
@@ -182,7 +182,7 @@ impl <'a> InstructionSelection {
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let reg_op2 = self.node_iimm_to_i32(&ops[op2]);
-                                    let res_tmp = self.emit_get_result(node);
+                                    let res_tmp = self.get_result_value(node);
                                     
                                     // mov op1, res
                                     self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
@@ -196,7 +196,7 @@ impl <'a> InstructionSelection {
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let reg_op2 = self.emit_mem(&ops[op2]);
-                                    let res_tmp = self.emit_get_result(node);
+                                    let res_tmp = self.get_result_value(node);
                                     
                                     // mov op1, res
                                     self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
@@ -215,7 +215,7 @@ impl <'a> InstructionSelection {
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
-                                    let res_tmp = self.emit_get_result(node);
+                                    let res_tmp = self.get_result_value(node);
                                     
                                     // mov op1, res
                                     self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
@@ -226,7 +226,7 @@ impl <'a> InstructionSelection {
 
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let imm_op2 = self.node_iimm_to_i32(&ops[op2]);
-                                    let res_tmp = self.emit_get_result(node);
+                                    let res_tmp = self.get_result_value(node);
                                     
                                     // mov op1, res
                                     self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
@@ -240,7 +240,7 @@ impl <'a> InstructionSelection {
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
                                     let mem_op2 = self.emit_mem(&ops[op2]);
-                                    let res_tmp = self.emit_get_result(node);
+                                    let res_tmp = self.get_result_value(node);
                                     
                                     // mov op1, res
                                     self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
@@ -284,7 +284,7 @@ impl <'a> InstructionSelection {
                                     
                                     // put imm in a temporary
                                     // here we use result reg as temporary
-                                    let res_tmp = self.emit_get_result(node);
+                                    let res_tmp = self.get_result_value(node);
                                     self.backend.emit_mov_r64_imm32(&res_tmp, imm_op2);
                                     
                                     self.backend.emit_mul_r64(&res_tmp);
@@ -297,9 +297,41 @@ impl <'a> InstructionSelection {
                                 }
                                 
                                 // mov rax -> result
-                                let res_tmp = self.emit_get_result(node);
+                                let res_tmp = self.get_result_value(node);
                                 self.backend.emit_mov_r64_r64(&res_tmp, &rax);
                             },
+
+                            // floating point
+                            op::BinOp::FAdd => {
+                                if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                                    trace!("emit add-fpreg-fpreg");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+                                    let res_tmp = self.get_result_value(node);
+
+                                    // movsd op1, res
+                                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                                    // add op2 res
+                                    self.backend.emit_addsd_f64_f64(&res_tmp, &reg_op2);
+                                } else if self.match_fpreg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                                    trace!("emit add-fpreg-mem");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let mem_op2 = self.emit_mem(&ops[op2]);
+                                    let res_tmp = self.get_result_value(node);
+
+                                    // mov op1, res
+                                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                                    // sub op2 res
+                                    self.backend.emit_addsd_f64_mem64(&res_tmp, &mem_op2);
+                                } else if self.match_mem(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                                    trace!("emit add-mem-fpreg");
+                                    unimplemented!();
+                                } else {
+                                    unimplemented!()
+                                }
+                            }
                             
                             _ => unimplemented!()
                         }
@@ -321,7 +353,7 @@ impl <'a> InstructionSelection {
                         }                        
 
                         let resolved_loc = self.node_mem_to_value(loc_op, vm);
-                        let res_temp = self.emit_get_result(node);
+                        let res_temp = self.get_result_value(node);
                         
                         if self.match_ireg(node) {
                             // emit mov(GPR)
@@ -371,7 +403,7 @@ impl <'a> InstructionSelection {
                         let ops = inst.ops.read().unwrap();
                         
                         let ref op = ops[op_index];
-                        let res_tmp = self.emit_get_result(node);
+                        let res_tmp = self.get_result_value(node);
                         
                         let hdr_size = mm::objectmodel::OBJECT_HEADER_SIZE;
                         if hdr_size == 0 {
@@ -440,7 +472,7 @@ impl <'a> InstructionSelection {
                             
                             // put start as result
                             // ASM: mov %start -> %result
-                            let tmp_res = self.emit_get_result(node);
+                            let tmp_res = self.get_result_value(node);
                             self.backend.emit_mov_r64_r64(&tmp_res, &tmp_start);
                             
                             // ASM jmp alloc_end
@@ -533,8 +565,14 @@ impl <'a> InstructionSelection {
     
     fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
-        
-        self.backend.emit_mov_r64_mem64(dest, &mem);
+
+        if dest.is_int_reg() {
+            self.backend.emit_mov_r64_mem64(dest, &mem);
+        } else if dest.is_fp_reg() {
+            self.backend.emit_movsd_f64_mem64(dest, &mem);
+        } else {
+            unimplemented!();
+        }
     }
     
     fn emit_store_base_offset (&mut self, base: &P<Value>, offset: i32, src: &P<Value>, vm: &VM) {
@@ -929,7 +967,7 @@ impl <'a> InstructionSelection {
         
         // unload arguments
         let mut gpr_arg_count = 0;
-        // TODO: let mut fpr_arg_count = 0;
+        let mut fpr_arg_count = 0;
         // initial stack arg is at RBP+16
         //   arg           <- RBP + 16
         //   return addr
@@ -949,7 +987,17 @@ impl <'a> InstructionSelection {
                     stack_arg_offset += arg_size as i32;
                 }
             } else if arg.is_fp_reg() {
-                unimplemented!();
+                if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
+                    self.backend.emit_movsd_f64_f64(&arg, &x86_64::ARGUMENT_FPRs[fpr_arg_count]);
+                    fpr_arg_count += 1;
+                } else {
+                    // unload from stack
+                    self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+
+                    // move stack_arg_offset by the size of 'arg'
+                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
+                    stack_arg_offset += arg_size as i32;
+                }
             } else {
                 // args that are not fp or int (possibly struct/array/etc)
                 unimplemented!();
@@ -971,7 +1019,7 @@ impl <'a> InstructionSelection {
         };
         
         let mut gpr_ret_count = 0;
-        // TODO: let mut fpr_ret_count = 0;
+        let mut fpr_ret_count = 0;
         for i in ret_val_indices {
             let ref ret_val = ops[*i];
             if self.match_ireg(ret_val) {
@@ -984,6 +1032,11 @@ impl <'a> InstructionSelection {
                 
                 self.backend.emit_mov_r64_imm32(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
                 gpr_ret_count += 1;
+            } else if self.match_fpreg(ret_val) {
+                let reg_ret_val = self.emit_fpreg(ret_val, f_content, f_context, vm);
+
+                self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val);
+                fpr_ret_count += 1;
             } else {
                 unimplemented!();
             }
@@ -1061,7 +1114,7 @@ impl <'a> InstructionSelection {
                     
                     let ref value = inst.value.as_ref().unwrap()[0];
                     
-                    if types::is_scalar(&value.ty) {
+                    if value.is_int_reg() {
                         true
                     } else {
                         false
@@ -1076,30 +1129,63 @@ impl <'a> InstructionSelection {
             }
         }
     }
+
+    fn match_fpreg(&mut self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        return false;
+                    }
+
+                    let ref value = inst.value.as_ref().unwrap()[0];
+
+                    if value.is_fp_reg() {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+
+            TreeNode_::Value(ref pv) => {
+                pv.is_fp_reg()
+            }
+        }
+    }
     
     fn emit_ireg(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
                 self.instruction_select(op, f_content, f_context, vm);
                 
-                self.emit_get_result(op)
+                self.get_result_value(op)
             },
             TreeNode_::Value(ref pv) => {
                 match pv.v {
-                    Value_::Constant(_)
-                    | Value_::Global(_)
-                    | Value_::Memory(_) => panic!("expected ireg"),
-                    Value_::SSAVar(_) => {
-                        pv.clone()
-                    },
+                    Value_::SSAVar(_) => pv.clone(),
+                    _ => panic!("expected ireg")
                 }
             }
         }
     }
-    
-    #[allow(unused_variables)]
-    fn match_fpreg(&mut self, op: &P<TreeNode>) -> bool {
-        unimplemented!()
+
+    fn emit_fpreg(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        match op.v {
+            TreeNode_::Instruction(_) => {
+                self.instruction_select(op, f_content, f_context, vm);
+
+                self.get_result_value(op)
+            },
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::SSAVar(_) => pv.clone(),
+                    _ => panic!("expected fpreg")
+                }
+            }
+        }
     }
     
     fn match_iimm(&mut self, op: &P<TreeNode>) -> bool {
@@ -1224,7 +1310,7 @@ impl <'a> InstructionSelection {
         unimplemented!()
     }
     
-    fn emit_get_result(&mut self, node: &TreeNode) -> P<Value> {
+    fn get_result_value(&mut self, node: &TreeNode) -> P<Value> {
         match node.v {
             TreeNode_::Instruction(ref inst) => {
                 if inst.value.is_some() {
