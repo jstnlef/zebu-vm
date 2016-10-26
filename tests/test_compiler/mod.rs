@@ -6,3 +6,4 @@ mod test_compiler;
 mod test_alloc;
 mod test_exception;
 mod test_thread;
+mod test_floatingpoint;
