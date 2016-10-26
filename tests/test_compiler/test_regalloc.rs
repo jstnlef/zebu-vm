@@ -3,7 +3,7 @@ extern crate log;
 extern crate simple_logger;
 extern crate libloading;
 
-use aot;
+use mu::testutil::aot;
 use test_ir::test_ir::factorial;
 use self::mu::compiler::*;
 use self::mu::utils::vec_utils;
