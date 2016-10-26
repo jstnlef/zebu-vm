@@ -231,7 +231,7 @@ impl FunctionContent {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Default, Debug, RustcEncodable, RustcDecodable)]
 pub struct FunctionContext {
     pub values: HashMap<MuID, SSAVarEntry>
 }

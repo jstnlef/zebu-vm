@@ -12,6 +12,7 @@ use self::mu::ast::ptr::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::vm::api::*;
+use self::mu::vm::api::api_c::*;
 
 use std::mem;
 use std::ptr;
@@ -183,6 +184,9 @@ fn test_function_loading() {
 
         ((*b).new_func)(b, id4, id3);
 
+        let id_const99 = ((*b).gen_sym)(b, csp.get("@const_i32_99"));
+        ((*b).new_const_int)(b, id_const99, id1, 99);
+
         let id5 = ((*b).gen_sym)(b, csp.get("@func.v1"));
         let id6 = ((*b).gen_sym)(b, csp.get("@func.v1.entry"));
         let id7 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.x"));
@@ -197,11 +201,21 @@ fn test_function_loading() {
         {
             let mut args = vec![id7];
             let mut argtys = vec![id1];
-            let mut insts = vec![];
+
+            let id_add = ((*b).gen_sym)(b, csp.get("@func.v1.entry.add"));
+            let id_sub = ((*b).gen_sym)(b, csp.get("@func.v1.entry.sub"));
+            let mut insts = vec![id_add, id_sub];
+
             ((*b).new_bb)(b, id6,
                           args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
                           0,
                           insts.as_mut_ptr(), insts.len());
+
+            let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.entry.y"));
+            ((*b).new_binop)(b, id_add, id_y, CMU_BINOP_ADD, id1, id7, id7, 0);
+
+            let id_z = ((*b).gen_sym)(b, csp.get("@func.v1.entry.z"));
+            ((*b).new_binop)(b, id_sub, id_z, CMU_BINOP_SUB, id1, id_y, id_const99, 0);
         }
 
         {
