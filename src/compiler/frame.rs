@@ -60,6 +60,10 @@ impl Frame {
         let slot = self.alloc_slot(&reg, vm);
         slot.make_memory_op(reg.ty.clone(), vm)
     }
+
+    pub fn remove_record_for_callee_saved_reg(&mut self, reg: MuID) {
+        self.allocated.remove(&reg);
+    }
     
     pub fn alloc_slot_for_spilling(&mut self, reg: P<Value>, vm: &VM) -> P<Value> {
         let slot = self.alloc_slot(&reg, vm);

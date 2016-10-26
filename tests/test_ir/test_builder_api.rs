@@ -150,3 +150,75 @@ fn test_consts_loading() {
     }
 }
 
+
+#[test]
+#[allow(unused_variables)]
+fn test_function_loading() {
+    let mut csp: CStringPool = Default::default();
+
+    unsafe {
+        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        
+        info!("Starting micro VM...");
+
+        let mvm = mu_fastimpl_new();
+
+        let ctx = ((*mvm).new_context)(mvm);
+
+        let b = ((*ctx).new_ir_builder)(ctx);
+
+        let id1 = ((*b).gen_sym)(b, csp.get("@i32"));
+        let id2 = ((*b).gen_sym)(b, csp.get("@i64"));
+        let id3 = ((*b).gen_sym)(b, csp.get("@sig"));
+        let id4 = ((*b).gen_sym)(b, csp.get("@func"));
+
+        ((*b).new_type_int)(b, id1, 32);
+        ((*b).new_type_int)(b, id2, 64);
+
+        let mut ptys = vec![id1];
+        let mut rtys = vec![id2];
+        ((*b).new_funcsig)(b, id3,
+                           ptys.as_mut_ptr(), ptys.len(),
+                           rtys.as_mut_ptr(), rtys.len());
+
+        ((*b).new_func)(b, id4, id3);
+
+        let id5 = ((*b).gen_sym)(b, csp.get("@func.v1"));
+        let id6 = ((*b).gen_sym)(b, csp.get("@func.v1.entry"));
+        let id7 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.x"));
+        let id8 = ((*b).gen_sym)(b, csp.get("@func.v1.bb1"));
+        let id9 = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.exc"));
+        //let id4 = ((*b).gen_sym)(b, csp.get("@func"));
+        
+
+        let mut bbs = vec![id6, id8];
+        ((*b).new_func_ver)(b, id5, id4, bbs.as_mut_ptr(), bbs.len());
+
+        {
+            let mut args = vec![id7];
+            let mut argtys = vec![id1];
+            let mut insts = vec![];
+            ((*b).new_bb)(b, id6,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+        }
+
+        {
+            let mut args = vec![];
+            let mut argtys = vec![];
+            let mut insts = vec![];
+            ((*b).new_bb)(b, id8,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          id9,
+                          insts.as_mut_ptr(), insts.len());
+        }
+
+        ((*b).load)(b);
+        ((*ctx).close_context)(ctx);
+
+        info!("Finished.");
+    }
+}
+
+

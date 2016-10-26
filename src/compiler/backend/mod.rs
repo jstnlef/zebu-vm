@@ -11,6 +11,10 @@ pub const WORD_SIZE : ByteSize = 8;
 pub const AOT_EMIT_DIR : &'static str = "emit";
 pub const AOT_EMIT_CONTEXT_FILE : &'static str = "context.s";
 
+// this is not full name, but pro/epilogue name is generated from this
+pub const PROLOGUE_BLOCK_NAME: &'static str = "prologue";
+pub const EPILOGUE_BLOCK_NAME: &'static str = "epilogue";
+
 // X86_64
 
 #[cfg(target_arch = "x86_64")]

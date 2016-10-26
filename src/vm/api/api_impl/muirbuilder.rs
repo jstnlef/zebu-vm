@@ -1,4 +1,6 @@
 use super::common::*;
+use ast::op::*;
+
 pub struct MuIRBuilder {
     /// ref to MuVM
     mvm: *const MuVM,
@@ -105,17 +107,6 @@ impl MuIRBuilder {
 
     pub fn new_type_int(&mut self, id: MuID, len: c_int) {
         self.bundle.types.insert(id, Box::new(NodeType::TypeInt { id: id, len: len }));
-
-//        let maybe_name = self.consume_name_of(id);
-//        let pty = P(MuType {
-//            hdr: MuEntityHeader {
-//                id: id,
-//                name: RwLock::new(maybe_name),
-//            },
-//            v: MuType_::Int(len as usize),
-//        });
-//
-//        self.bundle.types.push(pty);
     }
 
     pub fn new_type_float(&mut self, id: MuID) {
@@ -451,7 +442,10 @@ struct BundleLoader<'lb, 'lvm> {
     built_types: IdPMap<MuType>,
     built_sigs: IdPMap<MuFuncSig>,
     built_values: IdPMap<Value>,
+    built_funcs: IdPMap<MuFunction>,
+    built_funcvers: IdPMap<MuFunctionVersion>,
     struct_id_tags: Vec<(MuID, MuName)>,
+    built_refi64: P<MuType>,
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -459,18 +453,48 @@ fn load_bundle(b: &mut MuIRBuilder) {
 
     let new_map = b.id_name_map.drain().collect::<HashMap<_,_>>();
 
+    let mut built_types: IdPMap<MuType> = Default::default();
+
+    let refi64: P<MuType> = ensure_refi64(vm, &mut built_types);
+
     let mut bl = BundleLoader {
         b: b,
         vm: vm,
         id_name_map: new_map,
         visited: Default::default(),
-        built_types: Default::default(),
+        built_types: built_types,
         built_sigs: Default::default(),
         built_values: Default::default(),
+        built_funcs: Default::default(),
+        built_funcvers: Default::default(),
         struct_id_tags: Default::default(),
+        built_refi64: refi64,
     };
 
     bl.load_bundle();
+}
+
+fn ensure_refi64(vm: &VM, built_types: &mut IdPMap<MuType>) -> P<MuType> {
+    let id_i64 = vm.next_id();
+    let id_ref = vm.next_id();
+
+    let impl_i64 = P(MuType {
+        hdr: MuEntityHeader::unnamed(id_i64),
+        v: MuType_::Int(64),
+    });
+
+    let impl_ref = P(MuType {
+        hdr: MuEntityHeader::unnamed(id_ref),
+        v: MuType_::Ref(impl_i64.clone()),
+    });
+
+    trace!("Ensure i64 is defined: {} {:?}", id_i64, impl_i64);
+    trace!("Ensure ref is defined: {} {:?}", id_ref, impl_ref);
+
+    built_types.insert(id_i64, impl_i64);
+    built_types.insert(id_ref, impl_ref.clone());
+
+    impl_ref
 }
 
 impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
@@ -480,7 +504,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn name_from_id(id: MuID, hint: &str) -> String {
-        format!("@uvm.unnamed{}{}", hint, id)
+        format!("@uvm.unnamed.{}{}", hint, id)
     }
 
     fn ensure_name(&mut self, id: MuID, hint: &str) {
@@ -501,6 +525,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 },
                 _ => {}
             }
+        }
+
+        for id in self.b.bundle.funcvers.keys() {
+            self.ensure_name(*id, "funcver");
+        }
+
+        for id in self.b.bundle.bbs.keys() {
+            self.ensure_name(*id, "funcver");
         }
     }
 
@@ -541,6 +573,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             if !self.visited.contains(id) {
                 self.build_const(*id)
             }
+        }
+
+        for id in self.b.bundle.funcs.keys() {
+            if !self.visited.contains(id) {
+                self.build_func(*id)
+            }
+        }
+
+        for id in self.b.bundle.funcvers.keys() {
+            self.build_funcver(*id)
         }
     }
 
@@ -593,6 +635,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
         } else {
             self.vm.get_type(id)
+        }
+    }
+
+    fn get_built_type(&self, id: MuID) -> P<MuType> {
+        match self.built_types.get(&id) {
+            Some(t) => t.clone(),
+            None => self.vm.get_type(id)
         }
     }
 
@@ -690,6 +739,117 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Constant built: {} {:?}", id, impl_val);
 
         self.built_values.insert(id, P(impl_val));
+    }
+
+    fn build_func(&mut self, id: MuID) {
+        self.visited.insert(id);
+
+        let fun = self.b.bundle.funcs.get(&id).unwrap();
+
+        trace!("Building function {} {:?}", id, fun);
+
+        let hdr = self.make_mu_entity_header(id);
+        let impl_sig = self.ensure_sig_rec(fun.sig);
+
+        let impl_fun = MuFunction {
+            hdr: hdr,
+            sig: impl_sig,
+            cur_ver: None,
+            all_vers: Default::default(),
+        };
+
+        trace!("Function built: {} {:?}", id, impl_fun);
+
+        self.built_funcs.insert(id, P(impl_fun));
+    }
+
+    fn build_funcver(&mut self, id: MuID) {
+        let fv = self.b.bundle.funcvers.get(&id).unwrap();
+        
+        trace!("Building function version {} {:?}", id, fv);
+
+        let hdr = self.make_mu_entity_header(id);
+        let fun = self.built_funcs.get(&fv.func).unwrap();
+        let impl_sig = fun.sig.clone();
+
+        let mut ctx = FunctionContext { values: Default::default() };
+
+        let blocks = fv.bbs.iter().map(|bbid| {
+            let block = self.build_block(*bbid, &mut ctx);
+            (*bbid, block)
+        }).collect::<HashMap<MuID, Block>>();
+
+        let entry_id = *fv.bbs.first().unwrap();
+        let ctn = FunctionContent {
+            entry: entry_id,
+            blocks: blocks,
+        };
+
+        let impl_fv = MuFunctionVersion {
+            hdr: hdr,
+            func_id: id,
+            sig: impl_sig,
+            content: Some(ctn),
+            context: ctx,
+            block_trace: None,
+        };
+
+        trace!("Function version built {} {:?}", id, impl_fv);
+
+        self.built_funcvers.insert(id, P(impl_fv));
+    }
+
+    /// Copied from ast::ir::*. That was implemented for the previous API which implies mutability.
+    /// When we migrate later, we can assume the AST is almost fully immutable, and can be
+    /// constructed in a functional recursive-descendent style.
+    fn new_ssa(&self, id: MuID, ty: P<MuType>, ctx: &mut FunctionContext) -> P<TreeNode> {
+        let hdr = self.make_mu_entity_header(id);
+        let val = P(Value{
+            hdr: hdr,
+            ty: ty,
+            v: Value_::SSAVar(id)
+        });
+
+        ctx.values.insert(id, SSAVarEntry::new(val.clone()));
+
+        P(TreeNode {
+            op: pick_op_code_for_ssa(&val.ty),
+            v: TreeNode_::Value(val)
+        })
+    }
+
+    fn build_block(&self, id: MuID, ctx: &mut FunctionContext) -> Block {
+        let bb = self.b.bundle.bbs.get(&id).unwrap();
+
+        trace!("Building basic block {} {:?}", id, bb);
+
+        let nor_ids = &bb.norParamIDs;
+        let nor_tys = &bb.norParamTys;
+
+        let args = nor_ids.iter().zip(nor_tys).map(|(arg_id, arg_ty_id)| {
+            let arg_ty = self.get_built_type(*arg_ty_id);
+            self.new_ssa(*arg_id, arg_ty, ctx).clone_value()
+        }).collect::<Vec<_>>();
+
+        let exn_arg = bb.excParamID.map(|arg_id| {
+            let arg_ty = self.built_refi64.clone();
+            self.new_ssa(arg_id, arg_ty, ctx).clone_value()
+        });
+
+        let hdr = self.make_mu_entity_header(id);
+
+        let ctn = BlockContent {
+            args: args,
+            exn_arg: exn_arg,
+            body: Default::default(), // FIXME: actually build body.
+            keepalives: None,
+        };
+
+        Block {
+            hdr: hdr,
+            content: Some(ctn),
+            control_flow: Default::default(),
+        }
     }
 }
 

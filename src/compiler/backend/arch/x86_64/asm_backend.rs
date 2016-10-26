@@ -443,6 +443,56 @@ impl MachineCode for ASMCode {
         self.code.remove(index);
         self.code.insert(index, ASMInst::nop());
     }
+
+    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID> {
+        // we always save rbp
+        let rbp = x86_64::RBP.extract_ssa_id().unwrap();
+        // every push/pop will use/define rsp
+        let rsp = x86_64::RSP.extract_ssa_id().unwrap();
+
+        let find_op_other_than_rsp = |inst: &ASMInst| -> Option<MuID> {
+            for id in inst.defines.keys() {
+                if *id != rsp && *id != rbp {
+                    return Some(*id);
+                }
+            }
+            for id in inst.uses.keys() {
+                if *id != rsp && *id != rbp {
+                    return Some(*id);
+                }
+            }
+
+            None
+        };
+
+        let mut inst_to_remove = vec![];
+        let mut regs_to_remove = vec![];
+
+        for i in 0..self.number_of_insts() {
+            let ref inst = self.code[i];
+
+            if inst.code.contains("push") || inst.code.contains("pop") {
+                match find_op_other_than_rsp(inst) {
+                    Some(op) => {
+                        // if this push/pop instruction is about a callee saved register
+                        // and the register is not used, we set the instruction as nop
+                        if x86_64::is_callee_saved(op) && !used_callee_saved.contains(&op) {
+                            trace!("removing instruction {:?} for save/restore unnecessary callee saved regs", inst);
+                            regs_to_remove.push(op);
+                            inst_to_remove.push(i);
+                        }
+                    }
+                    None => {}
+                }
+            }
+        }
+
+        for i in inst_to_remove {
+            self.set_inst_nop(i);
+        }
+
+        regs_to_remove
+    }
     
     fn emit(&self) -> Vec<u8> {
         let mut ret = vec![];
