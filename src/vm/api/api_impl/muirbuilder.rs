@@ -1,5 +1,6 @@
 use super::common::*;
 use ast::op::*;
+use ast::inst::*;
 
 pub struct MuIRBuilder {
     /// ref to MuVM
@@ -445,7 +446,7 @@ struct BundleLoader<'lb, 'lvm> {
     built_funcs: IdPMap<MuFunction>,
     built_funcvers: IdPMap<MuFunctionVersion>,
     struct_id_tags: Vec<(MuID, MuName)>,
-    built_refi64: P<MuType>,
+    built_refi64: Option<P<MuType>>,
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -453,54 +454,62 @@ fn load_bundle(b: &mut MuIRBuilder) {
 
     let new_map = b.id_name_map.drain().collect::<HashMap<_,_>>();
 
-    let mut built_types: IdPMap<MuType> = Default::default();
-
-    let refi64: P<MuType> = ensure_refi64(vm, &mut built_types);
-
     let mut bl = BundleLoader {
         b: b,
         vm: vm,
         id_name_map: new_map,
         visited: Default::default(),
-        built_types: built_types,
+        built_types: Default::default(),
         built_sigs: Default::default(),
         built_values: Default::default(),
         built_funcs: Default::default(),
         built_funcvers: Default::default(),
         struct_id_tags: Default::default(),
-        built_refi64: refi64,
+        built_refi64: Default::default(),
     };
 
     bl.load_bundle();
 }
 
-fn ensure_refi64(vm: &VM, built_types: &mut IdPMap<MuType>) -> P<MuType> {
-    let id_i64 = vm.next_id();
-    let id_ref = vm.next_id();
-
-    let impl_i64 = P(MuType {
-        hdr: MuEntityHeader::unnamed(id_i64),
-        v: MuType_::Int(64),
-    });
-
-    let impl_ref = P(MuType {
-        hdr: MuEntityHeader::unnamed(id_ref),
-        v: MuType_::Ref(impl_i64.clone()),
-    });
-
-    trace!("Ensure i64 is defined: {} {:?}", id_i64, impl_i64);
-    trace!("Ensure ref is defined: {} {:?}", id_ref, impl_ref);
-
-    built_types.insert(id_i64, impl_i64);
-    built_types.insert(id_ref, impl_ref.clone());
-
-    impl_ref
+#[derive(Default)]
+struct FuncCtxBuilder {
+    ctx: FunctionContext,
+    tree_nodes: IdPMap<TreeNode>,
 }
 
 impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
         self.ensure_names();
         self.build_toplevels();
+    }
+
+    fn ensure_refi64(&mut self) -> P<MuType> {
+        if let Some(ref refi64) = self.built_refi64 {
+            return refi64.clone();
+        }
+
+        let id_i64 = self.vm.next_id();
+        let id_ref = self.vm.next_id();
+
+        let impl_i64 = P(MuType {
+            hdr: MuEntityHeader::unnamed(id_i64),
+            v: MuType_::Int(64),
+        });
+
+        let impl_ref = P(MuType {
+            hdr: MuEntityHeader::unnamed(id_ref),
+            v: MuType_::Ref(impl_i64.clone()),
+        });
+
+        trace!("Ensure i64 is defined: {} {:?}", id_i64, impl_i64);
+        trace!("Ensure ref is defined: {} {:?}", id_ref, impl_ref);
+
+        self.built_types.insert(id_i64, impl_i64);
+        self.built_types.insert(id_ref, impl_ref.clone());
+
+        self.built_refi64 = Some(impl_ref.clone());
+
+        impl_ref
     }
 
     fn name_from_id(id: MuID, hint: &str) -> String {
@@ -769,13 +778,15 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Building function version {} {:?}", id, fv);
 
         let hdr = self.make_mu_entity_header(id);
-        let fun = self.built_funcs.get(&fv.func).unwrap();
-        let impl_sig = fun.sig.clone();
+        let impl_sig = {
+            let fun = self.built_funcs.get(&fv.func).unwrap();
+            fun.sig.clone()
+        };
 
-        let mut ctx = FunctionContext { values: Default::default() };
+        let mut fcb: FuncCtxBuilder = Default::default();
 
         let blocks = fv.bbs.iter().map(|bbid| {
-            let block = self.build_block(*bbid, &mut ctx);
+            let block = self.build_block(&mut fcb, *bbid);
             (*bbid, block)
         }).collect::<HashMap<MuID, Block>>();
 
@@ -790,7 +801,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             func_id: id,
             sig: impl_sig,
             content: Some(ctn),
-            context: ctx,
+            context: fcb.ctx,
             block_trace: None,
         };
 
@@ -802,7 +813,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     /// Copied from ast::ir::*. That was implemented for the previous API which implies mutability.
     /// When we migrate later, we can assume the AST is almost fully immutable, and can be
     /// constructed in a functional recursive-descendent style.
-    fn new_ssa(&self, id: MuID, ty: P<MuType>, ctx: &mut FunctionContext) -> P<TreeNode> {
+    fn new_ssa(&self, fcb: &mut FuncCtxBuilder, id: MuID, ty: P<MuType>) -> P<TreeNode> {
         let hdr = self.make_mu_entity_header(id);
         let val = P(Value{
             hdr: hdr,
@@ -810,15 +821,43 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             v: Value_::SSAVar(id)
         });
 
-        ctx.values.insert(id, SSAVarEntry::new(val.clone()));
+        fcb.ctx.values.insert(id, SSAVarEntry::new(val.clone()));
 
-        P(TreeNode {
+        let tn = P(TreeNode {
             op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
+        });
+
+        fcb.tree_nodes.insert(id, tn.clone());
+
+        tn
+    }
+
+    pub fn new_inst(&self, v: Instruction) -> Box<TreeNode> {
+        Box::new(TreeNode{
+            op: pick_op_code_for_inst(&v),
+            v: TreeNode_::Instruction(v),
+        })
+    }
+    
+    pub fn new_global(&self, v: P<Value>) -> P<TreeNode> {
+        P(TreeNode{
+            op: pick_op_code_for_value(&v.ty),
+            v: TreeNode_::Value(v)
         })
     }
 
-    fn build_block(&self, id: MuID, ctx: &mut FunctionContext) -> Block {
+    fn get_treenode(&self, fcb: &FuncCtxBuilder, id: MuID) -> P<TreeNode> {
+        if let Some(tn) = fcb.tree_nodes.get(&id) {
+            tn.clone()
+        } else if let Some(v) = self.built_values.get(&id) {
+            self.new_global(v.clone())
+        } else {
+            panic!("Operand {} is neither a local var or a global var", id)
+        }
+    }
+
+    fn build_block(&mut self, fcb: &mut FuncCtxBuilder, id: MuID) -> Block {
         let bb = self.b.bundle.bbs.get(&id).unwrap();
 
         trace!("Building basic block {} {:?}", id, bb);
@@ -828,20 +867,22 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let args = nor_ids.iter().zip(nor_tys).map(|(arg_id, arg_ty_id)| {
             let arg_ty = self.get_built_type(*arg_ty_id);
-            self.new_ssa(*arg_id, arg_ty, ctx).clone_value()
+            self.new_ssa(fcb, *arg_id, arg_ty).clone_value()
         }).collect::<Vec<_>>();
 
         let exn_arg = bb.excParamID.map(|arg_id| {
-            let arg_ty = self.built_refi64.clone();
-            self.new_ssa(arg_id, arg_ty, ctx).clone_value()
+            let arg_ty = self.ensure_refi64();
+            self.new_ssa(fcb, arg_id, arg_ty).clone_value()
         });
 
         let hdr = self.make_mu_entity_header(id);
 
+        let body = self.build_block_content(fcb, &bb.insts);
+
         let ctn = BlockContent {
             args: args,
             exn_arg: exn_arg,
-            body: Default::default(), // FIXME: actually build body.
+            body: body,
             keepalives: None,
         };
 
@@ -851,5 +892,62 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             control_flow: Default::default(),
         }
     }
-}
 
+    fn build_block_content(&mut self, fcb: &mut FuncCtxBuilder, insts: &Vec<MuID>) -> Vec<Box<TreeNode>> {
+        insts.iter().map(|iid| self.build_inst(fcb, *iid)).collect::<Vec<_>>()
+    }
+
+    fn build_inst(&mut self, fcb: &mut FuncCtxBuilder, id: MuID) -> Box<TreeNode> {
+        let inst = self.b.bundle.insts.get(&id).unwrap();
+
+        trace!("Building instruction {} {:?}", id, inst);
+
+        let hdr = self.make_mu_entity_header(id);
+
+        let impl_inst = match **inst {
+            NodeInst::NodeBinOp {
+                id: _, resultID: rid, statusResultIDs: _,
+                optr: optr, flags: _, ty: ty, opnd1: opnd1, opnd2: opnd2,
+                excClause: _ } => {
+                    let impl_optr = match optr {
+                        CMU_BINOP_ADD  => BinOp::Add,
+                        CMU_BINOP_SUB  => BinOp::Sub,
+                        CMU_BINOP_MUL  => BinOp::Mul,
+                        CMU_BINOP_SDIV => BinOp::Sdiv,
+                        CMU_BINOP_SREM => BinOp::Srem,
+                        CMU_BINOP_UDIV => BinOp::Udiv,
+                        CMU_BINOP_UREM => BinOp::Urem,
+                        CMU_BINOP_SHL  => BinOp::Shl,
+                        CMU_BINOP_LSHR => BinOp::Lshr,
+                        CMU_BINOP_ASHR => BinOp::Ashr,
+                        CMU_BINOP_AND  => BinOp::And,
+                        CMU_BINOP_OR   => BinOp::Or,
+                        CMU_BINOP_XOR  => BinOp::Xor,
+                        CMU_BINOP_FADD => BinOp::FAdd,
+                        CMU_BINOP_FSUB => BinOp::FSub,
+                        CMU_BINOP_FMUL => BinOp::FMul,
+                        CMU_BINOP_FDIV => BinOp::FDiv,
+                        CMU_BINOP_FREM => BinOp::FRem,
+                        _ => panic!("Illegal binary operator {}", optr)
+                    };
+                    let impl_ty = self.get_built_type(ty);
+                    let impl_opnd1 = self.get_treenode(fcb, opnd1);
+                    let impl_opnd2 = self.get_treenode(fcb, opnd2);
+                    let impl_rv = self.new_ssa(fcb, rid, impl_ty.clone());
+                    let impl_rv_value = impl_rv.clone_value();
+
+                    Instruction {
+                        hdr: hdr,
+                        value: Some(vec![impl_rv_value]),
+                        ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                        v: Instruction_::BinOp(impl_optr, 0, 1),
+                    }
+                },
+            ref i => panic!("{:?} not implemented", i),
+        };
+
+        trace!("Instruction built {} {:?}", id, impl_inst);
+
+        self.new_inst(impl_inst)
+    }
+}
