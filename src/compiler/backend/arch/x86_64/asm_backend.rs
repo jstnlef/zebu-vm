@@ -967,8 +967,8 @@ impl ASMCodeGen {
         }
     }
     
-    fn asm_block_label(&self, label: MuName) -> String {
-        symbol(format!("{}_{}", self.cur().name, label))
+    fn mangle_block_label(&self, label: MuName) -> String {
+        format!("{}_{}", self.cur().name, label)
     }
     
     fn control_flow_analysis(&mut self) {
@@ -1127,7 +1127,7 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn start_block(&mut self, block_name: MuName) {
-        let label = format!("{}:", self.asm_block_label(block_name.clone()));        
+        let label = format!("{}:", symbol(self.mangle_block_label(block_name.clone())));
         self.add_asm_block_label(label, block_name.clone());
 
         self.cur_mut().blocks.insert(block_name.clone(), ASMBlock::new());
@@ -1136,13 +1136,12 @@ impl CodeGenerator for ASMCodeGen {
     }
     
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation {
-        let block = self.asm_block_label(block_name.clone());
-        self.add_asm_symbolic(directive_globl(symbol(block.clone())));
-        self.add_asm_symbolic(format!("{}:", symbol(block.clone())));
+        let mangled_name = self.mangle_block_label(block_name.clone());
+        self.add_asm_symbolic(directive_globl(symbol(mangled_name.clone())));
+
+        self.start_block(block_name.clone());
         
-        self.start_block(block_name);
-        
-        ValueLocation::Relocatable(RegGroup::GPR, block)
+        ValueLocation::Relocatable(RegGroup::GPR, mangled_name)
     }
     
     fn end_block(&mut self, block_name: MuName) {
@@ -1646,77 +1645,77 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: jmp {}", dest_name);
         
         // symbolic label, we dont need to patch it
-        let asm = format!("jmp {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jmp {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch(asm, dest_name)
     }
     
     fn emit_je(&mut self, dest_name: MuName) {
         trace!("emit: je {}", dest_name);
         
-        let asm = format!("je {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("je {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jne(&mut self, dest_name: MuName) {
         trace!("emit: jne {}", dest_name);
         
-        let asm = format!("jne {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jne {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);
     }
     
     fn emit_ja(&mut self, dest_name: MuName) {
         trace!("emit: ja {}", dest_name);
         
-        let asm = format!("ja {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("ja {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);
     }
     
     fn emit_jae(&mut self, dest_name: MuName) {
         trace!("emit: jae {}", dest_name);
         
-        let asm = format!("jae {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jae {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jb(&mut self, dest_name: MuName) {
         trace!("emit: jb {}", dest_name);
         
-        let asm = format!("jb {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jb {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);
     }
     
     fn emit_jbe(&mut self, dest_name: MuName) {
         trace!("emit: jbe {}", dest_name);
         
-        let asm = format!("jbe {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jbe {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jg(&mut self, dest_name: MuName) {
         trace!("emit: jg {}", dest_name);
         
-        let asm = format!("jg {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jg {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jge(&mut self, dest_name: MuName) {
         trace!("emit: jge {}", dest_name);
         
-        let asm = format!("jge {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jge {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jl(&mut self, dest_name: MuName) {
         trace!("emit: jl {}", dest_name);
         
-        let asm = format!("jl {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jl {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jle(&mut self, dest_name: MuName) {
         trace!("emit: jle {}", dest_name);
         
-        let asm = format!("jle {}", self.asm_block_label(dest_name.clone()));
+        let asm = format!("jle {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }    
     
@@ -1919,9 +1918,15 @@ pub fn emit_context(vm: &VM) {
     debug!("---finish---");
 }
 
+//#[cfg(target_os = "macos")]
 fn directive_globl(name: String) -> String {
     format!(".globl {}", name)
 }
+//
+//#[cfg(target_os = "linux")]
+//fn directive_globl(name: String) -> String {
+//    format!("global {}", name)
+//}
 
 fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
     format!(".comm {},{},{}", name, size, align)
