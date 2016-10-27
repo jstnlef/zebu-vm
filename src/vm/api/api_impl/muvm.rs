@@ -1,8 +1,9 @@
 use super::common::*;
+use std::sync::Arc;
 
 pub struct MuVM {
     // The actual VM
-    pub vm: VM,
+    pub vm: Arc<VM>,
 
     // Cache C strings. The C client expects `char*` from `name_of`. We assume the client won't
     // call `name_of` very often, so that we don't need to initialise this hashmap on startup.
@@ -19,7 +20,7 @@ impl MuVM {
      */
     pub fn new() -> MuVM {
         MuVM {
-            vm: VM::new(),
+            vm: Arc::new(VM::new()),
             // Cache C strings. The C client expects `char*` from `name_of`. We assume the client
             // won't call `name_of` very often, so that we don't need to initialise this hashmap on
             // startup.
@@ -67,6 +68,28 @@ impl MuVM {
 
     pub fn set_trap_handler(&self, trap_handler: CMuTrapHandler, userdata: CMuCPtr) {
         panic!("Not implemented")
+    }
+
+    pub fn compile_to_sharedlib(&self, lib_name: &str) {
+        extern crate libloading as ll;
+
+        use compiler::*;
+        use testutil::aot;
+
+        let compiler = Compiler::new(CompilerPolicy::default(), self.vm.clone());
+        let funcs = self.vm.funcs().read().unwrap();
+        let mut func_names = vec![];
+        // NOTE: this fails because load() API call is not properly implemented yet.
+        for (func_id, ref f) in funcs.iter() {
+            let func = f.read().unwrap();
+            let func_vers = self.vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            compiler.compile(&mut func_ver);
+            func_names.push(func.name().unwrap());
+        }
+        backend::emit_context(&self.vm);
+        let libname = &format!("lib{}.dylib", lib_name);
+        aot::link_dylib(func_names, libname);
     }
 
 }

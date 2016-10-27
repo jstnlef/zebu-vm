@@ -12,7 +12,7 @@ use self::mu::compiler::*;
 
 use std::sync::RwLock;
 use std::sync::Arc;
-use aot;
+use mu::testutil::aot;
 
 #[test]
 fn test_fp_add() {

@@ -243,6 +243,14 @@ extern fn _forwarder__MuVM__set_trap_handler(mvm: *mut CMuVM, trap_handler: CMuT
     };
 }
 
+extern fn _forwarder__MuVM__compile_to_sharedlib(mvm: *mut CMuVM, lib_name: CMuCString) {
+    let mut _arg_mvm = from_MuVM_ptr(mvm);
+    let mut _arg_lib_name = from_MuCString(lib_name);
+    unsafe {
+        (*_arg_mvm).compile_to_sharedlib(&_arg_lib_name)
+    };
+}
+
 extern fn _forwarder__MuCtx__id_of(ctx: *mut CMuCtx, name: CMuName) -> CMuID {
     let mut _arg_ctx = from_MuCtx_ptr(ctx);
     let mut _arg_name = from_MuName(name);
@@ -2037,6 +2045,7 @@ pub fn make_new_MuVM(header: *mut c_void) -> *mut CMuVM {
         id_of: _forwarder__MuVM__id_of,
         name_of: _forwarder__MuVM__name_of,
         set_trap_handler: _forwarder__MuVM__set_trap_handler,
+        compile_to_sharedlib: _forwarder__MuVM__compile_to_sharedlib,
     });
 
     Box::into_raw(bx)

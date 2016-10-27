@@ -14,3 +14,4 @@ pub extern crate utils;
 pub mod vm;
 pub mod compiler;
 pub mod runtime;
+pub mod testutil;

@@ -9,7 +9,7 @@ use self::mu::ast::inst::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
 
-use aot;
+use self::mu::testutil::aot;
 
 use std::sync::Arc;
 use std::sync::RwLock;
