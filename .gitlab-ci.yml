@@ -1,7 +1,7 @@
 # This file is a template, and might need editing before it works on your project.
 # Unofficial language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/scorpil/rust/tags/
-image: "scorpil/rust:stable"
+image: "qinsoon/ubuntu-zebu-test:v0.1"
 
 # Optional: Pick zero or more services to be used on all builds.
 # Only needed when using a docker container to run your tests in.
@@ -21,4 +21,4 @@ image: "scorpil/rust:stable"
 test:cargo:
   script:
   - rustc --version && cargo --version      # Print version info for debugging
-  - ./run_tests.sh
+  - RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test
