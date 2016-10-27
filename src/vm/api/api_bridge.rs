@@ -243,14 +243,12 @@ extern fn _forwarder__MuVM__set_trap_handler(mvm: *mut CMuVM, trap_handler: CMuT
     };
 }
 
-extern fn _forwarder__MuVM__compile_to_sharedlib(mvm: *mut CMuVM, fnc_id: CMuID) -> CMuCString {
+extern fn _forwarder__MuVM__compile_to_sharedlib(mvm: *mut CMuVM, lib_name: CMuCString) {
     let mut _arg_mvm = from_MuVM_ptr(mvm);
-    let mut _arg_fnc_id = fnc_id as MuID;
-    let _rv = unsafe {
-        (*_arg_mvm).compile_to_sharedlib(_arg_fnc_id)
+    let mut _arg_lib_name = from_MuCString(lib_name);
+    unsafe {
+        (*_arg_mvm).compile_to_sharedlib(&_arg_lib_name)
     };
-    let _rv_prep = _rv;
-    _rv_prep
 }
 
 extern fn _forwarder__MuCtx__id_of(ctx: *mut CMuCtx, name: CMuName) -> CMuID {

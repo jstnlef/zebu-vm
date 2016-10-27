@@ -70,7 +70,7 @@ impl MuVM {
         panic!("Not implemented")
     }
 
-    pub fn compile_to_sharedlib(&self, fnc_id: MuID) -> CMuCString {
+    pub fn compile_to_sharedlib(&self, lib_name: &str) {
         extern crate libloading as ll;
 
         use compiler::*;
@@ -78,18 +78,18 @@ impl MuVM {
 
         let compiler = Compiler::new(CompilerPolicy::default(), self.vm.clone());
         let funcs = self.vm.funcs().read().unwrap();
+        let mut func_names = vec![];
         // NOTE: this fails because load() API call is not properly implemented yet.
-        let func = funcs.get(&fnc_id).unwrap().read().unwrap();
-        {
+        for (func_id, ref f) in funcs.iter() {
+            let func = f.read().unwrap();
             let func_vers = self.vm.func_vers().read().unwrap();
             let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
             compiler.compile(&mut func_ver);
+            func_names.push(func.name().unwrap());
         }
-        let func_name = func.name().unwrap();
         backend::emit_context(&self.vm);
-        let libname = &format!("lib{}.dylib", func_name);
-        let dylib = aot::link_dylib(vec![func_name], libname);
-        dylib.to_str().unwrap().as_ptr() as CMuCString
+        let libname = &format!("lib{}.dylib", lib_name);
+        aot::link_dylib(func_names, libname);
     }
 
 }
