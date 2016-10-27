@@ -168,63 +168,85 @@ fn test_function_loading() {
 
         let b = ((*ctx).new_ir_builder)(ctx);
 
-        let id1 = ((*b).gen_sym)(b, csp.get("@i32"));
-        let id2 = ((*b).gen_sym)(b, csp.get("@i64"));
-        let id3 = ((*b).gen_sym)(b, csp.get("@sig"));
-        let id4 = ((*b).gen_sym)(b, csp.get("@func"));
+        let id_i32 = ((*b).gen_sym)(b, csp.get("@i32"));
+        let id_i64 = ((*b).gen_sym)(b, csp.get("@i64"));
+        let id_sig = ((*b).gen_sym)(b, csp.get("@sig"));
+        let id_func = ((*b).gen_sym)(b, csp.get("@func"));
 
-        ((*b).new_type_int)(b, id1, 32);
-        ((*b).new_type_int)(b, id2, 64);
+        ((*b).new_type_int)(b, id_i32, 32);
+        ((*b).new_type_int)(b, id_i64, 64);
 
-        let mut ptys = vec![id1];
-        let mut rtys = vec![id2];
-        ((*b).new_funcsig)(b, id3,
+        let mut ptys = vec![id_i32];
+        let mut rtys = vec![id_i64];
+        ((*b).new_funcsig)(b, id_sig,
                            ptys.as_mut_ptr(), ptys.len(),
                            rtys.as_mut_ptr(), rtys.len());
 
-        ((*b).new_func)(b, id4, id3);
+        ((*b).new_func)(b, id_func, id_sig);
 
         let id_const99 = ((*b).gen_sym)(b, csp.get("@const_i32_99"));
-        ((*b).new_const_int)(b, id_const99, id1, 99);
+        ((*b).new_const_int)(b, id_const99, id_i32, 99);
 
-        let id5 = ((*b).gen_sym)(b, csp.get("@func.v1"));
-        let id6 = ((*b).gen_sym)(b, csp.get("@func.v1.entry"));
-        let id7 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.x"));
-        let id8 = ((*b).gen_sym)(b, csp.get("@func.v1.bb1"));
-        let id9 = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.exc"));
-        //let id4 = ((*b).gen_sym)(b, csp.get("@func"));
-        
+        let id_funcver = ((*b).gen_sym)(b, csp.get("@func.v1"));
 
-        let mut bbs = vec![id6, id8];
-        ((*b).new_func_ver)(b, id5, id4, bbs.as_mut_ptr(), bbs.len());
+        let id_entry = ((*b).gen_sym)(b, csp.get("@func.v1.entry"));
+        let id_bb1   = ((*b).gen_sym)(b, csp.get("@func.v1.bb1"));
+        let id_bbxxx = ((*b).gen_sym)(b, csp.get("@func.v1.bbxxx"));
+
+        let mut bbs = vec![id_entry, id_bb1, id_bbxxx];
+        ((*b).new_func_ver)(b, id_funcver, id_func, bbs.as_mut_ptr(), bbs.len());
 
         {
-            let mut args = vec![id7];
-            let mut argtys = vec![id1];
+            let id_x = ((*b).gen_sym)(b, csp.get("@func.v1.entry.x"));
+            let mut args = vec![id_x];
+            let mut argtys = vec![id_i32];
 
             let id_add = ((*b).gen_sym)(b, csp.get("@func.v1.entry.add"));
             let id_sub = ((*b).gen_sym)(b, csp.get("@func.v1.entry.sub"));
-            let mut insts = vec![id_add, id_sub];
+            let id_branch = ((*b).gen_sym)(b, csp.get("@func.v1.entry.branch"));
+            let mut insts = vec![id_add, id_sub, id_branch];
 
-            ((*b).new_bb)(b, id6,
+            ((*b).new_bb)(b, id_entry,
                           args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
                           0,
                           insts.as_mut_ptr(), insts.len());
 
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.entry.y"));
-            ((*b).new_binop)(b, id_add, id_y, CMU_BINOP_ADD, id1, id7, id7, 0);
+            ((*b).new_binop)(b, id_add, id_y, CMU_BINOP_ADD, id_i32, id_x, id_x, 0);
 
             let id_z = ((*b).gen_sym)(b, csp.get("@func.v1.entry.z"));
-            ((*b).new_binop)(b, id_sub, id_z, CMU_BINOP_SUB, id1, id_y, id_const99, 0);
+            ((*b).new_binop)(b, id_sub, id_z, CMU_BINOP_SUB, id_i32, id_y, id_const99, 0);
+
+            let id_dest = ((*b).gen_sym)(b, csp.get("@func.v1.entry.dest"));
+            let mut dest_args = vec![id_z];
+            ((*b).new_dest_clause)(b, id_dest, id_bb1, dest_args.as_mut_ptr(), dest_args.len());
+            ((*b).new_branch)(b, id_branch, id_dest);
         }
 
         {
+            let id_a = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.a"));
+            let id_ret = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.ret"));
+
+            let mut args = vec![id_a];
+            let mut argtys = vec![id_i32];
+            let mut insts = vec![id_ret];
+            ((*b).new_bb)(b, id_bb1,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+
+            let mut rvs = vec![id_a];
+            ((*b).new_ret)(b, id_ret, rvs.as_mut_ptr(), rvs.len())
+        }
+
+        {
+            let id_exc = ((*b).gen_sym)(b, csp.get("@func.v1.bbxxx.exc"));
             let mut args = vec![];
             let mut argtys = vec![];
             let mut insts = vec![];
-            ((*b).new_bb)(b, id8,
+            ((*b).new_bb)(b, id_bbxxx,
                           args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
-                          id9,
+                          id_exc,
                           insts.as_mut_ptr(), insts.len());
         }
 

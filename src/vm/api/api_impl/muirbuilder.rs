@@ -45,7 +45,7 @@ impl MuIRBuilder {
             bundle: Default::default(),
         })
     }
-    
+
     #[inline(always)]
     fn get_mvm<'a, 'b>(&'a mut self) -> &'b MuVM {
         //self.mvm
@@ -240,12 +240,13 @@ impl MuIRBuilder {
 
     pub fn new_bb(&mut self, id: MuID, nor_param_ids: Vec<MuID>, nor_param_types: Vec<MuID>, exc_param_id: Option<MuID>, insts: Vec<MuID>) {
         self.bundle.bbs.insert(id, Box::new(NodeBB { id: id,
-            norParamIDs: nor_param_ids, norParamTys: nor_param_types,
-            excParamID: exc_param_id, insts: insts }));
+            nor_param_ids: nor_param_ids, nor_param_types: nor_param_types,
+            exc_param_id: exc_param_id, insts: insts }));
     }
 
     pub fn new_dest_clause(&mut self, id: MuID, dest: MuID, vars: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.dest_clauses.insert(id, Box::new(NodeDestClause { id: id,
+            dest: dest, vars: vars }));
     }
 
     pub fn new_exc_clause(&mut self, id: MuID, nor: MuID, exc: MuID) {
@@ -272,11 +273,17 @@ impl MuIRBuilder {
         panic!("Not implemented")
     }
 
+    #[inline(always)]
+    fn add_inst(&mut self, id: MuID, inst: NodeInst) {
+        self.bundle.insts.insert(id, Box::new(inst));
+    }
+
     pub fn new_binop(&mut self, id: MuID, result_id: MuID, optr: CMuBinOptr, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
-        self.bundle.insts.insert(id, Box::new(NodeInst::NodeBinOp {
-            id: id, resultID: result_id, statusResultIDs: vec![],
+        self.add_inst(id, NodeInst::NodeBinOp {
+            id: id, result_id: result_id, status_result_ids: vec![],
             optr: optr, flags: 0, ty: ty, opnd1: opnd1, opnd2: opnd2,
-            excClause: exc_clause}));
+            exc_clause: exc_clause
+        });
     }
 
     pub fn new_binop_with_status(&mut self, id: MuID, result_id: MuID, status_result_ids: Vec<MuID>, optr: CMuBinOptr, status_flags: CMuBinOpStatus, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
@@ -284,152 +291,228 @@ impl MuIRBuilder {
     }
 
     pub fn new_cmp(&mut self, id: MuID, result_id: MuID, optr: CMuCmpOptr, ty: MuID, opnd1: MuID, opnd2: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeCmp {
+            id: id, result_id: result_id,
+            optr: optr, ty: ty, opnd1: opnd1, opnd2: opnd2
+        });
     }
 
     pub fn new_conv(&mut self, id: MuID, result_id: MuID, optr: CMuConvOptr, from_ty: MuID, to_ty: MuID, opnd: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeConv {
+            id: id, result_id: result_id,
+            optr: optr, from_ty: from_ty, to_ty: to_ty, opnd: opnd
+        });
     }
 
     pub fn new_select(&mut self, id: MuID, result_id: MuID, cond_ty: MuID, opnd_ty: MuID, cond: MuID, if_true: MuID, if_false: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeSelect {
+            id: id, result_id: result_id,
+            cond_ty: cond_ty, opnd_ty: opnd_ty, cond: cond,
+            if_true: if_true, if_false: if_false
+        });
     }
 
     pub fn new_branch(&mut self, id: MuID, dest: MuID) {
-        self.bundle.insts.insert(id, Box::new(NodeInst::NodeBranch {
-            id: id, dest: dest }));
+        self.add_inst(id, NodeInst::NodeBranch {
+            id: id, dest: dest
+        });
     }
 
     pub fn new_branch2(&mut self, id: MuID, cond: MuID, if_true: MuID, if_false: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeBranch2 {
+            id: id, cond: cond, if_true: if_true, if_false: if_false
+        });
     }
 
     pub fn new_switch(&mut self, id: MuID, opnd_ty: MuID, opnd: MuID, default_dest: MuID, cases: Vec<MuID>, dests: Vec<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeSwitch {
+            id: id, opnd_ty: opnd_ty, opnd: opnd, default_dest: default_dest,
+            cases: cases, dests: dests
+        });
     }
 
     pub fn new_call(&mut self, id: MuID, result_ids: Vec<MuID>, sig: MuID, callee: MuID, args: Vec<MuID>, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeCall {
+            id: id, result_ids: result_ids,
+            sig: sig, callee: callee, args: args,
+            exc_clause: exc_clause, keepalive_clause: keepalive_clause
+        });
     }
 
     pub fn new_tailcall(&mut self, id: MuID, sig: MuID, callee: MuID, args: Vec<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeTailCall {
+            id: id, sig: sig, callee: callee, args: args
+        });
     }
 
     pub fn new_ret(&mut self, id: MuID, rvs: Vec<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeRet {
+            id: id, rvs: rvs
+        });
     }
 
     pub fn new_throw(&mut self, id: MuID, exc: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeThrow {
+            id: id, exc: exc
+        });
     }
 
     pub fn new_extractvalue(&mut self, id: MuID, result_id: MuID, strty: MuID, index: c_int, opnd: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeExtractValue {
+            id: id, result_id: result_id, strty: strty, index: index, opnd: opnd
+        });
     }
 
     pub fn new_insertvalue(&mut self, id: MuID, result_id: MuID, strty: MuID, index: c_int, opnd: MuID, newval: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeInsertValue {
+            id: id, result_id: result_id, strty: strty, index: index, opnd: opnd, newval: newval
+        });
     }
 
     pub fn new_extractelement(&mut self, id: MuID, result_id: MuID, seqty: MuID, indty: MuID, opnd: MuID, index: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeExtractElement {
+            id: id, result_id: result_id, seqty: seqty, indty: indty, opnd: opnd, index: index
+        });
     }
 
     pub fn new_insertelement(&mut self, id: MuID, result_id: MuID, seqty: MuID, indty: MuID, opnd: MuID, index: MuID, newval: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeInsertElement {
+            id: id, result_id: result_id, seqty: seqty, indty: indty, opnd: opnd, index: index, newval: newval
+        });
     }
 
     pub fn new_shufflevector(&mut self, id: MuID, result_id: MuID, vecty: MuID, maskty: MuID, vec1: MuID, vec2: MuID, mask: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeShuffleVector {
+            id: id, result_id: result_id, vecty: vecty, maskty: maskty, vec1: vec1, vec2: vec2, mask: mask
+        });
     }
 
     pub fn new_new(&mut self, id: MuID, result_id: MuID, allocty: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeNew {
+            id: id, result_id: result_id, allocty: allocty, exc_clause: exc_clause
+        });
     }
 
     pub fn new_newhybrid(&mut self, id: MuID, result_id: MuID, allocty: MuID, lenty: MuID, length: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeNewHybrid {
+            id: id, result_id: result_id, allocty: allocty, lenty: lenty, length: length, exc_clause: exc_clause
+        });
     }
 
     pub fn new_alloca(&mut self, id: MuID, result_id: MuID, allocty: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeAlloca {
+            id: id, result_id: result_id, allocty: allocty, exc_clause: exc_clause
+        });
     }
 
     pub fn new_allocahybrid(&mut self, id: MuID, result_id: MuID, allocty: MuID, lenty: MuID, length: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeAllocaHybrid {
+            id: id, result_id: result_id, allocty: allocty, lenty: lenty, length: length, exc_clause: exc_clause
+        });
     }
 
     pub fn new_getiref(&mut self, id: MuID, result_id: MuID, refty: MuID, opnd: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeGetIRef {
+            id: id, result_id: result_id, refty: refty, opnd: opnd
+        });
     }
 
     pub fn new_getfieldiref(&mut self, id: MuID, result_id: MuID, is_ptr: bool, refty: MuID, index: c_int, opnd: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeGetFieldIRef {
+            id: id, result_id: result_id, is_ptr: is_ptr, refty: refty, index: index, opnd: opnd
+        });
     }
 
     pub fn new_getelemiref(&mut self, id: MuID, result_id: MuID, is_ptr: bool, refty: MuID, indty: MuID, opnd: MuID, index: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeGetElemIRef {
+            id: id, result_id: result_id, is_ptr: is_ptr, refty: refty, indty: indty, opnd: opnd, index: index
+        });
     }
 
     pub fn new_shiftiref(&mut self, id: MuID, result_id: MuID, is_ptr: bool, refty: MuID, offty: MuID, opnd: MuID, offset: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeShiftIRef {
+            id: id, result_id: result_id, is_ptr: is_ptr, refty: refty, offty: offty, opnd: opnd, offset: offset
+        });
     }
 
     pub fn new_getvarpartiref(&mut self, id: MuID, result_id: MuID, is_ptr: bool, refty: MuID, opnd: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeGetVarPartIRef {
+            id: id, result_id: result_id, is_ptr: is_ptr, refty: refty, opnd: opnd
+        });
     }
 
     pub fn new_load(&mut self, id: MuID, result_id: MuID, is_ptr: bool, ord: CMuMemOrd, refty: MuID, loc: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeLoad {
+            id: id, result_id: result_id, is_ptr: is_ptr, ord: ord, refty: refty, loc: loc, exc_clause: exc_clause
+        });
     }
 
     pub fn new_store(&mut self, id: MuID, is_ptr: bool, ord: CMuMemOrd, refty: MuID, loc: MuID, newval: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeStore {
+            id: id, is_ptr: is_ptr, ord: ord, refty: refty, loc: loc, newval: newval, exc_clause: exc_clause
+        });
     }
 
     pub fn new_cmpxchg(&mut self, id: MuID, value_result_id: MuID, succ_result_id: MuID, is_ptr: bool, is_weak: bool, ord_succ: CMuMemOrd, ord_fail: CMuMemOrd, refty: MuID, loc: MuID, expected: MuID, desired: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeCmpXchg {
+            id: id, value_result_id: value_result_id, succ_result_id: succ_result_id, is_ptr: is_ptr, is_weak: is_weak, ord_succ: ord_succ, ord_fail: ord_fail, refty: refty, loc: loc, expected: expected, desired: desired, exc_clause: exc_clause
+        });
     }
 
     pub fn new_atomicrmw(&mut self, id: MuID, result_id: MuID, is_ptr: bool, ord: CMuMemOrd, optr: CMuAtomicRMWOptr, ref_ty: MuID, loc: MuID, opnd: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeAtomicRMW {
+            id: id, result_id: result_id, is_ptr: is_ptr, ord: ord, optr: optr, ref_ty: ref_ty, loc: loc, opnd: opnd, exc_clause: exc_clause
+        });
     }
 
     pub fn new_fence(&mut self, id: MuID, ord: CMuMemOrd) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeFence {
+            id: id, ord: ord,
+        });
     }
 
     pub fn new_trap(&mut self, id: MuID, result_ids: Vec<MuID>, rettys: Vec<MuID>, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeTrap {
+            id: id, result_ids: result_ids, rettys: rettys, exc_clause: exc_clause, keepalive_clause: keepalive_clause
+        });
     }
 
     pub fn new_watchpoint(&mut self, id: MuID, wpid: CMuWPID, result_ids: Vec<MuID>, rettys: Vec<MuID>, dis: MuID, ena: MuID, exc: Option<MuID>, keepalive_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeWatchPoint {
+            id: id, wpid: wpid as MuID, result_ids: result_ids, rettys: rettys, dis: dis, ena: ena, exc: exc, keepalive_clause: keepalive_clause
+        });
     }
 
     pub fn new_wpbranch(&mut self, id: MuID, wpid: CMuWPID, dis: MuID, ena: MuID) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeWPBranch {
+            id: id, wpid: wpid as MuID, dis: dis, ena: ena
+        });
     }
 
     pub fn new_ccall(&mut self, id: MuID, result_ids: Vec<MuID>, callconv: CMuCallConv, callee_ty: MuID, sig: MuID, callee: MuID, args: Vec<MuID>, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeCCall {
+            id: id, result_ids: result_ids, callconv: callconv, callee_ty: callee_ty, sig: sig, callee: callee, args: args, exc_clause: exc_clause, keepalive_clause: keepalive_clause
+        });
     }
 
     pub fn new_newthread(&mut self, id: MuID, result_id: MuID, stack: MuID, threadlocal: Option<MuID>, new_stack_clause: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeNewThread {
+            id: id, result_id: result_id, stack: stack, threadlocal: threadlocal, new_stack_clause: new_stack_clause, exc_clause: exc_clause
+        });
     }
 
     pub fn new_swapstack(&mut self, id: MuID, result_ids: Vec<MuID>, swappee: MuID, cur_stack_clause: MuID, new_stack_clause: MuID, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeSwapStack {
+            id: id, result_ids: result_ids, swappee: swappee, cur_stack_clause: cur_stack_clause, new_stack_clause: new_stack_clause, exc_clause: exc_clause, keepalive_clause: keepalive_clause
+        });
     }
 
     pub fn new_comminst(&mut self, id: MuID, result_ids: Vec<MuID>, opcode: CMuCommInst, flags: &[CMuFlag], tys: Vec<MuID>, sigs: Vec<MuID>, args: Vec<MuID>, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        self.bundle.insts.insert(id, Box::new(NodeInst::NodeCommInst {
-            id: id, resultIDs: result_ids,
+        self.add_inst(id, NodeInst::NodeCommInst {
+            id: id, result_ids: result_ids,
             opcode: opcode, flags: vec![], tys: tys, sigs: sigs, args: args,
-            excClause: exc_clause, keepaliveClause: keepalive_clause
-        }));
+            exc_clause: exc_clause, keepalive_clause: keepalive_clause
+        });
     }
 }
 
@@ -447,6 +530,7 @@ struct BundleLoader<'lb, 'lvm> {
     built_funcvers: IdPMap<MuFunctionVersion>,
     struct_id_tags: Vec<(MuID, MuName)>,
     built_refi64: Option<P<MuType>>,
+    built_i1: Option<P<MuType>>,
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -466,6 +550,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_funcvers: Default::default(),
         struct_id_tags: Default::default(),
         built_refi64: Default::default(),
+        built_i1: Default::default(),
     };
 
     bl.load_bundle();
@@ -476,6 +561,8 @@ struct FuncCtxBuilder {
     ctx: FunctionContext,
     tree_nodes: IdPMap<TreeNode>,
 }
+
+const DEFAULT_TRUE_PROB: f32 = 0.6f32;
 
 impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
@@ -510,6 +597,26 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.built_refi64 = Some(impl_ref.clone());
 
         impl_ref
+    }
+
+    fn ensure_i1(&mut self) -> P<MuType> {
+        if let Some(ref i1) = self.built_i1 {
+            return i1.clone();
+        }
+
+        let id_i1 = self.vm.next_id();
+
+        let impl_i1 = P(MuType {
+            hdr: MuEntityHeader::unnamed(id_i1),
+            v: MuType_::Int(1),
+        });
+
+        trace!("Ensure i1 is defined: {} {:?}", id_i1, impl_i1);
+
+        self.built_types.insert(id_i1, impl_i1.clone());
+        self.built_i1 = Some(impl_i1.clone());
+
+        impl_i1
     }
 
     fn name_from_id(id: MuID, hint: &str) -> String {
@@ -599,7 +706,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.visited.insert(id);
 
         let ty = self.b.bundle.types.get(&id).unwrap();
-        
+
         trace!("Building type {} {:?}", id, ty);
 
         let hdr = self.make_mu_entity_header(id);
@@ -656,7 +763,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
     fn fill_struct(&mut self, id: MuID, tag: &MuName) {
         let ty = self.b.bundle.types.get(&id).unwrap();
-        
+
         trace!("Filling struct {} {:?}", id, ty);
 
         match **ty {
@@ -677,9 +784,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     None => {}
                 }
                 STRUCT_TAG_MAP.write().unwrap().insert(tag.clone(), struct_ty_);
-                
+
                 trace!("Struct {} filled: {:?}", id,
-                    STRUCT_TAG_MAP.read().unwrap().get(tag));
+                       STRUCT_TAG_MAP.read().unwrap().get(tag));
             },
             ref t => panic!("{} {:?} should be a Struct type", id, ty),
         }
@@ -689,7 +796,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.visited.insert(id);
 
         let sig = self.b.bundle.sigs.get(&id).unwrap();
-        
+
         trace!("Building function signature {} {:?}", id, sig);
 
         let hdr = self.make_mu_entity_header(id);
@@ -725,7 +832,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.visited.insert(id);
 
         let con = self.b.bundle.consts.get(&id).unwrap();
-        
+
         trace!("Building constant {} {:?}", id, con);
 
         let hdr = self.make_mu_entity_header(id);
@@ -774,7 +881,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
     fn build_funcver(&mut self, id: MuID) {
         let fv = self.b.bundle.funcvers.get(&id).unwrap();
-        
+
         trace!("Building function version {} {:?}", id, fv);
 
         let hdr = self.make_mu_entity_header(id);
@@ -839,7 +946,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             v: TreeNode_::Instruction(v),
         })
     }
-    
+
     pub fn new_global(&self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
             op: pick_op_code_for_value(&v.ty),
@@ -862,15 +969,15 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Building basic block {} {:?}", id, bb);
 
-        let nor_ids = &bb.norParamIDs;
-        let nor_tys = &bb.norParamTys;
+        let nor_ids = &bb.nor_param_ids;
+        let nor_tys = &bb.nor_param_types;
 
         let args = nor_ids.iter().zip(nor_tys).map(|(arg_id, arg_ty_id)| {
             let arg_ty = self.get_built_type(*arg_ty_id);
             self.new_ssa(fcb, *arg_id, arg_ty).clone_value()
         }).collect::<Vec<_>>();
 
-        let exn_arg = bb.excParamID.map(|arg_id| {
+        let exn_arg = bb.exc_param_id.map(|arg_id| {
             let arg_ty = self.ensure_refi64();
             self.new_ssa(fcb, arg_id, arg_ty).clone_value()
         });
@@ -906,9 +1013,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_inst = match **inst {
             NodeInst::NodeBinOp {
-                id: _, resultID: rid, statusResultIDs: _,
-                optr: optr, flags: _, ty: ty, opnd1: opnd1, opnd2: opnd2,
-                excClause: _ } => {
+                id: _, result_id, status_result_ids: _,
+                optr, flags: _, ty, opnd1, opnd2,
+                exc_clause: _ } => {
                     let impl_optr = match optr {
                         CMU_BINOP_ADD  => BinOp::Add,
                         CMU_BINOP_SUB  => BinOp::Sub,
@@ -933,7 +1040,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     let impl_ty = self.get_built_type(ty);
                     let impl_opnd1 = self.get_treenode(fcb, opnd1);
                     let impl_opnd2 = self.get_treenode(fcb, opnd2);
-                    let impl_rv = self.new_ssa(fcb, rid, impl_ty.clone());
+                    let impl_rv = self.new_ssa(fcb, result_id, impl_ty);
                     let impl_rv_value = impl_rv.clone_value();
 
                     Instruction {
@@ -943,11 +1050,164 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         v: Instruction_::BinOp(impl_optr, 0, 1),
                     }
                 },
+                NodeInst::NodeCmp {
+                    id: _, result_id, optr, ty, opnd1, opnd2
+                } => {
+                    let impl_optr = match optr {
+                        CMU_CMP_EQ  => CmpOp::EQ,
+                        CMU_CMP_NE  => CmpOp::NE,
+                        CMU_CMP_SGE    => CmpOp::SGE,
+                        CMU_CMP_SGT    => CmpOp::SGT,
+                        CMU_CMP_SLE    => CmpOp::SLE,
+                        CMU_CMP_SLT    => CmpOp::SLT,
+                        CMU_CMP_UGE    => CmpOp::UGE,
+                        CMU_CMP_UGT    => CmpOp::UGT,
+                        CMU_CMP_ULE    => CmpOp::ULE,
+                        CMU_CMP_ULT    => CmpOp::ULT,
+                        CMU_CMP_FFALSE => CmpOp::FFALSE,
+                        CMU_CMP_FTRUE  => CmpOp::FTRUE,
+                        CMU_CMP_FUNO   => CmpOp::FUNO,
+                        CMU_CMP_FUEQ   => CmpOp::FUEQ,
+                        CMU_CMP_FUNE   => CmpOp::FUNE,
+                        CMU_CMP_FUGT   => CmpOp::FUGT,
+                        CMU_CMP_FUGE   => CmpOp::FUGE,
+                        CMU_CMP_FULT   => CmpOp::FULT,
+                        CMU_CMP_FULE   => CmpOp::FULE,
+                        CMU_CMP_FORD   => CmpOp::FORD,
+                        CMU_CMP_FOEQ   => CmpOp::FOEQ,
+                        CMU_CMP_FONE   => CmpOp::FONE,
+                        CMU_CMP_FOGT   => CmpOp::FOGT,
+                        CMU_CMP_FOGE   => CmpOp::FOGE,
+                        CMU_CMP_FOLT   => CmpOp::FOLT,
+                        CMU_CMP_FOLE   => CmpOp::FOLE,
+                        _ => panic!("Illegal comparing operator {}", optr)
+                    };
+                    // NOTE: vectors not implemented. Otherwise the result would be a vector of
+                    // int<1>
+                    let impl_i1 = self.ensure_i1();
+                    let impl_opnd1 = self.get_treenode(fcb, opnd1);
+                    let impl_opnd2 = self.get_treenode(fcb, opnd2);
+                    let impl_rv = self.new_ssa(fcb, result_id, impl_i1);
+                    let impl_rv_value = impl_rv.clone_value();
+
+                    Instruction {
+                        hdr: hdr,
+                        value: Some(vec![impl_rv_value]),
+                        ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                        v: Instruction_::CmpOp(impl_optr, 0, 1),
+                    }
+                },
+                NodeInst::NodeConv {
+                    id: _, result_id, optr, from_ty, to_ty, opnd
+                } => {
+                    panic!("Conversion not implemented")
+                    // let impl_optr = match optr {
+                    //     CMU_CONV_TRUNC   => ComvOp::TRUNC,
+                    //     CMU_CONV_ZEXT    => ComvOp::ZEXT,
+                    //     CMU_CONV_SEXT    => ComvOp::SEXT,
+                    //     CMU_CONV_FPTRUNC => ComvOp::FPTRUNC,
+                    //     CMU_CONV_FPEXT   => ComvOp::FPEXT,
+                    //     CMU_CONV_FPTOUI  => ComvOp::FPTOUI,
+                    //     CMU_CONV_FPTOSI  => ComvOp::FPTOSI,
+                    //     CMU_CONV_UITOFP  => ComvOp::UITOFP,
+                    //     CMU_CONV_SITOFP  => ComvOp::SITOFP,
+                    //     CMU_CONV_BITCAST => ComvOp::BITCAST,
+                    //     CMU_CONV_REFCAST => ComvOp::REFCAST,
+                    //     CMU_CONV_PTRCAST => ComvOp::PTRCAST,
+                    //     _ => panic!("Illegal conversion operator {}", optr)
+                    // };
+                    // let impl_to_ty = self.get_built_type(to_ty);
+                    // let impl_opnd = self.get_treenode(fcb, opnd);
+                    // let impl_rv = self.new_ssa(fcb, result_id, impl_to_ty);
+                    // let impl_rv_value = impl_rv.clone_value();
+
+                    // Instruction {
+                    //     hdr: hdr,
+                    //     value: Some(vec![impl_rv_value]),
+                    //     ops: RwLock::new(vec![impl_opnd]),
+                    //     v: Instruction_::ComvOp(impl_optr, 0),
+                    // }
+                },
+                NodeInst::NodeBranch { id: _, dest } => { 
+                    let (impl_dest, ops) = self.build_destination(fcb, dest, 0, &[]);
+
+                    Instruction {
+                        hdr: hdr,
+                        value: None,
+                        ops: RwLock::new(ops),
+                        v: Instruction_::Branch1(impl_dest),
+                    }
+                }
+            NodeInst::NodeBranch2 { id: _, cond, if_true, if_false } => { 
+                let mut ops: Vec<P<TreeNode>> = Vec::new();
+
+                let impl_cond = self.get_treenode(fcb, cond);
+                ops.push(impl_cond);
+
+                let (impl_dest_true, mut true_ops) = self.build_destination(fcb, if_true, ops.len(), &[]);
+                ops.append(&mut true_ops);
+
+                let (impl_dest_false, mut false_ops) = self.build_destination(fcb, if_false, ops.len(), &[]);
+                ops.append(&mut false_ops);
+
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(ops),
+                    v: Instruction_::Branch2 {
+                        cond: 0,
+                        true_dest: impl_dest_true,
+                        false_dest: impl_dest_false,
+                        true_prob: DEFAULT_TRUE_PROB,
+                    },
+                }
+            }
+            NodeInst::NodeRet { id: _, ref rvs } => {
+                let ops = rvs.iter().map(|rvid| self.get_treenode(fcb, *rvid)).collect::<Vec<_>>();
+                let op_indexes = (0..(ops.len())).collect::<Vec<_>>();
+
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(ops),
+                    v: Instruction_::Return(op_indexes),
+                }
+            }
             ref i => panic!("{:?} not implemented", i),
         };
 
         trace!("Instruction built {} {:?}", id, impl_inst);
 
         self.new_inst(impl_inst)
+    }
+
+    fn build_destination(&mut self, fcb: &mut FuncCtxBuilder, id: MuID,
+                         next_op_index: usize, inst_result_ids: &[MuID],
+                         ) -> (Destination, Vec<P<TreeNode>>) {
+        let dest_clause = self.b.bundle.dest_clauses.get(&id).unwrap();
+
+        let target = dest_clause.dest;
+
+        let mut next_my_index = next_op_index;
+        let mut var_treenodes: Vec<P<TreeNode>> = Vec::new();
+
+        let dest_args = dest_clause.vars.iter().map(|vid| {
+            if let Some(ind) = inst_result_ids.iter().position(|rid| *rid == *vid) {
+                DestArg::Freshbound(ind)
+            } else {
+                let treenode = self.get_treenode(fcb, *vid);
+                let my_index = next_my_index;
+                next_my_index += 1;
+                var_treenodes.push(treenode);
+                DestArg::Normal(my_index)
+            }
+        }).collect::<Vec<_>>();
+
+        let impl_dest = Destination {
+            target: target,
+            args: dest_args,
+        };
+
+        (impl_dest, var_treenodes)
     }
 }
