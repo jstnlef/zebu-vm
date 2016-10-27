@@ -1,6 +1,7 @@
 **/target/*
 **/__pycache__/*
 emit/*
+**/temp/*
 Cargo.lock
 *.log
 *.DS_Store
