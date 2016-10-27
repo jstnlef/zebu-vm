@@ -15,7 +15,14 @@ pub mod aot {
     use std::process::Command;
     use std::process::Output;
 
-    const CC : &'static str = "clang";
+    fn get_test_clang_path() -> String {
+         use std::env;
+
+         match env::var("CLANG_FOR_AOT") {
+             Ok(val) => val,
+             Err(_) => "clang".to_string()
+         }
+    }
 
     fn exec (mut cmd: Command) -> Output {
         println!("executing: {:?}", cmd);
@@ -30,7 +37,7 @@ pub mod aot {
     }
 
     fn link_executable_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
-        let mut gcc = Command::new(CC);
+        let mut gcc = Command::new(get_test_clang_path());
 
         for file in files {
             println!("link with {:?}", file.as_path());
@@ -38,6 +45,13 @@ pub mod aot {
         }
 
         println!("output as {:?}", out.as_path());
+        if cfg!(target_os = "linux") {
+             gcc.arg("-lrt");
+             gcc.arg("-ldl");
+             gcc.arg("-lpthread");
+         }
+         // so we can find symbols in itself
+        gcc.arg("-rdynamic");
         gcc.arg("-o");
         gcc.arg(out.as_os_str());
 
@@ -50,7 +64,7 @@ pub mod aot {
         let mut object_files : Vec<PathBuf> = vec![];
 
         for file in files {
-            let mut gcc = Command::new(CC);
+            let mut gcc = Command::new(get_test_clang_path());
 
             gcc.arg("-c");
             gcc.arg("-fpic");
@@ -66,7 +80,7 @@ pub mod aot {
             exec(gcc);
         }
 
-        let mut gcc = Command::new(CC);
+        let mut gcc = Command::new(get_test_clang_path());
         gcc.arg("-shared");
         gcc.arg("-Wl");
         gcc.arg("-undefined");
