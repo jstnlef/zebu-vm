@@ -46,6 +46,10 @@ def test_constant_function():
     fn = get_fncptr("suite/test_constfunc.c", "test_fnc")
     assert fn() == 0
 
-def test_factorial():
+def test_fibonacci():
     fn = get_fncptr("suite/test_fib.c", "fib")
     assert fn(20) == 6765
+
+def test_multifunc():
+    fn = get_fncptr("suite/test_multifunc.c", "entry")
+    assert fn() == 6765

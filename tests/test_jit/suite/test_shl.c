@@ -20,7 +20,6 @@ int main(int argc, char** argv) {
     MuID id_58;
     MuID id_59;
     MuID id_60;
-    MuCString var_6;
     mu_6 = mu_fastimpl_new();
     ctx_6 = mu_6->new_context(mu_6);
     bldr_6 = ctx_6->new_ir_builder(ctx_6);
@@ -44,7 +43,7 @@ int main(int argc, char** argv) {
     bldr_6->new_bb(bldr_6, id_57, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_59, id_60}, 2);
     bldr_6->new_func_ver(bldr_6, id_56, id_55, (MuBBNode [1]){id_57}, 1);
     bldr_6->load(bldr_6);
-    var_6 = mu_6->compile_to_sharedlib(mu_6, id_55);
-    printf("%s\n", var_6);
+    mu_6->compile_to_sharedlib(mu_6, "test_shl.dylib");
+    printf("%s\n", "test_shl.dylib");
     return 0;
 }
