@@ -156,9 +156,7 @@ impl MuStack {
             debug!("store {} to {}", val, stack_ptr);
             unsafe {stack_ptr.store(val);}
         }
-        
-        // should have put 6 + 6 words on the stack
-        debug_assert!(self.sp.diff(stack_ptr) == 12 * WORD_SIZE);
+
         // save it back
         self.sp = stack_ptr;
         
