@@ -7,3 +7,4 @@ mod test_alloc;
 mod test_exception;
 mod test_thread;
 mod test_floatingpoint;
+mod test_int;
