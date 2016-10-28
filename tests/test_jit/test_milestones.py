@@ -7,12 +7,11 @@ import ctypes
 import py
 
 CC = 'clang'
-# CI_PROJ_DIR = os.environ["CI_PROJECT_DIR"]
-CI_PROJ_DIR = os.environ["MU_RUST"]
+MU_RUST = os.environ["MU_RUST"]
 CFLAGS = [
     "-std=c99",
-    "-I%(CI_PROJ_DIR)s/src/vm/api" % globals(),
-    "-L%(CI_PROJ_DIR)s/target/debug" % globals(),
+    "-I%(MU_RUST)s/src/vm/api" % globals(),
+    "-L%(MU_RUST)s/target/debug" % globals(),
     "-lmu",
 ]
 os.environ['RUST_BACKTRACE'] = '1'
