@@ -34,8 +34,7 @@ def compile_lib(testname):
         raise subp.CalledProcessError(p.returncode, cmd)
 
     # run
-    p = subp.Popen([str(bin_path)], stdout=subp.PIPE, stderr=subp.PIPE,
-                   cwd=str(bin_dir), env=os.environ)
+    p = subp.Popen([str(bin_path)], stdout=subp.PIPE, stderr=subp.PIPE, env=os.environ)
     out, err = p.communicate()
     if p.returncode != 0:  # failed
         sys.stdout.write(out + '\n')

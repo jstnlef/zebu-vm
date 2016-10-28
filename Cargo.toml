@@ -6,6 +6,7 @@ build = "build.rs"
 
 [lib]
 crate-type = ["staticlib", "rlib", "dylib"]
+doctest = false
 
 [features]
 default = ["aot"]
