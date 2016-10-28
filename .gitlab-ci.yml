@@ -21,4 +21,4 @@ image: "qinsoon/ubuntu-zebu-test:v0.1"
 test:cargo:
   script:
   - rustc --version && cargo --version      # Print version info for debugging
-  - RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test
+  - RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test
