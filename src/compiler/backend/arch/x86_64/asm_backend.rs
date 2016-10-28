@@ -1497,6 +1497,51 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
+    fn emit_xor_r64_r64  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: xor {}, {} -> {}", src, dest, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
+
+        let asm = format!("xorq {},{}", reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1.clone()],
+                id2 => vec![loc2.clone()]
+            },
+            false
+        )
+    }
+
+    fn emit_xor_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: xor {}, {} -> {}", src, dest, dest);
+        unimplemented!()
+    }
+
+    fn emit_xor_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
+        trace!("emit: xor {}, {} -> {}", dest, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("xorq ${},{}", src, reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
     fn emit_add_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: add {}, {} -> {}", dest, src, dest);
         
@@ -1639,6 +1684,58 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mul_mem64(&mut self, src: &P<Value>) {
         trace!("emit: mul rax, {} -> rax", src);
         unimplemented!()
+    }
+
+    fn emit_div_r64  (&mut self, src: &P<Value>) {
+        trace!("emit: div rdx:rax, {} -> quotient: rax + remainder: rdx", src);
+
+        let rdx = self.prepare_machine_reg(&x86_64::RDX);
+        let rax = self.prepare_machine_reg(&x86_64::RAX);
+        let (reg, id, loc) = self.prepare_reg(src, 4 + 1);
+
+        let asm = format!("divq {}", reg);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                rdx => vec![],
+                rax => vec![],
+            },
+            hashmap!{
+                id => vec![loc],
+                rdx => vec![],
+                rax => vec![]
+            },
+            false
+        )
+    }
+
+    fn emit_div_mem64(&mut self, src: &P<Value>) {
+        trace!("emit: div rdx:rax, {} -> quotient: rax + remainder: rdx", src);
+
+        let rdx = self.prepare_machine_reg(&x86_64::RDX);
+        let rax = self.prepare_machine_reg(&x86_64::RAX);
+        let (mem, mut uses) = self.prepare_mem(src, 4 + 1);
+
+        // merge use vec
+        if !uses.contains_key(&rdx) {
+            uses.insert(rdx, vec![]);
+        }
+        if !uses.contains_key(&rax) {
+            uses.insert(rax, vec![]);
+        }
+
+        let asm = format!("divq {}", mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                rdx => vec![],
+                rax => vec![]
+            },
+            uses,
+            true
+        )
     }
     
     fn emit_jmp(&mut self, dest_name: MuName) {

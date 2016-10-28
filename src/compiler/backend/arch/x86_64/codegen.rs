@@ -40,6 +40,10 @@ pub trait CodeGenerator {
     
     fn emit_and_r64_imm32(&mut self, dest: &P<Value>, src: i32);
     fn emit_and_r64_r64  (&mut self, dest: &P<Value>, src: &P<Value>);
+
+    fn emit_xor_r64_r64  (&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_xor_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_xor_r64_imm32(&mut self, dest: &P<Value>, src: i32);
     
     fn emit_add_r64_r64  (&mut self, dest: &P<Value>, src: &P<Value>);
     fn emit_add_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
@@ -54,6 +58,9 @@ pub trait CodeGenerator {
     
     fn emit_mul_r64  (&mut self, src: &P<Value>);
     fn emit_mul_mem64(&mut self, src: &P<Value>);
+
+    fn emit_div_r64  (&mut self, src: &P<Value>);
+    fn emit_div_mem64(&mut self, src: &P<Value>);
     
     fn emit_jmp(&mut self, dest: MuName);
     fn emit_je(&mut self, dest: MuName);

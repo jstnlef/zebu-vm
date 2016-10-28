@@ -8,3 +8,4 @@ mod test_exception;
 mod test_thread;
 mod test_floatingpoint;
 mod test_int;
+mod test_binop;

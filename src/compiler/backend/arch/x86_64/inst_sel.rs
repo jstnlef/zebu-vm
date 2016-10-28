@@ -300,6 +300,38 @@ impl <'a> InstructionSelection {
                                 let res_tmp = self.get_result_value(node);
                                 self.backend.emit_mov_r64_r64(&res_tmp, &rax);
                             },
+                            op::BinOp::Udiv => {
+                                let op1 = &ops[op1];
+                                let op2 = &ops[op2];
+
+                                // mov op1 -> rax
+                                let rax = x86_64::RAX.clone();
+                                self.emit_move_value_to_value(&rax, &op1.clone_value(), f_content, f_context, vm);
+
+                                // xorq rdx, rdx -> rdx
+                                let rdx = x86_64::RDX.clone();
+                                self.backend.emit_xor_r64_r64(&rdx, &rdx);
+
+                                // div op2
+                                if self.match_ireg(op2) {
+                                    let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+                                    self.backend.emit_div_r64(&op2.clone_value());
+                                } else if self.match_mem(op2) {
+                                    let mem_op2 = self.emit_mem(op2);
+
+                                    self.backend.emit_div_mem64(&mem_op2);
+                                } else if self.match_iimm(op2) {
+                                    // moving to a temp
+                                    unimplemented!()
+                                } else {
+                                    unimplemented!();
+                                }
+
+                                // mov rax -> result
+                                let res_tmp = self.get_result_value(node);
+                                self.backend.emit_mov_r64_r64(&res_tmp, &rax);
+                            }
 
                             // floating point
                             op::BinOp::FAdd => {
@@ -407,7 +439,7 @@ impl <'a> InstructionSelection {
                         
                         let hdr_size = mm::objectmodel::OBJECT_HEADER_SIZE;
                         if hdr_size == 0 {
-                            self.emit_general_move(&op, &res_tmp, f_content, f_context, vm);
+                            self.emit_move_node_to_value(&res_tmp, &op, f_content, f_context, vm);
                         } else {
                             self.emit_lea_base_offset(&res_tmp, &op.clone_value(), hdr_size as i32, vm);
                         }
@@ -929,7 +961,7 @@ impl <'a> InstructionSelection {
                     let ref target_args = f_content.get_block(dest.target).content.as_ref().unwrap().args;
                     let ref target_arg = target_args[i];
                     
-                    self.emit_general_move(&arg, target_arg, f_content, f_context, vm);
+                    self.emit_move_node_to_value(target_arg, &arg, f_content, f_context, vm);
                 },
                 &DestArg::Freshbound(_) => unimplemented!()
             }
@@ -1197,14 +1229,7 @@ impl <'a> InstructionSelection {
     
     fn node_iimm_to_i32(&mut self, op: &P<TreeNode>) -> i32 {
         match op.v {
-            TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::Constant(Constant::Int(val)) => {
-                        val as i32
-                    },
-                    _ => panic!("expected iimm")
-                }
-            },
+            TreeNode_::Value(ref pv) => self.value_iimm_to_i32(pv),
             _ => panic!("expected iimm")
         }
     }
@@ -1214,6 +1239,17 @@ impl <'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 pv.clone()
             }
+            _ => panic!("expected iimm")
+        }
+    }
+
+    fn value_iimm_to_i32(&mut self, op: &P<Value>) -> i32 {
+        match op.v {
+            Value_::Constant(Constant::Int(val)) => {
+                debug_assert!(x86_64::is_valid_x86_imm(op));
+
+                val as i32
+            },
             _ => panic!("expected iimm")
         }
     }
@@ -1332,7 +1368,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_general_move(&mut self, src: &P<TreeNode>, dest: &P<Value>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
+    fn emit_move_node_to_value(&mut self, dest: &P<Value>, src: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         let ref dst_ty = dest.ty;
         
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
@@ -1350,6 +1386,43 @@ impl <'a> InstructionSelection {
         } else {
             panic!("unexpected type for move");
         } 
+    }
+
+    fn emit_move_value_to_value(&mut self, dest: &P<Value>, src: &P<Value>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
+        let ref dest_ty = dest.ty;
+        let ref src_ty = src.ty;
+
+        if types::is_scalar(src_ty) && !types::is_fp(src_ty) {
+            // gpr mov
+            if dest.is_int_reg() && src.is_int_reg() {
+                self.backend.emit_mov_r64_r64(dest, src);
+            } else if dest.is_int_reg() && src.is_mem() {
+                self.backend.emit_mov_r64_mem64(dest, src);
+            } else if dest.is_int_reg() && src.is_int_const() {
+                let imm = self.value_iimm_to_i32(src);
+                self.backend.emit_mov_r64_imm32(dest, imm);
+            } else if dest.is_mem() && src.is_int_reg() {
+                self.backend.emit_mov_mem64_r64(dest, src);
+            } else if dest.is_mem() && src.is_int_const() {
+                let imm = self.value_iimm_to_i32(src);
+                self.backend.emit_mov_mem64_imm32(dest, imm);
+            } else {
+                panic!("unexpected gpr mov between {} -> {}", src, dest);
+            }
+        } else if types::is_scalar(src_ty) && types::is_fp(src_ty) {
+            // fpr mov
+            if dest.is_fp_reg() && src.is_fp_reg() {
+                self.backend.emit_movsd_f64_f64(dest, src);
+            } else if dest.is_fp_reg() && src.is_mem() {
+                self.backend.emit_movsd_f64_mem64(dest, src);
+            } else if dest.is_mem() && src.is_fp_reg() {
+                self.backend.emit_movsd_mem64_f64(dest, src);
+            } else {
+                panic!("unexpected fpr mov between {} -> {}", src, dest);
+            }
+        } else {
+            panic!("unexpected mov of type {}", src_ty)
+        }
     }
     
     fn emit_landingpad(&mut self, exception_arg: &P<Value>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
