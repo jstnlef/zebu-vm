@@ -22,14 +22,16 @@ stages:
   - build
   - test
 
+cache:
+  key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
+  paths:
+    - target
+
 build_libmu:
   stage: build
   script:
     - rustc --version && cargo --version      # Print version info for debugging
     - RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --no-run
-  artifacts:
-    paths:
-      - $CI_PROJECT_DIR/target
 
 test:cargo:api:
   stage: test
