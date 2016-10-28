@@ -59,8 +59,12 @@ pub trait CodeGenerator {
     fn emit_mul_r64  (&mut self, src: &P<Value>);
     fn emit_mul_mem64(&mut self, src: &P<Value>);
 
-    fn emit_div_r64  (&mut self, src: &P<Value>);
-    fn emit_div_mem64(&mut self, src: &P<Value>);
+    fn emit_div_r64   (&mut self, src: &P<Value>);
+    fn emit_div_mem64 (&mut self, src: &P<Value>);
+    fn emit_idiv_r64  (&mut self, src: &P<Value>);
+    fn emit_idiv_mem64(&mut self, src: &P<Value>);
+
+    fn emit_cqo(&mut self);
     
     fn emit_jmp(&mut self, dest: MuName);
     fn emit_je(&mut self, dest: MuName);
