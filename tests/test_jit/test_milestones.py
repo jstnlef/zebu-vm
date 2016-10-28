@@ -21,7 +21,7 @@ testsuite_dir = py.path.local('suite')
 
 def compile_lib(testname):
     src_c = testsuite_dir.join(testname + '.c')
-    bin_dir = py.path.local('tmp')
+    bin_dir = py.path.local('temp')
     if not bin_dir.exists():
         bin_dir.mkdir()
 
