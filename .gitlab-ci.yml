@@ -27,6 +27,9 @@ build_libmu:
   script:
     - rustc --version && cargo --version      # Print version info for debugging
     - RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --no-run
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/target
 
 test:cargo:api:
   stage: test
