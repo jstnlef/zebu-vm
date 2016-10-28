@@ -320,6 +320,26 @@ impl <'a> InstructionSelection {
                                 let res_tmp = self.get_result_value(node);
                                 self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RAX);
                             },
+                            op::BinOp::Urem => {
+                                let op1 = &ops[op1];
+                                let op2 = &ops[op2];
+
+                                self.emit_udiv(op1, op2, f_content, f_context, vm);
+
+                                // mov rdx -> result
+                                let res_tmp = self.get_result_value(node);
+                                self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RDX);
+                            },
+                            op::BinOp::Srem => {
+                                let op1 = &ops[op1];
+                                let op2 = &ops[op2];
+
+                                self.emit_idiv(op1, op2, f_content, f_context, vm);
+
+                                // mov rdx -> result
+                                let res_tmp = self.get_result_value(node);
+                                self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RDX);
+                            },
 
                             // floating point
                             op::BinOp::FAdd => {
@@ -626,7 +646,7 @@ impl <'a> InstructionSelection {
         if self.match_ireg(op2) {
             let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-            self.backend.emit_div_r64(&reg_op2.clone_value());
+            self.backend.emit_div_r64(&reg_op2);
         } else if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2);
 
@@ -662,7 +682,7 @@ impl <'a> InstructionSelection {
         if self.match_ireg(op2) {
             let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-            self.backend.emit_idiv_r64(&reg_op2.clone_value());
+            self.backend.emit_idiv_r64(&reg_op2);
         } else if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2);
 
