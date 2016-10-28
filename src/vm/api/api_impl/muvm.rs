@@ -88,8 +88,7 @@ impl MuVM {
             func_names.push(func.name().unwrap());
         }
         backend::emit_context(&self.vm);
-        let libname = &format!("lib{}.dylib", lib_name);
-        aot::link_dylib(func_names, libname);
+        aot::link_dylib(func_names, lib_name);
     }
 
 }
