@@ -304,34 +304,22 @@ impl <'a> InstructionSelection {
                                 let op1 = &ops[op1];
                                 let op2 = &ops[op2];
 
-                                // mov op1 -> rax
-                                let rax = x86_64::RAX.clone();
-                                self.emit_move_value_to_value(&rax, &op1.clone_value(), f_content, f_context, vm);
-
-                                // xorq rdx, rdx -> rdx
-                                let rdx = x86_64::RDX.clone();
-                                self.backend.emit_xor_r64_r64(&rdx, &rdx);
-
-                                // div op2
-                                if self.match_ireg(op2) {
-                                    let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
-
-                                    self.backend.emit_div_r64(&op2.clone_value());
-                                } else if self.match_mem(op2) {
-                                    let mem_op2 = self.emit_mem(op2);
-
-                                    self.backend.emit_div_mem64(&mem_op2);
-                                } else if self.match_iimm(op2) {
-                                    // moving to a temp
-                                    unimplemented!()
-                                } else {
-                                    unimplemented!();
-                                }
+                                self.emit_udiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rax -> result
                                 let res_tmp = self.get_result_value(node);
-                                self.backend.emit_mov_r64_r64(&res_tmp, &rax);
-                            }
+                                self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RAX);
+                            },
+                            op::BinOp::Sdiv => {
+                                let op1 = &ops[op1];
+                                let op2 = &ops[op2];
+
+                                self.emit_idiv(op1, op2, f_content, f_context, vm);
+
+                                // mov rax -> result
+                                let res_tmp = self.get_result_value(node);
+                                self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RAX);
+                            },
 
                             // floating point
                             op::BinOp::FAdd => {
@@ -617,6 +605,79 @@ impl <'a> InstructionSelection {
         let mem = self.make_memory_op_base_offset(base, offset, ADDRESS_TYPE.clone(), vm);
         
         self.backend.emit_lea_r64(dest, &mem);
+    }
+
+    fn emit_udiv (
+        &mut self,
+        op1: &P<TreeNode>, op2: &P<TreeNode>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM)
+    {
+        // mov op1 -> rax
+        let rax = x86_64::RAX.clone();
+        self.emit_move_value_to_value(&rax, &op1.clone_value(), f_content, f_context, vm);
+
+        // xorq rdx, rdx -> rdx
+        let rdx = x86_64::RDX.clone();
+        self.backend.emit_xor_r64_r64(&rdx, &rdx);
+
+        // div op2
+        if self.match_ireg(op2) {
+            let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+            self.backend.emit_div_r64(&op2.clone_value());
+        } else if self.match_mem(op2) {
+            let mem_op2 = self.emit_mem(op2);
+
+            self.backend.emit_div_mem64(&mem_op2);
+        } else if self.match_iimm(op2) {
+            let imm = self.node_iimm_to_i32(op2);
+            // moving to a temp
+            let temp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+            self.backend.emit_mov_r64_imm32(&temp, imm);
+
+            // div tmp
+            self.backend.emit_div_r64(&temp);
+        } else {
+            unimplemented!();
+        }
+    }
+
+    fn emit_idiv (
+        &mut self,
+        op1: &P<TreeNode>, op2: &P<TreeNode>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM)
+    {
+        // mov op1 -> rax
+        let rax = x86_64::RAX.clone();
+        self.emit_move_value_to_value(&rax, &op1.clone_value(), f_content, f_context, vm);
+
+        // cqo
+        self.backend.emit_cqo();
+
+        // idiv op2
+        if self.match_ireg(op2) {
+            let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+            self.backend.emit_idiv_r64(&op2.clone_value());
+        } else if self.match_mem(op2) {
+            let mem_op2 = self.emit_mem(op2);
+
+            self.backend.emit_idiv_mem64(&mem_op2);
+        } else if self.match_iimm(op2) {
+            let imm = self.node_iimm_to_i32(op2);
+            // moving to a temp
+            let temp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+            self.backend.emit_mov_r64_imm32(&temp, imm);
+
+            // idiv temp
+            self.backend.emit_idiv_r64(&temp);
+        } else {
+            unimplemented!();
+        }
     }
     
     fn emit_get_threadlocal (

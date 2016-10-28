@@ -1737,6 +1737,78 @@ impl CodeGenerator for ASMCodeGen {
             true
         )
     }
+
+    fn emit_idiv_r64  (&mut self, src: &P<Value>) {
+        trace!("emit: idiv rdx:rax, {} -> quotient: rax + remainder: rdx", src);
+
+        let rdx = self.prepare_machine_reg(&x86_64::RDX);
+        let rax = self.prepare_machine_reg(&x86_64::RAX);
+        let (reg, id, loc) = self.prepare_reg(src, 4 + 1);
+
+        let asm = format!("idivq {}", reg);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                rdx => vec![],
+                rax => vec![],
+            },
+            hashmap!{
+                id => vec![loc],
+                rdx => vec![],
+                rax => vec![]
+            },
+            false
+        )
+    }
+
+    fn emit_idiv_mem64(&mut self, src: &P<Value>) {
+        trace!("emit: idiv rdx:rax, {} -> quotient: rax + remainder: rdx", src);
+
+        let rdx = self.prepare_machine_reg(&x86_64::RDX);
+        let rax = self.prepare_machine_reg(&x86_64::RAX);
+        let (mem, mut uses) = self.prepare_mem(src, 4 + 1);
+
+        // merge use vec
+        if !uses.contains_key(&rdx) {
+            uses.insert(rdx, vec![]);
+        }
+        if !uses.contains_key(&rax) {
+            uses.insert(rax, vec![]);
+        }
+
+        let asm = format!("idivq {}", mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                rdx => vec![],
+                rax => vec![]
+            },
+            uses,
+            true
+        )
+    }
+
+    fn emit_cqo(&mut self) {
+        trace!("emit: cqo rax -> rdx:rax");
+
+        let rax = self.prepare_machine_reg(&x86_64::RAX);
+        let rdx = self.prepare_machine_reg(&x86_64::RDX);
+
+        let asm = format!("cqto");
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                rdx => vec![]
+            },
+            hashmap!{
+                rax => vec![],
+            },
+            false
+        )
+    }
     
     fn emit_jmp(&mut self, dest_name: MuName) {
         trace!("emit: jmp {}", dest_name);
