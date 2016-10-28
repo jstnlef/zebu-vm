@@ -250,11 +250,13 @@ impl MuIRBuilder {
     }
 
     pub fn new_exc_clause(&mut self, id: MuID, nor: MuID, exc: MuID) {
-        panic!("Not implemented")
+        self.bundle.exc_clauses.insert(id, Box::new(NodeExcClause { id: id,
+            nor: nor, exc: exc }));
     }
 
     pub fn new_keepalive_clause(&mut self, id: MuID, vars: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.ka_clauses.insert(id, Box::new(NodeKeepaliveClause { id: id,
+            vars: vars }));
     }
 
     pub fn new_csc_ret_with(&mut self, id: MuID, rettys: Vec<MuID>) {
@@ -531,6 +533,7 @@ struct BundleLoader<'lb, 'lvm> {
     struct_id_tags: Vec<(MuID, MuName)>,
     built_refi64: Option<P<MuType>>,
     built_i1: Option<P<MuType>>,
+    built_funcref_of: IdPMap<MuType>,
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -551,6 +554,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         struct_id_tags: Default::default(),
         built_refi64: Default::default(),
         built_i1: Default::default(),
+        built_funcref_of: Default::default(),
     };
 
     bl.load_bundle();
@@ -617,6 +621,28 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.built_i1 = Some(impl_i1.clone());
 
         impl_i1
+    }
+    
+    fn ensure_funcref(&mut self, sig_id: MuID) -> P<MuType> {
+        if let Some(funcref) = self.built_funcref_of.get(&sig_id) {
+            return funcref.clone();
+        }
+
+        let sig = self.built_sigs.get(&sig_id).unwrap().clone();
+
+        let id_funcref = self.vm.next_id();
+
+        let impl_funcref = P(MuType {
+            hdr: MuEntityHeader::unnamed(id_funcref),
+            v: MuType_::FuncRef(sig),
+        });
+
+        trace!("Ensure funcref of {} is defined: {} {:?}", sig_id, id_funcref, impl_funcref);
+
+        self.built_types.insert(id_funcref, impl_funcref.clone());
+        self.built_funcref_of.insert(sig_id, impl_funcref.clone());
+
+        impl_funcref
     }
 
     fn name_from_id(id: MuID, hint: &str) -> String {
@@ -868,7 +894,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let impl_sig = self.ensure_sig_rec(fun.sig);
 
         let impl_fun = MuFunction {
-            hdr: hdr,
+            hdr: hdr.clone(),
             sig: impl_sig,
             cur_ver: None,
             all_vers: Default::default(),
@@ -877,6 +903,18 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Function built: {} {:?}", id, impl_fun);
 
         self.built_funcs.insert(id, P(impl_fun));
+
+        let impl_ty = self.ensure_funcref(fun.sig);
+
+        let impl_val = Value {
+            hdr: hdr,
+            ty: impl_ty,
+            v: Value_::Constant(Constant::FuncRef(id)),
+        };
+
+        trace!("Function value built: {} {:?}", id, impl_val);
+
+        self.built_values.insert(id, P(impl_val));
     }
 
     fn build_funcver(&mut self, id: MuID) {
@@ -1015,92 +1053,93 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeInst::NodeBinOp {
                 id: _, result_id, status_result_ids: _,
                 optr, flags: _, ty, opnd1, opnd2,
-                exc_clause: _ } => {
-                    let impl_optr = match optr {
-                        CMU_BINOP_ADD  => BinOp::Add,
-                        CMU_BINOP_SUB  => BinOp::Sub,
-                        CMU_BINOP_MUL  => BinOp::Mul,
-                        CMU_BINOP_SDIV => BinOp::Sdiv,
-                        CMU_BINOP_SREM => BinOp::Srem,
-                        CMU_BINOP_UDIV => BinOp::Udiv,
-                        CMU_BINOP_UREM => BinOp::Urem,
-                        CMU_BINOP_SHL  => BinOp::Shl,
-                        CMU_BINOP_LSHR => BinOp::Lshr,
-                        CMU_BINOP_ASHR => BinOp::Ashr,
-                        CMU_BINOP_AND  => BinOp::And,
-                        CMU_BINOP_OR   => BinOp::Or,
-                        CMU_BINOP_XOR  => BinOp::Xor,
-                        CMU_BINOP_FADD => BinOp::FAdd,
-                        CMU_BINOP_FSUB => BinOp::FSub,
-                        CMU_BINOP_FMUL => BinOp::FMul,
-                        CMU_BINOP_FDIV => BinOp::FDiv,
-                        CMU_BINOP_FREM => BinOp::FRem,
-                        _ => panic!("Illegal binary operator {}", optr)
-                    };
-                    let impl_ty = self.get_built_type(ty);
-                    let impl_opnd1 = self.get_treenode(fcb, opnd1);
-                    let impl_opnd2 = self.get_treenode(fcb, opnd2);
-                    let impl_rv = self.new_ssa(fcb, result_id, impl_ty);
-                    let impl_rv_value = impl_rv.clone_value();
+                exc_clause: _
+            } => {
+                let impl_optr = match optr {
+                    CMU_BINOP_ADD  => BinOp::Add,
+                    CMU_BINOP_SUB  => BinOp::Sub,
+                    CMU_BINOP_MUL  => BinOp::Mul,
+                    CMU_BINOP_SDIV => BinOp::Sdiv,
+                    CMU_BINOP_SREM => BinOp::Srem,
+                    CMU_BINOP_UDIV => BinOp::Udiv,
+                    CMU_BINOP_UREM => BinOp::Urem,
+                    CMU_BINOP_SHL  => BinOp::Shl,
+                    CMU_BINOP_LSHR => BinOp::Lshr,
+                    CMU_BINOP_ASHR => BinOp::Ashr,
+                    CMU_BINOP_AND  => BinOp::And,
+                    CMU_BINOP_OR   => BinOp::Or,
+                    CMU_BINOP_XOR  => BinOp::Xor,
+                    CMU_BINOP_FADD => BinOp::FAdd,
+                    CMU_BINOP_FSUB => BinOp::FSub,
+                    CMU_BINOP_FMUL => BinOp::FMul,
+                    CMU_BINOP_FDIV => BinOp::FDiv,
+                    CMU_BINOP_FREM => BinOp::FRem,
+                    _ => panic!("Illegal binary operator {}", optr)
+                };
+                let impl_ty = self.get_built_type(ty);
+                let impl_opnd1 = self.get_treenode(fcb, opnd1);
+                let impl_opnd2 = self.get_treenode(fcb, opnd2);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_ty);
+                let impl_rv_value = impl_rv.clone_value();
 
-                    Instruction {
-                        hdr: hdr,
-                        value: Some(vec![impl_rv_value]),
-                        ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
-                        v: Instruction_::BinOp(impl_optr, 0, 1),
-                    }
-                },
-                NodeInst::NodeCmp {
-                    id: _, result_id, optr, ty, opnd1, opnd2
-                } => {
-                    let impl_optr = match optr {
-                        CMU_CMP_EQ  => CmpOp::EQ,
-                        CMU_CMP_NE  => CmpOp::NE,
-                        CMU_CMP_SGE    => CmpOp::SGE,
-                        CMU_CMP_SGT    => CmpOp::SGT,
-                        CMU_CMP_SLE    => CmpOp::SLE,
-                        CMU_CMP_SLT    => CmpOp::SLT,
-                        CMU_CMP_UGE    => CmpOp::UGE,
-                        CMU_CMP_UGT    => CmpOp::UGT,
-                        CMU_CMP_ULE    => CmpOp::ULE,
-                        CMU_CMP_ULT    => CmpOp::ULT,
-                        CMU_CMP_FFALSE => CmpOp::FFALSE,
-                        CMU_CMP_FTRUE  => CmpOp::FTRUE,
-                        CMU_CMP_FUNO   => CmpOp::FUNO,
-                        CMU_CMP_FUEQ   => CmpOp::FUEQ,
-                        CMU_CMP_FUNE   => CmpOp::FUNE,
-                        CMU_CMP_FUGT   => CmpOp::FUGT,
-                        CMU_CMP_FUGE   => CmpOp::FUGE,
-                        CMU_CMP_FULT   => CmpOp::FULT,
-                        CMU_CMP_FULE   => CmpOp::FULE,
-                        CMU_CMP_FORD   => CmpOp::FORD,
-                        CMU_CMP_FOEQ   => CmpOp::FOEQ,
-                        CMU_CMP_FONE   => CmpOp::FONE,
-                        CMU_CMP_FOGT   => CmpOp::FOGT,
-                        CMU_CMP_FOGE   => CmpOp::FOGE,
-                        CMU_CMP_FOLT   => CmpOp::FOLT,
-                        CMU_CMP_FOLE   => CmpOp::FOLE,
-                        _ => panic!("Illegal comparing operator {}", optr)
-                    };
-                    // NOTE: vectors not implemented. Otherwise the result would be a vector of
-                    // int<1>
-                    let impl_i1 = self.ensure_i1();
-                    let impl_opnd1 = self.get_treenode(fcb, opnd1);
-                    let impl_opnd2 = self.get_treenode(fcb, opnd2);
-                    let impl_rv = self.new_ssa(fcb, result_id, impl_i1);
-                    let impl_rv_value = impl_rv.clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv_value]),
+                    ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                    v: Instruction_::BinOp(impl_optr, 0, 1),
+                }
+            },
+            NodeInst::NodeCmp {
+                id: _, result_id, optr, ty, opnd1, opnd2
+            } => {
+                let impl_optr = match optr {
+                    CMU_CMP_EQ  => CmpOp::EQ,
+                    CMU_CMP_NE  => CmpOp::NE,
+                    CMU_CMP_SGE    => CmpOp::SGE,
+                    CMU_CMP_SGT    => CmpOp::SGT,
+                    CMU_CMP_SLE    => CmpOp::SLE,
+                    CMU_CMP_SLT    => CmpOp::SLT,
+                    CMU_CMP_UGE    => CmpOp::UGE,
+                    CMU_CMP_UGT    => CmpOp::UGT,
+                    CMU_CMP_ULE    => CmpOp::ULE,
+                    CMU_CMP_ULT    => CmpOp::ULT,
+                    CMU_CMP_FFALSE => CmpOp::FFALSE,
+                    CMU_CMP_FTRUE  => CmpOp::FTRUE,
+                    CMU_CMP_FUNO   => CmpOp::FUNO,
+                    CMU_CMP_FUEQ   => CmpOp::FUEQ,
+                    CMU_CMP_FUNE   => CmpOp::FUNE,
+                    CMU_CMP_FUGT   => CmpOp::FUGT,
+                    CMU_CMP_FUGE   => CmpOp::FUGE,
+                    CMU_CMP_FULT   => CmpOp::FULT,
+                    CMU_CMP_FULE   => CmpOp::FULE,
+                    CMU_CMP_FORD   => CmpOp::FORD,
+                    CMU_CMP_FOEQ   => CmpOp::FOEQ,
+                    CMU_CMP_FONE   => CmpOp::FONE,
+                    CMU_CMP_FOGT   => CmpOp::FOGT,
+                    CMU_CMP_FOGE   => CmpOp::FOGE,
+                    CMU_CMP_FOLT   => CmpOp::FOLT,
+                    CMU_CMP_FOLE   => CmpOp::FOLE,
+                    _ => panic!("Illegal comparing operator {}", optr)
+                };
+                // NOTE: vectors not implemented. Otherwise the result would be a vector of
+                // int<1>
+                let impl_i1 = self.ensure_i1();
+                let impl_opnd1 = self.get_treenode(fcb, opnd1);
+                let impl_opnd2 = self.get_treenode(fcb, opnd2);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_i1);
+                let impl_rv_value = impl_rv.clone_value();
 
-                    Instruction {
-                        hdr: hdr,
-                        value: Some(vec![impl_rv_value]),
-                        ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
-                        v: Instruction_::CmpOp(impl_optr, 0, 1),
-                    }
-                },
-                NodeInst::NodeConv {
-                    id: _, result_id, optr, from_ty, to_ty, opnd
-                } => {
-                    panic!("Conversion not implemented")
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv_value]),
+                    ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                    v: Instruction_::CmpOp(impl_optr, 0, 1),
+                }
+            },
+            NodeInst::NodeConv {
+                id: _, result_id, optr, from_ty, to_ty, opnd
+            } => {
+                panic!("Conversion not implemented")
                     // let impl_optr = match optr {
                     //     CMU_CONV_TRUNC   => ComvOp::TRUNC,
                     //     CMU_CONV_ZEXT    => ComvOp::ZEXT,
@@ -1127,28 +1166,28 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     //     ops: RwLock::new(vec![impl_opnd]),
                     //     v: Instruction_::ComvOp(impl_optr, 0),
                     // }
-                },
-                NodeInst::NodeBranch { id: _, dest } => { 
-                    let (impl_dest, ops) = self.build_destination(fcb, dest, 0, &[]);
+            },
+            NodeInst::NodeBranch { id: _, dest } => { 
+                let (impl_dest, ops) = self.build_destination(fcb, dest, 0, &[]);
 
-                    Instruction {
-                        hdr: hdr,
-                        value: None,
-                        ops: RwLock::new(ops),
-                        v: Instruction_::Branch1(impl_dest),
-                    }
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(ops),
+                    v: Instruction_::Branch1(impl_dest),
                 }
+            },
             NodeInst::NodeBranch2 { id: _, cond, if_true, if_false } => { 
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
                 let impl_cond = self.get_treenode(fcb, cond);
                 ops.push(impl_cond);
 
-                let (impl_dest_true, mut true_ops) = self.build_destination(fcb, if_true, ops.len(), &[]);
-                ops.append(&mut true_ops);
+                let (impl_dest_true, mut ops_true) = self.build_destination(fcb, if_true, ops.len(), &[]);
+                ops.append(&mut ops_true);
 
-                let (impl_dest_false, mut false_ops) = self.build_destination(fcb, if_false, ops.len(), &[]);
-                ops.append(&mut false_ops);
+                let (impl_dest_false, mut ops_false) = self.build_destination(fcb, if_false, ops.len(), &[]);
+                ops.append(&mut ops_false);
 
                 Instruction {
                     hdr: hdr,
@@ -1161,7 +1200,110 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         true_prob: DEFAULT_TRUE_PROB,
                     },
                 }
-            }
+            },
+            NodeInst::NodeSwitch {
+                id: _, opnd_ty, opnd, default_dest, ref cases, ref dests
+            } => {
+                let mut ops: Vec<P<TreeNode>> = Vec::new();
+
+                let impl_cond = self.get_treenode(fcb, opnd);
+                ops.push(impl_cond);
+
+                let (impl_dest_def, mut ops_def) = self.build_destination(fcb, default_dest, ops.len(), &[]);
+                ops.append(&mut ops_def);
+
+                let impl_branches = cases.iter().zip(dests).map(|(cid, did)| {
+                    let case_opindex = ops.len();
+                    let impl_case = self.get_treenode(fcb, *cid);
+                    ops.push(impl_case);
+
+                    let (impl_dest, mut ops_dest) = self.build_destination(fcb, *did, ops.len(), &[]);
+                    ops.append(&mut ops_dest);
+
+                    (case_opindex, impl_dest)
+                }).collect::<Vec<_>>();
+
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(ops),
+                    v: Instruction_::Switch {
+                        cond: 0,
+                        default: impl_dest_def,
+                        branches: impl_branches,
+                    },
+                }
+            },
+            NodeInst::NodeCall {
+                id: _, ref result_ids, sig, callee, ref args, exc_clause, keepalive_clause
+            } => {
+                let mut ops: Vec<P<TreeNode>> = Vec::new();
+
+                let impl_func = self.get_treenode(fcb, callee);
+                ops.push(impl_func);
+
+                let mut impl_args = args.iter().map(|argid| {
+                    self.get_treenode(fcb, *argid)
+                }).collect::<Vec<_>>();
+                ops.append(&mut impl_args);
+
+                let args_opindexes = (1..(args.len()+1)).collect::<Vec<_>>();
+
+                let call_data = CallData {
+                    func: 0,
+                    args: args_opindexes,
+                    convention: CallConvention::Mu,
+                };
+
+                let signode = self.b.bundle.sigs.get(&sig).unwrap();
+                let rettys_ids = &signode.rettys;
+
+                let rvs = result_ids.iter().zip(rettys_ids).map(|(rvid, rvty)| {
+                    let impl_rvty = self.get_built_type(*rvty);
+                    self.new_ssa(fcb, *rvid, impl_rvty).clone_value()
+                }).collect::<Vec<_>>();
+
+                if let Some(ecid) = exc_clause {
+                    // terminating inst
+                    let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
+                    
+                    let (impl_normal_dest, mut nor_ops) = {
+                        self.build_destination(fcb, ecnode.nor, ops.len(), result_ids.as_slice())
+                    };
+                    ops.append(&mut nor_ops);
+
+                    let (impl_exn_dest, mut exc_ops) = {
+                        self.build_destination(fcb, ecnode.exc, ops.len(), &[])
+                    };
+                    ops.append(&mut exc_ops);
+                   
+                    let resumption_data = ResumptionData {
+                        normal_dest: impl_normal_dest,
+                        exn_dest: impl_exn_dest,
+                    };
+
+                    Instruction {
+                        hdr: hdr,
+                        value: Some(rvs),
+                        ops: RwLock::new(ops),
+                        v: Instruction_::Call{
+                            data: call_data,
+                            resume: resumption_data,
+                        },
+                    }
+                } else {
+                    // non-terminating inst
+                    Instruction {
+                        hdr: hdr,
+                        value: Some(rvs),
+                        ops: RwLock::new(ops),
+                        v: Instruction_::ExprCall {
+                            data: call_data,
+                            is_abort: false,
+                        },
+                    }
+                }
+            },
             NodeInst::NodeRet { id: _, ref rvs } => {
                 let ops = rvs.iter().map(|rvid| self.get_treenode(fcb, *rvid)).collect::<Vec<_>>();
                 let op_indexes = (0..(ops.len())).collect::<Vec<_>>();
@@ -1172,7 +1314,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: RwLock::new(ops),
                     v: Instruction_::Return(op_indexes),
                 }
-            }
+            },
             ref i => panic!("{:?} not implemented", i),
         };
 
