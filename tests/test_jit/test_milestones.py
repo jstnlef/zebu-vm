@@ -7,24 +7,22 @@ import ctypes
 import py
 
 CC = 'clang'
-MU_RUST = os.environ["MU_RUST"]
-CFLAGS = [
-    "-std=c99",
-    "-I%(MU_RUST)s/src/vm/api" % globals(),
-    "-L%(MU_RUST)s/target/debug" % globals(),
-    "-lmu",
-]
-os.environ['RUST_BACKTRACE'] = '1'
-
-testsuite_dir = py.path.local('suite')
+proj_dir = py.path.local(__file__).join('..', '..', '..')
+test_jit_dir = proj_dir.join('tests', 'test_jit')
+testsuite_dir = test_jit_dir.join('suite')
+bin_dir = test_jit_dir.join('temp')
+if not bin_dir.exists():
+    bin_dir.mkdir()
 
 def compile_lib(testname):
     src_c = testsuite_dir.join(testname + '.c')
-    bin_dir = py.path.local('temp')
-    if not bin_dir.exists():
-        bin_dir.mkdir()
-
     bin_path = bin_dir.join(testname)
+    CFLAGS = [
+        "-std=c99",
+        "-I%(proj_dir)s/src/vm/api" % globals(),
+        "-L%(proj_dir)s/target/debug" % globals(),
+        "-lmu",
+    ]
     cmd = [CC] + CFLAGS + ['-o', str(bin_path)] + [str(src_c)]
 
     # compile
