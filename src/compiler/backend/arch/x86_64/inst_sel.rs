@@ -616,7 +616,7 @@ impl <'a> InstructionSelection {
     {
         // mov op1 -> rax
         let rax = x86_64::RAX.clone();
-        self.emit_move_value_to_value(&rax, &op1.clone_value(), f_content, f_context, vm);
+        self.emit_move_value_to_value(&rax, &op1.clone_value());
 
         // xorq rdx, rdx -> rdx
         let rdx = x86_64::RDX.clone();
@@ -626,7 +626,7 @@ impl <'a> InstructionSelection {
         if self.match_ireg(op2) {
             let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-            self.backend.emit_div_r64(&op2.clone_value());
+            self.backend.emit_div_r64(&reg_op2.clone_value());
         } else if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2);
 
@@ -653,7 +653,7 @@ impl <'a> InstructionSelection {
     {
         // mov op1 -> rax
         let rax = x86_64::RAX.clone();
-        self.emit_move_value_to_value(&rax, &op1.clone_value(), f_content, f_context, vm);
+        self.emit_move_value_to_value(&rax, &op1.clone_value());
 
         // cqo
         self.backend.emit_cqo();
@@ -662,7 +662,7 @@ impl <'a> InstructionSelection {
         if self.match_ireg(op2) {
             let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-            self.backend.emit_idiv_r64(&op2.clone_value());
+            self.backend.emit_idiv_r64(&reg_op2.clone_value());
         } else if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2);
 
@@ -1449,8 +1449,7 @@ impl <'a> InstructionSelection {
         } 
     }
 
-    fn emit_move_value_to_value(&mut self, dest: &P<Value>, src: &P<Value>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
-        let ref dest_ty = dest.ty;
+    fn emit_move_value_to_value(&mut self, dest: &P<Value>, src: &P<Value>) {
         let ref src_ty = src.ty;
 
         if types::is_scalar(src_ty) && !types::is_fp(src_ty) {

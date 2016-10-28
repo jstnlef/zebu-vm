@@ -625,6 +625,7 @@ impl <'a> GraphColoring<'a> {
         }
     }
 
+    #[allow(unused_variables)]
     fn rewrite_program(&mut self) {
         let spills = self.spills();
 
@@ -641,6 +642,7 @@ impl <'a> GraphColoring<'a> {
             spilled_mem.insert(*reg_id, mem);
         }
 
+        // though we are not using this right now
         let new_temps = backend::spill_rewrite(&spilled_mem, self.func, self.cf, self.vm);
     }
     
