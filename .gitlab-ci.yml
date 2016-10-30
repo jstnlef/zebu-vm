@@ -18,52 +18,44 @@ image: "qinsoon/ubuntu-zebu-test:v0.1"
 #- apt-get install -yqq --no-install-recommends build-essential
 
 # Use cargo to test the project
-stages:
-  - build
-  - test
 
-cache:
-  key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
-  paths:
-    - target
+# cache:
+#   key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
+#   paths:
+#     - target
 
-build_libmu:
-  stage: build
-  script:
+before_script:
     - rustc --version && cargo --version      # Print version info for debugging
-    - RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --no-run
+    # - RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --no-run
+    - RUST_BACKTRACE=1 cargo test --no-run
+    cache:
+        paths:
+            - target/
 
 test:cargo:api:
-  stage: test
-  script:
+    script:
     - RUST_BACKTRACE=1 CC=clang cargo test test_api
 
 test:cargo:ir:
-  stage: test
-  script:
+    script:
     - RUST_BACKTRACE=1 CC=clang cargo test test_ir
 
 test:cargo:compiler:
-  stage: test
-  script:
+    script:
     - RUST_BACKTRACE=1 CC=clang cargo test test_compiler
 
 test:cargo:runtime:
-  stage: test
-  script:
+    script:
     - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_runtime
 
 testjit:milestones:
-  stage: test
-  script:
+    script:
   - RUST_BACKTRACE=1 pytest tests/test_jit/test_milestones.py
 
 testjit:binops:
-  stage: test
-  script:
+    script:
   - RUST_BACKTRACE=1 pytest tests/test_jit/test_binops.py
 
 testjit:cmpops:
-  stage: test
-  script:
+    script:
   - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py
