@@ -23,8 +23,11 @@ image: "qinsoon/ubuntu-zebu-test:v0.1"
 #   key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
 #   paths:
 #     - target
-
+variable:
+    GIT_STRATEGY: fetch     # not clean up target directory
+    
 before_script:
+    script:
     - rustc --version && cargo --version      # Print version info for debugging
     # - RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --no-run
     - RUST_BACKTRACE=1 cargo test --no-run
