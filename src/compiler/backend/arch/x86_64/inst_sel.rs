@@ -355,7 +355,7 @@ impl <'a> InstructionSelection {
                                         self.backend.emit_mov_r64_r64(&x86_64::RCX, &tmp_op2);
 
                                         // shl op1, cl -> op1
-                                        self.backend.emit_shld_r64_cl(&tmp_op1);
+                                        self.backend.emit_shl_r64_cl(&tmp_op1);
 
                                         // mov op1 -> result
                                         let res_tmp = self.get_result_value(node);
@@ -364,7 +364,7 @@ impl <'a> InstructionSelection {
                                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
                                         // shl op1, op2 -> op1
-                                        self.backend.emit_shld_r64_imm8(&tmp_op1, imm_op2);
+                                        self.backend.emit_shl_r64_imm8(&tmp_op1, imm_op2);
 
                                         // mov op1 -> result
                                         let res_tmp = self.get_result_value(node);
