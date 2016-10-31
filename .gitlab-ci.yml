@@ -18,6 +18,18 @@ image: "qinsoon/ubuntu-zebu-test:v0.1"
 #- apt-get install -yqq --no-install-recommends build-essential
 
 # Use cargo to test the project
+stages:
+    - build
+    - test
+
+build_test:
+    stage: build
+    script:
+        - RUST_BACKTRACE=1 cargo test --no-run
+    artifacts:
+        paths:
+            - target
+
 test:cargo:api:
   stage: test
   script:
