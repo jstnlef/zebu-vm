@@ -195,7 +195,7 @@ impl <'a> InstructionSelection {
                                     trace!("emit add-ireg-mem");
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                                    let reg_op2 = self.emit_mem(&ops[op2]);
+                                    let reg_op2 = self.emit_mem(&ops[op2], vm);
                                     let res_tmp = self.get_result_value(node);
                                     
                                     // mov op1, res
@@ -239,7 +239,7 @@ impl <'a> InstructionSelection {
                                     trace!("emit sub-ireg-mem");
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                                    let mem_op2 = self.emit_mem(&ops[op2]);
+                                    let mem_op2 = self.emit_mem(&ops[op2], vm);
                                     let res_tmp = self.get_result_value(node);
                                     
                                     // mov op1, res
@@ -266,7 +266,7 @@ impl <'a> InstructionSelection {
                                     
                                     self.backend.emit_mov_r64_imm32(&rax, imm_op1);
                                 } else if self.match_mem(op1) {
-                                    let mem_op1 = self.emit_mem(op1);
+                                    let mem_op1 = self.emit_mem(op1, vm);
                                     
                                     self.backend.emit_mov_r64_mem64(&rax, &mem_op1);
                                 } else {
@@ -289,7 +289,7 @@ impl <'a> InstructionSelection {
                                     
                                     self.backend.emit_mul_r64(&res_tmp);
                                 } else if self.match_mem(op2) {
-                                    let mem_op2 = self.emit_mem(op2);
+                                    let mem_op2 = self.emit_mem(op2, vm);
                                     
                                     self.backend.emit_mul_mem64(&mem_op2);
                                 } else {
@@ -341,6 +341,42 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RDX);
                             },
 
+                            op::BinOp::Shl => {
+                                let op1 = &ops[op1];
+                                let op2 = &ops[op2];
+
+                                if self.match_ireg(op1) {
+                                    let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+
+                                    if self.match_ireg(op2) {
+                                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+                                        // mov op2 -> rcx
+                                        self.backend.emit_mov_r64_r64(&x86_64::RCX, &tmp_op2);
+
+                                        // shl op1, cl -> op1
+                                        self.backend.emit_shld_r64_cl(&tmp_op1);
+
+                                        // mov op1 -> result
+                                        let res_tmp = self.get_result_value(node);
+                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    } else if self.match_iimm(op2) {
+                                        let imm_op2 = self.node_iimm_to_i32(op2) as i8;
+
+                                        // shl op1, op2 -> op1
+                                        self.backend.emit_shld_r64_imm8(&tmp_op1, imm_op2);
+
+                                        // mov op1 -> result
+                                        let res_tmp = self.get_result_value(node);
+                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    } else {
+                                        panic!("unexpected op2 (not ireg not iimm): {}", op2);
+                                    }
+                                } else if self.match_mem(op1) {
+                                    unimplemented!()
+                                }
+                            }
+
                             // floating point
                             op::BinOp::FAdd => {
                                 if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
@@ -358,7 +394,7 @@ impl <'a> InstructionSelection {
                                     trace!("emit add-fpreg-mem");
 
                                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                                    let mem_op2 = self.emit_mem(&ops[op2]);
+                                    let mem_op2 = self.emit_mem(&ops[op2], vm);
                                     let res_tmp = self.get_result_value(node);
 
                                     // mov op1, res
@@ -392,7 +428,7 @@ impl <'a> InstructionSelection {
                             _ => panic!("didnt expect order {:?} with store inst", order)
                         }                        
 
-                        let resolved_loc = self.node_mem_to_value(loc_op, vm);
+                        let resolved_loc = self.node_addr_to_value(loc_op, vm);
                         let res_temp = self.get_result_value(node);
                         
                         if self.match_ireg(node) {
@@ -417,7 +453,7 @@ impl <'a> InstructionSelection {
                             }
                         };
                         
-                        let resolved_loc = self.node_mem_to_value(loc_op, vm);
+                        let resolved_loc = self.node_addr_to_value(loc_op, vm);
                         
                         if self.match_ireg(val_op) {
                             let val = self.emit_ireg(val_op, f_content, f_context, vm);
@@ -648,7 +684,7 @@ impl <'a> InstructionSelection {
 
             self.backend.emit_div_r64(&reg_op2);
         } else if self.match_mem(op2) {
-            let mem_op2 = self.emit_mem(op2);
+            let mem_op2 = self.emit_mem(op2, vm);
 
             self.backend.emit_div_mem64(&mem_op2);
         } else if self.match_iimm(op2) {
@@ -684,7 +720,7 @@ impl <'a> InstructionSelection {
 
             self.backend.emit_idiv_r64(&reg_op2);
         } else if self.match_mem(op2) {
-            let mem_op2 = self.emit_mem(op2);
+            let mem_op2 = self.emit_mem(op2, vm);
 
             self.backend.emit_idiv_mem64(&mem_op2);
         } else if self.match_iimm(op2) {
@@ -986,7 +1022,7 @@ impl <'a> InstructionSelection {
                 let callsite = self.new_callsite_label(Some(cur_node));
                 self.backend.emit_call_near_r64(callsite, &target)
             } else if self.match_mem(func) {
-                let target = self.emit_mem(func);
+                let target = self.emit_mem(func, vm);
                 
                 let callsite = self.new_callsite_label(Some(cur_node));
                 self.backend.emit_call_near_mem64(callsite, &target)
@@ -1335,7 +1371,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn node_mem_to_value(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
+    fn node_addr_to_value(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
@@ -1423,7 +1459,7 @@ impl <'a> InstructionSelection {
     }
     
     #[allow(unused_variables)]
-    fn emit_mem(&mut self, op: &P<TreeNode>) -> P<Value> {
+    fn emit_mem(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
         unimplemented!()
     }
     
