@@ -260,6 +260,9 @@ impl Instruction_ {
         match self {
             &Instruction_::BinOp(op, op1, op2) => format!("{:?} {} {}", op, ops[op1], ops[op2]),
             &Instruction_::CmpOp(op, op1, op2) => format!("{:?} {} {}", op, ops[op1], ops[op2]),
+            &Instruction_::ConvOp{operation, ref from_ty, ref to_ty, operand} => {
+                format!("{:?} {} {} {}", operation, from_ty, to_ty, ops[operand])
+            }
             &Instruction_::ExprCall{ref data, is_abort} => {
                 let abort = select_value!(is_abort, "ABORT_ON_EXN", "RETHROW");
                 format!("CALL {} {}", data.debug_str(ops), abort)

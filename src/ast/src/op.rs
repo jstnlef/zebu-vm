@@ -224,6 +224,7 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
     match inst.v {
         Instruction_::BinOp(op, _, _) => OpCode::Binary(op),
         Instruction_::CmpOp(op, _, _) => OpCode::Comparison(op),
+        Instruction_::ConvOp{operation, ..} => OpCode::Conversion(operation),
         Instruction_::AtomicRMW{op, ..} => OpCode::AtomicRMW(op),
         Instruction_::ExprCall{..} => OpCode::ExprCall,
         Instruction_::Load{..} => OpCode::Load,
