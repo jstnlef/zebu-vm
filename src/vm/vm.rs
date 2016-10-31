@@ -478,6 +478,15 @@ impl <'a> VM {
         funcs.insert(func.id(), RwLock::new(func));
     }
     
+    /// The IR builder needs to look-up the function signature from the existing function ID.
+    pub fn get_func_sig_for_func(&self, id: MuID) -> P<MuFuncSig> {
+        let funcs_lock = self.funcs.read().unwrap();
+        match funcs_lock.get(&id) {
+            Some(func) => func.read().unwrap().sig.clone(),
+            None => panic!("cannot find Mu function #{}", id)
+        }
+    }    
+    
     pub fn define_func_version (&self, func_ver: MuFunctionVersion) {
         info!("define function version {}", func_ver);
         // record this version
@@ -500,6 +509,72 @@ impl <'a> VM {
         
         // redefinition happens here
         // do stuff        
+    }
+
+    /// Add a new bundle into VM.
+    ///
+    /// This function will drain the contents of all arguments.
+    ///
+    /// Ideally, this function should happen atomically. e.g. The client should not see a new type
+    /// added without also seeing a new function added.
+    pub fn declare_many(&self,
+                        new_id_name_map: &mut HashMap<MuID, MuName>,
+                        new_types: &mut HashMap<MuID, P<MuType>>,
+                        new_func_sigs: &mut HashMap<MuID, P<MuFuncSig>>,
+                        new_constants: &mut HashMap<MuID, P<Value>>,
+                        new_globals: &mut HashMap<MuID, P<Value>>,
+                        new_funcs: &mut HashMap<MuID, Box<MuFunction>>,
+                        new_func_vers: &mut HashMap<MuID, Box<MuFunctionVersion>>
+                        ) {
+        // Make sure other components, if ever acquiring multiple locks at the same time, acquire
+        // them in this order, to prevent deadlock.
+        let mut id_name_map = self.id_name_map.write().unwrap();
+        let mut name_id_map = self.name_id_map.write().unwrap();
+        let mut types = self.types.write().unwrap();
+        let mut constants = self.constants.write().unwrap();
+        let mut globals = self.globals.write().unwrap();
+        let mut func_sigs = self.func_sigs.write().unwrap();
+        let mut funcs = self.funcs.write().unwrap();
+        let mut func_vers = self.func_vers.write().unwrap();
+
+        for (id, name) in new_id_name_map.drain() {
+            id_name_map.insert(id, name.clone());
+            name_id_map.insert(name, id);
+        }
+
+        for (id, obj) in new_types.drain() {
+            types.insert(id, obj);
+        }
+
+        for (id, obj) in new_constants.drain() {
+            constants.insert(id, obj);
+        }
+
+        for (id, obj) in new_globals.drain() {
+            globals.insert(id, obj);
+        }
+
+        for (id, obj) in new_func_sigs.drain() {
+            func_sigs.insert(id, obj);
+        }
+
+        for (id, obj) in new_funcs.drain() {
+            funcs.insert(id, RwLock::new(*obj));
+        }
+
+        for (id, obj) in new_func_vers.drain() {
+            let func_id = obj.func_id;
+            func_vers.insert(id, RwLock::new(*obj));
+
+            {
+                trace!("Adding funcver {} as a version of {}...", id, func_id);
+                let func = funcs.get_mut(&func_id).unwrap();
+                func.write().unwrap().new_version(id);
+                trace!("Added funcver {} as a version of {} {:?}.", id, func_id, func);
+            }
+        }
+
+        // Locks released here
     }
     
     pub fn add_compiled_func (&self, func: CompiledFunction) {

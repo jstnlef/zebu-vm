@@ -17,23 +17,23 @@ pub struct MuIRBuilder {
     bundle: TrantientBundle,
 }
 
-pub type IdMap<T> = HashMap<MuID, Box<T>>;
+pub type IdBMap<T> = HashMap<MuID, Box<T>>;
 
 /// A trantient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
 #[derive(Default)]
 pub struct TrantientBundle {
-    types: IdMap<NodeType>,
-    sigs: IdMap<NodeFuncSig>,
-    consts: IdMap<NodeConst>,
-    globals: IdMap<NodeGlobalCell>,
-    funcs: IdMap<NodeFunc>,
-    expfuncs: IdMap<NodeExpFunc>,
-    funcvers: IdMap<NodeFuncVer>,
-    bbs: IdMap<NodeBB>,
-    insts: IdMap<NodeInst>,
-    dest_clauses: IdMap<NodeDestClause>,
-    exc_clauses: IdMap<NodeExcClause>,
-    ka_clauses: IdMap<NodeKeepaliveClause>,
+    types: IdBMap<NodeType>,
+    sigs: IdBMap<NodeFuncSig>,
+    consts: IdBMap<NodeConst>,
+    globals: IdBMap<NodeGlobalCell>,
+    funcs: IdBMap<NodeFunc>,
+    expfuncs: IdBMap<NodeExpFunc>,
+    funcvers: IdBMap<NodeFuncVer>,
+    bbs: IdBMap<NodeBB>,
+    insts: IdBMap<NodeInst>,
+    dest_clauses: IdBMap<NodeDestClause>,
+    exc_clauses: IdBMap<NodeExcClause>,
+    ka_clauses: IdBMap<NodeKeepaliveClause>,
 }
 
 impl MuIRBuilder {
@@ -527,9 +527,10 @@ struct BundleLoader<'lb, 'lvm> {
     visited: HashSet<MuID>,
     built_types: IdPMap<MuType>,
     built_sigs: IdPMap<MuFuncSig>,
-    built_values: IdPMap<Value>,
-    built_funcs: IdPMap<MuFunction>,
-    built_funcvers: IdPMap<MuFunctionVersion>,
+    built_constants: IdPMap<Value>,
+    built_globals: IdPMap<Value>,
+    built_funcs: IdBMap<MuFunction>,
+    built_funcvers: IdBMap<MuFunctionVersion>,
     struct_id_tags: Vec<(MuID, MuName)>,
     built_refi64: Option<P<MuType>>,
     built_i1: Option<P<MuType>>,
@@ -548,7 +549,8 @@ fn load_bundle(b: &mut MuIRBuilder) {
         visited: Default::default(),
         built_types: Default::default(),
         built_sigs: Default::default(),
-        built_values: Default::default(),
+        built_constants: Default::default(),
+        built_globals: Default::default(),
         built_funcs: Default::default(),
         built_funcvers: Default::default(),
         struct_id_tags: Default::default(),
@@ -572,6 +574,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
         self.ensure_names();
         self.build_toplevels();
+        self.add_everything_to_vm();
     }
 
     fn ensure_refi64(&mut self) -> P<MuType> {
@@ -880,7 +883,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Constant built: {} {:?}", id, impl_val);
 
-        self.built_values.insert(id, P(impl_val));
+        self.built_constants.insert(id, P(impl_val));
     }
 
     fn build_func(&mut self, id: MuID) {
@@ -902,7 +905,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Function built: {} {:?}", id, impl_fun);
 
-        self.built_funcs.insert(id, P(impl_fun));
+        self.built_funcs.insert(id, Box::new(impl_fun));
 
         let impl_ty = self.ensure_funcref(fun.sig);
 
@@ -914,8 +917,17 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Function value built: {} {:?}", id, impl_val);
 
-        self.built_values.insert(id, P(impl_val));
+        self.built_constants.insert(id, P(impl_val));
     }
+
+    fn get_sig_for_func(&mut self, id: MuID) -> P<MuFuncSig> {
+        if let Some(impl_func) = self.built_funcs.get(&id) {
+            impl_func.sig.clone()
+        } else {
+            self.vm.get_func_sig_for_func(id)
+        }
+    }
+
 
     fn build_funcver(&mut self, id: MuID) {
         let fv = self.b.bundle.funcvers.get(&id).unwrap();
@@ -923,10 +935,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Building function version {} {:?}", id, fv);
 
         let hdr = self.make_mu_entity_header(id);
-        let impl_sig = {
-            let fun = self.built_funcs.get(&fv.func).unwrap();
-            fun.sig.clone()
-        };
+        let func_id = fv.func;
+        let impl_sig = self.get_sig_for_func(func_id);
 
         let mut fcb: FuncCtxBuilder = Default::default();
 
@@ -943,7 +953,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_fv = MuFunctionVersion {
             hdr: hdr,
-            func_id: id,
+            func_id: func_id,
             sig: impl_sig,
             content: Some(ctn),
             context: fcb.ctx,
@@ -952,7 +962,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Function version built {} {:?}", id, impl_fv);
 
-        self.built_funcvers.insert(id, P(impl_fv));
+        self.built_funcvers.insert(id, Box::new(impl_fv));
     }
 
     /// Copied from ast::ir::*. That was implemented for the previous API which implies mutability.
@@ -995,7 +1005,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn get_treenode(&self, fcb: &FuncCtxBuilder, id: MuID) -> P<TreeNode> {
         if let Some(tn) = fcb.tree_nodes.get(&id) {
             tn.clone()
-        } else if let Some(v) = self.built_values.get(&id) {
+        } else if let Some(v) = self.built_constants.get(&id) {
             self.new_global(v.clone())
         } else {
             panic!("Operand {} is neither a local var or a global var", id)
@@ -1351,5 +1361,23 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         };
 
         (impl_dest, var_treenodes)
+    }
+
+    fn add_everything_to_vm(&mut self) {
+        let vm = self.vm;
+
+        trace!("Loading bundle to the VM...");
+
+        vm.declare_many(
+            &mut self.id_name_map,
+            &mut self.built_types,
+            &mut self.built_sigs,
+            &mut self.built_constants,
+            &mut self.built_globals,
+            &mut self.built_funcs,
+            &mut self.built_funcvers,
+            );
+
+        trace!("Bundle loaded to the VM!");
     }
 }
