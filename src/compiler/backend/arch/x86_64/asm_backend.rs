@@ -1865,6 +1865,156 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
+    fn emit_shr_r64_cl    (&mut self, dest: &P<Value>) {
+        trace!("emit shr {}, CL -> {}", dest, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 3 + 1);
+        let rcx = self.prepare_machine_reg(&x86_64::RCX);
+
+        let asm = format!("shrq %cl,{}", reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1],
+                rcx => vec![]
+            },
+            false
+        )
+    }
+
+    fn emit_shr_mem64_cl  (&mut self, dest: &P<Value>) {
+        trace!("emit shr {}, CL -> {}", dest, dest);
+
+        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 3 + 1);
+        let rcx = self.prepare_machine_reg(&x86_64::RCX);
+
+        if !uses.contains_key(&rcx) {
+            uses.insert(rcx, vec![]);
+        }
+
+        let asm = format!("shrq %cl,{}", mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
+    fn emit_shr_r64_imm8  (&mut self, dest: &P<Value>, src: i8) {
+        trace!("emit shr {},{} -> {}", dest, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("shrq ${},{}", src, reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    fn emit_shr_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
+        trace!("emit shr {},{} -> {}", dest, src, dest);
+
+        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("shrq ${},{}", src, mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
+    fn emit_sar_r64_cl    (&mut self, dest: &P<Value>) {
+        trace!("emit sar {}, CL -> {}", dest, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 3 + 1);
+        let rcx = self.prepare_machine_reg(&x86_64::RCX);
+
+        let asm = format!("sarq %cl,{}", reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1],
+                rcx => vec![]
+            },
+            false
+        )
+    }
+
+    fn emit_sar_mem64_cl  (&mut self, dest: &P<Value>) {
+        trace!("emit sar {}, CL -> {}", dest, dest);
+
+        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 3 + 1);
+        let rcx = self.prepare_machine_reg(&x86_64::RCX);
+
+        if !uses.contains_key(&rcx) {
+            uses.insert(rcx, vec![]);
+        }
+
+        let asm = format!("sarq %cl,{}", mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
+    fn emit_sar_r64_imm8  (&mut self, dest: &P<Value>, src: i8) {
+        trace!("emit sar {},{} -> {}", dest, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("sarq ${},{}", src, reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    fn emit_sar_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
+        trace!("emit sar {},{} -> {}", dest, src, dest);
+
+        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("sarq ${},{}", src, mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
     fn emit_cqo(&mut self) {
         trace!("emit: cqo rax -> rdx:rax");
 

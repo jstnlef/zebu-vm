@@ -375,7 +375,78 @@ impl <'a> InstructionSelection {
                                 } else if self.match_mem(op1) {
                                     unimplemented!()
                                 }
-                            }
+                            },
+                            op::BinOp::Lshr => {
+                                let op1 = &ops[op1];
+                                let op2 = &ops[op2];
+
+                                if self.match_ireg(op1) {
+                                    let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+
+                                    if self.match_ireg(op2) {
+                                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+                                        // mov op2 -> rcx
+                                        self.backend.emit_mov_r64_r64(&x86_64::RCX, &tmp_op2);
+
+                                        // shr op1, cl -> op1
+                                        self.backend.emit_shr_r64_cl(&tmp_op1);
+
+                                        // mov op1 -> result
+                                        let res_tmp = self.get_result_value(node);
+                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    } else if self.match_iimm(op2) {
+                                        let imm_op2 = self.node_iimm_to_i32(op2) as i8;
+
+                                        // shr op1, op2 -> op1
+                                        self.backend.emit_shr_r64_imm8(&tmp_op1, imm_op2);
+
+                                        // mov op1 -> result
+                                        let res_tmp = self.get_result_value(node);
+                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    } else {
+                                        panic!("unexpected op2 (not ireg not iimm): {}", op2);
+                                    }
+                                } else if self.match_mem(op1) {
+                                    unimplemented!()
+                                }
+                            },
+                            op::BinOp::Ashr => {
+                                let op1 = &ops[op1];
+                                let op2 = &ops[op2];
+
+                                if self.match_ireg(op1) {
+                                    let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+
+                                    if self.match_ireg(op2) {
+                                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+                                        // mov op2 -> rcx
+                                        self.backend.emit_mov_r64_r64(&x86_64::RCX, &tmp_op2);
+
+                                        // sar op1, cl -> op1
+                                        self.backend.emit_sar_r64_cl(&tmp_op1);
+
+                                        // mov op1 -> result
+                                        let res_tmp = self.get_result_value(node);
+                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    } else if self.match_iimm(op2) {
+                                        let imm_op2 = self.node_iimm_to_i32(op2) as i8;
+
+                                        // sar op1, op2 -> op1
+                                        self.backend.emit_sar_r64_imm8(&tmp_op1, imm_op2);
+
+                                        // mov op1 -> result
+                                        let res_tmp = self.get_result_value(node);
+                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    } else {
+                                        panic!("unexpected op2 (not ireg not iimm): {}", op2);
+                                    }
+                                } else if self.match_mem(op1) {
+                                    unimplemented!()
+                                }
+                            },
+
 
                             // floating point
                             op::BinOp::FAdd => {

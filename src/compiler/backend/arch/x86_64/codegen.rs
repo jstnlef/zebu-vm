@@ -69,6 +69,16 @@ pub trait CodeGenerator {
     fn emit_shl_r64_imm8  (&mut self, dest: &P<Value>, src: i8);
     fn emit_shl_mem64_imm8(&mut self, dest: &P<Value>, src: i8);
 
+    fn emit_shr_r64_cl    (&mut self, dest: &P<Value>);
+    fn emit_shr_mem64_cl  (&mut self, dest: &P<Value>);
+    fn emit_shr_r64_imm8  (&mut self, dest: &P<Value>, src: i8);
+    fn emit_shr_mem64_imm8(&mut self, dest: &P<Value>, src: i8);
+
+    fn emit_sar_r64_cl    (&mut self, dest: &P<Value>);
+    fn emit_sar_mem64_cl  (&mut self, dest: &P<Value>);
+    fn emit_sar_r64_imm8  (&mut self, dest: &P<Value>, src: i8);
+    fn emit_sar_mem64_imm8(&mut self, dest: &P<Value>, src: i8);
+
     fn emit_cqo(&mut self);
     
     fn emit_jmp(&mut self, dest: MuName);
