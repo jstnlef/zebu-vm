@@ -12,6 +12,14 @@ lazy_static! {
     pub static ref ADDRESS_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::int(POINTER_SIZE * 8))
     );
+
+    pub static ref UINT8_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::int(8))
+    );
+
+    pub static ref UINT16_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::int(16))
+    );
     
     pub static ref UINT32_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::int(32))

@@ -17,10 +17,47 @@ use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
 use compiler::backend::RegGroup;
+use utils::ByteSize;
 
 use std::collections::HashMap;
 
-macro_rules! GPR {
+macro_rules! GPR8 {
+    ($id:expr, $name: expr) => {
+        {
+            P(Value {
+                hdr: MuEntityHeader::named($id, $name.to_string()),
+                ty: UINT8_TYPE.clone(),
+                v: Value_::SSAVar($id)
+            })
+        }
+    };
+}
+
+macro_rules! GPR16 {
+    ($id:expr, $name: expr) => {
+        {
+            P(Value {
+                hdr: MuEntityHeader::named($id, $name.to_string()),
+                ty: UINT16_TYPE.clone(),
+                v: Value_::SSAVar($id)
+            })
+        }
+    };
+}
+
+macro_rules! GPR32 {
+    ($id:expr, $name: expr) => {
+        {
+            P(Value {
+                hdr: MuEntityHeader::named($id, $name.to_string()),
+                ty: UINT32_TYPE.clone(),
+                v: Value_::SSAVar($id)
+            })
+        }
+    };
+}
+
+macro_rules! GPR64 {
     ($id:expr, $name: expr) => {
         {
             P(Value {
@@ -44,27 +81,117 @@ macro_rules! FPR {
     };
 }
 
+macro_rules! alias4 {
+    ($r8: expr, $r16: expr, $r32: expr, $r64: expr) => {
+        hashmap!{
+            8  => $r8.clone(),
+            16 => $r16.clone(),
+            32 => $r32.clone(),
+            64 => $r64.clone()
+        }
+    };
+}
+
+macro_rules! alias3 {
+    ($r16: expr, $r32: expr, $r64: expr) => {
+        hashmap!{
+            16 => $r16.clone(),
+            32 => $r32.clone(),
+            64 => $r64.clone()
+        }
+    };
+}
+
+macro_rules! alias2 {
+    ($r32: expr, $r64: expr) => {
+        hashmap!{
+            32 => $r32.clone(),
+            64 => $r64.clone()
+        }
+    };
+}
+
+pub type RegisterAliasMap = HashMap<ByteSize, P<Value>>;
+
 // put into several segments to avoid 'recursion limit reached' error
 lazy_static! {
-    pub static ref RAX : P<Value> = GPR!(0, "rax");
-    pub static ref RCX : P<Value> = GPR!(1, "rcx");
-    pub static ref RDX : P<Value> = GPR!(2, "rdx");
-    pub static ref RBX : P<Value> = GPR!(3, "rbx");
-    pub static ref RSP : P<Value> = GPR!(4, "rsp");
-    pub static ref RBP : P<Value> = GPR!(5, "rbp");
-    pub static ref RSI : P<Value> = GPR!(6, "rsi");
-    pub static ref RDI : P<Value> = GPR!(7, "rdi");
-    pub static ref R8  : P<Value> = GPR!(8, "r8");
-    pub static ref R9  : P<Value> = GPR!(9, "r9");
-    pub static ref R10 : P<Value> = GPR!(10,"r10");
-    pub static ref R11 : P<Value> = GPR!(11,"r11");
-    pub static ref R12 : P<Value> = GPR!(12,"r12");
-    pub static ref R13 : P<Value> = GPR!(13,"r13");
-    pub static ref R14 : P<Value> = GPR!(14,"r14");
-    pub static ref R15 : P<Value> = GPR!(15,"r15");
+    pub static ref RAX : P<Value> = GPR64!(0, "rax");
+    pub static ref RCX : P<Value> = GPR64!(1, "rcx");
+    pub static ref RDX : P<Value> = GPR64!(2, "rdx");
+    pub static ref RBX : P<Value> = GPR64!(3, "rbx");
+    pub static ref RSP : P<Value> = GPR64!(4, "rsp");
+    pub static ref RBP : P<Value> = GPR64!(5, "rbp");
+    pub static ref RSI : P<Value> = GPR64!(6, "rsi");
+    pub static ref RDI : P<Value> = GPR64!(7, "rdi");
+    pub static ref R8  : P<Value> = GPR64!(8, "r8");
+    pub static ref R9  : P<Value> = GPR64!(9, "r9");
+    pub static ref R10 : P<Value> = GPR64!(10,"r10");
+    pub static ref R11 : P<Value> = GPR64!(11,"r11");
+    pub static ref R12 : P<Value> = GPR64!(12,"r12");
+    pub static ref R13 : P<Value> = GPR64!(13,"r13");
+    pub static ref R14 : P<Value> = GPR64!(14,"r14");
+    pub static ref R15 : P<Value> = GPR64!(15,"r15");
     
-    pub static ref RIP : P<Value> = GPR!(32,"rip");
-    
+    pub static ref RIP : P<Value> = GPR64!(32,"rip");
+}
+
+lazy_static! {
+    pub static ref AL  : P<Value> = GPR8! (33, "al");
+    pub static ref AX  : P<Value> = GPR16!(34, "ax");
+    pub static ref EAX : P<Value> = GPR32!(35, "eax");
+    pub static ref RAX_ALIAS : RegisterAliasMap = alias4!(AL, AX, EAX, RAX);
+
+    pub static ref CL  : P<Value> = GPR8! (36, "cl");
+    pub static ref CX  : P<Value> = GPR16!(37, "cx");
+    pub static ref ECX : P<Value> = GPR32!(38, "ecx");
+    pub static ref RCX_ALIAS : RegisterAliasMap = alias4!(CL, CX, ECX, RCX);
+
+    pub static ref DL  : P<Value> = GPR8! (39, "dl");
+    pub static ref DX  : P<Value> = GPR16!(40, "dx");
+    pub static ref EDX : P<Value> = GPR32!(41, "edx");
+    pub static ref RDX_ALIAS : RegisterAliasMap = alias4!(DL, DX, EDX, RDX);
+
+    pub static ref BL  : P<Value> = GPR8! (42, "bl");
+    pub static ref BX  : P<Value> = GPR16!(43, "bx");
+    pub static ref EBX : P<Value> = GPR32!(44, "ebx");
+    pub static ref RBX_ALIAS : RegisterAliasMap = alias4!(BL, BX, EBX, RBX);
+}
+
+lazy_static!{
+    pub static ref SI  : P<Value> = GPR16!(45, "si");
+    pub static ref ESI : P<Value> = GPR32!(46, "esi");
+    pub static ref RSI_ALIAS : RegisterAliasMap = alias3!(SI, ESI, RSI);
+
+    pub static ref DI  : P<Value> = GPR16!(47, "di");
+    pub static ref EDI : P<Value> = GPR32!(48, "edi");
+    pub static ref RDI_ALIAS : RegisterAliasMap = alias3!(DI, EDI, RDI);
+
+    pub static ref R8D : P<Value>  = GPR32!(49, "r8d");
+    pub static ref R8_ALIAS : RegisterAliasMap = alias2!(R8D, R8);
+
+    pub static ref R9D : P<Value>  = GPR32!(50, "r9d");
+    pub static ref R9_ALIAS : RegisterAliasMap = alias2!(R9D, R9);
+
+    pub static ref R10D : P<Value> = GPR32!(51, "r10d");
+    pub static ref R10_ALIAS : RegisterAliasMap = alias2!(R10D, R10);
+
+    pub static ref R11D : P<Value> = GPR32!(52, "r11d");
+    pub static ref R11_ALIAS : RegisterAliasMap = alias2!(R11D, R11);
+
+    pub static ref R12D : P<Value> = GPR32!(53, "r12d");
+    pub static ref R12_ALIAS : RegisterAliasMap = alias2!(R12D, R12);
+
+    pub static ref R13D : P<Value> = GPR32!(54, "r13d");
+    pub static ref R13_ALIAS : RegisterAliasMap = alias2!(R13D, R13);
+
+    pub static ref R14D : P<Value> = GPR32!(55, "r14d");
+    pub static ref R14_ALIAS : RegisterAliasMap = alias2!(R14D, R14);
+
+    pub static ref R15D : P<Value> = GPR32!(56, "r15d");
+    pub static ref R15_ALIAS : RegisterAliasMap = alias2!(R15D, R15);
+}
+
+lazy_static!{
     pub static ref RETURN_GPRs : [P<Value>; 2] = [
         RAX.clone(),
         RDX.clone(),
