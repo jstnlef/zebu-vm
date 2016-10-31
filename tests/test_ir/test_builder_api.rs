@@ -427,7 +427,7 @@ fn test_insts_call() {
 
             let id_call1 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call1"));
             let id_call2 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call2"));
-            let mut insts = vec![id_call1];//, id_call2];
+            let mut insts = vec![id_call1, id_call2];
 
             ((*b).new_bb)(b, id_entry,
                           args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
@@ -435,11 +435,73 @@ fn test_insts_call() {
                           insts.as_mut_ptr(), insts.len());
 
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.entry.y"));
-            let mut args = vec![id_x];
-            let mut rvs  = vec![id_y];
-            ((*b).new_call)(b, id_call1,
-                            rvs.as_mut_ptr(), rvs.len(),
-                            id_sig, id_func, args.as_mut_ptr(), args.len(), 0, 0);
+
+            {
+                let mut args = vec![id_x];
+                let mut rvs  = vec![id_y];
+                ((*b).new_call)(b, id_call1,
+                                rvs.as_mut_ptr(), rvs.len(),
+                                id_sig, id_func, args.as_mut_ptr(), args.len(), 0, 0);
+            }
+            
+            let id_z = ((*b).gen_sym)(b, csp.get("@func.v1.entry.z"));
+
+            {
+                let mut args = vec![id_y];
+                let mut rvs  = vec![id_z];
+
+                let id_dest1 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call2.dest1"));
+                let id_dest2 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call2.dest2"));
+                let id_exc = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call2.exc"));
+                ((*b).new_exc_clause)(b, id_exc, id_dest1, id_dest2);
+                {
+                    let mut dest_args = vec![id_y, id_z, id_x];
+                    ((*b).new_dest_clause)(b, id_dest1, id_bb1, dest_args.as_mut_ptr(), dest_args.len());
+                }
+                {
+                    let mut dest_args = vec![];
+                    ((*b).new_dest_clause)(b, id_dest2, id_bb2, dest_args.as_mut_ptr(), dest_args.len());
+                }
+
+                ((*b).new_call)(b, id_call2,
+                                rvs.as_mut_ptr(), rvs.len(),
+                                id_sig, id_func, args.as_mut_ptr(), args.len(), id_exc, 0);
+            }
+        }
+
+        {
+            let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.y"));
+            let id_z = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.z"));
+            let id_x = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.x"));
+            let mut args = vec![id_y, id_z, id_x];
+            let mut argtys = vec![id_i32, id_i32, id_i32];
+
+            let id_ret = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.ret"));
+            let mut insts = vec![id_ret];
+
+            ((*b).new_bb)(b, id_bb1,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+
+            let mut retvars = vec![id_z];
+            ((*b).new_ret)(b, id_ret, retvars.as_mut_ptr(), retvars.len());
+        }
+
+        {
+            let mut args = vec![];
+            let mut argtys = vec![];
+
+            let id_ret = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.ret"));
+            let mut insts = vec![id_ret];
+
+            ((*b).new_bb)(b, id_bb2,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+
+            let mut retvars = vec![id_const1];
+            ((*b).new_ret)(b, id_ret, retvars.as_mut_ptr(), retvars.len());
         }
 
 
