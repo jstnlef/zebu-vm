@@ -35,6 +35,7 @@ pub enum OpCode {
     // expression
     Binary(BinOp),
     Comparison(CmpOp),
+    Conversion(ConvOp),
     AtomicRMW(AtomicRMWOp),
 
     ExprCall,
@@ -170,6 +171,22 @@ pub enum CmpOp {
     FULE,
     FUNE,
     FUNO
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+pub enum ConvOp {
+    TRUNC,
+    ZEXT,
+    SEXT,
+    FPTRUNC,
+    FPEXT,
+    FPTOUI,
+    FPTOSI,
+    UITOFP,
+    SITOFP,
+    BITCAST,
+    REFCAST,
+    PTRCAST
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]

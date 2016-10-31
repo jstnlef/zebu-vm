@@ -91,6 +91,12 @@ pub enum Instruction_ {
 
     BinOp(BinOp, OpIndex, OpIndex),
     CmpOp(CmpOp, OpIndex, OpIndex),
+    ConvOp{
+        operation: ConvOp,
+        from_ty: P<MuType>,
+        to_ty: P<MuType>,
+        operand: OpIndex
+    },
 
     // yields a tuple of results from the call
     ExprCall{
