@@ -1790,6 +1790,81 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
+    fn emit_shld_r64_cl    (&mut self, dest: &P<Value>) {
+        trace!("emit shld {}, CL -> {}", dest, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 3 + 1);
+        let rcx = self.prepare_machine_reg(&x86_64::RCX);
+
+        let asm = format!("shlq %cl,{}", reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1],
+                rcx => vec![]
+            },
+            false
+        )
+    }
+
+    fn emit_shld_mem64_cl  (&mut self, dest: &P<Value>) {
+        trace!("emit shld {}, CL -> {}", dest, dest);
+
+        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 3 + 1);
+        let rcx = self.prepare_machine_reg(&x86_64::RCX);
+
+        if !uses.contains_key(&rcx) {
+            uses.insert(rcx, vec![]);
+        }
+
+        let asm = format!("shlq %cl,{}", mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
+    fn emit_shld_r64_imm8  (&mut self, dest: &P<Value>, src: i8) {
+        trace!("emit shld {},{} -> {}", dest, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("shlq ${},{}", src, reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    fn emit_shld_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
+        trace!("emit shld {},{} -> {}", dest, src, dest);
+
+        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("shlq ${},{}", src, mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
     fn emit_cqo(&mut self) {
         trace!("emit: cqo rax -> rdx:rax");
 
@@ -1944,7 +2019,7 @@ impl CodeGenerator for ASMCodeGen {
         
         let rsp = self.prepare_machine_reg(&x86_64::RSP);
         
-        let asm = format!("pushq {}", src);
+        let asm = format!("pushq ${}", src);
         
         self.add_asm_inst(
             asm,
