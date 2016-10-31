@@ -65,7 +65,7 @@ echo "ARCH: $MACH"
 echo "---------"
 
 if [ "$OS" == "linux" ]; then
-	RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang-3.8 CLANG_FOR_AOT=clang-3.8 cargo test "$@"
+	RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang-3.8 cargo test "$@"
 elif [ "$OS" == "Darwin" ]; then
 	RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test "$@"
 else

@@ -16,7 +16,7 @@ pub mod c_api;
 pub fn get_test_clang_path() -> String {
     use std::env;
 
-    match env::var("CLANG_FOR_AOT") {
+    match env::var("CC") {
         Ok(val) => val,
         Err(_) => "clang".to_string()
     }
