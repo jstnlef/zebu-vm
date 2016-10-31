@@ -140,3 +140,26 @@ pub fn link_dylib (funcs: Vec<MuName>, out: &str) -> PathBuf {
 
     link_dylib_internal(files, out_path)
 }
+
+pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &str) -> PathBuf{
+    let files = {
+        let mut ret = vec![];
+
+        for func in funcs {
+            ret.push(get_path_for_mu_func(func));
+        }
+
+        for src in srcs {
+            ret.push(src);
+        }
+
+        ret.push(get_path_for_mu_context());
+
+        ret
+    };
+
+    let mut out_path = PathBuf::from(backend::AOT_EMIT_DIR);
+    out_path.push(out);
+
+    link_dylib_internal(files, out_path)
+}
