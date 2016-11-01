@@ -1062,22 +1062,320 @@ impl ASMCodeGen {
     }
 }
 
+#[inline(always)]
+fn op_postfix(op_len: usize) -> &'static str {
+    match op_len {
+        8  => "b",
+        16 => "w",
+        32 => "l",
+        64 => "q",
+        _  => panic!("unexpected op size: {}", op_len)
+    }
+}
+
+// cmp implementation
+
+macro_rules! emit_cmp_r_r {
+    ($func_name: ident, $op_len: expr) => {
+        fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
+            trace!("emit: cmp {} {}", op1, op2);
+
+            let (reg1, id1, loc1) = self.prepare_reg(op1, 4 + 1);
+            let (reg2, id2, loc2) = self.prepare_reg(op2, 4 + 1 + reg1.len() + 1);
+
+            let asm = format!("cmp{} {},{}", op_postfix($op_len), reg1, reg2);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{},
+                hashmap!{
+                    id1 => vec![loc1],
+                    id2 => vec![loc2]
+                },
+                false
+            );
+        }
+    }
+}
+
+macro_rules! emit_cmp_r_imm {
+    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
+        fn $func_name (&mut self, op1: &P<Value>, op2: $imm_ty) {
+            trace!("emit: cmp {} {}", op1, op2);
+
+            let (reg1, id1, loc1) = self.prepare_reg(op1, 4 + 1 + 1 + op2.to_string().len() + 1);
+
+            let asm = format!("cmp{} ${},{}", op_postfix($op_len), op2, reg1);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{},
+                hashmap!{
+                    id1 => vec![loc1]
+                },
+                false
+            )
+        }
+    }
+}
+
+macro_rules! emit_cmp_r_mem {
+    ($func_name: ident, $op_len: expr) => {
+        fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
+            trace!("emit: cmp {} {}", op1, op2);
+
+            let (reg, id1, loc1) = self.prepare_reg(op1, 4 + 1);
+            let (mem, mut uses) = self.prepare_mem(op2, 4 + 1 + reg.len() + 1);
+
+            let asm = format!("cmp{} {},{}", op_postfix($op_len), reg, mem);
+
+            // merge use vec
+            if uses.contains_key(&id1) {
+                uses.get_mut(&id1).unwrap().push(loc1);
+            } else {
+                uses.insert(id1, vec![loc1]);
+            }
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{},
+                uses,
+                true
+            )
+        }
+    }
+}
+
+macro_rules! emit_mov_r_r {
+    ($func_name: ident, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            trace!("emit: mov {} -> {}", src, dest);
+
+            let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
+            let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
+
+            let asm = format!("mov{} {},{}", op_postfix($op_len), reg1, reg2);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id2 => vec![loc2]
+                },
+                hashmap!{
+                    id1 => vec![loc1]
+                },
+                false
+            )
+        }
+    }
+}
+
+macro_rules! emit_mov_r_imm {
+    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
+            trace!("emit: mov {} -> {}", src, dest);
+
+            let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+            let asm = format!("mov{} ${},{}", op_postfix($op_len), src, reg1);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id1 => vec![loc1]
+                },
+                hashmap!{},
+                false
+            )
+        }
+    }
+}
+
+/// load
+macro_rules! emit_mov_r_mem {
+    ($func_name: ident, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            trace!("emit: mov {} -> {}", src, dest);
+
+            let (mem, uses) = self.prepare_mem(src, 4 + 1);
+            let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
+
+            let asm = format!("mov{} {},{}", op_postfix($op_len), mem, reg);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id2 => vec![loc2]
+                },
+                uses,
+                true
+            )
+        }
+    }
+}
+
+/// store
+macro_rules! emit_mov_mem_r {
+    ($func_name: ident, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            trace!("emit: mov {} -> {}", src, dest);
+
+            let (reg, id1, loc1) = self.prepare_reg(src, 4 + 1);
+            let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + reg.len() + 1);
+
+            // the register we used for the memory location is counted as 'use'
+            // use the vec from mem as 'use' (push use reg from src to it)
+            if uses.contains_key(&id1) {
+                uses.get_mut(&id1).unwrap().push(loc1);
+            } else {
+                uses.insert(id1, vec![loc1]);
+            }
+
+            let asm = format!("mov{} {},{}", op_postfix($op_len), reg, mem);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{},
+                uses,
+                true
+            )
+        }
+    }
+}
+
+macro_rules! emit_mov_mem_imm {
+    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
+            trace!("emit: mov {} -> {}", src, dest);
+
+            let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+            let asm = format!("mov{} ${},{}", op_postfix($op_len), src, mem);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{},
+                uses,
+                true
+            )
+        }
+    }
+}
+
+macro_rules! emit_lea_r {
+    ($func_name: ident, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            trace!("emit: lea {} -> {}", src, dest);
+
+            let (mem, uses) = self.prepare_mem(src, 4 + 1);
+            let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
+
+            let asm = format!("lea{} {},{}", op_postfix($op_len), mem, reg);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id2 => vec![loc2]
+                },
+                uses,
+                true
+            )
+        }
+    }
+}
+
+macro_rules! emit_and_r_r {
+    ($func_name: ident, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            trace!("emit: and {}, {} -> {}", src, dest, dest);
+
+            let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
+            let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
+
+            let asm = format!("and{} {},{}", op_postfix($op_len), reg1, reg2);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id2 => vec![loc2.clone()]
+                },
+                hashmap!{
+                    id1 => vec![loc1],
+                    id2 => vec![loc2]
+                },
+                false
+            )
+        }
+    }
+}
+
+macro_rules! emit_and_r_imm {
+    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
+            trace!("emit: and {}, {} -> {}", src, dest, dest);
+
+            let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+
+            let asm = format!("and{} ${},{}", op_postfix($op_len), src, reg1);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id1 => vec![loc1.clone()]
+                },
+                hashmap!{
+                    id1 => vec![loc1]
+                },
+                false
+            )
+        }
+    }
+}
+
+macro_rules! emit_and_r_mem {
+    ($func_name: ident, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            trace!("emit and {}, {} -> {}", src, dest, dest);
+
+            let (mem, mut uses) = self.prepare_mem(src, 4 + 1);
+            let (reg, id1, loc1) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
+
+            if uses.contains_key(&id1) {
+                uses.get_mut(&id1).unwrap().push(loc1.clone());
+            } else {
+                uses.insert(id1, vec![loc1.clone()]);
+            }
+
+            let asm = format!("and{} {},{}", op_postfix($op_len), mem, reg);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id1 => vec![loc1]
+                },
+                uses,
+                true
+            )
+        }
+    }
+}
+
 impl CodeGenerator for ASMCodeGen {
     fn start_code(&mut self, func_name: MuName) -> ValueLocation {
         self.cur = Some(Box::new(ASMCode {
-                name: func_name.clone(),
-                code: vec![],
-                blocks: hashmap!{},
-            }));
-        
+            name: func_name.clone(),
+            code: vec![],
+            blocks: hashmap! {},
+        }));
+
         // to link with C sources via gcc
         let func_symbol = symbol(func_name.clone());
         self.add_asm_symbolic(directive_globl(func_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
-        
+
         ValueLocation::Relocatable(RegGroup::GPR64, func_name)
     }
-    
+
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation) {
         let func_end = {
             let mut symbol = func_name.clone();
@@ -1086,9 +1384,9 @@ impl CodeGenerator for ASMCodeGen {
         };
         self.add_asm_symbolic(directive_globl(symbol(func_end.clone())));
         self.add_asm_symbolic(format!("{}:", symbol(func_end.clone())));
-        
+
         self.control_flow_analysis();
-        
+
         (
             self.cur.take().unwrap(),
             ValueLocation::Relocatable(RegGroup::GPR64, func_end)
@@ -1099,7 +1397,7 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(Box::new(ASMCode {
             name: "snippet".to_string(),
             code: vec![],
-            blocks: hashmap!{}
+            blocks: hashmap! {}
         }));
     }
 
@@ -1109,10 +1407,10 @@ impl CodeGenerator for ASMCodeGen {
 
     fn print_cur_code(&self) {
         println!("");
-        
+
         if self.cur.is_some() {
             let code = self.cur.as_ref().unwrap();
-            
+
             println!("code for {}: ", code.name);
             let n_insts = code.code.len();
             for i in 0..n_insts {
@@ -1122,10 +1420,10 @@ impl CodeGenerator for ASMCodeGen {
         } else {
             println!("no current code");
         }
-        
+
         println!("");
     }
-    
+
     fn start_block(&mut self, block_name: MuName) {
         let label = format!("{}:", symbol(self.mangle_block_label(block_name.clone())));
         self.add_asm_block_label(label, block_name.clone());
@@ -1134,16 +1432,16 @@ impl CodeGenerator for ASMCodeGen {
         let start = self.line();
         self.cur_mut().blocks.get_mut(&block_name).unwrap().start_inst = start;
     }
-    
+
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation {
         let mangled_name = self.mangle_block_label(block_name.clone());
         self.add_asm_symbolic(directive_globl(symbol(mangled_name.clone())));
 
         self.start_block(block_name.clone());
-        
+
         ValueLocation::Relocatable(RegGroup::GPR64, mangled_name)
     }
-    
+
     fn end_block(&mut self, block_name: MuName) {
         let line = self.line();
         match self.cur_mut().blocks.get_mut(&block_name) {
@@ -1153,7 +1451,7 @@ impl CodeGenerator for ASMCodeGen {
             None => panic!("trying to end block {} which hasnt been started", block_name)
         }
     }
-    
+
     fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>) {
         let cur = self.cur_mut();
 
@@ -1179,7 +1477,7 @@ impl CodeGenerator for ASMCodeGen {
             None => panic!("haven't created ASMBlock for {}", block_name)
         }
     }
-    
+
     fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>) {
         let cur = self.cur_mut();
 
@@ -1206,296 +1504,82 @@ impl CodeGenerator for ASMCodeGen {
             None => panic!("haven't created ASMBlock for {}", block_name)
         }
     }
-    
+
     fn emit_nop(&mut self, bytes: usize) {
         trace!("emit: nop ({} bytes)", bytes);
-        
+
         let asm = String::from("nop");
-        
+
         self.add_asm_inst(
             asm,
-            hashmap!{},
-            hashmap!{},
+            hashmap! {},
+            hashmap! {},
             false
         );
     }
-    
-    fn emit_cmp_r64_r64(&mut self, op1: &P<Value>, op2: &P<Value>) {
-        trace!("emit: cmp {} {}", op1, op2);
-        
-        let (reg1, id1, loc1) = self.prepare_reg(op1, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(op2, 4 + 1 + reg1.len() + 1);
-        
-        let asm = format!("cmpq {},{}", reg1, reg2);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            hashmap!{
-                id1 => vec![loc1],
-                id2 => vec![loc2]
-            },
-            false
-        );
-    }
-    
-    fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: i32) {
-        trace!("emit: cmp {} {}", op1, op2);
-        
-        let (reg1, id1, loc1) = self.prepare_reg(op1, 4 + 1 + 1 + op2.to_string().len() + 1);
-        
-        let asm = format!("cmpq ${},{}", op2, reg1);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
-    }
-    
-    fn emit_cmp_r64_mem64(&mut self, op1: &P<Value>, op2: &P<Value>) {
-        trace!("emit: cmp {} {}", op1, op2);
-        
-        let (reg, id1, loc1) = self.prepare_reg(op1, 4 + 1);
-        let (mem, mut uses) = self.prepare_mem(op2, 4 + 1 + reg.len() + 1);
-        
-        let asm = format!("cmpq {},{}", reg, mem);
-        
-        // merge use vec
-        if uses.contains_key(&id1) {
-            uses.get_mut(&id1).unwrap().push(loc1);
-        } else {
-            uses.insert(id1, vec![loc1]);
-        }
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
-    }
-    
-    fn emit_mov_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
-        trace!("emit: mov {} -> {}", src, dest);
-        
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-        
-        let asm = format!("movq ${},{}", src, reg1);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            hashmap!{},
-            false
-        )
-    }
-    
-    // load
-    fn emit_mov_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: mov {} -> {}", src, dest);
-        
-        let (mem, uses) = self.prepare_mem(src, 4 + 1);
-        let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
-        
-        let asm = format!("movq {},{}", mem, reg);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2]
-            },
-            uses,
-            true
-        )
-    }
-    
-    // store
-    fn emit_mov_mem64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: mov {} -> {}", src, dest);
-        
-        let (reg, id1, loc1) = self.prepare_reg(src, 4 + 1);
-        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + reg.len() + 1);
-        
-        // the register we used for the memory location is counted as 'use'
-        // use the vec from mem as 'use' (push use reg from src to it)
-        if uses.contains_key(&id1) {
-            uses.get_mut(&id1).unwrap().push(loc1);
-        } else {
-            uses.insert(id1, vec![loc1]);
-        }
-        
-        let asm = format!("movq {},{}", reg, mem);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
-    }
-    
-    fn emit_mov_mem64_imm32(&mut self, dest: &P<Value>, src: i32) {
-        trace!("emit: mov {} -> {}", src, dest);
-        
-        let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-        
-        let asm = format!("movq ${},{}", src, mem);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
-    }
-    
-    fn emit_mov_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: mov {} -> {}", src, dest);
-        
-        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
-        
-        let asm = format!("movq {},{}", reg1, reg2);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2]
-            },
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
-    }
 
-    fn emit_movsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: movsd {} -> {}", src, dest);
+    // cmp
 
-        let (reg1, id1, loc1) = self.prepare_reg(src, 5 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest, 5 + 1 + reg1.len() + 1);
+    emit_cmp_r_r!(emit_cmp_r64_r64, 64);
+    emit_cmp_r_r!(emit_cmp_r32_r32, 32);
+    emit_cmp_r_r!(emit_cmp_r16_r16, 16);
+    emit_cmp_r_r!(emit_cmp_r8_r8  , 8 );
 
-        let asm = format!("movsd {},{}", reg1, reg2);
+    emit_cmp_r_imm!(emit_cmp_r64_imm32, 64, i32);
+    emit_cmp_r_imm!(emit_cmp_r32_imm32, 32, i32);
+    emit_cmp_r_imm!(emit_cmp_r16_imm16, 16, i16);
+    emit_cmp_r_imm!(emit_cmp_r8_imm8  , 8 , i8 );
 
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2]
-            },
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
-    }
+    emit_cmp_r_mem!(emit_cmp_r64_mem64, 64);
+    emit_cmp_r_mem!(emit_cmp_r32_mem32, 32);
+    emit_cmp_r_mem!(emit_cmp_r16_mem16, 16);
+    emit_cmp_r_mem!(emit_cmp_r8_mem8  , 8 );
 
-    // load
-    fn emit_movsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: movsd {} -> {}", src, dest);
+    // mov
 
-        let (mem, uses) = self.prepare_mem(src, 5 + 1);
-        let (reg, id2, loc2) = self.prepare_reg(dest, 5 + 1 + mem.len() + 1);
+    emit_mov_r_imm!(emit_mov_r64_imm32, 64, i32);
+    emit_mov_r_imm!(emit_mov_r32_imm32, 32, i32);
+    emit_mov_r_imm!(emit_mov_r16_imm16, 16, i16);
+    emit_mov_r_imm!(emit_mov_r8_imm8  , 8 , i8 );
 
-        let asm = format!("movsd {},{}", mem, reg);
+    emit_mov_r_mem!(emit_mov_r64_mem64, 64);
+    emit_mov_r_mem!(emit_mov_r32_mem32, 32);
+    emit_mov_r_mem!(emit_mov_r16_mem16, 16);
+    emit_mov_r_mem!(emit_mov_r8_mem8  , 8 );
 
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2]
-            },
-            uses,
-            true
-        )
-    }
+    emit_mov_r_r!(emit_mov_r64_r64, 64);
+    emit_mov_r_r!(emit_mov_r32_r32, 32);
+    emit_mov_r_r!(emit_mov_r16_r16, 16);
+    emit_mov_r_r!(emit_mov_r8_r8  , 8 );
 
-    // store
-    fn emit_movsd_mem64_f64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: movsd {} -> {}", src, dest);
+    emit_mov_mem_r!(emit_mov_mem64_r64, 64);
+    emit_mov_mem_r!(emit_mov_mem32_r32, 32);
+    emit_mov_mem_r!(emit_mov_mem16_r16, 16);
+    emit_mov_mem_r!(emit_mov_mem8_r8  , 8 );
 
-        let (reg, id1, loc1) = self.prepare_reg(src, 5 + 1);
-        let (mem, mut uses) = self.prepare_mem(dest, 5 + 1 + reg.len() + 1);
+    emit_mov_mem_imm!(emit_mov_mem64_imm32, 64, i32);
+    emit_mov_mem_imm!(emit_mov_mem32_imm32, 32, i32);
+    emit_mov_mem_imm!(emit_mov_mem16_imm16, 16, i16);
+    emit_mov_mem_imm!(emit_mov_mem8_imm8  , 8 , i8 );
 
-        // the register we used for the memory location is counted as 'use'
-        // use the vec from mem as 'use' (push use reg from src to it)
-        if uses.contains_key(&id1) {
-            uses.get_mut(&id1).unwrap().push(loc1);
-        } else {
-            uses.insert(id1, vec![loc1]);
-        }
+    // lea
+    emit_lea_r!(emit_lea_r64, 64);
 
-        let asm = format!("movsd {},{}", reg, mem);
+    // and
+    emit_and_r_r!(emit_and_r64_r64, 64);
+    emit_and_r_r!(emit_and_r32_r32, 32);
+    emit_and_r_r!(emit_and_r16_r16, 16);
+    emit_and_r_r!(emit_and_r8_r8  , 8 );
 
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
-    }
+    emit_and_r_imm!(emit_and_r64_imm32, 64, i32);
+    emit_and_r_imm!(emit_and_r32_imm32, 32, i32);
+    emit_and_r_imm!(emit_and_r16_imm16, 16, i16);
+    emit_and_r_imm!(emit_and_r8_imm8  , 8 , i8 );
 
-    fn emit_lea_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: lea {} -> {}", src, dest);
-
-        let (mem, uses) = self.prepare_mem(src, 4 + 1);
-        let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
-
-        let asm = format!("leaq {},{}", mem, reg);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2]
-            },
-            uses,
-            true
-        )
-    }
-
-    fn emit_and_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
-        trace!("emit: and {}, {} -> {}", src, dest, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-        let asm = format!("andq ${},{}", src, reg1);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
-    }
-
-    fn emit_and_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: and {}, {} -> {}", src, dest, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
-
-        let asm = format!("andq {},{}", reg1, reg2);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1],
-                id2 => vec![loc2]
-            },
-            false
-        )
-    }
+    emit_and_r_mem!(emit_and_r64_mem64, 64);
+    emit_and_r_mem!(emit_and_r32_mem32, 32);
+    emit_and_r_mem!(emit_and_r16_mem16, 16);
+    emit_and_r_mem!(emit_and_r8_mem8  , 8 );
 
     fn emit_xor_r64_r64  (&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: xor {}, {} -> {}", src, dest, dest);
@@ -2202,7 +2286,71 @@ impl CodeGenerator for ASMCodeGen {
             },
             false
         )        
-    }    
+    }
+
+    fn emit_movsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: movsd {} -> {}", src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(src, 5 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, 5 + 1 + reg1.len() + 1);
+
+        let asm = format!("movsd {},{}", reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    // load
+    fn emit_movsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: movsd {} -> {}", src, dest);
+
+        let (mem, uses) = self.prepare_mem(src, 5 + 1);
+        let (reg, id2, loc2) = self.prepare_reg(dest, 5 + 1 + mem.len() + 1);
+
+        let asm = format!("movsd {},{}", mem, reg);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            uses,
+            true
+        )
+    }
+
+    // store
+    fn emit_movsd_mem64_f64(&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: movsd {} -> {}", src, dest);
+
+        let (reg, id1, loc1) = self.prepare_reg(src, 5 + 1);
+        let (mem, mut uses) = self.prepare_mem(dest, 5 + 1 + reg.len() + 1);
+
+        // the register we used for the memory location is counted as 'use'
+        // use the vec from mem as 'use' (push use reg from src to it)
+        if uses.contains_key(&id1) {
+            uses.get_mut(&id1).unwrap().push(loc1);
+        } else {
+            uses.insert(id1, vec![loc1]);
+        }
+
+        let asm = format!("movsd {},{}", reg, mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
 }
 
 fn create_emit_directory() {

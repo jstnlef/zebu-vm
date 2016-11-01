@@ -330,6 +330,21 @@ lazy_static! {
         ret.append(&mut pick_regs_of_alias!(R14_ALIAS));
         ret.append(&mut pick_regs_of_alias!(R15_ALIAS));
 
+//        ret.push(RAX.clone());
+//        ret.push(RCX.clone());
+//        ret.push(RDX.clone());
+//        ret.push(RBX.clone());
+//        ret.push(RSI.clone());
+//        ret.push(RDI.clone());
+//        ret.push(R8.clone());
+//        ret.push(R9.clone());
+//        ret.push(R10.clone());
+//        ret.push(R11.clone());
+//        ret.push(R12.clone());
+//        ret.push(R13.clone());
+//        ret.push(R14.clone());
+//        ret.push(R15.clone());
+
         ret.push(XMM0.clone());
         ret.push(XMM1.clone());
         ret.push(XMM2.clone());
