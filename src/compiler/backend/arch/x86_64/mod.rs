@@ -313,37 +313,37 @@ lazy_static! {
     pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = {
         let mut ret = vec![];
 
-        ret.append(&mut pick_regs_of_alias!(RAX_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(RCX_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(RDX_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(RBX_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(RAX_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(RCX_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(RDX_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(RBX_ALIAS));
+//
+//        ret.append(&mut pick_regs_of_alias!(RSI_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(RDI_ALIAS));
+//
+//        ret.append(&mut pick_regs_of_alias!(R8_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(R9_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(R10_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(R11_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(R12_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(R13_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(R14_ALIAS));
+//        ret.append(&mut pick_regs_of_alias!(R15_ALIAS));
 
-        ret.append(&mut pick_regs_of_alias!(RSI_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(RDI_ALIAS));
-
-        ret.append(&mut pick_regs_of_alias!(R8_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(R9_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(R10_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(R11_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(R12_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(R13_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(R14_ALIAS));
-        ret.append(&mut pick_regs_of_alias!(R15_ALIAS));
-
-//        ret.push(RAX.clone());
-//        ret.push(RCX.clone());
-//        ret.push(RDX.clone());
-//        ret.push(RBX.clone());
-//        ret.push(RSI.clone());
-//        ret.push(RDI.clone());
-//        ret.push(R8.clone());
-//        ret.push(R9.clone());
-//        ret.push(R10.clone());
-//        ret.push(R11.clone());
-//        ret.push(R12.clone());
-//        ret.push(R13.clone());
-//        ret.push(R14.clone());
-//        ret.push(R15.clone());
+        ret.push(RAX.clone());
+        ret.push(RCX.clone());
+        ret.push(RDX.clone());
+        ret.push(RBX.clone());
+        ret.push(RSI.clone());
+        ret.push(RDI.clone());
+        ret.push(R8.clone());
+        ret.push(R9.clone());
+        ret.push(R10.clone());
+        ret.push(R11.clone());
+        ret.push(R12.clone());
+        ret.push(R13.clone());
+        ret.push(R14.clone());
+        ret.push(R15.clone());
 
         ret.push(XMM0.clone());
         ret.push(XMM1.clone());
@@ -377,9 +377,9 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
 
 pub fn number_of_regs_in_group(group: RegGroup) -> usize {
     match group {
-        RegGroup::GPR8  => ALL_GPR8s.len(),
-        RegGroup::GPR16 => ALL_GPR16s.len(),
-        RegGroup::GPR32 => ALL_GPR32s.len(),
+        RegGroup::GPR8  => 0,
+        RegGroup::GPR16 => 0,
+        RegGroup::GPR32 => 0,
         RegGroup::GPR64 => ALL_GPR64s.len(),
         RegGroup::FPR32 => 0,
         RegGroup::FPR64 => ALL_FPRs.len(),

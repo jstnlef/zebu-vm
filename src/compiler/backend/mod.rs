@@ -175,9 +175,10 @@ pub enum RegGroup {GPR8, GPR16, GPR32, GPR64, FPR32, FPR64}
 impl RegGroup {
     pub fn get(ty: &P<MuType>) -> RegGroup {
         match ty.v {
-            MuType_::Int(len) if len == 8  => RegGroup::GPR8,
-            MuType_::Int(len) if len == 16 => RegGroup::GPR16,
-            MuType_::Int(len) if len == 32 => RegGroup::GPR32,
+            // for now, only use 64bits registers
+            MuType_::Int(len) if len == 8  => RegGroup::GPR64,
+            MuType_::Int(len) if len == 16 => RegGroup::GPR64,
+            MuType_::Int(len) if len == 32 => RegGroup::GPR64,
             MuType_::Int(len) if len == 64 => RegGroup::GPR64,
 
             MuType_::Ref(_)
