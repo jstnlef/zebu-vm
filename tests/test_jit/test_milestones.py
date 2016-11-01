@@ -14,6 +14,9 @@ bin_dir = test_jit_dir.join('temp')
 if not bin_dir.exists():
     bin_dir.mkdir()
 
+print 'proj_dir =', proj_dir
+print 'bin_dir =', bin_dir
+
 def compile_lib(testname):
     src_c = testsuite_dir.join(testname + '.c')
     bin_path = bin_dir.join(testname)
