@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     bldr->new_bb(bldr, id_10, (MuID [1]){id_18}, (MuTypeNode [1]){id}, 1, MU_NO_ID, (MuInstNode [6]){id_24, id_25, id_26, id_27, id_28, id_29}, 6);
     bldr->new_func_ver(bldr, id_7, id_6, (MuBBNode [3]){id_8, id_9, id_10}, 3);
     bldr->load(bldr);
-    mu->compile_to_sharedlib(mu, "test_fib.dylib");
+    mu->compile_to_sharedlib(mu, "test_fib.dylib", NULL, 0);
     printf("%s\n", "test_fib.dylib");
     return 0;
 }

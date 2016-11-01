@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
     bldr_7->new_bb(bldr_7, id_67, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_69, id_70}, 2);
     bldr_7->new_func_ver(bldr_7, id_66, id_65, (MuBBNode [1]){id_67}, 1);
     bldr_7->load(bldr_7);
-    mu_7->compile_to_sharedlib(mu_7, "test_lshr.dylib");
+    mu_7->compile_to_sharedlib(mu_7, "test_lshr.dylib", NULL, 0);
     printf("%s\n", "test_lshr.dylib");
     return 0;
 }
