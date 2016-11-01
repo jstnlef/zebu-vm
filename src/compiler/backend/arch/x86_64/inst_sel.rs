@@ -166,18 +166,7 @@ impl <'a> InstructionSelection {
                         
                         match op {
                             op::BinOp::Add => {
-                                if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
-                                    trace!("emit add-ireg-ireg");
-                                    
-                                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                                    let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
-                                    let res_tmp = self.get_result_value(node);
-                                    
-                                    // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
-                                    // add op2 res
-                                    self.backend.emit_add_r64_r64(&res_tmp, &reg_op2);
-                                } else if self.match_ireg(&ops[op1]) && self.match_iimm(&ops[op2]) {
+                                if self.match_ireg(&ops[op1]) && self.match_iimm(&ops[op2]) {
                                     trace!("emit add-ireg-imm");
                                     
                                     let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
@@ -205,6 +194,29 @@ impl <'a> InstructionSelection {
                                 } else if self.match_mem(&ops[op1]) && self.match_ireg(&ops[op2]) {
                                     trace!("emit add-mem-ireg");
                                     unimplemented!();
+                                } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                                    trace!("emit add-ireg-ireg");
+
+                                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
+                                    let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
+                                    let res_tmp = self.get_result_value(node);
+
+                                    // mov op1, res
+                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    // add op2 res
+                                    self.backend.emit_add_r64_r64(&res_tmp, &reg_op2);
+                                } else if self.match_iimm(&ops[op1]) && self.match_iimm(&ops[op2]) {
+                                    trace!("emit add-iimm-iimm");
+
+                                    let tmp_res = self.get_result_value(node);
+                                    let imm1 = self.node_iimm_to_i32(&ops[op1]);
+                                    let imm2 = self.node_iimm_to_i32(&ops[op2]);
+
+                                    // mov imm1 -> tmp_res
+                                    self.backend.emit_mov_r64_imm32(&tmp_res, imm1);
+
+                                    // add imm2, tmp_res -> tmp_res
+                                    self.backend.emit_add_r64_imm32(&tmp_res, imm2);
                                 } else {
                                     unimplemented!()
                                 }
@@ -1627,7 +1639,21 @@ impl <'a> InstructionSelection {
     
     #[allow(unused_variables)]
     fn match_mem(&mut self, op: &P<TreeNode>) -> bool {
-        unimplemented!()
+        match op.v {
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::Memory(_) => true,
+                    Value_::Global(_) => true,
+                    _ => false
+                }
+            }
+            TreeNode_::Instruction(ref inst) => {
+                match inst.v {
+                    Instruction_::Load{..} => true,
+                    _ => false
+                }
+            }
+        }
     }
     
     #[allow(unused_variables)]
