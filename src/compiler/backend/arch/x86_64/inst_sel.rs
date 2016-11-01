@@ -483,6 +483,107 @@ impl <'a> InstructionSelection {
                             _ => unimplemented!()
                         }
                     }
+
+                    Instruction_::ConvOp{operation, ref from_ty, ref to_ty, operand} => {
+                        let ops = inst.ops.read().unwrap();
+
+                        let ref op = ops[operand];
+
+                        let extract_int_len = |x: &P<MuType>| {
+                            match x.v {
+                                MuType_::Int(len) => len,
+                                _ => panic!("only expect int types, found: {}", x)
+                            }
+                        };
+
+                        match operation {
+                            op::ConvOp::TRUNC => {
+                                // currently only use 64bits register
+                                // so only keep what is needed in the register (set others to 0)
+                                let from_ty_len = extract_int_len(from_ty);
+                                let to_ty_len   = extract_int_len(to_ty);
+
+                                debug_assert!(from_ty_len > to_ty_len);
+
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                    let tmp_res = self.get_result_value(node);
+
+                                    // ignoring from_ty for now (we use 64bits register for everything)
+                                    let mask = match to_ty_len {
+                                        8  => 0xFFi32,
+                                        16 => 0xFFFFi32,
+                                        32 => 0xFFFFFFFFi32,
+                                        _ => unimplemented!()
+                                    };
+
+                                    // mov op -> result
+                                    self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
+
+                                    // and mask, result -> result
+                                    self.backend.emit_and_r64_imm32(&tmp_res, mask);
+                                } else {
+                                    panic!("unexpected op (expect ireg): {}", op);
+                                }
+                            }
+                            op::ConvOp::ZEXT => {
+                                // currently only use 64bits register
+                                // so set irrelevant bits to 0
+                                let from_ty_len = extract_int_len(from_ty);
+                                let to_ty_len   = extract_int_len(to_ty);
+
+                                debug_assert!(from_ty_len < to_ty_len);
+
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                    let tmp_res = self.get_result_value(node);
+
+                                    let mask = match from_ty_len {
+                                        8  => 0xFFi32,
+                                        16 => 0xFFFFi32,
+                                        32 => 0xFFFFFFFFi32,
+                                        _ => unimplemented!()
+                                    };
+
+                                    // mov op -> result
+                                    self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
+
+                                    // and mask result -> result
+                                    self.backend.emit_and_r64_imm32(&tmp_res, mask);
+                                } else {
+                                    panic!("unexpected op (expect ireg): {}", op);
+                                }
+                            },
+                            op::ConvOp::SEXT => {
+                                // currently only use 64bits register
+                                // we left shift the value, then arithmetic right shift back
+                                let from_ty_len = extract_int_len(from_ty);
+                                let to_ty_len   = extract_int_len(to_ty);
+
+                                debug_assert!(from_ty_len < to_ty_len);
+
+                                let shift : i8 = (to_ty_len - from_ty_len) as i8;
+
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                    let tmp_res = self.get_result_value(node);
+
+                                    // mov op -> result
+                                    self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
+
+                                    // shl result, shift -> result
+                                    self.backend.emit_shl_r64_imm8(&tmp_res, shift);
+
+                                    // sar result, shift -> result
+                                    self.backend.emit_sar_r64_imm8(&tmp_res, shift);
+                                } else {
+                                    panic!("unexpected op (expect ireg): {}", op)
+                                }
+                            }
+
+                            _ => unimplemented!()
+                        }
+                    }
                     
                     // load on x64 generates mov inst (no matter what order is specified)
                     // https://www.cl.cam.ac.uk/~pes20/cpp/cpp0xmappings.html
