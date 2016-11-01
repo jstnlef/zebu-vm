@@ -54,18 +54,7 @@ impl InterferenceGraph {
             self.nodes.insert(reg_id, node.clone());
             
             // add node property
-            let group = {
-                let ref ty = entry.ty();
-                if types::is_scalar(ty) {
-                    if types::is_fp(ty) {
-                        backend::RegGroup::FPR
-                    } else {
-                        backend::RegGroup::GPR
-                    }
-                } else {
-                    unimplemented!()
-                }
-            };
+            let group = backend::RegGroup::get(entry.ty());
             let property = NodeProperty {
                 color: None,
                 group: group,

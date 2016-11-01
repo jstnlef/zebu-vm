@@ -1075,7 +1075,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(directive_globl(func_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
         
-        ValueLocation::Relocatable(RegGroup::GPR, func_name)
+        ValueLocation::Relocatable(RegGroup::GPR64, func_name)
     }
     
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation) {
@@ -1091,7 +1091,7 @@ impl CodeGenerator for ASMCodeGen {
         
         (
             self.cur.take().unwrap(),
-            ValueLocation::Relocatable(RegGroup::GPR, func_end)
+            ValueLocation::Relocatable(RegGroup::GPR64, func_end)
         )
     }
 
@@ -1141,7 +1141,7 @@ impl CodeGenerator for ASMCodeGen {
 
         self.start_block(block_name.clone());
         
-        ValueLocation::Relocatable(RegGroup::GPR, mangled_name)
+        ValueLocation::Relocatable(RegGroup::GPR64, mangled_name)
     }
     
     fn end_block(&mut self, block_name: MuName) {
@@ -2123,7 +2123,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));            
         
-        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+        ValueLocation::Relocatable(RegGroup::GPR64, callsite)
     }
     
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation {

@@ -25,7 +25,7 @@ lazy_static! {
             ret_tys: vec![ADDRESS_TYPE.clone()],
             arg_tys: vec![]
         }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_get_thread_local")),
+        aot: ValueLocation::Relocatable(RegGroup::GPR64, String::from("muentry_get_thread_local")),
         jit: RwLock::new(None),
     };
     
@@ -37,7 +37,7 @@ lazy_static! {
             ret_tys: vec![],
             arg_tys: vec![ADDRESS_TYPE.clone()]
         }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_swap_back_to_native_stack")),
+        aot: ValueLocation::Relocatable(RegGroup::GPR64, String::from("muentry_swap_back_to_native_stack")),
         jit: RwLock::new(None),
     };
     
@@ -48,7 +48,7 @@ lazy_static! {
             ret_tys: vec![ADDRESS_TYPE.clone()],
             arg_tys: vec![UINT64_TYPE.clone(), UINT64_TYPE.clone()]
         }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_alloc_slow")),
+        aot: ValueLocation::Relocatable(RegGroup::GPR64, String::from("muentry_alloc_slow")),
         jit: RwLock::new(None),
     };
     
@@ -59,7 +59,7 @@ lazy_static! {
             ret_tys: vec![],
             arg_tys: vec![ADDRESS_TYPE.clone()]        
         }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_throw_exception")),
+        aot: ValueLocation::Relocatable(RegGroup::GPR64, String::from("muentry_throw_exception")),
         jit: RwLock::new(None),
     };
 }

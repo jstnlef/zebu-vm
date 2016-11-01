@@ -642,7 +642,7 @@ impl <'a> VM {
         if self.is_running() {
             unimplemented!()
         } else {
-            ValueLocation::Relocatable(backend::RegGroup::GPR, func.name().unwrap())
+            ValueLocation::Relocatable(backend::RegGroup::GPR64, func.name().unwrap())
         }
     }
     

@@ -64,8 +64,12 @@ impl <'a> GraphColoring<'a> {
             precolored: LinkedHashSet::new(),
             colors: {
                 let mut map = HashMap::new();
-                map.insert(backend::RegGroup::GPR, LinkedHashSet::new());
-                map.insert(backend::RegGroup::FPR, LinkedHashSet::new());
+                map.insert(backend::RegGroup::GPR8,  LinkedHashSet::new());
+                map.insert(backend::RegGroup::GPR16, LinkedHashSet::new());
+                map.insert(backend::RegGroup::GPR32, LinkedHashSet::new());
+                map.insert(backend::RegGroup::GPR64, LinkedHashSet::new());
+                map.insert(backend::RegGroup::FPR32, LinkedHashSet::new());
+                map.insert(backend::RegGroup::FPR64, LinkedHashSet::new());
                 map
             },
             colored_nodes: Vec::new(),
