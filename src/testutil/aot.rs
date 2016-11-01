@@ -150,7 +150,7 @@ pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &s
         }
 
         for src in srcs {
-            ret.push(src);
+            ret.push(PathBuf::from(src));
         }
 
         ret.push(get_path_for_mu_context());
