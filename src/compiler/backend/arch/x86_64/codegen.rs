@@ -4,6 +4,9 @@ use runtime::ValueLocation;
 
 use compiler::machine_code::MachineCode;
 
+pub type Reg<'a> = &'a P<Value>;
+pub type Mem<'a> = &'a P<Value>;
+
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName) -> ValueLocation;
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
@@ -23,75 +26,101 @@ pub trait CodeGenerator {
     fn emit_nop(&mut self, bytes: usize);
 
     // comparison
-    fn emit_cmp_r64_r64  (&mut self, op1: &P<Value>, op2: &P<Value>);
-    fn emit_cmp_r64_imm32(&mut self, op1: &P<Value>, op2: i32);
-    fn emit_cmp_r64_mem64(&mut self, op1: &P<Value>, op2: &P<Value>);
+    fn emit_cmp_r64_r64  (&mut self, op1: Reg, op2: Reg);
+    fn emit_cmp_r64_imm32(&mut self, op1: Reg, op2: i32);
+    fn emit_cmp_r64_mem64(&mut self, op1: Reg, op2: Mem);
 
-    fn emit_cmp_r32_r32  (&mut self, op1: &P<Value>, op2: &P<Value>);
-    fn emit_cmp_r32_imm32(&mut self, op1: &P<Value>, op2: i32);
-    fn emit_cmp_r32_mem32(&mut self, op1: &P<Value>, op2: &P<Value>);
+    fn emit_cmp_r32_r32  (&mut self, op1: Reg, op2: Reg);
+    fn emit_cmp_r32_imm32(&mut self, op1: Reg, op2: i32);
+    fn emit_cmp_r32_mem32(&mut self, op1: Reg, op2: Mem);
 
-    fn emit_cmp_r16_r16  (&mut self, op1: &P<Value>, op2: &P<Value>);
-    fn emit_cmp_r16_imm16(&mut self, op1: &P<Value>, op2: i16);
-    fn emit_cmp_r16_mem16(&mut self, op1: &P<Value>, op2: &P<Value>);
+    fn emit_cmp_r16_r16  (&mut self, op1: Reg, op2: Reg);
+    fn emit_cmp_r16_imm16(&mut self, op1: Reg, op2: i16);
+    fn emit_cmp_r16_mem16(&mut self, op1: Reg, op2: Mem);
 
-    fn emit_cmp_r8_r8    (&mut self, op1: &P<Value>, op2: &P<Value>);
-    fn emit_cmp_r8_imm8  (&mut self, op1: &P<Value>, op2: i8);
-    fn emit_cmp_r8_mem8  (&mut self, op1: &P<Value>, op2: &P<Value>);
+    fn emit_cmp_r8_r8    (&mut self, op1: Reg, op2: Reg);
+    fn emit_cmp_r8_imm8  (&mut self, op1: Reg, op2: i8);
+    fn emit_cmp_r8_mem8  (&mut self, op1: Reg, op2: Mem);
 
     // gpr move
     
-    fn emit_mov_r64_imm32  (&mut self, dest: &P<Value>, src: i32);
-    fn emit_mov_r64_mem64  (&mut self, dest: &P<Value>, src: &P<Value>); // load
-    fn emit_mov_r64_r64    (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_mov_mem64_r64  (&mut self, dest: &P<Value>, src: &P<Value>); // store
-    fn emit_mov_mem64_imm32(&mut self, dest: &P<Value>, src: i32);
+    fn emit_mov_r64_imm32  (&mut self, dest: Reg, src: i32);
+    fn emit_mov_r64_mem64  (&mut self, dest: Reg, src: Mem); // load
+    fn emit_mov_r64_r64    (&mut self, dest: Reg, src: Reg);
+    fn emit_mov_mem64_r64  (&mut self, dest: Mem, src: Reg); // store
+    fn emit_mov_mem64_imm32(&mut self, dest: Mem, src: i32);
 
-    fn emit_mov_r32_imm32  (&mut self, dest: &P<Value>, src: i32);
-    fn emit_mov_r32_mem32  (&mut self, dest: &P<Value>, src: &P<Value>); // load
-    fn emit_mov_r32_r32    (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_mov_mem32_r32  (&mut self, dest: &P<Value>, src: &P<Value>); // store
-    fn emit_mov_mem32_imm32(&mut self, dest: &P<Value>, src: i32);
+    fn emit_mov_r32_imm32  (&mut self, dest: Reg, src: i32);
+    fn emit_mov_r32_mem32  (&mut self, dest: Reg, src: Mem); // load
+    fn emit_mov_r32_r32    (&mut self, dest: Reg, src: Reg);
+    fn emit_mov_mem32_r32  (&mut self, dest: Mem, src: Reg); // store
+    fn emit_mov_mem32_imm32(&mut self, dest: Mem, src: i32);
     
-    fn emit_mov_r16_imm16  (&mut self, dest: &P<Value>, src: i16);
-    fn emit_mov_r16_mem16  (&mut self, dest: &P<Value>, src: &P<Value>); // load
-    fn emit_mov_r16_r16    (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_mov_mem16_r16  (&mut self, dest: &P<Value>, src: &P<Value>); // store
-    fn emit_mov_mem16_imm16(&mut self, dest: &P<Value>, src: i16);
+    fn emit_mov_r16_imm16  (&mut self, dest: Reg, src: i16);
+    fn emit_mov_r16_mem16  (&mut self, dest: Reg, src: Mem); // load
+    fn emit_mov_r16_r16    (&mut self, dest: Reg, src: Reg);
+    fn emit_mov_mem16_r16  (&mut self, dest: Mem, src: Reg); // store
+    fn emit_mov_mem16_imm16(&mut self, dest: Mem, src: i16);
 
-    fn emit_mov_r8_imm8    (&mut self, dest: &P<Value>, src: i8);
-    fn emit_mov_r8_mem8    (&mut self, dest: &P<Value>, src: &P<Value>); // load
-    fn emit_mov_r8_r8      (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_mov_mem8_r8    (&mut self, dest: &P<Value>, src: &P<Value>); // store
-    fn emit_mov_mem8_imm8  (&mut self, dest: &P<Value>, src: i8);
+    fn emit_mov_r8_imm8    (&mut self, dest: Reg, src: i8);
+    fn emit_mov_r8_mem8    (&mut self, dest: Reg, src: Mem); // load
+    fn emit_mov_r8_r8      (&mut self, dest: Reg, src: Mem);
+    fn emit_mov_mem8_r8    (&mut self, dest: Mem, src: Reg); // store
+    fn emit_mov_mem8_imm8  (&mut self, dest: Mem, src: i8);
 
     // lea
-    fn emit_lea_r64(&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_lea_r64(&mut self, dest: Reg, src: Reg);
 
     // and
-    fn emit_and_r64_imm32(&mut self, dest: &P<Value>, src: i32);
-    fn emit_and_r64_r64  (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_and_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_and_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_and_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_and_r64_mem64(&mut self, dest: Reg, src: Mem);
 
-    fn emit_and_r32_imm32(&mut self, dest: &P<Value>, src: i32);
-    fn emit_and_r32_r32  (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_and_r32_mem32(&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_and_r32_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_and_r32_r32  (&mut self, dest: Reg, src: Reg);
+    fn emit_and_r32_mem32(&mut self, dest: Reg, src: Mem);
 
-    fn emit_and_r16_imm16(&mut self, dest: &P<Value>, src: i16);
-    fn emit_and_r16_r16  (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_and_r16_mem16(&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_and_r16_imm16(&mut self, dest: Reg, src: i16);
+    fn emit_and_r16_r16  (&mut self, dest: Reg, src: Reg);
+    fn emit_and_r16_mem16(&mut self, dest: Reg, src: Mem);
 
-    fn emit_and_r8_imm8  (&mut self, dest: &P<Value>, src: i8);
-    fn emit_and_r8_r8    (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_and_r8_mem8  (&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_and_r8_imm8  (&mut self, dest: Reg, src: i8);
+    fn emit_and_r8_r8    (&mut self, dest: Reg, src: Reg);
+    fn emit_and_r8_mem8  (&mut self, dest: Reg, src: Mem);
 
-    fn emit_xor_r64_r64  (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_xor_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_xor_r64_imm32(&mut self, dest: &P<Value>, src: i32);
-    
-    fn emit_add_r64_r64  (&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_add_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
-    fn emit_add_r64_imm32(&mut self, dest: &P<Value>, src: i32);
+    // xor
+    fn emit_xor_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_xor_r64_mem64(&mut self, dest: Reg, src: Mem);
+    fn emit_xor_r64_imm32(&mut self, dest: Reg, src: i32);
+
+    fn emit_xor_r32_r32  (&mut self, dest: Reg, src: Reg);
+    fn emit_xor_r32_mem32(&mut self, dest: Reg, src: Mem);
+    fn emit_xor_r32_imm32(&mut self, dest: Reg, src: i32);
+
+    fn emit_xor_r16_r16  (&mut self, dest: Reg, src: Reg);
+    fn emit_xor_r16_mem16(&mut self, dest: Reg, src: Reg);
+    fn emit_xor_r16_imm16(&mut self, dest: Reg, src: i16);
+
+    fn emit_xor_r8_r8    (&mut self, dest: Reg, src: Reg);
+    fn emit_xor_r8_mem8  (&mut self, dest: Reg, src: Reg);
+    fn emit_xor_r8_imm8  (&mut self, dest: Reg, src: i8);
+
+    // and
+    fn emit_add_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_add_r64_mem64(&mut self, dest: Reg, src: Mem);
+    fn emit_add_r64_imm32(&mut self, dest: Reg, src: i32);
+//
+//    fn emit_add_r32_r32  (&mut self, dest: Reg, src: Reg);
+//    fn emit_add_r32_mem32(&mut self, dest: Reg, src: Mem);
+//    fn emit_add_r32_imm32(&mut self, dest: Reg, src: i32);
+//
+//    fn emit_add_r16_r16  (&mut self, dest: Reg, src: Reg);
+//    fn emit_add_r16_mem16(&mut self, dest: Reg, src: Mem);
+//    fn emit_add_r16_imm16(&mut self, dest: Reg, src: i16);
+//
+//    fn emit_add_r8_r8  (&mut self, dest: Reg, src: Reg);
+//    fn emit_add_r8_mem8(&mut self, dest: Reg, src: Mem);
+//    fn emit_add_r8_imm8(&mut self, dest: Reg, src: i8);
 
     fn emit_addsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>);
     fn emit_addsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>);
