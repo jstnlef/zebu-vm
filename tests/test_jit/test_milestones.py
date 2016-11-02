@@ -55,6 +55,10 @@ def test_constant_function():
     fn = get_fncptr("test_constfunc", 'test_fnc')
     assert fn() == 0
 
+def test_milsum():
+    fn = get_fncptr("test_milsum", "milsum")
+    assert fn(1000000) == 500000500000
+
 def test_fibonacci():
     fn = get_fncptr("test_fib", "fib")
     assert fn(20) == 6765
