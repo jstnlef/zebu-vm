@@ -34,7 +34,7 @@ def compile_lib(testname):
         raise subp.CalledProcessError(p.returncode, cmd)
      
     os.environ['LD_LIBRARY_PATH'] = "%s:%s" % ("%(proj_dir)s/target/debug" % globals(),
-                                               os.environ['LD_LIBRARY_PATH'])
+                                               os.environ['LD_LIBRARY_PATH'] if 'LD_LIBRARY_PATH' in os.environ else "")
     # run
     p = subp.Popen([str(bin_path)], stdout=subp.PIPE, stderr=subp.PIPE, cwd=str(bin_dir), env=os.environ)
     out, err = p.communicate()
