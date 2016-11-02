@@ -123,12 +123,8 @@ impl MuStack {
             let (reg_group, word) = val.load_value();
             
             match reg_group {
-                RegGroup::GPR8
-                | RegGroup::GPR16
-                | RegGroup::GPR32
-                | RegGroup::GPR64 => gpr_used.push(word),
-                RegGroup::FPR32
-                | RegGroup::FPR64 => fpr_used.push(word),
+                RegGroup::GPR => gpr_used.push(word),
+                RegGroup::FPR => fpr_used.push(word),
             }
         }
         

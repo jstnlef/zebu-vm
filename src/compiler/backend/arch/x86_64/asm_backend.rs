@@ -625,7 +625,7 @@ impl ASMInst {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct ASMLocation {
     line: usize,
     index: usize,
@@ -1282,7 +1282,8 @@ macro_rules! emit_mov_mem_r {
             // the register we used for the memory location is counted as 'use'
             // use the vec from mem as 'use' (push use reg from src to it)
             if uses.contains_key(&id1) {
-                uses.get_mut(&id1).unwrap().push(loc1);
+                let mut locs = uses.get_mut(&id1).unwrap();
+                vec_utils::add_unique(locs, loc1);
             } else {
                 uses.insert(id1, vec![loc1]);
             }
@@ -1488,7 +1489,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(directive_globl(func_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
 
-        ValueLocation::Relocatable(RegGroup::GPR64, func_name)
+        ValueLocation::Relocatable(RegGroup::GPR, func_name)
     }
 
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation) {
@@ -1504,7 +1505,7 @@ impl CodeGenerator for ASMCodeGen {
 
         (
             self.cur.take().unwrap(),
-            ValueLocation::Relocatable(RegGroup::GPR64, func_end)
+            ValueLocation::Relocatable(RegGroup::GPR, func_end)
         )
     }
 
@@ -1554,7 +1555,7 @@ impl CodeGenerator for ASMCodeGen {
 
         self.start_block(block_name.clone());
 
-        ValueLocation::Relocatable(RegGroup::GPR64, mangled_name)
+        ValueLocation::Relocatable(RegGroup::GPR, mangled_name)
     }
 
     fn end_block(&mut self, block_name: MuName) {
@@ -2293,7 +2294,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));            
         
-        ValueLocation::Relocatable(RegGroup::GPR64, callsite)
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
     
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation {

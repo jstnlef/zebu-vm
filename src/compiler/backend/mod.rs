@@ -170,16 +170,16 @@ pub struct BackendTypeInfo {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
-pub enum RegGroup {GPR8, GPR16, GPR32, GPR64, FPR32, FPR64}
+pub enum RegGroup {GPR, FPR}
 
 impl RegGroup {
     pub fn get(ty: &P<MuType>) -> RegGroup {
         match ty.v {
             // for now, only use 64bits registers
-            MuType_::Int(len) if len == 8  => RegGroup::GPR64,
-            MuType_::Int(len) if len == 16 => RegGroup::GPR64,
-            MuType_::Int(len) if len == 32 => RegGroup::GPR64,
-            MuType_::Int(len) if len == 64 => RegGroup::GPR64,
+            MuType_::Int(len) if len == 8  => RegGroup::GPR,
+            MuType_::Int(len) if len == 16 => RegGroup::GPR,
+            MuType_::Int(len) if len == 32 => RegGroup::GPR,
+            MuType_::Int(len) if len == 64 => RegGroup::GPR,
 
             MuType_::Ref(_)
             | MuType_::IRef(_)
@@ -189,10 +189,10 @@ impl RegGroup {
             | MuType_::StackRef
             | MuType_::Tagref64
             | MuType_::FuncRef(_)
-            | MuType_::UFuncPtr(_)         => RegGroup::GPR64,
+            | MuType_::UFuncPtr(_)         => RegGroup::GPR,
 
-            MuType_::Float                 => RegGroup::FPR32,
-            MuType_::Double                => RegGroup::FPR64,
+            MuType_::Float                 => RegGroup::FPR,
+            MuType_::Double                => RegGroup::FPR,
 
             _ => unimplemented!()
         }

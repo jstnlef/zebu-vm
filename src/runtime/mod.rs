@@ -153,9 +153,9 @@ impl ValueLocation {
     #[allow(unused_variables)]
     pub fn from_constant(c: Constant) -> ValueLocation {
         match c {
-            Constant::Int(int_val) => ValueLocation::Constant(RegGroup::GPR64, utils::mem::u64_to_raw(int_val)),
-            Constant::Float(f32_val) => ValueLocation::Constant(RegGroup::FPR32, utils::mem::f32_to_raw(f32_val)),
-            Constant::Double(f64_val) => ValueLocation::Constant(RegGroup::FPR64, utils::mem::f64_to_raw(f64_val)),
+            Constant::Int(int_val) => ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val)),
+            Constant::Float(f32_val) => ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val)),
+            Constant::Double(f64_val) => ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val)),
             
             _ => unimplemented!()
         }
