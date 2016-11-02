@@ -41,17 +41,17 @@ test:cargo:runtime:
 testjit:milestones:
   stage: test
   script:
-    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build 1,2>/dev/null
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_milestones.py
 
 testjit:binops:
   stage: test
   script:
-    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build 1,2>/dev/null
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_binops.py
 
 testjit:cmpops:
   stage: test
   script:
-    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build 1,2>/dev/null
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py
