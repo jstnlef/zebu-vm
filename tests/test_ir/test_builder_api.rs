@@ -144,6 +144,11 @@ fn test_consts_loading() {
         ((*b).new_type_int)(b, id1, 32);
         ((*b).new_const_int)(b, id2, id1, 42);
 
+        let id_refi32 = ((*b).gen_sym)(b, csp.get("@refi32"));
+        let id_nullrefi32 = ((*b).gen_sym)(b, csp.get("@CONST_REFI32_NULL"));
+        ((*b).new_type_ref)(b, id_refi32, id1);
+        ((*b).new_const_null)(b, id_nullrefi32, id_refi32);
+
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
 
@@ -504,6 +509,76 @@ fn test_insts_call() {
             ((*b).new_ret)(b, id_ret, retvars.as_mut_ptr(), retvars.len());
         }
 
+
+        ((*b).load)(b);
+        ((*ctx).close_context)(ctx);
+
+        info!("Finished.");
+    }
+}
+
+#[test]
+#[allow(unused_variables)]
+fn test_insts_new() {
+    let mut csp: CStringPool = Default::default();
+
+    unsafe {
+        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        
+        info!("Starting micro VM...");
+
+        let mvm = mu_fastimpl_new();
+
+        let ctx = ((*mvm).new_context)(mvm);
+
+        let b = ((*ctx).new_ir_builder)(ctx);
+
+        let id_i32 = ((*b).gen_sym)(b, csp.get("@i32"));
+        let id_sig = ((*b).gen_sym)(b, csp.get("@sig"));
+        let id_func = ((*b).gen_sym)(b, csp.get("@func"));
+
+        ((*b).new_type_int)(b, id_i32, 32);
+
+        let mut ptys = vec![];
+        let mut rtys = vec![];
+        ((*b).new_funcsig)(b, id_sig,
+                           ptys.as_mut_ptr(), ptys.len(),
+                           rtys.as_mut_ptr(), rtys.len());
+
+        ((*b).new_func)(b, id_func, id_sig);
+
+        let id_funcver = ((*b).gen_sym)(b, csp.get("@func.v1"));
+
+        let id_entry = ((*b).gen_sym)(b, csp.get("@func.v1.entry"));
+
+        let mut bbs = vec![
+            id_entry,
+        ];
+        ((*b).new_func_ver)(b, id_funcver, id_func, bbs.as_mut_ptr(), bbs.len());
+
+        {
+            let mut args = vec![];
+            let mut argtys = vec![];
+
+            let id_new = ((*b).gen_sym)(b, csp.get("@func.v1.entry.new"));
+            let id_ret = ((*b).gen_sym)(b, csp.get("@func.v1.entry.ret"));
+            let mut insts = vec![id_new, id_ret];
+
+            ((*b).new_bb)(b, id_entry,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+
+            let id_x = ((*b).gen_sym)(b, csp.get("@func.v1.entry.x"));
+
+            ((*b).new_new)(b, id_new, id_x, id_i32, 0);
+
+            {
+                let mut args = vec![];
+                ((*b).new_ret)(b, id_ret, args.as_mut_ptr(), args.len());
+            }
+        }
+            
 
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
