@@ -14,9 +14,6 @@ bin_dir = test_jit_dir.join('temp')
 if not bin_dir.exists():
     bin_dir.mkdir()
 
-print 'proj_dir =', proj_dir
-print 'bin_dir =', bin_dir
-
 def compile_lib(testname):
     src_c = testsuite_dir.join(testname + '.c')
     bin_path = bin_dir.join(testname)
@@ -35,7 +32,9 @@ def compile_lib(testname):
         sys.stdout.write(out + '\n')
         sys.stderr.write(err + '\n')
         raise subp.CalledProcessError(p.returncode, cmd)
-
+     
+    os.environ['LD_LIBRARY_PATH'] = "%s:%s" % ("%(proj_dir)s/target/debug" % globals(),
+                                               os.environ['LD_LIBRARY_PATH'])
     # run
     p = subp.Popen([str(bin_path)], stdout=subp.PIPE, stderr=subp.PIPE, cwd=str(bin_dir), env=os.environ)
     out, err = p.communicate()
