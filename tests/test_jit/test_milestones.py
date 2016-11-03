@@ -45,21 +45,24 @@ def compile_lib(testname):
 
     return str(bin_dir.join('emit', testname + '.dylib'))
 
-def get_fncptr(testname, entry_fnc):
+def get_fncptr(testname, entry_fnc, argtypes=[], restype=ctypes.c_ulonglong):
     lib_path = compile_lib(testname)
     lib = ctypes.CDLL(lib_path)
-    return getattr(lib, entry_fnc)
+    fncptr = getattr(lib, entry_fnc)
+    fncptr.restype = restype
+    fncptr.argtypes = argtypes
+    return fncptr
 
 def test_constant_function():
     fn = get_fncptr("test_constfunc", 'test_fnc')
     assert fn() == 0
 
 def test_milsum():
-    fn = get_fncptr("test_milsum", "milsum")
+    fn = get_fncptr("test_milsum", "milsum", [ctypes.c_ulonglong])
     assert fn(1000000) == 500000500000
 
 def test_fibonacci():
-    fn = get_fncptr("test_fib", "fib")
+    fn = get_fncptr("test_fib", "fib", [ctypes.c_ulonglong])
     assert fn(20) == 6765
 
 def test_multifunc():
