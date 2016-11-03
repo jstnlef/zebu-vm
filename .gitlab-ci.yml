@@ -27,9 +27,7 @@ build_test:
     script:
         - RUST_BACKTRACE=1 cargo test --no-run
     artifacts:
-        paths:
-            untracked: true
-
+      untracked: true
 
 test:cargo:api:
   stage: test
