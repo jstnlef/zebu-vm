@@ -27,7 +27,7 @@ cache:
     - Cargo.lock
 
 before_script:
-  - CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
+  - CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run 2>/dev/null
 
 test:cargo:api:
   stage: test
