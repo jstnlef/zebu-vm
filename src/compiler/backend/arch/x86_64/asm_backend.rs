@@ -1075,18 +1075,18 @@ fn op_postfix(op_len: usize) -> &'static str {
 
 // general instruction emission
 macro_rules! binop_no_def_r_r {
-    ($cg: expr, $inst: expr, $op1: expr, $op2: expr, $op_len: expr) => {
-        {
+    ($func_name: ident, $inst: expr, $op_len: expr) => {
+        fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
             // with postfix
             let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} {}", inst, $op1, $op2);
+            trace!("emit: {} {} {}", inst, op1, op2);
 
-            let (reg1, id1, loc1) = $cg.prepare_reg($op1, inst.len() + 1);
-            let (reg2, id2, loc2) = $cg.prepare_reg($op2, inst.len() + 1 + reg1.len() + 1);
+            let (reg1, id1, loc1) = self.prepare_reg(op1, inst.len() + 1);
+            let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + reg1.len() + 1);
 
             let asm = format!("{} {},{}", inst, reg1, reg2);
 
-            $cg.add_asm_inst(
+            self.add_asm_inst(
                 asm,
                 hashmap!{},
                 hashmap!{
@@ -1100,16 +1100,16 @@ macro_rules! binop_no_def_r_r {
 }
 
 macro_rules! binop_no_def_r_imm {
-    ($cg: expr, $inst: expr, $op1: expr, $op2_imm: expr, $op_len: expr) => {
-        {
+    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
+        fn $func_name (&mut self, op1: &P<Value>, op2: $imm_ty) {
             let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} {}", inst, $op1, $op2_imm);
+            trace!("emit: {} {} {}", inst, op1, op2);
 
-            let (reg1, id1, loc1) = $cg.prepare_reg($op1, inst.len() + 1 + 1 + $op2_imm.to_string().len() + 1);
+            let (reg1, id1, loc1) = self.prepare_reg(op1, inst.len() + 1 + 1 + op2.to_string().len() + 1);
 
-            let asm = format!("cmp{} ${},{}", op_postfix($op_len), $op2_imm, reg1);
+            let asm = format!("{} ${},{}", inst, op2, reg1);
 
-            $cg.add_asm_inst(
+            self.add_asm_inst(
                 asm,
                 hashmap!{},
                 hashmap!{
@@ -1123,24 +1123,25 @@ macro_rules! binop_no_def_r_imm {
 }
 
 macro_rules! binop_no_def_r_mem {
-    ($cg: expr, $inst:expr, $op1: expr, $op2_mem: expr, $op_len: expr) => {
-        {
+    ($func_name: ident, $inst:expr, $op_len: expr) => {
+        fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
             let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} {}", inst, $op1, $op2_mem);
+            trace!("emit: {} {} {}", inst, op1, op2);
 
-            let (reg, id1, loc1) = $cg.prepare_reg($op1, inst.len() + 1);
-            let (mem, mut uses)  = $cg.prepare_mem($op2_mem, inst.len() + 1 + reg.len() + 1);
+            let (reg, id1, loc1) = self.prepare_reg(op1, inst.len() + 1);
+            let (mem, mut uses)  = self.prepare_mem(op2, inst.len() + 1 + reg.len() + 1);
 
             let asm = format!("{} {},{}", inst, reg, mem);
 
             // merge use vec
             if uses.contains_key(&id1) {
-                uses.get_mut(&id1).unwrap().push(loc1);
+                let mut locs = uses.get_mut(&id1).unwrap();
+                vec_utils::add_unique(locs, loc1.clone());
             } else {
                 uses.insert(id1, vec![loc1]);
             }
 
-            $cg.add_asm_inst(
+            self.add_asm_inst(
                 asm,
                 hashmap!{},
                 uses,
@@ -1151,17 +1152,17 @@ macro_rules! binop_no_def_r_mem {
 }
 
 macro_rules! binop_def_r_r {
-    ($cg: expr, $inst: expr, $dest: expr, $src: expr, $op_len: expr) => {
-        {
+    ($func_name: ident, $inst: expr, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
             let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {}, {} -> {}", inst, $src, $dest, $dest);
+            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
 
-            let (reg1, id1, loc1) = $cg.prepare_reg($src, inst.len() + 1);
-            let (reg2, id2, loc2) = $cg.prepare_reg($dest, inst.len() + 1 + reg1.len() + 1);
+            let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+            let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
 
             let asm = format!("{} {},{}", inst, reg1, reg2);
 
-            $cg.add_asm_inst(
+            self.add_asm_inst(
                 asm,
                 hashmap!{
                     id2 => vec![loc2.clone()]
@@ -1176,41 +1177,70 @@ macro_rules! binop_def_r_r {
     }
 }
 
-// cmp implementation
+macro_rules! binop_def_r_imm {
+    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
 
-macro_rules! emit_cmp_r_r {
-    ($func_name: ident, $op_len: expr) => {
-        fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
-            binop_no_def_r_r!(self, "cmp", op1, op2, $op_len)
+            let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+
+            let asm = format!("{} ${},{}", inst, src, reg1);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id1 => vec![loc1.clone()]
+                },
+                hashmap!{
+                    id1 => vec![loc1]
+                },
+                false
+            )
         }
     }
 }
 
-macro_rules! emit_cmp_r_imm {
-    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, op1: &P<Value>, op2: $imm_ty) {
-            binop_no_def_r_imm!(self, "cmp", op1, op2, $op_len)
-        }
-    }
-}
-
-macro_rules! emit_cmp_r_mem {
-    ($func_name: ident, $op_len: expr) => {
-        fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
-            binop_no_def_r_mem!(self, "cmp", op1, op2, $op_len)
-        }
-    }
-}
-
-macro_rules! emit_mov_r_r {
-    ($func_name: ident, $op_len: expr) => {
+macro_rules! binop_def_r_mem {
+    ($func_name: ident, $inst: expr, $op_len: expr) => {
         fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            trace!("emit: mov {} -> {}", src, dest);
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
 
-            let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
-            let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
+            let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
+            let (reg, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
 
-            let asm = format!("mov{} {},{}", op_postfix($op_len), reg1, reg2);
+            if uses.contains_key(&id1) {
+                let mut locs = uses.get_mut(&id1).unwrap();
+                vec_utils::add_unique(locs, loc1.clone());
+            } else {
+                uses.insert(id1, vec![loc1.clone()]);
+            }
+
+            let asm = format!("{} {},{}", inst, mem, reg);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    id1 => vec![loc1]
+                },
+                uses,
+                true
+            )
+        }
+    }
+}
+
+macro_rules! mov_r_r {
+    ($func_name: ident, $inst: expr, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {} -> {}", inst, src, dest);
+
+            let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+            let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
+
+            let asm = format!("{} {},{}", inst, reg1, reg2);
 
             self.add_asm_inst(
                 asm,
@@ -1226,14 +1256,15 @@ macro_rules! emit_mov_r_r {
     }
 }
 
-macro_rules! emit_mov_r_imm {
-    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
+macro_rules! mov_r_imm {
+    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
         fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
-            trace!("emit: mov {} -> {}", src, dest);
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {} -> {}", inst, src, dest);
 
-            let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+            let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
 
-            let asm = format!("mov{} ${},{}", op_postfix($op_len), src, reg1);
+            let asm = format!("{} ${},{}", inst, src, reg1);
 
             self.add_asm_inst(
                 asm,
@@ -1248,15 +1279,16 @@ macro_rules! emit_mov_r_imm {
 }
 
 /// load
-macro_rules! emit_mov_r_mem {
-    ($func_name: ident, $op_len: expr) => {
+macro_rules! mov_r_mem {
+    ($func_name: ident, $inst: expr, $op_len: expr) => {
         fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            trace!("emit: mov {} -> {}", src, dest);
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {} -> {}", inst, src, dest);
 
-            let (mem, uses) = self.prepare_mem(src, 4 + 1);
-            let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
+            let (mem, uses) = self.prepare_mem(src, inst.len() + 1);
+            let (reg, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
 
-            let asm = format!("mov{} {},{}", op_postfix($op_len), mem, reg);
+            let asm = format!("{} {},{}", inst, mem, reg);
 
             self.add_asm_inst(
                 asm,
@@ -1271,13 +1303,14 @@ macro_rules! emit_mov_r_mem {
 }
 
 /// store
-macro_rules! emit_mov_mem_r {
-    ($func_name: ident, $op_len: expr) => {
+macro_rules! mov_mem_r {
+    ($func_name: ident, $inst: expr, $op_len: expr) => {
         fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            trace!("emit: mov {} -> {}", src, dest);
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {} -> {}", inst, src, dest);
 
-            let (reg, id1, loc1) = self.prepare_reg(src, 4 + 1);
-            let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + reg.len() + 1);
+            let (reg, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+            let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg.len() + 1);
 
             // the register we used for the memory location is counted as 'use'
             // use the vec from mem as 'use' (push use reg from src to it)
@@ -1288,7 +1321,7 @@ macro_rules! emit_mov_mem_r {
                 uses.insert(id1, vec![loc1]);
             }
 
-            let asm = format!("mov{} {},{}", op_postfix($op_len), reg, mem);
+            let asm = format!("{} {},{}", inst, reg, mem);
 
             self.add_asm_inst(
                 asm,
@@ -1300,14 +1333,15 @@ macro_rules! emit_mov_mem_r {
     }
 }
 
-macro_rules! emit_mov_mem_imm {
-    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
+macro_rules! mov_mem_imm {
+    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
         fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
-            trace!("emit: mov {} -> {}", src, dest);
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {} -> {}", inst, src, dest);
 
-            let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+            let (mem, uses) = self.prepare_mem(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
 
-            let asm = format!("mov{} ${},{}", op_postfix($op_len), src, mem);
+            let asm = format!("{} ${},{}", inst, src, mem);
 
             self.add_asm_inst(
                 asm,
@@ -1336,141 +1370,6 @@ macro_rules! emit_lea_r {
                 },
                 uses,
                 true
-            )
-        }
-    }
-}
-
-macro_rules! emit_and_r_r {
-    ($func_name: ident, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            binop_def_r_r!(self, "and", dest, src, $op_len)
-        }
-    }
-}
-
-macro_rules! emit_and_r_imm {
-    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
-            trace!("emit: and {}, {} -> {}", src, dest, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-            let asm = format!("and{} ${},{}", op_postfix($op_len), src, reg1);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id1 => vec![loc1.clone()]
-                },
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                false
-            )
-        }
-    }
-}
-
-macro_rules! emit_and_r_mem {
-    ($func_name: ident, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            trace!("emit and {}, {} -> {}", src, dest, dest);
-
-            let (mem, mut uses) = self.prepare_mem(src, 4 + 1);
-            let (reg, id1, loc1) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
-
-            if uses.contains_key(&id1) {
-                uses.get_mut(&id1).unwrap().push(loc1.clone());
-            } else {
-                uses.insert(id1, vec![loc1.clone()]);
-            }
-
-            let asm = format!("and{} {},{}", op_postfix($op_len), mem, reg);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                uses,
-                true
-            )
-        }
-    }
-}
-
-macro_rules! emit_xor_r_r {
-    ($func_name: ident, $op_len: expr) => {
-        fn $func_name  (&mut self, dest: &P<Value>, src: &P<Value>) {
-            trace!("emit: xor {}, {} -> {}", src, dest, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
-            let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
-
-            let asm = format!("xor{} {},{}", op_postfix($op_len), reg1, reg2);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id2 => vec![loc2.clone()]
-                },
-                hashmap!{
-                    id1 => vec![loc1.clone()],
-                    id2 => vec![loc2.clone()]
-                },
-                false
-            )
-        }
-    }
-}
-
-macro_rules! emit_xor_r_mem {
-    ($func_name: ident, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            trace!("emit: xor {}, {} -> {}", src, dest, dest);
-
-            let (mem, mut uses) = self.prepare_mem(src, 4 + 1);
-            let (reg, id1, loc1) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
-
-            if uses.contains_key(&id1) {
-                uses.get_mut(&id1).unwrap().push(loc1.clone());
-            } else {
-                uses.insert(id1, vec![loc1.clone()]);
-            }
-
-            let asm = format!("xor{} {},{}", op_postfix($op_len), mem, reg);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                uses,
-                true
-            )
-        }
-    }
-}
-
-macro_rules! emit_xor_r_imm {
-    ($func_name: ident, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
-            trace!("emit: xor {}, {} -> {}", src, dest, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-            let asm = format!("xor{} ${},{}", op_postfix($op_len), src, reg1);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id1 => vec![loc1.clone()]
-                },
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                false
             )
         }
     }
@@ -1635,199 +1534,114 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     // cmp
+    binop_no_def_r_r!(emit_cmp_r64_r64, "cmp", 64);
+    binop_no_def_r_r!(emit_cmp_r32_r32, "cmp", 32);
+    binop_no_def_r_r!(emit_cmp_r16_r16, "cmp", 16);
+    binop_no_def_r_r!(emit_cmp_r8_r8  , "cmp", 8 );
 
-    emit_cmp_r_r!(emit_cmp_r64_r64, 64);
-    emit_cmp_r_r!(emit_cmp_r32_r32, 32);
-    emit_cmp_r_r!(emit_cmp_r16_r16, 16);
-    emit_cmp_r_r!(emit_cmp_r8_r8  , 8 );
+    binop_no_def_r_imm!(emit_cmp_r64_imm32, "cmp", 64, i32);
+    binop_no_def_r_imm!(emit_cmp_r32_imm32, "cmp", 32, i32);
+    binop_no_def_r_imm!(emit_cmp_r16_imm16, "cmp", 16, i16);
+    binop_no_def_r_imm!(emit_cmp_r8_imm8  , "cmp", 8 , i8 );
 
-    emit_cmp_r_imm!(emit_cmp_r64_imm32, 64, i32);
-    emit_cmp_r_imm!(emit_cmp_r32_imm32, 32, i32);
-    emit_cmp_r_imm!(emit_cmp_r16_imm16, 16, i16);
-    emit_cmp_r_imm!(emit_cmp_r8_imm8  , 8 , i8 );
-
-    emit_cmp_r_mem!(emit_cmp_r64_mem64, 64);
-    emit_cmp_r_mem!(emit_cmp_r32_mem32, 32);
-    emit_cmp_r_mem!(emit_cmp_r16_mem16, 16);
-    emit_cmp_r_mem!(emit_cmp_r8_mem8  , 8 );
+    binop_no_def_r_mem!(emit_cmp_r64_mem64, "cmp", 64);
+    binop_no_def_r_mem!(emit_cmp_r32_mem32, "cmp", 32);
+    binop_no_def_r_mem!(emit_cmp_r16_mem16, "cmp", 16);
+    binop_no_def_r_mem!(emit_cmp_r8_mem8  , "cmp", 8 );
 
     // mov
 
-    emit_mov_r_imm!(emit_mov_r64_imm32, 64, i32);
-    emit_mov_r_imm!(emit_mov_r32_imm32, 32, i32);
-    emit_mov_r_imm!(emit_mov_r16_imm16, 16, i16);
-    emit_mov_r_imm!(emit_mov_r8_imm8  , 8 , i8 );
+    mov_r_imm!(emit_mov_r64_imm32, "mov", 64, i32);
+    mov_r_imm!(emit_mov_r32_imm32, "mov", 32, i32);
+    mov_r_imm!(emit_mov_r16_imm16, "mov", 16, i16);
+    mov_r_imm!(emit_mov_r8_imm8  , "mov", 8 , i8 );
 
-    emit_mov_r_mem!(emit_mov_r64_mem64, 64);
-    emit_mov_r_mem!(emit_mov_r32_mem32, 32);
-    emit_mov_r_mem!(emit_mov_r16_mem16, 16);
-    emit_mov_r_mem!(emit_mov_r8_mem8  , 8 );
+    mov_r_mem!(emit_mov_r64_mem64, "mov", 64);
+    mov_r_mem!(emit_mov_r32_mem32, "mov", 32);
+    mov_r_mem!(emit_mov_r16_mem16, "mov", 16);
+    mov_r_mem!(emit_mov_r8_mem8  , "mov", 8 );
 
-    emit_mov_r_r!(emit_mov_r64_r64, 64);
-    emit_mov_r_r!(emit_mov_r32_r32, 32);
-    emit_mov_r_r!(emit_mov_r16_r16, 16);
-    emit_mov_r_r!(emit_mov_r8_r8  , 8 );
+    mov_r_r!(emit_mov_r64_r64, "mov", 64);
+    mov_r_r!(emit_mov_r32_r32, "mov", 32);
+    mov_r_r!(emit_mov_r16_r16, "mov", 16);
+    mov_r_r!(emit_mov_r8_r8  , "mov", 8 );
 
-    emit_mov_mem_r!(emit_mov_mem64_r64, 64);
-    emit_mov_mem_r!(emit_mov_mem32_r32, 32);
-    emit_mov_mem_r!(emit_mov_mem16_r16, 16);
-    emit_mov_mem_r!(emit_mov_mem8_r8  , 8 );
+    mov_mem_r!(emit_mov_mem64_r64, "mov", 64);
+    mov_mem_r!(emit_mov_mem32_r32, "mov", 32);
+    mov_mem_r!(emit_mov_mem16_r16, "mov", 16);
+    mov_mem_r!(emit_mov_mem8_r8  , "mov", 8 );
 
-    emit_mov_mem_imm!(emit_mov_mem64_imm32, 64, i32);
-    emit_mov_mem_imm!(emit_mov_mem32_imm32, 32, i32);
-    emit_mov_mem_imm!(emit_mov_mem16_imm16, 16, i16);
-    emit_mov_mem_imm!(emit_mov_mem8_imm8  , 8 , i8 );
+    mov_mem_imm!(emit_mov_mem64_imm32, "mov", 64, i32);
+    mov_mem_imm!(emit_mov_mem32_imm32, "mov", 32, i32);
+    mov_mem_imm!(emit_mov_mem16_imm16, "mov", 16, i16);
+    mov_mem_imm!(emit_mov_mem8_imm8  , "mov", 8 , i8 );
 
     // lea
-    emit_lea_r!(emit_lea_r64, 64);
+    mov_r_mem!(emit_lea_r64, "lea", 64);
 
     // and
-    emit_and_r_r!(emit_and_r64_r64, 64);
-    emit_and_r_r!(emit_and_r32_r32, 32);
-    emit_and_r_r!(emit_and_r16_r16, 16);
-    emit_and_r_r!(emit_and_r8_r8  , 8 );
+    binop_def_r_r!(emit_and_r64_r64, "and", 64);
+    binop_def_r_r!(emit_and_r32_r32, "and", 32);
+    binop_def_r_r!(emit_and_r16_r16, "and", 16);
+    binop_def_r_r!(emit_and_r8_r8  , "and", 8 );
 
-    emit_and_r_imm!(emit_and_r64_imm32, 64, i32);
-    emit_and_r_imm!(emit_and_r32_imm32, 32, i32);
-    emit_and_r_imm!(emit_and_r16_imm16, 16, i16);
-    emit_and_r_imm!(emit_and_r8_imm8  , 8 , i8 );
+    binop_def_r_imm!(emit_and_r64_imm32, "and", 64, i32);
+    binop_def_r_imm!(emit_and_r32_imm32, "and", 32, i32);
+    binop_def_r_imm!(emit_and_r16_imm16, "and", 16, i16);
+    binop_def_r_imm!(emit_and_r8_imm8  , "and", 8 , i8 );
 
-    emit_and_r_mem!(emit_and_r64_mem64, 64);
-    emit_and_r_mem!(emit_and_r32_mem32, 32);
-    emit_and_r_mem!(emit_and_r16_mem16, 16);
-    emit_and_r_mem!(emit_and_r8_mem8  , 8 );
+    binop_def_r_mem!(emit_and_r64_mem64, "and", 64);
+    binop_def_r_mem!(emit_and_r32_mem32, "and", 32);
+    binop_def_r_mem!(emit_and_r16_mem16, "and", 16);
+    binop_def_r_mem!(emit_and_r8_mem8  , "and", 8 );
 
     // xor
-    emit_xor_r_r!(emit_xor_r64_r64, 64);
-    emit_xor_r_r!(emit_xor_r32_r32, 32);
-    emit_xor_r_r!(emit_xor_r16_r16, 16);
-    emit_xor_r_r!(emit_xor_r8_r8  , 8 );
+    binop_def_r_r!(emit_xor_r64_r64, "xor", 64);
+    binop_def_r_r!(emit_xor_r32_r32, "xor", 32);
+    binop_def_r_r!(emit_xor_r16_r16, "xor", 16);
+    binop_def_r_r!(emit_xor_r8_r8  , "xor", 8 );
 
-    emit_xor_r_mem!(emit_xor_r64_mem64, 64);
-    emit_xor_r_mem!(emit_xor_r32_mem32, 32);
-    emit_xor_r_mem!(emit_xor_r16_mem16, 16);
-    emit_xor_r_mem!(emit_xor_r8_mem8  , 8 );
+    binop_def_r_imm!(emit_xor_r64_imm32, "xor", 64, i32);
+    binop_def_r_imm!(emit_xor_r32_imm32, "xor", 32, i32);
+    binop_def_r_imm!(emit_xor_r16_imm16, "xor", 16, i16);
+    binop_def_r_imm!(emit_xor_r8_imm8  , "xor", 8 , i8 );
 
-    emit_xor_r_imm!(emit_xor_r64_imm32, 64, i32);
-    emit_xor_r_imm!(emit_xor_r32_imm32, 32, i32);
-    emit_xor_r_imm!(emit_xor_r16_imm16, 16, i16);
-    emit_xor_r_imm!(emit_xor_r8_imm8  , 8 , i8 );
+    binop_def_r_mem!(emit_xor_r64_mem64, "xor", 64);
+    binop_def_r_mem!(emit_xor_r32_mem32, "xor", 32);
+    binop_def_r_mem!(emit_xor_r16_mem16, "xor", 16);
+    binop_def_r_mem!(emit_xor_r8_mem8  , "xor", 8 );
 
-    fn emit_add_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: add {}, {} -> {}", dest, src, dest);
-        
-        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
-        
-        let asm = format!("addq {},{}", reg1, reg2);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1],
-                id2 => vec![loc2]
-            },
-            false
-        )
-    }
-    
-    fn emit_add_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: add {}, {} -> {}", dest, src, dest);
-        unimplemented!()
-    }
-    
-    fn emit_add_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
-        trace!("emit: add {}, {} -> {}", dest, src, dest);
-        
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-        
-        let asm = format!("addq ${},{}", src, reg1);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
-    }
+    // add
+    binop_def_r_r!(emit_add_r64_r64, "add", 64);
+    binop_def_r_r!(emit_add_r32_r32, "add", 32);
+    binop_def_r_r!(emit_add_r16_r16, "add", 16);
+    binop_def_r_r!(emit_add_r8_r8  , "add", 8 );
 
-    fn emit_addsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: addsd {}, {} -> {}", dest, src, dest);
+    binop_def_r_imm!(emit_add_r64_imm32, "add", 64, i32);
+    binop_def_r_imm!(emit_add_r32_imm32, "add", 32, i32);
+    binop_def_r_imm!(emit_add_r16_imm16, "add", 16, i16);
+    binop_def_r_imm!(emit_add_r8_imm8  , "add", 8 , i8 );
 
-        let (reg1, id1, loc1) = self.prepare_reg(src, 5 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest, 5 + 1 + reg1.len() + 1);
+    binop_def_r_mem!(emit_add_r64_mem64, "add", 64);
+    binop_def_r_mem!(emit_add_r32_mem32, "add", 32);
+    binop_def_r_mem!(emit_add_r16_mem16, "add", 16);
+    binop_def_r_mem!(emit_add_r8_mem8  , "add", 8 );
 
-        let asm = format!("addsd {},{}", reg1, reg2);
+    // sub
+    binop_def_r_r!(emit_sub_r64_r64, "sub", 64);
+    binop_def_r_r!(emit_sub_r32_r32, "sub", 32);
+    binop_def_r_r!(emit_sub_r16_r16, "sub", 16);
+    binop_def_r_r!(emit_sub_r8_r8  , "sub", 8 );
 
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1],
-                id2 => vec![loc2]
-            },
-            false
-        )
-    }
+    binop_def_r_imm!(emit_sub_r64_imm32, "sub", 64, i32);
+    binop_def_r_imm!(emit_sub_r32_imm32, "sub", 32, i32);
+    binop_def_r_imm!(emit_sub_r16_imm16, "sub", 16, i16);
+    binop_def_r_imm!(emit_sub_r8_imm8  , "sub", 8 , i8 );
 
-    fn emit_addsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: addsd {}, {} -> {}", dest, src, dest);
-        unimplemented!()
-    }
-    
-    fn emit_sub_r64_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: sub {}, {} -> {}", dest, src, dest);
-        
-        let (reg1, id1, loc1) = self.prepare_reg(src, 4 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest, 4 + 1 + reg1.len() + 1);
-        
-        let asm = format!("subq {},{}", reg1, reg2);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1],
-                id2 => vec![loc2]
-            },
-            false
-        )        
-    }
-    
-    fn emit_sub_r64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: sub {}, {} -> {}", dest, src, dest);
-        unimplemented!()
-    }
-    
-    fn emit_sub_r64_imm32(&mut self, dest: &P<Value>, src: i32) {
-        trace!("emit: sub {}, {} -> {}", dest, src, dest);
-        
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-        
-        let asm = format!("subq ${},{}", src, reg1);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )        
-    }
+    binop_def_r_mem!(emit_sub_r64_mem64, "sub", 64);
+    binop_def_r_mem!(emit_sub_r32_mem32, "sub", 32);
+    binop_def_r_mem!(emit_sub_r16_mem16, "sub", 16);
+    binop_def_r_mem!(emit_sub_r8_mem8  , "sub", 8 );
     
     fn emit_mul_r64(&mut self, src: &P<Value>) {
         trace!("emit: mul rax, {} -> (rdx, rax)", src);
@@ -1851,11 +1665,14 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
-    
-    fn emit_mul_mem64(&mut self, src: &P<Value>) {
-        trace!("emit: mul rax, {} -> rax", src);
-        unimplemented!()
-    }
+    fn emit_mul_r32  (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_mul_r16  (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_mul_r8   (&mut self, src: &P<Value>) {unimplemented!()}
+
+    fn emit_mul_mem64(&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_mul_mem32(&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_mul_mem16(&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_mul_mem8 (&mut self, src: &P<Value>) {unimplemented!()}
 
     fn emit_div_r64  (&mut self, src: &P<Value>) {
         trace!("emit: div rdx:rax, {} -> quotient: rax + remainder: rdx", src);
@@ -1880,8 +1697,11 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
+    fn emit_div_r32 (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_div_r16 (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_div_r8  (&mut self, src: &P<Value>) {unimplemented!()}
 
-    fn emit_div_mem64(&mut self, src: &P<Value>) {
+    fn emit_div_mem64 (&mut self, src: &P<Value>) {
         trace!("emit: div rdx:rax, {} -> quotient: rax + remainder: rdx", src);
 
         let rdx = self.prepare_machine_reg(&x86_64::RDX);
@@ -1908,6 +1728,9 @@ impl CodeGenerator for ASMCodeGen {
             true
         )
     }
+    fn emit_div_mem32 (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_div_mem16 (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_div_mem8  (&mut self, src: &P<Value>) {unimplemented!()}
 
     fn emit_idiv_r64  (&mut self, src: &P<Value>) {
         trace!("emit: idiv rdx:rax, {} -> quotient: rax + remainder: rdx", src);
@@ -1932,6 +1755,9 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
+    fn emit_idiv_r32  (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_idiv_r16  (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_idiv_r8   (&mut self, src: &P<Value>) {unimplemented!()}
 
     fn emit_idiv_mem64(&mut self, src: &P<Value>) {
         trace!("emit: idiv rdx:rax, {} -> quotient: rax + remainder: rdx", src);
@@ -1960,6 +1786,9 @@ impl CodeGenerator for ASMCodeGen {
             true
         )
     }
+    fn emit_idiv_mem32(&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_idiv_mem16(&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_idiv_mem8 (&mut self, src: &P<Value>) {unimplemented!()}
 
     fn emit_shl_r64_cl    (&mut self, dest: &P<Value>) {
         trace!("emit shl {}, CL -> {}", dest, dest);
@@ -2437,6 +2266,32 @@ impl CodeGenerator for ASMCodeGen {
             uses,
             true
         )
+    }
+
+    fn emit_addsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: addsd {}, {} -> {}", dest, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(src, 5 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, 5 + 1 + reg1.len() + 1);
+
+        let asm = format!("addsd {},{}", reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1],
+                id2 => vec![loc2]
+            },
+            false
+        )
+    }
+
+    fn emit_addsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: addsd {}, {} -> {}", dest, src, dest);
+        unimplemented!()
     }
 }
 
