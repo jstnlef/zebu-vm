@@ -20,7 +20,7 @@ fn test_u8_add() {
     let lib = testutil::compile_fnc("u8_add", &u8_add);
 
     unsafe {
-        let u8_add : libloading::Symbol<unsafe extern fn(u8, u8) -> u8> = lib.get(b"u8_add").unwrap();
+        let u8_add : libloading::Symbol<unsafe extern fn(u8, u8) -> u64> = lib.get(b"u8_add").unwrap();
 
         let u8_add_1_1 = u8_add(1, 1);
         println!("u8_add(1, 1) = {}", u8_add_1_1);
