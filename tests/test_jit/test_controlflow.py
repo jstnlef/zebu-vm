@@ -7,7 +7,7 @@ def test_branch():
     assert fn() == 30
 
 def test_branch2():
-    fn = get_fncptr("test_branch", "test_fnc", [ctypes.c_byte])
+    fn = get_fncptr("test_branch2", "test_fnc", [ctypes.c_byte])
     assert fn(1) == 30
     assert fn(0) == 200
 
