@@ -1099,21 +1099,21 @@ macro_rules! binop_no_def_r_r {
     }
 }
 
-macro_rules! binop_no_def_r_imm {
+macro_rules! binop_no_def_imm_r {
     ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, op1: &P<Value>, op2: $imm_ty) {
+        fn $func_name (&mut self, op1: $imm_ty, op2: &P<Value>) {
             let inst = $inst.to_string() + &op_postfix($op_len);
             trace!("emit: {} {} {}", inst, op1, op2);
 
-            let (reg1, id1, loc1) = self.prepare_reg(op1, inst.len() + 1 + 1 + op2.to_string().len() + 1);
+            let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + 1 + op1.to_string().len() + 1);
 
-            let asm = format!("{} ${},{}", inst, op2, reg1);
+            let asm = format!("{} ${},{}", inst, op1, reg2);
 
             self.add_asm_inst(
                 asm,
                 hashmap!{},
                 hashmap!{
-                    id1 => vec![loc1]
+                    id2 => vec![loc2]
                 },
                 false
             )
@@ -1122,16 +1122,16 @@ macro_rules! binop_no_def_r_imm {
     }
 }
 
-macro_rules! binop_no_def_r_mem {
+macro_rules! binop_no_def_mem_r {
     ($func_name: ident, $inst:expr, $op_len: expr) => {
         fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
             let inst = $inst.to_string() + &op_postfix($op_len);
             trace!("emit: {} {} {}", inst, op1, op2);
 
-            let (reg, id1, loc1) = self.prepare_reg(op1, inst.len() + 1);
-            let (mem, mut uses)  = self.prepare_mem(op2, inst.len() + 1 + reg.len() + 1);
+            let (mem, mut uses)  = self.prepare_mem(op1, inst.len() + 1);
+            let (reg, id1, loc1) = self.prepare_reg(op2, inst.len() + 1 + mem.len() + 1);
 
-            let asm = format!("{} {},{}", inst, reg, mem);
+            let asm = format!("{} {},{}", inst, mem, reg);
 
             // merge use vec
             if uses.contains_key(&id1) {
@@ -1539,15 +1539,15 @@ impl CodeGenerator for ASMCodeGen {
     binop_no_def_r_r!(emit_cmp_r16_r16, "cmp", 16);
     binop_no_def_r_r!(emit_cmp_r8_r8  , "cmp", 8 );
 
-    binop_no_def_r_imm!(emit_cmp_r64_imm32, "cmp", 64, i32);
-    binop_no_def_r_imm!(emit_cmp_r32_imm32, "cmp", 32, i32);
-    binop_no_def_r_imm!(emit_cmp_r16_imm16, "cmp", 16, i16);
-    binop_no_def_r_imm!(emit_cmp_r8_imm8  , "cmp", 8 , i8 );
+    binop_no_def_imm_r!(emit_cmp_imm32_r64, "cmp", 64, i32);
+    binop_no_def_imm_r!(emit_cmp_imm32_r32, "cmp", 32, i32);
+    binop_no_def_imm_r!(emit_cmp_imm16_r16, "cmp", 16, i16);
+    binop_no_def_imm_r!(emit_cmp_imm8_r8  , "cmp", 8 , i8 );
 
-    binop_no_def_r_mem!(emit_cmp_r64_mem64, "cmp", 64);
-    binop_no_def_r_mem!(emit_cmp_r32_mem32, "cmp", 32);
-    binop_no_def_r_mem!(emit_cmp_r16_mem16, "cmp", 16);
-    binop_no_def_r_mem!(emit_cmp_r8_mem8  , "cmp", 8 );
+    binop_no_def_mem_r!(emit_cmp_mem64_r64, "cmp", 64);
+    binop_no_def_mem_r!(emit_cmp_mem32_r32, "cmp", 32);
+    binop_no_def_mem_r!(emit_cmp_mem16_r16, "cmp", 16);
+    binop_no_def_mem_r!(emit_cmp_mem8_r8  , "cmp", 8 );
 
     // mov
 

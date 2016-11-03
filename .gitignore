@@ -1,7 +1,7 @@
 **/target/*
 **/__pycache__/*
 **/.cache/*
-emit/*
+**/emit/*
 **/temp/*
 Cargo.lock
 *.log

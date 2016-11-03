@@ -195,8 +195,10 @@ pub struct FunctionContent {
 impl fmt::Debug for FunctionContent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let entry = self.get_entry_block();
+        write!(f, "Entry block: ").unwrap();
         write!(f, "{:?}\n", entry).unwrap();
-        
+
+        write!(f, "Body:").unwrap();
         for blk_id in self.blocks.keys() {
             let block = self.get_block(*blk_id);
             write!(f, "{:?}\n", block).unwrap();

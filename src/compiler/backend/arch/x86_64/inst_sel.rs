@@ -73,8 +73,8 @@ impl <'a> InstructionSelection {
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
                     Instruction_::Branch2{cond, ref true_dest, ref false_dest, true_prob} => {
-                        // move this to trace generation
-                        // assert here
+                        // 'branch_if_true' == true, we emit cjmp the same as CmpOp  (je  for EQ, jne for NE)
+                        // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
                         let (fallthrough_dest, branch_dest, branch_if_true) = {
                             if true_prob > 0.5f32 {
                                 (true_dest, false_dest, false)
@@ -95,16 +95,76 @@ impl <'a> InstructionSelection {
                         if self.match_cmp_res(cond) {
                             trace!("emit cmp_eq-branch2");
                             match self.emit_cmp_res(cond, f_content, f_context, vm) {
-                                op::CmpOp::EQ => self.backend.emit_je(branch_target),
-                                op::CmpOp::NE => self.backend.emit_jne(branch_target),
-                                op::CmpOp::UGE => self.backend.emit_jae(branch_target),
-                                op::CmpOp::UGT => self.backend.emit_ja(branch_target),
-                                op::CmpOp::ULE => self.backend.emit_jbe(branch_target),
-                                op::CmpOp::ULT => self.backend.emit_jb(branch_target),
-                                op::CmpOp::SGE => self.backend.emit_jge(branch_target),
-                                op::CmpOp::SGT => self.backend.emit_jg(branch_target),
-                                op::CmpOp::SLE => self.backend.emit_jle(branch_target),
-                                op::CmpOp::SLT => self.backend.emit_jl(branch_target),
+                                op::CmpOp::EQ => {
+                                    if branch_if_true {
+                                        self.backend.emit_je(branch_target);
+                                    } else {
+                                        self.backend.emit_jne(branch_target);
+                                    }
+                                },
+                                op::CmpOp::NE => {
+                                    if branch_if_true {
+                                        self.backend.emit_jne(branch_target);
+                                    } else {
+                                        self.backend.emit_je(branch_target);
+                                    }
+                                },
+                                op::CmpOp::UGE => {
+                                    if branch_if_true {
+                                        self.backend.emit_jae(branch_target);
+                                    } else {
+                                        self.backend.emit_jb(branch_target);
+                                    }
+                                },
+                                op::CmpOp::UGT => {
+                                    if branch_if_true {
+                                        self.backend.emit_ja(branch_target);
+                                    } else {
+                                        self.backend.emit_jbe(branch_target);
+                                    }
+                                },
+                                op::CmpOp::ULE => {
+                                    if branch_if_true {
+                                        self.backend.emit_jbe(branch_target);
+                                    } else {
+                                        self.backend.emit_ja(branch_target);
+                                    }
+                                },
+                                op::CmpOp::ULT => {
+                                    if branch_if_true {
+                                        self.backend.emit_jb(branch_target);
+                                    } else {
+                                        self.backend.emit_jae(branch_target);
+                                    }
+                                },
+                                op::CmpOp::SGE => {
+                                    if branch_if_true {
+                                        self.backend.emit_jge(branch_target);
+                                    } else {
+                                        self.backend.emit_jl(branch_target);
+                                    }
+                                },
+                                op::CmpOp::SGT => {
+                                    if branch_if_true {
+                                        self.backend.emit_jg(branch_target);
+                                    } else {
+                                        self.backend.emit_jle(branch_target);
+                                    }
+                                },
+                                op::CmpOp::SLE => {
+                                    if branch_if_true {
+                                        self.backend.emit_jle(branch_target);
+                                    } else {
+                                        self.backend.emit_jg(branch_target);
+                                    }
+                                },
+                                op::CmpOp::SLT => {
+                                    if branch_if_true {
+                                        self.backend.emit_jl(branch_target);
+                                    } else {
+                                        self.backend.emit_jge(branch_target);
+                                    }
+                                },
                                 _ => unimplemented!()
                             }
                         } else if self.match_ireg(cond) {
@@ -113,9 +173,9 @@ impl <'a> InstructionSelection {
                             let cond_reg = self.emit_ireg(cond, f_content, f_context, vm);
                             
                             // emit: cmp cond_reg 1
-                            self.backend.emit_cmp_r64_imm32(&cond_reg, 1);
+                            self.backend.emit_cmp_imm32_r64(1, &cond_reg);
                             // emit: je #branch_dest
-                            self.backend.emit_je(branch_target);                            
+                            self.backend.emit_je(branch_target);
                         } else {
                             unimplemented!();
                         }
@@ -745,12 +805,12 @@ impl <'a> InstructionSelection {
                             // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
                             let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
                             let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
-                            self.backend.emit_cmp_r64_mem64(&tmp_end, &mem_limit);
+                            self.backend.emit_cmp_mem64_r64(&mem_limit, &tmp_end);
                             
-                            // branch to slow path if end > limit
-                            // ASM: jl alloc_slow
+                            // branch to slow path if end > limit (end - limit > 0)
+                            // ASM: jg alloc_slow
                             let slowpath = format!("{}_allocslow", node.id());
-                            self.backend.emit_jl(slowpath.clone());
+                            self.backend.emit_jg(slowpath.clone());
                             
                             // update cursor
                             // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
@@ -1503,24 +1563,29 @@ impl <'a> InstructionSelection {
                         let op2 = &ops[op2];
                         
                         if op::is_int_cmp(op) {                        
-                            if self.match_ireg(op1) && self.match_ireg(op2) {
-                                let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                                let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
-                                
-                                self.backend.emit_cmp_r64_r64(&reg_op1, &reg_op2);
-                            } else if self.match_ireg(op1) && self.match_iimm(op2) {
+                            if self.match_ireg(op1) && self.match_iimm(op2) {
                                 let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
                                 let iimm_op2 = self.node_iimm_to_i32(op2);
-                                
-                                self.backend.emit_cmp_r64_imm32(&reg_op1, iimm_op2);
+
+                                // we adopt at&t syntax
+                                // so CMP op1 op2
+                                // is actually CMP op2 op1 (in machine code)
+                                self.backend.emit_cmp_imm32_r64(iimm_op2, &reg_op1);
+
+                                return op;
+                            } else if self.match_ireg(op1) && self.match_ireg(op2) {
+                                let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                                let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+                                self.backend.emit_cmp_r64_r64(&reg_op2, &reg_op1);
+
+                                return op;
                             } else {
                                 unimplemented!()
                             }
                         } else {
                             unimplemented!()
                         }
-                        
-                        op
                     }
                     
                     _ => panic!("expect cmp res to emit")
@@ -1798,12 +1863,12 @@ impl <'a> InstructionSelection {
         let ref dst_ty = dest.ty;
         
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
-            if self.match_ireg(src) {
-                let src_reg = self.emit_ireg(src, f_content, f_context, vm);
-                self.backend.emit_mov_r64_r64(dest, &src_reg);
-            } else if self.match_iimm(src) {
+            if self.match_iimm(src) {
                 let src_imm = self.node_iimm_to_i32(src);
                 self.backend.emit_mov_r64_imm32(dest, src_imm);
+            } else if self.match_ireg(src) {
+                let src_reg = self.emit_ireg(src, f_content, f_context, vm);
+                self.backend.emit_mov_r64_r64(dest, &src_reg);
             } else {
                 panic!("expected an int type op");
             }

@@ -20,7 +20,9 @@ fn test_sum() {
     let lib = testutil::compile_fnc("sum", &sum);
     unsafe {
         let sumptr: ll::Symbol<unsafe extern fn (u64) -> u64> = lib.get(b"sum").unwrap();
-        assert!(sumptr(5) == 10);
-        assert!(sumptr(10) == 45);
+        println!("sum(5) = {}", sumptr(5));
+        assert!(sumptr(5) == 15);
+        println!("sun(10) = {}", sumptr(10));
+        assert!(sumptr(10) == 55);
     }
 }

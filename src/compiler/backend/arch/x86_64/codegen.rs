@@ -27,20 +27,20 @@ pub trait CodeGenerator {
 
     // comparison
     fn emit_cmp_r64_r64  (&mut self, op1: Reg, op2: Reg);
-    fn emit_cmp_r64_imm32(&mut self, op1: Reg, op2: i32);
-    fn emit_cmp_r64_mem64(&mut self, op1: Reg, op2: Mem);
+    fn emit_cmp_imm32_r64(&mut self, op1: i32, op2: Reg);
+    fn emit_cmp_mem64_r64(&mut self, op1: Mem, op2: Reg);
 
     fn emit_cmp_r32_r32  (&mut self, op1: Reg, op2: Reg);
-    fn emit_cmp_r32_imm32(&mut self, op1: Reg, op2: i32);
-    fn emit_cmp_r32_mem32(&mut self, op1: Reg, op2: Mem);
+    fn emit_cmp_imm32_r32(&mut self, op1: i32, op2: Reg);
+    fn emit_cmp_mem32_r32(&mut self, op1: Mem, op2: Reg);
 
     fn emit_cmp_r16_r16  (&mut self, op1: Reg, op2: Reg);
-    fn emit_cmp_r16_imm16(&mut self, op1: Reg, op2: i16);
-    fn emit_cmp_r16_mem16(&mut self, op1: Reg, op2: Mem);
+    fn emit_cmp_imm16_r16(&mut self, op1: i16, op2: Reg);
+    fn emit_cmp_mem16_r16(&mut self, op1: Mem, op2: Reg);
 
-    fn emit_cmp_r8_r8    (&mut self, op1: Reg, op2: Reg);
-    fn emit_cmp_r8_imm8  (&mut self, op1: Reg, op2: i8);
-    fn emit_cmp_r8_mem8  (&mut self, op1: Reg, op2: Mem);
+    fn emit_cmp_r8_r8  (&mut self, op1: Reg, op2: Reg);
+    fn emit_cmp_imm8_r8(&mut self, op1: i8, op2: Reg);
+    fn emit_cmp_mem8_r8(&mut self, op1: Mem, op2: Reg);
 
     // gpr move
 

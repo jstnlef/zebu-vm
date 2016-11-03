@@ -173,6 +173,26 @@ pub enum CmpOp {
     FUNO
 }
 
+impl CmpOp {
+    pub fn swap_operands(self) -> CmpOp {
+        use op::CmpOp::*;
+        match self {
+            EQ => EQ,
+            NE => NE,
+            SGE => SLT,
+            SGT => SLE,
+            SLE => SGT,
+            SLT => SGE,
+            UGE => ULT,
+            UGT => ULE,
+            ULE => UGT,
+            ULT => UGE,
+
+            _ => unimplemented!()
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum ConvOp {
     TRUNC,
