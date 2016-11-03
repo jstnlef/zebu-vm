@@ -12,7 +12,6 @@ use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::ByteSize;
 use runtime::mm as gc;
-
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 use std::path;
@@ -306,6 +305,8 @@ impl Decodable for VM {
 
 impl <'a> VM {
     pub fn new() -> VM {
+        VM::start_logging();
+
         let ret = VM {
             next_id: ATOMIC_USIZE_INIT,
             is_running: ATOMIC_BOOL_INIT,
@@ -351,6 +352,19 @@ impl <'a> VM {
         gc::gc_init(options.immix_size, options.lo_size, options.n_gcthreads);
         
         ret
+    }
+
+    pub fn start_logging() {
+        VM::start_logging_trace();
+    }
+
+    pub fn start_logging_trace() {
+        use simple_logger;
+
+        match simple_logger::init() {
+            Ok(_) => {},
+            Err(_) => {}
+        }
     }
     
     pub fn resume_vm(serialized_vm: &str) -> VM {

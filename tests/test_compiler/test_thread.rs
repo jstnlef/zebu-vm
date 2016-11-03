@@ -1,8 +1,6 @@
 #![allow(unused_imports)]
 
 extern crate mu;
-extern crate log;
-extern crate simple_logger;
 
 use self::mu::ast::types::*;
 use self::mu::ast::ir::*;
@@ -19,7 +17,7 @@ use std::collections::HashMap;
 
 #[test]
 fn test_thread_create() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(primordial_main());
     

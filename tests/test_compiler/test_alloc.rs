@@ -1,5 +1,4 @@
 extern crate log;
-extern crate simple_logger;
 extern crate libloading;
 extern crate mu;
 
@@ -16,7 +15,7 @@ use self::mu::testutil::aot;
 
 #[test]
 fn test_instruction_new() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(alloc_new());
     

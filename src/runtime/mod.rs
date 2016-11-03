@@ -1,5 +1,4 @@
 use log;
-use simple_logger;
 use utils;
 use ast::ir::*;
 use vm::VM;
@@ -176,7 +175,7 @@ pub const PRIMORDIAL_ENTRY : &'static str = "src/runtime/main.c";
 
 #[no_mangle]
 pub extern fn mu_trace_level_log() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
 }
 
 #[no_mangle]

@@ -1,6 +1,4 @@
 extern crate mu;
-extern crate log;
-extern crate simple_logger;
 extern crate libloading;
 
 use mu::testutil::aot;
@@ -19,7 +17,7 @@ use std::collections::HashMap;
 
 #[test]
 fn test_ir_liveness_fac() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(factorial());
     
@@ -77,7 +75,7 @@ fn test_ir_liveness_fac() {
 #[test]
 #[allow(unused_variables)]
 fn test_spill1() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(create_spill1());
     
@@ -279,7 +277,7 @@ fn create_spill1() -> VM {
 
 #[test]
 fn test_simple_spill() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
 
     let vm = Arc::new(create_simple_spill());
 

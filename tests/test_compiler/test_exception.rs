@@ -1,5 +1,4 @@
 extern crate log;
-extern crate simple_logger;
 extern crate libloading;
 extern crate mu;
 
@@ -17,8 +16,7 @@ use std::collections::HashMap;
 
 #[test]
 fn test_exception_simple_throw_catch() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
-    
+    VM::start_logging_trace();
     let vm = Arc::new(simple_throw_catch());
     
     let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());

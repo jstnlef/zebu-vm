@@ -1,16 +1,16 @@
 extern crate mu;
 extern crate log;
-extern crate simple_logger;
 
 use test_ir::test_ir::global_access;
 use self::mu::compiler::*;
+use self::mu::vm::VM;
 
 use std::sync::Arc;
 
 #[test]
 fn test_global_access() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
-    
+    VM::start_logging_trace();
+
     let vm = Arc::new(global_access());
     
     let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());

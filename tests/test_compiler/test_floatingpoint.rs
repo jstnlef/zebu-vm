@@ -1,6 +1,5 @@
 extern crate mu;
 extern crate log;
-extern crate simple_logger;
 extern crate libloading;
 
 use self::mu::ast::types::*;
@@ -16,7 +15,7 @@ use mu::testutil::aot;
 
 #[test]
 fn test_fp_add() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
 
     let vm = Arc::new(fp_add());
 

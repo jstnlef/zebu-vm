@@ -13,8 +13,6 @@ use mu::runtime::mm::heap::freelist;
 use mu::runtime::mm::heap::freelist::FreeListSpace;
 use std::mem::size_of;
 use std::sync::atomic::Ordering;
-use log;
-use simple_logger;
 
 extern crate time;
 

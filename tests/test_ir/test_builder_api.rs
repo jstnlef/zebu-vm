@@ -2,9 +2,6 @@
 #![allow(dead_code)]
 extern crate mu;
 
-extern crate log;
-extern crate simple_logger;
-
 use self::mu::ast::types::*;
 use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
@@ -36,7 +33,7 @@ fn builder_factorial() {
 #[allow(unused_variables)]
 fn test_startup_shutdown() {
     unsafe {
-        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        VM::start_logging_trace();
         
         info!("Starting micro VM...");
 
@@ -76,7 +73,7 @@ fn test_types_sigs_loading() {
     let mut csp: CStringPool = Default::default();
 
     unsafe {
-        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        VM::start_logging_trace();
         
         info!("Starting micro VM...");
 
@@ -128,7 +125,7 @@ fn test_consts_loading() {
     let mut csp: CStringPool = Default::default();
 
     unsafe {
-        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        VM::start_logging_trace();
         
         info!("Starting micro VM...");
 
@@ -163,7 +160,7 @@ fn test_function_loading() {
     let mut csp: CStringPool = Default::default();
 
     unsafe {
-        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        VM::start_logging_trace();
         
         info!("Starting micro VM...");
 
@@ -382,7 +379,7 @@ fn test_insts_call() {
     let mut csp: CStringPool = Default::default();
 
     unsafe {
-        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        VM::start_logging_trace();
         
         info!("Starting micro VM...");
 
@@ -523,7 +520,7 @@ fn test_insts_new() {
     let mut csp: CStringPool = Default::default();
 
     unsafe {
-        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        VM::start_logging_trace();
         
         info!("Starting micro VM...");
 

@@ -1,18 +1,17 @@
 extern crate mu;
-extern crate log;
-extern crate simple_logger;
 
 use common::*;
 use test_ir::test_ir::factorial;
 use test_ir::test_ir::sum;
 use self::mu::ast::ir::*;
 use self::mu::compiler::*;
+use self::mu::vm::VM;
 
 use std::sync::Arc;
 
 #[test]
 fn test_use_count() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(
@@ -38,7 +37,7 @@ fn test_use_count() {
 
 #[test]
 fn test_build_tree() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(
@@ -57,7 +56,7 @@ fn test_build_tree() {
 
 #[test]
 fn test_cfa_factorial() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(vec![
@@ -97,7 +96,7 @@ fn test_cfa_factorial() {
 
 #[test]
 fn test_cfa_sum() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(sum());
     let compiler = Compiler::new(CompilerPolicy::new(vec![
@@ -147,7 +146,7 @@ fn block_edges_into_vec(edges: &Vec<BlockEdge>) -> Vec<MuID> {
 
 #[test]
 fn test_trace_factorial() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(vec![
@@ -170,7 +169,7 @@ fn test_trace_factorial() {
 
 #[test]
 fn test_trace_sum() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(sum());
     let compiler = Compiler::new(CompilerPolicy::new(vec![

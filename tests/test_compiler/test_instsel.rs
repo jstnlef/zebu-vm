@@ -1,15 +1,14 @@
 extern crate mu;
-extern crate log;
-extern crate simple_logger;
 
 use test_ir::test_ir::factorial;
 use self::mu::compiler::*;
+use self::mu::vm::VM;
 
 use std::sync::Arc;
 
 #[test]
 fn test_instsel_fac() {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(factorial());
     

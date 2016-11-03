@@ -12,7 +12,7 @@ use self::rustc_serialize::base64::STANDARD;
 
 #[test]
 fn test_vm_serialize_factorial() {
-    ::simple_logger::init_with_level(::log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
     
     let vm = Arc::new(factorial());
     

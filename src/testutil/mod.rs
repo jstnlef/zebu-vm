@@ -1,5 +1,3 @@
-extern crate log;
-extern crate simple_logger;
 extern crate libloading as ll;
 
 use compiler::*;
@@ -40,7 +38,8 @@ pub fn exec (mut cmd: Command) -> Output {
 }
 
 pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll::Library {
-    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+    VM::start_logging_trace();
+
     let vm = Arc::new(build_fnc());
     let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
     let func_id = vm.id_of(fnc_name);
