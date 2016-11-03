@@ -26,6 +26,9 @@ cache:
     - target
     - Cargo.lock
 
+before_script:
+  - CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
+
 test:cargo:api:
   stage: test
   script:
@@ -49,23 +52,19 @@ test:cargo:runtime:
 testjit:milestones:
   stage: test
   script:
-    - CARGO_HOME=.cargo CC=clang cargo build
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_milestones.py
 
 testjit:binops:
   stage: test
   script:
-    - CARGO_HOME=.cargo CC=clang cargo build
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_binops.py
 
 testjit:cmpops:
   stage: test
   script:
-    - CARGO_HOME=.cargo CC=clang cargo build
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py
 
 testjit:cmpops:
   stage: test
   script:
-    - CARGO_HOME=.cargo CC=clang cargo build
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_convops.py
