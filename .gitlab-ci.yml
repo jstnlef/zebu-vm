@@ -28,7 +28,7 @@ build_test:
         - CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
         # clean up
         - rm -rf .cargo/src
-    cache:
+    artifacts:
       paths:
         - .cargo
         - target
