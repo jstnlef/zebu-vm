@@ -43,6 +43,8 @@ pub trait CodeGenerator {
     fn emit_cmp_r8_mem8  (&mut self, op1: Reg, op2: Mem);
 
     // gpr move
+
+    fn emit_mov_r64_imm64  (&mut self, dest: Reg, src: i64);
     
     fn emit_mov_r64_imm32  (&mut self, dest: Reg, src: i32);
     fn emit_mov_r64_mem64  (&mut self, dest: Reg, src: Mem); // load

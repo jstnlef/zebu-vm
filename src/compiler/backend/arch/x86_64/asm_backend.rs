@@ -1551,6 +1551,8 @@ impl CodeGenerator for ASMCodeGen {
 
     // mov
 
+    mov_r_imm!(emit_mov_r64_imm64, "movabs", 64, i64);
+
     mov_r_imm!(emit_mov_r64_imm32, "mov", 64, i32);
     mov_r_imm!(emit_mov_r32_imm32, "mov", 32, i32);
     mov_r_imm!(emit_mov_r16_imm16, "mov", 16, i16);

@@ -16,42 +16,42 @@ use mu::testutil;
 use mu::testutil::aot;
 
 #[test]
-fn test_u8_add() {
-    let lib = testutil::compile_fnc("u8_add", &u8_add);
+fn test_add_u8() {
+    let lib = testutil::compile_fnc("add_u8", &add_u8);
 
     unsafe {
-        let u8_add : libloading::Symbol<unsafe extern fn(u8, u8) -> u64> = lib.get(b"u8_add").unwrap();
+        let add_u8 : libloading::Symbol<unsafe extern fn(u8, u8) -> u64> = lib.get(b"add_u8").unwrap();
 
-        let u8_add_1_1 = u8_add(1, 1);
-        println!("u8_add(1, 1) = {}", u8_add_1_1);
-        assert!(u8_add_1_1 == 2);
+        let add_u8_1_1 = add_u8(1, 1);
+        println!("add_u8(1, 1) = {}", add_u8_1_1);
+        assert!(add_u8_1_1 == 2);
 
-        let u8_add_255_1 = u8_add(255u8, 1u8);
-        println!("u8_add(255, 1) = {}", u8_add_255_1);
-        assert!(u8_add_255_1 == 0);
+        let add_u8_255_1 = add_u8(255u8, 1u8);
+        println!("add_u8(255, 1) = {}", add_u8_255_1);
+        assert!(add_u8_255_1 == 0);
     }
 }
 
-fn u8_add() -> VM {
+fn add_u8() -> VM {
     let vm = VM::new();
 
     // .typedef @u8 = int<8>
     let type_def_u8 = vm.declare_type(vm.next_id(), MuType_::int(8));
     vm.set_name(type_def_u8.as_entity(), Mu("u8"));
 
-    // .funcsig @u8_add_sig = (@u8 @u8) -> (@u8)
-    let u8_add_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_u8.clone()], vec![type_def_u8.clone(), type_def_u8.clone()]);
-    vm.set_name(u8_add_sig.as_entity(), Mu("u8_add_sig"));
+    // .funcsig @add_u8_sig = (@u8 @u8) -> (@u8)
+    let add_u8_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_u8.clone()], vec![type_def_u8.clone(), type_def_u8.clone()]);
+    vm.set_name(add_u8_sig.as_entity(), Mu("add_u8_sig"));
 
-    // .funcdecl @u8_add <@u8_add_sig>
+    // .funcdecl @add_u8 <@add_u8_sig>
     let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, u8_add_sig.clone());
-    vm.set_name(func.as_entity(), Mu("u8_add"));
+    let func = MuFunction::new(func_id, add_u8_sig.clone());
+    vm.set_name(func.as_entity(), Mu("add_u8"));
     vm.declare_func(func);
 
-    // .funcdef @u8_add VERSION @u8_add_v1 <@u8_add_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, u8_add_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("u8_add_v1"));
+    // .funcdef @add_u8 VERSION @add_u8_v1 <@add_u8_sig>
+    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, add_u8_sig.clone());
+    vm.set_name(func_ver.as_entity(), Mu("add_u8_v1"));
 
     // %entry(<@u8> %a, <@u8> %b):
     let mut blk_entry = Block::new(vm.next_id());
@@ -118,9 +118,9 @@ fn truncate() -> VM {
     // .typedef @u64 = int<64>
     let type_def_u64 = vm.declare_type(vm.next_id(), MuType_::int(64));
     vm.set_name(type_def_u64.as_entity(), Mu("u64"));
-    // .typedef @u8 = int<8>
-    let type_def_u8 = vm.declare_type(vm.next_id(), MuType_::int(8));
-    vm.set_name(type_def_u8.as_entity(), Mu("u8"));
+    // .typedef @u64 = int<8>
+    let type_def_u64 = vm.declare_type(vm.next_id(), MuType_::int(8));
+    vm.set_name(type_def_u64.as_entity(), Mu("u64"));
 
     // .funcsig @truncate_sig = (@u64) -> (@u64)
     let truncate_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_u64.clone()], vec![type_def_u64.clone()]);
@@ -140,11 +140,11 @@ fn truncate() -> VM {
     let mut blk_entry = Block::new(vm.next_id());
     vm.set_name(blk_entry.as_entity(), Mu("entry"));
 
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_u8.clone());
+    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
     vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
 
-    // %r = TRUNC @u64->@u8 %a
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_u8.clone());
+    // %r = TRUNC @u64->@u64 %a
+    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
     vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
 
     let blk_entry_truncate = func_ver.new_inst(Instruction{
@@ -154,12 +154,12 @@ fn truncate() -> VM {
         v: Instruction_::ConvOp{
             operation: ConvOp::TRUNC,
             from_ty: type_def_u64.clone(),
-            to_ty: type_def_u8.clone(),
+            to_ty: type_def_u64.clone(),
             operand: 0
         }
     });
 
-    // %r2 = ZEXT @u8->@u64 %r
+    // %r2 = ZEXT @u64->@u64 %r
     let blk_entry_r2 = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
     vm.set_name(blk_entry_r2.as_entity(), Mu("blk_entry_r2"));
 
@@ -169,7 +169,7 @@ fn truncate() -> VM {
         ops: RwLock::new(vec![blk_entry_r.clone()]),
         v: Instruction_::ConvOp {
             operation: ConvOp::ZEXT,
-            from_ty: type_def_u8.clone(),
+            from_ty: type_def_u64.clone(),
             to_ty: type_def_u64.clone(),
             operand: 0
         }
@@ -259,6 +259,90 @@ fn sext() -> VM {
             to_ty: type_def_i64.clone(),
             operand: 0
         }
+    });
+
+    // RET %r
+    let blk_entry_term = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![blk_entry_r.clone()]),
+        v: Instruction_::Return(vec![0])
+    });
+
+    blk_entry.content = Some(BlockContent{
+        args: vec![blk_entry_a.clone_value()],
+        exn_arg: None,
+        body: vec![blk_entry_add, blk_entry_term],
+        keepalives: None
+    });
+
+    func_ver.define(FunctionContent{
+        entry: blk_entry.id(),
+        blocks: hashmap!{
+            blk_entry.id() => blk_entry
+        }
+    });
+
+    vm.define_func_version(func_ver);
+
+    vm
+}
+
+#[test]
+fn test_add_9f() {
+    let lib = testutil::compile_fnc("add_9f", &add_9f);
+
+    unsafe {
+        let add_9f : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"add_9f").unwrap();
+
+        let add_9f_1 = add_9f(1);
+        println!("add_9f(1) = {}", add_9f_1);
+        assert!(add_9f_1 == 0x1000000000);
+    }
+}
+
+fn add_9f() -> VM {
+    let vm = VM::new();
+
+    // .typedef @u64 = int<64>
+    let type_def_u64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    vm.set_name(type_def_u64.as_entity(), Mu("u64"));
+
+    // .const @int_9f <@u64> = 0xfffffffff
+    let const_def_int_9f = vm.declare_const(vm.next_id(), type_def_u64.clone(), Constant::Int(0xfffffffff));
+    vm.set_name(const_def_int_9f.as_entity(), "int_9f".to_string());
+
+    // .funcsig @add_9f_sig = (@u64) -> (@u64)
+    let add_9f_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_u64.clone()], vec![type_def_u64.clone()]);
+    vm.set_name(add_9f_sig.as_entity(), Mu("add_9f_sig"));
+
+    // .funcdecl @add_9f <@add_9f_sig>
+    let func_id = vm.next_id();
+    let func = MuFunction::new(func_id, add_9f_sig.clone());
+    vm.set_name(func.as_entity(), Mu("add_9f"));
+    vm.declare_func(func);
+
+    // .funcdef @add_9f VERSION @add_9f_v1 <@add_9f_sig>
+    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, add_9f_sig.clone());
+    vm.set_name(func_ver.as_entity(), Mu("add_9f_v1"));
+
+    // %entry(<@u64> %a):
+    let mut blk_entry = Block::new(vm.next_id());
+    vm.set_name(blk_entry.as_entity(), Mu("entry"));
+
+    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
+    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
+
+    let const_int_9f_local = func_ver.new_constant(const_def_int_9f.clone());
+
+    // %r = ADD %a %b
+    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
+    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
+    let blk_entry_add = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_entry_r.clone_value()]),
+        ops: RwLock::new(vec![blk_entry_a.clone(), const_int_9f_local.clone()]),
+        v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
     // RET %r
