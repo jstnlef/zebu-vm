@@ -26,6 +26,8 @@ build_test:
     stage: build
     script:
         - CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
+        # clean up
+        - rm -rf .cargo/src
     cache:
       paths:
         - .cargo
