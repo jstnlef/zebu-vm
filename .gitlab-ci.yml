@@ -19,7 +19,7 @@ image: "qinsoon/ubuntu-zebu-test:v0.1"
 
 # Use cargo to test the project
 cache:
-  key: "$CI_BUILD_STAGE"
+  key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
   paths:
     - .cargo/registry/cache
     - .cargo/registry/index
