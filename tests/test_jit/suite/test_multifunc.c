@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
     bldr->new_bb(bldr, id_34, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_36, id_37}, 2);
     bldr->new_func_ver(bldr, id_33, id_32, (MuBBNode [1]){id_34}, 1);
     bldr->load(bldr);
-    mu->compile_to_sharedlib(mu, "test_multifunc.dylib");
+    mu->compile_to_sharedlib(mu, "test_multifunc.dylib", NULL, 0);
     printf("%s\n", "test_multifunc.dylib");
     return 0;
 }

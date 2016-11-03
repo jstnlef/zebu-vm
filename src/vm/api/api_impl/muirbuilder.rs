@@ -1,6 +1,7 @@
 use super::common::*;
 use ast::op::*;
 use ast::inst::*;
+use std;
 
 pub struct MuIRBuilder {
     /// ref to MuVM
@@ -17,23 +18,23 @@ pub struct MuIRBuilder {
     bundle: TrantientBundle,
 }
 
-pub type IdMap<T> = HashMap<MuID, Box<T>>;
+pub type IdBMap<T> = HashMap<MuID, Box<T>>;
 
 /// A trantient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
 #[derive(Default)]
 pub struct TrantientBundle {
-    types: IdMap<NodeType>,
-    sigs: IdMap<NodeFuncSig>,
-    consts: IdMap<NodeConst>,
-    globals: IdMap<NodeGlobalCell>,
-    funcs: IdMap<NodeFunc>,
-    expfuncs: IdMap<NodeExpFunc>,
-    funcvers: IdMap<NodeFuncVer>,
-    bbs: IdMap<NodeBB>,
-    insts: IdMap<NodeInst>,
-    dest_clauses: IdMap<NodeDestClause>,
-    exc_clauses: IdMap<NodeExcClause>,
-    ka_clauses: IdMap<NodeKeepaliveClause>,
+    types: IdBMap<NodeType>,
+    sigs: IdBMap<NodeFuncSig>,
+    consts: IdBMap<NodeConst>,
+    globals: IdBMap<NodeGlobalCell>,
+    funcs: IdBMap<NodeFunc>,
+    expfuncs: IdBMap<NodeExpFunc>,
+    funcvers: IdBMap<NodeFuncVer>,
+    bbs: IdBMap<NodeBB>,
+    insts: IdBMap<NodeInst>,
+    dest_clauses: IdBMap<NodeDestClause>,
+    exc_clauses: IdBMap<NodeExcClause>,
+    ka_clauses: IdBMap<NodeKeepaliveClause>,
 }
 
 impl MuIRBuilder {
@@ -111,11 +112,11 @@ impl MuIRBuilder {
     }
 
     pub fn new_type_float(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeFloat { id: id }));
     }
 
     pub fn new_type_double(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeDouble { id: id }));
     }
 
     pub fn new_type_uptr(&mut self, id: MuID, ty: MuID) {
@@ -134,55 +135,62 @@ impl MuIRBuilder {
     }
 
     pub fn new_type_hybrid(&mut self, id: MuID, fixedtys: Vec<MuID>, varty: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeHybrid { id: id,
+            fixedtys: fixedtys, varty: varty }));
     }
 
     pub fn new_type_array(&mut self, id: MuID, elemty: MuID, len: u64) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeArray { id: id,
+            elemty: elemty, len: len as usize }));
     }
 
     pub fn new_type_vector(&mut self, id: MuID, elemty: MuID, len: u64) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeVector { id: id,
+            elemty: elemty, len: len as usize }));
     }
 
     pub fn new_type_void(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeVoid { id: id }));
     }
 
     pub fn new_type_ref(&mut self, id: MuID, ty: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeRef{ id: id,
+            ty: ty }));
     }
 
     pub fn new_type_iref(&mut self, id: MuID, ty: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeIRef{ id: id,
+            ty: ty }));
     }
 
     pub fn new_type_weakref(&mut self, id: MuID, ty: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeWeakRef{ id: id,
+            ty: ty }));
     }
 
     pub fn new_type_funcref(&mut self, id: MuID, sig: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeFuncRef{ id: id,
+            sig: sig }));
     }
 
     pub fn new_type_tagref64(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeTagRef64 { id: id }));
     }
 
     pub fn new_type_threadref(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeThreadRef { id: id }));
     }
 
     pub fn new_type_stackref(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeStackRef { id: id }));
     }
 
     pub fn new_type_framecursorref(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeFrameCursorRef { id: id }));
     }
 
     pub fn new_type_irbuilderref(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle.types.insert(id, Box::new(NodeType::TypeIRBuilderRef { id: id }));
     }
 
     pub fn new_funcsig(&mut self, id: MuID, paramtys: Vec<MuID>, rettys: Vec<MuID>) {
@@ -200,23 +208,28 @@ impl MuIRBuilder {
     }
 
     pub fn new_const_float(&mut self, id: MuID, ty: MuID, value: f32) {
-        panic!("Not implemented")
+        self.bundle.consts.insert(id, Box::new(NodeConst::ConstFloat { id: id,
+            ty: ty, value: value }));
     }
 
     pub fn new_const_double(&mut self, id: MuID, ty: MuID, value: f64) {
-        panic!("Not implemented")
+        self.bundle.consts.insert(id, Box::new(NodeConst::ConstDouble { id: id,
+            ty: ty, value: value }));
     }
 
     pub fn new_const_null(&mut self, id: MuID, ty: MuID) {
-        panic!("Not implemented")
+        self.bundle.consts.insert(id, Box::new(NodeConst::ConstNull { id: id,
+            ty: ty }));
     }
 
     pub fn new_const_seq(&mut self, id: MuID, ty: MuID, elems: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.consts.insert(id, Box::new(NodeConst::ConstSeq { id: id,
+            ty: ty, elems: elems }));
     }
 
     pub fn new_const_extern(&mut self, id: MuID, ty: MuID, symbol: String) {
-        panic!("Not implemented")
+        self.bundle.consts.insert(id, Box::new(NodeConst::ConstExtern { id: id,
+            ty: ty, symbol: symbol }));
     }
 
     pub fn new_global_cell(&mut self, id: MuID, ty: MuID) {
@@ -527,13 +540,15 @@ struct BundleLoader<'lb, 'lvm> {
     visited: HashSet<MuID>,
     built_types: IdPMap<MuType>,
     built_sigs: IdPMap<MuFuncSig>,
-    built_values: IdPMap<Value>,
-    built_funcs: IdPMap<MuFunction>,
-    built_funcvers: IdPMap<MuFunctionVersion>,
+    built_constants: IdPMap<Value>,
+    built_globals: IdPMap<Value>,
+    built_funcs: IdBMap<MuFunction>,
+    built_funcvers: IdBMap<MuFunctionVersion>,
     struct_id_tags: Vec<(MuID, MuName)>,
     built_refi64: Option<P<MuType>>,
     built_i1: Option<P<MuType>>,
     built_funcref_of: IdPMap<MuType>,
+    built_ref_of: IdPMap<MuType>,
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -548,13 +563,15 @@ fn load_bundle(b: &mut MuIRBuilder) {
         visited: Default::default(),
         built_types: Default::default(),
         built_sigs: Default::default(),
-        built_values: Default::default(),
+        built_constants: Default::default(),
+        built_globals: Default::default(),
         built_funcs: Default::default(),
         built_funcvers: Default::default(),
         struct_id_tags: Default::default(),
         built_refi64: Default::default(),
         built_i1: Default::default(),
         built_funcref_of: Default::default(),
+        built_ref_of: Default::default(),
     };
 
     bl.load_bundle();
@@ -572,6 +589,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
         self.ensure_names();
         self.build_toplevels();
+        self.add_everything_to_vm();
     }
 
     fn ensure_refi64(&mut self) -> P<MuType> {
@@ -643,6 +661,39 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.built_funcref_of.insert(sig_id, impl_funcref.clone());
 
         impl_funcref
+    }
+
+    fn ensure_type_generic<F>(id: MuID, hint: &str,
+                         vm: &VM, cache_map: &mut IdPMap<MuType>, storage_map: &mut IdPMap<MuType>,
+                         factory: F) -> P<MuType> where F: Fn(P<MuType>) -> MuType_ {
+        if let Some(obj) = cache_map.get(&id) {
+            return obj.clone();
+        }
+
+        let new_id = vm.next_id();
+
+        let old_obj = storage_map.get(&id).unwrap().clone();
+
+        let impl_type_ = factory(old_obj);
+
+        let new_obj = P(MuType {
+            hdr: MuEntityHeader::unnamed(new_id),
+            v: impl_type_,
+        });
+
+        storage_map.insert(new_id, new_obj.clone());
+
+        trace!("Ensure {} of {} is defined: {:?}", hint, id, new_obj);
+
+        cache_map.insert(new_id, new_obj.clone());
+
+        new_obj
+    }
+
+    fn ensure_ref(&mut self, ty_id: MuID) -> P<MuType> {
+        BundleLoader::ensure_type_generic(ty_id, "ref", &self.vm, &mut self.built_ref_of, &mut self.built_types, |impl_ty| {
+            MuType_::Ref(impl_ty)
+        })
     }
 
     fn name_from_id(id: MuID, hint: &str) -> String {
@@ -738,21 +789,68 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
 
         let impl_ty_ = match **ty {
-            NodeType::TypeInt { id: _, len: len } => {
+            NodeType::TypeInt { id: _, len } => {
                 MuType_::Int(len as usize)
             },
-            NodeType::TypeUPtr { id: _, ty: toty } => {
-                let toty_i = self.ensure_type_rec(toty);
-                MuType_::UPtr(toty_i)
+            NodeType::TypeFloat { id: _ } => {
+                MuType_::Float
             },
-            NodeType::TypeUFuncPtr { id: _, sig: sig } => {
-                let sig_i = self.ensure_sig_rec(sig);
-                MuType_::UFuncPtr(sig_i)
+            NodeType::TypeDouble { id: _ } => {
+                MuType_::Double
+            },
+            NodeType::TypeUPtr { id: _, ty: toty } => {
+                let impl_toty = self.ensure_type_rec(toty);
+                MuType_::UPtr(impl_toty)
+            },
+            NodeType::TypeUFuncPtr { id: _, sig } => {
+                let impl_sig = self.ensure_sig_rec(sig);
+                MuType_::UFuncPtr(impl_sig)
             },
             NodeType::TypeStruct { id: _, fieldtys: _ } => { 
                 let tag = self.get_name(id);
                 self.struct_id_tags.push((id, tag.clone()));
                 MuType_::Struct(tag)
+            },
+            NodeType::TypeHybrid { id: _, ref fixedtys, varty } => { 
+                let impl_fixedtys = fixedtys.iter().map(|t| self.ensure_type_rec(*t)).collect::<Vec<_>>();
+                let impl_varty = self.ensure_type_rec(varty);
+                MuType_::Hybrid(impl_fixedtys, impl_varty)
+            },
+            NodeType::TypeArray { id: _, elemty, len } => { 
+                let impl_elemty = self.ensure_type_rec(elemty);
+                MuType_::Array(impl_elemty, len)
+            },
+            NodeType::TypeVector { id: _, elemty, len } => { 
+                let impl_elemty = self.ensure_type_rec(elemty);
+                MuType_::Vector(impl_elemty, len)
+            },
+            NodeType::TypeVoid { id: _ } => {
+                MuType_::Void
+            },
+            NodeType::TypeTagRef64 { id: _ } => {
+                MuType_::Tagref64
+            },
+            NodeType::TypeRef { id: _, ty: toty } => {
+                let impl_toty = self.ensure_type_rec(toty);
+                MuType_::Ref(impl_toty)
+            },
+            NodeType::TypeIRef { id: _, ty: toty } => {
+                let impl_toty = self.ensure_type_rec(toty);
+                MuType_::IRef(impl_toty)
+            },
+            NodeType::TypeWeakRef { id: _, ty: toty } => {
+                let impl_toty = self.ensure_type_rec(toty);
+                MuType_::WeakRef(impl_toty)
+            },
+            NodeType::TypeFuncRef { id: _, sig } => {
+                let impl_sig = self.ensure_sig_rec(sig);
+                MuType_::FuncRef(impl_sig)
+            },
+            NodeType::TypeThreadRef { id: _ } => {
+                MuType_::ThreadRef
+            },
+            NodeType::TypeStackRef { id: _ } => {
+                MuType_::StackRef
             },
             ref t => panic!("{:?} not implemented", t),
         };
@@ -869,6 +967,21 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let c = Constant::Int(value);
                 (c, t)
             },
+            NodeConst::ConstFloat { id: _, ty: ty, value: value } => {
+                let t = self.ensure_type_rec(ty);
+                let c = Constant::Float(value);
+                (c, t)
+            },
+            NodeConst::ConstDouble { id: _, ty: ty, value: value } => {
+                let t = self.ensure_type_rec(ty);
+                let c = Constant::Double(value);
+                (c, t)
+            },
+            NodeConst::ConstNull { id: _, ty: ty } => {
+                let t = self.ensure_type_rec(ty);
+                let c = Constant::NullRef;
+                (c, t)
+            },
             ref c => panic!("{:?} not implemented", c),
         };
 
@@ -880,7 +993,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Constant built: {} {:?}", id, impl_val);
 
-        self.built_values.insert(id, P(impl_val));
+        self.built_constants.insert(id, P(impl_val));
     }
 
     fn build_func(&mut self, id: MuID) {
@@ -902,7 +1015,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Function built: {} {:?}", id, impl_fun);
 
-        self.built_funcs.insert(id, P(impl_fun));
+        self.built_funcs.insert(id, Box::new(impl_fun));
 
         let impl_ty = self.ensure_funcref(fun.sig);
 
@@ -914,8 +1027,17 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Function value built: {} {:?}", id, impl_val);
 
-        self.built_values.insert(id, P(impl_val));
+        self.built_constants.insert(id, P(impl_val));
     }
+
+    fn get_sig_for_func(&mut self, id: MuID) -> P<MuFuncSig> {
+        if let Some(impl_func) = self.built_funcs.get(&id) {
+            impl_func.sig.clone()
+        } else {
+            self.vm.get_func_sig_for_func(id)
+        }
+    }
+
 
     fn build_funcver(&mut self, id: MuID) {
         let fv = self.b.bundle.funcvers.get(&id).unwrap();
@@ -923,10 +1045,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Building function version {} {:?}", id, fv);
 
         let hdr = self.make_mu_entity_header(id);
-        let impl_sig = {
-            let fun = self.built_funcs.get(&fv.func).unwrap();
-            fun.sig.clone()
-        };
+        let func_id = fv.func;
+        let impl_sig = self.get_sig_for_func(func_id);
 
         let mut fcb: FuncCtxBuilder = Default::default();
 
@@ -943,7 +1063,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_fv = MuFunctionVersion {
             hdr: hdr,
-            func_id: id,
+            func_id: func_id,
             sig: impl_sig,
             content: Some(ctn),
             context: fcb.ctx,
@@ -952,7 +1072,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         trace!("Function version built {} {:?}", id, impl_fv);
 
-        self.built_funcvers.insert(id, P(impl_fv));
+        self.built_funcvers.insert(id, Box::new(impl_fv));
     }
 
     /// Copied from ast::ir::*. That was implemented for the previous API which implies mutability.
@@ -995,7 +1115,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn get_treenode(&self, fcb: &FuncCtxBuilder, id: MuID) -> P<TreeNode> {
         if let Some(tn) = fcb.tree_nodes.get(&id) {
             tn.clone()
-        } else if let Some(v) = self.built_values.get(&id) {
+        } else if let Some(v) = self.built_constants.get(&id) {
             self.new_global(v.clone())
         } else {
             panic!("Operand {} is neither a local var or a global var", id)
@@ -1139,36 +1259,43 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeInst::NodeConv {
                 id: _, result_id, optr, from_ty, to_ty, opnd
             } => {
-                panic!("Conversion not implemented")
-                    // let impl_optr = match optr {
-                    //     CMU_CONV_TRUNC   => ComvOp::TRUNC,
-                    //     CMU_CONV_ZEXT    => ComvOp::ZEXT,
-                    //     CMU_CONV_SEXT    => ComvOp::SEXT,
-                    //     CMU_CONV_FPTRUNC => ComvOp::FPTRUNC,
-                    //     CMU_CONV_FPEXT   => ComvOp::FPEXT,
-                    //     CMU_CONV_FPTOUI  => ComvOp::FPTOUI,
-                    //     CMU_CONV_FPTOSI  => ComvOp::FPTOSI,
-                    //     CMU_CONV_UITOFP  => ComvOp::UITOFP,
-                    //     CMU_CONV_SITOFP  => ComvOp::SITOFP,
-                    //     CMU_CONV_BITCAST => ComvOp::BITCAST,
-                    //     CMU_CONV_REFCAST => ComvOp::REFCAST,
-                    //     CMU_CONV_PTRCAST => ComvOp::PTRCAST,
-                    //     _ => panic!("Illegal conversion operator {}", optr)
-                    // };
-                    // let impl_to_ty = self.get_built_type(to_ty);
-                    // let impl_opnd = self.get_treenode(fcb, opnd);
-                    // let impl_rv = self.new_ssa(fcb, result_id, impl_to_ty);
-                    // let impl_rv_value = impl_rv.clone_value();
+                let impl_optr = match optr {
+                    CMU_CONV_TRUNC   => ConvOp::TRUNC,
+                    CMU_CONV_ZEXT    => ConvOp::ZEXT,
+                    CMU_CONV_SEXT    => ConvOp::SEXT,
+                    CMU_CONV_FPTRUNC => ConvOp::FPTRUNC,
+                    CMU_CONV_FPEXT   => ConvOp::FPEXT,
+                    CMU_CONV_FPTOUI  => ConvOp::FPTOUI,
+                    CMU_CONV_FPTOSI  => ConvOp::FPTOSI,
+                    CMU_CONV_UITOFP  => ConvOp::UITOFP,
+                    CMU_CONV_SITOFP  => ConvOp::SITOFP,
+                    CMU_CONV_BITCAST => ConvOp::BITCAST,
+                    CMU_CONV_REFCAST => ConvOp::REFCAST,
+                    CMU_CONV_PTRCAST => ConvOp::PTRCAST,
+                    _ => panic!("Illegal conversion operator {}", optr)
+                };
+                let impl_from_ty = self.get_built_type(from_ty);
+                let impl_to_ty = self.get_built_type(to_ty);
+                let impl_opnd = self.get_treenode(fcb, opnd);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_to_ty.clone());
+                let impl_rv_value = impl_rv.clone_value();
 
-                    // Instruction {
-                    //     hdr: hdr,
-                    //     value: Some(vec![impl_rv_value]),
-                    //     ops: RwLock::new(vec![impl_opnd]),
-                    //     v: Instruction_::ComvOp(impl_optr, 0),
-                    // }
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv_value]),
+                    ops: RwLock::new(vec![impl_opnd]),
+                    v: Instruction_::ConvOp {
+                        operation: impl_optr,
+                        from_ty: impl_from_ty,
+                        to_ty: impl_to_ty,
+                        operand: 0,
+                    },
+                }
             },
             NodeInst::NodeBranch { id: _, dest } => { 
-                let (impl_dest, ops) = self.build_destination(fcb, dest, 0, &[]);
+                let mut ops: Vec<P<TreeNode>> = Vec::new();
+
+                let impl_dest = self.build_destination(fcb, dest, &mut ops, &[]);
 
                 Instruction {
                     hdr: hdr,
@@ -1180,14 +1307,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeInst::NodeBranch2 { id: _, cond, if_true, if_false } => { 
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-                let impl_cond = self.get_treenode(fcb, cond);
-                ops.push(impl_cond);
+                self.add_opnd(fcb, &mut ops, cond);
 
-                let (impl_dest_true, mut ops_true) = self.build_destination(fcb, if_true, ops.len(), &[]);
-                ops.append(&mut ops_true);
+                let impl_dest_true = self.build_destination(fcb, if_true, &mut ops, &[]);
 
-                let (impl_dest_false, mut ops_false) = self.build_destination(fcb, if_false, ops.len(), &[]);
-                ops.append(&mut ops_false);
+                let impl_dest_false = self.build_destination(fcb, if_false, &mut ops, &[]);
 
                 Instruction {
                     hdr: hdr,
@@ -1206,19 +1330,15 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-                let impl_cond = self.get_treenode(fcb, opnd);
-                ops.push(impl_cond);
+                self.add_opnd(fcb, &mut ops, opnd);
 
-                let (impl_dest_def, mut ops_def) = self.build_destination(fcb, default_dest, ops.len(), &[]);
-                ops.append(&mut ops_def);
+                let impl_dest_def = self.build_destination(fcb, default_dest, &mut ops, &[]);
 
                 let impl_branches = cases.iter().zip(dests).map(|(cid, did)| {
                     let case_opindex = ops.len();
-                    let impl_case = self.get_treenode(fcb, *cid);
-                    ops.push(impl_case);
+                    self.add_opnd(fcb, &mut ops, *cid);
 
-                    let (impl_dest, mut ops_dest) = self.build_destination(fcb, *did, ops.len(), &[]);
-                    ops.append(&mut ops_dest);
+                    let impl_dest = self.build_destination(fcb, *did, &mut ops, &[]);
 
                     (case_opindex, impl_dest)
                 }).collect::<Vec<_>>();
@@ -1237,71 +1357,22 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeInst::NodeCall {
                 id: _, ref result_ids, sig, callee, ref args, exc_clause, keepalive_clause
             } => {
+                self.build_call_or_ccall(fcb, hdr, result_ids, sig, callee, args,
+                                         exc_clause, keepalive_clause,
+                                         false, CallConvention::Mu)
+            },
+            NodeInst::NodeTailCall {
+                id: _, sig, callee, ref args
+            } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-                let impl_func = self.get_treenode(fcb, callee);
-                ops.push(impl_func);
+                let call_data = self.build_call_data(fcb, &mut ops, callee, args, CallConvention::Mu);
 
-                let mut impl_args = args.iter().map(|argid| {
-                    self.get_treenode(fcb, *argid)
-                }).collect::<Vec<_>>();
-                ops.append(&mut impl_args);
-
-                let args_opindexes = (1..(args.len()+1)).collect::<Vec<_>>();
-
-                let call_data = CallData {
-                    func: 0,
-                    args: args_opindexes,
-                    convention: CallConvention::Mu,
-                };
-
-                let signode = self.b.bundle.sigs.get(&sig).unwrap();
-                let rettys_ids = &signode.rettys;
-
-                let rvs = result_ids.iter().zip(rettys_ids).map(|(rvid, rvty)| {
-                    let impl_rvty = self.get_built_type(*rvty);
-                    self.new_ssa(fcb, *rvid, impl_rvty).clone_value()
-                }).collect::<Vec<_>>();
-
-                if let Some(ecid) = exc_clause {
-                    // terminating inst
-                    let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
-                    
-                    let (impl_normal_dest, mut nor_ops) = {
-                        self.build_destination(fcb, ecnode.nor, ops.len(), result_ids.as_slice())
-                    };
-                    ops.append(&mut nor_ops);
-
-                    let (impl_exn_dest, mut exc_ops) = {
-                        self.build_destination(fcb, ecnode.exc, ops.len(), &[])
-                    };
-                    ops.append(&mut exc_ops);
-                   
-                    let resumption_data = ResumptionData {
-                        normal_dest: impl_normal_dest,
-                        exn_dest: impl_exn_dest,
-                    };
-
-                    Instruction {
-                        hdr: hdr,
-                        value: Some(rvs),
-                        ops: RwLock::new(ops),
-                        v: Instruction_::Call{
-                            data: call_data,
-                            resume: resumption_data,
-                        },
-                    }
-                } else {
-                    // non-terminating inst
-                    Instruction {
-                        hdr: hdr,
-                        value: Some(rvs),
-                        ops: RwLock::new(ops),
-                        v: Instruction_::ExprCall {
-                            data: call_data,
-                            is_abort: false,
-                        },
-                    }
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(ops),
+                    v: Instruction_::TailCall(call_data),
                 }
             },
             NodeInst::NodeRet { id: _, ref rvs } => {
@@ -1315,6 +1386,36 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::Return(op_indexes),
                 }
             },
+            NodeInst::NodeThrow { id: _, exc } => {
+                let impl_exc = self.get_treenode(fcb, exc);
+
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(vec![impl_exc]),
+                    v: Instruction_::Throw(0),
+                }
+            },
+            NodeInst::NodeNew { id: _, result_id, allocty, exc_clause } => {
+                let impl_allocty = self.get_built_type(allocty);
+                let impl_rvtype = self.ensure_ref(allocty);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype);
+                let impl_rv_value = impl_rv.clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv_value]),
+                    ops: RwLock::new(vec![]),
+                    v: Instruction_::New(impl_allocty),
+                }
+            },
+            NodeInst::NodeCCall {
+                id: _, ref result_ids, callconv: _, callee_ty: _,
+                sig, callee, ref args, exc_clause, keepalive_clause
+            } => {
+                self.build_call_or_ccall(fcb, hdr, result_ids, sig, callee, args,
+                                         exc_clause, keepalive_clause,
+                                         true, CallConvention::Foreign(ForeignFFI::C))
+            },
             ref i => panic!("{:?} not implemented", i),
         };
 
@@ -1324,23 +1425,18 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn build_destination(&mut self, fcb: &mut FuncCtxBuilder, id: MuID,
-                         next_op_index: usize, inst_result_ids: &[MuID],
-                         ) -> (Destination, Vec<P<TreeNode>>) {
+                         ops: &mut Vec<P<TreeNode>>, inst_result_ids: &[MuID],
+                         ) -> Destination {
         let dest_clause = self.b.bundle.dest_clauses.get(&id).unwrap();
 
         let target = dest_clause.dest;
-
-        let mut next_my_index = next_op_index;
-        let mut var_treenodes: Vec<P<TreeNode>> = Vec::new();
 
         let dest_args = dest_clause.vars.iter().map(|vid| {
             if let Some(ind) = inst_result_ids.iter().position(|rid| *rid == *vid) {
                 DestArg::Freshbound(ind)
             } else {
-                let treenode = self.get_treenode(fcb, *vid);
-                let my_index = next_my_index;
-                next_my_index += 1;
-                var_treenodes.push(treenode);
+                let my_index = ops.len();
+                self.add_opnd(fcb, ops, *vid);
                 DestArg::Normal(my_index)
             }
         }).collect::<Vec<_>>();
@@ -1350,6 +1446,122 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             args: dest_args,
         };
 
-        (impl_dest, var_treenodes)
+        impl_dest
+    }
+
+    fn add_opnd(&mut self, fcb: &mut FuncCtxBuilder, ops: &mut Vec<P<TreeNode>>, opnd: MuID) {
+        let impl_opnd = self.get_treenode(fcb, opnd);
+        ops.push(impl_opnd);
+    }
+
+    fn add_opnds(&mut self, fcb: &mut FuncCtxBuilder, ops: &mut Vec<P<TreeNode>>, opnds: &[MuID]) {
+        for opnd in opnds {
+            self.add_opnd(fcb, ops, *opnd)
+        }
+    }
+
+    fn build_call_data(&mut self, fcb: &mut FuncCtxBuilder, ops: &mut Vec<P<TreeNode>>,
+                       callee: MuID, args: &[MuID], call_conv: CallConvention) -> CallData {
+        let func_index = ops.len();
+        self.add_opnd(fcb, ops, callee);
+
+        let args_begin_index = ops.len();
+        self.add_opnds(fcb, ops, args);
+
+        let args_opindexes = (args_begin_index..(args.len()+1)).collect::<Vec<_>>();
+
+        let call_data = CallData {
+            func: func_index,
+            args: args_opindexes,
+            convention: call_conv,
+        };
+
+        call_data
+    }
+
+    fn build_call_or_ccall(&mut self, fcb: &mut FuncCtxBuilder, hdr: MuEntityHeader,
+                           result_ids: &[MuID], sig: MuID, callee: MuID, args: &[MuID],
+                           exc_clause: Option<MuID>, keepalive_claue: Option<MuID>,
+                           is_ccall: bool, call_conv: CallConvention) -> Instruction {
+        let mut ops: Vec<P<TreeNode>> = Vec::new();
+
+        let call_data = self.build_call_data(fcb, &mut ops, callee, args, CallConvention::Mu);
+
+        let signode = self.b.bundle.sigs.get(&sig).unwrap();
+        let rettys_ids = &signode.rettys;
+
+        let rvs = result_ids.iter().zip(rettys_ids).map(|(rvid, rvty)| {
+            let impl_rvty = self.get_built_type(*rvty);
+            self.new_ssa(fcb, *rvid, impl_rvty).clone_value()
+        }).collect::<Vec<_>>();
+
+        if let Some(ecid) = exc_clause {
+            // terminating inst
+            let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
+
+            let impl_normal_dest = {
+                self.build_destination(fcb, ecnode.nor, &mut ops, result_ids)
+            };
+
+            let impl_exn_dest = {
+                self.build_destination(fcb, ecnode.exc, &mut ops, &[])
+            };
+
+            let resumption_data = ResumptionData {
+                normal_dest: impl_normal_dest,
+                exn_dest: impl_exn_dest,
+            };
+
+            let impl_inst_ = if is_ccall {
+                Instruction_::CCall{
+                    data: call_data,
+                    resume: resumption_data,
+                }
+            } else {
+                Instruction_::Call{
+                    data: call_data,
+                    resume: resumption_data,
+                }
+            };
+
+            Instruction {
+                hdr: hdr,
+                value: Some(rvs),
+                ops: RwLock::new(ops),
+                v: impl_inst_,
+            }
+        } else {
+            // non-terminating inst
+            if is_ccall {
+                warn!("Using ExprCall for non-terminating C call")
+            }
+            Instruction {
+                hdr: hdr,
+                value: Some(rvs),
+                ops: RwLock::new(ops),
+                v: Instruction_::ExprCall {
+                    data: call_data,
+                    is_abort: false,
+                },
+            }
+        }
+    }
+
+    fn add_everything_to_vm(&mut self) {
+        let vm = self.vm;
+
+        trace!("Loading bundle to the VM...");
+
+        vm.declare_many(
+            &mut self.id_name_map,
+            &mut self.built_types,
+            &mut self.built_sigs,
+            &mut self.built_constants,
+            &mut self.built_globals,
+            &mut self.built_funcs,
+            &mut self.built_funcvers,
+            );
+
+        trace!("Bundle loaded to the VM!");
     }
 }

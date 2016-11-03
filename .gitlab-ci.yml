@@ -35,21 +35,21 @@ test:cargo:api:
   dependencies:
       - build_test
   script:
-    - RUST_BACKTRACE=1 CC=clang cargo test test_api
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_api
 
 test:cargo:ir:
   stage: test
   dependencies:
       - build_test
   script:
-    - RUST_BACKTRACE=1 CC=clang cargo test test_ir
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_ir
 
 test:cargo:compiler:
   stage: test
   dependencies:
       - build_test
   script:
-    - RUST_BACKTRACE=1 CC=clang cargo test test_compiler
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_compiler
 
 test:cargo:runtime:
   stage: test
@@ -63,18 +63,27 @@ testjit:milestones:
   dependencies:
       - build_test
   script:
-  - RUST_BACKTRACE=1 pytest tests/test_jit/test_milestones.py
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build 2>/dev/null
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_milestones.py
 
 testjit:binops:
   stage: test
   dependencies:
       - build_test
   script:
-  - RUST_BACKTRACE=1 pytest tests/test_jit/test_binops.py
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build 2>/dev/null
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_binops.py
 
 testjit:cmpops:
   stage: test
   dependencies:
       - build_test
   script:
-  - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build 2>/dev/null
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py
+
+testjit:cmpops:
+  stage: test
+  script:
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo build 2>/dev/null
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_convops.py

@@ -64,6 +64,8 @@ echo "KERNEL: $KERNEL"
 echo "ARCH: $MACH"
 echo "---------"
 
+rm emit/*
+
 if [ "$OS" == "linux" ]; then
 	RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang-3.8 cargo test "$@"
 elif [ "$OS" == "Darwin" ]; then

@@ -144,6 +144,11 @@ fn test_consts_loading() {
         ((*b).new_type_int)(b, id1, 32);
         ((*b).new_const_int)(b, id2, id1, 42);
 
+        let id_refi32 = ((*b).gen_sym)(b, csp.get("@refi32"));
+        let id_nullrefi32 = ((*b).gen_sym)(b, csp.get("@CONST_REFI32_NULL"));
+        ((*b).new_type_ref)(b, id_refi32, id1);
+        ((*b).new_const_null)(b, id_nullrefi32, id_refi32);
+
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
 
@@ -427,7 +432,7 @@ fn test_insts_call() {
 
             let id_call1 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call1"));
             let id_call2 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call2"));
-            let mut insts = vec![id_call1];//, id_call2];
+            let mut insts = vec![id_call1, id_call2];
 
             ((*b).new_bb)(b, id_entry,
                           args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
@@ -435,13 +440,145 @@ fn test_insts_call() {
                           insts.as_mut_ptr(), insts.len());
 
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.entry.y"));
-            let mut args = vec![id_x];
-            let mut rvs  = vec![id_y];
-            ((*b).new_call)(b, id_call1,
-                            rvs.as_mut_ptr(), rvs.len(),
-                            id_sig, id_func, args.as_mut_ptr(), args.len(), 0, 0);
+
+            {
+                let mut args = vec![id_x];
+                let mut rvs  = vec![id_y];
+                ((*b).new_call)(b, id_call1,
+                                rvs.as_mut_ptr(), rvs.len(),
+                                id_sig, id_func, args.as_mut_ptr(), args.len(), 0, 0);
+            }
+            
+            let id_z = ((*b).gen_sym)(b, csp.get("@func.v1.entry.z"));
+
+            {
+                let mut args = vec![id_y];
+                let mut rvs  = vec![id_z];
+
+                let id_dest1 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call2.dest1"));
+                let id_dest2 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call2.dest2"));
+                let id_exc = ((*b).gen_sym)(b, csp.get("@func.v1.entry.call2.exc"));
+                ((*b).new_exc_clause)(b, id_exc, id_dest1, id_dest2);
+                {
+                    let mut dest_args = vec![id_y, id_z, id_x];
+                    ((*b).new_dest_clause)(b, id_dest1, id_bb1, dest_args.as_mut_ptr(), dest_args.len());
+                }
+                {
+                    let mut dest_args = vec![];
+                    ((*b).new_dest_clause)(b, id_dest2, id_bb2, dest_args.as_mut_ptr(), dest_args.len());
+                }
+
+                ((*b).new_call)(b, id_call2,
+                                rvs.as_mut_ptr(), rvs.len(),
+                                id_sig, id_func, args.as_mut_ptr(), args.len(), id_exc, 0);
+            }
         }
 
+        {
+            let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.y"));
+            let id_z = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.z"));
+            let id_x = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.x"));
+            let mut args = vec![id_y, id_z, id_x];
+            let mut argtys = vec![id_i32, id_i32, id_i32];
+
+            let id_ret = ((*b).gen_sym)(b, csp.get("@func.v1.bb1.ret"));
+            let mut insts = vec![id_ret];
+
+            ((*b).new_bb)(b, id_bb1,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+
+            let mut retvars = vec![id_z];
+            ((*b).new_ret)(b, id_ret, retvars.as_mut_ptr(), retvars.len());
+        }
+
+        {
+            let mut args = vec![];
+            let mut argtys = vec![];
+
+            let id_ret = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.ret"));
+            let mut insts = vec![id_ret];
+
+            ((*b).new_bb)(b, id_bb2,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+
+            let mut retvars = vec![id_const1];
+            ((*b).new_ret)(b, id_ret, retvars.as_mut_ptr(), retvars.len());
+        }
+
+
+        ((*b).load)(b);
+        ((*ctx).close_context)(ctx);
+
+        info!("Finished.");
+    }
+}
+
+#[test]
+#[allow(unused_variables)]
+fn test_insts_new() {
+    let mut csp: CStringPool = Default::default();
+
+    unsafe {
+        simple_logger::init_with_level(log::LogLevel::Trace).ok();
+        
+        info!("Starting micro VM...");
+
+        let mvm = mu_fastimpl_new();
+
+        let ctx = ((*mvm).new_context)(mvm);
+
+        let b = ((*ctx).new_ir_builder)(ctx);
+
+        let id_i32 = ((*b).gen_sym)(b, csp.get("@i32"));
+        let id_sig = ((*b).gen_sym)(b, csp.get("@sig"));
+        let id_func = ((*b).gen_sym)(b, csp.get("@func"));
+
+        ((*b).new_type_int)(b, id_i32, 32);
+
+        let mut ptys = vec![];
+        let mut rtys = vec![];
+        ((*b).new_funcsig)(b, id_sig,
+                           ptys.as_mut_ptr(), ptys.len(),
+                           rtys.as_mut_ptr(), rtys.len());
+
+        ((*b).new_func)(b, id_func, id_sig);
+
+        let id_funcver = ((*b).gen_sym)(b, csp.get("@func.v1"));
+
+        let id_entry = ((*b).gen_sym)(b, csp.get("@func.v1.entry"));
+
+        let mut bbs = vec![
+            id_entry,
+        ];
+        ((*b).new_func_ver)(b, id_funcver, id_func, bbs.as_mut_ptr(), bbs.len());
+
+        {
+            let mut args = vec![];
+            let mut argtys = vec![];
+
+            let id_new = ((*b).gen_sym)(b, csp.get("@func.v1.entry.new"));
+            let id_ret = ((*b).gen_sym)(b, csp.get("@func.v1.entry.ret"));
+            let mut insts = vec![id_new, id_ret];
+
+            ((*b).new_bb)(b, id_entry,
+                          args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
+                          0,
+                          insts.as_mut_ptr(), insts.len());
+
+            let id_x = ((*b).gen_sym)(b, csp.get("@func.v1.entry.x"));
+
+            ((*b).new_new)(b, id_new, id_x, id_i32, 0);
+
+            {
+                let mut args = vec![];
+                ((*b).new_ret)(b, id_ret, args.as_mut_ptr(), args.len());
+            }
+        }
+            
 
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);

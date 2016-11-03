@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     bldr->new_bb(bldr, id_6, NULL, NULL, 0, MU_NO_ID, (MuInstNode [1]){id_8}, 1);
     bldr->new_func_ver(bldr, id_5, id_4, (MuBBNode [1]){id_6}, 1);
     bldr->load(bldr);
-    mu->compile_to_sharedlib(mu, "test_constfunc.dylib");
+    mu->compile_to_sharedlib(mu, "test_constfunc.dylib", NULL, 0);
     printf("%s\n", "test_constfunc.dylib");
     return 0;
 }

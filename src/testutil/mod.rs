@@ -24,12 +24,17 @@ pub fn get_test_clang_path() -> String {
 
 pub fn exec (mut cmd: Command) -> Output {
     println!("executing: {:?}", cmd);
-    let output = cmd.output().expect("failed to execute");
+    let output = match cmd.output() {
+        Ok(res) => res,
+        Err(e) => panic!("failed to execute: {}", e)
+    };
 
     println!("---out---");
     println!("{}", String::from_utf8_lossy(&output.stdout));
     println!("---err---");
     println!("{}", String::from_utf8_lossy(&output.stderr));
+
+    assert!(output.status.success());
 
     output
 }

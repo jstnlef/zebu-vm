@@ -35,6 +35,7 @@ pub enum OpCode {
     // expression
     Binary(BinOp),
     Comparison(CmpOp),
+    Conversion(ConvOp),
     AtomicRMW(AtomicRMWOp),
 
     ExprCall,
@@ -173,6 +174,22 @@ pub enum CmpOp {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+pub enum ConvOp {
+    TRUNC,
+    ZEXT,
+    SEXT,
+    FPTRUNC,
+    FPEXT,
+    FPTOUI,
+    FPTOSI,
+    UITOFP,
+    SITOFP,
+    BITCAST,
+    REFCAST,
+    PTRCAST
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum AtomicRMWOp {
     XCHG,
     ADD,
@@ -207,6 +224,7 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
     match inst.v {
         Instruction_::BinOp(op, _, _) => OpCode::Binary(op),
         Instruction_::CmpOp(op, _, _) => OpCode::Comparison(op),
+        Instruction_::ConvOp{operation, ..} => OpCode::Conversion(operation),
         Instruction_::AtomicRMW{op, ..} => OpCode::AtomicRMW(op),
         Instruction_::ExprCall{..} => OpCode::ExprCall,
         Instruction_::Load{..} => OpCode::Load,

@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     bldr_12->new_bb(bldr_12, id_126, NULL, NULL, 0, MU_NO_ID, (MuInstNode [3]){id_129, id_130, id_131}, 3);
     bldr_12->new_func_ver(bldr_12, id_125, id_124, (MuBBNode [1]){id_126}, 1);
     bldr_12->load(bldr_12);
-    mu_12->compile_to_sharedlib(mu_12, "test_ne_int.dylib");
+    mu_12->compile_to_sharedlib(mu_12, "test_ne_int.dylib", NULL, 0);
     printf("%s\n", "test_ne_int.dylib");
     return 0;
 }

@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     bldr_17->new_bb(bldr_17, id_205, NULL, NULL, 0, MU_NO_ID, (MuInstNode [5]){id_210, id_211, id_212, id_213, id_214}, 5);
     bldr_17->new_func_ver(bldr_17, id_204, id_203, (MuBBNode [1]){id_205}, 1);
     bldr_17->load(bldr_17);
-    mu_17->compile_to_sharedlib(mu_17, "test_slt.dylib");
+    mu_17->compile_to_sharedlib(mu_17, "test_slt.dylib", NULL, 0);
     printf("%s\n", "test_slt.dylib");
     return 0;
 }

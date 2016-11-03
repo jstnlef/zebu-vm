@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
     bldr_6->new_bb(bldr_6, id_57, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_59, id_60}, 2);
     bldr_6->new_func_ver(bldr_6, id_56, id_55, (MuBBNode [1]){id_57}, 1);
     bldr_6->load(bldr_6);
-    mu_6->compile_to_sharedlib(mu_6, "test_shl.dylib");
+    mu_6->compile_to_sharedlib(mu_6, "test_shl.dylib", NULL, 0);
     printf("%s\n", "test_shl.dylib");
     return 0;
 }

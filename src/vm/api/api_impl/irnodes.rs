@@ -42,7 +42,10 @@ pub enum NodeType {
     TypeStruct { id: MuID, fieldtys: Vec<MuTypeNode> },
     TypeHybrid { id: MuID, fixedtys: Vec<MuTypeNode>, varty: MuTypeNode },
     TypeArray  { id: MuID, elemty: MuTypeNode, len: usize },
-    TypeVector { id: MuID, elemty: MuTypeNode, lem: usize },
+    TypeVector { id: MuID, elemty: MuTypeNode, len: usize },
+
+    TypeVoid            { id: MuID },
+    TypeTagRef64        { id: MuID },
 
     TypeRef             { id: MuID, ty: MuTypeNode },
     TypeIRef            { id: MuID, ty: MuTypeNode },

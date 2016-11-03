@@ -62,14 +62,14 @@ lazy_static! {
     pub static ref R13 : P<Value> = GPR!(13,"r13");
     pub static ref R14 : P<Value> = GPR!(14,"r14");
     pub static ref R15 : P<Value> = GPR!(15,"r15");
-    
+
     pub static ref RIP : P<Value> = GPR!(32,"rip");
-    
+
     pub static ref RETURN_GPRs : [P<Value>; 2] = [
         RAX.clone(),
         RDX.clone(),
     ];
-    
+
     pub static ref ARGUMENT_GPRs : [P<Value>; 6] = [
         RDI.clone(),
         RSI.clone(),
@@ -78,7 +78,7 @@ lazy_static! {
         R8.clone(),
         R9.clone()
     ];
-    
+
     pub static ref CALLEE_SAVED_GPRs : [P<Value>; 6] = [
         RBX.clone(),
         RBP.clone(),
@@ -99,7 +99,7 @@ lazy_static! {
         R10.clone(),
         R11.clone()
     ];
-    
+
     pub static ref ALL_GPRs : [P<Value>; 15] = [
         RAX.clone(),
         RCX.clone(),
@@ -136,13 +136,13 @@ lazy_static!{
     pub static ref XMM12 : P<Value> = FPR!(28,"xmm12");
     pub static ref XMM13 : P<Value> = FPR!(29,"xmm13");
     pub static ref XMM14 : P<Value> = FPR!(30,"xmm14");
-    pub static ref XMM15 : P<Value> = FPR!(31,"xmm15"); 
-    
+    pub static ref XMM15 : P<Value> = FPR!(31,"xmm15");
+
     pub static ref RETURN_FPRs : [P<Value>; 2] = [
         XMM0.clone(),
         XMM1.clone()
     ];
-    
+
     pub static ref ARGUMENT_FPRs : [P<Value>; 8] = [
         XMM0.clone(),
         XMM1.clone(),
@@ -153,7 +153,7 @@ lazy_static!{
         XMM6.clone(),
         XMM7.clone()
     ];
-    
+
     pub static ref CALLEE_SAVED_FPRs : [P<Value>; 0] = [];
 
     pub static ref CALLER_SAVED_FPRs : [P<Value>; 16] = [
@@ -174,7 +174,7 @@ lazy_static!{
         XMM14.clone(),
         XMM15.clone(),
     ];
-    
+
     pub static ref ALL_FPRs : [P<Value>; 16] = [
         XMM0.clone(),
         XMM1.clone(),
@@ -234,10 +234,10 @@ lazy_static! {
         map.insert(XMM14.id(), XMM14.clone());
         map.insert(XMM15.id(), XMM15.clone());
         map.insert(RIP.id(), RIP.clone());
-        
+
         map
     };
-    
+
     // put caller saved regs first (they imposes no overhead if there is no call instruction)
     pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
         RAX.clone(),
@@ -279,7 +279,7 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
     for reg in ALL_MACHINE_REGs.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let entry = SSAVarEntry::new(reg.clone());
-        
+
         func_context.values.insert(reg_id, entry);
     }
 }
@@ -320,8 +320,8 @@ pub fn is_callee_saved(reg_id: MuID) -> bool {
             return true;
         }
     }
-    
-    false 
+
+    false
 }
 
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {

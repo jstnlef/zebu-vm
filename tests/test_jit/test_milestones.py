@@ -32,9 +32,11 @@ def compile_lib(testname):
         sys.stdout.write(out + '\n')
         sys.stderr.write(err + '\n')
         raise subp.CalledProcessError(p.returncode, cmd)
-
+     
+    os.environ['LD_LIBRARY_PATH'] = "%s:%s" % ("%(proj_dir)s/target/debug" % globals(),
+                                               os.environ['LD_LIBRARY_PATH'] if 'LD_LIBRARY_PATH' in os.environ else "")
     # run
-    p = subp.Popen([str(bin_path)], stdout=subp.PIPE, stderr=subp.PIPE, env=os.environ)
+    p = subp.Popen([str(bin_path)], stdout=subp.PIPE, stderr=subp.PIPE, cwd=str(bin_dir), env=os.environ)
     out, err = p.communicate()
     if p.returncode != 0:  # failed
         sys.stdout.write(out + '\n')
@@ -49,8 +51,12 @@ def get_fncptr(testname, entry_fnc):
     return getattr(lib, entry_fnc)
 
 def test_constant_function():
-    fn = get_fncptr("test_constfunc", "test_fnc")
+    fn = get_fncptr("test_constfunc", 'test_fnc')
     assert fn() == 0
+
+def test_milsum():
+    fn = get_fncptr("test_milsum", "milsum")
+    assert fn(1000000) == 500000500000
 
 def test_fibonacci():
     fn = get_fncptr("test_fib", "fib")

@@ -4,6 +4,7 @@ use inst::*;
 use op::*;
 
 use utils::vec_utils;
+use utils::Address;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -735,6 +736,8 @@ pub enum Constant {
     FuncRef(MuID),
     UFuncRef(MuID),
     Vector(Vec<Constant>),
+    //Pointer(Address),
+    NullRef,
 }
 
 impl fmt::Display for Constant {
@@ -756,6 +759,7 @@ impl fmt::Display for Constant {
                 }
                 write!(f, "]")
             }
+            &Constant::NullRef => write!(f, "NullRef"),
         }
     }
 }
