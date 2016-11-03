@@ -35,6 +35,7 @@ test:cargo:api:
   dependencies:
       - build_test
   script:
+    - ls -al target
     - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_api
 
 test:cargo:ir:
@@ -42,6 +43,7 @@ test:cargo:ir:
   dependencies:
       - build_test
   script:
+    - ls -al target
     - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_ir
 
 test:cargo:compiler:
@@ -49,6 +51,7 @@ test:cargo:compiler:
   dependencies:
       - build_test
   script:
+    - ls -al target
     - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_compiler
 
 test:cargo:runtime:
@@ -56,6 +59,7 @@ test:cargo:runtime:
   dependencies:
       - build_test
   script:
+    - ls -al target
     - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_runtime
 
 testjit:milestones:
