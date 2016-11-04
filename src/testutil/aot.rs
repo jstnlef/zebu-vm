@@ -37,7 +37,7 @@ fn link_dylib_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
         let mut gcc = Command::new(get_test_clang_path());
 
         gcc.arg("-c");
-        gcc.arg("-fpic");
+        gcc.arg("-fPIC");
 
         let mut out = file.clone();
         out.set_extension("o");
