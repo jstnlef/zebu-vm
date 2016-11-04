@@ -74,7 +74,7 @@ testjit:rpython:
   script:
     - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git tests/test_jit/mu-client-pypy
     - cd tests/test_jit/mu-client-pypy/rpython/translator/mu/rpyc; make
-    - cd ../../../../
+    - cd ../../../../../
     - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy python test_rpython.py
   cache:
     key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
