@@ -76,8 +76,8 @@ testjit:rpython:
     - cd tests/test_jit/mu-client-pypy
     - git checkout test-mu-impl-jit
     - cd rpython/translator/mu/rpyc; make
-    - cd ../../../../../
-    - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy MU_RUST=../.. pytest test_rpython.py
+    - cd $CI_PROJECT_DIR/tests/test_jit
+    - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy MU_RUST=$CI_PROJECT_DIR pytest test_rpython.py
   cache:
     key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
     paths:
