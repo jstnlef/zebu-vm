@@ -11,6 +11,7 @@ use vm::VM;
 use compiler::CompilerPass;
 use compiler::backend::is_callee_saved;
 use compiler::backend::init_machine_regs_for_func;
+use utils::POINTER_SIZE;
 use std::any::Any;
 
 pub struct RegisterAllocation {
@@ -60,6 +61,9 @@ impl RegisterAllocation {
         }
 
         // find out what callee saved registers are used
+        // FIXME: current not doing this
+        // reason: we generated frame slots for callee saved registers, then generated slots for spills
+        // if we delete some callee saved registers, the slots for spills are not correct
         {
             use std::collections::HashSet;
 
@@ -70,11 +74,26 @@ impl RegisterAllocation {
                     .collect();
 
             let used_callee_saved: Vec<MuID> = used_callee_saved.into_iter().collect();
+            let n_used_callee_saved = used_callee_saved.len();
 
             let removed_callee_saved = coloring.cf.mc_mut().remove_unnecessary_callee_saved(used_callee_saved);
             for reg in removed_callee_saved {
                 coloring.cf.frame.remove_record_for_callee_saved_reg(reg);
             }
+
+            // patch frame size
+
+            // size for callee saved regs
+            let size_for_callee_saved_regs = n_used_callee_saved * POINTER_SIZE;
+            trace!("callee saved registers used {} bytes", size_for_callee_saved_regs);
+
+            let total_frame_size = coloring.cf.frame.cur_size();
+            trace!("frame reserved for {} bytes", total_frame_size);
+
+            let size_to_patch = total_frame_size - size_for_callee_saved_regs;
+
+            trace!("patching the code to grow/shrink size of {} bytes", size_to_patch);
+            coloring.cf.mc_mut().patch_frame_size(size_to_patch);
         }
 
         coloring.cf.mc().trace_mc();

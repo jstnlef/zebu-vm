@@ -122,6 +122,7 @@ pub trait MachineCode {
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
 
     // functions for rewrite
+
     /// replace a temp with a machine register (to_reg must be a machine register)
     fn replace_reg(&mut self, from: MuID, to: MuID);
     /// replace a temp that is defined in the inst with another temp
@@ -133,6 +134,8 @@ pub trait MachineCode {
     /// remove unnecessary push/pop if the callee saved register is not used
     /// returns what registers push/pop have been deleted
     fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID>;
+    /// patch frame size
+    fn patch_frame_size(&mut self, size: usize);
 
     fn as_any(&self) -> &Any;
 }

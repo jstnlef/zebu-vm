@@ -1496,6 +1496,10 @@ impl <'a> InstructionSelection {
                 }
             }
         }
+
+        // reserve spaces for current frame
+        // add x, rbp -> rbp (x is negative, however we do not know x now)
+        self.backend.emit_frame_grow();
         
         // unload arguments
         let mut gpr_arg_count = 0;
@@ -1542,7 +1546,7 @@ impl <'a> InstructionSelection {
     fn emit_common_epilogue(&mut self, ret_inst: &Instruction, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         // epilogue is not a block (its a few instruction inserted before return)
         // FIXME: this may change in the future
-        
+
         // prepare return regs
         let ref ops = ret_inst.ops.read().unwrap();
         let ret_val_indices = match ret_inst.v {
@@ -1572,7 +1576,10 @@ impl <'a> InstructionSelection {
             } else {
                 unimplemented!();
             }
-        }        
+        }
+
+        // frame shrink
+        self.backend.emit_frame_shrink();
         
         // pop all callee-saved registers - reverse order
         for i in (0..x86_64::CALLEE_SAVED_GPRs.len()).rev() {

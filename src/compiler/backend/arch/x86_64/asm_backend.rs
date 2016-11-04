@@ -26,7 +26,9 @@ struct ASMCode {
     name: MuName, 
     code: Vec<ASMInst>,
 
-    blocks: HashMap<MuName, ASMBlock>
+    blocks: HashMap<MuName, ASMBlock>,
+
+    frame_size_patchpoints: Vec<ASMLocation>
 }
 
 unsafe impl Send for ASMCode {} 
@@ -110,11 +112,16 @@ impl ASMCode {
             name: self.name.clone(),
             code: vec![],
             blocks: hashmap!{},
+            frame_size_patchpoints: vec![]
         };
 
         // iterate through old machine code
         let mut inst_offset = 0;    // how many instructions has been inserted
         let mut cur_block_start = usize::MAX;
+
+        // inst N in old machine code is N' in new machine code
+        // this map stores the relationship
+        let mut location_map : HashMap<usize, usize> = HashMap::new();
 
         for i in 0..self.number_of_insts() {
             if self.is_block_start(i) {
@@ -131,6 +138,9 @@ impl ASMCode {
 
             // copy this instruction
             let mut inst = self.code[i].clone();
+
+            // old ith inst is now the (i + inst_offset)th instruction
+            location_map.insert(i, i + inst_offset);
 
             // this instruction has been offset by several instructions('inst_offset')
             // update its info
@@ -176,6 +186,17 @@ impl ASMCode {
                 // add to the new code
                 ret.blocks.insert(name.clone(), new_block);
             }
+        }
+
+        // fix patchpoint
+        for patchpoint in self.frame_size_patchpoints.iter() {
+            let new_patchpoint = ASMLocation {
+                line: *location_map.get(&patchpoint.line).unwrap(),
+                index: patchpoint.index,
+                len: patchpoint.len
+            };
+
+            ret.frame_size_patchpoints.push(new_patchpoint);
         }
 
         ret.control_flow_analysis();
@@ -322,6 +343,10 @@ impl ASMCode {
                 asm[i].preds.push(i - 1);
             }
         }
+    }
+
+    fn add_frame_size_patchpoint(&mut self, patchpoint: ASMLocation) {
+        self.frame_size_patchpoints.push(patchpoint);
     }
 }
 
@@ -492,6 +517,18 @@ impl MachineCode for ASMCode {
         }
 
         regs_to_remove
+    }
+
+    fn patch_frame_size(&mut self, size: usize) {
+        let size = size.to_string();
+
+        debug_assert!(size.len() <= FRAME_SIZE_PLACEHOLDER_LEN);
+
+        for loc in self.frame_size_patchpoints.iter() {
+            let ref mut inst = self.code[loc.line];
+
+            string_utils::replace(&mut inst.code, loc.index, &size, size.len());
+        }
     }
     
     fn emit(&self) -> Vec<u8> {
@@ -673,6 +710,14 @@ lazy_static! {
         let blank_spaces = [' ' as u8; REG_PLACEHOLDER_LEN];
         
         format!("%{}", str::from_utf8(&blank_spaces).unwrap())
+    };
+}
+
+const FRAME_SIZE_PLACEHOLDER_LEN : usize = 10; // a frame is smaller than 1 << 10
+lazy_static! {
+    pub static ref FRAME_SIZE_PLACEHOLDER : String = {
+        let blank_spaces = [' ' as u8; FRAME_SIZE_PLACEHOLDER_LEN];
+        format!("{}", str::from_utf8(&blank_spaces).unwrap())
     };
 }
 
@@ -1381,6 +1426,7 @@ impl CodeGenerator for ASMCodeGen {
             name: func_name.clone(),
             code: vec![],
             blocks: hashmap! {},
+            frame_size_patchpoints: vec![]
         }));
 
         // to link with C sources via gcc
@@ -1412,7 +1458,8 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(Box::new(ASMCode {
             name: "snippet".to_string(),
             code: vec![],
-            blocks: hashmap! {}
+            blocks: hashmap! {},
+            frame_size_patchpoints: vec![]
         }));
     }
 
@@ -1518,6 +1565,38 @@ impl CodeGenerator for ASMCodeGen {
             }
             None => panic!("haven't created ASMBlock for {}", block_name)
         }
+    }
+
+    fn emit_frame_grow(&mut self) {
+        trace!("emit frame grow");
+
+        let asm = format!("addq $-{},%rsp", FRAME_SIZE_PLACEHOLDER.clone());
+
+        let line = self.line();
+        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 7, FRAME_SIZE_PLACEHOLDER_LEN));
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{}, // let reg alloc ignore this instruction
+            hashmap!{},
+            false
+        )
+    }
+
+    fn emit_frame_shrink(&mut self) {
+        trace!("emit frame shrink");
+
+        let asm = format!("addq ${},%rsp", FRAME_SIZE_PLACEHOLDER.clone());
+
+        let line = self.line();
+        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 6, FRAME_SIZE_PLACEHOLDER_LEN));
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            hashmap!{},
+            false
+        )
     }
 
     fn emit_nop(&mut self, bytes: usize) {

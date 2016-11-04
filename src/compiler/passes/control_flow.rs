@@ -4,6 +4,7 @@ use utils::vec_utils::as_str as vector_as_str;
 use vm::VM;
 use compiler::CompilerPass;
 
+use std::collections::HashMap;
 use std::any::Any;
 
 pub struct ControlFlowAnalysis {
@@ -94,20 +95,39 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                         const BRANCH_DEFAULT_PROB : f32 = 0.1;
                         let switch_prob = (1.0f32 - BRANCH_DEFAULT_PROB) / (branches.len() as f32);
 
-                        let mut ret : Vec<BlockEdge> = branches.iter().map(|pair| BlockEdge {
-                            target: pair.1.target,
-                            kind: check_edge_kind(pair.1.target, stack),
-                            is_exception: false,
-                            probability: switch_prob
-                        }).collect();
+                        let map : HashMap<MuID, BlockEdge> = {
+                            let mut ret = HashMap::new();
 
-                        // default
-                        ret.push(BlockEdge {
-                            target: default.target,
-                            kind: check_edge_kind(default.target, stack),
-                            is_exception: false,
-                            probability: BRANCH_DEFAULT_PROB
-                        });
+                            let check_add_edge = |map: &mut HashMap<MuID, BlockEdge>, target: MuID, prob: f32| {
+                                if map.contains_key(&target) {
+                                    let mut edge : &mut BlockEdge = map.get_mut(&target).unwrap();
+                                    edge.probability += prob;
+                                } else {
+                                    map.insert(target, BlockEdge{
+                                        target: target,
+                                        kind: check_edge_kind(target, stack),
+                                        is_exception: false,
+                                        probability: prob
+                                    });
+                                }
+                            };
+
+                            for &(_, ref dest) in branches.iter() {
+                                let target = dest.target;
+
+                                check_add_edge(&mut ret, target, switch_prob);
+                            }
+
+                            check_add_edge(&mut ret, default.target, BRANCH_DEFAULT_PROB);
+
+                            ret
+                        };
+
+                        let mut ret = vec![];
+
+                        for edge in map.values() {
+                            ret.push(*edge);
+                        }
 
                         ret
                     }

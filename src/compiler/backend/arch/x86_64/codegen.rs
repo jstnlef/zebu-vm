@@ -22,6 +22,9 @@ pub trait CodeGenerator {
     fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>);
     fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
     fn end_block(&mut self, block_name: MuName);
+
+    fn emit_frame_grow(&mut self);
+    fn emit_frame_shrink(&mut self);
     
     fn emit_nop(&mut self, bytes: usize);
 
