@@ -61,6 +61,10 @@ def test_milsum():
     fn = get_fncptr("test_milsum", "milsum", [ctypes.c_ulonglong])
     assert fn(1000000) == 500000500000
 
+def test_factorial():
+    fn = get_fncptr("test_fac", "fac", [ctypes.c_ulonglong])
+    assert fn(20) == 2432902008176640000
+
 def test_fibonacci():
     fn = get_fncptr("test_fib", "fib", [ctypes.c_ulonglong])
     assert fn(20) == 6765
