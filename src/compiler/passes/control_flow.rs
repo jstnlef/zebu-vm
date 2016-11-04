@@ -89,6 +89,29 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                         }
                     ],
 
+                    // switch
+                    Switch{ref default, ref branches, ..} => {
+                        const BRANCH_DEFAULT_PROB : f32 = 0.1;
+                        let switch_prob = (1.0f32 - BRANCH_DEFAULT_PROB) / (branches.len() as f32);
+
+                        let mut ret : Vec<BlockEdge> = branches.iter().map(|pair| BlockEdge {
+                            target: pair.1.target,
+                            kind: check_edge_kind(pair.1.target, stack),
+                            is_exception: false,
+                            probability: switch_prob
+                        }).collect();
+
+                        // default
+                        ret.push(BlockEdge {
+                            target: default.target,
+                            kind: check_edge_kind(default.target, stack),
+                            is_exception: false,
+                            probability: BRANCH_DEFAULT_PROB
+                        });
+
+                        ret
+                    }
+
                     // watchpoints
                     Watchpoint{ref id, ref disable_dest, ref resume} => {
                         let ref normal = resume.normal_dest;
@@ -153,6 +176,7 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
 
                     // call
                     Call{ref resume, ..}
+                    | CCall{ref resume, ..}
                     | SwapStack{ref resume, ..}
                     | ExnInstruction{ref resume, ..} => {
                         let ref normal = resume.normal_dest;

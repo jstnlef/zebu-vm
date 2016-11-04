@@ -192,6 +192,52 @@ impl <'a> InstructionSelection {
                         // jmp
                         self.backend.emit_jmp(target);
                     },
+
+                    Instruction_::Switch{cond, ref default, ref branches} => {
+                        let ops = inst.ops.read().unwrap();
+
+                        let ref cond = ops[cond];
+
+                        if self.match_ireg(cond) {
+                            let tmp_cond = self.emit_ireg(cond, f_content, f_context, vm);
+
+                            // emit each branch
+                            for &(case_op_index, ref case_dest) in branches {
+                                let ref case_op = ops[case_op_index];
+
+                                // process dest
+                                self.process_dest(&ops, case_dest, f_content, f_context, vm);
+
+                                let target = f_content.get_block(case_dest.target).name().unwrap();
+
+                                if self.match_iimm(case_op) {
+                                    let imm = self.node_iimm_to_i32(case_op);
+
+                                    // cmp case cond
+                                    self.backend.emit_cmp_imm32_r64(imm, &tmp_cond);
+                                    // je dest
+                                    self.backend.emit_je(target);
+                                } else if self.match_ireg(case_op) {
+                                    let tmp_case_op = self.emit_ireg(case_op, f_content, f_context, vm);
+
+                                    // cmp case cond
+                                    self.backend.emit_cmp_r64_r64(&tmp_case_op, &tmp_cond);
+                                    // je dest
+                                    self.backend.emit_je(target);
+                                } else {
+                                    panic!("expecting ireg cond to be either iimm or ireg: {}", cond);
+                                }
+                            }
+
+                            // emit default
+                            self.process_dest(&ops, default, f_content, f_context, vm);
+                            
+                            let default_target = f_content.get_block(default.target).name().unwrap();
+                            self.backend.emit_jmp(default_target);
+                        } else {
+                            panic!("expecting cond in switch to be ireg: {}", cond);
+                        }
+                    }
                     
                     Instruction_::ExprCall{ref data, is_abort} => {
                         if is_abort {
