@@ -547,8 +547,11 @@ struct BundleLoader<'lb, 'lvm> {
     struct_id_tags: Vec<(MuID, MuName)>,
     built_refi64: Option<P<MuType>>,
     built_i1: Option<P<MuType>>,
+    built_i64: Option<P<MuType>>,
     built_funcref_of: IdPMap<MuType>,
     built_ref_of: IdPMap<MuType>,
+    built_iref_of: IdPMap<MuType>,
+    built_constint_of: HashMap<u64, P<Value>>,
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -570,8 +573,11 @@ fn load_bundle(b: &mut MuIRBuilder) {
         struct_id_tags: Default::default(),
         built_refi64: Default::default(),
         built_i1: Default::default(),
+        built_i64: Default::default(),
         built_funcref_of: Default::default(),
         built_ref_of: Default::default(),
+        built_iref_of: Default::default(),
+        built_constint_of: Default::default(),
     };
 
     bl.load_bundle();
@@ -622,23 +628,66 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn ensure_i1(&mut self) -> P<MuType> {
-        if let Some(ref i1) = self.built_i1 {
-            return i1.clone();
+        if let Some(ref impl_ty) = self.built_i1 {
+            return impl_ty.clone();
         }
 
-        let id_i1 = self.vm.next_id();
+        let id = self.vm.next_id();
 
-        let impl_i1 = P(MuType {
-            hdr: MuEntityHeader::unnamed(id_i1),
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
             v: MuType_::Int(1),
         });
 
-        trace!("Ensure i1 is defined: {} {:?}", id_i1, impl_i1);
+        trace!("Ensure i1 is defined: {} {:?}", id, impl_ty);
 
-        self.built_types.insert(id_i1, impl_i1.clone());
-        self.built_i1 = Some(impl_i1.clone());
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_i1 = Some(impl_ty.clone());
 
-        impl_i1
+        impl_ty
+    }
+
+    fn ensure_i64(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_i64 {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Int(64),
+        });
+
+        trace!("Ensure i64 is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_i64 = Some(impl_ty.clone());
+
+        impl_ty
+    }
+
+    fn ensure_constint_of(&mut self, value: u64) -> P<TreeNode> {
+        if let Some(c) = self.built_constint_of.get(&value) {
+            return self.new_global(c.clone());
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = self.ensure_i64();
+
+        let impl_val = P(Value {
+            hdr: MuEntityHeader::unnamed(id),
+            ty: impl_ty,
+            v: Value_::Constant(Constant::Int(value)),
+        });
+
+        trace!("Ensure const int is defined: {} {:?}", value, impl_val);
+
+        self.built_constants.insert(id, impl_val.clone());
+        self.built_constint_of.insert(value, impl_val.clone());
+
+        self.new_global(impl_val)
     }
     
     fn ensure_funcref(&mut self, sig_id: MuID) -> P<MuType> {
@@ -694,6 +743,26 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         BundleLoader::ensure_type_generic(ty_id, "ref", &self.vm, &mut self.built_ref_of, &mut self.built_types, |impl_ty| {
             MuType_::Ref(impl_ty)
         })
+    }
+
+    fn ensure_iref(&mut self, ty_id: MuID) -> P<MuType> {
+        BundleLoader::ensure_type_generic(ty_id, "iref", &self.vm, &mut self.built_iref_of, &mut self.built_types, |impl_ty| {
+            MuType_::IRef(impl_ty)
+        })
+    }
+
+    fn ensure_uptr(&mut self, ty_id: MuID) -> P<MuType> {
+        BundleLoader::ensure_type_generic(ty_id, "uptr", &self.vm, &mut self.built_iref_of, &mut self.built_types, |impl_ty| {
+            MuType_::UPtr(impl_ty)
+        })
+    }
+
+    fn ensure_iref_or_uptr(&mut self, ty_id: MuID, is_ptr: bool) -> P<MuType> {
+        if is_ptr {
+            self.ensure_uptr(ty_id)
+        } else {
+            self.ensure_iref(ty_id)
+        }
     }
 
     fn name_from_id(id: MuID, hint: &str) -> String {
@@ -1199,12 +1268,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_ty = self.get_built_type(ty);
                 let impl_opnd1 = self.get_treenode(fcb, opnd1);
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
-                let impl_rv = self.new_ssa(fcb, result_id, impl_ty);
-                let impl_rv_value = impl_rv.clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, impl_ty).clone_value();
 
                 Instruction {
                     hdr: hdr,
-                    value: Some(vec![impl_rv_value]),
+                    value: Some(vec![impl_rv]),
                     ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
                     v: Instruction_::BinOp(impl_optr, 0, 1),
                 }
@@ -1246,12 +1314,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_i1 = self.ensure_i1();
                 let impl_opnd1 = self.get_treenode(fcb, opnd1);
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
-                let impl_rv = self.new_ssa(fcb, result_id, impl_i1);
-                let impl_rv_value = impl_rv.clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, impl_i1).clone_value();
 
                 Instruction {
                     hdr: hdr,
-                    value: Some(vec![impl_rv_value]),
+                    value: Some(vec![impl_rv]),
                     ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
                     v: Instruction_::CmpOp(impl_optr, 0, 1),
                 }
@@ -1277,12 +1344,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_from_ty = self.get_built_type(from_ty);
                 let impl_to_ty = self.get_built_type(to_ty);
                 let impl_opnd = self.get_treenode(fcb, opnd);
-                let impl_rv = self.new_ssa(fcb, result_id, impl_to_ty.clone());
-                let impl_rv_value = impl_rv.clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, impl_to_ty.clone()).clone_value();
 
                 Instruction {
                     hdr: hdr,
-                    value: Some(vec![impl_rv_value]),
+                    value: Some(vec![impl_rv]),
                     ops: RwLock::new(vec![impl_opnd]),
                     v: Instruction_::ConvOp {
                         operation: impl_optr,
@@ -1397,15 +1463,183 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             },
             NodeInst::NodeNew { id: _, result_id, allocty, exc_clause } => {
+                assert!(exc_clause.is_none(), "exc_clause is not implemented for NEW");
                 let impl_allocty = self.get_built_type(allocty);
                 let impl_rvtype = self.ensure_ref(allocty);
-                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype);
-                let impl_rv_value = impl_rv.clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
                 Instruction {
                     hdr: hdr,
-                    value: Some(vec![impl_rv_value]),
+                    value: Some(vec![impl_rv]),
                     ops: RwLock::new(vec![]),
                     v: Instruction_::New(impl_allocty),
+                }
+            },
+            NodeInst::NodeNewHybrid { id: _, result_id, allocty, lenty, length, exc_clause } => {
+                assert!(exc_clause.is_none(), "exc_clause is not implemented for NEWHYBRID");
+                let impl_allocty = self.get_built_type(allocty);
+                let impl_length = self.get_treenode(fcb, length);
+                let impl_rvtype = self.ensure_ref(allocty);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_length]),
+                    v: Instruction_::NewHybrid(impl_allocty, 0),
+                }
+            },
+            NodeInst::NodeAlloca { id: _, result_id, allocty, exc_clause } => {
+                assert!(exc_clause.is_none(), "exc_clause is not implemented for ALLOCA");
+                let impl_allocty = self.get_built_type(allocty);
+                let impl_rvtype = self.ensure_iref(allocty);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![]),
+                    v: Instruction_::AllocA(impl_allocty),
+                }
+            },
+            NodeInst::NodeAllocaHybrid { id: _, result_id, allocty, lenty, length, exc_clause } => {
+                assert!(exc_clause.is_none(), "exc_clause is not implemented for ALLOCAHYBRID");
+                let impl_allocty = self.get_built_type(allocty);
+                let impl_length = self.get_treenode(fcb, length);
+                let impl_rvtype = self.ensure_iref(allocty);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_length]),
+                    v: Instruction_::AllocAHybrid(impl_allocty, 0),
+                }
+            },
+            NodeInst::NodeGetIRef { id: _, result_id, refty, opnd } => {
+                let impl_opnd = self.get_treenode(fcb, opnd);
+                let impl_rvtype = self.ensure_iref(refty);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_opnd]),
+                    v: Instruction_::GetIRef(0),
+                }
+            },
+            NodeInst::NodeGetFieldIRef { id: _, result_id, is_ptr, refty, index, opnd } => {
+                let impl_opnd = self.get_treenode(fcb, opnd);
+                let impl_index = self.ensure_constint_of(index as u64);
+                let refty_node = self.b.bundle.types.get(&refty).unwrap();
+                let field_ty_id = match **refty_node {
+                    NodeType::TypeStruct { id: _, ref fieldtys } => { 
+                        fieldtys[index as usize]
+                    },
+                    ref t => panic!("GETFIELDIREF {}: Expected struct type. actual: {:?}", id, t)
+                };
+                let impl_rvtype = self.ensure_iref_or_uptr(field_ty_id, is_ptr);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_opnd, impl_index]),
+                    v: Instruction_::GetFieldIRef {
+                        is_ptr: is_ptr,
+                        base: 0,
+                        index: 1,
+                    },
+                }
+            },
+            NodeInst::NodeGetElemIRef { id: _, result_id, is_ptr, refty, indty: _, opnd, index } => {
+                let impl_opnd = self.get_treenode(fcb, opnd);
+                let impl_index = self.get_treenode(fcb, index);
+                let refty_node = self.b.bundle.types.get(&refty).unwrap();
+                let elem_ty_id = match **refty_node {
+                    NodeType::TypeArray { id: _, elemty, len: _ } => { 
+                        elemty
+                    },
+                    NodeType::TypeVector { id: _, elemty, len: _ } => { 
+                        elemty
+                    },
+                    ref t => panic!("GETELEMIREF {}: Expected array or vector type. actual: {:?}", id, t)
+                };
+                let impl_rvtype = self.ensure_iref_or_uptr(elem_ty_id, is_ptr);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_opnd, impl_index]),
+                    v: Instruction_::GetElementIRef {
+                        is_ptr: is_ptr,
+                        base: 0,
+                        index: 1,
+                    },
+                }
+            },
+            NodeInst::NodeShiftIRef { id: _, result_id, is_ptr, refty, offty: _, opnd, offset } => {
+                let impl_opnd = self.get_treenode(fcb, opnd);
+                let impl_offset = self.get_treenode(fcb, offset);
+                let impl_rvtype = self.ensure_iref_or_uptr(refty, is_ptr);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_opnd, impl_offset]),
+                    v: Instruction_::ShiftIRef {
+                        is_ptr: is_ptr,
+                        base: 0,
+                        offset: 1,
+                    },
+                }
+            },
+            NodeInst::NodeGetVarPartIRef { id: _, result_id, is_ptr, refty, opnd } => {
+                let impl_opnd = self.get_treenode(fcb, opnd);
+                let refty_node = self.b.bundle.types.get(&refty).unwrap();
+                let elem_ty_id = match **refty_node {
+                    NodeType::TypeHybrid { id: _, fixedtys: _, varty } => { 
+                        varty
+                    },
+                    ref t => panic!("GETVARPARTIREF {}: Expected hybrid type. actual: {:?}", id, t)
+                };
+                let impl_rvtype = self.ensure_iref_or_uptr(refty, is_ptr);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_opnd]),
+                    v: Instruction_::GetVarPartIRef {
+                        is_ptr: is_ptr,
+                        base: 0,
+                    },
+                }
+            },
+            NodeInst::NodeLoad { id: _, result_id, is_ptr, ord, refty, loc, exc_clause } => {
+                let impl_ord = self.build_mem_ord(ord);
+                let impl_loc = self.get_treenode(fcb, loc);
+                let impl_rvtype = self.get_built_type(refty);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_loc]),
+                    v: Instruction_::Load {
+                        is_ptr: is_ptr,
+                        order: impl_ord,
+                        mem_loc: 0,
+                    },
+                }
+            },
+            NodeInst::NodeStore { id: _, is_ptr, ord, refty, loc, newval, exc_clause } => {
+                let impl_ord = self.build_mem_ord(ord);
+                let impl_loc = self.get_treenode(fcb, loc);
+                let impl_newval = self.get_treenode(fcb, newval);
+                let impl_rvtype = self.get_built_type(refty);
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(vec![impl_loc, impl_newval]),
+                    v: Instruction_::Store {
+                        is_ptr: is_ptr,
+                        order: impl_ord,
+                        mem_loc: 0,
+                        value: 1,
+                    },
                 }
             },
             NodeInst::NodeCCall {
@@ -1544,6 +1778,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     is_abort: false,
                 },
             }
+        }
+    }
+
+    fn build_mem_ord(&self, ord: MuMemoryOrder) -> MemoryOrder {
+        match ord {
+            CMU_ORD_NOT_ATOMIC => MemoryOrder::NotAtomic,
+            CMU_ORD_RELAXED => MemoryOrder::Relaxed,
+            CMU_ORD_CONSUME => MemoryOrder::Consume,
+            CMU_ORD_ACQUIRE => MemoryOrder::Acquire,
+            CMU_ORD_RELEASE => MemoryOrder::Release,
+            CMU_ORD_ACQ_REL => MemoryOrder::AcqRel,
+            CMU_ORD_SEQ_CST => MemoryOrder::SeqCst,
+            o => panic!("Illegal memory order {}", o),
         }
     }
 
