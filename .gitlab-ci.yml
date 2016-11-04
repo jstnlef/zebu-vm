@@ -64,7 +64,7 @@ testjit:cmpops:
   script:
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py
 
-testjit:cmpops:
+testjit:convops:
   stage: test
   script:
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_convops.py
