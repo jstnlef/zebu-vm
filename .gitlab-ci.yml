@@ -73,7 +73,9 @@ testjit:rpython:
   stage: test
   script:
     - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git tests/test_jit/mu-client-pypy
-    - cd tests/test_jit/mu-client-pypy/rpython/translator/mu/rpyc; make
+    - cd tests/test_jit/mu-client-pypy
+    - git checkout test-mu-impl-jit
+    - cd rpython/translator/mu/rpyc; make
     - cd ../../../../../
     - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy python test_rpython.py
   cache:
