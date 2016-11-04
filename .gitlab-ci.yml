@@ -68,3 +68,19 @@ testjit:convops:
   stage: test
   script:
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_convops.py
+
+testjit:rpython:
+  stage: test
+  script:
+    - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git tests/test_jit/mu-client-pypy
+    - cd tests/test_jit/mu-client-pypy/rpython/translator/mu/rpyc; make
+    - cd ../../../../
+    - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy python test_rpython.py
+  cache:
+    key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
+    paths:
+      - .cargo/registry/cache
+      - .cargo/registry/index
+      - target
+      - Cargo.lock
+      - tests/test_jit/mu-client-pypy
