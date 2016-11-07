@@ -740,7 +740,8 @@ impl <'a> InstructionSelection {
                             MemoryOrder::Relaxed 
                             | MemoryOrder::Consume 
                             | MemoryOrder::Acquire
-                            | MemoryOrder::SeqCst => {},
+                            | MemoryOrder::SeqCst
+                            | MemoryOrder::NotAtomic => {},
                             _ => panic!("didnt expect order {:?} with store inst", order)
                         }                        
 
@@ -763,7 +764,9 @@ impl <'a> InstructionSelection {
                         
                         let generate_plain_mov : bool = {
                             match order {
-                                MemoryOrder::Relaxed | MemoryOrder::Release => true,
+                                MemoryOrder::Relaxed
+                                | MemoryOrder::Release
+                                | MemoryOrder::NotAtomic => true,
                                 MemoryOrder::SeqCst => false,
                                 _ => panic!("didnt expect order {:?} with store inst", order)
                             }
