@@ -47,9 +47,9 @@ int main(int argc, char** argv) {
     id_356 = bldr_26->gen_sym(bldr_26, "@i32");
     bldr_26->new_type_int(bldr_26, id_356, 32);
     id_357 = bldr_26->gen_sym(bldr_26, "@pi8");
-    bldr_26->new_type_uptr(bldr_26, id_357, 8);
+    bldr_26->new_type_uptr(bldr_26, id_357, id_355);
     id_358 = bldr_26->gen_sym(bldr_26, "@pi32");
-    bldr_26->new_type_uptr(bldr_26, id_358, 32);
+    bldr_26->new_type_uptr(bldr_26, id_358, id_356);
     id_359 = bldr_26->gen_sym(bldr_26, "@1_i8");
     bldr_26->new_const_int(bldr_26, id_359, id_355, 1);
     id_360 = bldr_26->gen_sym(bldr_26, "@0x8d_i8");
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
     bldr_26->new_bb(bldr_26, id_367, (MuID [1]){id_368}, (MuTypeNode [1]){id_358}, 1, MU_NO_ID, (MuInstNode [10]){id_374, id_375, id_376, id_377, id_378, id_379, id_380, id_381, id_382, id_383}, 10);
     bldr_26->new_func_ver(bldr_26, id_366, id_365, (MuBBNode [1]){id_367}, 1);
     bldr_26->load(bldr_26);
-    mu_26->compile_to_sharedlib(mu_26, "test_uptr_bytestore_load.dylib", (char**){&"entry_test_uptr_bytestore_load.c"}, 1);
+    mu_26->compile_to_sharedlib(mu_26, "test_uptr_bytestore_load.dylib", NULL, 0);
     printf("%s\n", "test_uptr_bytestore_load.dylib");
     return 0;
 }
