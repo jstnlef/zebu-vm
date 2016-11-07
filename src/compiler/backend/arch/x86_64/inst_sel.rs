@@ -640,7 +640,7 @@ impl <'a> InstructionSelection {
 
                         // truncate result
                         if res_tmp.is_int_reg() {
-                            self.emit_truncate_result(&UINT64_TYPE, &res_tmp.ty, &res_tmp);
+                            self.emit_truncate_result(&UINT64_TYPE, &res_tmp.ty, &res_tmp, f_context, vm);
                         }
                     }
 
@@ -669,7 +669,7 @@ impl <'a> InstructionSelection {
                                     self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
 
                                     // truncate result
-                                    self.emit_truncate_result(from_ty, to_ty, &tmp_res);
+                                    self.emit_truncate_result(from_ty, to_ty, &tmp_res, f_context, vm);
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
                                 }
@@ -955,7 +955,7 @@ impl <'a> InstructionSelection {
         })
     } 
 
-    fn emit_truncate_result (&mut self, from_ty: &P<MuType>, to_ty: &P<MuType>, op: &P<Value>) {
+    fn emit_truncate_result (&mut self, from_ty: &P<MuType>, to_ty: &P<MuType>, op: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
         // currently only use 64bits register
         // so only keep what is needed in the register (set others to 0)
         let from_ty_len = match from_ty.v {
@@ -972,16 +972,25 @@ impl <'a> InstructionSelection {
         } else {
             debug_assert!(from_ty_len > to_ty_len);
 
-            // ignoring from_ty for now (we use 64bits register for everything)
-            let mask = match to_ty_len {
-                8 => 0xFFi32,
-                16 => 0xFFFFi32,
-                32 => 0xFFFFFFFFi32,
-                _ => unimplemented!()
-            };
+            if to_ty_len < 32 {
+                // ignoring from_ty for now (we use 64bits register for everything)
+                let mask = match to_ty_len {
+                    8 => 0xFFi32,
+                    16 => 0xFFFFi32,
+                    _ => unimplemented!()
+                };
 
-            // and mask, result -> result
-            self.backend.emit_and_r64_imm32(&op, mask);
+                // and mask, result -> result
+                self.backend.emit_and_r64_imm32(&op, mask);
+            } else if to_ty_len == 32 {
+                let tmp_mask = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                self.backend.emit_mov_r64_imm64(&tmp_mask, 0xFFFFFFFF as i64);
+
+                self.backend.emit_and_r64_r64(&op, &tmp_mask);
+            } else {
+                unimplemented!()
+            }
         }
     }
 
