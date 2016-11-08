@@ -6,7 +6,7 @@ import os, sys
 import ctypes
 import py
 
-CC = 'clang'
+CC = os.environ.get('CC', 'clang')
 proj_dir = py.path.local(__file__).join('..', '..', '..')
 test_jit_dir = proj_dir.join('tests', 'test_jit')
 testsuite_dir = test_jit_dir.join('suite')
