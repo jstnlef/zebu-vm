@@ -272,6 +272,7 @@ struct MuVM {
     void    (*set_trap_handler)(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
 
     void    (*compile_to_sharedlib)(MuVM *mvm, MuCString lib_name, MuCString *extra_srcs, MuArraySize n_extra_srcs); /// MUAPIPARSER extra_srcs:array:n_extra_srcs
+    void    (*current_thread_as_mu_thread)(MuVM *mvm, MuCPtr threadlocal);
 };
 
 // A local context. It can only be used by one thread at a time. It holds many

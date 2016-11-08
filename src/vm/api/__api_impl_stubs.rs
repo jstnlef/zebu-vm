@@ -46,9 +46,17 @@ impl MuVM {
         panic!("Not implemented")
     }
 
+    pub fn compile_to_sharedlib(&mut self, lib_name: String, extra_srcs: Vec<String>) {
+        panic!("Not implemented")
+    }
+
+    pub fn current_thread_as_mu_thread(&mut self, threadlocal: CMuCPtr) {
+        panic!("Not implemented")
+    }
+
 }
 
-impl<'v> MuCtx<'v> {
+impl MuCtx {
     pub fn id_of(&mut self, name: MuName) -> MuID {
         panic!("Not implemented")
     }
@@ -407,7 +415,7 @@ impl<'v> MuCtx<'v> {
 
 }
 
-impl<'c> MuIRBuilder<'c> {
+impl MuIRBuilder {
     pub fn load(&mut self) {
         panic!("Not implemented")
     }

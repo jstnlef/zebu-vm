@@ -1,6 +1,10 @@
 use super::common::*;
 use std::sync::Arc;
 
+use runtime::thread;
+use utils::Address;
+use std::mem::transmute;
+
 pub struct MuVM {
     // The actual VM
     pub vm: Arc<VM>,
@@ -70,7 +74,7 @@ impl MuVM {
         panic!("Not implemented")
     }
 
-    pub fn compile_to_sharedlib(&self, lib_name: &str, extra_srcs: Vec<String>) {
+    pub fn compile_to_sharedlib(&self, lib_name: String, extra_srcs: Vec<String>) {
         extern crate libloading as ll;
 
         use compiler::*;
@@ -88,7 +92,16 @@ impl MuVM {
             func_names.push(func.name().unwrap());
         }
         backend::emit_context(&self.vm);
-        aot::link_dylib_with_extra_srcs(func_names, extra_srcs, lib_name);
+        aot::link_dylib_with_extra_srcs(func_names, extra_srcs, &lib_name);
+    }
+
+    pub fn current_thread_as_mu_thread(&self, threadlocal: CMuCPtr) {
+        unsafe {
+            thread::MuThread::current_thread_as_mu_thread(
+                transmute::<CMuCPtr, Address>(threadlocal),
+                self.vm.clone()
+                )
+        }
     }
 
 }

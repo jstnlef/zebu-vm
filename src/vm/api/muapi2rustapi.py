@@ -435,7 +435,8 @@ pub fn make_new_{name}(header: *mut c_void) -> *mut {rust_name} {{
 
     stubs_joined = "\n".join(stubs)
 
-    lifetime_params = _lifetime_params[name]
+    #lifetime_params = _lifetime_params[name]
+    lifetime_params = ""
 
     stub_impl = """\
 impl{lifetime_params} {name}{lifetime_params} {{

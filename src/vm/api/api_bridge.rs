@@ -243,13 +243,20 @@ extern fn _forwarder__MuVM__set_trap_handler(mvm: *mut CMuVM, trap_handler: CMuT
     };
 }
 
-extern fn _forwarder__MuVM__compile_to_sharedlib(mvm: *mut CMuVM, lib_name: CMuCString,
-                                                 extra_srcs: *const CMuCString, n: usize) {
+extern fn _forwarder__MuVM__compile_to_sharedlib(mvm: *mut CMuVM, lib_name: CMuCString, extra_srcs: *mut CMuCString, n_extra_srcs: CMuArraySize) {
     let mut _arg_mvm = from_MuVM_ptr(mvm);
     let mut _arg_lib_name = from_MuCString(lib_name);
-    let _arg_extra_srcs = from_MuCString_array(extra_srcs, n);
+    let mut _arg_extra_srcs = from_MuCString_array(extra_srcs, n_extra_srcs);
     unsafe {
-        (*_arg_mvm).compile_to_sharedlib(&_arg_lib_name, _arg_extra_srcs)
+        (*_arg_mvm).compile_to_sharedlib(_arg_lib_name, _arg_extra_srcs)
+    };
+}
+
+extern fn _forwarder__MuVM__current_thread_as_mu_thread(mvm: *mut CMuVM, threadlocal: CMuCPtr) {
+    let mut _arg_mvm = from_MuVM_ptr(mvm);
+    let mut _arg_threadlocal = threadlocal;
+    unsafe {
+        (*_arg_mvm).current_thread_as_mu_thread(_arg_threadlocal)
     };
 }
 
@@ -2048,6 +2055,7 @@ pub fn make_new_MuVM(header: *mut c_void) -> *mut CMuVM {
         name_of: _forwarder__MuVM__name_of,
         set_trap_handler: _forwarder__MuVM__set_trap_handler,
         compile_to_sharedlib: _forwarder__MuVM__compile_to_sharedlib,
+        current_thread_as_mu_thread: _forwarder__MuVM__current_thread_as_mu_thread,
     });
 
     Box::into_raw(bx)
