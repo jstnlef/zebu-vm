@@ -104,6 +104,11 @@ pub enum Instruction_ {
         is_abort: bool, // T to abort, F to rethrow - FIXME: current, always rethrow for now
     },
 
+    ExprCCall{
+        data: CallData,
+        is_abort: bool
+    },
+
     // yields the memory value
     Load{
         is_ptr: bool,
@@ -267,6 +272,10 @@ impl Instruction_ {
                 let abort = select_value!(is_abort, "ABORT_ON_EXN", "RETHROW");
                 format!("CALL {} {}", data.debug_str(ops), abort)
             },
+            &Instruction_::ExprCCall{ref data, is_abort} => {
+                let abort = select_value!(is_abort, "ABORT_ON_EXN", "RETHROW");
+                format!("CCALL {} {}", data.debug_str(ops), abort)
+            }
             &Instruction_::Load{is_ptr, mem_loc, order} => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!("LOAD {} {:?} {}", ptr, order, ops[mem_loc])
@@ -338,7 +347,7 @@ impl Instruction_ {
                 format!("WPBRANCH {} {} {}", wp, disable_dest.debug_str(ops), enable_dest.debug_str(ops))
             },
             &Instruction_::Call{ref data, ref resume} => format!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
-            &Instruction_::CCall{ref data, ref resume} => format!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
+            &Instruction_::CCall{ref data, ref resume} => format!("CCALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
             &Instruction_::SwapStack{stack, is_exception, ref args, ref resume} => {
                 format!("SWAPSTACK {} {} {} {}", ops[stack], is_exception, op_vector_str(args, ops), resume.debug_str(ops))
             },

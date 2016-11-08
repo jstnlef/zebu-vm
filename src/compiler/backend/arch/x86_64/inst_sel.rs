@@ -259,6 +259,18 @@ impl <'a> InstructionSelection {
                             Some(resume), 
                             node, 
                             f_content, f_context, vm);
+                    },
+
+                    Instruction_::ExprCCall{ref data, is_abort} => {
+                        if is_abort {
+                            unimplemented!()
+                        }
+
+                        self.emit_c_call_ir(inst, data, None, node, f_content, f_context, vm);
+                    }
+
+                    Instruction_::CCall{ref data, ref resume} => {
+                        self.emit_c_call_ir(inst, data, Some(resume), node, f_content, f_context, vm);
                     }
                     
                     Instruction_::Return(_) => {
@@ -1170,7 +1182,7 @@ impl <'a> InstructionSelection {
             }
         };
         
-        self.emit_c_call(entry_name, sig, args, rets, cur_node, f_content, f_context, vm)
+        self.emit_c_call_internal(entry_name, sig, args, rets, cur_node, f_content, f_context, vm)
     }
     
     // returns the stack arg offset - we will need this to collapse stack after the call
@@ -1314,7 +1326,7 @@ impl <'a> InstructionSelection {
     // if ret is Some, return values will put stored in given temporaries
     // otherwise create temporaries
     // always returns result temporaries (given or created)
-    fn emit_c_call (
+    fn emit_c_call_internal(
         &mut self, 
         func_name: CName, 
         sig: P<CFuncSig>, 
@@ -1344,6 +1356,69 @@ impl <'a> InstructionSelection {
         }
         
         self.emit_postcall_convention(&sig, &rets, stack_arg_size, f_context, vm)
+    }
+
+    fn emit_c_call_ir(
+        &mut self,
+        inst: &Instruction,
+        calldata: &CallData,
+        resumption: Option<&ResumptionData>,
+        cur_node: &TreeNode,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM)
+    {
+        let ops = inst.ops.read().unwrap();
+
+        // prepare args (they could be instructions, we need to emit inst and get value)
+        let mut arg_values = vec![];
+        for arg_index in calldata.args.iter() {
+            let ref arg = ops[*arg_index];
+
+            if self.match_ireg(arg) {
+                let arg = self.emit_ireg(arg, f_content, f_context, vm);
+                arg_values.push(arg);
+            } else if self.match_iimm(arg) {
+                let arg = self.node_iimm_to_value(arg);
+                arg_values.push(arg);
+            } else {
+                unimplemented!();
+            }
+        }
+        let args = arg_values;
+
+        trace!("generating ccall");
+        let ref func = ops[calldata.func];
+
+        if self.match_funcref_const(func) {
+            match func.v {
+                TreeNode_::Value(ref pv) => {
+                    let sig = match pv.ty.v {
+                        MuType_::UFuncPtr(ref sig) => sig.clone(),
+                        _ => panic!("expected ufuncptr type with ccall, found {}", pv)
+                    };
+
+                    let rets = inst.value.clone();
+
+                    match pv.v {
+                        Value_::Constant(Constant::Int(addr)) => unimplemented!(),
+                        Value_::Constant(Constant::ExternSym(ref func_name)) => {
+                            self.emit_c_call_internal(
+                                func_name.clone(), //func_name: CName,
+                                sig, // sig: P<CFuncSig>,
+                                args, // args: Vec<P<Value>>,
+                                rets, // Option<Vec<P<Value>>>,
+                                Some(cur_node), // Option<&TreeNode>,
+                                f_content, // &FunctionContent,
+                                f_context, // &mut FunctionContext,
+                                vm);
+                        },
+                        _ => panic!("expect a ufuncptr to be either address constant, or symbol constant, we have {}", pv)
+                    }
+                },
+                _ => unimplemented!()
+            }
+        }
     }
     
     fn emit_mu_call(
@@ -1726,10 +1801,15 @@ impl <'a> InstructionSelection {
                         let tmp = self.make_temporary(f_context, pv.ty.clone(), vm);
                         match c {
                             &Constant::Int(val) => {
-                                self.backend.emit_mov_r64_imm64(&tmp, val as i64);
+                                if x86_64::is_valid_x86_imm(pv) {
+                                    let val = self.value_iimm_to_i32(&pv);
+
+                                    self.backend.emit_mov_r64_imm32(&tmp, val)
+                                } else {
+                                    self.backend.emit_mov_r64_imm64(&tmp, val as i64);
+                                }
                             },
-                            &Constant::FuncRef(_)
-                            | &Constant::UFuncRef(_) => {
+                            &Constant::FuncRef(_) => {
                                 unimplemented!()
                             },
                             &Constant::NullRef => {
@@ -1855,11 +1935,18 @@ impl <'a> InstructionSelection {
     fn match_funcref_const(&mut self, op: &P<TreeNode>) -> bool {
         match op.v {
             TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::Constant(Constant::FuncRef(_)) => true,
-                    Value_::Constant(Constant::UFuncRef(_)) => true,
+                let is_const = match pv.v {
+                    Value_::Constant(_) => true,
                     _ => false
-                }
+                };
+
+                let is_func = match &pv.ty.v {
+                    &MuType_::FuncRef(_)
+                    | &MuType_::UFuncPtr(_) => true,
+                    _ => false
+                };
+
+                is_const && is_func
             },
             _ => false 
         }
@@ -1869,12 +1956,11 @@ impl <'a> InstructionSelection {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
-                    Value_::Constant(Constant::FuncRef(id))
-                    | Value_::Constant(Constant::UFuncRef(id)) => id,
-                    _ => panic!("expected a (u)funcref const")
+                    Value_::Constant(Constant::FuncRef(id)) => id,
+                    _ => panic!("expected a funcref const")
                 }
             },
-            _ => panic!("expected a (u)funcref const")
+            _ => panic!("expected a funcref const")
         }
     }
     

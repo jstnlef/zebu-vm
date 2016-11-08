@@ -1,10 +1,11 @@
-use testutil::get_test_clang_path;
-use testutil::exec;
+use testutil::*;
 use ast::ir::MuName;
 use runtime;
 use compiler::backend;
+
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Output;
 
 fn link_executable_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
     let mut gcc = Command::new(get_test_clang_path());
@@ -118,9 +119,14 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str) -> PathBuf {
     link_executable_internal(files, out_path)
 }
 
-pub fn execute(executable: PathBuf) {
+pub fn execute(executable: PathBuf) -> Output {
     let run = Command::new(executable.as_os_str());
-    assert!(exec(run).status.success());
+    exec(run)
+}
+
+pub fn execute_nocheck(executable: PathBuf) -> Output {
+    let run = Command::new(executable.as_os_str());
+    exec_nocheck(run)
 }
 
 pub fn link_dylib (funcs: Vec<MuName>, out: &str) -> PathBuf {

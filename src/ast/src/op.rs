@@ -39,6 +39,7 @@ pub enum OpCode {
     AtomicRMW(AtomicRMWOp),
 
     ExprCall,
+    ExprCCall,
     Load,
     Store,
     CmpXchg,
@@ -247,6 +248,7 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
         Instruction_::ConvOp{operation, ..} => OpCode::Conversion(operation),
         Instruction_::AtomicRMW{op, ..} => OpCode::AtomicRMW(op),
         Instruction_::ExprCall{..} => OpCode::ExprCall,
+        Instruction_::ExprCCall{..} => OpCode::ExprCCall,
         Instruction_::Load{..} => OpCode::Load,
         Instruction_::Store{..} => OpCode::Store,
         Instruction_::CmpXchg{..} => OpCode::CmpXchg,

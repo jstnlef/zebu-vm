@@ -10,3 +10,4 @@ mod test_floatingpoint;
 mod test_int;
 mod test_binop;
 mod test_controlflow;
+mod test_call;

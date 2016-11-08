@@ -21,6 +21,14 @@ pub fn get_test_clang_path() -> String {
 }
 
 pub fn exec (mut cmd: Command) -> Output {
+    let output = exec_nocheck(cmd);
+
+    assert!(output.status.success());
+
+    output
+}
+
+pub fn exec_nocheck (mut cmd: Command) -> Output {
     println!("executing: {:?}", cmd);
     let output = match cmd.output() {
         Ok(res) => res,
@@ -31,8 +39,6 @@ pub fn exec (mut cmd: Command) -> Output {
     println!("{}", String::from_utf8_lossy(&output.stdout));
     println!("---err---");
     println!("{}", String::from_utf8_lossy(&output.stderr));
-
-    assert!(output.status.success());
 
     output
 }

@@ -7,6 +7,7 @@ pub fn is_terminal_inst(inst: &Instruction_) -> bool {
         | &CmpOp(_, _, _)
         | &ConvOp{..}
         | &ExprCall{..}
+        | &ExprCCall{..}
         | &Load{..}
         | &Store{..}
         | &CmpXchg{..}
@@ -52,6 +53,7 @@ pub fn has_side_effect(inst: &Instruction_) -> bool {
         &CmpOp(_, _, _) => false,
         &ConvOp{..} => false,
         &ExprCall{..} => true,
+        &ExprCCall{..} => true,
         &Load{..} => true,
         &Store{..} => true,
         &CmpXchg{..} => true,

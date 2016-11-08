@@ -19,6 +19,8 @@ pub type CName  = MuName;
 
 #[allow(non_snake_case)]
 pub fn Mu(str: &'static str) -> MuName {str.to_string()}
+#[allow(non_snake_case)]
+pub fn C(str: &'static str) -> CName {str.to_string()}
 
 pub type OpIndex = usize;
 
@@ -435,6 +437,7 @@ impl BlockContent {
                         vec_utils::append_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Call{ref resume, ..}
+                    | Instruction_::CCall{ref resume, ..}
                     | Instruction_::SwapStack{ref resume, ..}
                     | Instruction_::ExnInstruction{ref resume, ..} => {
                         let mut live_outs = vec![];
@@ -736,10 +739,10 @@ pub enum Constant {
     Double(f64),
 //    IRef(Address),
     FuncRef(MuID),
-    UFuncRef(MuID),
     Vector(Vec<Constant>),
     //Pointer(Address),
     NullRef,
+    ExternSym(CName)
 }
 
 impl fmt::Display for Constant {
@@ -750,7 +753,6 @@ impl fmt::Display for Constant {
             &Constant::Double(v) => write!(f, "{}", v),
 //            &Constant::IRef(v) => write!(f, "{}", v),
             &Constant::FuncRef(v) => write!(f, "{}", v),
-            &Constant::UFuncRef(v) => write!(f, "{}", v),
             &Constant::Vector(ref v) => {
                 write!(f, "[").unwrap();
                 for i in 0..v.len() {
@@ -762,6 +764,7 @@ impl fmt::Display for Constant {
                 write!(f, "]")
             }
             &Constant::NullRef => write!(f, "NullRef"),
+            &Constant::ExternSym(ref name) => write!(f, "ExternSym({})", name)
         }
     }
 }
