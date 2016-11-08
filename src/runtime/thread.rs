@@ -30,9 +30,9 @@ impl_mu_entity!(MuStack);
 #[repr(C)]
 pub struct MuStack {
     pub hdr: MuEntityHeader,
-    
-    func_addr: ValueLocation,
-    func_id: MuID, 
+
+    // address, id
+    func: Option<(ValueLocation, MuID)>,
     
     size: ByteSize,
     //    lo addr                                                    hi addr
@@ -50,11 +50,9 @@ pub struct MuStack {
     bp : Address,
     ip : Address,
     
-    exception_obj  : Option<Address>,
-    
     state: MuStackState,
     #[allow(dead_code)]
-    mmap           : memmap::Mmap
+    mmap           : Option<memmap::Mmap>
 }
 
 impl MuStack {
@@ -87,8 +85,7 @@ impl MuStack {
         
         MuStack {
             hdr: MuEntityHeader::unnamed(id),
-            func_addr: func_addr,
-            func_id: func.id(),
+            func: Some((func_addr, func.id())),
             
             state: MuStackState::Ready(func.sig.arg_tys.clone()),
             
@@ -102,9 +99,7 @@ impl MuStack {
             bp: upper_bound,
             ip: unsafe {Address::zero()},
             
-            exception_obj: None,
-            
-            mmap: anon_mmap
+            mmap: Some(anon_mmap)
         }
     }
     
@@ -245,6 +240,7 @@ extern "C" {
 #[link(name = "swap_stack")]
 extern "C" {
     fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
+    fn fake_swap_mu_thread(old_sp_loc: Address);
     fn muentry_swap_back_to_native_stack(sp_loc: Address);
     pub fn get_current_frame_rbp() -> Address;
     pub fn exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !;
@@ -276,6 +272,72 @@ impl MuThread {
             muentry_get_thread_local().to_ptr_mut::<MuThread>().as_mut().unwrap()
         }
     }
+
+    pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) {
+        use std::usize;
+
+        let user_tls = {
+            if threadlocal.is_zero() {
+                None
+            } else {
+                Some(threadlocal)
+            }
+        };
+
+        // fake a stack for current thread
+        let fake_mu_stack_for_cur = Box::new(MuStack {
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            func: None,
+
+            state: MuStackState::Active,
+
+            // we do not know anything about current stack
+            // treat it as max size
+            size: usize::MAX,
+            overflow_guard: unsafe {Address::zero()},
+            lower_bound: unsafe {Address::zero()},
+            upper_bound: unsafe {Address::max()},
+            underflow_guard: unsafe {Address::max()},
+
+            // these will only be used when stack is not active (we still save to these fields)
+            // their values do not matter now
+            sp: unsafe {Address::zero()},
+            bp: unsafe {Address::zero()},
+            ip: unsafe {Address::zero()},
+
+            // we are not responsible for keeping the memory alive
+            mmap: None,
+        });
+
+        let fake_mu_thread = MuThread {
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+
+            // valid allocator and stack
+            allocator: mm::new_mutator(),
+            stack: Some(fake_mu_stack_for_cur),
+
+            // we do not need native_sp_loc (we do not expect the thread to call
+            native_sp_loc: unsafe {Address::zero()},
+            user_tls: user_tls,
+
+            vm: vm,
+            exception_obj: unsafe {Address::zero()}
+        };
+
+        let ptr_fake_mu_thread : *mut MuThread = Box::into_raw(Box::new(fake_mu_thread));
+
+        // set thread local
+        unsafe {set_thread_local(ptr_fake_mu_thread)};
+
+//        let addr = unsafe {muentry_get_thread_local()};
+//        let sp_threadlocal_loc = addr.plus(*NATIVE_SP_LOC_OFFSET);
+//
+//        unsafe {
+//            fake_swap_mu_thread(sp_threadlocal_loc);
+//        }
+
+        debug!("returned to Rust thread (fake muthread)");
+    }
     
     pub fn new_thread_normal(mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>, vm: Arc<VM>) -> JoinHandle<()> {
         let user_tls = {
@@ -290,13 +352,13 @@ impl MuThread {
         stack.runtime_load_args(vals);
         
         MuThread::mu_thread_launch(vm.next_id(), stack, user_tls, vm)
-    }    
+    }
     
     #[no_mangle]
     #[allow(unused_variables)]
     pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vm: Arc<VM>) -> JoinHandle<()> {
         let new_sp = stack.sp;
-        let entry = runtime::resolve_symbol(vm.name_of(stack.func_id));
+        let entry = runtime::resolve_symbol(vm.name_of(stack.func.as_ref().unwrap().1));
         debug!("entry : 0x{:x}", entry);
         
         match thread::Builder::new().name(format!("Mu Thread #{}", id)).spawn(move || {

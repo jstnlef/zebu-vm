@@ -58,6 +58,7 @@ fn link_dylib_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
     for obj in object_files {
         gcc.arg(obj.as_os_str());
     }
+
     gcc.arg("-o");
     gcc.arg(out.as_os_str());
 

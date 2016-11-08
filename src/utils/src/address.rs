@@ -86,6 +86,11 @@ impl Address {
     pub unsafe fn zero() -> Address {
         Address(0)
     }
+    #[inline(always)]
+    pub unsafe fn max() -> Address {
+        use std::usize;
+        Address(usize::MAX)
+    }
 }
 
 impl PartialOrd for Address {

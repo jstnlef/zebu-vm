@@ -7,6 +7,8 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
+use self::mu::runtime::thread::MuThread;
+use self::mu::utils::Address;
 
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -36,6 +38,43 @@ fn test_instruction_new() {
     
     let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test");
     aot::execute(executable);
+}
+
+#[allow(dead_code)]
+//#[test]
+// The test won't work, since the generated dylib wants to use 'alloc_slow'.
+// but in current process, there is no 'alloc_slow' (rust mangles it)
+// The solution would be starting mu vm with libmu.so, then create IR from there.
+// test_jit should contains a test for it. So I do not test it here
+fn test_instruction_new_on_cur_thread() {
+    VM::start_logging_trace();
+
+    // compile
+    let vm = Arc::new(alloc_new());
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let func_id = vm.id_of("alloc_new");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+    }
+
+    backend::emit_context(&vm);
+
+    // link
+    let libname = &format!("liballoc_new_on_cur_thraed.dylib");
+    let dylib = aot::link_dylib(vec![Mu("alloc_new")], libname);
+    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
+
+    unsafe {
+        MuThread::current_thread_as_mu_thread(Address::zero(), vm.clone());
+        let func : libloading::Symbol<unsafe extern fn() -> ()> = lib.get(b"alloc_new").unwrap();
+
+        func();
+    }
 }
 
 #[allow(unused_variables)]
