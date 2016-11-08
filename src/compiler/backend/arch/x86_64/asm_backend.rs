@@ -2193,7 +2193,8 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("jle {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }    
-    
+
+    #[cfg(target_os = "macos")]
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation {
         trace!("emit: call {}", func);
         
@@ -2204,6 +2205,23 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));            
         
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+    }
+
+    #[cfg(target_os = "linux")]
+    // generating Position-Independent Code using PLT
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation {
+        trace!("emit: call {}", func);
+
+        let func = func + "@PLT";
+
+        let asm = format!("call {}", symbol(func));
+        self.add_asm_call(asm);
+
+        let callsite_symbol = symbol(callsite.clone());
+        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
+
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
     
@@ -2483,15 +2501,9 @@ pub fn emit_context(vm: &VM) {
     debug!("---finish---");
 }
 
-//#[cfg(target_os = "macos")]
 fn directive_globl(name: String) -> String {
     format!(".globl {}", name)
 }
-//
-//#[cfg(target_os = "linux")]
-//fn directive_globl(name: String) -> String {
-//    format!("global {}", name)
-//}
 
 fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
     format!(".comm {},{},{}", name, size, align)
