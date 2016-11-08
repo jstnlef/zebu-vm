@@ -1031,24 +1031,29 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
 
         let (impl_con, impl_ty) = match **con {
-            NodeConst::ConstInt { id: _, ty: ty, value: value } => {
+            NodeConst::ConstInt { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Int(value);
                 (c, t)
             },
-            NodeConst::ConstFloat { id: _, ty: ty, value: value } => {
+            NodeConst::ConstFloat { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Float(value);
                 (c, t)
             },
-            NodeConst::ConstDouble { id: _, ty: ty, value: value } => {
+            NodeConst::ConstDouble { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Double(value);
                 (c, t)
             },
-            NodeConst::ConstNull { id: _, ty: ty } => {
+            NodeConst::ConstNull { id: _, ty } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::NullRef;
+                (c, t)
+            },
+            NodeConst::ConstExtern { id: _, ty, ref symbol } => {
+                let t = self.ensure_type_rec(ty);
+                let c = Constant::ExternSym(symbol.clone());
                 (c, t)
             },
             ref c => panic!("{:?} not implemented", c),
@@ -1766,16 +1771,20 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
         } else {
             // non-terminating inst
-            if is_ccall {
-                warn!("Using ExprCall for non-terminating C call")
-            }
             Instruction {
                 hdr: hdr,
                 value: Some(rvs),
                 ops: RwLock::new(ops),
-                v: Instruction_::ExprCall {
-                    data: call_data,
-                    is_abort: false,
+                v: if is_ccall {
+                    Instruction_::ExprCCall {
+                        data: call_data,
+                        is_abort: false,
+                    }
+                } else {
+                    Instruction_::ExprCall {
+                        data: call_data,
+                        is_abort: false,
+                    }
                 },
             }
         }
