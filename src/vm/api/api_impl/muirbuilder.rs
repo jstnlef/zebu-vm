@@ -880,10 +880,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 self.struct_id_tags.push((id, tag.clone()));
                 MuType_::Struct(tag)
             },
-            NodeType::TypeHybrid { id: _, ref fixedtys, varty } => { 
-                let impl_fixedtys = fixedtys.iter().map(|t| self.ensure_type_rec(*t)).collect::<Vec<_>>();
-                let impl_varty = self.ensure_type_rec(varty);
-                MuType_::Hybrid(impl_fixedtys, impl_varty)
+            NodeType::TypeHybrid { id: _, ref fixedtys, varty } => {
+                unimplemented!()
+//                let impl_fixedtys = fixedtys.iter().map(|t| self.ensure_type_rec(*t)).collect::<Vec<_>>();
+//                let impl_varty = self.ensure_type_rec(varty);
+//                MuType_::Hybrid(impl_fixedtys, impl_varty)
             },
             NodeType::TypeArray { id: _, elemty, len } => { 
                 let impl_elemty = self.ensure_type_rec(elemty);
@@ -1529,27 +1530,28 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             },
             NodeInst::NodeGetFieldIRef { id: _, result_id, is_ptr, refty, index, opnd } => {
-                let impl_opnd = self.get_treenode(fcb, opnd);
-                let impl_index = self.ensure_constint_of(index as u64);
-                let refty_node = self.b.bundle.types.get(&refty).unwrap();
-                let field_ty_id = match **refty_node {
-                    NodeType::TypeStruct { id: _, ref fieldtys } => { 
-                        fieldtys[index as usize]
-                    },
-                    ref t => panic!("GETFIELDIREF {}: Expected struct type. actual: {:?}", id, t)
-                };
-                let impl_rvtype = self.ensure_iref_or_uptr(field_ty_id, is_ptr);
-                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
-                Instruction {
-                    hdr: hdr,
-                    value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd, impl_index]),
-                    v: Instruction_::GetFieldIRef {
-                        is_ptr: is_ptr,
-                        base: 0,
-                        index: 1,
-                    },
-                }
+                unimplemented!()
+//                let impl_opnd = self.get_treenode(fcb, opnd);
+//                let impl_index = self.ensure_constint_of(index as u64);
+//                let refty_node = self.b.bundle.types.get(&refty).unwrap();
+//                let field_ty_id = match **refty_node {
+//                    NodeType::TypeStruct { id: _, ref fieldtys } => {
+//                        fieldtys[index as usize]
+//                    },
+//                    ref t => panic!("GETFIELDIREF {}: Expected struct type. actual: {:?}", id, t)
+//                };
+//                let impl_rvtype = self.ensure_iref_or_uptr(field_ty_id, is_ptr);
+//                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+//                Instruction {
+//                    hdr: hdr,
+//                    value: Some(vec![impl_rv]),
+//                    ops: RwLock::new(vec![impl_opnd, impl_index]),
+//                    v: Instruction_::GetFieldIRef {
+//                        is_ptr: is_ptr,
+//                        base: 0,
+//                        index: 1,
+//                    },
+//                }
             },
             NodeInst::NodeGetElemIRef { id: _, result_id, is_ptr, refty, indty: _, opnd, index } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);

@@ -59,75 +59,95 @@ const VM_SERIALIZE_FIELDS : usize = 13;
 
 impl Encodable for VM {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
+        let mut field_i = 0;
+
         // serialize VM_SERIALIZE_FIELDS fields
         // PLUS ONE extra global STRUCT_TAG_MAP
-        s.emit_struct("VM", VM_SERIALIZE_FIELDS + 1, |s| {
+        s.emit_struct("VM", VM_SERIALIZE_FIELDS + 2, |s| {
             // next_id
             trace!("...serializing next_id");
-            try!(s.emit_struct_field("next_id", 0, |s| {
+            try!(s.emit_struct_field("next_id", field_i, |s| {
                 s.emit_usize(self.next_id.load(Ordering::SeqCst))
             }));
+            field_i += 1;
                 
             // id_name_map
             trace!("...serializing id_name_map");
             {
                 let map : &HashMap<MuID, MuName> = &self.id_name_map.read().unwrap();            
-                try!(s.emit_struct_field("id_name_map", 1, |s| map.encode(s)));
+                try!(s.emit_struct_field("id_name_map", field_i, |s| map.encode(s)));
             }
+            field_i += 1;
             
             // name_id_map
             trace!("...serializing name_id_map");
             {
                 let map : &HashMap<MuName, MuID> = &self.name_id_map.read().unwrap(); 
-                try!(s.emit_struct_field("name_id_map", 2, |s| map.encode(s)));
+                try!(s.emit_struct_field("name_id_map", field_i, |s| map.encode(s)));
             }
+            field_i += 1;
             
             // types
             trace!("...serializing types");
             {
                 let types = &self.types.read().unwrap();
-                try!(s.emit_struct_field("types", 3, |s| types.encode(s)));
+                try!(s.emit_struct_field("types", field_i, |s| types.encode(s)));
             }
+            field_i += 1;
+
             // STRUCT_TAG_MAP
             trace!("...serializing struct_tag_map");
             {
                 let struct_tag_map = types::STRUCT_TAG_MAP.read().unwrap();
-                try!(s.emit_struct_field("struct_tag_map", 4, |s| struct_tag_map.encode(s)));
+                try!(s.emit_struct_field("struct_tag_map", field_i, |s| struct_tag_map.encode(s)));
             }
+            field_i += 1;
+
+            // HYBRID_TAG_MAP
+            trace!("...serializing hybrid_tag_map");
+            {
+                let hybrid_tag_map = types::HYBRID_TAG_MAP.read().unwrap();
+                try!(s.emit_struct_field("hybrid_tag_map", field_i, |s| hybrid_tag_map.encode(s)));
+            }
+            field_i += 1;
             
             // backend_type_info
             trace!("...serializing backend_type_info");
             {
                 let backend_type_info : &HashMap<_, _> = &self.backend_type_info.read().unwrap();
-                try!(s.emit_struct_field("backend_type_info", 5, |s| backend_type_info.encode(s)));
+                try!(s.emit_struct_field("backend_type_info", field_i, |s| backend_type_info.encode(s)));
             }
+            field_i += 1;
             
             // constants
             trace!("...serializing constants");
             {
                 let constants : &HashMap<_, _> = &self.constants.read().unwrap();
-                try!(s.emit_struct_field("constants", 6, |s| constants.encode(s)));
+                try!(s.emit_struct_field("constants", field_i, |s| constants.encode(s)));
             }
+            field_i += 1;
             
             // globals
             trace!("...serializing globals");
             {
                 let globals: &HashMap<_, _> = &self.globals.read().unwrap();
-                try!(s.emit_struct_field("globals", 7, |s| globals.encode(s)));
+                try!(s.emit_struct_field("globals", field_i, |s| globals.encode(s)));
             }
+            field_i += 1;
             
             // func sigs
             trace!("...serializing func_sigs");
             {
                 let func_sigs: &HashMap<_, _> = &self.func_sigs.read().unwrap();
-                try!(s.emit_struct_field("func_sigs", 8, |s| func_sigs.encode(s)));
+                try!(s.emit_struct_field("func_sigs", field_i, |s| func_sigs.encode(s)));
             }
+            field_i += 1;
             
             // funcs
             trace!("...serializing funcs");
             {
                 let funcs : &HashMap<_, _> = &self.funcs.read().unwrap();
-                try!(s.emit_struct_field("funcs", 9, |s| {
+                try!(s.emit_struct_field("funcs", field_i, |s| {
                     s.emit_map(funcs.len(), |s| {
                         let mut i = 0;
                         for (k,v) in funcs.iter() {
@@ -140,12 +160,13 @@ impl Encodable for VM {
                     })
                 }));
             }
+            field_i += 1;
             
             // func_vers
             trace!("...serializing func_vers");
             {
                 let func_vers : &HashMap<_, _> = &self.func_vers.read().unwrap();
-                try!(s.emit_struct_field("func_vers", 10, |s| {
+                try!(s.emit_struct_field("func_vers", field_i, |s| {
                     s.emit_map(func_vers.len(), |s| {
                         let mut i = 0;
                         for (k, v) in func_vers.iter() {
@@ -158,25 +179,28 @@ impl Encodable for VM {
                     })
                 }));
             }
-            
+            field_i += 1;
+
             // primordial
             trace!("...serializing primordial");
             {
                 let primordial = &self.primordial.read().unwrap();
-                try!(s.emit_struct_field("primordial", 11, |s| primordial.encode(s)));
+                try!(s.emit_struct_field("primordial", field_i, |s| primordial.encode(s)));
             }
+            field_i += 1;
             
             // is_running
             trace!("...serializing is_running");
             {
-                try!(s.emit_struct_field("is_running", 12, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
+                try!(s.emit_struct_field("is_running", field_i, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
             }
+            field_i += 1;
             
             // compiled_funcs
             trace!("...serializing compiled_funcs");
             {
                 let compiled_funcs : &HashMap<_, _> = &self.compiled_funcs.read().unwrap();
-                try!(s.emit_struct_field("compiled_funcs", 13, |s| {
+                try!(s.emit_struct_field("compiled_funcs", field_i, |s| {
                     s.emit_map(compiled_funcs.len(), |s| {
                         let mut i = 0;
                         for (k, v) in compiled_funcs.iter() {
@@ -189,6 +213,7 @@ impl Encodable for VM {
                     })
                 }));
             }
+            field_i += 1;
             
             trace!("serializing finished");
             Ok(())
@@ -198,45 +223,69 @@ impl Encodable for VM {
 
 impl Decodable for VM {
     fn decode<D: Decoder>(d: &mut D) -> Result<VM, D::Error> {
-        d.read_struct("VM", VM_SERIALIZE_FIELDS + 1, |d| {
+        let mut field_i = 0;
+
+        d.read_struct("VM", VM_SERIALIZE_FIELDS + 2, |d| {
             // next_id
-            let next_id = try!(d.read_struct_field("next_id", 0, |d| {
+            let next_id = try!(d.read_struct_field("next_id", field_i, |d| {
                 d.read_usize()
             }));
+            field_i += 1;
             
             // id_name_map
-            let id_name_map = try!(d.read_struct_field("id_name_map", 1, |d| Decodable::decode(d)));
-            
+            let id_name_map = try!(d.read_struct_field("id_name_map", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
+
             // name_id_map
-            let name_id_map = try!(d.read_struct_field("name_id_map", 2, |d| Decodable::decode(d)));
+            let name_id_map = try!(d.read_struct_field("name_id_map", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
             
             // types
-            let types = try!(d.read_struct_field("types", 3, |d| Decodable::decode(d)));
+            let types = try!(d.read_struct_field("types", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
+
+            // struct tag map
             {
-                // struct tag map
-                let mut struct_tag_map : HashMap<MuName, StructType_> = try!(d.read_struct_field("struct_tag_map", 4, |d| Decodable::decode(d)));
+                let mut struct_tag_map : HashMap<MuName, StructType_> = try!(d.read_struct_field("struct_tag_map", field_i, |d| Decodable::decode(d)));
                 
                 let mut map_guard = types::STRUCT_TAG_MAP.write().unwrap();
                 map_guard.clear();
                 for (k, v) in struct_tag_map.drain() {
                     map_guard.insert(k, v);
                 }
+                field_i += 1;
+            }
+
+            // hybrid tag map
+            {
+                let mut hybrid_tag_map : HashMap<MuName, HybridType_> = try!(d.read_struct_field("hybrid_tag_map", field_i, |d| Decodable::decode(d)));
+
+                let mut map_guard = types::HYBRID_TAG_MAP.write().unwrap();
+                map_guard.clear();
+                for (k, v) in hybrid_tag_map.drain() {
+                    map_guard.insert(k, v);
+                }
+                field_i += 1;
             }
             
             // backend_type_info
-            let backend_type_info = try!(d.read_struct_field("backend_type_info", 5, |d| Decodable::decode(d)));
+            let backend_type_info = try!(d.read_struct_field("backend_type_info", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
             
             // constants
-            let constants = try!(d.read_struct_field("constants", 6, |d| Decodable::decode(d)));
+            let constants = try!(d.read_struct_field("constants", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
             
             // globals
-            let globals = try!(d.read_struct_field("globals", 7, |d| Decodable::decode(d)));
+            let globals = try!(d.read_struct_field("globals", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
             
             // func sigs
-            let func_sigs = try!(d.read_struct_field("func_sigs", 8, |d| Decodable::decode(d)));
+            let func_sigs = try!(d.read_struct_field("func_sigs", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
             
             // funcs
-            let funcs = try!(d.read_struct_field("funcs", 9, |d| {
+            let funcs = try!(d.read_struct_field("funcs", field_i, |d| {
                 d.read_map(|d, len| {
                     let mut map = HashMap::new();
                     for i in 0..len {
@@ -247,9 +296,10 @@ impl Decodable for VM {
                     Ok(map)
                 })
             }));
+            field_i += 1;
             
             // func_vers
-            let func_vers = try!(d.read_struct_field("func_vers", 10, |d| {
+            let func_vers = try!(d.read_struct_field("func_vers", field_i, |d| {
                 d.read_map(|d, len| {
                     let mut map = HashMap::new();
                     for i in 0..len {
@@ -260,14 +310,17 @@ impl Decodable for VM {
                     Ok(map)
                 })
             }));
+            field_i += 1;
             
             // primordial
-            let primordial = try!(d.read_struct_field("primordial", 11, |d| Decodable::decode(d)));
+            let primordial = try!(d.read_struct_field("primordial", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
             
-            let is_running = try!(d.read_struct_field("is_running", 12, |d| Decodable::decode(d)));
+            let is_running = try!(d.read_struct_field("is_running", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
             
             // compiled funcs
-            let compiled_funcs = try!(d.read_struct_field("compiled_funcs", 13, |d| {
+            let compiled_funcs = try!(d.read_struct_field("compiled_funcs", field_i, |d| {
                 d.read_map(|d, len| {
                     let mut map = HashMap::new();
                     for i in 0..len {
@@ -278,6 +331,7 @@ impl Decodable for VM {
                     Ok(map)
                 })
             }));
+            field_i += 1;
             
             let vm = VM{
                 next_id: ATOMIC_USIZE_INIT,

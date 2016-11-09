@@ -47,7 +47,7 @@ fn create_types() -> Vec<P<MuType>> {
     let t8 = MuType::new(8, MuType_::array(types[0].clone(), 5));
     types.push(P(t8));
     
-    let t9 = MuType::new(9, MuType_::hybrid(vec![types[7].clone(), types[1].clone()], types[0].clone()));
+    let t9 = MuType::new(9, MuType_::hybrid("MyHybridTag1".to_string(), vec![types[7].clone(), types[1].clone()], types[0].clone()));
     types.push(P(t9));
     
     let t10 = MuType::new(10, MuType_::void());
@@ -95,7 +95,7 @@ fn test_type_constructors() {
         assert_type!(t7_struct_ty, "struct<int<8> float>");
     }
     assert_type!(*types[8], "array<int<8> 5>");
-    assert_type!(*types[9], "hybrid<[MyStructTag1(struct), float] int<8>>");
+    assert_type!(*types[9], "MyHybridTag1(hybrid)");
     assert_type!(*types[10], "void");
     assert_type!(*types[11], "threadref");
     assert_type!(*types[12], "stackref");
@@ -142,9 +142,9 @@ fn test_is_traced() {
     let ref_array = MuType::new(102, MuType_::array(types[3].clone(), 5));
     assert_eq!(is_traced(&ref_array), true);
     assert_eq!(is_traced(&types[9]), false);
-    let fix_ref_hybrid = MuType::new(103, MuType_::hybrid(vec![types[3].clone(), types[0].clone()], types[0].clone()));
+    let fix_ref_hybrid = MuType::new(103, MuType_::hybrid("FixRefHybrid".to_string(), vec![types[3].clone(), types[0].clone()], types[0].clone()));
     assert_eq!(is_traced(&fix_ref_hybrid), true);
-    let var_ref_hybrid = MuType::new(104, MuType_::hybrid(vec![types[0].clone(), types[1].clone()], types[3].clone()));
+    let var_ref_hybrid = MuType::new(104, MuType_::hybrid("VarRefHybrid".to_string(), vec![types[0].clone(), types[1].clone()], types[3].clone()));
     assert_eq!(is_traced(&var_ref_hybrid), true);
     assert_eq!(is_traced(&types[10]), false);
     assert_eq!(is_traced(&types[11]), true);
@@ -175,9 +175,9 @@ fn test_is_native_safe() {
     let ref_array = MuType::new(102, MuType_::array(types[3].clone(), 5));
     assert_eq!(is_native_safe(&ref_array), false);
     assert_eq!(is_native_safe(&types[9]), true);
-    let fix_ref_hybrid = MuType::new(103, MuType_::hybrid(vec![types[3].clone(), types[0].clone()], types[0].clone()));
+    let fix_ref_hybrid = MuType::new(103, MuType_::hybrid("FixRefHybrid".to_string(), vec![types[3].clone(), types[0].clone()], types[0].clone()));
     assert_eq!(is_native_safe(&fix_ref_hybrid), false);
-    let var_ref_hybrid = MuType::new(104, MuType_::hybrid(vec![types[0].clone(), types[1].clone()], types[3].clone()));
+    let var_ref_hybrid = MuType::new(104, MuType_::hybrid("VarRefHybrid".to_string(), vec![types[0].clone(), types[1].clone()], types[3].clone()));
     assert_eq!(is_native_safe(&var_ref_hybrid), false);
     assert_eq!(is_native_safe(&types[10]), true);
     assert_eq!(is_native_safe(&types[11]), false);

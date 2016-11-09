@@ -1,5 +1,6 @@
 use mu::ast::types::*;
 use mu::ast::ir::*;
+use mu::ast::ptr::*;
 use mu::ast::inst::*;
 use mu::ast::op::*;
 use mu::vm::*;
@@ -41,12 +42,10 @@ fn test_ccall_exit() {
     assert!(ret_code == 10);
 }
 
-fn ccall_exit() -> VM {
-    let vm = VM::new();
-
+pub fn gen_ccall_exit(arg: P<TreeNode>, func_ver: &mut MuFunctionVersion, vm: &VM) -> Box<TreeNode> {
     // .typedef @int32 = int<32>
     let type_def_int32 = vm.declare_type(vm.next_id(), MuType_::int(32));
-    vm.set_name(type_def_int32.as_entity(), Mu("int32"));
+    vm.set_name(type_def_int32.as_entity(), Mu("exit_int32"));
 
     // .typedef @exit_sig = (@int32) -> !
     let exit_sig = vm.declare_func_sig(vm.next_id(), vec![], vec![type_def_int32.clone()]);
@@ -59,6 +58,33 @@ fn ccall_exit() -> VM {
     // .const @exit = EXTERN SYMBOL "exit"
     let const_exit = vm.declare_const(vm.next_id(), type_def_ufp_exit.clone(), Constant::ExternSym(C("exit")));
     vm.set_name(const_exit.as_entity(), Mu("exit"));
+
+    // exprCCALL %const_exit (%const_int32_10) normal: %end(), exception: %end()
+    let blk_end_id = vm.next_id();
+
+    let const_exit_local = func_ver.new_constant(const_exit.clone());
+
+    func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![const_exit_local, arg]),
+        v: Instruction_::ExprCCall {
+            data: CallData {
+                func: 0,
+                args: vec![1],
+                convention: CallConvention::Foreign(ForeignFFI::C)
+            },
+            is_abort: false
+        }
+    })
+}
+
+fn ccall_exit() -> VM {
+    let vm = VM::new();
+
+    // .typedef @int32 = int<32>
+    let type_def_int32 = vm.declare_type(vm.next_id(), MuType_::int(32));
+    vm.set_name(type_def_int32.as_entity(), Mu("int32"));
 
     // .const @int32_10 = 10
     let const_int32_10 = vm.declare_const(vm.next_id(), type_def_int32.clone(), Constant::Int(10));
@@ -88,23 +114,9 @@ fn ccall_exit() -> VM {
 
     // exprCCALL %const_exit (%const_int32_10) normal: %end(), exception: %end()
     let blk_end_id = vm.next_id();
-
-    let const_exit_local = func_ver.new_constant(const_exit.clone());
     let const_int32_10_local = func_ver.new_constant(const_int32_10.clone());
 
-    let blk_entry_ccall = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![const_exit_local, const_int32_10_local]),
-        v: Instruction_::ExprCCall {
-            data: CallData {
-                func: 0,
-                args: vec![1],
-                convention: CallConvention::Foreign(ForeignFFI::C)
-            },
-            is_abort: false
-        }
-    });
+    let blk_entry_ccall = gen_ccall_exit(const_int32_10_local.clone(), &mut func_ver, &vm);
 
     // RET %const_int32_0
     let const_int32_0_local = func_ver.new_constant(const_int32_0.clone());

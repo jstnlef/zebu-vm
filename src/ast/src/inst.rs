@@ -176,7 +176,7 @@ pub enum Instruction_ {
     GetFieldIRef{
         is_ptr: bool,
         base: OpIndex, // iref or uptr
-        index: OpIndex // constant
+        index: usize // constant
     },
 
     // iref|uptr<array<T N>> int<M> -> iref|uptr<T>
@@ -306,7 +306,7 @@ impl Instruction_ {
             &Instruction_::GetIRef(reference) => format!("GETIREF {}", ops[reference]),
             &Instruction_::GetFieldIRef{is_ptr, base, index} => {
                 let ptr = select_value!(is_ptr, "PTR", "");
-                format!("GETFIELDIREF {} {} {}", ptr, ops[base], ops[index])
+                format!("GETFIELDIREF {} {} {}", ptr, ops[base], index)
             },
             &Instruction_::GetElementIRef{is_ptr, base, index} => {
                 let ptr = select_value!(is_ptr, "PTR", "");

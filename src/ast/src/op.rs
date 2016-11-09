@@ -79,7 +79,7 @@ pub fn pick_op_code_for_ssa(ty: &P<MuType>) -> OpCode {
         // we are not supposed to have these as SSA
         Struct(_)
         | Array(_, _)
-        | Hybrid(_, _)
+        | Hybrid(_)
         | Void => panic!("Not expecting {} as SSA", ty),
         // unimplemented
         Vector(_, _) => unimplemented!()
@@ -107,7 +107,7 @@ pub fn pick_op_code_for_value(ty: &P<MuType>) -> OpCode {
         // we are not supposed to have these as SSA
         Struct(_)
         | Array(_, _)
-        | Hybrid(_, _)
+        | Hybrid(_)
         | Void => unimplemented!(),
         // unimplemented
         Vector(_, _) => unimplemented!()

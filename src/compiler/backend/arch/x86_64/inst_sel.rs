@@ -757,7 +757,7 @@ impl <'a> InstructionSelection {
                             _ => panic!("didnt expect order {:?} with store inst", order)
                         }                        
 
-                        let resolved_loc = self.emit_node_addr_to_value(loc_op, vm);
+                        let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
                         let res_temp = self.get_result_value(node);
                         
                         if self.match_ireg(node) {
@@ -784,19 +784,19 @@ impl <'a> InstructionSelection {
                             }
                         };
                         
-                        let resolved_loc = self.emit_node_addr_to_value(loc_op, vm);
-                        
-                        if self.match_ireg(val_op) {
-                            let val = self.emit_ireg(val_op, f_content, f_context, vm);
-                            if generate_plain_mov {
-                                self.backend.emit_mov_mem64_r64(&resolved_loc, &val);
-                            } else {
-                                unimplemented!()
-                            }
-                        } else if self.match_iimm(val_op) {
+                        let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
+
+                        if self.match_iimm(val_op) {
                             let val = self.node_iimm_to_i32(val_op);
                             if generate_plain_mov {
                                 self.backend.emit_mov_mem64_imm32(&resolved_loc, val);
+                            } else {
+                                unimplemented!()
+                            }
+                        } else if self.match_ireg(val_op) {
+                            let val = self.emit_ireg(val_op, f_content, f_context, vm);
+                            if generate_plain_mov {
+                                self.backend.emit_mov_mem64_r64(&resolved_loc, &val);
                             } else {
                                 unimplemented!()
                             }
@@ -1876,7 +1876,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_node_addr_to_value(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
+    fn emit_node_addr_to_value(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
@@ -1910,11 +1910,13 @@ impl <'a> InstructionSelection {
                     Value_::Constant(_) => unimplemented!()
                 }
             }
-            TreeNode_::Instruction(_) => self.emit_get_mem_from_inst(op, vm)
+            TreeNode_::Instruction(_) => self.emit_get_mem_from_inst(op, f_content, f_context, vm)
         }
     }
     
-    fn emit_get_mem_from_inst(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
+    fn emit_get_mem_from_inst(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        let header_size = mm::objectmodel::OBJECT_HEADER_SIZE as i32;
+
         match op.v {
             TreeNode_::Instruction(ref inst) => {
                 let ref ops = inst.ops.read().unwrap();
@@ -1922,8 +1924,44 @@ impl <'a> InstructionSelection {
                 match inst.v {
                     Instruction_::GetIRef(op_index) => {
                         let ref op = ops[op_index];
-                        
-                        self.make_memory_op_base_offset(&op.clone_value(), mm::objectmodel::OBJECT_HEADER_SIZE as i32, ADDRESS_TYPE.clone(), vm)
+
+                        self.make_memory_op_base_offset(&op.clone_value(), header_size, ADDRESS_TYPE.clone(), vm)
+                    }
+                    Instruction_::GetFieldIRef{is_ptr, base, index} => {
+                        let ref base = ops[base];
+
+                        let struct_ty = {
+                            let ref iref_or_uptr_ty = base.clone_value().ty;
+
+                            match iref_or_uptr_ty.v {
+                                MuType_::IRef(ref ty)
+                                | MuType_::UPtr(ref ty) => ty.clone(),
+                                _ => panic!("expected the base for GetFieldIRef has a type of iref or uptr, found type: {}", iref_or_uptr_ty)
+                            }
+                        };
+
+                        let ty_info = vm.get_backend_type_info(struct_ty.id());
+                        let layout  = match ty_info.struct_layout.as_ref() {
+                            Some(layout) => layout,
+                            None => panic!("a struct type does not have a layout yet: {:?}", ty_info)
+                        };
+                        debug_assert!(layout.len() > index);
+                        let field_offset : i32 = layout[index] as i32;
+
+                        match base.v {
+                            TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(op_index), ref ops, ..}) => {
+                                let ops_guard = ops.read().unwrap();
+                                let ref inner = ops_guard[op_index];
+
+                                self.make_memory_op_base_offset(&inner.clone_value(), header_size + field_offset, ADDRESS_TYPE.clone(), vm)
+                            },
+
+                            _ => {
+                                let tmp = self.emit_ireg(base, f_content, f_context, vm);
+
+                                self.make_memory_op_base_offset(&tmp, field_offset, ADDRESS_TYPE.clone(), vm)
+                            }
+                        }
                     }
                     _ => unimplemented!()
                 }

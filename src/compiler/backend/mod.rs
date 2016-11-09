@@ -99,7 +99,13 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         // - align is the most strict aligned element (from all fix tys and var ty)
         // - size is fixed tys size
         // - layout is fixed tys layout
-        MuType_::Hybrid(ref fix_tys, ref var_ty) => {
+        MuType_::Hybrid(ref name) => {
+            let read_lock = HYBRID_TAG_MAP.read().unwrap();
+            let hybrid = read_lock.get(name).unwrap();
+
+            let fix_tys = hybrid.get_fix_tys();
+            let var_ty  = hybrid.get_var_ty();
+
             // treat fix_tys as struct
             let mut ret = layout_struct(fix_tys, vm);
             
