@@ -816,7 +816,7 @@ impl <'a> InstructionSelection {
                         if hdr_size == 0 {
                             self.emit_move_node_to_value(&res_tmp, &op, f_content, f_context, vm);
                         } else {
-                            self.emit_lea_base_offset(&res_tmp, &op.clone_value(), hdr_size as i32, vm);
+                            self.emit_lea_base_immoffset(&res_tmp, &op.clone_value(), hdr_size as i32, vm);
                         }
                     }
                     
@@ -831,97 +831,108 @@ impl <'a> InstructionSelection {
                     }
                     
                     Instruction_::New(ref ty) => {
-                        let ty_info = vm.get_backend_type_info(ty.id());
-                        let ty_size = ty_info.size;
-                        let ty_align= ty_info.alignment;
-                        
-                        if ty_size > mm::LARGE_OBJECT_THRESHOLD {
-                            // emit large object allocation
-                            unimplemented!()
-                        } else {
-                            // emit immix allocation fast path
-                            
-                            // ASM: %tl = get_thread_local()
-                            let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
-                            
-                            // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
-                            let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
-                            let tmp_cursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-                            self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
-                            
-                            // alignup cursor (cursor + align - 1 & !(align - 1))
-                            // ASM: lea align-1(%cursor) -> %start
-                            let align = ty_info.alignment as i32;
-                            let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-                            self.emit_lea_base_offset(&tmp_start, &tmp_cursor, align - 1, vm);
-                            // ASM: and %start, !(align-1) -> %start
-                            self.backend.emit_and_r64_imm32(&tmp_start, !(align - 1) as i32);
-                            
-                            // bump cursor
-                            // ASM: lea size(%start) -> %end
-                            let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-                            self.emit_lea_base_offset(&tmp_end, &tmp_start, ty_size as i32, vm);
-                            
-                            // check with limit
-                            // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
-                            let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
-                            let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
-                            self.backend.emit_cmp_mem64_r64(&mem_limit, &tmp_end);
-                            
-                            // branch to slow path if end > limit (end - limit > 0)
-                            // ASM: jg alloc_slow
-                            let slowpath = format!("{}_allocslow", node.id());
-                            self.backend.emit_jg(slowpath.clone());
-                            
-                            // update cursor
-                            // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
-                            self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
-                            
-                            // put start as result
-                            // ASM: mov %start -> %result
-                            let tmp_res = self.get_result_value(node);
-                            self.backend.emit_mov_r64_r64(&tmp_res, &tmp_start);
-                            
-                            // ASM jmp alloc_end
-                            let allocend = format!("{}_allocend", node.id());
-                            self.backend.emit_jmp(allocend.clone());
-                            
-                            // finishing current block
-                            self.backend.end_block(self.current_block.as_ref().unwrap().clone());
-                            
-                            // alloc_slow: 
-                            // call alloc_slow(size, align) -> %ret
-                            // new block (no livein)
-                            self.current_block = Some(slowpath.clone());
-                            self.backend.start_block(slowpath.clone());
-                            self.backend.set_block_livein(slowpath.clone(), &vec![]); 
-
-                            // arg1: allocator address                            
-                            let allocator_offset = *thread::ALLOCATOR_OFFSET;
-                            let tmp_allocator = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-                            self.emit_lea_base_offset(&tmp_allocator, &tmp_tl, allocator_offset as i32, vm);
-                            // arg2: size                            
-                            let const_size = self.make_value_int_const(ty_size as u64, vm);
-                            // arg3: align
-                            let const_align= self.make_value_int_const(ty_align as u64, vm);
-                            
-                            let rets = self.emit_runtime_entry(
-                                &entrypoints::ALLOC_SLOW,
-                                vec![tmp_allocator, const_size, const_align],
-                                Some(vec![
-                                    tmp_res.clone()
-                                ]),
-                                Some(node), f_content, f_context, vm
-                            );
-                            
-                            // end block (no liveout other than result)
-                            self.backend.end_block(slowpath.clone());
-                            self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
-                            
-                            // block: alloc_end
-                            self.backend.start_block(allocend.clone());
-                            self.current_block = Some(allocend.clone());
+                        if cfg!(debug_assertions) {
+                            match ty.v {
+                                MuType_::Hybrid(_) => panic!("cannot use NEW for hybrid, use NEWHYBRID instead"),
+                                _ => {}
+                            }
                         }
+
+                        let ty_info = vm.get_backend_type_info(ty.id());
+                        let size = ty_info.size;
+                        let ty_align= ty_info.alignment;
+
+                        let const_size = self.make_value_int_const(size as u64, vm);
+                        
+                        self.emit_alloc_sequence(const_size, ty_align, node, f_content, f_context, vm);
+                    }
+
+                    Instruction_::NewHybrid(ref ty, var_len) => {
+                        if cfg!(debug_assertions) {
+                            match ty.v {
+                                MuType_::Hybrid(_) => {},
+                                _ => panic!("NEWHYBRID is only for allocating hybrid types, use NEW for others")
+                            }
+                        }
+
+                        let ty_info = vm.get_backend_type_info(ty.id());
+                        let ty_align = ty_info.alignment;
+                        let fix_part_size = ty_info.size;
+                        let var_ty_size = match ty.v {
+                            MuType_::Hybrid(ref name) => {
+                                let map_lock = HYBRID_TAG_MAP.read().unwrap();
+                                let hybrid_ty_ = map_lock.get(name).unwrap();
+                                let var_ty = hybrid_ty_.get_var_ty();
+
+                                vm.get_backend_type_info(var_ty.id()).size
+                            },
+                            _ => panic!("only expect HYBRID type here")
+                        };
+
+                        // actual size = fix_part_size + var_ty_size * len
+                        let actual_size = {
+                            let ops = inst.ops.read().unwrap();
+                            let ref var_len = ops[var_len];
+
+                            if self.match_iimm(var_len) {
+                                let var_len = self.node_iimm_to_i32(var_len);
+                                let actual_size = fix_part_size + var_ty_size * (var_len as usize);
+
+                                self.make_value_int_const(actual_size as u64, vm)
+                            } else {
+                                let tmp_actual_size = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                let tmp_var_len = self.emit_ireg(var_len, f_content, f_context, vm);
+
+                                let is_power_of_two = |x: usize| {
+                                    use std::i8;
+
+                                    let mut power_of_two = 1;
+                                    let mut i: i8 = 0;
+                                    while power_of_two < x && i < i8::MAX {
+                                        power_of_two *= 2;
+                                        i += 1;
+                                    }
+
+                                    if power_of_two == x {
+                                        Some(i)
+                                    } else {
+                                        None
+                                    }
+                                };
+
+                                match is_power_of_two(var_ty_size) {
+                                    Some(shift) => {
+                                        // a shift-left will get the total size of var part
+                                        self.backend.emit_shl_r64_imm8(&tmp_var_len, shift);
+
+                                        // add with fix-part size
+                                        self.backend.emit_add_r64_imm32(&tmp_var_len, fix_part_size as i32);
+
+                                        // mov result to tmp_actual_size
+                                        self.backend.emit_mov_r64_r64(&tmp_actual_size, &tmp_var_len);
+                                    }
+                                    None => {
+                                        // we need to do a multiply
+
+                                        // mov var_ty_size -> rax
+                                        self.backend.emit_mov_r64_imm32(&x86_64::RAX, var_ty_size as i32);
+
+                                        // mul tmp_var_len, rax -> rdx:rax
+                                        self.backend.emit_mul_r64(&tmp_var_len);
+
+                                        // add with fix-part size
+                                        self.backend.emit_add_r64_imm32(&x86_64::RAX, fix_part_size as i32);
+
+                                        // mov result to tmp_actual_size
+                                        self.backend.emit_mov_r64_r64(&tmp_actual_size, &x86_64::RAX);
+                                    }
+                                }
+
+                                tmp_actual_size
+                            }
+                        };
+
+                        self.emit_alloc_sequence(actual_size, ty_align, node, f_content, f_context, vm);
                     }
                     
                     Instruction_::Throw(op_index) => {
@@ -961,6 +972,19 @@ impl <'a> InstructionSelection {
             })
         })
     }
+
+    fn make_memory_op_base_offsetreg(&mut self, base: &P<Value>, offset: &P<Value>, ty: P<MuType>, vm: &VM) -> P<Value> {
+        P(Value{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty: ty.clone(),
+            v: Value_::Memory(MemoryLocation::Address{
+                base: base.clone(),
+                offset: Some(offset.clone()),
+                index: None,
+                scale: None
+            })
+        })
+    }
     
     fn make_value_int_const (&mut self, val: u64, vm: &VM) -> P<Value> {
         P(Value{
@@ -968,7 +992,178 @@ impl <'a> InstructionSelection {
             ty: UINT64_TYPE.clone(),
             v: Value_::Constant(Constant::Int(val))
         })
-    } 
+    }
+
+    fn emit_alloc_sequence (&mut self, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
+        if size.is_int_const() {
+            // size known at compile time, we can choose to emit alloc_small or large now
+            if size.extract_int_const() > mm::LARGE_OBJECT_THRESHOLD as u64 {
+                self.emit_alloc_sequence_large(size, align, node, f_content, f_context, vm);
+            } else {
+                self.emit_alloc_sequence_small(size, align, node, f_content, f_context, vm);
+            }
+        } else {
+            // size is unknown at compile time
+            // we need to emit both alloc small and alloc large,
+            // and it is decided at runtime
+
+            // emit: cmp size, THRESHOLD
+            // emit: jg ALLOC_LARGE
+            // emit: >> small object alloc
+            // emit: jmp ALLOC_LARGE_END
+            // emit: ALLOC_LARGE:
+            // emit: >> large object alloc
+            // emit: ALLOC_LARGE_END:
+            let blk_alloc_large = format!("{}_alloc_large", node.id());
+            let blk_alloc_large_end = format!("{}_alloc_large_end", node.id());
+
+            self.backend.emit_cmp_imm32_r64(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
+            self.backend.emit_jg(blk_alloc_large.clone());
+
+            // alloc small here
+            let tmp_res = self.emit_alloc_sequence_small(size.clone(), align, node, f_content, f_context, vm);
+
+            self.backend.emit_jmp(blk_alloc_large_end.clone());
+
+            // finishing current block
+            let cur_block = self.current_block.as_ref().unwrap().clone();
+            self.backend.end_block(cur_block.clone());
+            self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
+
+            // alloc_large:
+            self.current_block = Some(blk_alloc_large.clone());
+            self.backend.start_block(blk_alloc_large.clone());
+            self.backend.set_block_livein(blk_alloc_large.clone(), &vec![size.clone()]);
+
+            let tmp_res = self.emit_alloc_sequence_large(size, align, node, f_content, f_context, vm);
+
+            self.backend.end_block(blk_alloc_large.clone());
+            self.backend.set_block_liveout(blk_alloc_large.clone(), &vec![tmp_res]);
+
+            // alloc_large_end:
+            self.backend.start_block(blk_alloc_large_end.clone());
+            self.current_block = Some(blk_alloc_large_end.clone());
+        }
+    }
+
+    fn emit_alloc_sequence_large (&mut self, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        let tmp_res = self.get_result_value(node);
+
+        // ASM: %tl = get_thread_local()
+        let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+
+        // ASM: lea [%tl + allocator_offset] -> %tmp_allocator
+        let allocator_offset = *thread::ALLOCATOR_OFFSET;
+        let tmp_allocator = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        self.emit_lea_base_immoffset(&tmp_allocator, &tmp_tl, allocator_offset as i32, vm);
+
+        // ASM: %tmp_res = call muentry_alloc_large(%allocator, size, align)
+        let const_align = self.make_value_int_const(align as u64, vm);
+
+        let rets = self.emit_runtime_entry(
+            &entrypoints::ALLOC_LARGE,
+            vec![tmp_allocator, size.clone(), const_align],
+            Some(vec![tmp_res.clone()]),
+            Some(node), f_content, f_context, vm
+        );
+
+        tmp_res
+    }
+
+    fn emit_alloc_sequence_small (&mut self, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        // emit immix allocation fast path
+
+        // ASM: %tl = get_thread_local()
+        let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+
+        // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
+        let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
+        let tmp_cursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
+
+        // alignup cursor (cursor + align - 1 & !(align - 1))
+        // ASM: lea align-1(%cursor) -> %start
+        let align = align as i32;
+        let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        self.emit_lea_base_immoffset(&tmp_start, &tmp_cursor, align - 1, vm);
+        // ASM: and %start, !(align-1) -> %start
+        self.backend.emit_and_r64_imm32(&tmp_start, !(align - 1) as i32);
+
+        // bump cursor
+        // ASM: add %size, %start -> %end
+        // or lea size(%start) -> %end
+        let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        if size.is_int_const() {
+            let offset = size.extract_int_const() as i32;
+            self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
+        } else {
+            self.backend.emit_mov_r64_r64(&tmp_end, &tmp_start);
+            self.backend.emit_add_r64_r64(&tmp_end, &size);
+        }
+
+        // check with limit
+        // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
+        let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
+        let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
+        self.backend.emit_cmp_mem64_r64(&mem_limit, &tmp_end);
+
+        // branch to slow path if end > limit (end - limit > 0)
+        // ASM: jg alloc_slow
+        let slowpath = format!("{}_allocslow", node.id());
+        self.backend.emit_jg(slowpath.clone());
+
+        // update cursor
+        // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
+        self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
+
+        // put start as result
+        // ASM: mov %start -> %result
+        let tmp_res = self.get_result_value(node);
+        self.backend.emit_mov_r64_r64(&tmp_res, &tmp_start);
+
+        // ASM jmp alloc_end
+        let allocend = format!("{}_alloc_small_end", node.id());
+        self.backend.emit_jmp(allocend.clone());
+
+        // finishing current block
+        let cur_block = self.current_block.as_ref().unwrap().clone();
+        self.backend.end_block(cur_block.clone());
+        self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
+
+        // alloc_slow:
+        // call alloc_slow(size, align) -> %ret
+        // new block (no livein)
+        self.current_block = Some(slowpath.clone());
+        self.backend.start_block(slowpath.clone());
+        self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
+
+        // arg1: allocator address
+        let allocator_offset = *thread::ALLOCATOR_OFFSET;
+        let tmp_allocator = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        self.emit_lea_base_immoffset(&tmp_allocator, &tmp_tl, allocator_offset as i32, vm);
+        // arg2: size
+        // arg3: align
+        let const_align= self.make_value_int_const(align as u64, vm);
+
+        let rets = self.emit_runtime_entry(
+            &entrypoints::ALLOC_SLOW,
+            vec![tmp_allocator, size.clone(), const_align],
+            Some(vec![
+            tmp_res.clone()
+            ]),
+            Some(node), f_content, f_context, vm
+        );
+
+        // end block (no liveout other than result)
+        self.backend.end_block(slowpath.clone());
+        self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
+
+        // block: alloc_end
+        self.backend.start_block(allocend.clone());
+        self.current_block = Some(allocend.clone());
+
+        tmp_res
+    }
 
     fn emit_truncate_result (&mut self, from_ty: &P<MuType>, to_ty: &P<MuType>, op: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
         // currently only use 64bits register
@@ -1053,7 +1248,7 @@ impl <'a> InstructionSelection {
         self.backend.emit_mov_mem64_r64(&mem, src);
     }
     
-    fn emit_lea_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
+    fn emit_lea_base_immoffset(&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, ADDRESS_TYPE.clone(), vm);
         
         self.backend.emit_lea_r64(dest, &mem);

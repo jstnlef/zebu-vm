@@ -44,7 +44,7 @@ fn test_exhaust_alloc_large() {
     for _ in 0..WORK_LOAD {
         mutator.yieldpoint();
         
-        let res = mm::alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
+        let res = mm::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
     }
     
     mutator.destroy();

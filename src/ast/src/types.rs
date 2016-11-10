@@ -292,6 +292,19 @@ impl MuType_ {
 
         MuType_::Hybrid(tag)
     }
+    pub fn hybrid_put(tag: HybridTag, mut fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) {
+        let mut map_guard = HYBRID_TAG_MAP.write().unwrap();
+
+        match map_guard.get_mut(&tag) {
+            Some(hybrid_ty_) => {
+                hybrid_ty_.fix_tys.clear();
+                hybrid_ty_.fix_tys.append(&mut fix_tys);
+
+                hybrid_ty_.var_ty = var_ty;
+            },
+            None => panic!("call hybrid_empty() to create an empty struct before hybrid_put()")
+        }
+    }
     pub fn hybrid(tag: HybridTag, fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) -> MuType_ {
         let hybrid_ty_ = HybridType_{fix_tys: fix_tys, var_ty: var_ty};
 

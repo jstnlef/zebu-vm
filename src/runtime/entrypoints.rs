@@ -46,10 +46,21 @@ lazy_static! {
         sig: P(MuFuncSig {
             hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
             ret_tys: vec![ADDRESS_TYPE.clone()],
-            arg_tys: vec![UINT64_TYPE.clone(), UINT64_TYPE.clone()]
+            arg_tys: vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()]
         }),
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_alloc_slow")),
         jit: RwLock::new(None),
+    };
+
+    // impl/decl: gc/lib.rs
+    pub static ref ALLOC_LARGE : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![ADDRESS_TYPE.clone()],
+            arg_tys: vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_alloc_large")),
+        jit: RwLock::new(None)
     };
     
     // impl/decl: exception.rs

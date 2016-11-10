@@ -870,7 +870,7 @@ impl ASMCodeGen {
         if cfg!(debug_assertions) {
             match op.v {
                 Value_::Memory(_) => {},
-                _ => panic!("expecting register op")
+                _ => panic!("expecting memory op")
             }
         }        
 
@@ -890,7 +890,7 @@ impl ASMCodeGen {
                     match offset.v {
                         Value_::SSAVar(id) => {
                             // temp as offset
-                            let (str, id, loc) = self.prepare_reg(offset, 0);
+                            let (str, id, loc) = self.prepare_reg(offset, loc_cursor);
                             
                             result_str.push_str(&str);
                             ids.push(id);

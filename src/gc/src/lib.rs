@@ -133,12 +133,14 @@ pub extern fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) 
 #[no_mangle]
 #[inline(never)]
 pub extern fn muentry_alloc_slow(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
+    trace!("muentry_alloc_slow(mutator: {:?}, size: {}, align: {})", mutator, size, align);
     let ret = unsafe {mutator.as_mut().unwrap()}.try_alloc_from_local(size, align);
     unsafe {ret.to_object_reference()}
 }
 
 #[no_mangle]
-pub extern fn alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
+pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
+    trace!("muentry_alloc_large(mutator: {:?}, size: {}, align: {})", mutator, size, align);
     let ret = freelist::alloc_large(size, align, unsafe {mutator.as_mut().unwrap()}, MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone());
     unsafe {ret.to_object_reference()}
 }
