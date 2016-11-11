@@ -805,98 +805,16 @@ impl <'a> InstructionSelection {
                             unimplemented!()
                         }
                     }
-                    
-                    Instruction_::GetIRef(op_index) => {
-                        let ops = inst.ops.read().unwrap();
-                        
-                        let ref op = ops[op_index];
-                        let res_tmp = self.get_result_value(node);
-                        
-                        let hdr_size = mm::objectmodel::OBJECT_HEADER_SIZE;
-                        if hdr_size == 0 {
-                            self.emit_move_node_to_value(&res_tmp, &op, f_content, f_context, vm);
-                        } else {
-                            self.emit_lea_base_immoffset(&res_tmp, &op.clone_value(), hdr_size as i32, vm);
-                        }
-                    }
 
-                    Instruction_::GetFieldIRef{is_ptr, base, index} => {
-                        let ops = inst.ops.read().unwrap();
+                    // memory insts: calculate the address, then lea
+                    Instruction_::GetIRef(_)
+                    | Instruction_::GetFieldIRef{..}
+                    | Instruction_::GetVarPartIRef{..}
+                    | Instruction_::ShiftIRef{..} => {
+                        let mem_addr = self.emit_get_mem_from_inst(node, f_content, f_context, vm);
+                        let tmp_res  = self.get_result_value(node);
 
-                        let ref base = ops[base];
-
-                        let struct_ty = {
-                            let ref iref_or_uptr_ty = base.clone_value().ty;
-
-                            match iref_or_uptr_ty.v {
-                                MuType_::IRef(ref ty)
-                                | MuType_::UPtr(ref ty) => ty.clone(),
-                                _ => panic!("expected the base for GetFieldIRef has a type of iref or uptr, found type: {}", iref_or_uptr_ty)
-                            }
-                        };
-
-                        let offset = self.get_field_offset(&struct_ty, index, vm);
-                        let tmp_res = self.get_result_value(node);
-
-                        self.emit_lea_base_immoffset(&tmp_res, &base.clone_value(), offset, vm);
-                    }
-
-                    Instruction_::GetVarPartIRef{is_ptr, base} => {
-                        let ops = inst.ops.read().unwrap();
-
-                        let ref base = ops[base];
-
-                        let hybrid_ty = {
-                            let ref iref_or_uptr_ty = base.clone_value().ty;
-
-                            match iref_or_uptr_ty.v {
-                                MuType_::IRef(ref ty)
-                                | MuType_::UPtr(ref ty) => ty.clone(),
-                                _ => panic!("expected the base for GetVarPartIRef has a type of iref or uptr, found type: {}", iref_or_uptr_ty)
-                            }
-                        };
-
-                        let size = vm.get_backend_type_info(hybrid_ty.id()).size;
-                        let tmp_res = self.get_result_value(node);
-                        let mem_base = self.emit_node_addr_to_value(base, f_content, f_context, vm);
-
-                        unimplemented!()
-                    }
-
-                    Instruction_::ShiftIRef{is_ptr, base, offset} => {
-                        let ops = inst.ops.read().unwrap();
-
-                        let ref base = ops[base];
-                        let ref offset = ops[offset];
-                        let tmp_res = self.get_result_value(node);
-
-                        let ref base_ty = base.clone_value().ty;
-                        let ele_ty = match base_ty.get_referenced_ty() {
-                            Some(ty) => ty,
-                            None => panic!("expected op in ShiftIRef of type IRef, found type: {}", base_ty)
-                        };
-                        let ele_ty_size = vm.get_backend_type_info(ele_ty.id()).size;
-
-                        if self.match_iimm(offset) {
-                            let index = self.node_iimm_to_i32(offset);
-                            let shift_size = ele_ty_size as i32 * index;
-
-                            self.emit_lea_base_immoffset(&tmp_res, &base.clone_value(), shift_size, vm);
-                        } else {
-                            let tmp_index = self.emit_ireg(offset, f_content, f_context, vm);
-
-                            let result_addr = match ele_ty_size {
-                                64 => self.make_memory_op_base_index(&base.clone_value(), &tmp_index, 8, base_ty.clone(), vm),
-                                32 => self.make_memory_op_base_index(&base.clone_value(), &tmp_index, 4, base_ty.clone(), vm),
-                                16 => self.make_memory_op_base_index(&base.clone_value(), &tmp_index, 2, base_ty.clone(), vm),
-                                8  => self.make_memory_op_base_index(&base.clone_value(), &tmp_index, 1, base_ty.clone(), vm),
-                                _ => {
-                                    unimplemented!()
-                                }
-                            };
-
-                            self.backend.emit_lea_r64(&tmp_res, &result_addr);
-                        }
+                        self.backend.emit_lea_r64(&tmp_res, &mem_addr);
                     }
                     
                     Instruction_::ThreadExit => {
@@ -1335,7 +1253,7 @@ impl <'a> InstructionSelection {
 
     fn emit_udiv (
         &mut self,
-        op1: &P<TreeNode>, op2: &P<TreeNode>,
+        op1: &TreeNode, op2: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
         vm: &VM)
@@ -1374,7 +1292,7 @@ impl <'a> InstructionSelection {
 
     fn emit_idiv (
         &mut self,
-        op1: &P<TreeNode>, op2: &P<TreeNode>,
+        op1: &TreeNode, op2: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
         vm: &VM)
@@ -1954,7 +1872,7 @@ impl <'a> InstructionSelection {
         self.backend.emit_pop_r64(&x86_64::RBP);
     }
     
-    fn match_cmp_res(&mut self, op: &P<TreeNode>) -> bool {
+    fn match_cmp_res(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
@@ -1966,7 +1884,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_cmp_res(&mut self, cond: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> op::CmpOp {
+    fn emit_cmp_res(&mut self, cond: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
                 let ops = inst.ops.read().unwrap();                
@@ -2061,7 +1979,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_ireg(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_ireg(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
                 self.instruction_select(op, f_content, f_context, vm);
@@ -2100,7 +2018,7 @@ impl <'a> InstructionSelection {
         }
     }
 
-    fn emit_fpreg(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_fpreg(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
                 self.instruction_select(op, f_content, f_context, vm);
@@ -2116,21 +2034,21 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn match_iimm(&mut self, op: &P<TreeNode>) -> bool {
+    fn match_iimm(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Value(ref pv) if x86_64::is_valid_x86_imm(pv) => true,
             _ => false
         }
     }
     
-    fn node_iimm_to_i32(&mut self, op: &P<TreeNode>) -> i32 {
+    fn node_iimm_to_i32(&mut self, op: &TreeNode) -> i32 {
         match op.v {
             TreeNode_::Value(ref pv) => self.value_iimm_to_i32(pv),
             _ => panic!("expected iimm")
         }
     }
 
-    fn node_iimm_to_value(&mut self, op: &P<TreeNode>) -> P<Value> {
+    fn node_iimm_to_value(&mut self, op: &TreeNode) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 pv.clone()
@@ -2150,7 +2068,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_node_addr_to_value(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_node_addr_to_value(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
@@ -2188,7 +2106,7 @@ impl <'a> InstructionSelection {
         }
     }
 
-    fn emit_get_mem_from_inst(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_get_mem_from_inst(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         let mem = self.emit_get_mem_from_inst_inner(op, f_content, f_context, vm);
 
         P(Value{
@@ -2234,7 +2152,7 @@ impl <'a> InstructionSelection {
         }
     }
 
-    fn emit_get_mem_from_inst_inner(&mut self, op: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {
+    fn emit_get_mem_from_inst_inner(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {
         let header_size = mm::objectmodel::OBJECT_HEADER_SIZE as u64;
 
         match op.v {
@@ -2419,7 +2337,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn match_funcref_const(&mut self, op: &P<TreeNode>) -> bool {
+    fn match_funcref_const(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 let is_const = match pv.v {
@@ -2439,7 +2357,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn node_funcref_const_to_id(&mut self, op: &P<TreeNode>) -> MuID {
+    fn node_funcref_const_to_id(&mut self, op: &TreeNode) -> MuID {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
@@ -2452,7 +2370,7 @@ impl <'a> InstructionSelection {
     }
     
     #[allow(unused_variables)]
-    fn match_mem(&mut self, op: &P<TreeNode>) -> bool {
+    fn match_mem(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
@@ -2471,7 +2389,7 @@ impl <'a> InstructionSelection {
     }
     
     #[allow(unused_variables)]
-    fn emit_mem(&mut self, op: &P<TreeNode>, vm: &VM) -> P<Value> {
+    fn emit_mem(&mut self, op: &TreeNode, vm: &VM) -> P<Value> {
         unimplemented!()
     }
     
@@ -2497,7 +2415,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_move_node_to_value(&mut self, dest: &P<Value>, src: &P<TreeNode>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
+    fn emit_move_node_to_value(&mut self, dest: &P<Value>, src: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         let ref dst_ty = dest.ty;
         
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
