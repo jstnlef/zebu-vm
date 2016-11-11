@@ -21,7 +21,7 @@ pub fn get_test_clang_path() -> String {
     }
 }
 
-pub fn exec (mut cmd: Command) -> Output {
+pub fn exec (cmd: Command) -> Output {
     let output = exec_nocheck(cmd);
 
     assert!(output.status.success());

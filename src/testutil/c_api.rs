@@ -14,7 +14,7 @@ pub fn compile_run_c_test(test_file_path: &'static str) -> PathBuf {
         use std::fs;
 
         let temp = Path::new("tests/test_jit/temp");
-        fs::create_dir_all(temp);
+        fs::create_dir_all(temp).unwrap();
 
         let mut ret = temp.to_path_buf();
         ret.push(src.file_stem().unwrap());

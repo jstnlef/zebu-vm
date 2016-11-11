@@ -2,10 +2,8 @@ use mu::ast::types::*;
 use mu::ast::ir::*;
 use mu::ast::ptr::*;
 use mu::ast::inst::*;
-use mu::ast::op::*;
 use mu::vm::*;
 use mu::compiler::*;
-use mu::testutil;
 
 use std::sync::RwLock;
 use std::sync::Arc;
@@ -59,9 +57,7 @@ pub fn gen_ccall_exit(arg: P<TreeNode>, func_ver: &mut MuFunctionVersion, vm: &V
     let const_exit = vm.declare_const(vm.next_id(), type_def_ufp_exit.clone(), Constant::ExternSym(C("exit")));
     vm.set_name(const_exit.as_entity(), Mu("exit"));
 
-    // exprCCALL %const_exit (%const_int32_10) normal: %end(), exception: %end()
-    let blk_end_id = vm.next_id();
-
+    // exprCCALL %const_exit (%const_int32_10)
     let const_exit_local = func_ver.new_constant(const_exit.clone());
 
     func_ver.new_inst(Instruction{
@@ -112,10 +108,8 @@ fn ccall_exit() -> VM {
     let mut blk_entry = Block::new(vm.next_id());
     vm.set_name(blk_entry.as_entity(), Mu("entry"));
 
-    // exprCCALL %const_exit (%const_int32_10) normal: %end(), exception: %end()
-    let blk_end_id = vm.next_id();
+    // exprCCALL %const_exit (%const_int32_10)
     let const_int32_10_local = func_ver.new_constant(const_int32_10.clone());
-
     let blk_entry_ccall = gen_ccall_exit(const_int32_10_local.clone(), &mut func_ver, &vm);
 
     // RET %const_int32_0

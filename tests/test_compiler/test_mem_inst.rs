@@ -4,12 +4,9 @@ use mu::ast::inst::*;
 use mu::ast::op::*;
 use mu::vm::*;
 use mu::compiler::*;
-use mu::runtime::thread::MuThread;
-use mu::utils::Address;
 
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::collections::HashMap;
 use mu::testutil::aot;
 
 use test_compiler::test_call::gen_ccall_exit;
@@ -757,8 +754,6 @@ pub fn hybrid_var_part_insts() -> VM {
 
     let int64_0_local = func_ver.new_constant(int64_0.clone());
     let int64_1_local = func_ver.new_constant(int64_1.clone());
-    let int64_2_local = func_ver.new_constant(int64_2.clone());
-    let int64_3_local = func_ver.new_constant(int64_3.clone());
     let int64_4_local = func_ver.new_constant(int64_4.clone());
     let int64_10_local = func_ver.new_constant(int64_10.clone());
 

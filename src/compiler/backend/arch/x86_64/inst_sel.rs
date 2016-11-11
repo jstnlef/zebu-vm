@@ -696,18 +696,30 @@ impl <'a> InstructionSelection {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
                                     let tmp_res = self.get_result_value(node);
 
-                                    let mask = match from_ty_len {
-                                        8  => 0xFFi32,
-                                        16 => 0xFFFFi32,
-                                        32 => 0xFFFFFFFFi32,
-                                        _ => unimplemented!()
-                                    };
+                                    if from_ty_len < 32 {
+                                        let mask = match to_ty_len {
+                                            8 => 0xFFi32,
+                                            16 => 0xFFFFi32,
+                                            _ => unimplemented!()
+                                        };
 
-                                    // mov op -> result
-                                    self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
+                                        // mov op -> result
+                                        self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
 
-                                    // and mask result -> result
-                                    self.backend.emit_and_r64_imm32(&tmp_res, mask);
+                                        // and mask result -> result
+                                        self.backend.emit_and_r64_imm32(&tmp_res, mask);
+                                    } else if from_ty_len == 32 {
+                                        let tmp_mask = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r64_imm64(&tmp_mask, 0xFFFFFFFF as i64);
+
+                                        // mov op -> result
+                                        self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
+
+                                        // and mask result -> result
+                                        self.backend.emit_and_r64_r64(&tmp_res, &tmp_mask);
+                                    } else {
+                                        unimplemented!()
+                                    }
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
                                 }
@@ -1057,7 +1069,7 @@ impl <'a> InstructionSelection {
         // ASM: %tmp_res = call muentry_alloc_large(%allocator, size, align)
         let const_align = self.make_value_int_const(align as u64, vm);
 
-        let rets = self.emit_runtime_entry(
+        self.emit_runtime_entry(
             &entrypoints::ALLOC_LARGE,
             vec![tmp_allocator, size.clone(), const_align],
             Some(vec![tmp_res.clone()]),
@@ -1142,7 +1154,7 @@ impl <'a> InstructionSelection {
         // arg3: align
         let const_align= self.make_value_int_const(align as u64, vm);
 
-        let rets = self.emit_runtime_entry(
+        self.emit_runtime_entry(
             &entrypoints::ALLOC_SLOW,
             vec![tmp_allocator, size.clone(), const_align],
             Some(vec![
@@ -1550,6 +1562,7 @@ impl <'a> InstructionSelection {
         self.emit_postcall_convention(&sig, &rets, stack_arg_size, f_context, vm)
     }
 
+    #[allow(unused_variables)] // resumption not implemented
     fn emit_c_call_ir(
         &mut self,
         inst: &Instruction,
@@ -1593,7 +1606,7 @@ impl <'a> InstructionSelection {
                     let rets = inst.value.clone();
 
                     match pv.v {
-                        Value_::Constant(Constant::Int(addr)) => unimplemented!(),
+                        Value_::Constant(Constant::Int(_)) => unimplemented!(),
                         Value_::Constant(Constant::ExternSym(ref func_name)) => {
                             self.emit_c_call_internal(
                                 func_name.clone(), //func_name: CName,
@@ -2138,6 +2151,7 @@ impl <'a> InstructionSelection {
         }
     }
 
+    #[allow(unused_variables)]
     fn addr_append_index_scale(&mut self, mem: MemoryLocation, index: P<Value>, scale: u8, vm: &VM) -> MemoryLocation {
         match mem {
             MemoryLocation::Address {base, offset, ..} => {
@@ -2174,7 +2188,7 @@ impl <'a> InstructionSelection {
                         trace!("MEM from GETIREF: {}", ret);
                         ret
                     }
-                    Instruction_::GetFieldIRef{is_ptr, base, index} => {
+                    Instruction_::GetFieldIRef{base, index, ..} => {
                         let ref base = ops[base];
 
                         let struct_ty = {
@@ -2191,7 +2205,7 @@ impl <'a> InstructionSelection {
 
                         match base.v {
                             // GETFIELDIREF(GETIREF) -> add FIELD_OFFSET to old offset
-                            TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(op_index), ref ops, ..}) => {
+                            TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
                                 let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
                                 let ret = self.addr_const_offset_adjust(mem, field_offset as u64, vm);
 
@@ -2214,7 +2228,7 @@ impl <'a> InstructionSelection {
                             }
                         }
                     }
-                    Instruction_::GetVarPartIRef{is_ptr, base} => {
+                    Instruction_::GetVarPartIRef{base, ..} => {
                         let ref base = ops[base];
 
                         let struct_ty = match base.clone_value().ty.get_referenced_ty() {
@@ -2250,10 +2264,9 @@ impl <'a> InstructionSelection {
                             }
                         }
                     }
-                    Instruction_::ShiftIRef{is_ptr, base, offset} => {
+                    Instruction_::ShiftIRef{base, offset, ..} => {
                         let ref base = ops[base];
                         let ref offset = ops[offset];
-                        let tmp_res = self.get_result_value(op);
 
                         let ref base_ty = base.clone_value().ty;
                         let ele_ty = match base_ty.get_referenced_ty() {

@@ -175,7 +175,7 @@ macro_rules! inst {
                         target: $dest.id(),
                         args: {
                             let mut i =0;
-                            vec![$($arg.clone()),*].iter().map(|x| {let ret = DestArg::Normal(i); i+=1; ret}).collect()
+                            vec![$($arg.clone()),*].iter().map(|_| {let ret = DestArg::Normal(i); i+=1; ret}).collect()
                         }
             })
         });
@@ -189,7 +189,7 @@ macro_rules! inst {
             ops:    RwLock::new(vec![$($val.clone()), *]),
             v:      Instruction_::Return({
                         let mut i = 0;
-                        vec![$($val.clone()), *].iter().map(|x| {let ret = i; i+= 1; ret}).collect()
+                        vec![$($val.clone()), *].iter().map(|_| {let ret = i; i+= 1; ret}).collect()
                     })
         });
     };

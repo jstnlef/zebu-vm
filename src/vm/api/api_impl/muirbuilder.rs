@@ -961,7 +961,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Filling struct {} {:?}", id, ty);
 
         match **ty {
-            NodeType::TypeStruct { id: _, fieldtys: ref fieldtys } => { 
+            NodeType::TypeStruct { id: _, ref fieldtys } => {
                 let fieldtys_impl = fieldtys.iter().map(|fid| {
                     self.ensure_type_rec(*fid)
                 }).collect::<Vec<_>>();

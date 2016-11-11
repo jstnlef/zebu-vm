@@ -1,4 +1,3 @@
-use log;
 use utils;
 use ast::ir::*;
 use vm::VM;

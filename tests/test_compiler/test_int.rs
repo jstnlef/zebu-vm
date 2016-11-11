@@ -6,12 +6,9 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
-use self::mu::compiler::*;
 
 use std::sync::RwLock;
-use std::sync::Arc;
 use mu::testutil;
-use mu::testutil::aot;
 
 #[test]
 fn test_add_u8() {

@@ -1934,7 +1934,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_shl_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
         trace!("emit shl {},{} -> {}", dest, src, dest);
 
-        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+        let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
 
         let asm = format!("shlq ${},{}", src, mem);
 
@@ -2009,7 +2009,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_shr_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
         trace!("emit shr {},{} -> {}", dest, src, dest);
 
-        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+        let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
 
         let asm = format!("shrq ${},{}", src, mem);
 
@@ -2084,7 +2084,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_sar_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
         trace!("emit sar {},{} -> {}", dest, src, dest);
 
-        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
+        let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
 
         let asm = format!("sarq ${},{}", src, mem);
 

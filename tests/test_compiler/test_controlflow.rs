@@ -5,7 +5,6 @@ extern crate libloading;
 use self::mu::ast::types::*;
 use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
-use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::testutil;
 

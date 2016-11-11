@@ -273,6 +273,9 @@ impl MuThread {
         }
     }
 
+    #[allow(unused_unsafe)]
+    // pieces of this function are not safe (we want to mark it unsafe)
+    // this function is exposed as unsafe because it is not always safe to call it
     pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) {
         use std::usize;
 

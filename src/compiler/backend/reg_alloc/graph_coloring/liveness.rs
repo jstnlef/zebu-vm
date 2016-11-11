@@ -2,7 +2,6 @@ extern crate nalgebra;
 
 use compiler::machine_code::CompiledFunction;
 use ast::ir::*;
-use ast::types;
 use compiler::backend;
 use utils::vec_utils;
 use utils::LinkedHashSet;
