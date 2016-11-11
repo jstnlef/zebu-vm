@@ -18,7 +18,7 @@ use test_compiler::test_call::gen_ccall_exit;
 fn test_struct() {
     VM::start_logging_trace();
 
-    let vm = Arc::new(struct_insts());
+    let vm = Arc::new(struct_insts_macro());
 
     let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
 
@@ -45,6 +45,105 @@ fn test_struct() {
     assert!(ret_code == 1);
 }
 
+// this IR construction function is a replicate of struct_insts() with macros
+pub fn struct_insts_macro() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int64        = mu_int(64));
+    typedef! ((vm) struct_point = mu_struct(int64, int64));
+    typedef! ((vm) ref_point    = mu_ref(struct_point));
+    typedef! ((vm) iref_point   = mu_iref(struct_point));
+    typedef! ((vm) iref_int64   = mu_iref(int64));
+
+    constdef!((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig! ((vm) noparam_noret_sig = () -> ());
+    funcdecl!((vm) <noparam_noret_sig> struct_insts);
+
+    funcdef! ((vm) <noparam_noret_sig> struct_insts VERSION struct_insts_v1);
+
+    // blk entry
+    block!  ((vm, struct_insts_v1) blk_entry);
+
+    ssa!    ((vm, struct_insts_v1) <ref_point> blk_entry_a);
+    inst!   ((vm, struct_insts_v1) blk_entry_inst0:
+                blk_entry_a = NEW <struct_point>
+    );
+
+    ssa!    ((vm, struct_insts_v1) <iref_point> blk_entry_iref_a);
+    inst!   ((vm, struct_insts_v1) blk_entry_inst1:
+                blk_entry_iref_a = GETIREF blk_entry_a
+    );
+
+    ssa!    ((vm, struct_insts_v1) <iref_int64> blk_entry_iref_x);
+    inst!   ((vm, struct_insts_v1) blk_entry_inst2:
+                blk_entry_iref_x = GETFIELDIREF blk_entry_iref_a (is_ptr: false, index: 0)
+    );
+
+    consta! ((vm, struct_insts_v1) int64_1_local = int64_1);
+    inst!   ((vm, struct_insts_v1) blk_entry_inst3:
+                STORE blk_entry_iref_x int64_1_local (is_ptr: false, order: MemoryOrder::Relaxed)
+    );
+
+    block!  ((vm, struct_insts_v1) blk_check);
+    inst!   ((vm, struct_insts_v1) blk_entry_branch:
+                BRANCH blk_check (blk_entry_a)
+    );
+
+    define_block! ((vm, struct_insts_v1) blk_entry() {
+        blk_entry_inst0, blk_entry_inst1, blk_entry_inst2, blk_entry_inst3, blk_entry_branch
+    });
+
+    // blk check
+    ssa!    ((vm, struct_insts_v1) <ref_point> blk_check_a);
+
+    ssa!    ((vm, struct_insts_v1) <iref_point> blk_check_iref_a);
+    inst!   ((vm, struct_insts_v1) blk_check_inst0:
+                blk_check_iref_a = GETIREF blk_check_a
+    );
+
+    ssa!    ((vm, struct_insts_v1) <iref_int64> blk_check_iref_x);
+    inst!   ((vm, struct_insts_v1) blk_check_inst1:
+                blk_check_iref_x = GETFIELDIREF blk_check_iref_a (is_ptr: false, index: 0)
+    );
+
+    ssa!    ((vm, struct_insts_v1) <int64> blk_check_x);
+    inst!   ((vm, struct_insts_v1) blk_check_inst2:
+                blk_check_x = LOAD blk_check_iref_x (is_ptr: false, order: MemoryOrder::Relaxed)
+    );
+
+    ssa!    ((vm, struct_insts_v1) <iref_int64> blk_check_iref_y);
+    inst!   ((vm, struct_insts_v1) blk_check_inst3:
+                blk_check_iref_y = GETFIELDIREF blk_check_iref_a (is_ptr: false, index: 1)
+    );
+
+    ssa!    ((vm, struct_insts_v1) <int64> blk_check_y);
+    inst!   ((vm, struct_insts_v1) blk_check_inst4:
+                blk_check_y = LOAD blk_check_iref_y (is_ptr: false, order: MemoryOrder::Relaxed)
+    );
+
+    ssa!    ((vm, struct_insts_v1) <int64> blk_check_res);
+    inst!   ((vm, struct_insts_v1) blk_check_inst5:
+                blk_check_res = BINOP (BinOp::Add) blk_check_x blk_check_y
+    );
+
+    let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut struct_insts_v1, &vm);
+
+    inst!   ((vm, struct_insts_v1) blk_check_ret:
+                RET (blk_check_res)
+    );
+
+    define_block! ((vm, struct_insts_v1) blk_check(blk_check_a) {
+        blk_check_inst0, blk_check_inst1, blk_check_inst2, blk_check_inst3, blk_check_inst4, blk_check_inst5, blk_check_ccall, blk_check_ret
+    });
+
+    define_func_ver! ((vm) struct_insts_v1 (entry: blk_entry) {blk_entry, blk_check});
+
+    vm
+}
+
+#[allow(dead_code)]
 pub fn struct_insts() -> VM {
     let vm = VM::new();
 

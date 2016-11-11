@@ -4,6 +4,9 @@ extern crate log;
 #[macro_use]
 extern crate maplit;
 
+#[macro_use]
+mod ir_macros;
+
 mod test_ir;
 mod test_compiler;
 mod test_runtime;
