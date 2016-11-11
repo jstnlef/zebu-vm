@@ -3,6 +3,8 @@ from rpython.rlib import rmu_fast as rmu
 from rpython.translator.interactive import Translation
 import ctypes, sys
 
+from test_milestones import proj_dir
+
 
 def getfncptr(entry_fnc, argtypes, **kwargs):
     kwargs.setdefault('backend', 'mu')
@@ -326,6 +328,88 @@ def test_new():
         Builds the following test bundle.
             .typedef @i64 = int<64>
             .typedef @refi64 = ref<@i64>
+            .const @1_i64 <@i64> = 1
+            .const @NULL_refi64 <@refi64> = NULL
+            .funcsig @sig__i64 = () -> (@i64)
+            .funcdef @test_fnc VERSION @test_fnc.v1 <@sig__i64> {
+                %blk0():
+                    %r = NEW <@i64>
+                    %ir = GETIREF <@refi64> %r
+                    STORE <@i64> %ir @1_i64
+                    %res = LOAD <@i64> %ir
+                    RET %res
+            }
+        :type bldr: rpython.rlib.rmu.MuIRBuilder
+        :type rmu: rpython.rlib.rmu_fast
+        :return: (rmu.MuVM(), rmu.MuCtx, rmu.MuIRBuilder, MuID, MuID)
+        """
+        i1 = bldr.gen_sym("@i1")
+        bldr.new_type_int(i1, 1)
+        i64 = bldr.gen_sym("@i64")
+        bldr.new_type_int(i64, 64)
+        refi64 = bldr.gen_sym("@refi64")
+        bldr.new_type_ref(refi64, i64)
+
+        c_1_i64 = bldr.gen_sym("@1_64")
+        bldr.new_const_int(c_1_i64, i64, 1)
+
+        sig__i64 = bldr.gen_sym("@sig__i64")
+        bldr.new_funcsig(sig__i64, [], [i64])
+
+        test_fnc = bldr.gen_sym("@test_fnc")
+        bldr.new_func(test_fnc, sig__i64)
+
+        test_fnc_v1 = bldr.gen_sym("@test_fnc.v1")
+        blk0 = bldr.gen_sym("@test_fnc.v1.blk0")
+        r = bldr.gen_sym("@test_fnc.v1.blk0.r")
+        ir = bldr.gen_sym("@test_fnc.v1.blk0.ir")
+        res = bldr.gen_sym("@test_fnc.v1.blk0.res")
+        op_new = bldr.gen_sym()
+        bldr.new_new(op_new, r, i64)
+        op_getiref = bldr.gen_sym()
+        bldr.new_getiref(op_getiref, ir, refi64, r)
+        op_store = bldr.gen_sym()
+        bldr.new_store(op_store, False, rmu.MuMemOrd.NOT_ATOMIC, i64, ir, c_1_i64)
+        op_load = bldr.gen_sym()
+        bldr.new_load(op_load, res, False, rmu.MuMemOrd.NOT_ATOMIC, i64, ir)
+        op_ret = bldr.gen_sym()
+        bldr.new_ret(op_ret, [res])
+        bldr.new_bb(blk0, [], [], rmu.MU_NO_ID, [op_new, op_getiref, op_store, op_load, op_ret])
+
+        bldr.new_func_ver(test_fnc_v1, test_fnc, [blk0])
+
+        return {
+            "test_fnc": test_fnc,
+            "test_fnc_sig": sig__i64,
+            "result_type": i64,
+            "@i64": i64
+        }
+
+    # load libmu before rffi so to load it with RTLD_GLOBAL
+    libmu = ctypes.CDLL(proj_dir.join('target', 'debug', 'libmu.dylib').strpath, ctypes.RTLD_GLOBAL)
+
+    mu = rmu.MuVM()
+    ctx = mu.new_context()
+    bldr = ctx.new_ir_builder()
+
+    id_dict = build_test_bundle(bldr, rmu)
+    bldr.load()
+    mu.compile_to_sharedlib('libtesting.dylib', [])
+
+
+    lib = ctypes.CDLL('emit/libtesting.dylib')
+    fnp = lib.test_fnc
+
+    mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+    assert fnp() == 1
+
+
+def test_new_cmpeq():
+    def build_test_bundle(bldr, rmu):
+        """
+        Builds the following test bundle.
+            .typedef @i64 = int<64>
+            .typedef @refi64 = ref<@i64>
             .const @NULL_refi64 <@refi64> = NULL
             .funcsig @sig__i64 = () -> (@i64)
             .funcdef @test_fnc VERSION @test_fnc.v1 <@sig__i64> {
@@ -378,6 +462,9 @@ def test_new():
             "result_type": i64,
             "@i64": i64
         }
+
+    # load libmu before rffi so to load it with RTLD_GLOBAL
+    libmu = ctypes.CDLL(proj_dir.join('target', 'debug', 'libmu.dylib').strpath, ctypes.RTLD_GLOBAL)
 
     mu = rmu.MuVM()
     ctx = mu.new_context()
