@@ -544,7 +544,7 @@ struct BundleLoader<'lb, 'lvm> {
     built_globals: IdPMap<Value>,
     built_funcs: IdBMap<MuFunction>,
     built_funcvers: IdBMap<MuFunctionVersion>,
-    struct_id_tags: Vec<(MuID, MuName)>,
+    struct_hybrid_id_tags: Vec<(MuID, MuName)>,
     built_refi64: Option<P<MuType>>,
     built_i1: Option<P<MuType>>,
     built_i64: Option<P<MuType>>,
@@ -570,7 +570,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_globals: Default::default(),
         built_funcs: Default::default(),
         built_funcvers: Default::default(),
-        struct_id_tags: Default::default(),
+        struct_hybrid_id_tags: Default::default(),
         built_refi64: Default::default(),
         built_i1: Default::default(),
         built_i64: Default::default(),
@@ -778,11 +778,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn ensure_names(&mut self) {
-        // Make sure structs have names because struct names are used to resolve cyclic
+        // Make sure structs and hybrids have names because names are used to resolve cyclic
         // dependencies.
         for (id, ty) in &self.b.bundle.types {
             match **ty {
                 NodeType::TypeStruct { id: _, fieldtys: _ } => { 
+                    self.ensure_name(*id, "struct");
+                },
+                NodeType::TypeHybrid { id: _, fixedtys: _, varty: _ } => { 
                     self.ensure_name(*id, "struct");
                 },
                 _ => {}
@@ -820,9 +823,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
         }
 
-        let struct_id_tags = self.struct_id_tags.drain(..).collect::<Vec<_>>();
-        for (id, ref tag) in struct_id_tags {
-            self.fill_struct(id, tag)
+        let struct_hybrid_id_tags = self.struct_hybrid_id_tags.drain(..).collect::<Vec<_>>();
+        for (id, ref tag) in struct_hybrid_id_tags {
+            self.fill_struct_hybrid(id, tag)
         }
 
         for id in self.b.bundle.sigs.keys() {
@@ -877,11 +880,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             },
             NodeType::TypeStruct { id: _, fieldtys: _ } => { 
                 let tag = self.get_name(id);
-                self.struct_id_tags.push((id, tag.clone()));
-                MuType_::Struct(tag)
+                self.struct_hybrid_id_tags.push((id, tag.clone()));
+                MuType_::mustruct_empty(tag)
+                // MuType_::Struct(tag)
             },
-            NodeType::TypeHybrid { id: _, ref fixedtys, varty } => {
-                unimplemented!()
+            NodeType::TypeHybrid { id: _, fixedtys: _, varty: _ } => {
+                let tag = self.get_name(id);
+                self.struct_hybrid_id_tags.push((id, tag.clone()));
+                MuType_::hybrid_empty(tag)
 //                let impl_fixedtys = fixedtys.iter().map(|t| self.ensure_type_rec(*t)).collect::<Vec<_>>();
 //                let impl_varty = self.ensure_type_rec(varty);
 //                MuType_::Hybrid(impl_fixedtys, impl_varty)
@@ -955,34 +961,35 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
     }
 
-    fn fill_struct(&mut self, id: MuID, tag: &MuName) {
+    fn fill_struct_hybrid(&mut self, id: MuID, tag: &MuName) {
         let ty = self.b.bundle.types.get(&id).unwrap();
 
-        trace!("Filling struct {} {:?}", id, ty);
+        trace!("Filling struct or hybrid {} {:?}", id, ty);
 
         match **ty {
-            NodeType::TypeStruct { id: _, ref fieldtys } => {
+            NodeType::TypeStruct { id: _, ref fieldtys } => { 
                 let fieldtys_impl = fieldtys.iter().map(|fid| {
                     self.ensure_type_rec(*fid)
                 }).collect::<Vec<_>>();
 
-                let struct_ty_ = StructType_::new(fieldtys_impl);
-
-                match STRUCT_TAG_MAP.read().unwrap().get(tag) {
-                    Some(old_struct_ty_) => {
-                        if struct_ty_ != *old_struct_ty_ {
-                            panic!("trying to insert {:?} as {}, while the old struct is defined as {:?}",
-                                   struct_ty_, tag, old_struct_ty_)
-                        }
-                    },
-                    None => {}
-                }
-                STRUCT_TAG_MAP.write().unwrap().insert(tag.clone(), struct_ty_);
+                MuType_::mustruct_put(tag, fieldtys_impl);
 
                 trace!("Struct {} filled: {:?}", id,
                        STRUCT_TAG_MAP.read().unwrap().get(tag));
             },
-            ref t => panic!("{} {:?} should be a Struct type", id, ty),
+            NodeType::TypeHybrid { id: _, ref fixedtys, varty } => { 
+                let fixedtys_impl = fixedtys.iter().map(|fid| {
+                    self.ensure_type_rec(*fid)
+                }).collect::<Vec<_>>();
+
+                let varty_impl = self.ensure_type_rec(varty);
+
+                MuType_::hybrid_put(tag, fixedtys_impl, varty_impl);
+
+                trace!("Hybrid {} filled: {:?}", id,
+                       HYBRID_TAG_MAP.read().unwrap().get(tag));
+            },
+            ref t => panic!("{} {:?} should be a Struct or Hybrid type", id, ty),
         }
     }
 
@@ -1530,28 +1537,30 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             },
             NodeInst::NodeGetFieldIRef { id: _, result_id, is_ptr, refty, index, opnd } => {
-                unimplemented!()
-//                let impl_opnd = self.get_treenode(fcb, opnd);
-//                let impl_index = self.ensure_constint_of(index as u64);
-//                let refty_node = self.b.bundle.types.get(&refty).unwrap();
-//                let field_ty_id = match **refty_node {
-//                    NodeType::TypeStruct { id: _, ref fieldtys } => {
-//                        fieldtys[index as usize]
-//                    },
-//                    ref t => panic!("GETFIELDIREF {}: Expected struct type. actual: {:?}", id, t)
-//                };
-//                let impl_rvtype = self.ensure_iref_or_uptr(field_ty_id, is_ptr);
-//                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
-//                Instruction {
-//                    hdr: hdr,
-//                    value: Some(vec![impl_rv]),
-//                    ops: RwLock::new(vec![impl_opnd, impl_index]),
-//                    v: Instruction_::GetFieldIRef {
-//                        is_ptr: is_ptr,
-//                        base: 0,
-//                        index: 1,
-//                    },
-//                }
+                let impl_opnd = self.get_treenode(fcb, opnd);
+                let index = index as usize;
+                let refty_node = self.b.bundle.types.get(&refty).unwrap();
+                let field_ty_id = match **refty_node {
+                    NodeType::TypeStruct { id: _, ref fieldtys } => {
+                        fieldtys[index]
+                    },
+                    NodeType::TypeHybrid { id: _, ref fixedtys, varty: _ } => {
+                        fixedtys[index]
+                    },
+                    ref t => panic!("GETFIELDIREF {}: Expected struct or hybrid type. actual: {:?}", id, t)
+                };
+                let impl_rvtype = self.ensure_iref_or_uptr(field_ty_id, is_ptr);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_opnd]),
+                    v: Instruction_::GetFieldIRef {
+                        is_ptr: is_ptr,
+                        base: 0,
+                        index: index,
+                    },
+                }
             },
             NodeInst::NodeGetElemIRef { id: _, result_id, is_ptr, refty, indty: _, opnd, index } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);

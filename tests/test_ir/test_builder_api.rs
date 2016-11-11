@@ -110,6 +110,13 @@ fn test_types_sigs_loading() {
                            ptys.as_mut_ptr(), ptys.len(),
                            rtys.as_mut_ptr(), rtys.len());
         ((*b).new_type_ufuncptr)(b, id9, id8);
+        
+        let id10 = ((*b).gen_sym)(b, csp.get("@hyb1"));
+        let id11 = ((*b).gen_sym)(b, csp.get("@rhyb1"));
+
+        let mut fixeds = vec![id2, id2];
+        ((*b).new_type_hybrid)(b, id10, fixeds.as_mut_ptr(), fixeds.len(), id1);
+        ((*b).new_type_ref)(b, id11, id10);
 
         ((*b).load)(b);
         ((*ctx).close_context)(ctx);
@@ -530,17 +537,39 @@ fn test_insts_new() {
 
         let b = ((*ctx).new_ir_builder)(ctx);
 
+        let id_float = ((*b).gen_sym)(b, csp.get("@float"));
+        let id_i8 = ((*b).gen_sym)(b, csp.get("@i8"));
         let id_i32 = ((*b).gen_sym)(b, csp.get("@i32"));
+        let id_i64 = ((*b).gen_sym)(b, csp.get("@i64"));
+        let id_s   = ((*b).gen_sym)(b, csp.get("@s"));
+        let id_a   = ((*b).gen_sym)(b, csp.get("@a"));
+        let id_h   = ((*b).gen_sym)(b, csp.get("@h"));
+
         let id_sig = ((*b).gen_sym)(b, csp.get("@sig"));
         let id_func = ((*b).gen_sym)(b, csp.get("@func"));
 
+        ((*b).new_type_float)(b, id_float);
+        ((*b).new_type_int)(b, id_i8, 8);
         ((*b).new_type_int)(b, id_i32, 32);
+        ((*b).new_type_int)(b, id_i64, 64);
+
+        {
+            let mut fields = vec![id_i32, id_a, id_i64];
+            ((*b).new_type_struct)(b, id_s, fields.as_mut_ptr(), fields.len());
+            ((*b).new_type_hybrid)(b, id_h, fields.as_mut_ptr(), fields.len(), id_i8);
+        }
+        ((*b).new_type_array)(b, id_a, id_float, 4);
 
         let mut ptys = vec![];
         let mut rtys = vec![];
         ((*b).new_funcsig)(b, id_sig,
                            ptys.as_mut_ptr(), ptys.len(),
                            rtys.as_mut_ptr(), rtys.len());
+
+        let id_consti64_3 = ((*b).gen_sym)(b, csp.get("@CONSTI64_3"));
+        ((*b).new_const_int)(b, id_consti64_3, id_i64, 3);
+        let id_consti64_4 = ((*b).gen_sym)(b, csp.get("@CONSTI64_4"));
+        ((*b).new_const_int)(b, id_consti64_4, id_i64, 4);
 
         ((*b).new_func)(b, id_func, id_sig);
 
@@ -557,18 +586,57 @@ fn test_insts_new() {
             let mut args = vec![];
             let mut argtys = vec![];
 
-            let id_new = ((*b).gen_sym)(b, csp.get("@func.v1.entry.new"));
-            let id_ret = ((*b).gen_sym)(b, csp.get("@func.v1.entry.ret"));
-            let mut insts = vec![id_new, id_ret];
+            let id_new            = ((*b).gen_sym)(b, csp.get("@func.v1.entry.new"));
+            let id_newhybrid      = ((*b).gen_sym)(b, csp.get("@func.v1.entry.newhybrid"));
+            let id_getiref1       = ((*b).gen_sym)(b, csp.get("@func.v1.entry.getiref1"));
+            let id_getiref2       = ((*b).gen_sym)(b, csp.get("@func.v1.entry.getiref2"));
+            let id_getfieldiref1  = ((*b).gen_sym)(b, csp.get("@func.v1.entry.getfieldiref1"));
+            let id_getfieldiref2  = ((*b).gen_sym)(b, csp.get("@func.v1.entry.getfieldiref2"));
+            let id_getelemiref    = ((*b).gen_sym)(b, csp.get("@func.v1.entry.getelemiref"));
+            let id_getvarpartiref = ((*b).gen_sym)(b, csp.get("@func.v1.entry.getvarpartiref"));
+            let id_shiftiref      = ((*b).gen_sym)(b, csp.get("@func.v1.entry.shiftiref"));
+            let id_ret            = ((*b).gen_sym)(b, csp.get("@func.v1.entry.ret"));
+            let mut insts = vec![
+                id_new,
+                id_newhybrid,
+                id_getiref1,
+                id_getiref2,
+                id_getfieldiref1,
+                id_getfieldiref2,
+                id_getelemiref,
+                id_getvarpartiref,
+                id_shiftiref,
+                id_ret,
+            ];
 
             ((*b).new_bb)(b, id_entry,
                           args.as_mut_ptr(), argtys.as_mut_ptr(), args.len(),
                           0,
                           insts.as_mut_ptr(), insts.len());
 
-            let id_x = ((*b).gen_sym)(b, csp.get("@func.v1.entry.x"));
+            let id_v_r1 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.r1"));
+            let id_v_r2 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.r2"));
+            let id_v_i1 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.i1"));
+            let id_v_i2 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.i2"));
+            let id_v_f1 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.f1"));
+            let id_v_f2 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.f2"));
+            let id_v_e  = ((*b).gen_sym)(b, csp.get("@func.v1.entry.e"));
+            let id_v_v  = ((*b).gen_sym)(b, csp.get("@func.v1.entry.v"));
+            let id_v_s  = ((*b).gen_sym)(b, csp.get("@func.v1.entry.s"));
 
-            ((*b).new_new)(b, id_new, id_x, id_i32, 0);
+            ((*b).new_new)(b, id_new, id_v_r1, id_s, 0);
+            ((*b).new_newhybrid)(b, id_newhybrid, id_v_r2, id_h, id_i64, id_consti64_4, 0);
+
+            ((*b).new_getiref)(b, id_getiref1, id_v_i1, id_s, id_v_r1);
+            ((*b).new_getiref)(b, id_getiref2, id_v_i2, id_h, id_v_r2);
+
+            ((*b).new_getfieldiref)(b, id_getfieldiref1, id_v_f1, 0, id_s, 1, id_v_i1);
+            ((*b).new_getfieldiref)(b, id_getfieldiref2, id_v_f2, 0, id_h, 2, id_v_i2);
+
+            ((*b).new_getelemiref)(b, id_getelemiref, id_v_e, 0, id_a, id_i64, id_v_f1, id_consti64_3);
+
+            ((*b).new_getvarpartiref)(b, id_getvarpartiref, id_v_v, 0, id_h, id_v_i2);
+            ((*b).new_shiftiref)(b, id_shiftiref, id_v_s, 0, id_i8, id_i64, id_v_v, id_consti64_3);
 
             {
                 let mut args = vec![];

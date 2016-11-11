@@ -264,10 +264,10 @@ impl MuType_ {
 
         MuType_::Struct(tag)
     }
-    pub fn mustruct_put(tag: MuName, mut list: Vec<P<MuType>>) {
+    pub fn mustruct_put(tag: &MuName, mut list: Vec<P<MuType>>) {
         let mut map_guard = STRUCT_TAG_MAP.write().unwrap();
 
-        match map_guard.get_mut(&tag) {
+        match map_guard.get_mut(tag) {
             Some(struct_ty_) => {
                 struct_ty_.tys.clear();
                 struct_ty_.tys.append(&mut list);
@@ -303,10 +303,10 @@ impl MuType_ {
 
         MuType_::Hybrid(tag)
     }
-    pub fn hybrid_put(tag: HybridTag, mut fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) {
+    pub fn hybrid_put(tag: &HybridTag, mut fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) {
         let mut map_guard = HYBRID_TAG_MAP.write().unwrap();
 
-        match map_guard.get_mut(&tag) {
+        match map_guard.get_mut(tag) {
             Some(hybrid_ty_) => {
                 hybrid_ty_.fix_tys.clear();
                 hybrid_ty_.fix_tys.append(&mut fix_tys);
