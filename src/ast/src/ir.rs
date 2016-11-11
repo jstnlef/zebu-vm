@@ -4,7 +4,6 @@ use inst::*;
 use op::*;
 
 use utils::vec_utils;
-use utils::Address;
 
 use std::collections::HashMap;
 use std::fmt;

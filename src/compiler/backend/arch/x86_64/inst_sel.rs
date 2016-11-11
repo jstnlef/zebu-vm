@@ -748,6 +748,17 @@ impl <'a> InstructionSelection {
                                     panic!("unexpected op (expect ireg): {}", op)
                                 }
                             }
+                            op::ConvOp::REFCAST | op::ConvOp::PTRCAST => {
+                                // just a mov (and hopefully reg alloc will coalesce it)
+                                let tmp_res = self.get_result_value(node);
+
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                    self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!("unexpected op (expect ireg): {}", op)
+                                }
+                            }
 
                             _ => unimplemented!()
                         }

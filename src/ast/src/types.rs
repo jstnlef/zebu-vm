@@ -466,7 +466,8 @@ pub fn get_referent_ty(ty: &MuType) -> Option<P<MuType>> {
     match ty.v {
         MuType_::Ref(ref referent)
         | MuType_::IRef(ref referent)
-        | MuType_::WeakRef(ref referent) => Some(referent.clone()),
+        | MuType_::WeakRef(ref referent)
+        | MuType_::UPtr(ref referent) => Some(referent.clone()),
         _ => None
     }
 }

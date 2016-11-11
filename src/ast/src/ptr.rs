@@ -43,8 +43,6 @@
 
 use std::sync::Arc;
 
-use ir::MuEntity;
-
 pub type P<T> = Arc<T>;
 //pub struct P<T: MuEntity> {
 //    ptr: Arc<T>
