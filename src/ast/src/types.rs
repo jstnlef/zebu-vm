@@ -60,6 +60,17 @@ impl MuType {
             v: v
         }
     }
+
+    pub fn get_referenced_ty(&self) -> Option<P<MuType>> {
+        use types::MuType_::*;
+        match self.v {
+            Ref(ref ty)
+            | IRef(ref ty)
+            | WeakRef(ref ty)
+            | UPtr(ref ty) => Some(ty.clone()),
+            _ => None
+        }
+    }
 }
 
 pub type StructTag = MuName;

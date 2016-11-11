@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use std::process::Command;
 use std::process::Output;
+use std::os::unix::process::ExitStatusExt;
 
 pub mod aot;
 pub mod c_api;
@@ -39,6 +40,10 @@ pub fn exec_nocheck (mut cmd: Command) -> Output {
     println!("{}", String::from_utf8_lossy(&output.stdout));
     println!("---err---");
     println!("{}", String::from_utf8_lossy(&output.stderr));
+
+    if output.status.signal().is_some() {
+        println!("terminated by a signal: {}", output.status.signal().unwrap());
+    }
 
     output
 }
