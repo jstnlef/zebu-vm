@@ -74,7 +74,7 @@ pub trait CodeGenerator {
     fn emit_mov_mem8_imm8  (&mut self, dest: Mem, src: i8);
 
     // lea
-    fn emit_lea_r64(&mut self, dest: Reg, src: Reg);
+    fn emit_lea_r64(&mut self, dest: Reg, src: Mem);
 
     // and
     fn emit_and_r64_imm32(&mut self, dest: Reg, src: i32);

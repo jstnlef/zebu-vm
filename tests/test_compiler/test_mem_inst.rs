@@ -564,3 +564,450 @@ pub fn hybrid_fix_part_insts() -> VM {
 
     vm
 }
+
+#[test]
+fn test_hybrid_var_part() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(hybrid_var_part_insts());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+
+    let func_id = vm.id_of("hybrid_var_part_insts");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+    }
+
+    vm.make_primordial_thread(func_id, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec!["hybrid_var_part_insts".to_string()], "hybrid_var_part_insts_test");
+    let output = aot::execute_nocheck(executable);
+
+    assert!(output.status.code().is_some());
+
+    let ret_code = output.status.code().unwrap();
+    println!("return code: {}", ret_code);
+    assert!(ret_code == 20);
+}
+
+pub fn hybrid_var_part_insts() -> VM {
+    let vm = VM::new();
+
+    // .typedef @int64 = int<64>
+    let int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    vm.set_name(int64.as_entity(), Mu("int64"));
+    // .typedef @my_hybrid = hybrid<@int64 @int64 | @int64>
+    let my_hybrid = vm.declare_type(vm.next_id(), MuType_::hybrid("MyHybrid".to_string(), vec![int64.clone(), int64.clone()], int64.clone()));
+    vm.set_name(my_hybrid.as_entity(), Mu("my_hybrid"));
+    // .typedef @ref_hybrid = ref<@my_hybrid>
+    let ref_hybrid = vm.declare_type(vm.next_id(), MuType_::muref(my_hybrid.clone()));
+    vm.set_name(ref_hybrid.as_entity(), Mu("ref_hybrid"));
+    // .typedef @iref_hybrid = iref<@my_hybrid>
+    let iref_hybrid = vm.declare_type(vm.next_id(), MuType_::iref(my_hybrid.clone()));
+    vm.set_name(iref_hybrid.as_entity(), Mu("iref_hybrid"));
+    // .typedef @iref_int64 = iref<@int64>
+    let iref_int64 = vm.declare_type(vm.next_id(), MuType_::iref(int64.clone()));
+    vm.set_name(iref_int64.as_entity(), Mu("iref_int64"));
+
+    // .const @int64_0 <@int64> = 0
+    let int64_0 = vm.declare_const(vm.next_id(), int64.clone(), Constant::Int(0));
+    vm.set_name(int64_0.as_entity(), Mu("int64_0"));
+    // .const @int64_1 <@int64> = 1
+    let int64_1 = vm.declare_const(vm.next_id(), int64.clone(), Constant::Int(1));
+    vm.set_name(int64_1.as_entity(), Mu("int64_1"));
+    // .const @int64_2 <@int64> = 2
+    let int64_2 = vm.declare_const(vm.next_id(), int64.clone(), Constant::Int(2));
+    vm.set_name(int64_2.as_entity(), Mu("int64_2"));
+    // .const @int64_3 <@int64> = 3
+    let int64_3 = vm.declare_const(vm.next_id(), int64.clone(), Constant::Int(3));
+    vm.set_name(int64_3.as_entity(), Mu("int64_3"));
+    // .const @int64_4 <@int64> = 4
+    let int64_4 = vm.declare_const(vm.next_id(), int64.clone(), Constant::Int(4));
+    vm.set_name(int64_4.as_entity(), Mu("int64_4"));
+    // .const @int64_10 <@int64> = 10
+    let int64_10 = vm.declare_const(vm.next_id(), int64.clone(), Constant::Int(10));
+    vm.set_name(int64_10.as_entity(), Mu("int64_10"));
+
+    // .funcsig @noparam_noret_sig = () -> ()
+    let noparam_noret_sig = vm.declare_func_sig(vm.next_id(), vec![], vec![]);
+    vm.set_name(noparam_noret_sig.as_entity(), Mu("noparam_noret_sig"));
+
+    // .funcdecl @hybrid_var_part_insts <@noparam_noret_sig>
+    let func = MuFunction::new(vm.next_id(), noparam_noret_sig.clone());
+    vm.set_name(func.as_entity(), Mu("hybrid_var_part_insts"));
+    let func_id = func.id();
+    vm.declare_func(func);
+
+    // .funcdef @hybrid_var_part_insts VERSION @hybrid_var_part_insts_v1 <@noparam_noret_si>
+    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, noparam_noret_sig.clone());
+    vm.set_name(func_ver.as_entity(), Mu("hybrid_var_part_insts_v1"));
+
+    // %entry():
+    let mut blk_entry = Block::new(vm.next_id());
+    vm.set_name(blk_entry.as_entity(), Mu("entry"));
+
+    // %a = NEWHYBRID <@my_hybrid @int64> @int64_10
+    let blk_entry_a = func_ver.new_ssa(vm.next_id(), ref_hybrid.clone());
+    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
+
+    let int64_0_local = func_ver.new_constant(int64_0.clone());
+    let int64_1_local = func_ver.new_constant(int64_1.clone());
+    let int64_2_local = func_ver.new_constant(int64_2.clone());
+    let int64_3_local = func_ver.new_constant(int64_3.clone());
+    let int64_4_local = func_ver.new_constant(int64_4.clone());
+    let int64_10_local = func_ver.new_constant(int64_10.clone());
+
+    let blk_entry_inst_newhybrid = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_entry_a.clone_value()]),
+        ops: RwLock::new(vec![int64_10_local.clone()]),
+        v: Instruction_::NewHybrid(my_hybrid.clone(), 0)
+    });
+
+    // %iref_a = GETIREF <@int64> %a
+    let blk_entry_iref_a = func_ver.new_ssa(vm.next_id(), iref_hybrid.clone());
+    vm.set_name(blk_entry_iref_a.as_entity(), Mu("blk_entry_iref_a"));
+
+    let blk_entry_inst_getiref = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_entry_iref_a.clone_value()]),
+        ops: RwLock::new(vec![blk_entry_a.clone()]),
+        v: Instruction_::GetIRef(0)
+    });
+
+    // %iref_var = GETVARPARTIREF <@my_hybrid> %iref_a
+    let blk_entry_iref_var = func_ver.new_ssa(vm.next_id(), iref_int64.clone());
+    vm.set_name(blk_entry_iref_var.as_entity(), Mu("blk_entry_iref_var"));
+
+    let blk_entry_inst_getvarpart = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_entry_iref_var.clone_value()]),
+        ops: RwLock::new(vec![blk_entry_iref_a.clone()]),
+        v: Instruction_::GetVarPartIRef{
+            is_ptr: false,
+            base: 0
+        }
+    });
+
+    // %var0 = SHIFTIREF <@int64> %iref_var %int64_0
+    let blk_entry_var0 = func_ver.new_ssa(vm.next_id(), iref_int64.clone());
+    vm.set_name(blk_entry_var0.as_entity(), Mu("blk_entry_var0"));
+
+    let blk_entry_inst_shiftiref_0 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_entry_var0.clone_value()]),
+        ops: RwLock::new(vec![blk_entry_iref_var.clone(), int64_0_local.clone()]),
+        v: Instruction_::ShiftIRef {
+            is_ptr: false,
+            base: 0,
+            offset: 1
+        }
+    });
+
+    // STORE <@int64> %var0 @int64_10
+    let blk_entry_inst_store_0 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![blk_entry_var0.clone(), int64_10_local.clone()]),
+        v: Instruction_::Store{
+            is_ptr: false,
+            order: MemoryOrder::Relaxed,
+            mem_loc: 0,
+            value: 1
+        }
+    });
+
+    // %var4 = SHIFTIREF <@int64> %iref_var %int64_4
+    let blk_entry_var4 = func_ver.new_ssa(vm.next_id(), iref_int64.clone());
+    vm.set_name(blk_entry_var4.as_entity(), Mu("blk_entry_var4"));
+
+    let blk_entry_inst_shiftiref_4 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_entry_var4.clone_value()]),
+        ops: RwLock::new(vec![blk_entry_iref_var.clone(), int64_4_local.clone()]),
+        v: Instruction_::ShiftIRef {
+            is_ptr: false,
+            base: 0,
+            offset: 1
+        }
+    });
+
+    // STORE <@int64> %var4 @int64_10
+    let blk_entry_inst_store_4 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![blk_entry_var4.clone(), int64_10_local.clone()]),
+        v: Instruction_::Store{
+            is_ptr: false,
+            order: MemoryOrder::Relaxed,
+            mem_loc: 0,
+            value: 1
+        }
+    });
+
+    // BRANCH %check(%a)
+    let blk_check_id = vm.next_id();
+
+    let blk_entry_branch = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![blk_entry_a]),
+        v: Instruction_::Branch1(Destination{
+            target: blk_check_id,
+            args: vec![DestArg::Normal(0)]
+        })
+    });
+
+    blk_entry.content = Some(BlockContent{
+        args: vec![],
+        exn_arg: None,
+        body: vec![
+        blk_entry_inst_newhybrid,
+        blk_entry_inst_getiref,
+        blk_entry_inst_getvarpart,
+        blk_entry_inst_shiftiref_0,
+        blk_entry_inst_store_0,
+        blk_entry_inst_shiftiref_4,
+        blk_entry_inst_store_4,
+        blk_entry_branch
+        ],
+        keepalives: None
+    });
+
+    // %check(%a):
+    let blk_check_a = func_ver.new_ssa(vm.next_id(), ref_hybrid.clone());
+    vm.set_name(blk_check_a.as_entity(), Mu("blk_check_a"));
+    let mut blk_check = Block::new(blk_check_id);
+    vm.set_name(blk_check.as_entity(), Mu("check"));
+
+    // BRANCH %head (<@int64> sum, <@int64> n, <@int64> %i, <@ref_hybrid> %a)
+    //                        0             10            0
+    let blk_head_id = vm.next_id();
+    let blk_check_branch = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![int64_0_local.clone(), int64_10_local.clone(), int64_0_local.clone(), blk_check_a.clone()]),
+        v: Instruction_::Branch1(Destination{
+            target: blk_head_id,
+            args: vec![DestArg::Normal(0), DestArg::Normal(1), DestArg::Normal(2), DestArg::Normal(3)]
+        })
+    });
+
+    blk_check.content = Some(BlockContent{
+        args: vec![blk_check_a.clone_value()],
+        exn_arg: None,
+        body: vec![blk_check_branch],
+        keepalives: None
+    });
+
+    // %head(%sum, %n, %i, %a)
+    let blk_head_sum = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_head_sum.as_entity(), Mu("blk_head_sum"));
+    let blk_head_n   = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_head_n.as_entity(), Mu("blk_head_n"));
+    let blk_head_i   = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_head_i.as_entity(), Mu("blk_head_i"));
+    let blk_head_a   = func_ver.new_ssa(vm.next_id(), ref_hybrid.clone());
+    vm.set_name(blk_head_a.as_entity(), Mu("blk_head_a"));
+
+    let mut blk_head = Block::new(blk_head_id);
+    vm.set_name(blk_head.as_entity(), Mu("head"));
+
+    // %cond = SLT <@int64> %i %n
+    let blk_head_cond = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_head_cond.as_entity(), Mu("blk_head_cond"));
+
+    let blk_head_inst_slt = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_head_cond.clone_value()]),
+        ops: RwLock::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
+        v: Instruction_::CmpOp(CmpOp::SLT, 0, 1)
+    });
+
+    // BRANCH2 %cond %body(%sum, %n, %i, %a) %exit(%sum)
+    let blk_body_id = vm.next_id();
+    let blk_exit_id = vm.next_id();
+
+    let blk_head_inst_branch2 = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![blk_head_cond.clone(), blk_head_sum.clone(), blk_head_n.clone(), blk_head_i.clone(), blk_head_a.clone()]),
+        v: Instruction_::Branch2{
+            cond: 0,
+            true_dest: Destination {
+                target: blk_body_id,
+                args: vec![DestArg::Normal(1), DestArg::Normal(2), DestArg::Normal(3), DestArg::Normal(4)]
+            },
+            false_dest: Destination {
+                target: blk_exit_id,
+                args: vec![DestArg::Normal(1)]
+            },
+            true_prob: 0.9f32
+        }
+    });
+
+    blk_head.content = Some(BlockContent {
+        args: vec![blk_head_sum.clone_value(), blk_head_n.clone_value(), blk_head_i.clone_value(), blk_head_a.clone_value()],
+        exn_arg: None,
+        body: vec![blk_head_inst_slt, blk_head_inst_branch2],
+        keepalives: None
+    });
+
+    // %body(%sum, %n, %i, %a):
+    let mut blk_body = Block::new(blk_body_id);
+    vm.set_name(blk_body.as_entity(), Mu("blk_body"));
+    let blk_body_sum = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_body_sum.as_entity(), Mu("blk_body_sum"));
+    let blk_body_n   = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_body_n.as_entity(), Mu("blk_body_n"));
+    let blk_body_i   = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_body_i.as_entity(), Mu("blk_body_i"));
+    let blk_body_a   = func_ver.new_ssa(vm.next_id(), ref_hybrid.clone());
+    vm.set_name(blk_body_a.as_entity(), Mu("blk_body_a"));
+    
+
+    // %blk_body_iref_a = GETIREF <@my_hybrid> a
+    let blk_body_iref_a = func_ver.new_ssa(vm.next_id(), iref_hybrid.clone());
+    vm.set_name(blk_body_iref_a.as_entity(), Mu("blk_body_iref_a"));
+
+    let blk_body_inst_getiref = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_body_iref_a.clone_value()]),
+        ops: RwLock::new(vec![blk_body_a.clone()]),
+        v: Instruction_::GetIRef(0)
+    });
+
+    // %blk_body_iref_var = GETVARPARTIREF <@my_hybrid> %blk_body_iref_a
+    let blk_body_iref_var = func_ver.new_ssa(vm.next_id(), iref_int64.clone());
+    vm.set_name(blk_body_iref_var.as_entity(), Mu("blk_body_iref_var"));
+
+    let blk_body_inst_getvar = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_body_iref_var.clone_value()]),
+        ops: RwLock::new(vec![blk_body_iref_a]),
+        v: Instruction_::GetVarPartIRef {
+            is_ptr: false,
+            base: 0
+        }
+    });
+
+    // %blk_body_iref_var_i = SHIFTIREF <@int64> %blk_body_iref_var %i
+    let blk_body_iref_var_i = func_ver.new_ssa(vm.next_id(), iref_int64.clone());
+    vm.set_name(blk_body_iref_var_i.as_entity(), Mu("blk_body_iref_var_i"));
+
+    let blk_body_inst_shiftiref = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_body_iref_var_i.clone_value()]),
+        ops: RwLock::new(vec![blk_body_iref_var.clone(), blk_body_i.clone()]),
+        v: Instruction_::ShiftIRef {
+            is_ptr: false,
+            base: 0,
+            offset: 1
+        }
+    });
+
+    // %blk_body_ele = LOAD <@int64> %blk_body_iref_var_i
+    let blk_body_ele = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_body_ele.as_entity(), Mu("blk_body_ele"));
+    let blk_body_inst_load = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_body_ele.clone_value()]),
+        ops: RwLock::new(vec![blk_body_iref_var_i.clone()]),
+        v: Instruction_::Load {
+            is_ptr: false,
+            order: MemoryOrder::Relaxed,
+            mem_loc: 0
+        }
+    });
+
+    // %blk_body_sum2 = ADD <@int64> %blk_body_sum %blk_body_ele
+    let blk_body_sum2 = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_body_sum2.as_entity(), Mu("blk_body_sum2"));
+    let blk_body_inst_add_sum = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_body_sum2.clone_value()]),
+        ops: RwLock::new(vec![blk_body_sum.clone(), blk_body_ele.clone()]),
+        v: Instruction_::BinOp(BinOp::Add, 0, 1)
+    });
+
+    // %blk_body_i2 = ADD <@int64> %blk_body_i @int64_1
+    let blk_body_i2 = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_body_i2.as_entity(), Mu("blk_body_i2"));
+    let blk_body_inst_add_i = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: Some(vec![blk_body_i2.clone_value()]),
+        ops: RwLock::new(vec![blk_body_i.clone(), int64_1_local.clone()]),
+        v: Instruction_::BinOp(BinOp::Add, 0, 1)
+    });
+
+    // BRANCH1 %head (%sum2, %n, %i2, %a)
+    let blk_body_inst_branch = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![blk_body_sum2.clone(), blk_body_n.clone(), blk_body_i2.clone(), blk_body_a.clone()]),
+        v: Instruction_::Branch1(Destination{
+            target: blk_head.id(),
+            args: vec![DestArg::Normal(0), DestArg::Normal(1), DestArg::Normal(2), DestArg::Normal(3)]
+        })
+    });
+
+    blk_body.content = Some(BlockContent{
+        args: vec![blk_body_sum.clone_value(), blk_body_n.clone_value(), blk_body_i.clone_value(), blk_body_a.clone_value()],
+        exn_arg: None,
+        body: vec![
+        blk_body_inst_getiref,
+        blk_body_inst_getvar,
+        blk_body_inst_shiftiref,
+        blk_body_inst_load,
+        blk_body_inst_add_sum,
+        blk_body_inst_add_i,
+        blk_body_inst_branch
+        ],
+        keepalives: None,
+    });
+
+    // %exit(%sum):
+    let mut blk_exit = Block::new(blk_exit_id);
+    vm.set_name(blk_exit.as_entity(), Mu("blk_exit"));
+
+    let blk_exit_sum = func_ver.new_ssa(vm.next_id(), int64.clone());
+    vm.set_name(blk_exit_sum.as_entity(), Mu("blk_exit_sum"));
+
+    let blk_exit_exit = gen_ccall_exit(blk_exit_sum.clone(), &mut func_ver, &vm);
+
+    // RET @int64_0
+    let blk_exit_ret = func_ver.new_inst(Instruction{
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        value: None,
+        ops: RwLock::new(vec![int64_0_local.clone()]),
+        v: Instruction_::Return(vec![0])
+    });
+
+    blk_exit.content = Some(BlockContent{
+        args: vec![blk_exit_sum.clone_value()],
+        exn_arg: None,
+        body: vec![blk_exit_exit, blk_exit_ret],
+        keepalives: None
+    });
+
+    func_ver.define(FunctionContent{
+        entry: blk_entry.id(),
+        blocks: hashmap!{
+            blk_entry.id() => blk_entry,
+            blk_check.id() => blk_check,
+            blk_head.id()  => blk_head,
+            blk_body.id()  => blk_body,
+            blk_exit.id()  => blk_exit
+        }
+    });
+
+    vm.define_func_version(func_ver);
+
+    vm
+}
