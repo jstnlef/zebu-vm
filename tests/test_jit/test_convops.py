@@ -1,15 +1,15 @@
-from test_milestones import get_fncptr
+from util import fncptr_from_c_script
 
 
 def test_trunc():
-    fn = get_fncptr("test_trunc", "test_fnc")
+    fn, _ = fncptr_from_c_script("test_trunc.c", "test_fnc")
     assert fn() == 0x58324b55
 
 
 def test_sext():
-    fn = get_fncptr("test_sext", "test_fnc")
+    fn, _ = fncptr_from_c_script("test_sext.c", "test_fnc")
     assert fn() == 0xffffffffa8324b55
 
 def test_zext():
-    fn = get_fncptr("test_zext", "test_fnc")
+    fn, _ = fncptr_from_c_script("test_zext.c", "test_fnc")
     assert fn() == 0x00000000a8324b55

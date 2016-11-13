@@ -1,11 +1,11 @@
-from test_milestones import get_fncptr
+from util import fncptr_from_c_script
 import ctypes
 
 
 def test_uptr_bytestore_load():
-    fn = get_fncptr("test_uptr_bytestore_load", "test_fnc",
-                    argtypes=[ctypes.POINTER(ctypes.c_uint32)],
-                    restype=ctypes.c_uint32)
+    fn, _ = fncptr_from_c_script("test_uptr_bytestore_load.c", "test_fnc",
+                                 argtypes=[ctypes.POINTER(ctypes.c_uint32)],
+                                 restype=ctypes.c_uint32)
 
     # allocate memory through ctypes
     ui32 = ctypes.c_uint32()

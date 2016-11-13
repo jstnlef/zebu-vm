@@ -1,34 +1,14 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib import rmu_fast as rmu
-from rpython.translator.interactive import Translation
-import ctypes, sys
-
-from test_milestones import proj_dir
-
-
-def getfncptr(entry_fnc, argtypes, **kwargs):
-    kwargs.setdefault('backend', 'mu')
-    kwargs.setdefault('muimpl', 'fast')
-    kwargs.setdefault('mucodegen', 'api')
-    kwargs.setdefault('mutestjit', True)
-
-    t = Translation(entry_fnc, argtypes, **kwargs)
-    if kwargs['backend'] == 'mu':
-        db, bdlgen, fnc_name = t.compile_mu()
-        bdlgen.mu.compile_to_sharedlib('libtesting.dylib', [])
-        lib = ctypes.CDLL('emit/libtesting.dylib')
-        fnp = getattr(lib, fnc_name)
-        return fnp
-    else:
-        libpath = t.compile_c()
-        return getattr(ctypes.CDLL(libpath.strpath), 'pypy_g_' + entry_fnc.__name__)
+from util import fncptr_from_rpy_func, fncptr_from_py_script
+import ctypes
 
 
 def test_add():
     def add(a, b):
         return a + b
 
-    fn = getfncptr(add, [rffi.LONGLONG, rffi.LONGLONG])
+    fn, _ = fncptr_from_rpy_func(add, [rffi.LONGLONG, rffi.LONGLONG], rffi.LONGLONG)
     assert fn(1, 2) == 3
 
 
@@ -41,10 +21,13 @@ def test_find_min():
                 m = x
         return m
 
-    fnc = getfncptr(find_min, [rffi.CArrayPtr(rffi.LONGLONG), rffi.UINTPTR_T])
+    fnc, _ = fncptr_from_rpy_func(find_min, [rffi.CArrayPtr(rffi.LONGLONG), rffi.INTPTR_T], rffi.LONGLONG)
 
-    arr = (ctypes.c_longlong * 5)(23, 100, 0, 78, -5)
-    assert fnc(ctypes.byref(arr), 5) == -5
+    with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), 5) as arr:
+        lst = [23, 100, 0, 78, -5]
+        for i, n in enumerate(lst):
+            arr[i] = n
+        assert fnc(arr, 5) == -5
 
 
 def rand_array_of(n):
@@ -68,9 +51,7 @@ def test_arraysum():
             sum += arr[i]
         return sum
 
-    fnc = getfncptr(arraysum, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T])
-    # fnc = getfncptr(arraysum, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T],
-    #                 backend='c', jit=False, gc='none')
+    fnc, _ = fncptr_from_rpy_func(arraysum, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T], rffi.LONGLONG)
 
     n = 1000000
     arr, lst = rand_array_of(n)
@@ -106,9 +87,7 @@ def test_quicksort():
             quicksort(arr, start, p - 1)
             quicksort(arr, p + 1, end)
 
-    # fnc = getfncptr(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.UINTPTR_T, rffi.UINTPTR_T],
-    #                 backend='c', jit=False, gc='none')
-    fnc = getfncptr(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.UINTPTR_T, rffi.UINTPTR_T])
+    fnc, _ = fncptr_from_rpy_func(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.UINTPTR_T, rffi.UINTPTR_T], lltype.Void)
 
     n = 1000000
     arr, lst = rand_array_of(n)
@@ -123,7 +102,7 @@ def test_quicksort():
     lst_s = sorted(lst)
     for i in range(n):
         assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
-
+# +(+(uptr<int<64>> %find_min_0.blk2.rtn_5 #257) = SHIFTIREF PTR +(+(uptr<@hybSigned_0(hybrid)> %find_min_0.blk2.rtn_4 #255) = GETVARPARTIREF PTR +(uptr<@hybSigned_0(hybrid)> %find_min_0.blk2.xs_2 #251)) +(int<64> %find_min_0.blk2.next_0 #249)))
 
 def test_linkedlist_reversal():
     def reverse_linkedlist(head):
@@ -141,15 +120,7 @@ def test_linkedlist_reversal():
     NodePtr = lltype.Ptr(Node)
     Node.become(lltype.Struct("Node", ('val', rffi.CHAR), ('nxt', NodePtr)))
 
-    # RPython RFFI
-    t = Translation(reverse_linkedlist, [NodePtr],
-                    backend='mu', muimpl='fast', mucodegen='api', mutestjit=True)
-    db, bdlgen, fnc_name = t.compile_mu()
-    bdlgen.mu.compile_to_sharedlib('libtesting.dylib', [])
-
-    c_fnc = rffi.llexternal('reverse_linkedlist', [NodePtr], NodePtr,
-                            compilation_info=rffi.ExternalCompilationInfo(libraries=['libtesting.dylib'],
-                                                                          library_dirs=['emit']), _nowrapper=True)
+    fnc, _ = fncptr_from_rpy_func(reverse_linkedlist, [NodePtr], NodePtr)
 
     # linked list: a -> b -> c -> d
     with lltype.scoped_alloc(Node) as a:
@@ -165,48 +136,12 @@ def test_linkedlist_reversal():
                     d.val = 'd'
                     d.nxt = lltype.nullptr(Node)
 
-                    h = c_fnc(a)
+                    h = fnc(a)
                     assert h.val == 'd'
                     assert h.nxt.val == 'c'
                     assert h.nxt.nxt.val == 'b'
                     assert h.nxt.nxt.nxt.val == 'a'
                     assert h.nxt.nxt.nxt.nxt == lltype.nullptr(Node)
-
-    # # ctypes
-    # fnc = getfncptr(reverse_linkedlist, [NodePtr])
-    #
-    # class cNode(ctypes.Structure):
-    #     pass
-    # cNodePtr = ctypes.POINTER(cNode)
-    # cNode._fields_ = [('val', ctypes.c_char),
-    #                   ('nxt', cNodePtr)]
-    #
-    # # fnc.argtypes = [cNodePtr]
-    # # fnc.restype = [cNodePtr]
-    #
-    # # ctypes
-    # # linked list: a -> b -> c -> d
-    # a = cNode()
-    # a.val = 'a'
-    # b = cNode()
-    # b.val = 'b'
-    # a.nxt = ctypes.pointer(b)
-    # c = cNode()
-    # c.val = 'c'
-    # b.nxt = ctypes.pointer(c)
-    # d = cNode()
-    # d.val = 'd'
-    # c.nxt = ctypes.pointer(d)
-    # d.nxt = None
-    #
-    # h = fnc(a)
-    #
-    # assert h.val == 'd'
-    # assert h.nxt.val == 'c'
-    # assert h.nxt.nxt.val == 'b'
-    # assert h.nxt.nxt.nxt.val == 'a'
-    # assert h.nxt.nxt.nxt.nxt == None
-
 
 def test_threadtran_fib():
     def build_test_bundle(bldr, rmu):
@@ -307,16 +242,7 @@ def test_threadtran_fib():
             "result_type": i64
         }
 
-    mu = rmu.MuVM()
-    ctx = mu.new_context()
-    bldr = ctx.new_ir_builder()
-
-    id_dict = build_test_bundle(bldr, rmu)
-    bldr.load()
-    mu.compile_to_sharedlib('libtesting.dylib', [])
-
-    lib = ctypes.CDLL('emit/libtesting.dylib')
-    fnp = lib.fib
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'fib', [ctypes.c_longlong])
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp(20) == 6765
@@ -386,19 +312,10 @@ def test_new():
         }
 
     # load libmu before rffi so to load it with RTLD_GLOBAL
-    libmu = ctypes.CDLL(proj_dir.join('target', 'debug', 'libmu.dylib').strpath, ctypes.RTLD_GLOBAL)
+    from util import libmu_path
+    libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
-    mu = rmu.MuVM()
-    ctx = mu.new_context()
-    bldr = ctx.new_ir_builder()
-
-    id_dict = build_test_bundle(bldr, rmu)
-    bldr.load()
-    mu.compile_to_sharedlib('libtesting.dylib', [])
-
-
-    lib = ctypes.CDLL('emit/libtesting.dylib')
-    fnp = lib.test_fnc
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp() == 1
@@ -464,18 +381,10 @@ def test_new_cmpeq():
         }
 
     # load libmu before rffi so to load it with RTLD_GLOBAL
-    libmu = ctypes.CDLL(proj_dir.join('target', 'debug', 'libmu.dylib').strpath, ctypes.RTLD_GLOBAL)
+    from util import libmu_path
+    libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
-    mu = rmu.MuVM()
-    ctx = mu.new_context()
-    bldr = ctx.new_ir_builder()
-
-    id_dict = build_test_bundle(bldr, rmu)
-    bldr.load()
-    mu.compile_to_sharedlib('libtesting.dylib', [])
-
-    lib = ctypes.CDLL('emit/libtesting.dylib')
-    fnp = lib.test_fnc
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp() == 0
