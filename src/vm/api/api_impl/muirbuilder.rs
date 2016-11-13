@@ -1613,7 +1613,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     },
                     ref t => panic!("GETVARPARTIREF {}: Expected hybrid type. actual: {:?}", id, t)
                 };
-                let impl_rvtype = self.ensure_iref_or_uptr(refty, is_ptr);
+                let impl_rvtype = self.ensure_iref_or_uptr(elem_ty_id, is_ptr);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
                 Instruction {
                     hdr: hdr,
