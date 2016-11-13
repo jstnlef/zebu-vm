@@ -128,7 +128,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
 fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
     let mut offsets : Vec<ByteSize> = vec![];
     let mut cur : ByteSize = 0;
-    let mut struct_align : ByteSize = 0;
+    let mut struct_align : ByteSize = 1;
     
     for ty in tys.iter() {
         let ty_info = vm.get_backend_type_info(ty.id());
