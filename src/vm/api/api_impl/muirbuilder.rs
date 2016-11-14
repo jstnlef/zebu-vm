@@ -1371,6 +1371,27 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     },
                 }
             },
+            NodeInst::NodeSelect { id: _, result_id, cond_ty, opnd_ty, cond, if_true, if_false } => {
+                let impl_cond_ty = self.get_built_type(cond_ty);
+                let impl_opnd_ty = self.get_built_type(opnd_ty);
+                let impl_cond = self.get_treenode(fcb, cond);
+                let impl_if_true = self.get_treenode(fcb, if_true);
+                let impl_if_false = self.get_treenode(fcb, if_false);
+
+                // NOTE: only implemented scalar SELECT. Vector select is not implemented yet.
+                let impl_rv = self.new_ssa(fcb, result_id, impl_opnd_ty.clone()).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: RwLock::new(vec![impl_cond, impl_if_true, impl_if_false]),
+                    v: Instruction_::Select {
+                        cond: 0,
+                        true_val: 1,
+                        false_val: 2,
+                    },
+                }
+            },
             NodeInst::NodeBranch { id: _, dest } => { 
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
