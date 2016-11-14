@@ -165,6 +165,30 @@ macro_rules! inst {
         });
     };
 
+    // CMPOP
+    (($vm: expr, $fv: ident) $name: ident: $value: ident = CMPOP ($op: expr) $op1: ident $op2: ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: Some(vec![$value.clone_value()]),
+            ops: RwLock::new(vec![$op1.clone(), $op2.clone()]),
+            v: Instruction_::CmpOp($op, 0, 1)
+        });
+    };
+
+    // SELECT
+    (($vm: expr, $fv: ident) $name: ident: $value: ident = SELECT $cond: ident $op_true: ident $op_false:ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: Some(vec![$value.clone_value()]),
+            ops: RwLock::new(vec![$cond.clone(), $op_true.clone(), $op_false.clone()]),
+            v: Instruction_::Select{
+                cond: 0,
+                true_val: 1,
+                false_val: 2
+            }
+        });
+    };
+
     // BRANCH
     (($vm: expr, $fv: ident) $name: ident: BRANCH $dest: ident ($($arg: ident), *)) => {
         let $name = $fv.new_inst(Instruction{

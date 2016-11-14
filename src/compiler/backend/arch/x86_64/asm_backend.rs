@@ -1657,6 +1657,48 @@ impl CodeGenerator for ASMCodeGen {
     mov_mem_imm!(emit_mov_mem16_imm16, "mov", 16, i16);
     mov_mem_imm!(emit_mov_mem8_imm8  , "mov", 8 , i8 );
 
+    // cmov
+
+    mov_r_r!(emit_cmova_r64_r64, "cmova", 64);
+    mov_r_imm!(emit_cmova_r64_imm32, "cmova", 64, i32);
+    mov_r_mem!(emit_cmova_r64_mem64, "cmova", 64);
+
+    mov_r_r!(emit_cmovae_r64_r64, "cmovae", 64);
+    mov_r_imm!(emit_cmovae_r64_imm32, "cmovae", 64, i32);
+    mov_r_mem!(emit_cmovae_r64_mem64, "cmovae", 64);
+
+    mov_r_r!(emit_cmovb_r64_r64, "cmovb", 64);
+    mov_r_imm!(emit_cmovb_r64_imm32, "cmovb", 64, i32);
+    mov_r_mem!(emit_cmovb_r64_mem64, "cmovb", 64);
+
+    mov_r_r!(emit_cmovbe_r64_r64, "cmovbe", 64);
+    mov_r_imm!(emit_cmovbe_r64_imm32, "cmovbe", 64, i32);
+    mov_r_mem!(emit_cmovbe_r64_mem64, "cmovbe", 64);
+
+    mov_r_r!(emit_cmove_r64_r64, "cmove", 64);
+    mov_r_imm!(emit_cmove_r64_imm32, "cmove", 64, i32);
+    mov_r_mem!(emit_cmove_r64_mem64, "cmove", 64);
+
+    mov_r_r!(emit_cmovne_r64_r64, "cmovne", 64);
+    mov_r_imm!(emit_cmovne_r64_imm32, "cmovne", 64, i32);
+    mov_r_mem!(emit_cmovne_r64_mem64, "cmovne", 64);
+
+    mov_r_r!(emit_cmovg_r64_r64, "cmovg", 64);
+    mov_r_imm!(emit_cmovg_r64_imm32, "cmovg", 64, i32);
+    mov_r_mem!(emit_cmovg_r64_mem64, "cmovg", 64);
+
+    mov_r_r!(emit_cmovge_r64_r64, "cmovge", 64);
+    mov_r_imm!(emit_cmovge_r64_imm32, "cmovge", 64, i32);
+    mov_r_mem!(emit_cmovge_r64_mem64, "cmovge", 64);
+
+    mov_r_r!(emit_cmovl_r64_r64, "cmovl", 64);
+    mov_r_imm!(emit_cmovl_r64_imm32, "cmovl", 64, i32);
+    mov_r_mem!(emit_cmovl_r64_mem64, "cmovl", 64);
+
+    mov_r_r!(emit_cmovle_r64_r64, "cmovle", 64);
+    mov_r_imm!(emit_cmovle_r64_imm32, "cmovle", 64, i32);
+    mov_r_mem!(emit_cmovle_r64_mem64, "cmovle", 64);
+
     // lea
     mov_r_mem!(emit_lea_r64, "lea", 64);
 

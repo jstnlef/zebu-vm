@@ -180,7 +180,84 @@ impl <'a> InstructionSelection {
                             unimplemented!();
                         }
                     },
-                    
+
+                    Instruction_::Select{cond, true_val, false_val} => {
+                        let ops = inst.ops.read().unwrap();
+
+                        let ref cond = ops[cond];
+                        let ref true_val = ops[true_val];
+                        let ref false_val = ops[false_val];
+
+                        if self.match_ireg(true_val) {
+                            // moving integers/pointers
+                            let tmp_res   = self.get_result_value(node);
+                            let tmp_true  = self.emit_ireg(true_val, f_content, f_context, vm);
+                            let tmp_false = self.emit_ireg(false_val, f_content, f_context, vm);
+
+                            if self.match_cmp_res(cond) {
+                                match self.emit_cmp_res(cond, f_content, f_context, vm) {
+                                    op::CmpOp::EQ => {
+                                        self.backend.emit_cmove_r64_r64 (&tmp_res, &tmp_true);
+                                        self.backend.emit_cmovne_r64_r64(&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::NE => {
+                                        self.backend.emit_cmovne_r64_r64(&tmp_res, &tmp_true);
+                                        self.backend.emit_cmove_r64_r64 (&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::SGE => {
+                                        self.backend.emit_cmovge_r64_r64(&tmp_res, &tmp_true);
+                                        self.backend.emit_cmovl_r64_r64 (&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::SGT => {
+                                        self.backend.emit_cmovg_r64_r64 (&tmp_res, &tmp_true);
+                                        self.backend.emit_cmovle_r64_r64(&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::SLE => {
+                                        self.backend.emit_cmovle_r64_r64(&tmp_res, &tmp_true);
+                                        self.backend.emit_cmovg_r64_r64 (&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::SLT => {
+                                        self.backend.emit_cmovl_r64_r64 (&tmp_res, &tmp_true);
+                                        self.backend.emit_cmovge_r64_r64(&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::UGE => {
+                                        self.backend.emit_cmovae_r64_r64(&tmp_res, &tmp_true);
+                                        self.backend.emit_cmovb_r64_r64 (&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::UGT => {
+                                        self.backend.emit_cmova_r64_r64 (&tmp_res, &tmp_true);
+                                        self.backend.emit_cmovbe_r64_r64(&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::ULE => {
+                                        self.backend.emit_cmovbe_r64_r64(&tmp_res, &tmp_true);
+                                        self.backend.emit_cmova_r64_r64 (&tmp_res, &tmp_false);
+                                    }
+                                    op::CmpOp::ULT => {
+                                        self.backend.emit_cmovb_r64_r64 (&tmp_res, &tmp_true);
+                                        self.backend.emit_cmovae_r64_r64(&tmp_res, &tmp_false);
+                                    }
+                                    _ => panic!("expecting CmpOp for integers")
+                                }
+                            } else if self.match_ireg(cond) {
+                                let tmp_cond = self.emit_ireg(cond, f_content, f_context, vm);
+
+                                // emit: cmp cond_reg 1
+                                self.backend.emit_cmp_imm32_r64(1, &tmp_cond);
+
+                                // emit: cmove tmp_true -> tmp_res
+                                self.backend.emit_cmove_r64_r64(&tmp_res, &tmp_true);
+
+                                // emit: cmovne tmp_false -> tmp_res
+                                self.backend.emit_cmovne_r64_r64(&tmp_res, &tmp_false);
+                            } else {
+                                unimplemented!()
+                            }
+                        } else {
+                            // moving vectors, floatingpoints
+                            unimplemented!()
+                        }
+                    },
+
                     Instruction_::Branch1(ref dest) => {
                         let ops = inst.ops.read().unwrap();
                                             

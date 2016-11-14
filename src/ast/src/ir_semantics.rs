@@ -25,6 +25,7 @@ pub fn is_terminal_inst(inst: &Instruction_) -> bool {
         | &GetElementIRef{..}
         | &ShiftIRef{..}
         | &GetVarPartIRef{..}
+        | &Select{..}
         | &Fence(_) => false,
         &Return(_)
         | &ThreadExit
@@ -78,6 +79,7 @@ pub fn has_side_effect(inst: &Instruction_) -> bool {
         &TailCall(_) => true,
         &Branch1(_) => true,
         &Branch2{..} => true,
+        &Select{..} => false,
         &Watchpoint{..} => true,
         &WPBranch{..} => true,
         &Call{..} => true,

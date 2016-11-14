@@ -73,6 +73,48 @@ pub trait CodeGenerator {
     fn emit_mov_mem8_r8    (&mut self, dest: Mem, src: Reg); // store
     fn emit_mov_mem8_imm8  (&mut self, dest: Mem, src: i8);
 
+    // gpr conditional move
+
+    fn emit_cmova_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmova_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmova_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmovae_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmovae_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmovae_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmovb_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmovb_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmovb_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmovbe_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmovbe_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmovbe_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmove_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmove_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmove_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmovg_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmovg_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmovg_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmovge_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmovge_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmovge_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmovl_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmovl_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmovl_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmovle_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmovle_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmovle_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
+    fn emit_cmovne_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cmovne_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_cmovne_r64_mem64(&mut self, dest: Reg, src: Mem); // load
+
     // lea
     fn emit_lea_r64(&mut self, dest: Reg, src: Mem);
 

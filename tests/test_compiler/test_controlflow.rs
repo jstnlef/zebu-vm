@@ -1,12 +1,11 @@
-extern crate mu;
-extern crate log;
 extern crate libloading;
 
-use self::mu::ast::types::*;
-use self::mu::ast::ir::*;
-use self::mu::ast::inst::*;
-use self::mu::vm::*;
-use self::mu::testutil;
+use mu::ast::types::*;
+use mu::ast::ir::*;
+use mu::ast::inst::*;
+use mu::ast::op::*;
+use mu::vm::*;
+use mu::testutil;
 
 use std::sync::RwLock;
 
@@ -202,6 +201,126 @@ fn switch() -> VM {
     });
 
     vm.define_func_version(func_ver);
+
+    vm
+}
+
+#[test]
+fn test_select_eq_zero() {
+    let lib = testutil::compile_fnc("select_eq_zero", &select_eq_zero);
+
+    unsafe {
+        let select_eq_zero : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"select_eq_zero").unwrap();
+
+        let res = select_eq_zero(0);
+        println!("select_eq_zero(0) = {}", res);
+        assert!(res == 1);
+
+        let res = select_eq_zero(1);
+        println!("select_eq_zero(1) = {}", res);
+        assert!(res == 0);
+    }
+}
+
+fn select_eq_zero() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int64 = mu_int(64));
+    typedef! ((vm) int1  = mu_int(1));
+    constdef!((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig! ((vm) sig = (int64) -> (int64));
+    funcdecl!((vm) <sig> select_eq_zero);
+    funcdef! ((vm) <sig> select_eq_zero VERSION select_v1);
+
+    // blk entry
+    block! ((vm, select_v1) blk_entry);
+    ssa!   ((vm, select_v1) <int64> blk_entry_n);
+
+    ssa!   ((vm, select_v1) <int1> blk_entry_cond);
+    consta!((vm, select_v1) int64_0_local = int64_0);
+    consta!((vm, select_v1) int64_1_local = int64_1);
+    inst!  ((vm, select_v1) blk_entry_inst_cmp:
+        blk_entry_cond = CMPOP (CmpOp::EQ) blk_entry_n int64_0_local
+    );
+
+    ssa!   ((vm, select_v1) <int64> blk_entry_ret);
+    inst!  ((vm, select_v1) blk_entry_inst_select:
+        blk_entry_ret = SELECT blk_entry_cond int64_1_local int64_0_local
+    );
+
+    inst!  ((vm, select_v1) blk_entry_inst_ret:
+        RET (blk_entry_ret)
+    );
+
+    define_block!   ((vm, select_v1) blk_entry(blk_entry_n){
+        blk_entry_inst_cmp, blk_entry_inst_select, blk_entry_inst_ret
+    });
+
+    define_func_ver!((vm) select_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_select_sge_zero() {
+    let lib = testutil::compile_fnc("select_sge_zero", &select_sge_zero);
+
+    unsafe {
+        let select_sge_zero : libloading::Symbol<unsafe extern fn(i64) -> u64> = lib.get(b"select_sge_zero").unwrap();
+
+        let res = select_sge_zero(0);
+        println!("select_sge_zero(0) = {}", res);
+        assert!(res == 1);
+
+        let res = select_sge_zero(1);
+        println!("select_sge_zero(1) = {}", res);
+        assert!(res == 1);
+
+        let res = select_sge_zero(-1);
+        println!("select_sge_zero(-1) = {}", res);
+        assert!(res == 0);
+    }
+}
+
+fn select_sge_zero() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int64 = mu_int(64));
+    typedef! ((vm) int1  = mu_int(1));
+    constdef!((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig! ((vm) sig = (int64) -> (int64));
+    funcdecl!((vm) <sig> select_sge_zero);
+    funcdef! ((vm) <sig> select_sge_zero VERSION select_v1);
+
+    // blk entry
+    block! ((vm, select_v1) blk_entry);
+    ssa!   ((vm, select_v1) <int64> blk_entry_n);
+
+    ssa!   ((vm, select_v1) <int1> blk_entry_cond);
+    consta!((vm, select_v1) int64_0_local = int64_0);
+    consta!((vm, select_v1) int64_1_local = int64_1);
+    inst!  ((vm, select_v1) blk_entry_inst_cmp:
+        blk_entry_cond = CMPOP (CmpOp::SGE) blk_entry_n int64_0_local
+    );
+
+    ssa!   ((vm, select_v1) <int64> blk_entry_ret);
+    inst!  ((vm, select_v1) blk_entry_inst_select:
+        blk_entry_ret = SELECT blk_entry_cond int64_1_local int64_0_local
+    );
+
+    inst!  ((vm, select_v1) blk_entry_inst_ret:
+        RET (blk_entry_ret)
+    );
+
+    define_block!   ((vm, select_v1) blk_entry(blk_entry_n){
+        blk_entry_inst_cmp, blk_entry_inst_select, blk_entry_inst_ret
+    });
+
+    define_func_ver!((vm) select_v1 (entry: blk_entry) {blk_entry});
 
     vm
 }

@@ -221,6 +221,11 @@ pub enum Instruction_ {
         false_dest: Destination,
         true_prob: f32
     },
+    Select{
+        cond: OpIndex,
+        true_val: OpIndex,
+        false_val: OpIndex
+    },
     Watchpoint{ // Watchpoint NONE ResumptionData
                 //   serves as an unconditional trap. Trap to client, and resume with ResumptionData
                 // Watchpoint (WPID dest) ResumptionData
@@ -333,6 +338,9 @@ impl Instruction_ {
             &Instruction_::Branch2{cond, ref true_dest, ref false_dest, ..} => {
                 format!("BRANCH2 {} {} {}", ops[cond], true_dest.debug_str(ops), false_dest.debug_str(ops))
             },
+            &Instruction_::Select{cond, true_val, false_val} => {
+                format!("SELECT if {} then {} else {}", ops[cond], ops[true_val], ops[false_val])
+            }
             &Instruction_::Watchpoint{id, ref disable_dest, ref resume} => {
                 match id {
                     Some(id) => {
