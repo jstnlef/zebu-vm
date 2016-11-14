@@ -20,12 +20,33 @@ use compiler::backend::RegGroup;
 
 use std::collections::HashMap;
 
+macro_rules! GPR_ALIAS {
+    ($alias: ident: ($id64: expr, $r64: ident) -> $r32: ident, $r16: ident, $r8: ident) => {
+        lazy_static!{
+            pub static ref $r64 : P<Value> = GPR!($id64,    stringify!($r64), UINT64_TYPE);
+            pub static ref $r32 : P<Value> = GPR!($id64 +1, stringify!($r32), UINT32_TYPE);
+            pub static ref $r16 : P<Value> = GPR!($id64 +2, stringify!($r16), UINT16_TYPE);
+            pub static ref $r8  : P<Value> = GPR!($id64 +3, stringify!($r8) , UINT8_TYPE );
+
+            pub static ref $alias : [P<Value>; 4] = [$r64.clone(), $r32.clone(), $r16.clone(), $r8.clone()];
+        }
+    };
+
+    ($alias: ident: ($id64: expr, $r64: ident)) => {
+        lazy_static!{
+            pub static ref $r64 : P<Value> = GPR!($id64,    stringify!($r64), UINT64_TYPE);
+
+            pub static ref $alias : [P<Value>; 4] = [$r64.clone(), $r64.clone(), $r64.clone(), $r64.clone()];
+        }
+    };
+}
+
 macro_rules! GPR {
-    ($id:expr, $name: expr) => {
+    ($id:expr, $name: expr, $ty: ident) => {
         {
             P(Value {
                 hdr: MuEntityHeader::named($id, $name.to_string()),
-                ty: UINT64_TYPE.clone(),
+                ty: $ty.clone(),
                 v: Value_::SSAVar($id)
             })
         }
@@ -44,27 +65,66 @@ macro_rules! FPR {
     };
 }
 
-// put into several segments to avoid 'recursion limit reached' error
+GPR_ALIAS!(RAX_ALIAS: (0, RAX)  -> EAX, AX , AL);
+GPR_ALIAS!(RCX_ALIAS: (4, RCX)  -> ECX, CX , CL);
+GPR_ALIAS!(RDX_ALIAS: (8, RDX)  -> EDX, DX , DL);
+GPR_ALIAS!(RBX_ALIAS: (12,RBX)  -> EBX, BX , BL);
+GPR_ALIAS!(RSP_ALIAS: (16,RSP)  -> ESP, SP , SPL);
+GPR_ALIAS!(RBP_ALIAS: (20,RBP)  -> EBP, BP , BPL);
+GPR_ALIAS!(RSI_ALIAS: (24,RSI)  -> ESI, SI , SIL);
+GPR_ALIAS!(RDI_ALIAS: (28,RDI)  -> EDI, DI , DIL);
+GPR_ALIAS!(R8_ALIAS : (32,R8 )  -> R8D, R8W, R8L);
+GPR_ALIAS!(R9_ALIAS : (36,R9 )  -> R9D, R9W, R9L);
+GPR_ALIAS!(R10_ALIAS: (40,R10) -> R10D,R10W,R10L);
+GPR_ALIAS!(R11_ALIAS: (44,R11) -> R11D,R11W,R11L);
+GPR_ALIAS!(R12_ALIAS: (48,R12) -> R12D,R12W,R12L);
+GPR_ALIAS!(R13_ALIAS: (52,R13) -> R13D,R13W,R13L);
+GPR_ALIAS!(R14_ALIAS: (56,R14) -> R14D,R14W,R14L);
+GPR_ALIAS!(R15_ALIAS: (60,R15) -> R15D,R15W,R15L);
+GPR_ALIAS!(RIP_ALIAS: (64,RIP));
+
 lazy_static! {
-    pub static ref RAX : P<Value> = GPR!(0, "rax");
-    pub static ref RCX : P<Value> = GPR!(1, "rcx");
-    pub static ref RDX : P<Value> = GPR!(2, "rdx");
-    pub static ref RBX : P<Value> = GPR!(3, "rbx");
-    pub static ref RSP : P<Value> = GPR!(4, "rsp");
-    pub static ref RBP : P<Value> = GPR!(5, "rbp");
-    pub static ref RSI : P<Value> = GPR!(6, "rsi");
-    pub static ref RDI : P<Value> = GPR!(7, "rdi");
-    pub static ref R8  : P<Value> = GPR!(8, "r8");
-    pub static ref R9  : P<Value> = GPR!(9, "r9");
-    pub static ref R10 : P<Value> = GPR!(10,"r10");
-    pub static ref R11 : P<Value> = GPR!(11,"r11");
-    pub static ref R12 : P<Value> = GPR!(12,"r12");
-    pub static ref R13 : P<Value> = GPR!(13,"r13");
-    pub static ref R14 : P<Value> = GPR!(14,"r14");
-    pub static ref R15 : P<Value> = GPR!(15,"r15");
+    pub static ref GPR_ALIAS_LOOKUP_TABLE : HashMap<MuID, Vec<P<Value>>> = {
+        let mut ret = HashMap::new();
 
-    pub static ref RIP : P<Value> = GPR!(32,"rip");
+        ret.insert(RAX.id(), RAX_ALIAS.to_vec());
+        ret.insert(RCX.id(), RCX_ALIAS.to_vec());
+        ret.insert(RDX.id(), RDX_ALIAS.to_vec());
+        ret.insert(RBX.id(), RBX_ALIAS.to_vec());
+        ret.insert(RSP.id(), RSP_ALIAS.to_vec());
+        ret.insert(RBP.id(), RBP_ALIAS.to_vec());
+        ret.insert(RSI.id(), RSI_ALIAS.to_vec());
+        ret.insert(RDI.id(), RDI_ALIAS.to_vec());
+        ret.insert(R8.id() , R8_ALIAS.to_vec() );
+        ret.insert(R9.id() , R9_ALIAS.to_vec() );
+        ret.insert(R10.id(), R10_ALIAS.to_vec());
+        ret.insert(R11.id(), R11_ALIAS.to_vec());
+        ret.insert(R12.id(), R12_ALIAS.to_vec());
+        ret.insert(R13.id(), R13_ALIAS.to_vec());
+        ret.insert(R14.id(), R14_ALIAS.to_vec());
+        ret.insert(R15.id(), R15_ALIAS.to_vec());
+        ret.insert(RIP.id(), RIP_ALIAS.to_vec());
 
+        ret
+    };
+}
+
+pub fn get_gpr_alias(id: MuID, length: usize) -> P<Value> {
+    let vec = match GPR_ALIAS_LOOKUP_TABLE.get(&id) {
+        Some(vec) => vec,
+        None => panic!("didnt find {} as GPR", id)
+    };
+
+    match length {
+        64 => vec[0].clone(),
+        32 => vec[1].clone(),
+        16 => vec[2].clone(),
+        8  => vec[3].clone(),
+        _  => panic!("unexpected length: {}", length)
+    }
+}
+
+lazy_static! {
     pub static ref RETURN_GPRs : [P<Value>; 2] = [
         RAX.clone(),
         RDX.clone(),
@@ -121,22 +181,22 @@ lazy_static! {
 }
 
 lazy_static!{
-    pub static ref XMM0  : P<Value> = FPR!(16,"xmm0");
-    pub static ref XMM1  : P<Value> = FPR!(17,"xmm1");
-    pub static ref XMM2  : P<Value> = FPR!(18,"xmm2");
-    pub static ref XMM3  : P<Value> = FPR!(19,"xmm3");
-    pub static ref XMM4  : P<Value> = FPR!(20,"xmm4");
-    pub static ref XMM5  : P<Value> = FPR!(21,"xmm5");
-    pub static ref XMM6  : P<Value> = FPR!(22,"xmm6");
-    pub static ref XMM7  : P<Value> = FPR!(23,"xmm7");
-    pub static ref XMM8  : P<Value> = FPR!(24,"xmm8");
-    pub static ref XMM9  : P<Value> = FPR!(25,"xmm9");
-    pub static ref XMM10 : P<Value> = FPR!(26,"xmm10");
-    pub static ref XMM11 : P<Value> = FPR!(27,"xmm11");
-    pub static ref XMM12 : P<Value> = FPR!(28,"xmm12");
-    pub static ref XMM13 : P<Value> = FPR!(29,"xmm13");
-    pub static ref XMM14 : P<Value> = FPR!(30,"xmm14");
-    pub static ref XMM15 : P<Value> = FPR!(31,"xmm15");
+    pub static ref XMM0  : P<Value> = FPR!(70,"xmm0");
+    pub static ref XMM1  : P<Value> = FPR!(71,"xmm1");
+    pub static ref XMM2  : P<Value> = FPR!(72,"xmm2");
+    pub static ref XMM3  : P<Value> = FPR!(73,"xmm3");
+    pub static ref XMM4  : P<Value> = FPR!(74,"xmm4");
+    pub static ref XMM5  : P<Value> = FPR!(75,"xmm5");
+    pub static ref XMM6  : P<Value> = FPR!(76,"xmm6");
+    pub static ref XMM7  : P<Value> = FPR!(77,"xmm7");
+    pub static ref XMM8  : P<Value> = FPR!(78,"xmm8");
+    pub static ref XMM9  : P<Value> = FPR!(79,"xmm9");
+    pub static ref XMM10 : P<Value> = FPR!(80,"xmm10");
+    pub static ref XMM11 : P<Value> = FPR!(81,"xmm11");
+    pub static ref XMM12 : P<Value> = FPR!(82,"xmm12");
+    pub static ref XMM13 : P<Value> = FPR!(83,"xmm13");
+    pub static ref XMM14 : P<Value> = FPR!(84,"xmm14");
+    pub static ref XMM15 : P<Value> = FPR!(85,"xmm15");
 
     pub static ref RETURN_FPRs : [P<Value>; 2] = [
         XMM0.clone(),
