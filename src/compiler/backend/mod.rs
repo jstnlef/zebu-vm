@@ -182,6 +182,7 @@ impl RegGroup {
     pub fn get(ty: &P<MuType>) -> RegGroup {
         match ty.v {
             // for now, only use 64bits registers
+            MuType_::Int(len) if len == 1  => RegGroup::GPR,
             MuType_::Int(len) if len == 8  => RegGroup::GPR,
             MuType_::Int(len) if len == 16 => RegGroup::GPR,
             MuType_::Int(len) if len == 32 => RegGroup::GPR,

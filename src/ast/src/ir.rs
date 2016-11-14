@@ -583,25 +583,16 @@ impl Value {
 
     pub fn is_int_const(&self) -> bool {
         match self.v {
-            Value_::Constant(_) => {
-                let ty : &MuType = &self.ty;
-                match ty.v {
-                    MuType_::Int(_) => true,
-                    _ => false
-                }
-            }
+            Value_::Constant(Constant::Int(_)) => true,
+            Value_::Constant(Constant::NullRef) => true,
             _ => false
         }
     }
     
     pub fn extract_int_const(&self) -> u64 {
         match self.v {
-            Value_::Constant(ref c) => {
-                match c {
-                    &Constant::Int(val) => val,
-                    _ => panic!("expect int const")
-                }
-            },
+            Value_::Constant(Constant::Int(val)) => val,
+            Value_::Constant(Constant::NullRef)  => 0,
             _ => panic!("expect int const")
         }
     }

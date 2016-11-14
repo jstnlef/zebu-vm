@@ -76,43 +76,33 @@ pub trait CodeGenerator {
     // gpr conditional move
 
     fn emit_cmova_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmova_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmova_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmovae_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmovae_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmovae_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmovb_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmovb_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmovb_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmovbe_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmovbe_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmovbe_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmove_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmove_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmove_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmovg_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmovg_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmovg_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmovge_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmovge_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmovge_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmovl_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmovl_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmovl_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmovle_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmovle_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmovle_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     fn emit_cmovne_r64_r64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cmovne_r64_imm32(&mut self, dest: Reg, src: i32);
     fn emit_cmovne_r64_mem64(&mut self, dest: Reg, src: Mem); // load
 
     // lea
@@ -168,6 +158,11 @@ pub trait CodeGenerator {
     fn emit_add_r8_r8  (&mut self, dest: Reg, src: Reg);
     fn emit_add_r8_mem8(&mut self, dest: Reg, src: Mem);
     fn emit_add_r8_imm8(&mut self, dest: Reg, src: i8);
+
+    // or
+    fn emit_or_r64_r64  (&mut self, dest: Reg, src: Reg);
+    fn emit_or_r64_imm32(&mut self, dest: Reg, src: i32);
+    fn emit_or_r64_mem64(&mut self, dest: Reg, src: Mem);
     
     // sub
     fn emit_sub_r64_r64  (&mut self, dest: Reg, src: Reg);

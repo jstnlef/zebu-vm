@@ -1119,7 +1119,7 @@ fn op_postfix(op_len: usize) -> &'static str {
 }
 
 // general instruction emission
-macro_rules! binop_no_def_r_r {
+macro_rules! cmp_r_r {
     ($func_name: ident, $inst: expr, $op_len: expr) => {
         fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
             // with postfix
@@ -1134,9 +1134,17 @@ macro_rules! binop_no_def_r_r {
             self.add_asm_inst(
                 asm,
                 hashmap!{},
-                hashmap!{
-                    id1 => vec![loc1],
-                    id2 => vec![loc2]
+                {
+                    if id1 == id2 {
+                        hashmap!{
+                            id1 => vec![loc1, loc2]
+                        }
+                    } else {
+                        hashmap!{
+                            id1 => vec![loc1],
+                            id2 => vec![loc2]
+                        }
+                    }
                 },
                 false
             )
@@ -1144,7 +1152,7 @@ macro_rules! binop_no_def_r_r {
     }
 }
 
-macro_rules! binop_no_def_imm_r {
+macro_rules! cmp_imm_r {
     ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
         fn $func_name (&mut self, op1: $imm_ty, op2: &P<Value>) {
             let inst = $inst.to_string() + &op_postfix($op_len);
@@ -1167,7 +1175,7 @@ macro_rules! binop_no_def_imm_r {
     }
 }
 
-macro_rules! binop_no_def_mem_r {
+macro_rules! cmp_mem_r {
     ($func_name: ident, $inst:expr, $op_len: expr) => {
         fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
             let inst = $inst.to_string() + &op_postfix($op_len);
@@ -1212,9 +1220,17 @@ macro_rules! binop_def_r_r {
                 hashmap!{
                     id2 => vec![loc2.clone()]
                 },
-                hashmap!{
-                    id1 => vec![loc1],
-                    id2 => vec![loc2]
+                {
+                    if id1 == id2 {
+                        hashmap!{
+                            id1 => vec![loc1, loc2]
+                        }
+                    } else {
+                        hashmap!{
+                            id1 => vec![loc1],
+                            id2 => vec![loc2]
+                        }
+                    }
                 },
                 false
             )
@@ -1387,6 +1403,89 @@ macro_rules! mov_mem_imm {
             let (mem, uses) = self.prepare_mem(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
 
             let asm = format!("{} ${},{}", inst, src, mem);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{},
+                uses,
+                true
+            )
+        }
+    }
+}
+
+/// conditional move
+macro_rules! binop_no_def_r_r {
+    ($func_name: ident, $inst: expr, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+
+            let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+            let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
+
+            let asm = format!("{} {},{}", inst, reg1, reg2);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{},
+                {
+                    if id1 == id2 {
+                        hashmap!{
+                            id1 => vec![loc1, loc2]
+                        }
+                    } else {
+                        hashmap!{
+                            id1 => vec![loc1],
+                            id2 => vec![loc2]
+                        }
+                    }
+                },
+                false
+            )
+        }
+    }
+}
+
+macro_rules! binop_no_def_r_imm {
+    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+
+            let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+
+            let asm = format!("{} ${},{}", inst, src, reg1);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{},
+                hashmap!{
+                    id1 => vec![loc1]
+                },
+                false
+            )
+        }
+    }
+}
+
+macro_rules! binop_no_def_r_mem {
+    ($func_name: ident, $inst: expr, $op_len: expr) => {
+        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
+            let inst = $inst.to_string() + &op_postfix($op_len);
+            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+
+            let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
+            let (reg, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
+
+            if uses.contains_key(&id1) {
+                let mut locs = uses.get_mut(&id1).unwrap();
+                vec_utils::add_unique(locs, loc1.clone());
+            } else {
+                uses.insert(id1, vec![loc1.clone()]);
+            }
+
+            let asm = format!("{} {},{}", inst, mem, reg);
 
             self.add_asm_inst(
                 asm,
@@ -1613,20 +1712,20 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     // cmp
-    binop_no_def_r_r!(emit_cmp_r64_r64, "cmp", 64);
-    binop_no_def_r_r!(emit_cmp_r32_r32, "cmp", 32);
-    binop_no_def_r_r!(emit_cmp_r16_r16, "cmp", 16);
-    binop_no_def_r_r!(emit_cmp_r8_r8  , "cmp", 8 );
+    cmp_r_r!(emit_cmp_r64_r64, "cmp", 64);
+    cmp_r_r!(emit_cmp_r32_r32, "cmp", 32);
+    cmp_r_r!(emit_cmp_r16_r16, "cmp", 16);
+    cmp_r_r!(emit_cmp_r8_r8  , "cmp", 8 );
 
-    binop_no_def_imm_r!(emit_cmp_imm32_r64, "cmp", 64, i32);
-    binop_no_def_imm_r!(emit_cmp_imm32_r32, "cmp", 32, i32);
-    binop_no_def_imm_r!(emit_cmp_imm16_r16, "cmp", 16, i16);
-    binop_no_def_imm_r!(emit_cmp_imm8_r8  , "cmp", 8 , i8 );
+    cmp_imm_r!(emit_cmp_imm32_r64, "cmp", 64, i32);
+    cmp_imm_r!(emit_cmp_imm32_r32, "cmp", 32, i32);
+    cmp_imm_r!(emit_cmp_imm16_r16, "cmp", 16, i16);
+    cmp_imm_r!(emit_cmp_imm8_r8  , "cmp", 8 , i8 );
 
-    binop_no_def_mem_r!(emit_cmp_mem64_r64, "cmp", 64);
-    binop_no_def_mem_r!(emit_cmp_mem32_r32, "cmp", 32);
-    binop_no_def_mem_r!(emit_cmp_mem16_r16, "cmp", 16);
-    binop_no_def_mem_r!(emit_cmp_mem8_r8  , "cmp", 8 );
+    cmp_mem_r!(emit_cmp_mem64_r64, "cmp", 64);
+    cmp_mem_r!(emit_cmp_mem32_r32, "cmp", 32);
+    cmp_mem_r!(emit_cmp_mem16_r16, "cmp", 16);
+    cmp_mem_r!(emit_cmp_mem8_r8  , "cmp", 8 );
 
     // mov
 
@@ -1659,45 +1758,35 @@ impl CodeGenerator for ASMCodeGen {
 
     // cmov
 
-    mov_r_r!(emit_cmova_r64_r64, "cmova", 64);
-    mov_r_imm!(emit_cmova_r64_imm32, "cmova", 64, i32);
-    mov_r_mem!(emit_cmova_r64_mem64, "cmova", 64);
+    binop_no_def_r_r!  (emit_cmova_r64_r64,   "cmova", 64);
+    binop_no_def_r_mem!(emit_cmova_r64_mem64, "cmova", 64);
 
-    mov_r_r!(emit_cmovae_r64_r64, "cmovae", 64);
-    mov_r_imm!(emit_cmovae_r64_imm32, "cmovae", 64, i32);
-    mov_r_mem!(emit_cmovae_r64_mem64, "cmovae", 64);
+    binop_no_def_r_r!  (emit_cmovae_r64_r64,  "cmovae", 64);
+    binop_no_def_r_mem!(emit_cmovae_r64_mem64,"cmovae", 64);
 
-    mov_r_r!(emit_cmovb_r64_r64, "cmovb", 64);
-    mov_r_imm!(emit_cmovb_r64_imm32, "cmovb", 64, i32);
-    mov_r_mem!(emit_cmovb_r64_mem64, "cmovb", 64);
+    binop_no_def_r_r!  (emit_cmovb_r64_r64,   "cmovb", 64);
+    binop_no_def_r_mem!(emit_cmovb_r64_mem64, "cmovb", 64);
 
-    mov_r_r!(emit_cmovbe_r64_r64, "cmovbe", 64);
-    mov_r_imm!(emit_cmovbe_r64_imm32, "cmovbe", 64, i32);
-    mov_r_mem!(emit_cmovbe_r64_mem64, "cmovbe", 64);
+    binop_no_def_r_r!  (emit_cmovbe_r64_r64,  "cmovbe", 64);
+    binop_no_def_r_mem!(emit_cmovbe_r64_mem64,"cmovbe", 64);
 
-    mov_r_r!(emit_cmove_r64_r64, "cmove", 64);
-    mov_r_imm!(emit_cmove_r64_imm32, "cmove", 64, i32);
-    mov_r_mem!(emit_cmove_r64_mem64, "cmove", 64);
+    binop_no_def_r_r!  (emit_cmove_r64_r64,   "cmove", 64);
+    binop_no_def_r_mem!(emit_cmove_r64_mem64, "cmove", 64);
 
-    mov_r_r!(emit_cmovne_r64_r64, "cmovne", 64);
-    mov_r_imm!(emit_cmovne_r64_imm32, "cmovne", 64, i32);
-    mov_r_mem!(emit_cmovne_r64_mem64, "cmovne", 64);
+    binop_no_def_r_r!  (emit_cmovne_r64_r64,  "cmovne", 64);
+    binop_no_def_r_mem!(emit_cmovne_r64_mem64,"cmovne", 64);
 
-    mov_r_r!(emit_cmovg_r64_r64, "cmovg", 64);
-    mov_r_imm!(emit_cmovg_r64_imm32, "cmovg", 64, i32);
-    mov_r_mem!(emit_cmovg_r64_mem64, "cmovg", 64);
+    binop_no_def_r_r!  (emit_cmovg_r64_r64,   "cmovg", 64);
+    binop_no_def_r_mem!(emit_cmovg_r64_mem64, "cmovg", 64);
 
-    mov_r_r!(emit_cmovge_r64_r64, "cmovge", 64);
-    mov_r_imm!(emit_cmovge_r64_imm32, "cmovge", 64, i32);
-    mov_r_mem!(emit_cmovge_r64_mem64, "cmovge", 64);
+    binop_no_def_r_r!  (emit_cmovge_r64_r64,  "cmovge", 64);
+    binop_no_def_r_mem!(emit_cmovge_r64_mem64,"cmovge", 64);
 
-    mov_r_r!(emit_cmovl_r64_r64, "cmovl", 64);
-    mov_r_imm!(emit_cmovl_r64_imm32, "cmovl", 64, i32);
-    mov_r_mem!(emit_cmovl_r64_mem64, "cmovl", 64);
+    binop_no_def_r_r!  (emit_cmovl_r64_r64,   "cmovl", 64);
+    binop_no_def_r_mem!(emit_cmovl_r64_mem64, "cmovl", 64);
 
-    mov_r_r!(emit_cmovle_r64_r64, "cmovle", 64);
-    mov_r_imm!(emit_cmovle_r64_imm32, "cmovle", 64, i32);
-    mov_r_mem!(emit_cmovle_r64_mem64, "cmovle", 64);
+    binop_no_def_r_r!  (emit_cmovle_r64_r64,  "cmovle", 64);
+    binop_no_def_r_mem!(emit_cmovle_r64_mem64,"cmovle", 64);
 
     // lea
     mov_r_mem!(emit_lea_r64, "lea", 64);
@@ -1717,6 +1806,11 @@ impl CodeGenerator for ASMCodeGen {
     binop_def_r_mem!(emit_and_r32_mem32, "and", 32);
     binop_def_r_mem!(emit_and_r16_mem16, "and", 16);
     binop_def_r_mem!(emit_and_r8_mem8  , "and", 8 );
+
+    // or
+    binop_def_r_r!  (emit_or_r64_r64, "or", 64);
+    binop_def_r_imm!(emit_or_r64_imm32, "or", 64, i32);
+    binop_def_r_mem!(emit_or_r64_mem64, "or", 64);
 
     // xor
     binop_def_r_r!(emit_xor_r64_r64, "xor", 64);

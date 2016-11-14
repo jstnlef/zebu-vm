@@ -175,6 +175,21 @@ macro_rules! inst {
         });
     };
 
+    // CONVOP
+    (($vm: expr, $fv: ident) $name: ident: $value: ident = CONVOP ($operation: expr) <$ty1: ident $ty2: ident> $operand: ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: Some(vec![$value.clone_value()]),
+            ops: RwLock::new(vec![$operand.clone()]),
+            v: Instruction_::ConvOp{
+                operation: $operation,
+                from_ty: $ty1.clone(),
+                to_ty: $ty2.clone(),
+                operand: 0
+            }
+        });
+    };
+
     // SELECT
     (($vm: expr, $fv: ident) $name: ident: $value: ident = SELECT $cond: ident $op_true: ident $op_false:ident) => {
         let $name = $fv.new_inst(Instruction{

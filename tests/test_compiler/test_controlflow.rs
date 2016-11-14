@@ -324,3 +324,127 @@ fn select_sge_zero() -> VM {
 
     vm
 }
+
+#[test]
+fn test_sgt_value() {
+    let lib = testutil::compile_fnc("sgt_value", &sgt_value);
+
+    unsafe {
+        let sgt_value : libloading::Symbol<unsafe extern fn(i64, i64) -> u64> = lib.get(b"sgt_value").unwrap();
+
+        let res = sgt_value(255, 0);
+        println!("sgt_value(255, 0) = {}", res);
+        assert!(res == 1);
+
+        let res = sgt_value(255, 255);
+        println!("sgt_value(255, 255) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_value(0, 255);
+        println!("sgt_value(0, 255) = {}", res);
+        assert!(res == 0);
+    }
+}
+
+fn sgt_value() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int64 = mu_int(64));
+    typedef! ((vm) int1  = mu_int(1));
+    constdef!((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig! ((vm) sig = (int64, int64) -> (int1));
+    funcdecl!((vm) <sig> sgt_value);
+    funcdef! ((vm) <sig> sgt_value VERSION sgt_value_v1);
+
+    // blk entry
+    block! ((vm, sgt_value_v1) blk_entry);
+    ssa!   ((vm, sgt_value_v1) <int64> blk_entry_op1);
+    ssa!   ((vm, sgt_value_v1) <int64> blk_entry_op2);
+
+    ssa!   ((vm, sgt_value_v1) <int1> blk_entry_cond);
+    inst!  ((vm, sgt_value_v1) blk_entry_inst_cmp:
+        blk_entry_cond = CMPOP (CmpOp::SGT) blk_entry_op1 blk_entry_op2
+    );
+
+    inst!  ((vm, sgt_value_v1) blk_entry_inst_ret:
+        RET (blk_entry_cond)
+    );
+
+    define_block!   ((vm, sgt_value_v1) blk_entry(blk_entry_op1, blk_entry_op2){
+        blk_entry_inst_cmp, blk_entry_inst_ret
+    });
+
+    define_func_ver!((vm) sgt_value_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_sgt_u8_value() {
+    let lib = testutil::compile_fnc("sgt_u8_value", &sgt_u8_value);
+
+    unsafe {
+        let sgt_u8_value : libloading::Symbol<unsafe extern fn(i8, i8) -> u64> = lib.get(b"sgt_u8_value").unwrap();
+
+        let res = sgt_u8_value(-1, 0);
+        println!("sgt_u8_value(-1, 0) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_u8_value(0, -1);
+        println!("sgt_u8_value(0, -1) = {}", res);
+        assert!(res == 1);
+
+        let res = sgt_u8_value(2, 1);
+        println!("sgt_u8_value(2, 1) = {}", res);
+        assert!(res == 1);
+
+        let res = sgt_u8_value(1, 2);
+        println!("sgt_u8_value(1, 2) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_u8_value(-2, -1);
+        println!("sgt_u8_value(-2, -1) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_u8_value(-1, -2);
+        println!("sgt_u8_value(-1, -2) = {}", res);
+        assert!(res == 1);
+    }
+}
+
+fn sgt_u8_value() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int8  = mu_int(8));
+    typedef! ((vm) int1  = mu_int(1));
+    constdef!((vm) <int8> int8_0 = Constant::Int(0));
+    constdef!((vm) <int8> int8_1 = Constant::Int(1));
+
+    funcsig! ((vm) sig = (int8, int8) -> (int1));
+    funcdecl!((vm) <sig> sgt_u8_value);
+    funcdef! ((vm) <sig> sgt_u8_value VERSION sgt_u8_value_v1);
+
+    // blk entry
+    block! ((vm, sgt_u8_value_v1) blk_entry);
+    ssa!   ((vm, sgt_u8_value_v1) <int8> blk_entry_op1);
+    ssa!   ((vm, sgt_u8_value_v1) <int8> blk_entry_op2);
+
+    ssa!   ((vm, sgt_u8_value_v1) <int1> blk_entry_cond);
+    inst!  ((vm, sgt_u8_value_v1) blk_entry_inst_cmp:
+        blk_entry_cond = CMPOP (CmpOp::SGT) blk_entry_op1 blk_entry_op2
+    );
+
+    inst!  ((vm, sgt_u8_value_v1) blk_entry_inst_ret:
+        RET (blk_entry_cond)
+    );
+
+    define_block!   ((vm, sgt_u8_value_v1) blk_entry(blk_entry_op1, blk_entry_op2){
+        blk_entry_inst_cmp, blk_entry_inst_ret
+    });
+
+    define_func_ver!((vm) sgt_u8_value_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}

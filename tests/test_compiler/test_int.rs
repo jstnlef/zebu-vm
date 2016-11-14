@@ -110,89 +110,37 @@ fn test_truncate() {
 fn truncate() -> VM {
     let vm = VM::new();
 
-    // .typedef @u64 = int<64>
-    let type_def_u64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_u64.as_entity(), Mu("u64"));
-    // .typedef @u64 = int<8>
-    let type_def_u64 = vm.declare_type(vm.next_id(), MuType_::int(8));
-    vm.set_name(type_def_u64.as_entity(), Mu("u64"));
+    typedef! ((vm) u64 = mu_int(64));
+    typedef! ((vm) u8  = mu_int(8));
 
-    // .funcsig @truncate_sig = (@u64) -> (@u64)
-    let truncate_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_u64.clone()], vec![type_def_u64.clone()]);
-    vm.set_name(truncate_sig.as_entity(), Mu("truncate_sig"));
+    funcsig! ((vm) sig = (u64) -> (u64));
+    funcdecl!((vm) <sig> truncate);
+    funcdef! ((vm) <sig> truncate VERSION truncate_v1);
 
-    // .funcdecl @truncate <@truncate_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, truncate_sig.clone());
-    vm.set_name(func.as_entity(), Mu("truncate"));
-    vm.declare_func(func);
+    block!   ((vm, trucnate_v1) blk_entry);
+    ssa!     ((vm, truncate_v1) <u64> blk_entry_a);
 
-    // .funcdef @truncate VERSION @truncate_v1 <@truncate_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, truncate_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("truncate_v1"));
+    ssa!     ((vm, truncate_v1) <u8>  blk_entry_r);
+    inst!    ((vm, truncate_v1) blk_entry_truncate:
+        blk_entry_r = CONVOP (ConvOp::TRUNC) <u64 u8> blk_entry_a
+    );
 
-    // %entry(<@u64> %a):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
+    ssa!     ((vm, truncate_v1) <u64> blk_entry_r2);
+    inst!    ((vm, truncate_v1) blk_entry_zext:
+        blk_entry_r2 = CONVOP (ConvOp::ZEXT) <u8 u64> blk_entry_r
+    );
 
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
+    inst!    ((vm, truncate_v1) blk_entry_ret:
+        RET (blk_entry_r2)
+    );
 
-    // %r = TRUNC @u64->@u64 %a
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-
-    let blk_entry_truncate = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone()]),
-        v: Instruction_::ConvOp{
-            operation: ConvOp::TRUNC,
-            from_ty: type_def_u64.clone(),
-            to_ty: type_def_u64.clone(),
-            operand: 0
-        }
+    define_block! ((vm, truncate_v1) blk_entry(blk_entry_a) {
+        blk_entry_truncate,
+        blk_entry_zext,
+        blk_entry_ret
     });
 
-    // %r2 = ZEXT @u64->@u64 %r
-    let blk_entry_r2 = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
-    vm.set_name(blk_entry_r2.as_entity(), Mu("blk_entry_r2"));
-
-    let blk_entry_zext = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r2.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::ConvOp {
-            operation: ConvOp::ZEXT,
-            from_ty: type_def_u64.clone(),
-            to_ty: type_def_u64.clone(),
-            operand: 0
-        }
-    });
-
-    // RET %r2
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r2.clone()]),
-        v: Instruction_::Return(vec![0])
-    });
-
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_truncate, blk_entry_zext, blk_entry_term],
-        keepalives: None
-    });
-
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
-        }
-    });
-
-    vm.define_func_version(func_ver);
+    define_func_ver! ((vm) truncate_v1 (entry: blk_entry) {blk_entry});
 
     vm
 }
