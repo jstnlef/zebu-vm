@@ -12,6 +12,13 @@ def test_add():
     assert fn(1, 2) == 3
 
 
+def rand_list_of(n):
+    from random import getrandbits
+    from struct import pack, unpack
+
+    return [rffi.r_longlong(unpack('i', pack('I', getrandbits(32)))[0]) for i in range(n)]
+
+
 def test_find_min():
     def find_min(xs, sz):
         m = xs[0]
@@ -21,24 +28,13 @@ def test_find_min():
                 m = x
         return m
 
-    fnc, _ = fncptr_from_rpy_func(find_min, [rffi.CArrayPtr(rffi.LONGLONG), rffi.INTPTR_T], rffi.LONGLONG)
-
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(find_min, [rffi.CArrayPtr(rffi.LONGLONG), rffi.INTPTR_T], rffi.LONGLONG)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), 5) as arr:
         lst = [23, 100, 0, 78, -5]
         for i, n in enumerate(lst):
             arr[i] = n
         assert fnc(arr, 5) == -5
-
-
-def rand_array_of(n):
-    from random import getrandbits
-    from struct import pack, unpack
-
-    lst = [rffi.r_longlong(unpack('i', pack('I', getrandbits(32)))[0]) for i in range(n)]
-    arr = (ctypes.c_longlong * n)()
-    for i in range(n):
-        arr[i] = lst[i]
-    return arr, lst
 
 
 def test_arraysum():
@@ -51,17 +47,22 @@ def test_arraysum():
             sum += arr[i]
         return sum
 
-    fnc, _ = fncptr_from_rpy_func(arraysum, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T], rffi.LONGLONG)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(arraysum, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T], rffi.LONGLONG)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+    n = 100
+    print "initialising test array of length %d" % n
+    lst = rand_list_of(n)
+    with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), n) as arr:
+        for i, n in enumerate(lst):
+            arr[i] = n
 
-    n = 1000000
-    arr, lst = rand_array_of(n)
-
-    import time
-    tmr = time.time
-    t0 = tmr()
-    fnc(ctypes.pointer(arr), n)  # inplace sort
-    t1 = tmr()
-    print "took %f sec" % (t1 - t0)
+        print "call test function"
+        import time
+        tmr = time.time
+        t0 = tmr()
+        fnc(arr, rffi.cast(rffi.SIZE_T, n))  # inplace sort
+        t1 = tmr()
+        print "took %f sec" % (t1 - t0)
 
 
 def test_quicksort():
@@ -87,22 +88,27 @@ def test_quicksort():
             quicksort(arr, start, p - 1)
             quicksort(arr, p + 1, end)
 
-    fnc, _ = fncptr_from_rpy_func(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.UINTPTR_T, rffi.UINTPTR_T], lltype.Void)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T, rffi.SIZE_T], lltype.Void)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+    n = 100
+    print "initialising test array of length %d" % n
+    lst = rand_list_of(n)
+    with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), n) as arr:
+        for i, n in enumerate(lst):
+            arr[i] = n
 
-    n = 1000000
-    arr, lst = rand_array_of(n)
+        print "call test function"
+        import time
+        tmr = time.time
+        t0 = tmr()
+        fnc(arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1))    # inplace sort
+        t1 = tmr()
+        print "took %f sec" % (t1 - t0)
 
-    import time
-    tmr = time.time
-    t0 = tmr()
-    fnc(ctypes.pointer(arr), 0, n - 1)    # inplace sort
-    t1 = tmr()
-    print "took %f sec" % (t1 - t0)
+        lst_s = sorted(lst)
+        for i in range(n):
+            assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
 
-    lst_s = sorted(lst)
-    for i in range(n):
-        assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
-# +(+(uptr<int<64>> %find_min_0.blk2.rtn_5 #257) = SHIFTIREF PTR +(+(uptr<@hybSigned_0(hybrid)> %find_min_0.blk2.rtn_4 #255) = GETVARPARTIREF PTR +(uptr<@hybSigned_0(hybrid)> %find_min_0.blk2.xs_2 #251)) +(int<64> %find_min_0.blk2.next_0 #249)))
 
 def test_linkedlist_reversal():
     def reverse_linkedlist(head):
@@ -120,7 +126,11 @@ def test_linkedlist_reversal():
     NodePtr = lltype.Ptr(Node)
     Node.become(lltype.Struct("Node", ('val', rffi.CHAR), ('nxt', NodePtr)))
 
-    fnc, _ = fncptr_from_rpy_func(reverse_linkedlist, [NodePtr], NodePtr)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(reverse_linkedlist, [NodePtr], NodePtr)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+
+    # uncomment this to run the rpython function under python to test its correctness
+    # fnc = reverse_linkedlist
 
     # linked list: a -> b -> c -> d
     with lltype.scoped_alloc(Node) as a:
@@ -137,11 +147,14 @@ def test_linkedlist_reversal():
                     d.nxt = lltype.nullptr(Node)
 
                     h = fnc(a)
+
+                    print '%s -> %s -> %s -> %s' % (h.val, h.nxt.val, h.nxt.nxt.val, h.nxt.nxt.nxt.val)
                     assert h.val == 'd'
                     assert h.nxt.val == 'c'
                     assert h.nxt.nxt.val == 'b'
                     assert h.nxt.nxt.nxt.val == 'a'
                     assert h.nxt.nxt.nxt.nxt == lltype.nullptr(Node)
+
 
 def test_threadtran_fib():
     def build_test_bundle(bldr, rmu):
@@ -311,10 +324,6 @@ def test_new():
             "@i64": i64
         }
 
-    # load libmu before rffi so to load it with RTLD_GLOBAL
-    from util import libmu_path
-    libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
-
     fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
@@ -379,10 +388,6 @@ def test_new_cmpeq():
             "result_type": i64,
             "@i64": i64
         }
-
-    # load libmu before rffi so to load it with RTLD_GLOBAL
-    from util import libmu_path
-    libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
     fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 

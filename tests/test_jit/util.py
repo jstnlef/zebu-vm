@@ -52,14 +52,19 @@ def fncptr_from_lib(lib, fnc_name, argtypes=[], restype=ctypes.c_longlong):
     fnp.restype = restype
     return fnp
 
+
 def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglong):
     lib_path = compile_c_script(c_src_name)
     lib = ctypes.CDLL(lib_path)
     return fncptr_from_lib(lib, name, argtypes, restype), lib
 
+
 def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
     # NOTE: requires mu-client-pypy
     from rpython.rlib import rmu_fast as rmu
+
+    # load libmu before rffi so to load it with RTLD_GLOBAL
+    libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
     mu = rmu.MuVM()
     ctx = mu.new_context()
@@ -73,10 +78,14 @@ def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
     lib = ctypes.CDLL('emit/%(libname)s' % locals())
     return fncptr_from_lib(lib, name, argtypes, restype), (mu, ctx, bldr)
 
+
 def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     # NOTE: requires mu-client-pypy
     from rpython.rtyper.lltypesystem import rffi
     from rpython.translator.interactive import Translation
+
+    # load libmu before rffi so to load it with RTLD_GLOBAL
+    libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
     kwargs.setdefault('backend', 'mu')
     kwargs.setdefault('muimpl', 'fast')
