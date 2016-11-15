@@ -19,6 +19,26 @@ def rand_list_of(n):
     return [rffi.r_longlong(unpack('i', pack('I', getrandbits(32)))[0]) for i in range(n)]
 
 
+def test_vec3prod():
+    def prod(v1, v2):
+        a = v1[0] * v2[0]
+        b = v1[1] * v2[1]
+        c = v1[2] * v2[2]
+        return a + b + c
+
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(prod, [rffi.CArrayPtr(rffi.LONGLONG), rffi.CArrayPtr(rffi.LONGLONG)], rffi.LONGLONG)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+    with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), 3) as vec1:
+        vec1[0] = 1
+        vec1[1] = 2
+        vec1[2] = 3
+        with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), 3) as vec2:
+            vec2[0] = 4
+            vec2[1] = 5
+            vec2[2] = 6
+            assert fnc(vec1, vec2) == 32
+
+
 def test_find_min():
     def find_min(xs, sz):
         m = xs[0]
