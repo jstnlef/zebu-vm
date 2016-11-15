@@ -24,8 +24,8 @@ def test_getfieldiref():
                                  restype=ctypes.c_uint32)
     stt = Stt()
     stt.ui8 = 25
-    stt.ui64 = 0xabcdef01234567890
-    stt.ui32 = 0xcaffebabe
+    stt.ui64 = 0xabcdef0123456789
+    stt.ui32 = 0xcafebabe
 
     res = fn(ctypes.byref(stt))
-    assert res == 0xcaffebabe, "result: %s" % hex(res)
+    assert res == 0xcafebabe, "result: %s" % hex(res)
