@@ -319,7 +319,10 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
     for reg in backend::all_regs().values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let node = ig.new_node(reg_id, &func.context);
-        ig.color_node(node, reg_id);
+
+        let precolor = backend::get_color_for_precolroed(reg_id);
+
+        ig.color_node(node, precolor);
     }
     
     // Initialize and creates nodes for all the involved temps/regs
@@ -460,141 +463,141 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
 
 // from tony's code src/RegAlloc/Liveness.java
 // this function is no longer used
-#[allow(dead_code)]
-pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
-    let mut ig = InterferenceGraph::new();
-    
-    // precolor machine register nodes
-    for reg in backend::all_regs().values() {
-        let reg_id = reg.extract_ssa_id().unwrap();
-        let node = ig.new_node(reg_id, &func.context);
-        ig.color_node(node, reg_id);
-    }
-    
-    // Liveness Analysis
-    let n_insts = cf.mc().number_of_insts();
-    let mut live_in : Vec<Vec<MuID>> = vec![vec![]; n_insts];
-    let mut live_out : Vec<Vec<MuID>> = vec![vec![]; n_insts];
-    let mut work_list : LinkedList<usize> = LinkedList::new();
-    
-    // Initialize 'in' sets for each node in the flow graph
-    // and creates nodes for all the involved temps/regs
-    for i in 0..n_insts {
-        let ref mut in_set = live_in[i];
-        
-        for reg_id in cf.mc().get_inst_reg_defines(i) {
-            ig.new_node(reg_id, &func.context);
-        }
-        
-        for reg_id in cf.mc().get_inst_reg_uses(i) {
-            ig.new_node(reg_id, &func.context);
-            
-            in_set.push(reg_id);
-        }
-        
-        work_list.push_front(i);
-    }
-    
-    // all nodes has been added, we init graph (create adjacency matrix)
-    ig.init_graph();
-    
-    // compute liveIn and liveOut iteratively
-    trace!("build live outs");
-    while !work_list.is_empty() {
-        let n = work_list.pop_front().unwrap();
-        trace!("build liveout for #{}", n);
-        let ref mut out_set = live_out[n];
-        
-        // out = union(in[succ]) for all succs
-        for succ in cf.mc().get_succs(n) {
-            trace!("add successor's livein {:?} to #{}", &live_in[*succ], n); 
-            vec_utils::add_all(out_set, &live_in[*succ]);
-        }
-        
-        // in = use(i.e. live_in) + (out - def) 
-        let mut diff = out_set.clone();
-        for def in cf.mc().get_inst_reg_defines(n) {
-            vec_utils::remove_value(&mut diff, def);
-            trace!("removing def: {}", def);
-            trace!("diff = {:?}", diff);
-        }
-        trace!("out - def = {:?}", diff);
-        
-        if !diff.is_empty() {
-            let ref mut in_set = live_in[n];
-            trace!("in = (use) {:?}", in_set);
-            
-            if vec_utils::add_all(in_set, &diff) {
-                for p in cf.mc().get_preds(n) {
-                    work_list.push_front(*p);
-                }
-            }
-        }
-        trace!("in = use + (out - def) = {:?}", live_in[n]);
-    }
-    
-    // debug live-outs
-    if cfg!(debug_assertions) {
-        trace!("check live-outs");
-        for n in 0..n_insts {
-            let ref mut live = live_out[n];
-            trace!("#{}\t{:?}", n, live);
-        }
-    }
-    
-    // build interference graph
-    for n in 0..n_insts {
-        let ref mut live = live_out[n];
-        
-        let src : Option<MuID> = {
-            if cf.mc().is_move(n) {
-                let src = cf.mc().get_inst_reg_uses(n);
-                let dst = cf.mc().get_inst_reg_defines(n);
-                
-                // src may be an immediate number
-                // but dest is definitly a register
-                debug_assert!(dst.len() == 1);
-                
-                if src.len() == 1 {
-                    let node1 = ig.get_node(src[0]);
-                    let node2 = ig.get_node(dst[0]);
-                    ig.add_move(node1, node2);
-                    
-                    Some(src[0])
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
-        
-        for d in cf.mc().get_inst_reg_defines(n) {
-            for t in live.iter() {
-                if src.is_none() || (src.is_some() && *t != src.unwrap()) {
-                    let from = ig.get_node(d);
-                    let to = ig.get_node(*t);
-                    
-                    if !ig.is_same_node(from, to) && !ig.is_adj(from, to) {
-                        if !ig.is_colored(from) {
-                            ig.add_interference_edge(from, to);
-                        }
-                        if !ig.is_colored(to) {
-                            ig.add_interference_edge(to, from);
-                        }
-                    }
-                }
-            }
-        }
-        
-        for d in cf.mc().get_inst_reg_defines(n) {
-            vec_utils::remove_value(live, d);
-        }
-        
-        for u in cf.mc().get_inst_reg_uses(n) {
-            live.push(u);
-        }
-    }
-    
-    ig
-}
+//#[allow(dead_code)]
+//pub fn build (cf: &CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
+//    let mut ig = InterferenceGraph::new();
+//
+//    // precolor machine register nodes
+//    for reg in backend::all_regs().values() {
+//        let reg_id = reg.extract_ssa_id().unwrap();
+//        let node = ig.new_node(reg_id, &func.context);
+//        ig.color_node(node, reg_id);
+//    }
+//
+//    // Liveness Analysis
+//    let n_insts = cf.mc().number_of_insts();
+//    let mut live_in : Vec<Vec<MuID>> = vec![vec![]; n_insts];
+//    let mut live_out : Vec<Vec<MuID>> = vec![vec![]; n_insts];
+//    let mut work_list : LinkedList<usize> = LinkedList::new();
+//
+//    // Initialize 'in' sets for each node in the flow graph
+//    // and creates nodes for all the involved temps/regs
+//    for i in 0..n_insts {
+//        let ref mut in_set = live_in[i];
+//
+//        for reg_id in cf.mc().get_inst_reg_defines(i) {
+//            ig.new_node(reg_id, &func.context);
+//        }
+//
+//        for reg_id in cf.mc().get_inst_reg_uses(i) {
+//            ig.new_node(reg_id, &func.context);
+//
+//            in_set.push(reg_id);
+//        }
+//
+//        work_list.push_front(i);
+//    }
+//
+//    // all nodes has been added, we init graph (create adjacency matrix)
+//    ig.init_graph();
+//
+//    // compute liveIn and liveOut iteratively
+//    trace!("build live outs");
+//    while !work_list.is_empty() {
+//        let n = work_list.pop_front().unwrap();
+//        trace!("build liveout for #{}", n);
+//        let ref mut out_set = live_out[n];
+//
+//        // out = union(in[succ]) for all succs
+//        for succ in cf.mc().get_succs(n) {
+//            trace!("add successor's livein {:?} to #{}", &live_in[*succ], n);
+//            vec_utils::add_all(out_set, &live_in[*succ]);
+//        }
+//
+//        // in = use(i.e. live_in) + (out - def)
+//        let mut diff = out_set.clone();
+//        for def in cf.mc().get_inst_reg_defines(n) {
+//            vec_utils::remove_value(&mut diff, def);
+//            trace!("removing def: {}", def);
+//            trace!("diff = {:?}", diff);
+//        }
+//        trace!("out - def = {:?}", diff);
+//
+//        if !diff.is_empty() {
+//            let ref mut in_set = live_in[n];
+//            trace!("in = (use) {:?}", in_set);
+//
+//            if vec_utils::add_all(in_set, &diff) {
+//                for p in cf.mc().get_preds(n) {
+//                    work_list.push_front(*p);
+//                }
+//            }
+//        }
+//        trace!("in = use + (out - def) = {:?}", live_in[n]);
+//    }
+//
+//    // debug live-outs
+//    if cfg!(debug_assertions) {
+//        trace!("check live-outs");
+//        for n in 0..n_insts {
+//            let ref mut live = live_out[n];
+//            trace!("#{}\t{:?}", n, live);
+//        }
+//    }
+//
+//    // build interference graph
+//    for n in 0..n_insts {
+//        let ref mut live = live_out[n];
+//
+//        let src : Option<MuID> = {
+//            if cf.mc().is_move(n) {
+//                let src = cf.mc().get_inst_reg_uses(n);
+//                let dst = cf.mc().get_inst_reg_defines(n);
+//
+//                // src may be an immediate number
+//                // but dest is definitly a register
+//                debug_assert!(dst.len() == 1);
+//
+//                if src.len() == 1 {
+//                    let node1 = ig.get_node(src[0]);
+//                    let node2 = ig.get_node(dst[0]);
+//                    ig.add_move(node1, node2);
+//
+//                    Some(src[0])
+//                } else {
+//                    None
+//                }
+//            } else {
+//                None
+//            }
+//        };
+//
+//        for d in cf.mc().get_inst_reg_defines(n) {
+//            for t in live.iter() {
+//                if src.is_none() || (src.is_some() && *t != src.unwrap()) {
+//                    let from = ig.get_node(d);
+//                    let to = ig.get_node(*t);
+//
+//                    if !ig.is_same_node(from, to) && !ig.is_adj(from, to) {
+//                        if !ig.is_colored(from) {
+//                            ig.add_interference_edge(from, to);
+//                        }
+//                        if !ig.is_colored(to) {
+//                            ig.add_interference_edge(to, from);
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        for d in cf.mc().get_inst_reg_defines(n) {
+//            vec_utils::remove_value(live, d);
+//        }
+//
+//        for u in cf.mc().get_inst_reg_uses(n) {
+//            live.push(u);
+//        }
+//    }
+//
+//    ig
+//}

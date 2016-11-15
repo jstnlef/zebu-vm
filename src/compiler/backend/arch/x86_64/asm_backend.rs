@@ -7,6 +7,7 @@ use compiler::backend::RegGroup;
 use utils::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
+use compiler::backend::{Reg, Mem};
 use compiler::machine_code::MachineCode;
 use vm::VM;
 use runtime::ValueLocation;
@@ -193,7 +194,8 @@ impl ASMCode {
             let new_patchpoint = ASMLocation {
                 line: *location_map.get(&patchpoint.line).unwrap(),
                 index: patchpoint.index,
-                len: patchpoint.len
+                len: patchpoint.len,
+                oplen: patchpoint.oplen
             };
 
             ret.frame_size_patchpoints.push(new_patchpoint);
@@ -363,7 +365,8 @@ impl MachineCode for ASMCode {
     fn is_move(&self, index: usize) -> bool {
         let inst = self.code.get(index);
         match inst {
-            Some(inst) => inst.code.starts_with("mov"),
+            Some(inst) => inst.code.starts_with("mov")
+                && !(inst.code.starts_with("movs") || inst.code.starts_with("movz")),
             None => false
         }
     }
@@ -389,36 +392,31 @@ impl MachineCode for ASMCode {
     }
     
     fn replace_reg(&mut self, from: MuID, to: MuID) {
-        let to_reg_tag : MuName = match backend::all_regs().get(&to) {
-            Some(reg) => reg.name().unwrap(),
-            None => panic!("expecting a machine register, but we are required to replace to {}", to)
-        };
-        let to_reg_string = "%".to_string() + &to_reg_tag;
-
         for loc in self.get_define_locations(from) {
             let ref mut inst_to_patch = self.code[loc.line];
-            for i in 0..loc.len {
-                // FIXME: why loop here?
-                string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
-            }
+
+            // pick the right reg based on length
+            let to_reg = x86_64::get_alias_for_length(to, loc.oplen);
+            let to_reg_tag = to_reg.name().unwrap();
+            let to_reg_string = "%".to_string() + &to_reg_tag;
+
+            string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
         }
 
         for loc in self.get_use_locations(from) {
             let ref mut inst_to_patch = self.code[loc.line];
-            for i in 0..loc.len {
-                string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
-            }
+
+            // pick the right reg based on length
+            let to_reg = x86_64::get_alias_for_length(to, loc.oplen);
+            let to_reg_tag = to_reg.name().unwrap();
+            let to_reg_string = "%".to_string() + &to_reg_tag;
+
+            string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
         }
     }
 
     fn replace_define_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize) {
-        let to_reg_string : MuName = match backend::all_regs().get(&to) {
-            Some(ref machine_reg) => {
-                let name = machine_reg.name().unwrap();
-                "%".to_string() + &name
-            },
-            None => REG_PLACEHOLDER.clone()
-        };
+        let to_reg_string : MuName = REG_PLACEHOLDER.clone();
 
         let asm = &mut self.code[inst];
         // if this reg is defined, replace the define
@@ -426,9 +424,7 @@ impl MachineCode for ASMCode {
             let define_locs = asm.defines.get(&from).unwrap().to_vec();
             // replace temps
             for loc in define_locs.iter() {
-                for i in 0..loc.len {
-                    string_utils::replace(&mut asm.code, loc.index, &to_reg_string, to_reg_string.len());
-                }
+                string_utils::replace(&mut asm.code, loc.index, &to_reg_string, to_reg_string.len());
             }
 
             // remove old key, insert new one
@@ -438,13 +434,7 @@ impl MachineCode for ASMCode {
     }
 
     fn replace_use_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize) {
-        let to_reg_string : MuName = match backend::all_regs().get(&to) {
-            Some(ref machine_reg) => {
-                let name = machine_reg.name().unwrap();
-                "%".to_string() + &name
-            },
-            None => REG_PLACEHOLDER.clone()
-        };
+        let to_reg_string : MuName = REG_PLACEHOLDER.clone();
 
         let asm = &mut self.code[inst];
 
@@ -453,9 +443,7 @@ impl MachineCode for ASMCode {
             let use_locs = asm.uses.get(&from).unwrap().to_vec();
             // replace temps
             for loc in use_locs.iter() {
-                for i in 0..loc.len {
-                    string_utils::replace(&mut asm.code, loc.index, &to_reg_string, to_reg_string.len());
-                }
+                string_utils::replace(&mut asm.code, loc.index, &to_reg_string, to_reg_string.len());
             }
 
             // remove old key, insert new one
@@ -666,15 +654,17 @@ impl ASMInst {
 struct ASMLocation {
     line: usize,
     index: usize,
-    len: usize
+    len: usize,
+    oplen: usize,
 }
 
 impl ASMLocation {
-    fn new(line: usize, index: usize, len: usize) -> ASMLocation {
+    fn new(line: usize, index: usize, len: usize, oplen: usize) -> ASMLocation {
         ASMLocation{
             line: line,
             index: index,
-            len: len
+            len: len,
+            oplen: oplen
         }
     }
 }
@@ -851,7 +841,20 @@ impl ASMCodeGen {
         
         let str = self.asm_reg_op(op);
         let len = str.len();
-        (str, op.extract_ssa_id().unwrap(), ASMLocation::new(self.line(), loc, len))
+        (str, op.extract_ssa_id().unwrap(), ASMLocation::new(self.line(), loc, len, check_op_len(op)))
+    }
+
+    fn prepare_fpreg(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
+        if cfg!(debug_assertions) {
+            match op.v {
+                Value_::SSAVar(_) => {},
+                _ => panic!("expecting register op")
+            }
+        }
+
+        let str = self.asm_reg_op(op);
+        let len = str.len();
+        (str, op.extract_ssa_id().unwrap(), ASMLocation::new(self.line(), loc, len, 64))
     }
     
     fn prepare_machine_reg(&self, op: &P<Value>) -> MuID {
@@ -1105,6 +1108,348 @@ impl ASMCodeGen {
     fn finish_code_sequence_asm(&mut self) -> Box<ASMCode> {
         self.cur.take().unwrap()
     }
+
+    fn internal_binop_no_def_r_r(&mut self, inst: &str, op1: &P<Value>, op2: &P<Value>) {
+        let len = check_op_len(op1);
+
+        // with postfix
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} {}", inst, op1, op2);
+
+        let (reg1, id1, loc1) = self.prepare_reg(op1, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            {
+                if id1 == id2 {
+                    hashmap!{
+                        id1 => vec![loc1, loc2]
+                    }
+                } else {
+                    hashmap!{
+                        id1 => vec![loc1],
+                        id2 => vec![loc2]
+                    }
+                }
+            },
+            false
+        )
+    }
+
+    fn internal_binop_no_def_imm_r(&mut self, inst: &str, op1: i32, op2: &P<Value>) {
+        let len = check_op_len(op2);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} {}", inst, op1, op2);
+
+        let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + 1 + op1.to_string().len() + 1);
+
+        let asm = format!("{} ${},{}", inst, op1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            false
+        )
+    }
+
+    fn internal_binop_no_def_mem_r(&mut self, inst: &str, op1: &P<Value>, op2: &P<Value>) {
+        let len = check_op_len(op2);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} {}", inst, op1, op2);
+
+        let (mem, mut uses)  = self.prepare_mem(op1, inst.len() + 1);
+        let (reg, id1, loc1) = self.prepare_reg(op2, inst.len() + 1 + mem.len() + 1);
+
+        let asm = format!("{} {},{}", inst, mem, reg);
+
+        // merge use vec
+        if uses.contains_key(&id1) {
+            let mut locs = uses.get_mut(&id1).unwrap();
+            vec_utils::add_unique(locs, loc1.clone());
+        } else {
+            uses.insert(id1, vec![loc1]);
+        }
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
+    fn internal_binop_no_def_r_mem(&mut self, inst: &str, op1: &P<Value>, op2: &P<Value>) {
+        let len = check_op_len(op1);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} {}", inst, op1, op2);
+
+        let (mem, mut uses) = self.prepare_mem(op2, inst.len() + 1);
+        let (reg, id1, loc1) = self.prepare_reg(op1, inst.len() + 1 + mem.len() + 1);
+
+        if uses.contains_key(&id1) {
+            let mut locs = uses.get_mut(&id1).unwrap();
+            vec_utils::add_unique(locs, loc1.clone());
+        } else {
+            uses.insert(id1, vec![loc1.clone()]);
+        }
+
+        let asm = format!("{} {},{}", inst, mem, reg);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
+    fn internal_binop_def_r_r(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+        let len = check_op_len(src);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            {
+                if id1 == id2 {
+                    hashmap!{
+                        id1 => vec![loc1, loc2]
+                    }
+                } else {
+                    hashmap!{
+                        id1 => vec![loc1],
+                        id2 => vec![loc2]
+                    }
+                }
+            },
+            false
+        )
+    }
+
+    fn internal_binop_def_r_mr(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+        let len = check_op_len(dest);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+
+        let mreg = self.prepare_machine_reg(src);
+        let mreg_name = src.name().unwrap();
+        let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + 1 + mreg_name.len() + 1);
+
+        let asm = format!("{} %{},{}", inst, mreg_name, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            hashmap!{
+                id2 => vec![loc2],
+                mreg => vec![]
+            },
+            false
+        )
+    }
+
+    fn internal_binop_def_r_imm(&mut self, inst: &str, dest: &P<Value>, src: i32) {
+        let len = check_op_len(dest);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("{} ${},{}", inst, src, reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1.clone()]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    fn internal_binop_def_r_mem(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+        let len = match dest.ty.get_int_length() {
+            Some(n) if n == 64 | 32 | 16 | 8 => n,
+            _ => panic!("unimplemented int types: {}", dest.ty)
+        };
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+
+        let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
+        let (reg, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
+
+        if uses.contains_key(&id1) {
+            let mut locs = uses.get_mut(&id1).unwrap();
+            vec_utils::add_unique(locs, loc1.clone());
+        } else {
+            uses.insert(id1, vec![loc1.clone()]);
+        }
+
+        let asm = format!("{} {},{}", inst, mem, reg);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            uses,
+            true
+        )
+    }
+
+    fn internal_mov_r64_imm64(&mut self, inst: &str, dest: &P<Value>, src: i64) {
+        let inst = inst.to_string() + &op_postfix(64);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("{} ${},{}", inst, src, reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            hashmap!{},
+            false
+        )
+    }
+
+    fn internal_mov_r_r(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+        let len = check_op_len(dest);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    fn internal_mov_r_imm(&mut self, inst: &str, dest: &P<Value>, src: i32) {
+        let len = check_op_len(dest);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("{} ${},{}", inst, src, reg1);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            hashmap!{},
+            false
+        )
+    }
+
+    fn internal_mov_r_mem(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+        let len = check_op_len(dest);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (mem, uses) = self.prepare_mem(src, inst.len() + 1);
+        let (reg, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
+
+        let asm = format!("{} {},{}", inst, mem, reg);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            uses,
+            true
+        )
+    }
+
+    fn internal_mov_mem_r(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+        let len = check_op_len(src);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg.len() + 1);
+
+        // the register we used for the memory location is counted as 'use'
+        // use the vec from mem as 'use' (push use reg from src to it)
+        if uses.contains_key(&id1) {
+            let mut locs = uses.get_mut(&id1).unwrap();
+            vec_utils::add_unique(locs, loc1);
+        } else {
+            uses.insert(id1, vec![loc1]);
+        }
+
+        let asm = format!("{} {},{}", inst, reg, mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
+
+    fn internal_mov_mem_imm(&mut self, inst: &str, dest: &P<Value>, src: i32) {
+        let len = check_op_len(dest);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (mem, uses) = self.prepare_mem(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+
+        let asm = format!("{} ${},{}", inst, src, mem);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            uses,
+            true
+        )
+    }
 }
 
 #[inline(always)]
@@ -1118,404 +1463,15 @@ fn op_postfix(op_len: usize) -> &'static str {
     }
 }
 
-// general instruction emission
-macro_rules! cmp_r_r {
-    ($func_name: ident, $inst: expr, $op_len: expr) => {
-        fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
-            // with postfix
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} {}", inst, op1, op2);
-
-            let (reg1, id1, loc1) = self.prepare_reg(op1, inst.len() + 1);
-            let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + reg1.len() + 1);
-
-            let asm = format!("{} {},{}", inst, reg1, reg2);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{},
-                {
-                    if id1 == id2 {
-                        hashmap!{
-                            id1 => vec![loc1, loc2]
-                        }
-                    } else {
-                        hashmap!{
-                            id1 => vec![loc1],
-                            id2 => vec![loc2]
-                        }
-                    }
-                },
-                false
-            )
-        }
-    }
-}
-
-macro_rules! cmp_imm_r {
-    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, op1: $imm_ty, op2: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} {}", inst, op1, op2);
-
-            let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + 1 + op1.to_string().len() + 1);
-
-            let asm = format!("{} ${},{}", inst, op1, reg2);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{},
-                hashmap!{
-                    id2 => vec![loc2]
-                },
-                false
-            )
-
-        }
-    }
-}
-
-macro_rules! cmp_mem_r {
-    ($func_name: ident, $inst:expr, $op_len: expr) => {
-        fn $func_name (&mut self, op1: &P<Value>, op2: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} {}", inst, op1, op2);
-
-            let (mem, mut uses)  = self.prepare_mem(op1, inst.len() + 1);
-            let (reg, id1, loc1) = self.prepare_reg(op2, inst.len() + 1 + mem.len() + 1);
-
-            let asm = format!("{} {},{}", inst, mem, reg);
-
-            // merge use vec
-            if uses.contains_key(&id1) {
-                let mut locs = uses.get_mut(&id1).unwrap();
-                vec_utils::add_unique(locs, loc1.clone());
-            } else {
-                uses.insert(id1, vec![loc1]);
-            }
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{},
-                uses,
-                true
-            )
-        }
-    }
-}
-
-macro_rules! binop_def_r_r {
-    ($func_name: ident, $inst: expr, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
-            let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
-
-            let asm = format!("{} {},{}", inst, reg1, reg2);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id2 => vec![loc2.clone()]
-                },
-                {
-                    if id1 == id2 {
-                        hashmap!{
-                            id1 => vec![loc1, loc2]
-                        }
-                    } else {
-                        hashmap!{
-                            id1 => vec![loc1],
-                            id2 => vec![loc2]
-                        }
-                    }
-                },
-                false
-            )
-        }
-    }
-}
-
-macro_rules! binop_def_r_imm {
-    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
-
-            let asm = format!("{} ${},{}", inst, src, reg1);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id1 => vec![loc1.clone()]
-                },
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                false
-            )
-        }
-    }
-}
-
-macro_rules! binop_def_r_mem {
-    ($func_name: ident, $inst: expr, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
-
-            let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
-            let (reg, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
-
-            if uses.contains_key(&id1) {
-                let mut locs = uses.get_mut(&id1).unwrap();
-                vec_utils::add_unique(locs, loc1.clone());
-            } else {
-                uses.insert(id1, vec![loc1.clone()]);
-            }
-
-            let asm = format!("{} {},{}", inst, mem, reg);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                uses,
-                true
-            )
-        }
-    }
-}
-
-macro_rules! mov_r_r {
-    ($func_name: ident, $inst: expr, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} -> {}", inst, src, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
-            let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
-
-            let asm = format!("{} {},{}", inst, reg1, reg2);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id2 => vec![loc2]
-                },
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                false
-            )
-        }
-    }
-}
-
-macro_rules! mov_r_imm {
-    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} -> {}", inst, src, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
-
-            let asm = format!("{} ${},{}", inst, src, reg1);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                hashmap!{},
-                false
-            )
-        }
-    }
-}
-
-/// load
-macro_rules! mov_r_mem {
-    ($func_name: ident, $inst: expr, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} -> {}", inst, src, dest);
-
-            let (mem, uses) = self.prepare_mem(src, inst.len() + 1);
-            let (reg, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
-
-            let asm = format!("{} {},{}", inst, mem, reg);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id2 => vec![loc2]
-                },
-                uses,
-                true
-            )
-        }
-    }
-}
-
-/// store
-macro_rules! mov_mem_r {
-    ($func_name: ident, $inst: expr, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} -> {}", inst, src, dest);
-
-            let (reg, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
-            let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg.len() + 1);
-
-            // the register we used for the memory location is counted as 'use'
-            // use the vec from mem as 'use' (push use reg from src to it)
-            if uses.contains_key(&id1) {
-                let mut locs = uses.get_mut(&id1).unwrap();
-                vec_utils::add_unique(locs, loc1);
-            } else {
-                uses.insert(id1, vec![loc1]);
-            }
-
-            let asm = format!("{} {},{}", inst, reg, mem);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{},
-                uses,
-                true
-            )
-        }
-    }
-}
-
-macro_rules! mov_mem_imm {
-    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {} -> {}", inst, src, dest);
-
-            let (mem, uses) = self.prepare_mem(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
-
-            let asm = format!("{} ${},{}", inst, src, mem);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{},
-                uses,
-                true
-            )
-        }
-    }
-}
-
-/// conditional move
-macro_rules! binop_no_def_r_r {
-    ($func_name: ident, $inst: expr, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
-            let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
-
-            let asm = format!("{} {},{}", inst, reg1, reg2);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{},
-                {
-                    if id1 == id2 {
-                        hashmap!{
-                            id1 => vec![loc1, loc2]
-                        }
-                    } else {
-                        hashmap!{
-                            id1 => vec![loc1],
-                            id2 => vec![loc2]
-                        }
-                    }
-                },
-                false
-            )
-        }
-    }
-}
-
-macro_rules! binop_no_def_r_imm {
-    ($func_name: ident, $inst: expr, $op_len: expr, $imm_ty: ty) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: $imm_ty) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
-
-            let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
-
-            let asm = format!("{} ${},{}", inst, src, reg1);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{},
-                hashmap!{
-                    id1 => vec![loc1]
-                },
-                false
-            )
-        }
-    }
-}
-
-macro_rules! binop_no_def_r_mem {
-    ($func_name: ident, $inst: expr, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            let inst = $inst.to_string() + &op_postfix($op_len);
-            trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
-
-            let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
-            let (reg, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
-
-            if uses.contains_key(&id1) {
-                let mut locs = uses.get_mut(&id1).unwrap();
-                vec_utils::add_unique(locs, loc1.clone());
-            } else {
-                uses.insert(id1, vec![loc1.clone()]);
-            }
-
-            let asm = format!("{} {},{}", inst, mem, reg);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{},
-                uses,
-                true
-            )
-        }
-    }
-}
-
-macro_rules! emit_lea_r {
-    ($func_name: ident, $op_len: expr) => {
-        fn $func_name (&mut self, dest: &P<Value>, src: &P<Value>) {
-            trace!("emit: lea {} -> {}", src, dest);
-
-            let (mem, uses) = self.prepare_mem(src, 4 + 1);
-            let (reg, id2, loc2) = self.prepare_reg(dest, 4 + 1 + mem.len() + 1);
-
-            let asm = format!("lea{} {},{}", op_postfix($op_len), mem, reg);
-
-            self.add_asm_inst(
-                asm,
-                hashmap!{
-                    id2 => vec![loc2]
-                },
-                uses,
-                true
-            )
-        }
+#[inline(always)]
+fn check_op_len(op: &P<Value>) -> usize {
+    match op.ty.get_int_length() {
+        Some(64) => 64,
+        Some(32) => 32,
+        Some(16) => 16,
+        Some(8)  => 8,
+        Some(1)  => 8,
+        _ => panic!("unimplemented int types: {}", op.ty)
     }
 }
 
@@ -1672,7 +1628,7 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("addq $-{},%rsp", FRAME_SIZE_PLACEHOLDER.clone());
 
         let line = self.line();
-        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 7, FRAME_SIZE_PLACEHOLDER_LEN));
+        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 7, FRAME_SIZE_PLACEHOLDER_LEN, 0));
 
         self.add_asm_inst(
             asm,
@@ -1688,7 +1644,7 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("addq ${},%rsp", FRAME_SIZE_PLACEHOLDER.clone());
 
         let line = self.line();
-        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 6, FRAME_SIZE_PLACEHOLDER_LEN));
+        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 6, FRAME_SIZE_PLACEHOLDER_LEN, 0));
 
         self.add_asm_inst(
             asm,
@@ -1712,218 +1668,331 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     // cmp
-    cmp_r_r!(emit_cmp_r64_r64, "cmp", 64);
-    cmp_r_r!(emit_cmp_r32_r32, "cmp", 32);
-    cmp_r_r!(emit_cmp_r16_r16, "cmp", 16);
-    cmp_r_r!(emit_cmp_r8_r8  , "cmp", 8 );
 
-    cmp_imm_r!(emit_cmp_imm32_r64, "cmp", 64, i32);
-    cmp_imm_r!(emit_cmp_imm32_r32, "cmp", 32, i32);
-    cmp_imm_r!(emit_cmp_imm16_r16, "cmp", 16, i16);
-    cmp_imm_r!(emit_cmp_imm8_r8  , "cmp", 8 , i8 );
+    fn emit_cmp_r_r (&mut self, op1: &P<Value>, op2: &P<Value>) {
+        self.internal_binop_no_def_r_r("cmp", op1, op2)
+    }
 
-    cmp_mem_r!(emit_cmp_mem64_r64, "cmp", 64);
-    cmp_mem_r!(emit_cmp_mem32_r32, "cmp", 32);
-    cmp_mem_r!(emit_cmp_mem16_r16, "cmp", 16);
-    cmp_mem_r!(emit_cmp_mem8_r8  , "cmp", 8 );
+    fn emit_cmp_imm_r(&mut self, op1: i32, op2: &P<Value>) {
+        self.internal_binop_no_def_imm_r("cmp", op1, op2)
+    }
+
+    fn emit_cmp_mem_r(&mut self, op1: &P<Value>, op2: &P<Value>) {
+        self.internal_binop_no_def_mem_r("cmp", op1, op2)
+    }
 
     // mov
 
-    mov_r_imm!(emit_mov_r64_imm64, "movabs", 64, i64);
+    fn emit_mov_r64_imm64  (&mut self, dest: &P<Value>, src: i64) {
+        self.internal_mov_r64_imm64("mov", dest, src)
+    }
 
-    mov_r_imm!(emit_mov_r64_imm32, "mov", 64, i32);
-    mov_r_imm!(emit_mov_r32_imm32, "mov", 32, i32);
-    mov_r_imm!(emit_mov_r16_imm16, "mov", 16, i16);
-    mov_r_imm!(emit_mov_r8_imm8  , "mov", 8 , i8 );
+    fn emit_mov_r_imm  (&mut self, dest: &P<Value>, src: i32) {
+        self.internal_mov_r_imm("mov", dest, src)
+    }
+    fn emit_mov_r_mem  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_mov_r_mem("mov", dest, src)
+    }
+    fn emit_mov_r_r    (&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_mov_r_r("mov", dest, src)
+    }
+    fn emit_mov_mem_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_mov_mem_r("mov", dest, src)
+    }
+    fn emit_mov_mem_imm(&mut self, dest: &P<Value>, src: i32) {
+        self.internal_mov_mem_imm("mov", dest, src)
+    }
 
-    mov_r_mem!(emit_mov_r64_mem64, "mov", 64);
-    mov_r_mem!(emit_mov_r32_mem32, "mov", 32);
-    mov_r_mem!(emit_mov_r16_mem16, "mov", 16);
-    mov_r_mem!(emit_mov_r8_mem8  , "mov", 8 );
+    // zero/sign extend mov
+    
+    fn emit_movs_r_r (&mut self, dest: Reg, src: Reg) {
+        let dest_len = check_op_len(dest);
+        let src_len  = check_op_len(src);
 
-    mov_r_r!(emit_mov_r64_r64, "mov", 64);
-    mov_r_r!(emit_mov_r32_r32, "mov", 32);
-    mov_r_r!(emit_mov_r16_r16, "mov", 16);
-    mov_r_r!(emit_mov_r8_r8  , "mov", 8 );
+        let inst = "movs".to_string() + &op_postfix(src_len) + &op_postfix(dest_len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
 
-    mov_mem_r!(emit_mov_mem64_r64, "mov", 64);
-    mov_mem_r!(emit_mov_mem32_r32, "mov", 32);
-    mov_mem_r!(emit_mov_mem16_r16, "mov", 16);
-    mov_mem_r!(emit_mov_mem8_r8  , "mov", 8 );
+        let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
 
-    mov_mem_imm!(emit_mov_mem64_imm32, "mov", 64, i32);
-    mov_mem_imm!(emit_mov_mem32_imm32, "mov", 32, i32);
-    mov_mem_imm!(emit_mov_mem16_imm16, "mov", 16, i16);
-    mov_mem_imm!(emit_mov_mem8_imm8  , "mov", 8 , i8 );
+        let asm = format!("{} {},{}", inst, reg1, reg2);
 
-    // cmov
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
 
-    binop_no_def_r_r!  (emit_cmova_r64_r64,   "cmova", 64);
-    binop_no_def_r_mem!(emit_cmova_r64_mem64, "cmova", 64);
+    fn emit_movz_r_r (&mut self, dest: Reg, src: Reg) {
+        let dest_len = check_op_len(dest);
+        let src_len  = check_op_len(src);
 
-    binop_no_def_r_r!  (emit_cmovae_r64_r64,  "cmovae", 64);
-    binop_no_def_r_mem!(emit_cmovae_r64_mem64,"cmovae", 64);
+        let inst = "movz".to_string() + &op_postfix(src_len) + &op_postfix(dest_len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
 
-    binop_no_def_r_r!  (emit_cmovb_r64_r64,   "cmovb", 64);
-    binop_no_def_r_mem!(emit_cmovb_r64_mem64, "cmovb", 64);
+        let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
 
-    binop_no_def_r_r!  (emit_cmovbe_r64_r64,  "cmovbe", 64);
-    binop_no_def_r_mem!(emit_cmovbe_r64_mem64,"cmovbe", 64);
+        let asm = format!("{} {},{}", inst, reg1, reg2);
 
-    binop_no_def_r_r!  (emit_cmove_r64_r64,   "cmove", 64);
-    binop_no_def_r_mem!(emit_cmove_r64_mem64, "cmove", 64);
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
 
-    binop_no_def_r_r!  (emit_cmovne_r64_r64,  "cmovne", 64);
-    binop_no_def_r_mem!(emit_cmovne_r64_mem64,"cmovne", 64);
+    // cmov src -> dest
+    // binop op1, op2 (op2 is destination)
 
-    binop_no_def_r_r!  (emit_cmovg_r64_r64,   "cmovg", 64);
-    binop_no_def_r_mem!(emit_cmovg_r64_mem64, "cmovg", 64);
+    fn emit_cmova_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmova", src, dest)
+    }
+    fn emit_cmova_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmova", src, dest)
+    }
 
-    binop_no_def_r_r!  (emit_cmovge_r64_r64,  "cmovge", 64);
-    binop_no_def_r_mem!(emit_cmovge_r64_mem64,"cmovge", 64);
+    fn emit_cmovae_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmovae", src, dest)
+    }
+    fn emit_cmovae_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmovae", src, dest)
+    }
 
-    binop_no_def_r_r!  (emit_cmovl_r64_r64,   "cmovl", 64);
-    binop_no_def_r_mem!(emit_cmovl_r64_mem64, "cmovl", 64);
+    fn emit_cmovb_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmovb", src, dest)
+    }
+    fn emit_cmovb_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmovb", src, dest)
+    }
 
-    binop_no_def_r_r!  (emit_cmovle_r64_r64,  "cmovle", 64);
-    binop_no_def_r_mem!(emit_cmovle_r64_mem64,"cmovle", 64);
+    fn emit_cmovbe_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmovbe", src, dest)
+    }
+    fn emit_cmovbe_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmovbe", src, dest)
+    }
+
+    fn emit_cmove_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmove", src, dest)
+    }
+    fn emit_cmove_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmove", src, dest)
+    }
+
+    fn emit_cmovg_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmovg", src, dest)
+    }
+    fn emit_cmovg_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmovg", src, dest)
+    }
+
+    fn emit_cmovge_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmovge", src, dest)
+    }
+    fn emit_cmovge_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmovge", src, dest)
+    }
+
+    fn emit_cmovl_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmovl", src, dest)
+    }
+    fn emit_cmovl_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmovl", src, dest)
+    }
+
+    fn emit_cmovle_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmovle", src, dest)
+    }
+    fn emit_cmovle_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmovle", src, dest)
+    }
+
+    fn emit_cmovne_r_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_r("cmovne", src, dest)
+    }
+    fn emit_cmovne_r_mem(&mut self, dest: &P<Value>, src: &P<Value>) {
+        debug_assert!(check_op_len(dest) >= 16);
+        self.internal_binop_no_def_r_mem("cmovne", src, dest)
+    }
 
     // lea
-    mov_r_mem!(emit_lea_r64, "lea", 64);
+    fn emit_lea_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_mov_r_mem("lea", dest, src)
+    }
 
     // and
-    binop_def_r_r!(emit_and_r64_r64, "and", 64);
-    binop_def_r_r!(emit_and_r32_r32, "and", 32);
-    binop_def_r_r!(emit_and_r16_r16, "and", 16);
-    binop_def_r_r!(emit_and_r8_r8  , "and", 8 );
-
-    binop_def_r_imm!(emit_and_r64_imm32, "and", 64, i32);
-    binop_def_r_imm!(emit_and_r32_imm32, "and", 32, i32);
-    binop_def_r_imm!(emit_and_r16_imm16, "and", 16, i16);
-    binop_def_r_imm!(emit_and_r8_imm8  , "and", 8 , i8 );
-
-    binop_def_r_mem!(emit_and_r64_mem64, "and", 64);
-    binop_def_r_mem!(emit_and_r32_mem32, "and", 32);
-    binop_def_r_mem!(emit_and_r16_mem16, "and", 16);
-    binop_def_r_mem!(emit_and_r8_mem8  , "and", 8 );
+    fn emit_and_r_imm(&mut self, dest: Reg, src: i32) {
+        self.internal_binop_def_r_imm("and", dest, src)
+    }
+    fn emit_and_r_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_binop_def_r_r("and", dest, src)
+    }
+    fn emit_and_r_mem(&mut self, dest: Reg, src: Mem) {
+        self.internal_binop_def_r_mem("and", dest, src)
+    }
 
     // or
-    binop_def_r_r!  (emit_or_r64_r64, "or", 64);
-    binop_def_r_imm!(emit_or_r64_imm32, "or", 64, i32);
-    binop_def_r_mem!(emit_or_r64_mem64, "or", 64);
+    fn emit_or_r_imm(&mut self, dest: Reg, src: i32) {
+        self.internal_binop_def_r_imm("or", dest, src)
+    }
+    fn emit_or_r_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_binop_def_r_r("or", dest, src)
+    }
+    fn emit_or_r_mem(&mut self, dest: Reg, src: Mem) {
+        self.internal_binop_def_r_mem("or", dest, src)
+    }
 
     // xor
-    binop_def_r_r!(emit_xor_r64_r64, "xor", 64);
-    binop_def_r_r!(emit_xor_r32_r32, "xor", 32);
-    binop_def_r_r!(emit_xor_r16_r16, "xor", 16);
-    binop_def_r_r!(emit_xor_r8_r8  , "xor", 8 );
-
-    binop_def_r_imm!(emit_xor_r64_imm32, "xor", 64, i32);
-    binop_def_r_imm!(emit_xor_r32_imm32, "xor", 32, i32);
-    binop_def_r_imm!(emit_xor_r16_imm16, "xor", 16, i16);
-    binop_def_r_imm!(emit_xor_r8_imm8  , "xor", 8 , i8 );
-
-    binop_def_r_mem!(emit_xor_r64_mem64, "xor", 64);
-    binop_def_r_mem!(emit_xor_r32_mem32, "xor", 32);
-    binop_def_r_mem!(emit_xor_r16_mem16, "xor", 16);
-    binop_def_r_mem!(emit_xor_r8_mem8  , "xor", 8 );
+    fn emit_xor_r_imm(&mut self, dest: Reg, src: i32) {
+        self.internal_binop_def_r_imm("xor", dest, src)
+    }
+    fn emit_xor_r_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_binop_def_r_r("xor", dest, src)
+    }
+    fn emit_xor_r_mem(&mut self, dest: Reg, src: Mem) {
+        self.internal_binop_def_r_mem("xor", dest, src)
+    }
 
     // add
-    binop_def_r_r!(emit_add_r64_r64, "add", 64);
-    binop_def_r_r!(emit_add_r32_r32, "add", 32);
-    binop_def_r_r!(emit_add_r16_r16, "add", 16);
-    binop_def_r_r!(emit_add_r8_r8  , "add", 8 );
-
-    binop_def_r_imm!(emit_add_r64_imm32, "add", 64, i32);
-    binop_def_r_imm!(emit_add_r32_imm32, "add", 32, i32);
-    binop_def_r_imm!(emit_add_r16_imm16, "add", 16, i16);
-    binop_def_r_imm!(emit_add_r8_imm8  , "add", 8 , i8 );
-
-    binop_def_r_mem!(emit_add_r64_mem64, "add", 64);
-    binop_def_r_mem!(emit_add_r32_mem32, "add", 32);
-    binop_def_r_mem!(emit_add_r16_mem16, "add", 16);
-    binop_def_r_mem!(emit_add_r8_mem8  , "add", 8 );
+    fn emit_add_r_imm(&mut self, dest: Reg, src: i32) {
+        self.internal_binop_def_r_imm("add", dest, src)
+    }
+    fn emit_add_r_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_binop_def_r_r("add", dest, src)
+    }
+    fn emit_add_r_mem(&mut self, dest: Reg, src: Mem) {
+        self.internal_binop_def_r_mem("add", dest, src)
+    }
 
     // sub
-    binop_def_r_r!(emit_sub_r64_r64, "sub", 64);
-    binop_def_r_r!(emit_sub_r32_r32, "sub", 32);
-    binop_def_r_r!(emit_sub_r16_r16, "sub", 16);
-    binop_def_r_r!(emit_sub_r8_r8  , "sub", 8 );
-
-    binop_def_r_imm!(emit_sub_r64_imm32, "sub", 64, i32);
-    binop_def_r_imm!(emit_sub_r32_imm32, "sub", 32, i32);
-    binop_def_r_imm!(emit_sub_r16_imm16, "sub", 16, i16);
-    binop_def_r_imm!(emit_sub_r8_imm8  , "sub", 8 , i8 );
-
-    binop_def_r_mem!(emit_sub_r64_mem64, "sub", 64);
-    binop_def_r_mem!(emit_sub_r32_mem32, "sub", 32);
-    binop_def_r_mem!(emit_sub_r16_mem16, "sub", 16);
-    binop_def_r_mem!(emit_sub_r8_mem8  , "sub", 8 );
+    fn emit_sub_r_imm(&mut self, dest: Reg, src: i32) {
+        self.internal_binop_def_r_imm("sub", dest, src)
+    }
+    fn emit_sub_r_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_binop_def_r_r("sub", dest, src)
+    }
+    fn emit_sub_r_mem(&mut self, dest: Reg, src: Mem) {
+        self.internal_binop_def_r_mem("sub", dest, src)
+    }
     
-    fn emit_mul_r64(&mut self, src: &P<Value>) {
-        trace!("emit: mul rax, {} -> (rdx, rax)", src);
+    fn emit_mul_r(&mut self, src: &P<Value>) {
+        let len = check_op_len(src);
+
+        let inst = "mul".to_string() + &op_postfix(len);
         
-        let (reg, id, loc) = self.prepare_reg(src, 3 + 1);
+        let (reg, id, loc) = self.prepare_reg(src, inst.len() + 1);
         let rax = self.prepare_machine_reg(&x86_64::RAX);
         let rdx = self.prepare_machine_reg(&x86_64::RDX);
         
-        let asm = format!("mul {}", reg);
-        
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                rax => vec![],
-                rdx => vec![]
-            },
-            hashmap!{
-                id => vec![loc],
-                rax => vec![]
-            },
-            false
-        )
+        let asm = format!("{} {}", inst, reg);
+
+        if len != 8 {
+            trace!("emit: {} rax, {} -> (rdx, rax)", inst, src);
+
+            self.add_asm_inst(
+                asm,
+                hashmap! {
+                    rax => vec![],
+                    rdx => vec![]
+                },
+                hashmap! {
+                    id => vec![loc],
+                    rax => vec![]
+                },
+                false
+            )
+        } else {
+            trace!("emit: {} al, {} -> ax", inst, src);
+
+            self.add_asm_inst(
+                asm,
+                hashmap! {
+                    rax => vec![]
+                },
+                hashmap! {
+                    id => vec![loc],
+                    rax => vec![]
+                },
+                false
+            )
+        }
     }
-    fn emit_mul_r32  (&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_mul_r16  (&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_mul_r8   (&mut self, src: &P<Value>) {unimplemented!()}
 
-    fn emit_mul_mem64(&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_mul_mem32(&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_mul_mem16(&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_mul_mem8 (&mut self, src: &P<Value>) {unimplemented!()}
+    fn emit_mul_mem(&mut self, src: &P<Value>) {
+        unimplemented!()
+    }
 
-    fn emit_div_r64  (&mut self, src: &P<Value>) {
-        trace!("emit: div rdx:rax, {} -> quotient: rax + remainder: rdx", src);
+    fn emit_div_r  (&mut self, src: &P<Value>) {
+        let len = check_op_len(src);
+
+        let inst = "div".to_string() + &op_postfix(len);
 
         let rdx = self.prepare_machine_reg(&x86_64::RDX);
         let rax = self.prepare_machine_reg(&x86_64::RAX);
-        let (reg, id, loc) = self.prepare_reg(src, 4 + 1);
+        let (reg, id, loc) = self.prepare_reg(src, inst.len() + 1);
 
-        let asm = format!("divq {}", reg);
+        let asm = format!("{} {}", inst, reg);
 
-        self.add_asm_inst(
-            asm,
-            hashmap!{
+        if len != 8 {
+            trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
+            self.add_asm_inst(
+                asm,
+                hashmap!{
                 rdx => vec![],
                 rax => vec![],
             },
-            hashmap!{
+                hashmap!{
                 id => vec![loc],
                 rdx => vec![],
                 rax => vec![]
             },
-            false
-        )
+                false
+            )
+        } else {
+            // we need to introduce AH/AL in order to deal with this
+            panic!("not implemented divb")
+        }
     }
-    fn emit_div_r32 (&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_div_r16 (&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_div_r8  (&mut self, src: &P<Value>) {unimplemented!()}
 
-    fn emit_div_mem64 (&mut self, src: &P<Value>) {
-        trace!("emit: div rdx:rax, {} -> quotient: rax + remainder: rdx", src);
+    fn emit_div_mem (&mut self, src: &P<Value>) {
+        let len = check_op_len(src);
+
+        let inst = "div".to_string() + &op_postfix(len);
 
         let rdx = self.prepare_machine_reg(&x86_64::RDX);
         let rax = self.prepare_machine_reg(&x86_64::RAX);
-        let (mem, mut uses) = self.prepare_mem(src, 4 + 1);
+        let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
 
         // merge use vec
         if !uses.contains_key(&rdx) {
@@ -1933,55 +2002,64 @@ impl CodeGenerator for ASMCodeGen {
             uses.insert(rax, vec![]);
         }
 
-        let asm = format!("divq {}", mem);
+        let asm = format!("{} {}", inst, mem);
 
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                rdx => vec![],
-                rax => vec![]
-            },
-            uses,
-            true
-        )
+        if len != 8 {
+            trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
+            self.add_asm_inst(
+                asm,
+                hashmap! {
+                    rdx => vec![],
+                    rax => vec![]
+                },
+                uses,
+                true
+            )
+        } else {
+            panic!("not implemented divb")
+        }
     }
-    fn emit_div_mem32 (&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_div_mem16 (&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_div_mem8  (&mut self, src: &P<Value>) {unimplemented!()}
 
-    fn emit_idiv_r64  (&mut self, src: &P<Value>) {
-        trace!("emit: idiv rdx:rax, {} -> quotient: rax + remainder: rdx", src);
+    fn emit_idiv_r  (&mut self, src: &P<Value>) {
+        let len = check_op_len(src);
+
+        let inst = "idiv".to_string() + &op_postfix(len);
 
         let rdx = self.prepare_machine_reg(&x86_64::RDX);
         let rax = self.prepare_machine_reg(&x86_64::RAX);
-        let (reg, id, loc) = self.prepare_reg(src, 4 + 1);
+        let (reg, id, loc) = self.prepare_reg(src, inst.len() + 1);
 
-        let asm = format!("idivq {}", reg);
+        let asm = format!("{} {}", inst, reg);
 
-        self.add_asm_inst(
-            asm,
-            hashmap!{
+        if len != 8 {
+            trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
+            self.add_asm_inst(
+                asm,
+                hashmap!{
                 rdx => vec![],
                 rax => vec![],
             },
-            hashmap!{
+                hashmap!{
                 id => vec![loc],
                 rdx => vec![],
                 rax => vec![]
             },
-            false
-        )
+                false
+            )
+        } else {
+            // we need to introduce AH/AL in order to deal with this
+            panic!("not implemented idivb")
+        }
     }
-    fn emit_idiv_r32  (&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_idiv_r16  (&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_idiv_r8   (&mut self, src: &P<Value>) {unimplemented!()}
 
-    fn emit_idiv_mem64(&mut self, src: &P<Value>) {
-        trace!("emit: idiv rdx:rax, {} -> quotient: rax + remainder: rdx", src);
+    fn emit_idiv_mem(&mut self, src: &P<Value>) {
+        let len = check_op_len(src);
+
+        let inst = "idiv".to_string() + &op_postfix(len);
 
         let rdx = self.prepare_machine_reg(&x86_64::RDX);
         let rax = self.prepare_machine_reg(&x86_64::RAX);
-        let (mem, mut uses) = self.prepare_mem(src, 4 + 1);
+        let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
 
         // merge use vec
         if !uses.contains_key(&rdx) {
@@ -1991,245 +2069,46 @@ impl CodeGenerator for ASMCodeGen {
             uses.insert(rax, vec![]);
         }
 
-        let asm = format!("idivq {}", mem);
+        let asm = format!("{} {}", inst, mem);
 
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                rdx => vec![],
-                rax => vec![]
-            },
-            uses,
-            true
-        )
-    }
-    fn emit_idiv_mem32(&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_idiv_mem16(&mut self, src: &P<Value>) {unimplemented!()}
-    fn emit_idiv_mem8 (&mut self, src: &P<Value>) {unimplemented!()}
-
-    fn emit_shl_r64_cl    (&mut self, dest: &P<Value>) {
-        trace!("emit shl {}, CL -> {}", dest, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 3 + 1);
-        let rcx = self.prepare_machine_reg(&x86_64::RCX);
-
-        let asm = format!("shlq %cl,{}", reg1);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1],
-                rcx => vec![]
-            },
-            false
-        )
-    }
-
-    fn emit_shl_mem64_cl  (&mut self, dest: &P<Value>) {
-        trace!("emit shl {}, CL -> {}", dest, dest);
-
-        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 3 + 1);
-        let rcx = self.prepare_machine_reg(&x86_64::RCX);
-
-        if !uses.contains_key(&rcx) {
-            uses.insert(rcx, vec![]);
+        if len != 8 {
+            trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
+            self.add_asm_inst(
+                asm,
+                hashmap! {
+                    rdx => vec![],
+                    rax => vec![]
+                },
+                uses,
+                true
+            )
+        } else {
+            panic!("not implemented idivb")
         }
-
-        let asm = format!("shlq %cl,{}", mem);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
     }
 
-    fn emit_shl_r64_imm8  (&mut self, dest: &P<Value>, src: i8) {
-        trace!("emit shl {},{} -> {}", dest, src, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-        let asm = format!("shlq ${},{}", src, reg1);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
+    fn emit_shl_r_cl    (&mut self, dest: &P<Value>) {
+        self.internal_binop_def_r_mr("shl", dest, &x86_64::CL)
     }
 
-    fn emit_shl_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
-        trace!("emit shl {},{} -> {}", dest, src, dest);
-
-        let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-        let asm = format!("shlq ${},{}", src, mem);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
+    fn emit_shl_r_imm8  (&mut self, dest: &P<Value>, src: i8) {
+        self.internal_binop_def_r_imm("shl", dest, src as i32)
     }
 
-    fn emit_shr_r64_cl    (&mut self, dest: &P<Value>) {
-        trace!("emit shr {}, CL -> {}", dest, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 3 + 1);
-        let rcx = self.prepare_machine_reg(&x86_64::RCX);
-
-        let asm = format!("shrq %cl,{}", reg1);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1],
-                rcx => vec![]
-            },
-            false
-        )
+    fn emit_shr_r_cl    (&mut self, dest: &P<Value>) {
+        self.internal_binop_def_r_mr("shr", dest, &x86_64::CL)
     }
 
-    fn emit_shr_mem64_cl  (&mut self, dest: &P<Value>) {
-        trace!("emit shr {}, CL -> {}", dest, dest);
-
-        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 3 + 1);
-        let rcx = self.prepare_machine_reg(&x86_64::RCX);
-
-        if !uses.contains_key(&rcx) {
-            uses.insert(rcx, vec![]);
-        }
-
-        let asm = format!("shrq %cl,{}", mem);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
+    fn emit_shr_r_imm8  (&mut self, dest: &P<Value>, src: i8) {
+        self.internal_binop_def_r_imm("shr", dest, src as i32)
     }
 
-    fn emit_shr_r64_imm8  (&mut self, dest: &P<Value>, src: i8) {
-        trace!("emit shr {},{} -> {}", dest, src, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-        let asm = format!("shrq ${},{}", src, reg1);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
+    fn emit_sar_r_cl    (&mut self, dest: &P<Value>) {
+        self.internal_binop_def_r_mr("sar", dest, &x86_64::CL)
     }
 
-    fn emit_shr_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
-        trace!("emit shr {},{} -> {}", dest, src, dest);
-
-        let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-        let asm = format!("shrq ${},{}", src, mem);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
-    }
-
-    fn emit_sar_r64_cl    (&mut self, dest: &P<Value>) {
-        trace!("emit sar {}, CL -> {}", dest, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 3 + 1);
-        let rcx = self.prepare_machine_reg(&x86_64::RCX);
-
-        let asm = format!("sarq %cl,{}", reg1);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1],
-                rcx => vec![]
-            },
-            false
-        )
-    }
-
-    fn emit_sar_mem64_cl  (&mut self, dest: &P<Value>) {
-        trace!("emit sar {}, CL -> {}", dest, dest);
-
-        let (mem, mut uses) = self.prepare_mem(dest, 4 + 1 + 3 + 1);
-        let rcx = self.prepare_machine_reg(&x86_64::RCX);
-
-        if !uses.contains_key(&rcx) {
-            uses.insert(rcx, vec![]);
-        }
-
-        let asm = format!("sarq %cl,{}", mem);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
-    }
-
-    fn emit_sar_r64_imm8  (&mut self, dest: &P<Value>, src: i8) {
-        trace!("emit sar {},{} -> {}", dest, src, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-        let asm = format!("sarq ${},{}", src, reg1);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
-    }
-
-    fn emit_sar_mem64_imm8(&mut self, dest: &P<Value>, src: i8) {
-        trace!("emit sar {},{} -> {}", dest, src, dest);
-
-        let (mem, uses) = self.prepare_mem(dest, 4 + 1 + 1 + src.to_string().len() + 1);
-
-        let asm = format!("sarq ${},{}", src, mem);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{},
-            uses,
-            true
-        )
+    fn emit_sar_r_imm8  (&mut self, dest: &P<Value>, src: i8) {
+        self.internal_binop_def_r_imm("sar", dest, src as i32)
     }
 
     fn emit_cqo(&mut self) {
@@ -2442,8 +2321,8 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_movsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: movsd {} -> {}", src, dest);
 
-        let (reg1, id1, loc1) = self.prepare_reg(src, 5 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest, 5 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_fpreg(src, 5 + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, 5 + 1 + reg1.len() + 1);
 
         let asm = format!("movsd {},{}", reg1, reg2);
 
@@ -2464,7 +2343,7 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: movsd {} -> {}", src, dest);
 
         let (mem, uses) = self.prepare_mem(src, 5 + 1);
-        let (reg, id2, loc2) = self.prepare_reg(dest, 5 + 1 + mem.len() + 1);
+        let (reg, id2, loc2) = self.prepare_fpreg(dest, 5 + 1 + mem.len() + 1);
 
         let asm = format!("movsd {},{}", mem, reg);
 
@@ -2482,7 +2361,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_movsd_mem64_f64(&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: movsd {} -> {}", src, dest);
 
-        let (reg, id1, loc1) = self.prepare_reg(src, 5 + 1);
+        let (reg, id1, loc1) = self.prepare_fpreg(src, 5 + 1);
         let (mem, mut uses) = self.prepare_mem(dest, 5 + 1 + reg.len() + 1);
 
         // the register we used for the memory location is counted as 'use'
@@ -2506,8 +2385,8 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_addsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
         trace!("emit: addsd {}, {} -> {}", dest, src, dest);
 
-        let (reg1, id1, loc1) = self.prepare_reg(src, 5 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest, 5 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_fpreg(src, 5 + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, 5 + 1 + reg1.len() + 1);
 
         let asm = format!("addsd {},{}", reg1, reg2);
 
@@ -2693,7 +2572,7 @@ pub fn spill_rewrite(
                     let code = {
                         let mut codegen = ASMCodeGen::new();
                         codegen.start_code_sequence();
-                        codegen.emit_mov_r64_mem64(&temp, spill_mem);
+                        codegen.emit_mov_r_mem(&temp, spill_mem);
 
                         codegen.finish_code_sequence_asm()
                     };
@@ -2728,7 +2607,7 @@ pub fn spill_rewrite(
                     let code = {
                         let mut codegen = ASMCodeGen::new();
                         codegen.start_code_sequence();
-                        codegen.emit_mov_mem64_r64(spill_mem, &temp);
+                        codegen.emit_mov_mem_r(spill_mem, &temp);
 
                         codegen.finish_code_sequence_asm()
                     };

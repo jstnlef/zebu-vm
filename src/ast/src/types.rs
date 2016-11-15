@@ -75,6 +75,23 @@ impl MuType {
             _ => None
         }
     }
+
+    pub fn get_int_length(&self) -> Option<usize> {
+        use types::MuType_::*;
+        match self.v {
+            Int(len) => Some(len),
+            Ref(_)
+            | IRef(_)
+            | WeakRef(_)
+            | UPtr(_)
+            | ThreadRef
+            | StackRef
+            | Tagref64
+            | FuncRef(_)
+            | UFuncPtr(_) => Some(64),
+            _ => None
+        }
+    }
 }
 
 pub type StructTag = MuName;
@@ -496,6 +513,6 @@ pub struct MuFuncSig {
 
 impl fmt::Display for MuFuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{}] -> [{}]", vec_utils::as_str(&self.ret_tys), vec_utils::as_str(&self.arg_tys))
+        write!(f, "[{}] -> [{}]", vec_utils::as_str(&self.arg_tys), vec_utils::as_str(&self.ret_tys))
     }
 }

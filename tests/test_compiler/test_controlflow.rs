@@ -330,7 +330,7 @@ fn test_sgt_value() {
     let lib = testutil::compile_fnc("sgt_value", &sgt_value);
 
     unsafe {
-        let sgt_value : libloading::Symbol<unsafe extern fn(i64, i64) -> u64> = lib.get(b"sgt_value").unwrap();
+        let sgt_value : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"sgt_value").unwrap();
 
         let res = sgt_value(255, 0);
         println!("sgt_value(255, 0) = {}", res);
@@ -386,7 +386,7 @@ fn test_sgt_u8_value() {
     let lib = testutil::compile_fnc("sgt_u8_value", &sgt_u8_value);
 
     unsafe {
-        let sgt_u8_value : libloading::Symbol<unsafe extern fn(i8, i8) -> u64> = lib.get(b"sgt_u8_value").unwrap();
+        let sgt_u8_value : libloading::Symbol<unsafe extern fn(i8, i8) -> u8> = lib.get(b"sgt_u8_value").unwrap();
 
         let res = sgt_u8_value(-1, 0);
         println!("sgt_u8_value(-1, 0) = {}", res);

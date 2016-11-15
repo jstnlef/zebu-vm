@@ -36,11 +36,11 @@ lazy_static! {
     };
 } 
 pub const  MACHINE_ID_START : usize = 0;
-pub const  MACHINE_ID_END   : usize = 100;
+pub const  MACHINE_ID_END   : usize = 200;
 
-pub const  INTERNAL_ID_START: usize = 101;
-pub const  INTERNAL_ID_END  : usize = 200;
-pub const  USER_ID_START    : usize = 201;
+pub const  INTERNAL_ID_START: usize = 201;
+pub const  INTERNAL_ID_END  : usize = 500;
+pub const  USER_ID_START    : usize = 1001;
 
 #[deprecated]
 #[allow(dead_code)]

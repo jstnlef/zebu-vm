@@ -173,7 +173,7 @@ impl <'a> InstructionSelection {
                             let cond_reg = self.emit_ireg(cond, f_content, f_context, vm);
                             
                             // emit: cmp cond_reg 1
-                            self.backend.emit_cmp_imm32_r64(1, &cond_reg);
+                            self.backend.emit_cmp_imm_r(1, &cond_reg);
                             // emit: je #branch_dest
                             self.backend.emit_je(branch_target);
                         } else {
@@ -194,61 +194,54 @@ impl <'a> InstructionSelection {
                             let tmp_true  = self.emit_ireg(true_val, f_content, f_context, vm);
                             let tmp_false = self.emit_ireg(false_val, f_content, f_context, vm);
 
+                            // mov tmp_false -> tmp_res
+                            self.backend.emit_mov_r_r(&tmp_res, &tmp_false);
+
                             if self.match_cmp_res(cond) {
                                 match self.emit_cmp_res(cond, f_content, f_context, vm) {
                                     op::CmpOp::EQ => {
-                                        self.backend.emit_cmove_r64_r64 (&tmp_res, &tmp_true);
-                                        self.backend.emit_cmovne_r64_r64(&tmp_res, &tmp_false);
+                                        self.backend.emit_cmove_r_r (&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::NE => {
-                                        self.backend.emit_cmovne_r64_r64(&tmp_res, &tmp_true);
-                                        self.backend.emit_cmove_r64_r64 (&tmp_res, &tmp_false);
+                                        self.backend.emit_cmovne_r_r(&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::SGE => {
-                                        self.backend.emit_cmovge_r64_r64(&tmp_res, &tmp_true);
-                                        self.backend.emit_cmovl_r64_r64 (&tmp_res, &tmp_false);
+                                        self.backend.emit_cmovge_r_r(&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::SGT => {
-                                        self.backend.emit_cmovg_r64_r64 (&tmp_res, &tmp_true);
-                                        self.backend.emit_cmovle_r64_r64(&tmp_res, &tmp_false);
+                                        self.backend.emit_cmovg_r_r (&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::SLE => {
-                                        self.backend.emit_cmovle_r64_r64(&tmp_res, &tmp_true);
-                                        self.backend.emit_cmovg_r64_r64 (&tmp_res, &tmp_false);
+                                        self.backend.emit_cmovle_r_r(&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::SLT => {
-                                        self.backend.emit_cmovl_r64_r64 (&tmp_res, &tmp_true);
-                                        self.backend.emit_cmovge_r64_r64(&tmp_res, &tmp_false);
+                                        self.backend.emit_cmovl_r_r (&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::UGE => {
-                                        self.backend.emit_cmovae_r64_r64(&tmp_res, &tmp_true);
-                                        self.backend.emit_cmovb_r64_r64 (&tmp_res, &tmp_false);
+                                        self.backend.emit_cmovae_r_r(&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::UGT => {
-                                        self.backend.emit_cmova_r64_r64 (&tmp_res, &tmp_true);
-                                        self.backend.emit_cmovbe_r64_r64(&tmp_res, &tmp_false);
+                                        self.backend.emit_cmova_r_r (&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::ULE => {
-                                        self.backend.emit_cmovbe_r64_r64(&tmp_res, &tmp_true);
-                                        self.backend.emit_cmova_r64_r64 (&tmp_res, &tmp_false);
+                                        self.backend.emit_cmovbe_r_r(&tmp_res, &tmp_true);
                                     }
                                     op::CmpOp::ULT => {
-                                        self.backend.emit_cmovb_r64_r64 (&tmp_res, &tmp_true);
-                                        self.backend.emit_cmovae_r64_r64(&tmp_res, &tmp_false);
+                                        self.backend.emit_cmovb_r_r (&tmp_res, &tmp_true);
                                     }
                                     _ => panic!("expecting CmpOp for integers")
                                 }
                             } else if self.match_ireg(cond) {
                                 let tmp_cond = self.emit_ireg(cond, f_content, f_context, vm);
 
+                                // emit: mov tmp_false -> tmp_res
+                                self.backend.emit_mov_r_r(&tmp_res, &tmp_false);
+
                                 // emit: cmp cond_reg 1
-                                self.backend.emit_cmp_imm32_r64(1, &tmp_cond);
+                                self.backend.emit_cmp_imm_r(1, &tmp_cond);
 
                                 // emit: cmove tmp_true -> tmp_res
-                                self.backend.emit_cmove_r64_r64(&tmp_res, &tmp_true);
-
-                                // emit: cmovne tmp_false -> tmp_res
-                                self.backend.emit_cmovne_r64_r64(&tmp_res, &tmp_false);
+                                self.backend.emit_cmove_r_r(&tmp_res, &tmp_true);
                             } else {
                                 unimplemented!()
                             }
@@ -268,27 +261,31 @@ impl <'a> InstructionSelection {
 
                             let tmp_res = self.get_result_value(node);
 
-                            // set result to 0
-                            self.backend.emit_xor_r64_r64(&tmp_res, &tmp_res);
+                            // make res64, and set to zero
+                            let tmp_res64 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            self.backend.emit_xor_r_r(&tmp_res64, &tmp_res64);
 
-                            // set tmp1 as 1 (cmov doesnt allow immediate as operand)
-                            let tmp_1 = self.make_temporary(f_context, UINT1_TYPE.clone(), vm);
-                            self.backend.emit_mov_r64_imm32(&tmp_1, 1);
+                            // set tmp1 as 1 (cmov doesnt allow immediate or reg8 as operand)
+                            let tmp_1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            self.backend.emit_mov_r_imm(&tmp_1, 1);
 
                             // cmov 1 to result
                             match self.emit_cmp_res(node, f_content, f_context, vm) {
-                                op::CmpOp::EQ  => self.backend.emit_cmove_r64_r64 (&tmp_res, &tmp_1),
-                                op::CmpOp::NE  => self.backend.emit_cmovne_r64_r64(&tmp_res, &tmp_1),
-                                op::CmpOp::SGE => self.backend.emit_cmovge_r64_r64(&tmp_res, &tmp_1),
-                                op::CmpOp::SGT => self.backend.emit_cmovg_r64_r64 (&tmp_res, &tmp_1),
-                                op::CmpOp::SLE => self.backend.emit_cmovle_r64_r64(&tmp_res, &tmp_1),
-                                op::CmpOp::SLT => self.backend.emit_cmovl_r64_r64 (&tmp_res, &tmp_1),
-                                op::CmpOp::UGE => self.backend.emit_cmovae_r64_r64(&tmp_res, &tmp_1),
-                                op::CmpOp::UGT => self.backend.emit_cmova_r64_r64 (&tmp_res, &tmp_1),
-                                op::CmpOp::ULE => self.backend.emit_cmovbe_r64_r64(&tmp_res, &tmp_1),
-                                op::CmpOp::ULT => self.backend.emit_cmovb_r64_r64 (&tmp_res, &tmp_1),
+                                op::CmpOp::EQ  => self.backend.emit_cmove_r_r (&tmp_res64, &tmp_1),
+                                op::CmpOp::NE  => self.backend.emit_cmovne_r_r(&tmp_res64, &tmp_1),
+                                op::CmpOp::SGE => self.backend.emit_cmovge_r_r(&tmp_res64, &tmp_1),
+                                op::CmpOp::SGT => self.backend.emit_cmovg_r_r (&tmp_res64, &tmp_1),
+                                op::CmpOp::SLE => self.backend.emit_cmovle_r_r(&tmp_res64, &tmp_1),
+                                op::CmpOp::SLT => self.backend.emit_cmovl_r_r (&tmp_res64, &tmp_1),
+                                op::CmpOp::UGE => self.backend.emit_cmovae_r_r(&tmp_res64, &tmp_1),
+                                op::CmpOp::UGT => self.backend.emit_cmova_r_r (&tmp_res64, &tmp_1),
+                                op::CmpOp::ULE => self.backend.emit_cmovbe_r_r(&tmp_res64, &tmp_1),
+                                op::CmpOp::ULT => self.backend.emit_cmovb_r_r (&tmp_res64, &tmp_1),
                                 _ => panic!("expecting integer comparison op with int values")
                             }
+
+                            // truncate tmp_res64 to tmp_res (probably u8)
+                            self.backend.emit_mov_r_r(&tmp_res, &tmp_res64);
                         } else {
                             unimplemented!()
                         }
@@ -327,14 +324,14 @@ impl <'a> InstructionSelection {
                                     let imm = self.node_iimm_to_i32(case_op);
 
                                     // cmp case cond
-                                    self.backend.emit_cmp_imm32_r64(imm, &tmp_cond);
+                                    self.backend.emit_cmp_imm_r(imm, &tmp_cond);
                                     // je dest
                                     self.backend.emit_je(target);
                                 } else if self.match_ireg(case_op) {
                                     let tmp_case_op = self.emit_ireg(case_op, f_content, f_context, vm);
 
                                     // cmp case cond
-                                    self.backend.emit_cmp_r64_r64(&tmp_case_op, &tmp_cond);
+                                    self.backend.emit_cmp_r_r(&tmp_case_op, &tmp_cond);
                                     // je dest
                                     self.backend.emit_je(target);
                                 } else {
@@ -406,9 +403,9 @@ impl <'a> InstructionSelection {
                                     let reg_op2 = self.node_iimm_to_i32(&ops[op2]);
                                     
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                                     // add op2, res
-                                    self.backend.emit_add_r64_imm32(&res_tmp, reg_op2);
+                                    self.backend.emit_add_r_imm(&res_tmp, reg_op2);
                                 } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
                                     trace!("emit add-ireg-mem");
                                     
@@ -416,9 +413,9 @@ impl <'a> InstructionSelection {
                                     let reg_op2 = self.emit_mem(&ops[op2], vm);
                                     
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                                     // add op2 res
-                                    self.backend.emit_add_r64_mem64(&res_tmp, &reg_op2);
+                                    self.backend.emit_add_r_mem(&res_tmp, &reg_op2);
                                 } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
                                     trace!("emit add-ireg-ireg");
 
@@ -426,9 +423,9 @@ impl <'a> InstructionSelection {
                                     let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
 
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                                     // add op2 res
-                                    self.backend.emit_add_r64_r64(&res_tmp, &reg_op2);
+                                    self.backend.emit_add_r_r(&res_tmp, &reg_op2);
                                 } else {
                                     unimplemented!()
                                 }
@@ -441,9 +438,9 @@ impl <'a> InstructionSelection {
                                     let imm_op2 = self.node_iimm_to_i32(&ops[op2]);
                                     
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                                     // add op2, res
-                                    self.backend.emit_sub_r64_imm32(&res_tmp, imm_op2);
+                                    self.backend.emit_sub_r_imm(&res_tmp, imm_op2);
                                 } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
                                     trace!("emit sub-ireg-mem");
                                     
@@ -451,9 +448,9 @@ impl <'a> InstructionSelection {
                                     let mem_op2 = self.emit_mem(&ops[op2], vm);
                                     
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                                     // sub op2 res
-                                    self.backend.emit_sub_r64_mem64(&res_tmp, &mem_op2);
+                                    self.backend.emit_sub_r_mem(&res_tmp, &mem_op2);
                                 } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
                                     trace!("emit sub-ireg-ireg");
 
@@ -461,9 +458,9 @@ impl <'a> InstructionSelection {
                                     let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
 
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &reg_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                                     // add op2 res
-                                    self.backend.emit_sub_r64_r64(&res_tmp, &reg_op2);
+                                    self.backend.emit_sub_r_r(&res_tmp, &reg_op2);
                                 } else {
                                     unimplemented!()
                                 }
@@ -479,9 +476,9 @@ impl <'a> InstructionSelection {
                                     let imm_op2 = self.node_iimm_to_i32(op2);
 
                                     // mov op1 -> res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // and op2, res -> res
-                                    self.backend.emit_and_r64_imm32(&res_tmp, imm_op2);
+                                    self.backend.emit_and_r_imm(&res_tmp, imm_op2);
                                 } else if self.match_ireg(op1) && self.match_mem(op2) {
                                     trace!("emit and-ireg-mem");
 
@@ -489,9 +486,9 @@ impl <'a> InstructionSelection {
                                     let mem_op2 = self.emit_mem(op2, vm);
 
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // and op2, res -> res
-                                    self.backend.emit_and_r64_mem64(&res_tmp, &mem_op2);
+                                    self.backend.emit_and_r_mem(&res_tmp, &mem_op2);
                                 } else if self.match_ireg(op1) && self.match_ireg(op2) {
                                     trace!("emit and-ireg-ireg");
 
@@ -499,9 +496,9 @@ impl <'a> InstructionSelection {
                                     let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // and op2, res -> res
-                                    self.backend.emit_and_r64_r64(&res_tmp, &tmp_op2);
+                                    self.backend.emit_and_r_r(&res_tmp, &tmp_op2);
                                 } else {
                                     unimplemented!()
                                 }
@@ -517,9 +514,9 @@ impl <'a> InstructionSelection {
                                     let imm_op2 = self.node_iimm_to_i32(op2);
 
                                     // mov op1 -> res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // Or op2, res -> res
-                                    self.backend.emit_or_r64_imm32(&res_tmp, imm_op2);
+                                    self.backend.emit_or_r_imm(&res_tmp, imm_op2);
                                 } else if self.match_ireg(op1) && self.match_mem(op2) {
                                     trace!("emit or-ireg-mem");
 
@@ -527,9 +524,9 @@ impl <'a> InstructionSelection {
                                     let mem_op2 = self.emit_mem(op2, vm);
 
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // Or op2, res -> res
-                                    self.backend.emit_or_r64_mem64(&res_tmp, &mem_op2);
+                                    self.backend.emit_or_r_mem(&res_tmp, &mem_op2);
                                 } else if self.match_ireg(op1) && self.match_ireg(op2) {
                                     trace!("emit or-ireg-ireg");
 
@@ -537,9 +534,9 @@ impl <'a> InstructionSelection {
                                     let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // Or op2, res -> res
-                                    self.backend.emit_or_r64_r64(&res_tmp, &tmp_op2);
+                                    self.backend.emit_or_r_r(&res_tmp, &tmp_op2);
                                 } else {
                                     unimplemented!()
                                 }
@@ -555,9 +552,9 @@ impl <'a> InstructionSelection {
                                     let imm_op2 = self.node_iimm_to_i32(op2);
 
                                     // mov op1 -> res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // xor op2, res -> res
-                                    self.backend.emit_xor_r64_imm32(&res_tmp, imm_op2);
+                                    self.backend.emit_xor_r_imm(&res_tmp, imm_op2);
                                 } else if self.match_ireg(op1) && self.match_mem(op2) {
                                     trace!("emit xor-ireg-mem");
 
@@ -565,9 +562,9 @@ impl <'a> InstructionSelection {
                                     let mem_op2 = self.emit_mem(op2, vm);
 
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // xor op2, res -> res
-                                    self.backend.emit_xor_r64_mem64(&res_tmp, &mem_op2);
+                                    self.backend.emit_xor_r_mem(&res_tmp, &mem_op2);
                                 } else if self.match_ireg(op1) && self.match_ireg(op2) {
                                     trace!("emit xor-ireg-ireg");
 
@@ -575,9 +572,9 @@ impl <'a> InstructionSelection {
                                     let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                                     // mov op1, res
-                                    self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     // xor op2, res -> res
-                                    self.backend.emit_xor_r64_r64(&res_tmp, &tmp_op2);
+                                    self.backend.emit_xor_r_r(&res_tmp, &tmp_op2);
                                 } else {
                                     unimplemented!()
                                 }
@@ -589,15 +586,15 @@ impl <'a> InstructionSelection {
                                 if self.match_iimm(op1) {
                                     let imm_op1 = self.node_iimm_to_i32(op1);
                                     
-                                    self.backend.emit_mov_r64_imm32(&rax, imm_op1);
+                                    self.backend.emit_mov_r_imm(&rax, imm_op1);
                                 } else if self.match_mem(op1) {
                                     let mem_op1 = self.emit_mem(op1, vm);
                                     
-                                    self.backend.emit_mov_r64_mem64(&rax, &mem_op1);
+                                    self.backend.emit_mov_r_mem(&rax, &mem_op1);
                                 } else if self.match_ireg(op1) {
                                     let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
 
-                                    self.backend.emit_mov_r64_r64(&rax, &reg_op1);
+                                    self.backend.emit_mov_r_r(&rax, &reg_op1);
                                 } else {
                                     unimplemented!();
                                 }
@@ -609,23 +606,23 @@ impl <'a> InstructionSelection {
                                     
                                     // put imm in a temporary
                                     // here we use result reg as temporary
-                                    self.backend.emit_mov_r64_imm32(&res_tmp, imm_op2);
+                                    self.backend.emit_mov_r_imm(&res_tmp, imm_op2);
                                     
-                                    self.backend.emit_mul_r64(&res_tmp);
+                                    self.backend.emit_mul_r(&res_tmp);
                                 } else if self.match_mem(op2) {
                                     let mem_op2 = self.emit_mem(op2, vm);
                                     
-                                    self.backend.emit_mul_mem64(&mem_op2);
+                                    self.backend.emit_mul_mem(&mem_op2);
                                 } else if self.match_ireg(op2) {
                                     let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                                    self.backend.emit_mul_r64(&reg_op2);
+                                    self.backend.emit_mul_r(&reg_op2);
                                 } else {
                                     unimplemented!();
                                 }
                                 
                                 // mov rax -> result
-                                self.backend.emit_mov_r64_r64(&res_tmp, &rax);
+                                self.backend.emit_mov_r_r(&res_tmp, &rax);
                             },
                             op::BinOp::Udiv => {
                                 let op1 = &ops[op1];
@@ -634,7 +631,7 @@ impl <'a> InstructionSelection {
                                 self.emit_udiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rax -> result
-                                self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RAX);
+                                self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
                             },
                             op::BinOp::Sdiv => {
                                 let op1 = &ops[op1];
@@ -643,7 +640,7 @@ impl <'a> InstructionSelection {
                                 self.emit_idiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rax -> result
-                                self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RAX);
+                                self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
                             },
                             op::BinOp::Urem => {
                                 let op1 = &ops[op1];
@@ -652,7 +649,7 @@ impl <'a> InstructionSelection {
                                 self.emit_udiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rdx -> result
-                                self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RDX);
+                                self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
                             },
                             op::BinOp::Srem => {
                                 let op1 = &ops[op1];
@@ -661,7 +658,7 @@ impl <'a> InstructionSelection {
                                 self.emit_idiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rdx -> result
-                                self.backend.emit_mov_r64_r64(&res_tmp, &x86_64::RDX);
+                                self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
                             },
 
                             op::BinOp::Shl => {
@@ -677,21 +674,21 @@ impl <'a> InstructionSelection {
                                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
                                         // shl op1, op2 -> op1
-                                        self.backend.emit_shl_r64_imm8(&tmp_op1, imm_op2);
+                                        self.backend.emit_shl_r_imm8(&tmp_op1, imm_op2);
 
                                         // mov op1 -> result
-                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     } else if self.match_ireg(op2) {
                                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                                        // mov op2 -> rcx
-                                        self.backend.emit_mov_r64_r64(&x86_64::RCX, &tmp_op2);
+                                        // mov op2 -> cl
+                                        self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
                                         // shl op1, cl -> op1
-                                        self.backend.emit_shl_r64_cl(&tmp_op1);
+                                        self.backend.emit_shl_r_cl(&tmp_op1);
 
                                         // mov op1 -> result
-                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     } else {
                                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                                     }
@@ -712,21 +709,21 @@ impl <'a> InstructionSelection {
                                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
                                         // shr op1, op2 -> op1
-                                        self.backend.emit_shr_r64_imm8(&tmp_op1, imm_op2);
+                                        self.backend.emit_shr_r_imm8(&tmp_op1, imm_op2);
 
                                         // mov op1 -> result
-                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     } else if self.match_ireg(op2) {
                                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                                        // mov op2 -> rcx
-                                        self.backend.emit_mov_r64_r64(&x86_64::RCX, &tmp_op2);
+                                        // mov op2 -> cl
+                                        self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
                                         // shr op1, cl -> op1
-                                        self.backend.emit_shr_r64_cl(&tmp_op1);
+                                        self.backend.emit_shr_r_cl(&tmp_op1);
 
                                         // mov op1 -> result
-                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     } else {
                                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                                     }
@@ -747,21 +744,21 @@ impl <'a> InstructionSelection {
                                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
                                         // sar op1, op2 -> op1
-                                        self.backend.emit_sar_r64_imm8(&tmp_op1, imm_op2);
+                                        self.backend.emit_sar_r_imm8(&tmp_op1, imm_op2);
 
                                         // mov op1 -> result
-                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     } else if self.match_ireg(op2) {
                                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                                        // mov op2 -> rcx
-                                        self.backend.emit_mov_r64_r64(&x86_64::RCX, &tmp_op2);
+                                        // mov op2 -> cl
+                                        self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
                                         // sar op1, cl -> op1
-                                        self.backend.emit_sar_r64_cl(&tmp_op1);
+                                        self.backend.emit_sar_r_cl(&tmp_op1);
 
                                         // mov op1 -> result
-                                        self.backend.emit_mov_r64_r64(&res_tmp, &tmp_op1);
+                                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                                     } else  {
                                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                                     }
@@ -800,11 +797,6 @@ impl <'a> InstructionSelection {
                             
                             _ => unimplemented!()
                         }
-
-                        // truncate result
-                        if res_tmp.is_int_reg() {
-                            self.emit_truncate_result(&UINT64_TYPE, &res_tmp.ty, &res_tmp, f_context, vm);
-                        }
                     }
 
                     Instruction_::ConvOp{operation, ref from_ty, ref to_ty, operand} => {
@@ -829,10 +821,7 @@ impl <'a> InstructionSelection {
                                     let tmp_res = self.get_result_value(node);
 
                                     // mov op -> result
-                                    self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
-
-                                    // truncate result
-                                    self.emit_truncate_result(from_ty, to_ty, &tmp_res, f_context, vm);
+                                    self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
                                 }
@@ -847,39 +836,8 @@ impl <'a> InstructionSelection {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
                                     let tmp_res = self.get_result_value(node);
 
-                                    if from_ty_len == to_ty_len {
-                                        // do not need to do anything
-                                        // a simple move (and hopefully it will get removed)
-                                        self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
-                                        return;
-                                    } else {
-                                        // fake a zero extend by masking out higher bits
-                                        if from_ty_len < 32 {
-                                            let mask = match from_ty_len {
-                                                1 => 0x1i32,
-                                                8 => 0xFFi32,
-                                                16 => 0xFFFFi32,
-                                                _ => unimplemented!()
-                                            };
-
-                                            // mov op -> result
-                                            self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
-
-                                            // and mask result -> result
-                                            self.backend.emit_and_r64_imm32(&tmp_res, mask);
-                                        } else if from_ty_len == 32 {
-                                            let tmp_mask = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                                            self.backend.emit_mov_r64_imm64(&tmp_mask, 0xFFFFFFFF as i64);
-
-                                            // mov op -> result
-                                            self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
-
-                                            // and mask result -> result
-                                            self.backend.emit_and_r64_r64(&tmp_res, &tmp_mask);
-                                        } else {
-                                            unimplemented!()
-                                        }
-                                    }
+                                    // movz op -> result
+                                    self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
                                 }
@@ -891,10 +849,8 @@ impl <'a> InstructionSelection {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
                                     let tmp_res = self.get_result_value(node);
 
-                                    // mov op -> result
-                                    self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
-
-                                    self.emit_sign_extend_operand(from_ty, to_ty, &tmp_res);
+                                    // movs op -> result
+                                    self.backend.emit_movs_r_r(&tmp_res, &tmp_op);
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op)
                                 }
@@ -905,7 +861,7 @@ impl <'a> InstructionSelection {
 
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                                    self.backend.emit_mov_r64_r64(&tmp_res, &tmp_op);
+                                    self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op)
                                 }
@@ -936,7 +892,7 @@ impl <'a> InstructionSelection {
                         
                         if self.match_ireg(node) {
                             // emit mov(GPR)
-                            self.backend.emit_mov_r64_mem64(&res_temp, &resolved_loc);
+                            self.backend.emit_mov_r_mem(&res_temp, &resolved_loc);
                         } else {
                             // emit mov(FPR)
                             unimplemented!()
@@ -963,14 +919,14 @@ impl <'a> InstructionSelection {
                         if self.match_iimm(val_op) {
                             let val = self.node_iimm_to_i32(val_op);
                             if generate_plain_mov {
-                                self.backend.emit_mov_mem64_imm32(&resolved_loc, val);
+                                self.backend.emit_mov_mem_imm(&resolved_loc, val);
                             } else {
                                 unimplemented!()
                             }
                         } else if self.match_ireg(val_op) {
                             let val = self.emit_ireg(val_op, f_content, f_context, vm);
                             if generate_plain_mov {
-                                self.backend.emit_mov_mem64_r64(&resolved_loc, &val);
+                                self.backend.emit_mov_mem_r(&resolved_loc, &val);
                             } else {
                                 unimplemented!()
                             }
@@ -996,7 +952,7 @@ impl <'a> InstructionSelection {
                         
                         // get thread local and add offset to get sp_loc
                         let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
-                        self.backend.emit_add_r64_imm32(&tl, *thread::NATIVE_SP_LOC_OFFSET as i32);
+                        self.backend.emit_add_r_imm(&tl, *thread::NATIVE_SP_LOC_OFFSET as i32);
                         
                         self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, Some(node), f_content, f_context, vm);
                     }
@@ -1074,28 +1030,28 @@ impl <'a> InstructionSelection {
                                 match is_power_of_two(var_ty_size) {
                                     Some(shift) => {
                                         // a shift-left will get the total size of var part
-                                        self.backend.emit_shl_r64_imm8(&tmp_var_len, shift);
+                                        self.backend.emit_shl_r_imm8(&tmp_var_len, shift);
 
                                         // add with fix-part size
-                                        self.backend.emit_add_r64_imm32(&tmp_var_len, fix_part_size as i32);
+                                        self.backend.emit_add_r_imm(&tmp_var_len, fix_part_size as i32);
 
                                         // mov result to tmp_actual_size
-                                        self.backend.emit_mov_r64_r64(&tmp_actual_size, &tmp_var_len);
+                                        self.backend.emit_mov_r_r(&tmp_actual_size, &tmp_var_len);
                                     }
                                     None => {
                                         // we need to do a multiply
 
                                         // mov var_ty_size -> rax
-                                        self.backend.emit_mov_r64_imm32(&x86_64::RAX, var_ty_size as i32);
+                                        self.backend.emit_mov_r_imm(&x86_64::RAX, var_ty_size as i32);
 
                                         // mul tmp_var_len, rax -> rdx:rax
-                                        self.backend.emit_mul_r64(&tmp_var_len);
+                                        self.backend.emit_mul_r(&tmp_var_len);
 
                                         // add with fix-part size
-                                        self.backend.emit_add_r64_imm32(&x86_64::RAX, fix_part_size as i32);
+                                        self.backend.emit_add_r_imm(&x86_64::RAX, fix_part_size as i32);
 
                                         // mov result to tmp_actual_size
-                                        self.backend.emit_mov_r64_r64(&tmp_actual_size, &x86_64::RAX);
+                                        self.backend.emit_mov_r_r(&tmp_actual_size, &x86_64::RAX);
                                     }
                                 }
 
@@ -1188,7 +1144,7 @@ impl <'a> InstructionSelection {
             let blk_alloc_large = format!("{}_alloc_large", node.id());
             let blk_alloc_large_end = format!("{}_alloc_large_end", node.id());
 
-            self.backend.emit_cmp_imm32_r64(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
+            self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
             self.backend.emit_jg(blk_alloc_large.clone());
 
             // alloc small here
@@ -1258,7 +1214,7 @@ impl <'a> InstructionSelection {
         let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
         self.emit_lea_base_immoffset(&tmp_start, &tmp_cursor, align - 1, vm);
         // ASM: and %start, !(align-1) -> %start
-        self.backend.emit_and_r64_imm32(&tmp_start, !(align - 1) as i32);
+        self.backend.emit_and_r_imm(&tmp_start, !(align - 1) as i32);
 
         // bump cursor
         // ASM: add %size, %start -> %end
@@ -1268,15 +1224,15 @@ impl <'a> InstructionSelection {
             let offset = size.extract_int_const() as i32;
             self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
         } else {
-            self.backend.emit_mov_r64_r64(&tmp_end, &tmp_start);
-            self.backend.emit_add_r64_r64(&tmp_end, &size);
+            self.backend.emit_mov_r_r(&tmp_end, &tmp_start);
+            self.backend.emit_add_r_r(&tmp_end, &size);
         }
 
         // check with limit
         // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
         let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
         let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
-        self.backend.emit_cmp_mem64_r64(&mem_limit, &tmp_end);
+        self.backend.emit_cmp_mem_r(&mem_limit, &tmp_end);
 
         // branch to slow path if end > limit (end - limit > 0)
         // ASM: jg alloc_slow
@@ -1290,7 +1246,7 @@ impl <'a> InstructionSelection {
         // put start as result
         // ASM: mov %start -> %result
         let tmp_res = self.get_result_value(node);
-        self.backend.emit_mov_r64_r64(&tmp_res, &tmp_start);
+        self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
 
         // ASM jmp alloc_end
         let allocend = format!("{}_alloc_small_end", node.id());
@@ -1336,77 +1292,11 @@ impl <'a> InstructionSelection {
         tmp_res
     }
 
-    fn emit_truncate_result (&mut self, from_ty: &P<MuType>, to_ty: &P<MuType>, op: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
-        // currently only use 64bits register
-        // so only keep what is needed in the register (set others to 0)
-        let from_ty_len = match from_ty.v {
-            MuType_::Int(len) => len,
-            _ => panic!("only expect int types, found: {}", from_ty)
-        };
-        let to_ty_len   = match to_ty.v {
-            MuType_::Int(len) => len,
-            _ => panic!("only expect int types, found: {}", to_ty)
-        };
-
-        if from_ty_len == to_ty_len {
-            return;
-        } else {
-            debug_assert!(from_ty_len > to_ty_len);
-
-            if to_ty_len < 32 {
-                // ignoring from_ty for now (we use 64bits register for everything)
-                let mask = match to_ty_len {
-                    1 => 0x1i32,
-                    8 => 0xFFi32,
-                    16 => 0xFFFFi32,
-                    _ => unimplemented!()
-                };
-
-                // and mask, result -> result
-                self.backend.emit_and_r64_imm32(&op, mask);
-            } else if to_ty_len == 32 {
-                let tmp_mask = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-
-                self.backend.emit_mov_r64_imm64(&tmp_mask, 0xFFFFFFFF as i64);
-
-                self.backend.emit_and_r64_r64(&op, &tmp_mask);
-            } else {
-                unimplemented!()
-            }
-        }
-    }
-
-    fn emit_sign_extend_operand (&mut self, from_ty: &P<MuType>, to_ty: &P<MuType>, op: &P<Value>) {
-        // currently only use 64bits register
-        // we left shift the value, then arithmetic right shift back
-        let from_ty_len = match from_ty.v {
-            MuType_::Int(len) => len,
-            _ => panic!("only expect int types, found: {}", from_ty)
-        };
-        let to_ty_len   = match to_ty.v {
-            MuType_::Int(len) => len,
-            _ => panic!("only expect int types, found: {}", to_ty)
-        };
-
-        if from_ty_len == to_ty_len {
-            return;
-        } else {
-            debug_assert!(to_ty_len > from_ty_len);
-
-            let shift : i8 = (to_ty_len - from_ty_len) as i8;
-
-            // shl result, shift -> result
-            self.backend.emit_shl_r64_imm8(&op, shift);
-            // sar result, shift -> result
-            self.backend.emit_sar_r64_imm8(&op, shift);
-        }
-    }
-
     fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
 
         if dest.is_int_reg() {
-            self.backend.emit_mov_r64_mem64(dest, &mem);
+            self.backend.emit_mov_r_mem(dest, &mem);
         } else if dest.is_fp_reg() {
             self.backend.emit_movsd_f64_mem64(dest, &mem);
         } else {
@@ -1417,7 +1307,7 @@ impl <'a> InstructionSelection {
     fn emit_store_base_offset (&mut self, base: &P<Value>, offset: i32, src: &P<Value>, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, src.ty.clone(), vm);
         
-        self.backend.emit_mov_mem64_r64(&mem, src);
+        self.backend.emit_mov_mem_r(&mem, src);
     }
     
     fn emit_lea_base_immoffset(&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
@@ -1441,25 +1331,25 @@ impl <'a> InstructionSelection {
 
         // xorq rdx, rdx -> rdx
         let rdx = x86_64::RDX.clone();
-        self.backend.emit_xor_r64_r64(&rdx, &rdx);
+        self.backend.emit_xor_r_r(&rdx, &rdx);
 
         // div op2
         if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2, vm);
 
-            self.backend.emit_div_mem64(&mem_op2);
+            self.backend.emit_div_mem(&mem_op2);
         } else if self.match_iimm(op2) {
             let imm = self.node_iimm_to_i32(op2);
             // moving to a temp
             let temp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-            self.backend.emit_mov_r64_imm32(&temp, imm);
+            self.backend.emit_mov_r_imm(&temp, imm);
 
             // div tmp
-            self.backend.emit_div_r64(&temp);
+            self.backend.emit_div_r(&temp);
         } else if self.match_ireg(op2) {
             let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-            self.backend.emit_div_r64(&reg_op2);
+            self.backend.emit_div_r(&reg_op2);
         } else {
             unimplemented!();
         }
@@ -1478,16 +1368,13 @@ impl <'a> InstructionSelection {
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
         self.emit_move_value_to_value(&rax, &reg_op1);
 
-        // sign extend rax
-        self.emit_sign_extend_operand(&reg_op1.ty, &UINT64_TYPE, &rax);
-
         // cqo
         self.backend.emit_cqo();
 
         // idiv op2
         if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2, vm);
-            self.backend.emit_idiv_mem64(&mem_op2);
+            self.backend.emit_idiv_mem(&mem_op2);
 
             // need to sign extend op2
             unimplemented!()
@@ -1495,16 +1382,14 @@ impl <'a> InstructionSelection {
             let imm = self.node_iimm_to_i32(op2);
             // moving to a temp
             let temp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-            self.backend.emit_mov_r64_imm32(&temp, imm);
+            self.backend.emit_mov_r_imm(&temp, imm);
 
             // idiv temp
-            self.backend.emit_idiv_r64(&temp);
+            self.backend.emit_idiv_r(&temp);
         } else if self.match_ireg(op2) {
             let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-            self.emit_sign_extend_operand(&reg_op2.ty, &UINT64_TYPE, &reg_op2);
-
-            self.backend.emit_idiv_r64(&reg_op2);
+            self.backend.emit_idiv_r(&reg_op2);
         } else {
             unimplemented!();
         }
@@ -1567,18 +1452,30 @@ impl <'a> InstructionSelection {
         for arg in args.iter() {
             if arg.is_int_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                    self.backend.emit_mov_r64_r64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
+                    let arg_gpr = {
+                        let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
+                        let expected_len = arg.ty.get_int_length().unwrap();
+                        x86_64::get_alias_for_length(reg64.id(), expected_len)
+                    };
+
+                    self.backend.emit_mov_r_r(&arg_gpr, &arg);
                     gpr_arg_count += 1;
                 } else {
                     // use stack to pass argument
                     stack_args.push(arg.clone());
                 }
             } else if arg.is_int_const() {
+                let arg_gpr = {
+                    let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
+                    let expected_len = arg.ty.get_int_length().unwrap();
+                    x86_64::get_alias_for_length(reg64.id(), expected_len)
+                };
+
                 if x86_64::is_valid_x86_imm(arg) {                
                     let int_const = arg.extract_int_const() as i32;
                     
                     if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                        self.backend.emit_mov_r64_imm32(&x86_64::ARGUMENT_GPRs[gpr_arg_count], int_const);
+                        self.backend.emit_mov_r_imm(&arg_gpr, int_const);
                         gpr_arg_count += 1;
                     } else {
                         // use stack to pass argument
@@ -1589,13 +1486,7 @@ impl <'a> InstructionSelection {
                     unimplemented!()
                 }
             } else if arg.is_mem() {
-                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                    self.backend.emit_mov_r64_mem64(&x86_64::ARGUMENT_GPRs[gpr_arg_count], &arg);
-                    gpr_arg_count += 1;
-                } else {
-                    // use stack to pass argument
-                    stack_args.push(arg.clone());
-                }
+                unimplemented!()
             } else {
                 // floating point
                 unimplemented!()
@@ -1632,7 +1523,7 @@ impl <'a> InstructionSelection {
                     index += 1;
                 }
 
-                self.backend.emit_add_r64_imm32(&x86_64::RSP, (- (stack_arg_size as i32)) as i32);
+                self.backend.emit_add_r_imm(&x86_64::RSP, (- (stack_arg_size as i32)) as i32);
             }
 
             stack_arg_size_with_padding
@@ -1666,7 +1557,13 @@ impl <'a> InstructionSelection {
 
             if ret_val.is_int_reg() {
                 if gpr_ret_count < x86_64::RETURN_GPRs.len() {
-                    self.backend.emit_mov_r64_r64(&ret_val, &x86_64::RETURN_GPRs[gpr_ret_count]);
+                    let ret_gpr = {
+                        let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
+                        let expected_len = ret_val.ty.get_int_length().unwrap();
+                        x86_64::get_alias_for_length(reg64.id(), expected_len)
+                    };
+
+                    self.backend.emit_mov_r_r(&ret_val, &ret_gpr);
                     gpr_ret_count += 1;
                 } else {
                     // get return value by stack
@@ -1682,7 +1579,7 @@ impl <'a> InstructionSelection {
 
         // remove stack_args
         if precall_stack_arg_size != 0 {
-            self.backend.emit_add_r64_imm32(&x86_64::RSP, precall_stack_arg_size as i32);
+            self.backend.emit_add_r_imm(&x86_64::RSP, precall_stack_arg_size as i32);
         }
 
         return_vals
@@ -1935,7 +1832,7 @@ impl <'a> InstructionSelection {
         // push rbp
         self.backend.emit_push_r64(&x86_64::RBP);
         // mov rsp -> rbp
-        self.backend.emit_mov_r64_r64(&x86_64::RBP, &x86_64::RSP);
+        self.backend.emit_mov_r_r(&x86_64::RBP, &x86_64::RSP);
         
         // push all callee-saved registers
         {
@@ -1967,7 +1864,14 @@ impl <'a> InstructionSelection {
         for arg in args {
             if arg.is_int_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                    self.backend.emit_mov_r64_r64(&arg, &x86_64::ARGUMENT_GPRs[gpr_arg_count]);
+                    let arg_gpr = {
+                        let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
+                        let expected_len = arg.ty.get_int_length().unwrap();
+                        x86_64::get_alias_for_length(reg64.id(), expected_len)
+                    };
+
+                    self.backend.emit_mov_r_r(&arg, &arg_gpr);
+
                     gpr_arg_count += 1;
                 } else {
                     // unload from stack
@@ -2015,13 +1919,19 @@ impl <'a> InstructionSelection {
             let ref ret_val = ops[*i];
             if self.match_ireg(ret_val) {
                 let reg_ret_val = self.emit_ireg(ret_val, f_content, f_context, vm);
+
+                let ret_gpr = {
+                    let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
+                    let expected_len = reg_ret_val.ty.get_int_length().unwrap();
+                    x86_64::get_alias_for_length(reg64.id(), expected_len)
+                };
                 
-                self.backend.emit_mov_r64_r64(&x86_64::RETURN_GPRs[gpr_ret_count], &reg_ret_val);
+                self.backend.emit_mov_r_r(&ret_gpr, &reg_ret_val);
                 gpr_ret_count += 1;
             } else if self.match_iimm(ret_val) {
                 let imm_ret_val = self.node_iimm_to_i32(ret_val);
                 
-                self.backend.emit_mov_r64_imm32(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
+                self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
                 gpr_ret_count += 1;
             } else if self.match_fpreg(ret_val) {
                 let reg_ret_val = self.emit_fpreg(ret_val, f_content, f_context, vm);
@@ -2077,21 +1987,11 @@ impl <'a> InstructionSelection {
                                 let ref ty_op1   = op1.clone_value().ty;
                                 let iimm_op1 = self.node_iimm_to_i32(op1);
 
-                                self.backend.emit_mov_r64_imm32(&tmp_op1, iimm_op1);
-
-                                match op {
-                                    op::CmpOp::SGE
-                                    | op::CmpOp::SGT
-                                    | op::CmpOp::SLE
-                                    | op::CmpOp::SLT => {
-                                        self.emit_sign_extend_operand(ty_op1, &tmp_op1.ty, &tmp_op1);
-                                    },
-                                    _ => {}
-                                }
+                                self.backend.emit_mov_r_imm(&tmp_op1, iimm_op1);
 
                                 let iimm_op2 = self.node_iimm_to_i32(op2);
 
-                                self.backend.emit_cmp_imm32_r64(iimm_op2, &tmp_op1);
+                                self.backend.emit_cmp_imm_r(iimm_op2, &tmp_op1);
 
                                 return op;
                             } else if self.match_ireg(op1) && self.match_iimm(op2) {
@@ -2101,14 +2001,14 @@ impl <'a> InstructionSelection {
                                 // we adopt at&t syntax
                                 // so CMP op1 op2
                                 // is actually CMP op2 op1 (in machine code)
-                                self.backend.emit_cmp_imm32_r64(iimm_op2, &reg_op1);
+                                self.backend.emit_cmp_imm_r(iimm_op2, &reg_op1);
 
                                 return op;
                             } else if self.match_ireg(op1) && self.match_ireg(op2) {
                                 let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
                                 let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                                self.backend.emit_cmp_r64_r64(&reg_op2, &reg_op1);
+                                self.backend.emit_cmp_r_r(&reg_op2, &reg_op1);
 
                                 return op;
                             } else {
@@ -2195,7 +2095,7 @@ impl <'a> InstructionSelection {
                                 if x86_64::is_valid_x86_imm(pv) {
                                     let val = self.value_iimm_to_i32(&pv);
 
-                                    self.backend.emit_mov_r64_imm32(&tmp, val)
+                                    self.backend.emit_mov_r_imm(&tmp, val)
                                 } else {
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
@@ -2204,7 +2104,7 @@ impl <'a> InstructionSelection {
                                 unimplemented!()
                             },
                             &Constant::NullRef => {
-                                self.backend.emit_xor_r64_r64(&tmp, &tmp);
+                                self.backend.emit_xor_r_r(&tmp, &tmp);
                             },
                             _ => panic!("expected ireg")
                         }
@@ -2620,10 +2520,10 @@ impl <'a> InstructionSelection {
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
             if self.match_iimm(src) {
                 let src_imm = self.node_iimm_to_i32(src);
-                self.backend.emit_mov_r64_imm32(dest, src_imm);
+                self.backend.emit_mov_r_imm(dest, src_imm);
             } else if self.match_ireg(src) {
                 let src_reg = self.emit_ireg(src, f_content, f_context, vm);
-                self.backend.emit_mov_r64_r64(dest, &src_reg);
+                self.backend.emit_mov_r_r(dest, &src_reg);
             } else {
                 panic!("expected an int type op");
             }
@@ -2640,17 +2540,17 @@ impl <'a> InstructionSelection {
         if types::is_scalar(src_ty) && !types::is_fp(src_ty) {
             // gpr mov
             if dest.is_int_reg() && src.is_int_reg() {
-                self.backend.emit_mov_r64_r64(dest, src);
+                self.backend.emit_mov_r_r(dest, src);
             } else if dest.is_int_reg() && src.is_mem() {
-                self.backend.emit_mov_r64_mem64(dest, src);
+                self.backend.emit_mov_r_mem(dest, src);
             } else if dest.is_int_reg() && src.is_int_const() {
                 let imm = self.value_iimm_to_i32(src);
-                self.backend.emit_mov_r64_imm32(dest, imm);
+                self.backend.emit_mov_r_imm(dest, imm);
             } else if dest.is_mem() && src.is_int_reg() {
-                self.backend.emit_mov_mem64_r64(dest, src);
+                self.backend.emit_mov_mem_r(dest, src);
             } else if dest.is_mem() && src.is_int_const() {
                 let imm = self.value_iimm_to_i32(src);
-                self.backend.emit_mov_mem64_imm32(dest, imm);
+                self.backend.emit_mov_mem_imm(dest, imm);
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }

@@ -15,7 +15,7 @@ fn test_add_u8() {
     let lib = testutil::compile_fnc("add_u8", &add_u8);
 
     unsafe {
-        let add_u8 : libloading::Symbol<unsafe extern fn(u8, u8) -> u64> = lib.get(b"add_u8").unwrap();
+        let add_u8 : libloading::Symbol<unsafe extern fn(u8, u8) -> u8> = lib.get(b"add_u8").unwrap();
 
         let add_u8_1_1 = add_u8(1, 1);
         println!("add_u8(1, 1) = {}", add_u8_1_1);
@@ -99,7 +99,7 @@ fn test_truncate() {
     let lib = testutil::compile_fnc("truncate", &truncate);
 
     unsafe {
-        let truncate : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"truncate").unwrap();
+        let truncate : libloading::Symbol<unsafe extern fn(u64) -> u8> = lib.get(b"truncate").unwrap();
 
         let res = truncate(0xF01u64);
         println!("truncate(0xF01) = {}", res);
