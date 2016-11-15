@@ -10,7 +10,13 @@ testsuite_dir = test_jit_dir.join('suite')
 bin_dir = test_jit_dir.join('temp')
 if not bin_dir.exists():
     bin_dir.mkdir()
-libmu_path = proj_dir.join('target', 'debug', 'libmu.dylib')
+if sys.platform.startswith('darwin'):
+    libext = '.dylib'
+elif sys.platform.startswith('linux'):
+    libext = '.so'
+else:
+    libext = '.dll'
+libmu_path = proj_dir.join('target', 'debug', 'libmu' + libext)
 
 
 def compile_c_script(c_src_name):
