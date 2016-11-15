@@ -52,22 +52,22 @@ test:cargo:runtime:
 testjit:milestones:
   stage: test
   script:
-    - RUST_BACKTRACE=1 pytest tests/test_jit/test_milestones.py
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_milestones.py -v
 
 testjit:binops:
   stage: test
   script:
-    - RUST_BACKTRACE=1 pytest tests/test_jit/test_binops.py
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_binops.py -v
 
 testjit:cmpops:
   stage: test
   script:
-    - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py -v
 
 testjit:convops:
   stage: test
   script:
-    - RUST_BACKTRACE=1 pytest tests/test_jit/test_convops.py
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_convops.py -v
 
 testjit:rpython:
   stage: test
@@ -77,7 +77,7 @@ testjit:rpython:
     - git checkout test-mu-impl-jit
     - cd rpython/translator/mu/rpyc; make
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy MU_RUST=$CI_PROJECT_DIR pytest test_rpython.py
+    - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy MU_RUST=$CI_PROJECT_DIR pytest test_rpython.py -v
   cache:
     key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
     paths:
