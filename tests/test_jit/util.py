@@ -83,6 +83,7 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     # NOTE: requires mu-client-pypy
     from rpython.rtyper.lltypesystem import rffi
     from rpython.translator.interactive import Translation
+    from rpython.config.translationoption import set_opt_level
 
     # load libmu before rffi so to load it with RTLD_GLOBAL
     libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
@@ -93,6 +94,7 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     kwargs.setdefault('mutestjit', True)
 
     t = Translation(rpy_fnc, llargtypes, **kwargs)
+    set_opt_level(t.config, '3')
     if kwargs['backend'] == 'mu':
         db, bdlgen, fnc_name = t.compile_mu()
         libname = 'lib%(fnc_name)s.dylib' % locals()
