@@ -4,16 +4,13 @@ Performance comparison
 from time import time
 from tempfile import mkdtemp
 import py, os
-import inspect
 import subprocess as subp
 import ctypes
-import importlib
 
-from rpython.rtyper.lltypesystem import lltype, rffi
 from rpython.translator.interactive import Translation
 from rpython.config.translationoption import set_opt_level
 
-from util import fncptr_from_rpy_func
+from util import libmu_path
 
 CPYTHON = os.environ.get('CPYTHON', 'python')
 PYPY = os.environ.get('PYPY', 'pypy')
@@ -21,7 +18,7 @@ RPYTHON = os.environ.get('RPYTHON', None)
 
 
 def run(cmd):
-    print ' '.join(cmd)
+    # print ' '.join(cmd)
     p = subp.Popen(cmd, stdout=subp.PIPE, stderr=subp.PIPE)
     return p.communicate()
 
@@ -83,22 +80,16 @@ def target(*args):
     with py_file.open('w') as fp:
         fp.write(file_str)
 
-
-    N = 30
-
-    def run_cpython():
+    def run_cpython(N):
         out, _ = run([CPYTHON, py_file.strpath, str(N)])
-        print out
         return float(out)
 
-    def run_pypy_nojit():
+    def run_pypy_nojit(N):
         out, _ = run([PYPY, '--jit', 'off', py_file.strpath, str(N)])
-        print out
         return float(out)
 
-    def run_pypy():
-        out, _ = run([PYPY, '--jit', 'off', py_file.strpath, str(N)])
-        print out
+    def run_pypy(N):
+        out, _ = run([PYPY, py_file.strpath, str(N)])
         return float(out)
 
     def compile_rpython_c():
@@ -129,22 +120,48 @@ def target(*args):
         mod = {}
         exec (file_str, mod)
         rpy_fnc = mod['fib']
-        fnp, _ = fncptr_from_rpy_func(rpy_fnc, [lltype.Signed], lltype.Signed)
+
+        # load libmu before rffi so to load it with RTLD_GLOBAL
+        libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
+
+        t = Translation(rpy_fnc, [int],
+                        backend='mu', muimpl='fast', mucodegen='api', mutestjit=True)
+        set_opt_level(t.config, '3')
+        db, bdlgen, fnc_name = t.compile_mu()
+        libname = 'lib%(fnc_name)s.dylib' % locals()
+        bdlgen.mu.compile_to_sharedlib(libname, [])
+        libpath = py.path.local().join('emit', libname)
+        fnp = getattr(ctypes.CDLL(libpath.strpath), fnc_name)
         return fnp
 
-    def run_funcptr(fnp):
-        t0 = time()
-        fnp(N)
-        t1 = time()
-        return t1 - t0
+    def get_average_time(run_fnc, args, warmup=5, iterations=100):
+        for i in range(warmup):
+            run_fnc(*args)
 
+        total = 0.0
+        for i in range(iterations):
+            total += run_fnc(*args)
+        return total / iterations
 
-    t_cpython = run_cpython()
-    t_pypy_nojit = run_pypy_nojit()
-    t_pypy = run_pypy()
-    t_rpyc = run_funcptr(compile_rpython_c())
-    t_rpyc_jit = run_funcptr(compile_rpython_c_jit())
-    t_rpyc_mu = run_funcptr(compile_rpython_mu())
+    def get_average_time_compiled(compile_fnc, args, warmup=5, iterations=100):
+        def run_funcptr(fnp, N):
+            t0 = time()
+            fnp(N)
+            t1 = time()
+            return t1 - t0
+
+        fnp = compile_fnc()
+        return get_average_time(lambda *a: run_funcptr(fnp, *a), args, warmup, iterations)
+
+    N = 100000
+    iterations = 20
+
+    t_cpython = get_average_time(run_cpython, [N], iterations=iterations)
+    t_pypy_nojit = get_average_time(run_pypy_nojit, [N], iterations=iterations)
+    t_pypy = get_average_time(run_pypy, [N], iterations=iterations)
+    t_rpyc = get_average_time_compiled(compile_rpython_c, [N], iterations=iterations)
+    t_rpyc_jit = get_average_time_compiled(compile_rpython_c_jit, [N], iterations=iterations)
+    t_rpyc_mu = get_average_time_compiled(compile_rpython_mu, [N], iterations=iterations)
     print "CPython:", t_cpython
     print "PyPy (no JIT):", t_pypy_nojit
     print "PyPy:", t_pypy
