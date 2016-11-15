@@ -174,6 +174,18 @@ pub fn get_color_for_precolroed(id: MuID) -> MuID {
     }
 }
 
+#[inline(always)]
+pub fn check_op_len(op: &P<Value>) -> usize {
+    match op.ty.get_int_length() {
+        Some(64) => 64,
+        Some(32) => 32,
+        Some(16) => 16,
+        Some(8)  => 8,
+        Some(1)  => 8,
+        _ => panic!("unimplemented int types: {}", op.ty)
+    }
+}
+
 lazy_static! {
     pub static ref RETURN_GPRs : [P<Value>; 2] = [
         RAX.clone(),

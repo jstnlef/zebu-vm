@@ -8,6 +8,7 @@ use utils::ByteSize;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::{Reg, Mem};
+use compiler::backend::x86_64::check_op_len;
 use compiler::machine_code::MachineCode;
 use vm::VM;
 use runtime::ValueLocation;
@@ -1460,18 +1461,6 @@ fn op_postfix(op_len: usize) -> &'static str {
         32 => "l",
         64 => "q",
         _  => panic!("unexpected op size: {}", op_len)
-    }
-}
-
-#[inline(always)]
-fn check_op_len(op: &P<Value>) -> usize {
-    match op.ty.get_int_length() {
-        Some(64) => 64,
-        Some(32) => 32,
-        Some(16) => 16,
-        Some(8)  => 8,
-        Some(1)  => 8,
-        _ => panic!("unimplemented int types: {}", op.ty)
     }
 }
 

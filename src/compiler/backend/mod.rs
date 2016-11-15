@@ -65,6 +65,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         // integral
         MuType_::Int(size_in_bit) => {
             match size_in_bit {
+                1  => BackendTypeInfo{size: 1, alignment: 1, struct_layout: None},
                 8  => BackendTypeInfo{size: 1, alignment: 1, struct_layout: None},
                 16 => BackendTypeInfo{size: 2, alignment: 2, struct_layout: None},
                 32 => BackendTypeInfo{size: 4, alignment: 4, struct_layout: None},

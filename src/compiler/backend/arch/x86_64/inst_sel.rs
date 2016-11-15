@@ -827,32 +827,35 @@ impl <'a> InstructionSelection {
                                 }
                             }
                             op::ConvOp::ZEXT => {
-                                // currently only use 64bits register
-                                // so set irrelevant bits to 0
-                                let from_ty_len = extract_int_len(from_ty);
-                                let to_ty_len   = extract_int_len(to_ty);
+                                let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
+                                let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
-                                if self.match_ireg(op) {
-                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                                    let tmp_res = self.get_result_value(node);
+                                if from_ty_size != to_ty_size {
+                                    if self.match_ireg(op) {
+                                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                        let tmp_res = self.get_result_value(node);
 
-                                    // movz op -> result
-                                    self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
-                                } else {
-                                    panic!("unexpected op (expect ireg): {}", op);
+                                        // movz op -> result
+                                        self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
+                                    } else {
+                                        panic!("unexpected op (expect ireg): {}", op);
+                                    }
                                 }
                             },
                             op::ConvOp::SEXT => {
-                                // currently only use 64bits register
-                                // we left shift the value, then arithmetic right shift back
-                                if self.match_ireg(op) {
-                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                                    let tmp_res = self.get_result_value(node);
+                                let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
+                                let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
-                                    // movs op -> result
-                                    self.backend.emit_movs_r_r(&tmp_res, &tmp_op);
-                                } else {
-                                    panic!("unexpected op (expect ireg): {}", op)
+                                if from_ty_size != to_ty_size {
+                                    if self.match_ireg(op) {
+                                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                        let tmp_res = self.get_result_value(node);
+
+                                        // movs op -> result
+                                        self.backend.emit_movs_r_r(&tmp_res, &tmp_op);
+                                    } else {
+                                        panic!("unexpected op (expect ireg): {}", op)
+                                    }
                                 }
                             }
                             op::ConvOp::REFCAST | op::ConvOp::PTRCAST => {
