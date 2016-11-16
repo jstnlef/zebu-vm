@@ -204,7 +204,7 @@ pub struct MuThread {
     pub stack: Option<Box<MuStack>>,
     
     native_sp_loc: Address,
-    user_tls: Option<Address>,
+    user_tls: Address, // can be zero
     
     pub vm: Arc<VM>,
     pub exception_obj: Address
@@ -212,17 +212,15 @@ pub struct MuThread {
 
 // this depends on the layout of MuThread
 lazy_static! {
-    pub static ref NATIVE_SP_LOC_OFFSET : usize = mem::size_of::<MuEntityHeader>() 
+    pub static ref ALLOCATOR_OFFSET : usize = mem::size_of::<MuEntityHeader>();
+
+    pub static ref NATIVE_SP_LOC_OFFSET : usize = *ALLOCATOR_OFFSET
                 + mem::size_of::<Box<mm::Mutator>>()
                 + mem::size_of::<Option<Box<MuStack>>>();
+
+    pub static ref USER_TLS_OFFSET : usize = *NATIVE_SP_LOC_OFFSET + mem::size_of::<Address>();
     
-    pub static ref ALLOCATOR_OFFSET : usize = mem::size_of::<MuEntityHeader>();
-    
-    pub static ref VM_OFFSET : usize = mem::size_of::<MuEntityHeader>() 
-                + mem::size_of::<Box<mm::Mutator>>()
-                + mem::size_of::<Option<Box<MuStack>>>()
-                + mem::size_of::<Address>()
-                + mem::size_of::<Option<Address>>();
+    pub static ref VM_OFFSET : usize = *USER_TLS_OFFSET + mem::size_of::<Address>();
 
     pub static ref EXCEPTION_OBJ_OFFSET : usize = *VM_OFFSET + mem::size_of::<Arc<VM>>();                
 }
@@ -247,7 +245,7 @@ extern "C" {
 }
 
 impl MuThread {
-    pub fn new(id: MuID, allocator: mm::Mutator, stack: Box<MuStack>, user_tls: Option<Address>, vm: Arc<VM>) -> MuThread {
+    pub fn new(id: MuID, allocator: mm::Mutator, stack: Box<MuStack>, user_tls: Address, vm: Arc<VM>) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator: allocator,
@@ -278,14 +276,6 @@ impl MuThread {
     // this function is exposed as unsafe because it is not always safe to call it
     pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) {
         use std::usize;
-
-        let user_tls = {
-            if threadlocal.is_zero() {
-                None
-            } else {
-                Some(threadlocal)
-            }
-        };
 
         // fake a stack for current thread
         let fake_mu_stack_for_cur = Box::new(MuStack {
@@ -321,7 +311,7 @@ impl MuThread {
 
             // we do not need native_sp_loc (we do not expect the thread to call
             native_sp_loc: unsafe {Address::zero()},
-            user_tls: user_tls,
+            user_tls: threadlocal,
 
             vm: vm,
             exception_obj: unsafe {Address::zero()}
@@ -343,23 +333,15 @@ impl MuThread {
     }
     
     pub fn new_thread_normal(mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>, vm: Arc<VM>) -> JoinHandle<()> {
-        let user_tls = {
-            if threadlocal.is_zero() {
-                None
-            } else {
-                Some(threadlocal)
-            }
-        };
-        
         // set up arguments on stack
         stack.runtime_load_args(vals);
         
-        MuThread::mu_thread_launch(vm.next_id(), stack, user_tls, vm)
+        MuThread::mu_thread_launch(vm.next_id(), stack, threadlocal, vm)
     }
     
     #[no_mangle]
     #[allow(unused_variables)]
-    pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Option<Address>, vm: Arc<VM>) -> JoinHandle<()> {
+    pub extern fn mu_thread_launch(id: MuID, stack: Box<MuStack>, user_tls: Address, vm: Arc<VM>) -> JoinHandle<()> {
         let new_sp = stack.sp;
         let entry = runtime::resolve_symbol(vm.name_of(stack.func.as_ref().unwrap().1));
         debug!("entry : 0x{:x}", entry);

@@ -262,7 +262,11 @@ pub enum Instruction_ {
     ExnInstruction{
         inner: Box<Instruction>,
         resume: ResumptionData
-    }
+    },
+
+    // common inst
+    CommonInst_GetThreadLocal,
+    CommonInst_SetThreadLocal(OpIndex)
 }
 
 impl Instruction_ {
@@ -374,7 +378,9 @@ impl Instruction_ {
             },
             &Instruction_::ExnInstruction{ref inner, ref resume} => {
                 format!("{} {}", inner.debug_str(ops), resume.debug_str(ops))
-            }
+            },
+            &Instruction_::CommonInst_GetThreadLocal => format!("COMMONINST GetThreadLocal"),
+            &Instruction_::CommonInst_SetThreadLocal(op) => format!("COMMONINST SetThreadLocal {}", ops[op])
         }
     }
 }
