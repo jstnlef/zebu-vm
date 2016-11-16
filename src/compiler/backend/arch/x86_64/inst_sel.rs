@@ -884,9 +884,6 @@ impl <'a> InstructionSelection {
 
                         match operation {
                             op::ConvOp::TRUNC => {
-                                // currently only use 64bits register
-                                // so only keep what is needed in the register (set others to 0)
-
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
                                     let tmp_res = self.get_result_value(node);
@@ -898,35 +895,39 @@ impl <'a> InstructionSelection {
                                 }
                             }
                             op::ConvOp::ZEXT => {
-                                let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
-                                let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                    let tmp_res = self.get_result_value(node);
 
-                                if from_ty_size != to_ty_size {
-                                    if self.match_ireg(op) {
-                                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                                        let tmp_res = self.get_result_value(node);
+                                    // movz op -> result
+                                    let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
+                                    let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
-                                        // movz op -> result
+                                    if from_ty_size != to_ty_size {
                                         self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
                                     } else {
-                                        panic!("unexpected op (expect ireg): {}", op);
+                                        self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                     }
+                                } else {
+                                    panic!("unexpected op (expect ireg): {}", op);
                                 }
                             },
                             op::ConvOp::SEXT => {
-                                let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
-                                let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                    let tmp_res = self.get_result_value(node);
 
-                                if from_ty_size != to_ty_size {
-                                    if self.match_ireg(op) {
-                                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                                        let tmp_res = self.get_result_value(node);
+                                    // movs op -> result
+                                    let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
+                                    let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
-                                        // movs op -> result
+                                    if from_ty_size != to_ty_size {
                                         self.backend.emit_movs_r_r(&tmp_res, &tmp_op);
                                     } else {
-                                        panic!("unexpected op (expect ireg): {}", op)
+                                        self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                     }
+                                } else {
+                                    panic!("unexpected op (expect ireg): {}", op)
                                 }
                             }
                             op::ConvOp::REFCAST | op::ConvOp::PTRCAST => {
@@ -2102,7 +2103,15 @@ impl <'a> InstructionSelection {
                         
                         if op::is_int_cmp(op) {
                             if self.match_iimm(op1) && self.match_iimm(op2) {
-                                let tmp_op1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                let ty : &P<MuType> = match op1.clone_value().ty.get_int_length() {
+                                    Some(64) => &UINT64_TYPE,
+                                    Some(32) => &UINT32_TYPE,
+                                    Some(16) => &UINT16_TYPE,
+                                    Some(8)  => &UINT8_TYPE,
+                                    _ => unimplemented!()
+                                };
+
+                                let tmp_op1 = self.make_temporary(f_context, ty.clone(), vm);
 
                                 let ref ty_op1   = op1.clone_value().ty;
                                 let iimm_op1 = self.node_iimm_to_i32(op1);

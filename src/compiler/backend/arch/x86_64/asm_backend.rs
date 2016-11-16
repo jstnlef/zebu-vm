@@ -1004,6 +1004,16 @@ impl ASMCodeGen {
 
         (result_str, uses)
     }
+
+    fn prepare_imm(&self, op: i32, len: usize) -> i32 {
+        match len {
+            64 => op,
+            32 => op,
+            16 => op as i16 as i32,
+            8  => op as i8  as i32,
+            _ => unimplemented!()
+        }
+    }
     
     fn asm_reg_op(&self, op: &P<Value>) -> String {
         let id = op.extract_ssa_id().unwrap();
@@ -1147,9 +1157,10 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} {}", inst, op1, op2);
 
-        let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + 1 + op1.to_string().len() + 1);
+        let imm = self.prepare_imm(op1, len);
+        let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + 1 + imm.to_string().len() + 1);
 
-        let asm = format!("{} ${},{}", inst, op1, reg2);
+        let asm = format!("{} ${},{}", inst, imm, reg2);
 
         self.add_asm_inst(
             asm,
@@ -1277,9 +1288,10 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
 
-        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+        let imm = self.prepare_imm(src, len);
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + imm.to_string().len() + 1);
 
-        let asm = format!("{} ${},{}", inst, src, reg1);
+        let asm = format!("{} ${},{}", inst, imm, reg1);
 
         self.add_asm_inst(
             asm,
@@ -1371,9 +1383,10 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} -> {}", inst, src, dest);
 
-        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+        let imm = self.prepare_imm(src, len);
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + imm.to_string().len() + 1);
 
-        let asm = format!("{} ${},{}", inst, src, reg1);
+        let asm = format!("{} ${},{}", inst, imm, reg1);
 
         self.add_asm_inst(
             asm,
@@ -1440,9 +1453,10 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} -> {}", inst, src, dest);
 
-        let (mem, uses) = self.prepare_mem(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+        let imm = self.prepare_imm(src, len);
+        let (mem, uses) = self.prepare_mem(dest, inst.len() + 1 + 1 + imm.to_string().len() + 1);
 
-        let asm = format!("{} ${},{}", inst, src, mem);
+        let asm = format!("{} ${},{}", inst, imm, mem);
 
         self.add_asm_inst(
             asm,
