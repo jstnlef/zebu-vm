@@ -1004,6 +1004,16 @@ impl ASMCodeGen {
 
         (result_str, uses)
     }
+
+    fn prepare_imm(&self, op: i32, len: usize) -> i32 {
+        match len {
+            64 => op,
+            32 => op,
+            16 => op as i16 as i32,
+            8  => op as i8  as i32,
+            _ => unimplemented!()
+        }
+    }
     
     fn asm_reg_op(&self, op: &P<Value>) -> String {
         let id = op.extract_ssa_id().unwrap();
@@ -1147,9 +1157,10 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} {}", inst, op1, op2);
 
-        let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + 1 + op1.to_string().len() + 1);
+        let imm = self.prepare_imm(op1, len);
+        let (reg2, id2, loc2) = self.prepare_reg(op2, inst.len() + 1 + 1 + imm.to_string().len() + 1);
 
-        let asm = format!("{} ${},{}", inst, op1, reg2);
+        let asm = format!("{} ${},{}", inst, imm, reg2);
 
         self.add_asm_inst(
             asm,
@@ -1277,9 +1288,10 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
 
-        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+        let imm = self.prepare_imm(src, len);
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + imm.to_string().len() + 1);
 
-        let asm = format!("{} ${},{}", inst, src, reg1);
+        let asm = format!("{} ${},{}", inst, imm, reg1);
 
         self.add_asm_inst(
             asm,
@@ -1371,9 +1383,10 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} -> {}", inst, src, dest);
 
-        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+        let imm = self.prepare_imm(src, len);
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + 1 + imm.to_string().len() + 1);
 
-        let asm = format!("{} ${},{}", inst, src, reg1);
+        let asm = format!("{} ${},{}", inst, imm, reg1);
 
         self.add_asm_inst(
             asm,
@@ -1440,9 +1453,10 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} -> {}", inst, src, dest);
 
-        let (mem, uses) = self.prepare_mem(dest, inst.len() + 1 + 1 + src.to_string().len() + 1);
+        let imm = self.prepare_imm(src, len);
+        let (mem, uses) = self.prepare_mem(dest, inst.len() + 1 + 1 + imm.to_string().len() + 1);
 
-        let asm = format!("{} ${},{}", inst, src, mem);
+        let asm = format!("{} ${},{}", inst, imm, mem);
 
         self.add_asm_inst(
             asm,
@@ -1969,8 +1983,24 @@ impl CodeGenerator for ASMCodeGen {
                 false
             )
         } else {
-            // we need to introduce AH/AL in order to deal with this
-            panic!("not implemented divb")
+            trace!("emit: {} ah:al, {} -> quotient: al + remainder: ah", inst, src);
+
+            let ah = self.prepare_machine_reg(&x86_64::AH);
+            let al = self.prepare_machine_reg(&x86_64::AL);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    ah => vec![],
+                    al => vec![]
+                },
+                hashmap!{
+                    id => vec![loc],
+                    ah => vec![],
+                    al => vec![]
+                },
+                false
+            )
         }
     }
 
@@ -2005,7 +2035,28 @@ impl CodeGenerator for ASMCodeGen {
                 true
             )
         } else {
-            panic!("not implemented divb")
+            trace!("emit: {} ah:al, {} -> quotient: al + remainder: ah", inst, src);
+
+            let ah = self.prepare_machine_reg(&x86_64::AH);
+            let al = self.prepare_machine_reg(&x86_64::AL);
+
+            // merge use vec
+            if !uses.contains_key(&ah) {
+                uses.insert(ah, vec![]);
+            }
+            if !uses.contains_key(&al) {
+                uses.insert(al, vec![]);
+            }
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    ah => vec![],
+                    al => vec![]
+                },
+                uses,
+                false
+            )
         }
     }
 
@@ -2014,30 +2065,48 @@ impl CodeGenerator for ASMCodeGen {
 
         let inst = "idiv".to_string() + &op_postfix(len);
 
-        let rdx = self.prepare_machine_reg(&x86_64::RDX);
-        let rax = self.prepare_machine_reg(&x86_64::RAX);
         let (reg, id, loc) = self.prepare_reg(src, inst.len() + 1);
 
         let asm = format!("{} {}", inst, reg);
 
         if len != 8 {
             trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
+
+            let rdx = self.prepare_machine_reg(&x86_64::RDX);
+            let rax = self.prepare_machine_reg(&x86_64::RAX);
+
             self.add_asm_inst(
                 asm,
                 hashmap!{
-                rdx => vec![],
-                rax => vec![],
-            },
+                    rdx => vec![],
+                    rax => vec![],
+                },
                 hashmap!{
-                id => vec![loc],
-                rdx => vec![],
-                rax => vec![]
-            },
+                    id => vec![loc],
+                    rdx => vec![],
+                    rax => vec![]
+                },
                 false
             )
         } else {
-            // we need to introduce AH/AL in order to deal with this
-            panic!("not implemented idivb")
+            trace!("emit: {} ah:al, {} -> quotient: al + remainder: ah", inst, src);
+
+            let ah = self.prepare_machine_reg(&x86_64::AH);
+            let al = self.prepare_machine_reg(&x86_64::AL);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    ah => vec![],
+                    al => vec![]
+                },
+                hashmap!{
+                    id => vec![loc],
+                    ah => vec![],
+                    al => vec![]
+                },
+                false
+            )
         }
     }
 
@@ -2046,22 +2115,24 @@ impl CodeGenerator for ASMCodeGen {
 
         let inst = "idiv".to_string() + &op_postfix(len);
 
-        let rdx = self.prepare_machine_reg(&x86_64::RDX);
-        let rax = self.prepare_machine_reg(&x86_64::RAX);
         let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
-
-        // merge use vec
-        if !uses.contains_key(&rdx) {
-            uses.insert(rdx, vec![]);
-        }
-        if !uses.contains_key(&rax) {
-            uses.insert(rax, vec![]);
-        }
 
         let asm = format!("{} {}", inst, mem);
 
         if len != 8 {
             trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
+
+            let rdx = self.prepare_machine_reg(&x86_64::RDX);
+            let rax = self.prepare_machine_reg(&x86_64::RAX);
+
+            // merge use vec
+            if !uses.contains_key(&rdx) {
+                uses.insert(rdx, vec![]);
+            }
+            if !uses.contains_key(&rax) {
+                uses.insert(rax, vec![]);
+            }
+
             self.add_asm_inst(
                 asm,
                 hashmap! {
@@ -2072,7 +2143,28 @@ impl CodeGenerator for ASMCodeGen {
                 true
             )
         } else {
-            panic!("not implemented idivb")
+            trace!("emit: {} ah:al, {} -> quotient: al + remainder: ah", inst, src);
+
+            let ah = self.prepare_machine_reg(&x86_64::AH);
+            let al = self.prepare_machine_reg(&x86_64::AL);
+
+            // merge use vec
+            if !uses.contains_key(&ah) {
+                uses.insert(ah, vec![]);
+            }
+            if !uses.contains_key(&al) {
+                uses.insert(al, vec![]);
+            }
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    ah => vec![],
+                    al => vec![]
+                },
+                uses,
+                false
+            )
         }
     }
 
@@ -2111,10 +2203,53 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_inst(
             asm,
             hashmap!{
-                rdx => vec![]
+                rdx => vec![],
+                rax => vec![]
             },
             hashmap!{
-                rax => vec![],
+                rax => vec![]
+            },
+            false
+        )
+    }
+
+    fn emit_cdq(&mut self) {
+        trace!("emit: cdq eax -> edx:eax");
+
+        let eax = self.prepare_machine_reg(&x86_64::EAX);
+        let edx = self.prepare_machine_reg(&x86_64::EDX);
+
+        let asm = format!("cltd");
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                edx => vec![],
+                eax => vec![]
+            },
+            hashmap!{
+                eax => vec![],
+            },
+            false
+        )
+    }
+
+    fn emit_cwd(&mut self) {
+        trace!("emit: cwd ax -> dx:ax");
+
+        let ax = self.prepare_machine_reg(&x86_64::AX);
+        let dx = self.prepare_machine_reg(&x86_64::DX);
+
+        let asm = format!("cwtd");
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                dx => vec![],
+                ax => vec![]
+            },
+            hashmap!{
+                ax => vec![],
             },
             false
         )
