@@ -10,12 +10,12 @@ import ctypes
 from rpython.translator.interactive import Translation
 from rpython.config.translationoption import set_opt_level
 
-from util import libmu_path
+from util import libmu_path, libext
 
 CPYTHON = os.environ.get('CPYTHON', 'python')
 PYPY = os.environ.get('PYPY', 'pypy')
 RPYTHON = os.environ.get('RPYTHON', None)
-
+CC = os.environ.get('CC', 'clang')
 
 def run(cmd):
     # print ' '.join(cmd)
@@ -31,7 +31,7 @@ def perf_fibonacci():
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
 
-    file_str = \
+    py_code_str = \
 """
 from time import time
 from rpython.rlib import jit
@@ -76,9 +76,35 @@ def target(*args):
     return rpy_entry, [int]
 """ % {'fprec': 10}
 
+    c_code_str = \
+"""
+#include <stdint.h>
+
+uint64_t fib(uint64_t n) {
+    uint64_t k, fib_k, fib_k_2, fib_k_1;
+
+    if(n <= 1) return n;
+
+    k = 2;
+    fib_k_2 = 0;
+    fib_k_1 = 1;
+
+    while(k < n) {
+        fib_k = fib_k_2 + fib_k_1;
+        fib_k_2 = fib_k_1;
+        fib_k_1 = fib_k;
+        k += 1;
+    }
+    return fib_k_2 + fib_k_1;
+}
+"""
+
     py_file = tmpdir.join('fibonacci.py')
     with py_file.open('w') as fp:
-        fp.write(file_str)
+        fp.write(py_code_str)
+    c_file = tmpdir.join('fibonacci.c')
+    with c_file.open('w') as fp:
+        fp.write(c_code_str)
 
     def run_cpython(N):
         out, _ = run([CPYTHON, py_file.strpath, str(N)])
@@ -94,7 +120,7 @@ def target(*args):
 
     def compile_rpython_c():
         mod = {}
-        exec(file_str, mod)
+        exec(py_code_str, mod)
         rpy_fnc = mod['fib']
         t = Translation(rpy_fnc, [int],
                         gc='none')
@@ -106,7 +132,7 @@ def target(*args):
 
     def compile_rpython_c_jit():
         mod = {}
-        exec (file_str, mod)
+        exec (py_code_str, mod)
         rpy_fnc = mod['fib']
         t = Translation(rpy_fnc, [int],
                         gc='none')
@@ -116,9 +142,15 @@ def target(*args):
         fnp = getattr(ctypes.CDLL(libpath.strpath), 'pypy_g_' + rpy_fnc.__name__)
         return fnp
 
+    def compile_c():
+        libpath = tmpdir.join('libfibonacci' + libext)
+        run([CC, '-fpic', '--shared', '-o', libpath.strpath, c_file.strpath])
+        lib = ctypes.CDLL(libpath.strpath)
+        return lib.fib
+
     def compile_rpython_mu():
         mod = {}
-        exec (file_str, mod)
+        exec (py_code_str, mod)
         rpy_fnc = mod['fib']
 
         # load libmu before rffi so to load it with RTLD_GLOBAL
@@ -162,12 +194,14 @@ def target(*args):
     t_rpyc = get_average_time_compiled(compile_rpython_c, [N], iterations=iterations)
     t_rpyc_jit = get_average_time_compiled(compile_rpython_c_jit, [N], iterations=iterations)
     t_rpyc_mu = get_average_time_compiled(compile_rpython_mu, [N], iterations=iterations)
+    t_c = get_average_time_compiled(compile_c, [N], iterations=iterations)
     print "CPython:", t_cpython
     print "PyPy (no JIT):", t_pypy_nojit
     print "PyPy:", t_pypy
     print "RPython C:", t_rpyc
     print "RPython C (with JIT):", t_rpyc_jit
     print "RPython Mu Zebu:", t_rpyc_mu
+    print "C:", t_c
 
 if __name__ == '__main__':
     perf_fibonacci()
