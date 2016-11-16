@@ -197,7 +197,7 @@ impl InterferenceGraph {
     }
     
     pub fn degree_of(&self, node: Node) -> usize {
-        self.outdegree_of(node) + self.indegree_of(node)
+        self.outdegree_of(node)
     }
     
     pub fn print(&self, context: &FunctionContext) {
