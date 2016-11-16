@@ -1031,6 +1031,30 @@ impl <'a> InstructionSelection {
                         
                         self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, Some(node), f_content, f_context, vm);
                     }
+
+                    Instruction_::CommonInst_GetThreadLocal => {
+                        // get thread local
+                        let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+
+                        let tmp_res = self.get_result_value(node);
+
+                        // load [tl + USER_TLS_OFFSET] -> tmp_res
+                        self.emit_load_base_offset(&tmp_res, &tl, *thread::USER_TLS_OFFSET as i32, vm);
+                    }
+                    Instruction_::CommonInst_SetThreadLocal(op) => {
+                        let ops = inst.ops.read().unwrap();
+                        let ref op = ops[op];
+
+                        debug_assert!(self.match_ireg(op));
+
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                        // get thread local
+                        let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+
+                        // store tmp_op -> [tl + USER_TLS_OFFSTE]
+                        self.emit_store_base_offset(&tl, *thread::USER_TLS_OFFSET as i32, &tmp_op, vm);
+                    }
                     
                     Instruction_::New(ref ty) => {
                         if cfg!(debug_assertions) {
