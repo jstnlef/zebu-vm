@@ -84,6 +84,9 @@ def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
     lib = ctypes.CDLL('emit/%(libname)s' % locals())
     return fncptr_from_lib(lib, name, argtypes, restype), (mu, ctx, bldr)
 
+def preload_libmu():
+    # load libmu before rffi so to load it with RTLD_GLOBAL
+    return ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
 def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     # NOTE: requires mu-client-pypy
@@ -91,8 +94,7 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     from rpython.translator.interactive import Translation
     from rpython.config.translationoption import set_opt_level
 
-    # load libmu before rffi so to load it with RTLD_GLOBAL
-    libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
+    preload_libmu()
 
     kwargs.setdefault('backend', 'mu')
     kwargs.setdefault('muimpl', 'fast')

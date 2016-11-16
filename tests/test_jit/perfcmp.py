@@ -10,7 +10,7 @@ import ctypes
 from rpython.translator.interactive import Translation
 from rpython.config.translationoption import set_opt_level
 
-from util import libmu_path, libext
+from util import libmu_path, libext, preload_libmu
 
 CPYTHON = os.environ.get('CPYTHON', 'python')
 PYPY = os.environ.get('PYPY', 'pypy')
@@ -153,8 +153,7 @@ uint64_t fib(uint64_t n) {
         exec (py_code_str, mod)
         rpy_fnc = mod['fib']
 
-        # load libmu before rffi so to load it with RTLD_GLOBAL
-        libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
+        preload_libmu()
 
         t = Translation(rpy_fnc, [int],
                         backend='mu', muimpl='fast', mucodegen='api', mutestjit=True)
