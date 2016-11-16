@@ -1969,8 +1969,24 @@ impl CodeGenerator for ASMCodeGen {
                 false
             )
         } else {
-            // we need to introduce AH/AL in order to deal with this
-            panic!("not implemented divb")
+            trace!("emit: {} ah:al, {} -> quotient: al + remainder: ah", inst, src);
+
+            let ah = self.prepare_machine_reg(&x86_64::AH);
+            let al = self.prepare_machine_reg(&x86_64::AL);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    ah => vec![],
+                    al => vec![]
+                },
+                hashmap!{
+                    id => vec![loc],
+                    ah => vec![],
+                    al => vec![]
+                },
+                false
+            )
         }
     }
 
@@ -2005,7 +2021,28 @@ impl CodeGenerator for ASMCodeGen {
                 true
             )
         } else {
-            panic!("not implemented divb")
+            trace!("emit: {} ah:al, {} -> quotient: al + remainder: ah", inst, src);
+
+            let ah = self.prepare_machine_reg(&x86_64::AH);
+            let al = self.prepare_machine_reg(&x86_64::AL);
+
+            // merge use vec
+            if !uses.contains_key(&ah) {
+                uses.insert(ah, vec![]);
+            }
+            if !uses.contains_key(&al) {
+                uses.insert(al, vec![]);
+            }
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    ah => vec![],
+                    al => vec![]
+                },
+                uses,
+                false
+            )
         }
     }
 
@@ -2014,30 +2051,48 @@ impl CodeGenerator for ASMCodeGen {
 
         let inst = "idiv".to_string() + &op_postfix(len);
 
-        let rdx = self.prepare_machine_reg(&x86_64::RDX);
-        let rax = self.prepare_machine_reg(&x86_64::RAX);
         let (reg, id, loc) = self.prepare_reg(src, inst.len() + 1);
 
         let asm = format!("{} {}", inst, reg);
 
         if len != 8 {
             trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
+
+            let rdx = self.prepare_machine_reg(&x86_64::RDX);
+            let rax = self.prepare_machine_reg(&x86_64::RAX);
+
             self.add_asm_inst(
                 asm,
                 hashmap!{
-                rdx => vec![],
-                rax => vec![],
-            },
+                    rdx => vec![],
+                    rax => vec![],
+                },
                 hashmap!{
-                id => vec![loc],
-                rdx => vec![],
-                rax => vec![]
-            },
+                    id => vec![loc],
+                    rdx => vec![],
+                    rax => vec![]
+                },
                 false
             )
         } else {
-            // we need to introduce AH/AL in order to deal with this
-            panic!("not implemented idivb")
+            trace!("emit: {} ah:al, {} -> quotient: al + remainder: ah", inst, src);
+
+            let ah = self.prepare_machine_reg(&x86_64::AH);
+            let al = self.prepare_machine_reg(&x86_64::AL);
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    ah => vec![],
+                    al => vec![]
+                },
+                hashmap!{
+                    id => vec![loc],
+                    ah => vec![],
+                    al => vec![]
+                },
+                false
+            )
         }
     }
 
@@ -2046,22 +2101,24 @@ impl CodeGenerator for ASMCodeGen {
 
         let inst = "idiv".to_string() + &op_postfix(len);
 
-        let rdx = self.prepare_machine_reg(&x86_64::RDX);
-        let rax = self.prepare_machine_reg(&x86_64::RAX);
         let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
-
-        // merge use vec
-        if !uses.contains_key(&rdx) {
-            uses.insert(rdx, vec![]);
-        }
-        if !uses.contains_key(&rax) {
-            uses.insert(rax, vec![]);
-        }
 
         let asm = format!("{} {}", inst, mem);
 
         if len != 8 {
             trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
+
+            let rdx = self.prepare_machine_reg(&x86_64::RDX);
+            let rax = self.prepare_machine_reg(&x86_64::RAX);
+
+            // merge use vec
+            if !uses.contains_key(&rdx) {
+                uses.insert(rdx, vec![]);
+            }
+            if !uses.contains_key(&rax) {
+                uses.insert(rax, vec![]);
+            }
+
             self.add_asm_inst(
                 asm,
                 hashmap! {
@@ -2072,7 +2129,28 @@ impl CodeGenerator for ASMCodeGen {
                 true
             )
         } else {
-            panic!("not implemented idivb")
+            trace!("emit: {} ah:al, {} -> quotient: al + remainder: ah", inst, src);
+
+            let ah = self.prepare_machine_reg(&x86_64::AH);
+            let al = self.prepare_machine_reg(&x86_64::AL);
+
+            // merge use vec
+            if !uses.contains_key(&ah) {
+                uses.insert(ah, vec![]);
+            }
+            if !uses.contains_key(&al) {
+                uses.insert(al, vec![]);
+            }
+
+            self.add_asm_inst(
+                asm,
+                hashmap!{
+                    ah => vec![],
+                    al => vec![]
+                },
+                uses,
+                false
+            )
         }
     }
 
@@ -2111,10 +2189,53 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_inst(
             asm,
             hashmap!{
-                rdx => vec![]
+                rdx => vec![],
+                rax => vec![]
             },
             hashmap!{
-                rax => vec![],
+                rax => vec![]
+            },
+            false
+        )
+    }
+
+    fn emit_cdq(&mut self) {
+        trace!("emit: cdq eax -> edx:eax");
+
+        let eax = self.prepare_machine_reg(&x86_64::EAX);
+        let edx = self.prepare_machine_reg(&x86_64::EDX);
+
+        let asm = format!("cltd");
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                edx => vec![],
+                eax => vec![]
+            },
+            hashmap!{
+                eax => vec![],
+            },
+            false
+        )
+    }
+
+    fn emit_cwd(&mut self) {
+        trace!("emit: cwd ax -> dx:ax");
+
+        let ax = self.prepare_machine_reg(&x86_64::AX);
+        let dx = self.prepare_machine_reg(&x86_64::DX);
+
+        let asm = format!("cwtd");
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                dx => vec![],
+                ax => vec![]
+            },
+            hashmap!{
+                ax => vec![],
             },
             false
         )

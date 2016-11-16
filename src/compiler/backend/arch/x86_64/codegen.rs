@@ -130,7 +130,9 @@ pub trait CodeGenerator {
     fn emit_sar_r_cl    (&mut self, dest: &P<Value>);
     fn emit_sar_r_imm8  (&mut self, dest: &P<Value>, src: i8);
 
-    fn emit_cqo(&mut self);
+    fn emit_cqo(&mut self); // sign extend rax to rdx:rax
+    fn emit_cdq(&mut self); // sign extend eax to edx:eax
+    fn emit_cwd(&mut self); // sign extend ax  to dx:ax
     
     fn emit_jmp(&mut self, dest: MuName);
     fn emit_je(&mut self, dest: MuName);

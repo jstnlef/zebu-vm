@@ -581,25 +581,33 @@ impl <'a> InstructionSelection {
                             }
                             op::BinOp::Mul => {
                                 // mov op1 -> rax
-                                let rax = x86_64::RAX.clone();
                                 let op1 = &ops[op1];
+
+                                let mreg_op1 = match op1.clone_value().ty.get_int_length() {
+                                    Some(64) => x86_64::RAX.clone(),
+                                    Some(32) => x86_64::EAX.clone(),
+                                    Some(16) => x86_64::AX.clone(),
+                                    Some(8)  => x86_64::AL.clone(),
+                                    _ => unimplemented!()
+                                };
+
                                 if self.match_iimm(op1) {
                                     let imm_op1 = self.node_iimm_to_i32(op1);
                                     
-                                    self.backend.emit_mov_r_imm(&rax, imm_op1);
+                                    self.backend.emit_mov_r_imm(&mreg_op1, imm_op1);
                                 } else if self.match_mem(op1) {
                                     let mem_op1 = self.emit_mem(op1, vm);
                                     
-                                    self.backend.emit_mov_r_mem(&rax, &mem_op1);
+                                    self.backend.emit_mov_r_mem(&mreg_op1, &mem_op1);
                                 } else if self.match_ireg(op1) {
                                     let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
 
-                                    self.backend.emit_mov_r_r(&rax, &reg_op1);
+                                    self.backend.emit_mov_r_r(&mreg_op1, &reg_op1);
                                 } else {
                                     unimplemented!();
                                 }
                                 
-                                // mul op2 -> rax
+                                // mul op2
                                 let op2 = &ops[op2];
                                 if self.match_iimm(op2) {
                                     let imm_op2 = self.node_iimm_to_i32(op2);
@@ -622,7 +630,14 @@ impl <'a> InstructionSelection {
                                 }
                                 
                                 // mov rax -> result
-                                self.backend.emit_mov_r_r(&res_tmp, &rax);
+                                match res_tmp.ty.get_int_length() {
+                                    Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                                    Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                                    Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                                    Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                                    _ => unimplemented!()
+                                }
+
                             },
                             op::BinOp::Udiv => {
                                 let op1 = &ops[op1];
@@ -631,7 +646,21 @@ impl <'a> InstructionSelection {
                                 self.emit_udiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rax -> result
-                                self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
+                                match res_tmp.ty.get_int_length() {
+                                    Some(64) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
+                                    }
+                                    Some(32) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX);
+                                    }
+                                    Some(16) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX);
+                                    }
+                                    Some(8)  => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL);
+                                    }
+                                    _ => unimplemented!()
+                                }
                             },
                             op::BinOp::Sdiv => {
                                 let op1 = &ops[op1];
@@ -640,7 +669,21 @@ impl <'a> InstructionSelection {
                                 self.emit_idiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rax -> result
-                                self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
+                                match res_tmp.ty.get_int_length() {
+                                    Some(64) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
+                                    }
+                                    Some(32) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX);
+                                    }
+                                    Some(16) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX);
+                                    }
+                                    Some(8)  => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL);
+                                    }
+                                    _ => unimplemented!()
+                                }
                             },
                             op::BinOp::Urem => {
                                 let op1 = &ops[op1];
@@ -649,7 +692,21 @@ impl <'a> InstructionSelection {
                                 self.emit_udiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rdx -> result
-                                self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
+                                match res_tmp.ty.get_int_length() {
+                                    Some(64) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
+                                    }
+                                    Some(32) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX);
+                                    }
+                                    Some(16) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX);
+                                    }
+                                    Some(8)  => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH);
+                                    }
+                                    _ => unimplemented!()
+                                }
                             },
                             op::BinOp::Srem => {
                                 let op1 = &ops[op1];
@@ -658,7 +715,21 @@ impl <'a> InstructionSelection {
                                 self.emit_idiv(op1, op2, f_content, f_context, vm);
 
                                 // mov rdx -> result
-                                self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
+                                match res_tmp.ty.get_int_length() {
+                                    Some(64) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
+                                    }
+                                    Some(32) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX);
+                                    }
+                                    Some(16) => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX);
+                                    }
+                                    Some(8)  => {
+                                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH);
+                                    }
+                                    _ => unimplemented!()
+                                }
                             },
 
                             op::BinOp::Shl => {
@@ -1326,15 +1397,37 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM)
     {
-        let rax = x86_64::RAX.clone();
-
         debug_assert!(self.match_ireg(op1));
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-        self.emit_move_value_to_value(&rax, &reg_op1);
 
-        // xorq rdx, rdx -> rdx
-        let rdx = x86_64::RDX.clone();
-        self.backend.emit_xor_r_r(&rdx, &rdx);
+        match reg_op1.ty.get_int_length() {
+            Some(64) => {
+                // div uses RDX and RAX
+                self.backend.emit_mov_r_r(&x86_64::RAX, &reg_op1);
+
+                // xorq rdx, rdx -> rdx
+                self.backend.emit_xor_r_r(&x86_64::RDX, &x86_64::RDX);
+            }
+            Some(32) => {
+                // div uses edx, eax
+                self.backend.emit_mov_r_r(&x86_64::EAX, &reg_op1);
+
+                // xor edx edx
+                self.backend.emit_xor_r_r(&x86_64::EDX, &x86_64::EDX);
+            }
+            Some(16) => {
+                // div uses dx, ax
+                self.backend.emit_mov_r_r(&x86_64::AX, &reg_op1);
+
+                // xor dx, dx
+                self.backend.emit_xor_r_r(&x86_64::DX, &x86_64::DX);
+            },
+            Some(8) => {
+                // div uses AX
+                self.backend.emit_mov_r_r(&x86_64::AL, &reg_op1);
+            }
+            _ => unimplemented!()
+        }
 
         // div op2
         if self.match_mem(op2) {
@@ -1344,7 +1437,7 @@ impl <'a> InstructionSelection {
         } else if self.match_iimm(op2) {
             let imm = self.node_iimm_to_i32(op2);
             // moving to a temp
-            let temp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+            let temp = self.make_temporary(f_context, reg_op1.ty.clone(), vm);
             self.backend.emit_mov_r_imm(&temp, imm);
 
             // div tmp
@@ -1365,26 +1458,50 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM)
     {
-        let rax = x86_64::RAX.clone();
-
         debug_assert!(self.match_ireg(op1));
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-        self.emit_move_value_to_value(&rax, &reg_op1);
 
-        // cqo
-        self.backend.emit_cqo();
+        match reg_op1.ty.get_int_length() {
+            Some(64) => {
+                // idiv uses RDX and RAX
+                self.backend.emit_mov_r_r(&x86_64::RAX, &reg_op1);
+
+                // cqo: sign extend rax to rdx:rax
+                self.backend.emit_cqo();
+            }
+            Some(32) => {
+                // idiv uses edx, eax
+                self.backend.emit_mov_r_r(&x86_64::EAX, &reg_op1);
+
+                // cdq: sign extend eax to edx:eax
+                self.backend.emit_cdq();
+            }
+            Some(16) => {
+                // idiv uses dx, ax
+                self.backend.emit_mov_r_r(&x86_64::AX, &reg_op1);
+
+                // cwd: sign extend ax to dx:ax
+                self.backend.emit_cwd();
+            },
+            Some(8) => {
+                // idiv uses AL
+                self.backend.emit_mov_r_r(&x86_64::AL, &reg_op1);
+
+                // sign extend al to ax
+                self.backend.emit_movs_r_r(&x86_64::AX, &x86_64::AL);
+            }
+            _ => unimplemented!()
+        }
 
         // idiv op2
         if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2, vm);
-            self.backend.emit_idiv_mem(&mem_op2);
 
-            // need to sign extend op2
-            unimplemented!()
+            self.backend.emit_idiv_mem(&mem_op2);
         } else if self.match_iimm(op2) {
             let imm = self.node_iimm_to_i32(op2);
             // moving to a temp
-            let temp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+            let temp = self.make_temporary(f_context, reg_op1.ty.clone(), vm);
             self.backend.emit_mov_r_imm(&temp, imm);
 
             // idiv temp
