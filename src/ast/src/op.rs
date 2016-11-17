@@ -59,7 +59,9 @@ pub enum OpCode {
     GetVarPartIRef,
 
     CommonInst_GetThreadLocal,
-    CommonInst_SetThreadLocal
+    CommonInst_SetThreadLocal,
+
+    Move
 }
 
 pub fn pick_op_code_for_ssa(ty: &P<MuType>) -> OpCode {
@@ -285,6 +287,7 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
         Instruction_::Switch{..}                    => OpCode::Switch,
         Instruction_::ExnInstruction{..}            => OpCode::ExnInstruction,
         Instruction_::CommonInst_GetThreadLocal     => OpCode::CommonInst_GetThreadLocal,
-        Instruction_::CommonInst_SetThreadLocal(_)  => OpCode::CommonInst_SetThreadLocal
+        Instruction_::CommonInst_SetThreadLocal(_)  => OpCode::CommonInst_SetThreadLocal,
+        Instruction_::Move(_)                    => OpCode::Move,
     }
 }

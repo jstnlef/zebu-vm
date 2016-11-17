@@ -73,6 +73,7 @@ impl <'a> InstructionSelection {
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
                     Instruction_::Branch2{cond, ref true_dest, ref false_dest, true_prob} => {
+                        trace!("instsel on BRANCH2");
                         // 'branch_if_true' == true, we emit cjmp the same as CmpOp  (je  for EQ, jne for NE)
                         // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
                         let (fallthrough_dest, branch_dest, branch_if_true) = {
@@ -93,7 +94,7 @@ impl <'a> InstructionSelection {
                         let ref cond = ops[cond];
                         
                         if self.match_cmp_res(cond) {
-                            trace!("emit cmp_eq-branch2");
+                            trace!("emit cmp_res-branch2");
                             match self.emit_cmp_res(cond, f_content, f_context, vm) {
                                 op::CmpOp::EQ => {
                                     if branch_if_true {
@@ -182,6 +183,7 @@ impl <'a> InstructionSelection {
                     },
 
                     Instruction_::Select{cond, true_val, false_val} => {
+                        trace!("instsel on SELECT");
                         let ops = inst.ops.read().unwrap();
 
                         let ref cond = ops[cond];
@@ -252,6 +254,7 @@ impl <'a> InstructionSelection {
                     },
 
                     Instruction_::CmpOp(op, op1, op2) => {
+                        trace!("instsel on CMPOP");
                         let ops = inst.ops.read().unwrap();
                         let ref op1 = ops[op1];
                         let ref op2 = ops[op2];
@@ -292,6 +295,7 @@ impl <'a> InstructionSelection {
                     }
 
                     Instruction_::Branch1(ref dest) => {
+                        trace!("instsel on BRANCH1");
                         let ops = inst.ops.read().unwrap();
                                             
                         self.process_dest(&ops, dest, f_content, f_context, vm);
@@ -304,6 +308,7 @@ impl <'a> InstructionSelection {
                     },
 
                     Instruction_::Switch{cond, ref default, ref branches} => {
+                        trace!("instsel on SWITCH");
                         let ops = inst.ops.read().unwrap();
 
                         let ref cond = ops[cond];
@@ -350,6 +355,8 @@ impl <'a> InstructionSelection {
                     }
                     
                     Instruction_::ExprCall{ref data, is_abort} => {
+                        trace!("instsel on EXPRCALL");
+
                         if is_abort {
                             unimplemented!()
                         }
@@ -363,6 +370,8 @@ impl <'a> InstructionSelection {
                     },
                     
                     Instruction_::Call{ref data, ref resume} => {
+                        trace!("instsel on CALL");
+
                         self.emit_mu_call(
                             inst, 
                             data, 
@@ -372,6 +381,8 @@ impl <'a> InstructionSelection {
                     },
 
                     Instruction_::ExprCCall{ref data, is_abort} => {
+                        trace!("instsel on EXPRCCALL");
+
                         if is_abort {
                             unimplemented!()
                         }
@@ -380,16 +391,22 @@ impl <'a> InstructionSelection {
                     }
 
                     Instruction_::CCall{ref data, ref resume} => {
+                        trace!("instsel on CCALL");
+
                         self.emit_c_call_ir(inst, data, Some(resume), node, f_content, f_context, vm);
                     }
                     
                     Instruction_::Return(_) => {
+                        trace!("instsel on RETURN");
+
                         self.emit_common_epilogue(inst, f_content, f_context, vm);
                         
                         self.backend.emit_ret();
                     },
                     
                     Instruction_::BinOp(op, op1, op2) => {
+                        trace!("instsel on BINOP");
+
                         let ops = inst.ops.read().unwrap();
 
                         let res_tmp = self.get_result_value(node);
@@ -871,16 +888,11 @@ impl <'a> InstructionSelection {
                     }
 
                     Instruction_::ConvOp{operation, ref from_ty, ref to_ty, operand} => {
+                        trace!("instsel on CONVOP");
+
                         let ops = inst.ops.read().unwrap();
 
                         let ref op = ops[operand];
-
-                        let extract_int_len = |x: &P<MuType>| {
-                            match x.v {
-                                MuType_::Int(len) => len,
-                                _ => panic!("only expect int types, found: {}", x)
-                            }
-                        };
 
                         match operation {
                             op::ConvOp::TRUNC => {
@@ -904,7 +916,19 @@ impl <'a> InstructionSelection {
                                     let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
                                     if from_ty_size != to_ty_size {
-                                        self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
+                                        if from_ty_size == 4 && to_ty_size == 8 {
+                                            // zero extend from 32 bits to 64 bits is a mov instruction
+                                            // x86 does not have movzlq (32 to 64)
+
+                                            // tmp_op is int32, but tmp_res is int64
+                                            // we want to force a 32-to-32 mov, so high bits of the destination will be zeroed
+
+                                            let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
+
+                                            self.backend.emit_mov_r_r(&tmp_res32, &tmp_op);
+                                        } else {
+                                            self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
+                                        }
                                     } else {
                                         self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                     }
@@ -949,6 +973,8 @@ impl <'a> InstructionSelection {
                     // load on x64 generates mov inst (no matter what order is specified)
                     // https://www.cl.cam.ac.uk/~pes20/cpp/cpp0xmappings.html
                     Instruction_::Load{is_ptr, order, mem_loc} => {
+                        trace!("instsel on LOAD");
+
                         let ops = inst.ops.read().unwrap();
                         let ref loc_op = ops[mem_loc];
                         
@@ -975,6 +1001,8 @@ impl <'a> InstructionSelection {
                     }
                     
                     Instruction_::Store{is_ptr, order, mem_loc, value} => {
+                        trace!("instsel on STORE");
+
                         let ops = inst.ops.read().unwrap();
                         let ref loc_op = ops[mem_loc];
                         let ref val_op = ops[value];
@@ -1016,6 +1044,8 @@ impl <'a> InstructionSelection {
                     | Instruction_::GetFieldIRef{..}
                     | Instruction_::GetVarPartIRef{..}
                     | Instruction_::ShiftIRef{..} => {
+                        trace!("instsel on GET/FIELD/VARPARTIREF, SHIFTIREF");
+
                         let mem_addr = self.emit_get_mem_from_inst(node, f_content, f_context, vm);
                         let tmp_res  = self.get_result_value(node);
 
@@ -1023,6 +1053,7 @@ impl <'a> InstructionSelection {
                     }
                     
                     Instruction_::ThreadExit => {
+                        trace!("instsel on THREADEXIT");
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
                         
                         // get thread local and add offset to get sp_loc
@@ -1033,6 +1064,7 @@ impl <'a> InstructionSelection {
                     }
 
                     Instruction_::CommonInst_GetThreadLocal => {
+                        trace!("instsel on GETTHREADLOCAL");
                         // get thread local
                         let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
 
@@ -1042,6 +1074,8 @@ impl <'a> InstructionSelection {
                         self.emit_load_base_offset(&tmp_res, &tl, *thread::USER_TLS_OFFSET as i32, vm);
                     }
                     Instruction_::CommonInst_SetThreadLocal(op) => {
+                        trace!("instsel on SETTHREADLOCAL");
+
                         let ops = inst.ops.read().unwrap();
                         let ref op = ops[op];
 
@@ -1055,8 +1089,21 @@ impl <'a> InstructionSelection {
                         // store tmp_op -> [tl + USER_TLS_OFFSTE]
                         self.emit_store_base_offset(&tl, *thread::USER_TLS_OFFSET as i32, &tmp_op, vm);
                     }
+
+                    Instruction_::Move(op) => {
+                        trace!("instsel on MOVE (internal IR)");
+
+                        let ops = inst.ops.read().unwrap();
+                        let ref op = ops[op];
+
+                        let tmp_res = self.get_result_value(node);
+
+                        self.emit_move_node_to_value(&tmp_res, op, f_content, f_context, vm);
+                    }
                     
                     Instruction_::New(ref ty) => {
+                        trace!("instsel on NEW");
+
                         if cfg!(debug_assertions) {
                             match ty.v {
                                 MuType_::Hybrid(_) => panic!("cannot use NEW for hybrid, use NEWHYBRID instead"),
@@ -1074,6 +1121,8 @@ impl <'a> InstructionSelection {
                     }
 
                     Instruction_::NewHybrid(ref ty, var_len) => {
+                        trace!("instsel on NEWHYBRID");
+
                         if cfg!(debug_assertions) {
                             match ty.v {
                                 MuType_::Hybrid(_) => {},
@@ -1162,6 +1211,8 @@ impl <'a> InstructionSelection {
                     }
                     
                     Instruction_::Throw(op_index) => {
+                        trace!("instsel on THROW");
+
                         let ops = inst.ops.read().unwrap();
                         let ref exception_obj = ops[op_index];
                         
@@ -2136,14 +2187,10 @@ impl <'a> InstructionSelection {
                                 };
 
                                 let tmp_op1 = self.make_temporary(f_context, ty.clone(), vm);
-
-                                let ref ty_op1   = op1.clone_value().ty;
                                 let iimm_op1 = self.node_iimm_to_i32(op1);
-
                                 self.backend.emit_mov_r_imm(&tmp_op1, iimm_op1);
 
                                 let iimm_op2 = self.node_iimm_to_i32(op2);
-
                                 self.backend.emit_cmp_imm_r(iimm_op2, &tmp_op1);
 
                                 return op;
@@ -2248,6 +2295,7 @@ impl <'a> InstructionSelection {
                                 if x86_64::is_valid_x86_imm(pv) {
                                     let val = self.value_iimm_to_i32(&pv);
 
+                                    debug!("tmp's ty: {}", tmp.ty);
                                     self.backend.emit_mov_r_imm(&tmp, val)
                                 } else {
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);

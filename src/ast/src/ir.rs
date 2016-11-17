@@ -568,6 +568,14 @@ impl Value {
         }
     }
 
+    pub unsafe fn as_type(&self, ty: P<MuType>) -> P<Value> {
+        P(Value{
+            hdr: self.hdr.clone(),
+            ty: ty,
+            v: self.v.clone()
+        })
+    }
+
     pub fn is_fp_reg(&self) -> bool {
         match self.v {
             Value_::SSAVar(_) => {

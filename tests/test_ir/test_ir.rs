@@ -104,14 +104,14 @@ pub fn sum() -> VM {
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
-    // %cond = UGT %i %n
+    // %cond = UGE %i %n
     let blk_head_cond = func_ver.new_ssa(vm.next_id(), type_def_int1.clone());
     vm.set_name(blk_head_cond.as_entity(), "blk_head_cond".to_string());
     let blk_head_inst2 = func_ver.new_inst(Instruction {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: Some(vec![blk_head_cond.clone_value()]),
         ops: RwLock::new(vec![blk_head_i.clone(), blk_head_n.clone()]),
-        v: Instruction_::CmpOp(CmpOp::UGT, 0, 1)
+        v: Instruction_::CmpOp(CmpOp::UGE, 0, 1)
     });
 
     // BRANCH2 %cond %ret(%s2) %head(%n %s2 %i2)
