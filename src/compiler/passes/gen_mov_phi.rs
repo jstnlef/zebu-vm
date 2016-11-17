@@ -42,7 +42,7 @@ impl CompilerPass for GenMovPhi {
             trace!("block: {}", blk_id);
 
             // old block content
-            let mut block_content = block.content.as_ref().unwrap().clone();
+            let block_content = block.content.as_ref().unwrap().clone();
 
             let mut new_body = vec![];
 
@@ -58,7 +58,7 @@ impl CompilerPass for GenMovPhi {
 
                     match last_inst.v {
                         TreeNode_::Instruction(inst) => {
-                            let mut ops = inst.ops.write().unwrap();
+                            let ops = inst.ops.read().unwrap();
 
                             match inst.v {
                                 Instruction_::Branch2{cond, true_dest, false_dest, true_prob} => {

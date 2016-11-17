@@ -6,7 +6,6 @@ use compiler::backend;
 use utils::vec_utils;
 use utils::LinkedHashSet;
 
-use std::collections::LinkedList;
 use std::collections::{HashMap, HashSet};
 
 use self::nalgebra::DMatrix;

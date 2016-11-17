@@ -1,6 +1,5 @@
 #![allow(unused_variables)]
 
-use compiler::backend;
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::AOT_EMIT_DIR;
 use compiler::backend::RegGroup;
