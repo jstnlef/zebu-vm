@@ -1,6 +1,6 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib import rmu_fast as rmu
-from util import fncptr_from_rpy_func, fncptr_from_py_script, proc_call
+from util import fncptr_from_rpy_func, fncptr_from_py_script, proc_call, call_and_check
 import ctypes, os
 
 spawn_proc = bool(int(os.environ.get('SPAWN_PROC', '1')))
@@ -16,14 +16,6 @@ def rand_list_of(n):
     for i in range(n):
         lst.append(rffi.r_longlong(unpack('i', pack('I', getrandbits(32)))[0]))
     return lst
-
-
-def call_and_check(fnc, args, check_fnc):
-    res = fnc(*args)
-    if res is None:
-        check_fnc()
-    else:
-        check_fnc(res)
 
 
 # --------------------------
@@ -383,7 +375,7 @@ def test_new():
             "@i64": i64
         }
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc', spawn_proc)
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc', spawn_proc=spawn_proc)
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     def check(res):
@@ -453,7 +445,7 @@ def test_new_cmpeq():
             "@i64": i64
         }
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc', spawn_proc)
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc', spawn_proc=spawn_proc)
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     def check(res):

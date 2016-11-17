@@ -116,6 +116,14 @@ def proc_call(fnc, args):
     return rtn
 
 
+def call_and_check(fnc, args, check_fnc):
+    res = fnc(*args)
+    if res is None:
+        check_fnc()
+    else:
+        check_fnc(res)
+
+
 def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, spawn_proc=True, **kwargs):
     # NOTE: requires mu-client-pypy
     from rpython.rtyper.lltypesystem import rffi
