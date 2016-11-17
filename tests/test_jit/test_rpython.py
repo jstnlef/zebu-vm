@@ -1,6 +1,6 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib import rmu_fast as rmu
-from util import fncptr_from_rpy_func, fncptr_from_py_script, proc_call, call_and_check
+from util import fncptr_from_rpy_func, fncptr_from_py_script, call_and_check
 import ctypes
 
 
