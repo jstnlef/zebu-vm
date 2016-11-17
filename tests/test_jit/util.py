@@ -66,7 +66,7 @@ def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglo
     return fncptr_from_lib(lib, name, argtypes, restype), lib
 
 
-def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
+def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong, spawn_proc=True):
     # NOTE: requires mu-client-pypy
     from rpython.rlib import rmu_fast as rmu
 
@@ -80,7 +80,10 @@ def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
     id_dict = py_fnc(bldr, rmu)
     bldr.load()
     libname = 'lib%(name)s.dylib' % locals()
-    mu.compile_to_sharedlib(libname, [])
+    if spawn_proc:
+        proc_call(mu.compile_to_sharedlib, (libname, []))
+    else:
+        mu.compile_to_sharedlib(libname, [])
 
     lib = ctypes.CDLL('emit/%(libname)s' % locals())
     return fncptr_from_lib(lib, name, argtypes, restype), (mu, ctx, bldr)
@@ -91,7 +94,7 @@ def preload_libmu():
     return ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
 
-def proc_call(fnc, args, block=True, timeout=1):
+def proc_call(fnc, args):
     # call function with an extra Queue parameter to pass the return value in a separate process
     q = Queue()
     rtn = None
@@ -131,9 +134,11 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, spawn_proc=True, **kwar
     if kwargs['backend'] == 'mu':
         db, bdlgen, fnc_name = t.compile_mu()
         libname = 'lib%(fnc_name)s.dylib' % locals()
-        # run in a different process
-        proc_call(bdlgen.mu.compile_to_sharedlib, args=(libname, []), block=False)
-
+        if spawn_proc:
+            # run in a different process
+            proc_call(bdlgen.mu.compile_to_sharedlib, args=(libname, []))
+        else:
+            bdlgen.mu.compile_to_sharedlib(libname, [])
         eci = rffi.ExternalCompilationInfo(libraries=[test_jit_dir.join('emit', libname).strpath])
         extras = (db, bdlgen)
     else:
