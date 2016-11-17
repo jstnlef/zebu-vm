@@ -21,7 +21,7 @@ def rpy_entry(N):
 if __name__ == '__main__':
     import sys
     t0, t1 = measure(int(sys.argv[1]))
-    print '%.15df' % (t1 - t0)
+    print '%.15f' % (t1 - t0)
 
 
 def target(*args):

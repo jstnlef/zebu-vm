@@ -3,7 +3,7 @@ Performance comparison
 """
 from time import time
 from tempfile import mkdtemp
-import py, os
+import py, os, sys
 import subprocess as subp
 import ctypes
 
@@ -12,24 +12,29 @@ from rpython.config.translationoption import set_opt_level
 
 from util import libext, preload_libmu
 
+perf_target_dir = py.path.local(__file__).dirpath().join('perftarget')
+
+
 CPYTHON = os.environ.get('CPYTHON', 'python')
 PYPY = os.environ.get('PYPY', 'pypy')
 RPYTHON = os.environ.get('RPYTHON', None)
 CC = os.environ.get('CC', 'clang')
 
-perf_target_dir = py.path.local(__file__).join('perf_target')
 
 def run(cmd):
-    # print ' '.join(cmd)
+    print ' '.join(cmd)
     p = subp.Popen(cmd, stdout=subp.PIPE, stderr=subp.PIPE)
     return p.communicate()
+
 
 def get_c_function(lib, f):
     from ctypes import CDLL
     name = f.__name__
     return getattr(CDLL(lib.strpath), 'pypy_g_' + name)
 
+
 def perf_fibonacci():
+    from perftarget.fibonacci import fib
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
 
@@ -49,7 +54,6 @@ def perf_fibonacci():
         return float(out)
 
     def compile_rpython_c():
-        from perf_target.fibonacci import fib
         t = Translation(fib, [int],
                         gc='none')
         set_opt_level(t.config, '3')
@@ -59,7 +63,6 @@ def perf_fibonacci():
         return fnp
 
     def compile_rpython_c_jit():
-        from perf_target.fibonacci import fib
         t = Translation(fib, [int],
                         gc='none')
         set_opt_level(t.config, 'jit')
@@ -76,8 +79,6 @@ def perf_fibonacci():
 
     def compile_rpython_mu():
         preload_libmu()
-
-        from perf_target.fibonacci import fib
         t = Translation(fib, [int],
                         backend='mu', muimpl='fast', mucodegen='api', mutestjit=True)
         set_opt_level(t.config, '3')
@@ -108,15 +109,16 @@ def perf_fibonacci():
         return get_average_time(lambda *a: run_funcptr(fnp, *a), args, warmup, iterations)
 
     N = 30
-    iterations = 10
+    warmup = 0
+    iterations = 1
 
-    t_cpython = get_average_time(run_cpython, [N], iterations=iterations)
-    t_pypy_nojit = get_average_time(run_pypy_nojit, [N], iterations=iterations)
-    t_pypy = get_average_time(run_pypy, [N], iterations=iterations)
-    t_rpyc = get_average_time_compiled(compile_rpython_c, [N], iterations=iterations)
-    t_rpyc_jit = get_average_time_compiled(compile_rpython_c_jit, [N], iterations=iterations)
-    t_rpyc_mu = get_average_time_compiled(compile_rpython_mu, [N], iterations=iterations)
-    t_c = get_average_time_compiled(compile_c, [N], iterations=iterations)
+    t_cpython = get_average_time(run_cpython, [N], warmup, iterations=iterations)
+    t_pypy_nojit = get_average_time(run_pypy_nojit, [N], warmup, iterations=iterations)
+    t_pypy = get_average_time(run_pypy, [N], warmup, iterations=iterations)
+    t_rpyc = get_average_time_compiled(compile_rpython_c, [N], warmup, iterations=iterations)
+    t_rpyc_jit = get_average_time_compiled(compile_rpython_c_jit, [N], warmup, iterations=iterations)
+    t_rpyc_mu = get_average_time_compiled(compile_rpython_mu, [N], warmup, iterations=iterations)
+    t_c = get_average_time_compiled(compile_c, [N], warmup, iterations=iterations)
     print "CPython:", t_cpython
     print "PyPy (no JIT):", t_pypy_nojit
     print "PyPy:", t_pypy
