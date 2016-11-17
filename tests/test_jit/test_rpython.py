@@ -1,6 +1,6 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib import rmu_fast as rmu
-from util import fncptr_from_rpy_func, fncptr_from_py_script
+from util import fncptr_from_rpy_func, fncptr_from_py_script, proc_call
 import ctypes
 
 
@@ -9,14 +9,17 @@ def test_add():
         return a + b
 
     fn, _ = fncptr_from_rpy_func(add, [rffi.LONGLONG, rffi.LONGLONG], rffi.LONGLONG)
-    assert fn(1, 2) == 3
+    assert proc_call(fn, (1, 2)) == 3
 
 
 def rand_list_of(n):
     from random import getrandbits
     from struct import pack, unpack
 
-    return [rffi.r_longlong(unpack('i', pack('I', getrandbits(32)))[0]) for i in range(n)]
+    lst = []
+    for i in range(n):
+        lst.append(rffi.r_longlong(unpack('i', pack('I', getrandbits(32)))[0]))
+    return lst
 
 
 def test_vec3prod():
@@ -36,7 +39,7 @@ def test_vec3prod():
             vec2[0] = 4
             vec2[1] = 5
             vec2[2] = 6
-            assert fnc(vec1, vec2) == 32
+            assert proc_call(fnc, (vec1, vec2)) == 32
 
 
 def test_find_min():
@@ -52,9 +55,9 @@ def test_find_min():
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), 5) as arr:
         lst = [23, 100, 0, 78, -5]
-        for i, n in enumerate(lst):
-            arr[i] = n
-        assert fnc(arr, 5) == -5
+        for i, k in enumerate(lst):
+            arr[i] = k
+        assert proc_call(fnc, (arr, 5)) == -5
 
 
 def test_arraysum():
@@ -69,20 +72,13 @@ def test_arraysum():
 
     fnc, (db, bdlgen) = fncptr_from_rpy_func(arraysum, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T], rffi.LONGLONG)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+
     n = 100
-    print "initialising test array of length %d" % n
     lst = rand_list_of(n)
     with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), n) as arr:
-        for i, n in enumerate(lst):
-            arr[i] = n
-
-        print "call test function"
-        import time
-        tmr = time.time
-        t0 = tmr()
-        fnc(arr, rffi.cast(rffi.SIZE_T, n))  # inplace sort
-        t1 = tmr()
-        print "took %f sec" % (t1 - t0)
+        for i, k in enumerate(lst):
+            arr[i] = k
+        assert proc_call(fnc, (arr, rffi.cast(rffi.SIZE_T, n))) == sum(lst)
 
 
 def test_quicksort():
@@ -110,22 +106,16 @@ def test_quicksort():
 
     fnc, (db, bdlgen) = fncptr_from_rpy_func(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T, rffi.SIZE_T], lltype.Void)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+
     n = 100
-    print "initialising test array of length %d" % n
     lst = rand_list_of(n)
     with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), n) as arr:
-        for i, n in enumerate(lst):
-            arr[i] = n
+        for i, k in enumerate(lst):
+            arr[i] = k
 
-        print "call test function"
-        import time
-        tmr = time.time
-        t0 = tmr()
-        fnc(arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1))    # inplace sort
-        t1 = tmr()
-        print "took %f sec" % (t1 - t0)
-
+        proc_call(fnc, (arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1)))    # inplace sort
         lst_s = sorted(lst)
+
         for i in range(n):
             assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
 
@@ -166,7 +156,7 @@ def test_linkedlist_reversal():
                     d.val = 'd'
                     d.nxt = lltype.nullptr(Node)
 
-                    h = fnc(a)
+                    h = proc_call(fnc, (a,))
 
                     print '%s -> %s -> %s -> %s' % (h.val, h.nxt.val, h.nxt.nxt.val, h.nxt.nxt.nxt.val)
                     assert h.val == 'd'
@@ -278,7 +268,7 @@ def test_threadtran_fib():
     fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'fib', [ctypes.c_longlong])
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
-    assert fnp(20) == 6765
+    assert proc_call(fnp, (20, )) == 6765
 
 
 def test_new():
@@ -347,7 +337,7 @@ def test_new():
     fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
-    assert fnp() == 1
+    assert proc_call(fnp, ()) == 1
 
 
 def test_new_cmpeq():
@@ -412,7 +402,7 @@ def test_new_cmpeq():
     fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
-    assert fnp() == 0
+    assert proc_call(fnp, ()) == 0
 
 if __name__ == '__main__':
     import argparse

@@ -2,6 +2,7 @@ import subprocess as subp
 import os, sys
 import ctypes
 import py
+from multiprocessing import Process, Queue, ProcessError
 
 CC = os.environ.get('CC', 'clang')
 proj_dir = py.path.local(__file__).join('..', '..', '..')
@@ -84,11 +85,35 @@ def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
     lib = ctypes.CDLL('emit/%(libname)s' % locals())
     return fncptr_from_lib(lib, name, argtypes, restype), (mu, ctx, bldr)
 
+
 def preload_libmu():
     # load libmu before rffi so to load it with RTLD_GLOBAL
     return ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
-def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
+
+def proc_call(fnc, args, block=True, timeout=1):
+    # call function with an extra Queue parameter to pass the return value in a separate process
+    q = Queue()
+    rtn = None
+    proc = Process(target=lambda *args: args[-1].put(fnc(*args[:-1])), args=args + (q,))
+    proc.start()
+    from Queue import Empty
+    while proc.is_alive():
+        try:
+            rtn = q.get(False)
+            break
+        except Empty:
+            pass
+
+    if proc.is_alive():
+        proc.join()
+    if proc.exitcode != 0:
+        proc.join()
+        raise ProcessError("calling %(fnc)s with args %(args)s crashed with " % locals() + str(proc.exitcode))
+    return rtn
+
+
+def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, spawn_proc=True, **kwargs):
     # NOTE: requires mu-client-pypy
     from rpython.rtyper.lltypesystem import rffi
     from rpython.translator.interactive import Translation
@@ -106,7 +131,9 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     if kwargs['backend'] == 'mu':
         db, bdlgen, fnc_name = t.compile_mu()
         libname = 'lib%(fnc_name)s.dylib' % locals()
-        bdlgen.mu.compile_to_sharedlib(libname, [])
+        # run in a different process
+        proc_call(bdlgen.mu.compile_to_sharedlib, args=(libname, []), block=False)
+
         eci = rffi.ExternalCompilationInfo(libraries=[test_jit_dir.join('emit', libname).strpath])
         extras = (db, bdlgen)
     else:
