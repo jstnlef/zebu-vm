@@ -116,15 +116,23 @@ def proc_call(fnc, args):
     return rtn
 
 
+spawn_proc = bool(int(os.environ.get('SPAWN_PROC', '1')))
+
+
 def call_and_check(fnc, args, check_fnc):
-    res = fnc(*args)
-    if res is None:
-        check_fnc()
+    def inner():
+        res = fnc(*args)
+        if res is None:
+            check_fnc()
+        else:
+            check_fnc(res)
+    if spawn_proc:
+        proc_call(inner, tuple())
     else:
-        check_fnc(res)
+        inner()
 
 
-def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, spawn_proc=True, **kwargs):
+def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     # NOTE: requires mu-client-pypy
     from rpython.rtyper.lltypesystem import rffi
     from rpython.translator.interactive import Translation

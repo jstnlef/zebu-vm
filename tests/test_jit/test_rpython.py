@@ -1,9 +1,7 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib import rmu_fast as rmu
 from util import fncptr_from_rpy_func, fncptr_from_py_script, proc_call, call_and_check
-import ctypes, os
-
-spawn_proc = bool(int(os.environ.get('SPAWN_PROC', '1')))
+import ctypes
 
 
 # -------------------
@@ -28,10 +26,7 @@ def test_add():
 
     def check(s):
         assert s == 3
-    if spawn_proc:
-        proc_call(call_and_check, (fn, (1, 2), check))
-    else:
-        call_and_check(fn, (1, 2), check)
+    call_and_check(fn, (1, 2), check)
 
 
 def test_vec3prod():
@@ -41,7 +36,7 @@ def test_vec3prod():
         c = v1[2] * v2[2]
         return a + b + c
 
-    fnc, (db, bdlgen) = fncptr_from_rpy_func(prod, [rffi.CArrayPtr(rffi.LONGLONG), rffi.CArrayPtr(rffi.LONGLONG)], rffi.LONGLONG, spawn_proc)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(prod, [rffi.CArrayPtr(rffi.LONGLONG), rffi.CArrayPtr(rffi.LONGLONG)], rffi.LONGLONG)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), 3) as vec1:
         vec1[0] = 1
@@ -54,10 +49,7 @@ def test_vec3prod():
 
             def check(s):
                 assert s == 32
-            if spawn_proc:
-                proc_call(call_and_check, (fnc, (vec1, vec2), check))
-            else:
-                call_and_check(fnc, (vec1, vec2), check)
+            call_and_check(fnc, (vec1, vec2), check)
 
 
 def test_find_min():
@@ -69,7 +61,7 @@ def test_find_min():
                 m = x
         return m
 
-    fnc, (db, bdlgen) = fncptr_from_rpy_func(find_min, [rffi.CArrayPtr(rffi.LONGLONG), rffi.INTPTR_T], rffi.LONGLONG, spawn_proc)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(find_min, [rffi.CArrayPtr(rffi.LONGLONG), rffi.INTPTR_T], rffi.LONGLONG)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), 5) as arr:
         lst = [23, 100, 0, 78, -5]
@@ -78,10 +70,7 @@ def test_find_min():
 
         def check(m):
             assert m == -5
-        if spawn_proc:
-            proc_call(call_and_check, (fnc, (arr, 5), check))
-        else:
-            call_and_check(fnc, (arr, 5), check)
+        call_and_check(fnc, (arr, 5), check)
 
 
 def test_arraysum():
@@ -94,7 +83,7 @@ def test_arraysum():
             sum += arr[i]
         return sum
 
-    fnc, (db, bdlgen) = fncptr_from_rpy_func(arraysum, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T], rffi.LONGLONG, spawn_proc)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(arraysum, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T], rffi.LONGLONG)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
     n = 100
@@ -105,10 +94,7 @@ def test_arraysum():
 
         def check(s):
             assert s == sum(lst)
-        if spawn_proc:
-            proc_call(call_and_check, (fnc, (arr, rffi.cast(rffi.SIZE_T, n)), check))
-        else:
-            call_and_check(fnc, (arr, rffi.cast(rffi.SIZE_T, n)), check)
+        call_and_check(fnc, (arr, rffi.cast(rffi.SIZE_T, n)), check)
 
 
 def test_quicksort():
@@ -134,7 +120,7 @@ def test_quicksort():
             quicksort(arr, start, p - 1)
             quicksort(arr, p + 1, end)
 
-    fnc, (db, bdlgen) = fncptr_from_rpy_func(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T, rffi.SIZE_T], lltype.Void, spawn_proc)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T, rffi.SIZE_T], lltype.Void)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     # fnc = quicksort
 
@@ -148,10 +134,7 @@ def test_quicksort():
             lst_s = sorted(lst)
             for i in range(n):
                 assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
-        if spawn_proc:
-            proc_call(call_and_check, (fnc, (arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1)), check))
-        else:
-            call_and_check(fnc, (arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1)), check)
+        call_and_check(fnc, (arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1)), check)
 
 
 def test_linkedlist_reversal():
@@ -170,7 +153,7 @@ def test_linkedlist_reversal():
     NodePtr = lltype.Ptr(Node)
     Node.become(lltype.Struct("Node", ('val', rffi.CHAR), ('nxt', NodePtr)))
 
-    fnc, (db, bdlgen) = fncptr_from_rpy_func(reverse_linkedlist, [NodePtr], NodePtr, spawn_proc)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(reverse_linkedlist, [NodePtr], NodePtr)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     # fnc = reverse_linkedlist
 
@@ -195,10 +178,7 @@ def test_linkedlist_reversal():
                         assert h.nxt.nxt.val == 'b'
                         assert h.nxt.nxt.nxt.val == 'a'
                         assert h.nxt.nxt.nxt.nxt == lltype.nullptr(Node)
-                    if spawn_proc:
-                        proc_call(call_and_check, (fnc, (a, ), check))
-                    else:
-                        call_and_check(fnc, (a,), check)
+                    call_and_check(fnc, (a,), check)
 
 
 def test_threadtran_fib():
@@ -300,16 +280,13 @@ def test_threadtran_fib():
             "result_type": i64
         }
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'fib', [ctypes.c_longlong], spawn_proc)
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'fib', [ctypes.c_longlong])
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
     def check(res):
         assert res == 6765
-    if spawn_proc:
-        proc_call(call_and_check, (fnp, (20,), check))
-    else:
-        call_and_check(fnp, (20,), check)
+    call_and_check(fnp, (20,), check)
 
 
 def test_new():
@@ -375,15 +352,12 @@ def test_new():
             "@i64": i64
         }
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc', spawn_proc=spawn_proc)
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     def check(res):
         assert res == 1
-    if spawn_proc:
-        proc_call(call_and_check, (fnp, tuple(), check))
-    else:
-        call_and_check(fnp, tuple(), check)
+    call_and_check(fnp, tuple(), check)
 
 
 def test_new_cmpeq():
@@ -445,15 +419,12 @@ def test_new_cmpeq():
             "@i64": i64
         }
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc', spawn_proc=spawn_proc)
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     def check(res):
         assert res == 0
-    if spawn_proc:
-        proc_call(call_and_check, (fnp, tuple(), check))
-    else:
-        call_and_check(fnp, tuple(), check)
+    call_and_check(fnp, tuple(), check)
 
 if __name__ == '__main__':
     import argparse
