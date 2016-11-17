@@ -67,6 +67,7 @@ impl Default for CompilerPolicy {
         // ir level passes
         passes.push(Box::new(passes::DefUse::new()));
         passes.push(Box::new(passes::TreeGen::new()));
+        passes.push(Box::new(passes::GenMovPhi::new()));
         passes.push(Box::new(passes::ControlFlowAnalysis::new()));
         passes.push(Box::new(passes::TraceGen::new()));
 

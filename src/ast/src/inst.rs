@@ -266,7 +266,10 @@ pub enum Instruction_ {
 
     // common inst
     CommonInst_GetThreadLocal,
-    CommonInst_SetThreadLocal(OpIndex)
+    CommonInst_SetThreadLocal(OpIndex),
+
+    // internal use: mov from ops[0] to value
+    Move(OpIndex)
 }
 
 impl Instruction_ {
@@ -379,8 +382,13 @@ impl Instruction_ {
             &Instruction_::ExnInstruction{ref inner, ref resume} => {
                 format!("{} {}", inner.debug_str(ops), resume.debug_str(ops))
             },
+
+            // common inst
             &Instruction_::CommonInst_GetThreadLocal => format!("COMMONINST GetThreadLocal"),
-            &Instruction_::CommonInst_SetThreadLocal(op) => format!("COMMONINST SetThreadLocal {}", ops[op])
+            &Instruction_::CommonInst_SetThreadLocal(op) => format!("COMMONINST SetThreadLocal {}", ops[op]),
+
+            // move
+            &Instruction_::Move(from) => format!("MOVE {}", ops[from])
         }
     }
 }

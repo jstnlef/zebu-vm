@@ -93,7 +93,7 @@ impl <'a> InstructionSelection {
                         let ref cond = ops[cond];
                         
                         if self.match_cmp_res(cond) {
-                            trace!("emit cmp_eq-branch2");
+                            trace!("emit cmp_res-branch2");
                             match self.emit_cmp_res(cond, f_content, f_context, vm) {
                                 op::CmpOp::EQ => {
                                     if branch_if_true {
@@ -1054,6 +1054,15 @@ impl <'a> InstructionSelection {
 
                         // store tmp_op -> [tl + USER_TLS_OFFSTE]
                         self.emit_store_base_offset(&tl, *thread::USER_TLS_OFFSET as i32, &tmp_op, vm);
+                    }
+
+                    Instruction_::Move(op) => {
+                        let ops = inst.ops.read().unwrap();
+                        let ref op = ops[op];
+
+                        let tmp_res = self.get_result_value(node);
+
+                        self.emit_move_node_to_value(&tmp_res, op, f_content, f_context, vm);
                     }
                     
                     Instruction_::New(ref ty) => {
