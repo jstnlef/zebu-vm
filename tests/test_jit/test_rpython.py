@@ -1,6 +1,6 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib import rmu_fast as rmu
-from util import fncptr_from_rpy_func, fncptr_from_py_script, call_and_check
+from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
 import ctypes
 
 
@@ -18,17 +18,17 @@ def rand_list_of(n):
 
 # --------------------------
 # tests
+@may_spawn_proc
 def test_add():
     def add(a, b):
         return a + b
 
     fn, _ = fncptr_from_rpy_func(add, [rffi.LONGLONG, rffi.LONGLONG], rffi.LONGLONG)
 
-    def check(s):
-        assert s == 3
-    call_and_check(fn, (1, 2), check)
+    assert fn(1, 2) == 3
 
 
+@may_spawn_proc
 def test_vec3prod():
     def prod(v1, v2):
         a = v1[0] * v2[0]
@@ -47,11 +47,10 @@ def test_vec3prod():
             vec2[1] = 5
             vec2[2] = 6
 
-            def check(s):
-                assert s == 32
-            call_and_check(fnc, (vec1, vec2), check)
+            assert fnc(vec1, vec2) == 32
 
 
+@may_spawn_proc
 def test_find_min():
     def find_min(xs, sz):
         m = xs[0]
@@ -68,11 +67,10 @@ def test_find_min():
         for i, k in enumerate(lst):
             arr[i] = k
 
-        def check(m):
-            assert m == -5
-        call_and_check(fnc, (arr, 5), check)
+        fnc(arr, 5) == -5
 
 
+@may_spawn_proc
 def test_arraysum():
     from rpython.rlib.jit import JitDriver
     d = JitDriver(greens=[], reds='auto')
@@ -92,11 +90,10 @@ def test_arraysum():
         for i, k in enumerate(lst):
             arr[i] = k
 
-        def check(s):
-            assert s == sum(lst)
-        call_and_check(fnc, (arr, rffi.cast(rffi.SIZE_T, n)), check)
+        assert fnc(arr, rffi.cast(rffi.SIZE_T, n)) == sum(lst)
 
 
+@may_spawn_proc
 def test_quicksort():
     # algorithm taken from Wikipedia
     def swap(arr, i, j):
@@ -130,13 +127,14 @@ def test_quicksort():
         for i, k in enumerate(lst):
             arr[i] = k
 
-        def check():
-            lst_s = sorted(lst)
-            for i in range(n):
-                assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
-        call_and_check(fnc, (arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1)), check)
+        fnc(arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1))  # inplace sort
+
+        lst_s = sorted(lst)
+        for i in range(n):
+            assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
 
 
+@may_spawn_proc
 def test_linkedlist_reversal():
     def reverse_linkedlist(head):
         h = head
@@ -171,16 +169,16 @@ def test_linkedlist_reversal():
                     d.val = 'd'
                     d.nxt = lltype.nullptr(Node)
 
-                    def check(h):
-                        print '%s -> %s -> %s -> %s' % (h.val, h.nxt.val, h.nxt.nxt.val, h.nxt.nxt.nxt.val)
-                        assert h.val == 'd'
-                        assert h.nxt.val == 'c'
-                        assert h.nxt.nxt.val == 'b'
-                        assert h.nxt.nxt.nxt.val == 'a'
-                        assert h.nxt.nxt.nxt.nxt == lltype.nullptr(Node)
-                    call_and_check(fnc, (a,), check)
+                    h = fnc(a)
+                    print '%s -> %s -> %s -> %s' % (h.val, h.nxt.val, h.nxt.nxt.val, h.nxt.nxt.nxt.val)
+                    assert h.val == 'd'
+                    assert h.nxt.val == 'c'
+                    assert h.nxt.nxt.val == 'b'
+                    assert h.nxt.nxt.nxt.val == 'a'
+                    assert h.nxt.nxt.nxt.nxt == lltype.nullptr(Node)
 
 
+@may_spawn_proc
 def test_threadtran_fib():
     def build_test_bundle(bldr, rmu):
         """
@@ -284,11 +282,10 @@ def test_threadtran_fib():
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
-    def check(res):
-        assert res == 6765
-    call_and_check(fnp, (20,), check)
+    assert fnp(20) == 6765
 
 
+@may_spawn_proc
 def test_new():
     def build_test_bundle(bldr, rmu):
         """
@@ -355,11 +352,10 @@ def test_new():
     fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
-    def check(res):
-        assert res == 1
-    call_and_check(fnp, tuple(), check)
+    assert fnp() == 1
 
 
+@may_spawn_proc
 def test_new_cmpeq():
     def build_test_bundle(bldr, rmu):
         """
@@ -422,9 +418,8 @@ def test_new_cmpeq():
     fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
-    def check(res):
-        assert res == 0
-    call_and_check(fnp, tuple(), check)
+    assert fnp() == 0
+
 
 if __name__ == '__main__':
     import argparse

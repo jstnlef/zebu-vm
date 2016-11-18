@@ -66,7 +66,7 @@ def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglo
     return fncptr_from_lib(lib, name, argtypes, restype), lib
 
 
-def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong, spawn_proc=True):
+def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
     # NOTE: requires mu-client-pypy
     from rpython.rlib import rmu_fast as rmu
 
@@ -80,10 +80,7 @@ def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong, 
     id_dict = py_fnc(bldr, rmu)
     bldr.load()
     libname = 'lib%(name)s.dylib' % locals()
-    if spawn_proc:
-        proc_call(mu.compile_to_sharedlib, (libname, []))
-    else:
-        mu.compile_to_sharedlib(libname, [])
+    mu.compile_to_sharedlib(libname, [])
 
     lib = ctypes.CDLL('emit/%(libname)s' % locals())
     return fncptr_from_lib(lib, name, argtypes, restype), (mu, ctx, bldr)
@@ -94,42 +91,17 @@ def preload_libmu():
     return ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
 
-def proc_call(fnc, args):
-    # call function with an extra Queue parameter to pass the return value in a separate process
-    q = Queue()
-    rtn = None
-    proc = Process(target=lambda *args: args[-1].put(fnc(*args[:-1])), args=args + (q,))
-    proc.start()
-    from Queue import Empty
-    while proc.is_alive():
-        try:
-            rtn = q.get(False)
-            break
-        except Empty:
-            pass
-
-    if proc.is_alive():
-        proc.join()
-    if proc.exitcode != 0:
-        proc.join()
-        raise ProcessError("calling %(fnc)s with args %(args)s crashed with " % locals() + str(proc.exitcode))
-    return rtn
-
-
 spawn_proc = bool(int(os.environ.get('SPAWN_PROC', '1')))
-
-
-def call_and_check(fnc, args, check_fnc):
-    def inner():
-        res = fnc(*args)
-        if res is None:
-            check_fnc()
+def may_spawn_proc(test_fnc):
+    def wrapper():
+        if spawn_proc:
+            p = Process(target=test_fnc, args=tuple())
+            p.start()
+            p.join()
+            assert p.exitcode == 0
         else:
-            check_fnc(res)
-    if spawn_proc:
-        proc_call(inner, tuple())
-    else:
-        inner()
+            test_fnc()
+    return wrapper
 
 
 def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
@@ -150,11 +122,7 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     if kwargs['backend'] == 'mu':
         db, bdlgen, fnc_name = t.compile_mu()
         libname = 'lib%(fnc_name)s.dylib' % locals()
-        if spawn_proc:
-            # run in a different process
-            proc_call(bdlgen.mu.compile_to_sharedlib, args=(libname, []))
-        else:
-            bdlgen.mu.compile_to_sharedlib(libname, [])
+        bdlgen.mu.compile_to_sharedlib(libname, [])
         eci = rffi.ExternalCompilationInfo(libraries=[test_jit_dir.join('emit', libname).strpath])
         extras = (db, bdlgen)
     else:
