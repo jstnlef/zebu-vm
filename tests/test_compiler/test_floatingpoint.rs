@@ -34,7 +34,7 @@ fn test_fp_add() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("fp_add")], "libfp_add.dylib");
+    let dylib = aot::link_dylib(vec![Mu("fp_add")], "libfp_add.dylib", &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {

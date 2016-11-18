@@ -7,13 +7,15 @@ use ast::types::*;
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use compiler::machine_code::CompiledFunction;
-use vm::vm_options::VMOptions;
 use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::ByteSize;
 use runtime::mm as gc;
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+use vm::vm_options::VMOptions;
+use vm::vm_options::MuLogLevel;
 
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+use log::LogLevel;
 use std::path;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
@@ -49,13 +51,15 @@ pub struct VM {
     pub primordial: RwLock<Option<MuPrimordialThread>>,
     // 11
     is_running: AtomicBool,
+    // 12
+    pub vm_options: VMOptions,
     
     // partially serialize
-    // 12
+    // 13
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,    
 }
 
-const VM_SERIALIZE_FIELDS : usize = 13;
+const VM_SERIALIZE_FIELDS : usize = 14;
 
 impl Encodable for VM {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
@@ -195,6 +199,13 @@ impl Encodable for VM {
                 try!(s.emit_struct_field("is_running", field_i, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
             }
             field_i += 1;
+
+            // options
+            trace!("...serializing vm_options");
+            {
+                try!(s.emit_struct_field("vm_options", field_i, |s| self.vm_options.encode(s)));
+            }
+            field_i += 1;
             
             // compiled_funcs
             trace!("...serializing compiled_funcs");
@@ -315,8 +326,13 @@ impl Decodable for VM {
             // primordial
             let primordial = try!(d.read_struct_field("primordial", field_i, |d| Decodable::decode(d)));
             field_i += 1;
-            
+
+            // is_running
             let is_running = try!(d.read_struct_field("is_running", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
+
+            // vm_options
+            let vm_options = try!(d.read_struct_field("vm_options", field_i, |d| Decodable::decode(d)));
             field_i += 1;
             
             // compiled funcs
@@ -346,6 +362,7 @@ impl Decodable for VM {
                 func_vers: RwLock::new(func_vers),
                 primordial: RwLock::new(primordial),
                 is_running: ATOMIC_BOOL_INIT,
+                vm_options: vm_options,
                 compiled_funcs: RwLock::new(compiled_funcs),
             };
             
@@ -359,37 +376,46 @@ impl Decodable for VM {
 
 impl <'a> VM {
     pub fn new() -> VM {
-        VM::start_logging();
+        VM::new_internal(VMOptions::default())
+    }
+
+    pub fn new_with_opts(str: &str) -> VM {
+        VM::new_internal(VMOptions::init(str))
+    }
+
+    fn new_internal(options: VMOptions) -> VM {
+        VM::start_logging(options.flag_log_level);
 
         let ret = VM {
             next_id: ATOMIC_USIZE_INIT,
             is_running: ATOMIC_BOOL_INIT,
-            
+            vm_options: options,
+
             id_name_map: RwLock::new(HashMap::new()),
             name_id_map: RwLock::new(HashMap::new()),
-            
+
             constants: RwLock::new(HashMap::new()),
-            
+
             types: RwLock::new(HashMap::new()),
             backend_type_info: RwLock::new(HashMap::new()),
-            
+
             globals: RwLock::new(HashMap::new()),
-            
+
             func_sigs: RwLock::new(HashMap::new()),
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
-            
+
             primordial: RwLock::new(None)
         };
-        
+
         {
             let mut types = ret.types.write().unwrap();
             for ty in INTERNAL_TYPES.iter() {
                 types.insert(ty.id(), ty.clone());
             }
         }
-        
+
         ret.is_running.store(false, Ordering::SeqCst);
 
         // Does not need SeqCst.
@@ -401,21 +427,42 @@ impl <'a> VM {
         // If the client needs to create client-level threads, however, the client should properly
         // synchronise at the time of inter-thread communication, rather than creation of the VM.
         ret.next_id.store(USER_ID_START, Ordering::Relaxed);
-        
-        let options = VMOptions::default();
-        gc::gc_init(options.immix_size, options.lo_size, options.n_gcthreads);
-        
+
+        ret.init_vm();
+
         ret
     }
 
-    pub fn start_logging() {
-        VM::start_logging_trace();
+    fn init_vm(&self) {
+        // init log
+        VM::start_logging(self.vm_options.flag_log_level);
+
+        // init gc
+        {
+            let ref options = self.vm_options;
+            gc::gc_init(options.flag_gc_immixspace_size, options.flag_gc_lospace_size, options.flag_gc_nthreads);
+        }
+    }
+
+    fn start_logging(level: MuLogLevel) {
+        match level {
+            MuLogLevel::None  => {},
+            MuLogLevel::Error => VM::start_logging_internal(LogLevel::Error),
+            MuLogLevel::Warn  => VM::start_logging_internal(LogLevel::Warn),
+            MuLogLevel::Info  => VM::start_logging_internal(LogLevel::Info),
+            MuLogLevel::Debug => VM::start_logging_internal(LogLevel::Debug),
+            MuLogLevel::Trace => VM::start_logging_internal(LogLevel::Trace),
+        }
     }
 
     pub fn start_logging_trace() {
+        VM::start_logging_internal(LogLevel::Trace)
+    }
+
+    fn start_logging_internal(level: LogLevel) {
         use simple_logger;
 
-        match simple_logger::init() {
+        match simple_logger::init_with_level(level) {
             Ok(_) => {},
             Err(_) => {}
         }
@@ -424,10 +471,9 @@ impl <'a> VM {
     pub fn resume_vm(serialized_vm: &str) -> VM {
         use rustc_serialize::json;
         
-        let vm = json::decode(serialized_vm).unwrap();
+        let vm : VM = json::decode(serialized_vm).unwrap();
         
-        let options = VMOptions::default();
-        gc::gc_init(options.immix_size, options.lo_size, options.n_gcthreads);
+        vm.init_vm();
         
         vm
     }

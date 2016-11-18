@@ -8,7 +8,6 @@ use utils::ByteSize;
 pub type Word = usize;
 pub const WORD_SIZE : ByteSize = 8;
 
-pub const AOT_EMIT_DIR : &'static str = "emit";
 pub const AOT_EMIT_CONTEXT_FILE : &'static str = "context.s";
 
 // this is not full name, but pro/epilogue name is generated from this

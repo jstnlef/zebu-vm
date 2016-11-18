@@ -63,6 +63,6 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
     }
     backend::emit_context(&vm);
     let libname = &format!("lib{}.dylib", fnc_name);
-    let dylib = aot::link_dylib(vec![Mu(fnc_name)], libname);
+    let dylib = aot::link_dylib(vec![Mu(fnc_name)], libname, &vm);
     ll::Library::new(dylib.as_os_str()).unwrap()
 }

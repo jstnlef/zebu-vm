@@ -22,9 +22,9 @@ impl MuVM {
     /**
      * Create a new micro VM instance from scratch.
      */
-    pub fn new() -> MuVM {
+    pub fn new(opts: &str) -> MuVM {
         MuVM {
-            vm: Arc::new(VM::new()),
+            vm: Arc::new(VM::new_with_opts(opts)),
             // Cache C strings. The C client expects `char*` from `name_of`. We assume the client
             // won't call `name_of` very often, so that we don't need to initialise this hashmap on
             // startup.
@@ -92,7 +92,7 @@ impl MuVM {
             func_names.push(func.name().unwrap());
         }
         backend::emit_context(&self.vm);
-        aot::link_dylib_with_extra_srcs(func_names, extra_srcs, &lib_name);
+        aot::link_dylib_with_extra_srcs(func_names, extra_srcs, &lib_name, &self.vm);
     }
 
     pub fn current_thread_as_mu_thread(&self, threadlocal: CMuCPtr) {
@@ -122,9 +122,14 @@ impl MuVM {
  */
 #[no_mangle]
 pub extern fn mu_fastimpl_new() -> *mut CMuVM {
+    mu_fastimpl_new_with_opts("")
+}
+
+#[no_mangle]
+pub extern fn mu_fastimpl_new_with_opts(opts: &str) -> *mut CMuVM {
     info!("Creating Mu micro VM fast implementation instance...");
 
-    let mvm = Box::new(MuVM::new());
+    let mvm = Box::new(MuVM::new(opts));
     let mvm_ptr = Box::into_raw(mvm);
 
     debug!("The MuVM instance address: {:?}", mvm_ptr);

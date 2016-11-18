@@ -82,11 +82,11 @@ pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
     };
     
     *MY_GC.write().unwrap() = Some(GC {immix_space: immix_space, lo_space: lo_space});
-    println!("heap is {} bytes (immix: {} bytes, lo: {} bytes) . ", immix_size + lo_size, immix_size, lo_size);
+    info!("heap is {} bytes (immix: {} bytes, lo: {} bytes) . ", immix_size + lo_size, immix_size, lo_size);
     
     // gc threads
     heap::gc::GC_THREADS.store(n_gcthreads, Ordering::SeqCst);
-    println!("{} gc threads", n_gcthreads);
+    info!("{} gc threads", n_gcthreads);
     
     // init object model
     objectmodel::init();

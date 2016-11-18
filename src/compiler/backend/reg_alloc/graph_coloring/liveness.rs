@@ -200,26 +200,26 @@ impl InterferenceGraph {
     }
     
     pub fn print(&self, context: &FunctionContext) {
-        println!("");
-        println!("Interference Graph");
+        debug!("");
+        debug!("Interference Graph");
 
-        println!("nodes:");
+        debug!("nodes:");
         for id in self.nodes.keys() {
             let val = context.get_value(*id).unwrap().value();
-            println!("Reg {} -> {:?}", val, self.nodes.get(&id).unwrap());
+            debug!("Reg {} -> {:?}", val, self.nodes.get(&id).unwrap());
         }
 
-        println!("color:");
+        debug!("color:");
         for (node, color) in self.nodes_property.iter() {
             let node_val = context.get_value(self.get_temp_of(*node)).unwrap().value();
             let color_val = context.get_value(color.temp).unwrap().value();
-            println!("Reg {} of {:?} -> Color/Reg {}", node_val, node, color_val);
+            debug!("Reg {} of {:?} -> Color/Reg {}", node_val, node, color_val);
         }
-        println!("moves:");
+        debug!("moves:");
         for mov in self.moves.iter() {
-            println!("Move {:?} -> {:?}", mov.from, mov.to);
+            debug!("Move {:?} -> {:?}", mov.from, mov.to);
         }
-        println!("graph:");
+        debug!("graph:");
         {
             let node_to_reg_id = {
                 let mut ret : HashMap<Node, MuID> = HashMap::new();
@@ -241,12 +241,12 @@ impl InterferenceGraph {
                         let from_val = context.get_value(*from_node).unwrap().value();
                         let to_val = context.get_value(*to_node).unwrap().value();
 
-                        println!("Reg {} -> Reg {}", from_val, to_val);
+                        debug!("Reg {} -> Reg {}", from_val, to_val);
                     }
                 }
             }
         }
-        println!("");
+        debug!("");
     }
 }
 

@@ -113,7 +113,7 @@ impl Bitmap {
         };
         
         for i in 0..nwords {
-            println!("{}\t0b{:64b}", i * 64, unsafe {*ptr});
+            debug!("{}\t0b{:64b}", i * 64, unsafe {*ptr});
             ptr = unsafe{ptr.offset(1)};
         }
     }

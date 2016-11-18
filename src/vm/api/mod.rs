@@ -3,6 +3,7 @@ mod api_bridge;     // This is mostly auto-generatd code, and should not be used
 mod api_impl;       // Mostly private. 
 
 pub use self::api_impl::mu_fastimpl_new;
+pub use self::api_impl::mu_fastimpl_new_with_opts;
 
 mod deps {
     pub use ast::ir::WPID;

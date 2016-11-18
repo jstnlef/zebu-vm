@@ -1,7 +1,6 @@
 #![allow(unused_variables)]
 
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
-use compiler::backend::AOT_EMIT_DIR;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
 use compiler::backend::x86_64;
@@ -1525,22 +1524,22 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     fn print_cur_code(&self) {
-        println!("");
+        debug!("");
 
         if self.cur.is_some() {
             let code = self.cur.as_ref().unwrap();
 
-            println!("code for {}: ", code.name);
+            debug!("code for {}: ", code.name);
             let n_insts = code.code.len();
             for i in 0..n_insts {
                 let ref line = code.code[i];
-                println!("#{}\t{}", i, line.code);
+                debug!("#{}\t{}", i, line.code);
             }
         } else {
-            println!("no current code");
+            debug!("no current code");
         }
 
-        println!("");
+        debug!("");
     }
 
     fn start_block(&mut self, block_name: MuName) {
@@ -2532,9 +2531,9 @@ impl CodeGenerator for ASMCodeGen {
     }
 }
 
-fn create_emit_directory() {
+fn create_emit_directory(vm: &VM) {
     use std::fs;    
-    match fs::create_dir(AOT_EMIT_DIR) {
+    match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
         Ok(_) => {},
         Err(_) => {}
     }    
@@ -2554,10 +2553,10 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     let code = cf.mc.as_ref().unwrap().emit();
 
     // create 'emit' directory
-    create_emit_directory();
+    create_emit_directory(vm);
 
     let mut file_path = path::PathBuf::new();
-    file_path.push(AOT_EMIT_DIR);
+    file_path.push(&vm.vm_options.flag_aot_emit_dir);
     file_path.push(func.name().unwrap().to_string() + ".s");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
@@ -2566,7 +2565,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 
     match file.write_all(code.as_slice()) {
         Err(why) => panic!("couldn'd write to file {}: {}", file_path.to_str().unwrap(), why),
-        Ok(_) => println!("emit code to {}", file_path.to_str().unwrap())
+        Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
     }
 }
 
@@ -2577,10 +2576,10 @@ pub fn emit_context(vm: &VM) {
     use rustc_serialize::json;
     
     debug!("---Emit VM Context---");
-    create_emit_directory();
+    create_emit_directory(vm);
     
     let mut file_path = path::PathBuf::new();
-    file_path.push(AOT_EMIT_DIR);
+    file_path.push(&vm.vm_options.flag_aot_emit_dir);
     file_path.push(AOT_EMIT_CONTEXT_FILE);
     
     let mut file = match File::create(file_path.as_path()) {

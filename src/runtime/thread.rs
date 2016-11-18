@@ -165,7 +165,7 @@ impl MuStack {
         let mut cursor = self.upper_bound.sub(WORD_SIZE);
         let mut count = 0;
         
-        println!("0x{:x} | UPPER_BOUND", self.upper_bound); 
+        debug!("0x{:x} | UPPER_BOUND", self.upper_bound);
         while cursor >= self.lower_bound {
             let val = unsafe{cursor.load::<Word>()};
             print!("0x{:x} | 0x{:x} ({})", cursor, val, val);
@@ -174,18 +174,18 @@ impl MuStack {
                 print!(" <- SP");
             }
             
-            println!("");
+            debug!("");
             
             cursor = cursor.sub(WORD_SIZE);
             count += 1;
             
             if n_entries.is_some() && count > n_entries.unwrap() {
-                println!("...");
+                debug!("...");
                 break;
             }
         }
         
-        println!("0x{:x} | LOWER_BOUND", self.lower_bound); 
+        debug!("0x{:x} | LOWER_BOUND", self.lower_bound);
     }
 }
 

@@ -1,6 +1,7 @@
 use testutil::*;
 use ast::ir::MuName;
 use runtime;
+use vm::VM;
 use compiler::backend;
 
 use std::path::PathBuf;
@@ -68,22 +69,22 @@ fn link_dylib_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
     out
 }
 
-fn get_path_for_mu_func (f: MuName) -> PathBuf {
-    let mut ret = PathBuf::from(backend::AOT_EMIT_DIR);
+fn get_path_for_mu_func (f: MuName, vm: &VM) -> PathBuf {
+    let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     ret.push(f);
     ret.set_extension("s");
 
     ret
 }
 
-fn get_path_for_mu_context () -> PathBuf {
-    let mut ret = PathBuf::from(backend::AOT_EMIT_DIR);
+fn get_path_for_mu_context (vm: &VM) -> PathBuf {
+    let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     ret.push(backend::AOT_EMIT_CONTEXT_FILE);
     ret
 }
 
-pub fn link_primordial (funcs: Vec<MuName>, out: &str) -> PathBuf {
-    let emit_dir = PathBuf::from(backend::AOT_EMIT_DIR);
+pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
+    let emit_dir = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
 
     let files : Vec<PathBuf> = {
         use std::fs;
@@ -92,15 +93,15 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str) -> PathBuf {
 
         // all interested mu funcs
         for func in funcs {
-            ret.push(get_path_for_mu_func(func));
+            ret.push(get_path_for_mu_func(func, vm));
         }
 
         // mu context
-        ret.push(get_path_for_mu_context());
+        ret.push(get_path_for_mu_context(vm));
 
         // copy primoridal entry
         let source   = PathBuf::from(runtime::PRIMORDIAL_ENTRY);
-        let mut dest = PathBuf::from(backend::AOT_EMIT_DIR);
+        let mut dest = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
         dest.push("main.c");
         fs::copy(source.as_path(), dest.as_path()).unwrap();
         // include the primordial C main
@@ -129,43 +130,43 @@ pub fn execute_nocheck(executable: PathBuf) -> Output {
     exec_nocheck(run)
 }
 
-pub fn link_dylib (funcs: Vec<MuName>, out: &str) -> PathBuf {
+pub fn link_dylib (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     let files = {
         let mut ret = vec![];
 
         for func in funcs {
-            ret.push(get_path_for_mu_func(func));
+            ret.push(get_path_for_mu_func(func, vm));
         }
 
-        ret.push(get_path_for_mu_context());
+        ret.push(get_path_for_mu_context(vm));
 
         ret
     };
 
-    let mut out_path = PathBuf::from(backend::AOT_EMIT_DIR);
+    let mut out_path = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     out_path.push(out);
 
     link_dylib_internal(files, out_path)
 }
 
-pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &str) -> PathBuf{
+pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &str, vm: &VM) -> PathBuf{
     let files = {
         let mut ret = vec![];
 
         for func in funcs {
-            ret.push(get_path_for_mu_func(func));
+            ret.push(get_path_for_mu_func(func, vm));
         }
 
         for src in srcs {
             ret.push(PathBuf::from(src));
         }
 
-        ret.push(get_path_for_mu_context());
+        ret.push(get_path_for_mu_context(vm));
 
         ret
     };
 
-    let mut out_path = PathBuf::from(backend::AOT_EMIT_DIR);
+    let mut out_path = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     out_path.push(out);
 
     link_dylib_internal(files, out_path)

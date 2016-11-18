@@ -93,7 +93,7 @@ fn test_spill1() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("spill1")], "libspill1.dylib");
+    let dylib = aot::link_dylib(vec![Mu("spill1")], "libspill1.dylib", &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
@@ -295,7 +295,7 @@ fn test_simple_spill() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("simple_spill")], "libsimple_spill.dylib");
+    let dylib = aot::link_dylib(vec![Mu("simple_spill")], "libsimple_spill.dylib", &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {

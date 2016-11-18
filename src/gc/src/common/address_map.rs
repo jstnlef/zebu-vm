@@ -22,7 +22,6 @@ impl <T> AddressMap<T> where T: Copy{
     }
     
     pub fn init_all (&self, init: T) {
-        println!("check valid");
         let mut cursor = self.start;
         
         while cursor < self.end {

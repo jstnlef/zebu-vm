@@ -23,35 +23,35 @@ pub fn flip_mark_state() {
 #[allow(unused_variables)]
 pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, alloc_map: *mut u8) {
     let mut cursor = obj;
-    println!("OBJECT 0x{:x}", obj);
+    trace!("OBJECT 0x{:x}", obj);
     loop {
         let hdr = get_ref_byte(alloc_map, space_start, unsafe {cursor.to_object_reference()});
         let (ref_bits, short_encode) = (
-            bit_utils::lower_bits(hdr, REF_BITS_LEN), 
+            bit_utils::lower_bits(hdr, REF_BITS_LEN),
             bit_utils::test_nth_bit(hdr, SHORT_ENCODE_BIT)
         );
-        
-        
-        println!("0x{:x} | val: 0x{:15x} | {}, hdr: {:b}", 
+
+
+        trace!("0x{:x} | val: 0x{:15x} | {}, hdr: {:b}",
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 0), hdr);
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:15x} | {}", 
+        trace!("0x{:x} | val: 0x{:15x} | {}",
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 1));
-        
+
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:15x} | {}", 
+        trace!("0x{:x} | val: 0x{:15x} | {}",
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 2));
-        
+
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:15x} | {}", 
+        trace!("0x{:x} | val: 0x{:15x} | {}",
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 3));
-        
+
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:15x} | {}", 
+        trace!("0x{:x} | val: 0x{:15x} | {}",
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 4));
-        
+
         cursor = cursor.plus(POINTER_SIZE);
-        println!("0x{:x} | val: 0x{:15x} | {} {}", 
+        trace!("0x{:x} | val: 0x{:15x} | {} {}",
             cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 5), 
             {
                 if !short_encode {

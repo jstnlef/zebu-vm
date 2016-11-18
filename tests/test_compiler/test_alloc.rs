@@ -36,7 +36,7 @@ fn test_instruction_new() {
     vm.make_primordial_thread(func_id, vec![]);
     backend::emit_context(&vm);
     
-    let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test");
+    let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test", &vm);
     aot::execute(executable);
 }
 
@@ -66,7 +66,7 @@ fn test_instruction_new_on_cur_thread() {
 
     // link
     let libname = &format!("liballoc_new_on_cur_thraed.dylib");
-    let dylib = aot::link_dylib(vec![Mu("alloc_new")], libname);
+    let dylib = aot::link_dylib(vec![Mu("alloc_new")], libname, &vm);
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
 
     unsafe {

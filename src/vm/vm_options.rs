@@ -1,23 +1,58 @@
-use std::default::Default;
-use utils::ByteSize;
+extern crate rustc_serialize;
+extern crate docopt;
 
+use self::docopt::Docopt;
+
+use std::default::Default;
+
+const USAGE: &'static str = "
+zebu (mu implementation). Pass arguments as a strings to init it.
+
+Usage:
+  init_mu [options]
+
+VM:
+  --log-level=<level>               logging level: none, error, warn, info, debug, trace [default: trace]
+
+AOT Compilation:
+  --aot-emit-dir=<dir>              the emit directory for ahead-of-time compiling [default: emit]
+
+Garbage Collection:
+  --gc-immixspace-size=<kb>         immix space size (default 65536kb = 64mb) [default: 65536]
+  --gc-lospace-size=<kb>            large object space size (default 65536kb = 64mb) [default: 65536]
+  --gc-nthreads=<n>                 number of threads for parallel gc [default: 8]
+";
+
+#[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct VMOptions {
-    // gc options
-    pub immix_size: ByteSize,
-    pub lo_size: ByteSize,
-    pub n_gcthreads: usize
+    pub flag_log_level: MuLogLevel,
+    pub flag_aot_emit_dir: String,
+    pub flag_gc_immixspace_size: usize,
+    pub flag_gc_lospace_size: usize,
+    pub flag_gc_nthreads: usize
 }
 
-pub const DEFAULT_IMMIX_SIZE : ByteSize = 1 << 16;  // 64Mb
-pub const DEFAULT_LO_SIZE    : ByteSize = 1 << 16;  // 64Mb
-pub const DEFAULT_N_GCTHREADS: usize = 8;
+#[derive(Debug, Clone, Copy, RustcDecodable, RustcEncodable)]
+pub enum MuLogLevel {
+    None, Error, Warn, Info, Debug, Trace
+}
+
+impl VMOptions {
+    pub fn init(str: &str) -> VMOptions {
+        println!("init vm options with: {:?}", str);
+
+        let ret : VMOptions = Docopt::new(USAGE)
+            .and_then(|d| d.argv(str.split_whitespace().into_iter()).parse())
+            .unwrap_or_else(|e| e.exit()).decode().unwrap();
+
+        println!("parsed as {:?}", ret);
+
+        ret
+    }
+}
 
 impl Default for VMOptions {
     fn default() -> VMOptions {
-        VMOptions {
-            immix_size: DEFAULT_IMMIX_SIZE,
-            lo_size: DEFAULT_LO_SIZE,
-            n_gcthreads: DEFAULT_N_GCTHREADS
-        }
+        VMOptions::init("")
     }
 }

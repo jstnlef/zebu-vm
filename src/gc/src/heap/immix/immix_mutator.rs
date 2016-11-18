@@ -112,7 +112,7 @@ impl ImmixMutatorLocal {
         *mutator_count_lock = *mutator_count_lock - 1;
         
         if cfg!(debug_assertions) {
-            println!("destroy mutator. Now live mutators = {}", *mutator_count_lock);
+            debug!("destroy mutator. Now live mutators = {}", *mutator_count_lock);
         }
     }
     
@@ -131,11 +131,8 @@ impl ImmixMutatorLocal {
     
     #[inline(always)]
     pub fn alloc(&mut self, size: usize, align: usize) -> Address {
-        // println!("Fastpath allocation");
         let start = self.cursor.align_up(align);
         let end = start.plus(size);
-        
-        // println!("cursor = {:#X}, after align = {:#X}", c, start);
         
         if end > self.limit {
             let ret = self.try_alloc_from_local(size, align);
@@ -177,8 +174,6 @@ impl ImmixMutatorLocal {
     
     #[inline(never)]
     pub fn try_alloc_from_local(&mut self, size : usize, align: usize) -> Address {
-        // println!("Trying to allocate from local");
-    		
         if self.line < immix::LINES_IN_BLOCK {
             let opt_next_available_line = {
                 let cur_line = self.line;
@@ -187,17 +182,13 @@ impl ImmixMutatorLocal {
     
             match opt_next_available_line {
                 Some(next_available_line) => {
-                    // println!("next available line is {}", next_available_line);
-                    
                     // we can alloc from local blocks
                     let end_line = self.block().get_next_unavailable_line(next_available_line);
-                    
-                    // println!("next unavailable line is {}", end_line);
+
                     self.cursor = self.block().start().plus(next_available_line << immix::LOG_BYTES_IN_LINE);
                     self.limit  = self.block().start().plus(end_line << immix::LOG_BYTES_IN_LINE);
                     self.line   = end_line;
                     
-                    // println!("{}", self);
                     self.cursor.memset(0, self.limit.diff(self.cursor));
                     
                     for line in next_available_line..end_line {
@@ -207,7 +198,6 @@ impl ImmixMutatorLocal {
                     self.alloc(size, align)
                 },
                 None => {
-                    // println!("no availalbe line in current block");                	
                     self.alloc_from_global(size, align)
                 }
             }
@@ -265,14 +255,14 @@ impl ImmixMutatorLocal {
     }
     
     pub fn print_object_static(obj: Address, length: usize) {
-        println!("===Object {:#X} size: {} bytes===", obj, length);
+        debug!("===Object {:#X} size: {} bytes===", obj, length);
         let mut cur_addr = obj;
         while cur_addr < obj.plus(length) {
-            println!("Address: {:#X}   {:#X}", cur_addr, unsafe {cur_addr.load::<u64>()});
+            debug!("Address: {:#X}   {:#X}", cur_addr, unsafe {cur_addr.load::<u64>()});
             cur_addr = cur_addr.plus(8);
         }
-        println!("----");
-        println!("=========");        
+        debug!("----");
+        debug!("=========");        
     }
 }
 

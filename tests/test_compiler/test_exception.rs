@@ -44,7 +44,7 @@ fn test_exception_simple_throw_catch() {
     vm.make_primordial_thread(func_catch, vec![]);
     backend::emit_context(&vm);
     
-    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "simple_throw_catch_test");
+    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "simple_throw_catch_test", &vm);
     aot::execute(executable);
 }
 
