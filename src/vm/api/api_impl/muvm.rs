@@ -122,14 +122,26 @@ impl MuVM {
  */
 #[no_mangle]
 pub extern fn mu_fastimpl_new() -> *mut CMuVM {
-    mu_fastimpl_new_with_opts("")
+    mu_fastimpl_new_with_opts(ptr::null())
 }
 
 #[no_mangle]
-pub extern fn mu_fastimpl_new_with_opts(opts: &str) -> *mut CMuVM {
+pub extern fn mu_fastimpl_new_with_opts(opts: *const c_char) -> *mut CMuVM {
     info!("Creating Mu micro VM fast implementation instance...");
 
-    let mvm = Box::new(MuVM::new(opts));
+    let str_opts = {
+        if opts == ptr::null() {
+            ""
+        } else {
+            let cstr = unsafe {CStr::from_ptr(opts)};
+            match cstr.to_str() {
+                Ok(str) => str,
+                Err(_) => panic!("invalid utf8 string as options: {:?}", cstr)
+            }
+        }
+    };
+
+    let mvm = Box::new(MuVM::new(str_opts));
     let mvm_ptr = Box::into_raw(mvm);
 
     debug!("The MuVM instance address: {:?}", mvm_ptr);
