@@ -73,7 +73,7 @@ def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
     # load libmu before rffi so to load it with RTLD_GLOBAL
     libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
-    mu = rmu.MuVM()
+    mu = rmu.MuVM("--log-level=none --aot-emit-dir=emit")
     ctx = mu.new_context()
     bldr = ctx.new_ir_builder()
 

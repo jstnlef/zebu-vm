@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 MuVM *mu_fastimpl_new();
+MuVM *mu_fastimpl_new_with_opts(const char*);
 
 #ifdef __cplusplus
 }
