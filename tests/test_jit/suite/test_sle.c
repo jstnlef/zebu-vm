@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     MuID id_195;
     MuID id_196;
     MuID id_197;
-    mu_16 = mu_fastimpl_new_with_opts("init_muinit_mu --log-level=none --aot-emit-dir=emit");
+    mu_16 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
     ctx_16 = mu_16->new_context(mu_16);
     bldr_16 = ctx_16->new_ir_builder(ctx_16);
     id_181 = bldr_16->gen_sym(bldr_16, "@i1");
