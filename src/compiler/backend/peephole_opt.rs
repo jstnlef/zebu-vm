@@ -2,6 +2,7 @@ use compiler::CompilerPass;
 use ast::ir::*;
 use vm::VM;
 use compiler::machine_code::CompiledFunction;
+use compiler::backend;
 
 use std::any::Any;
 
@@ -43,10 +44,13 @@ impl PeepholeOptimization {
                 }
             };
             
-            if src_machine_reg == dst_machine_reg {
+            if backend::get_color_for_precolroed(src_machine_reg)
+                == backend::get_color_for_precolroed(dst_machine_reg) {
                 trace!("Redundant! removed");
                 // redundant, remove this move
                 cf.mc_mut().set_inst_nop(inst);
+            } else {
+
             }
         }
     }
