@@ -1,5 +1,3 @@
-extern crate nalgebra;
-
 use compiler::machine_code::CompiledFunction;
 use ast::ir::*;
 use compiler::backend;
@@ -8,71 +6,62 @@ use utils::LinkedHashSet;
 
 use std::collections::{HashMap, HashSet};
 
-use self::nalgebra::DMatrix;
+use compiler::backend::reg_alloc::graph_coloring::petgraph;
+use compiler::backend::reg_alloc::graph_coloring::petgraph::Graph;
+use compiler::backend::reg_alloc::graph_coloring::petgraph::graph::NodeIndex;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Node(usize);
-#[derive(Clone, Debug, PartialEq)]
-pub struct NodeProperty {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GraphNode {
+    temp: MuID,
     color: Option<MuID>,
     group: backend::RegGroup,
-    temp: MuID,
     spill_cost: f32
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Move{pub from: Node, pub to: Node}
+pub struct Move{pub from: NodeIndex, pub to: NodeIndex}
 
 pub struct InterferenceGraph {
-    nodes: HashMap<MuID, Node>,
-    nodes_property: HashMap<Node, NodeProperty>,
-    
-    matrix: Option<DMatrix<bool>>,
-    
+    graph: Graph<GraphNode, (), petgraph::Undirected>,
+    nodes: HashMap<MuID, NodeIndex>,
     moves: HashSet<Move>,
 }
 
 impl InterferenceGraph {
     fn new() -> InterferenceGraph {
         InterferenceGraph {
+            graph: Graph::new_undirected(),
             nodes: HashMap::new(),
-            nodes_property: HashMap::new(),
-            matrix: None,
             moves: HashSet::new()
         }
     }
     
-    fn new_node(&mut self, reg_id: MuID, context: &FunctionContext) -> Node {
+    fn new_node(&mut self, reg_id: MuID, context: &FunctionContext) -> NodeIndex {
         let entry = context.get_value(reg_id).unwrap();
         
         if !self.nodes.contains_key(&reg_id) {
-            let index = self.nodes.len();
-            let node = Node(index);
-            
-            // add the node
-            self.nodes.insert(reg_id, node.clone());
-            
-            // add node property
-            let group = backend::RegGroup::get(entry.ty());
-            let property = NodeProperty {
-                color: None,
-                group: group,
+            let node = GraphNode {
                 temp: reg_id,
+                color: None,
+                group: backend::RegGroup::get(entry.ty()),
                 spill_cost: 0.0f32
             };
-            self.nodes_property.insert(node, property);
-        } 
+
+            let index = self.graph.add_node(node);
+
+            self.nodes.insert(reg_id, index);
+        }
         
-        
-        let node = * self.nodes.get(&reg_id).unwrap();
+        let node_index = *self.nodes.get(&reg_id).unwrap();
+        let node_mut = self.graph.node_weight_mut(node_index).unwrap();
         
         // increase node spill cost
-        let property = self.nodes_property.get_mut(&node).unwrap();
-        property.spill_cost += 1.0f32;
+        node_mut.spill_cost += 1.0f32;
         
-        node
+        node_index
     }
     
-    pub fn get_node(&self, reg: MuID) -> Node {
+    pub fn get_node(&self, reg: MuID) -> NodeIndex {
         match self.nodes.get(&reg) {
             Some(index) => *index,
             None => panic!("do not have a node for {}", reg)
@@ -87,10 +76,10 @@ impl InterferenceGraph {
         ret
     }
     
-    pub fn nodes(&self) -> Vec<Node> {
+    pub fn nodes(&self) -> Vec<NodeIndex> {
         let mut ret = vec![];
-        for node in self.nodes.values() {
-            ret.push(node.clone());
+        for index in self.nodes.values() {
+            ret.push(*index);
         }
         ret
     }
@@ -103,99 +92,70 @@ impl InterferenceGraph {
         self.nodes.len()
     }
     
-    fn init_graph(&mut self) {
-        let len = self.nodes.len();
-        self.matrix = Some(DMatrix::from_element(len, len, false));
-    }
-    
-    fn add_move(&mut self, src: Node, dst: Node) {
+    fn add_move(&mut self, src: NodeIndex, dst: NodeIndex) {
         self.moves.insert(Move{from: src, to: dst});
     }
-
-    pub fn is_same_group(&self, node1: Node, node2: Node) -> bool {
-        self.nodes_property.get(&node1).unwrap().group
-            == self.nodes_property.get(&node2).unwrap().group
-    }
     
-    pub fn add_interference_edge(&mut self, from: Node, to: Node) {
-        self.matrix.as_mut().unwrap()[(from.0, to.0)] = true;
+    pub fn add_interference_edge(&mut self, from: NodeIndex, to: NodeIndex) {
+        self.graph.update_edge(from, to, ());
     }
 
-    pub fn is_interferenced_with(&self, node1: Node, node2: Node) -> bool {
-        self.matrix.as_ref().unwrap()[(node1.0, node2.0)]
-        || self.matrix.as_ref().unwrap()[(node2.0, node1.0)]
+    pub fn is_interferenced_with(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
+        self.graph.find_edge(node1, node2).is_some()
     }
     
-    pub fn color_node(&mut self, node: Node, color: MuID) {
-        self.nodes_property.get_mut(&node).unwrap().color = Some(color);
+    pub fn color_node(&mut self, node: NodeIndex, color: MuID) {
+        self.graph.node_weight_mut(node).unwrap().color = Some(color);
     }
     
-    pub fn is_colored(&self, node: Node) -> bool {
-        self.nodes_property.get(&node).unwrap().color.is_some()
+    pub fn is_colored(&self, node: NodeIndex) -> bool {
+        self.graph.node_weight(node).unwrap().color.is_some()
     }
     
-    pub fn get_color_of(&self, node: Node) -> Option<MuID> {
-        self.nodes_property.get(&node).unwrap().color
+    pub fn get_color_of(&self, node: NodeIndex) -> Option<MuID> {
+        self.graph.node_weight(node).unwrap().color
     }
     
-    pub fn get_group_of(&self, node: Node) -> backend::RegGroup {
-        self.nodes_property.get(&node).unwrap().group
+    pub fn get_group_of(&self, node: NodeIndex) -> backend::RegGroup {
+        self.graph.node_weight(node).unwrap().group
     }
     
-    pub fn get_temp_of(&self, node: Node) -> MuID {
-        self.nodes_property.get(&node).unwrap().temp
+    pub fn get_temp_of(&self, node: NodeIndex) -> MuID {
+        self.graph.node_weight(node).unwrap().temp
     }
     
-    pub fn get_spill_cost(&self, node: Node) -> f32 {
-        self.nodes_property.get(&node).unwrap().spill_cost
+    pub fn get_spill_cost(&self, node: NodeIndex) -> f32 {
+        self.graph.node_weight(node).unwrap().spill_cost
     }
     
-    fn is_same_node(&self, node1: Node, node2: Node) -> bool {
+    fn is_same_node(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
         node1 == node2
     }
-    
-    pub fn is_adj(&self, from: Node, to: Node) -> bool {
-        let ref matrix = self.matrix.as_ref().unwrap();
-        
-        matrix[(from.0, to.0)] || matrix[(to.0, from.0)]
+
+    fn is_same_group(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
+        let node1 = self.graph.node_weight(node1).unwrap();
+        let node2 = self.graph.node_weight(node2).unwrap();
+
+        node1.group == node2.group
     }
     
-    pub fn outedges_of(&self, node: Node) -> Vec<Node> {
-        let mut ret = vec![];
-        let matrix = self.matrix.as_ref().unwrap();
-        
-        for i in 0..self.nodes.len() {
-            if matrix[(node.0, i)] {
-                ret.push(Node(i));
-            }
-        }
-        
-        ret
+    pub fn is_adj(&self, from: NodeIndex, to: NodeIndex) -> bool {
+        self.is_interferenced_with(from, to)
     }
     
-    pub fn outdegree_of(&self, node: Node) -> usize {
-        let mut count = 0;
-        for i in 0..self.nodes.len() {
-            if self.matrix.as_ref().unwrap()[(node.0, i)] {
-                count += 1;
-            }
-        }
-        
-        count
+    pub fn outedges_of(&self, node: NodeIndex) -> Vec<NodeIndex> {
+        self.graph.neighbors(node).collect()
     }
     
-    pub fn indegree_of(&self, node: Node) -> usize {
-        let mut count = 0;
-        for i in 0..self.nodes.len() {
-            if self.matrix.as_ref().unwrap()[(i, node.0)] {
-                count += 1;
-            }
-        }
-        
-        count
+    pub fn outdegree_of(&self, node: NodeIndex) -> usize {
+        self.outedges_of(node).len()
     }
     
-    pub fn degree_of(&self, node: Node) -> usize {
+    pub fn indegree_of(&self, node: NodeIndex) -> usize {
+        self.outdegree_of(node)
+    }
+    
+    pub fn degree_of(&self, node: NodeIndex) -> usize {
         self.outdegree_of(node)
     }
     
@@ -209,43 +169,13 @@ impl InterferenceGraph {
             debug!("Reg {} -> {:?}", val, self.nodes.get(&id).unwrap());
         }
 
-        debug!("color:");
-        for (node, color) in self.nodes_property.iter() {
-            let node_val = context.get_value(self.get_temp_of(*node)).unwrap().value();
-            let color_val = context.get_value(color.temp).unwrap().value();
-            debug!("Reg {} of {:?} -> Color/Reg {}", node_val, node, color_val);
-        }
         debug!("moves:");
         for mov in self.moves.iter() {
             debug!("Move {:?} -> {:?}", mov.from, mov.to);
         }
+
         debug!("graph:");
-        {
-            let node_to_reg_id = {
-                let mut ret : HashMap<Node, MuID> = HashMap::new();
-                
-                for reg in self.nodes.keys() {
-                    ret.insert(*self.nodes.get(reg).unwrap(), *reg);
-                }
-                
-                ret 
-            };
-            
-            let matrix = self.matrix.as_ref().unwrap();
-            for i in 0..matrix.ncols() {
-                for j in 0..matrix.nrows() {
-                    if matrix[(i, j)] {
-                        let from_node = node_to_reg_id.get(&Node(i)).unwrap();
-                        let to_node = node_to_reg_id.get(&Node(j)).unwrap();
-
-                        let from_val = context.get_value(*from_node).unwrap().value();
-                        let to_val = context.get_value(*to_node).unwrap().value();
-
-                        debug!("Reg {} -> Reg {}", from_val, to_val);
-                    }
-                }
-            }
-        }
+        debug!("{:?}", self.graph);
         debug!("");
     }
 }
@@ -334,9 +264,6 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
             ig.new_node(reg_id, &func.context);
         }
     }
-    
-    // all nodes has been added, we init graph (create adjacency matrix)
-    ig.init_graph();
     
     for block in cf.mc().get_all_blocks() {
         // Current_Live(B) = LiveOut(B)

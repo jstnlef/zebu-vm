@@ -1,3 +1,5 @@
+extern crate petgraph;
+
 mod liveness;
 mod coloring;
 

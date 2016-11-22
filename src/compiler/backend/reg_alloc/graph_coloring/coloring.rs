@@ -2,7 +2,6 @@ use ast::ir::*;
 use compiler::backend;
 use compiler::backend::reg_alloc::graph_coloring;
 use compiler::backend::reg_alloc::graph_coloring::liveness::InterferenceGraph;
-use compiler::backend::reg_alloc::graph_coloring::liveness::{Node, Move};
 use compiler::machine_code::CompiledFunction;
 use vm::VM;
 
@@ -11,6 +10,9 @@ use utils::LinkedHashSet;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+
+use compiler::backend::reg_alloc::graph_coloring::liveness::Move;
+use compiler::backend::reg_alloc::graph_coloring::petgraph::graph::NodeIndex;
 
 const COALESCING : bool = true;
 
@@ -21,30 +23,30 @@ pub struct GraphColoring<'a> {
 
     pub ig: InterferenceGraph,
 
-    precolored: LinkedHashSet<Node>,
+    precolored: LinkedHashSet<NodeIndex>,
     colors: HashMap<backend::RegGroup, LinkedHashSet<MuID>>,
-    pub colored_nodes: Vec<Node>,
+    pub colored_nodes: Vec<NodeIndex>,
     
-    initial: Vec<Node>,
-    degree: HashMap<Node, usize>,
+    initial: Vec<NodeIndex>,
+    degree: HashMap<NodeIndex, usize>,
     
     worklist_moves: Vec<Move>,
-    movelist: HashMap<Node, RefCell<Vec<Move>>>,
+    movelist: HashMap<NodeIndex, RefCell<Vec<Move>>>,
     active_moves: LinkedHashSet<Move>,
-    coalesced_nodes: LinkedHashSet<Node>,
+    coalesced_nodes: LinkedHashSet<NodeIndex>,
     coalesced_moves: LinkedHashSet<Move>,
     constrained_moves: LinkedHashSet<Move>,
-    alias: HashMap<Node, Node>,
+    alias: HashMap<NodeIndex, NodeIndex>,
     
-    worklist_spill: Vec<Node>,
+    worklist_spill: Vec<NodeIndex>,
     spillable: HashMap<MuID, bool>,
-    spilled_nodes: Vec<Node>,
+    spilled_nodes: Vec<NodeIndex>,
     
-    worklist_freeze: LinkedHashSet<Node>,
+    worklist_freeze: LinkedHashSet<NodeIndex>,
     frozen_moves: LinkedHashSet<Move>,
     
-    worklist_simplify: LinkedHashSet<Node>,
-    select_stack: Vec<Node>
+    worklist_simplify: LinkedHashSet<NodeIndex>,
+    select_stack: Vec<NodeIndex>
 }
 
 impl <'a> GraphColoring<'a> {
@@ -95,7 +97,7 @@ impl <'a> GraphColoring<'a> {
         coloring.regalloc()
     }
 
-    fn display_node(&self, node: Node) -> String {
+    fn display_node(&self, node: NodeIndex) -> String {
         let id = self.ig.get_temp_of(node);
         self.display_id(id)
     }
@@ -215,15 +217,15 @@ impl <'a> GraphColoring<'a> {
         }
     }
     
-    fn n_regs_for_node(&self, node: Node) -> usize {
+    fn n_regs_for_node(&self, node: NodeIndex) -> usize {
         backend::number_of_regs_in_group(self.ig.get_group_of(node))
     }
     
-    fn is_move_related(&mut self, node: Node) -> bool {
+    fn is_move_related(&mut self, node: NodeIndex) -> bool {
         !self.node_moves(node).is_empty()
     }
     
-    fn node_moves(&mut self, node: Node) -> LinkedHashSet<Move> {
+    fn node_moves(&mut self, node: NodeIndex) -> LinkedHashSet<Move> {
         let mut moves = LinkedHashSet::new();
         
         // addAll(active_moves)
@@ -250,19 +252,19 @@ impl <'a> GraphColoring<'a> {
     // avoid using &mut self as argument
     // in build(), we will need to mutate on self.movelist while
     // holding an immmutable reference of self(self.ig)
-    fn movelist_mut(list: &mut HashMap<Node, RefCell<Vec<Move>>>, node: Node) -> &RefCell<Vec<Move>> {
+    fn movelist_mut(list: &mut HashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) -> &RefCell<Vec<Move>> {
         GraphColoring::movelist_check(list, node);
         unsafe {GraphColoring::movelist_nocheck(list, node)}
     }
     
-    fn movelist_check(list: &mut HashMap<Node, RefCell<Vec<Move>>>, node: Node) {
+    fn movelist_check(list: &mut HashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) {
         if !list.contains_key(&node) {
             list.insert(node, RefCell::new(Vec::new()));
         }
     }
     
     // allows getting the Vec<Move> without a mutable reference of the hashmap
-    unsafe fn movelist_nocheck(list: &HashMap<Node, RefCell<Vec<Move>>>, node: Node) -> &RefCell<Vec<Move>> {
+    unsafe fn movelist_nocheck(list: &HashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) -> &RefCell<Vec<Move>> {
         list.get(&node).unwrap()
     }
     
@@ -279,7 +281,7 @@ impl <'a> GraphColoring<'a> {
         }
     }
     
-    fn adjacent(&self, n: Node) -> LinkedHashSet<Node> {
+    fn adjacent(&self, n: NodeIndex) -> LinkedHashSet<NodeIndex> {
         let mut adj = LinkedHashSet::new();
         
         // add n's successors
@@ -300,14 +302,14 @@ impl <'a> GraphColoring<'a> {
         adj
     }
     
-    fn degree(&self, n: Node) -> usize {
+    fn degree(&self, n: NodeIndex) -> usize {
         match self.degree.get(&n) {
             Some(d) => *d,
             None => 0
         }
     }
     
-    fn decrement_degree(&mut self, n: Node) {
+    fn decrement_degree(&mut self, n: NodeIndex) {
         if self.precolored.contains(&n) {
             return;
         }
@@ -337,7 +339,7 @@ impl <'a> GraphColoring<'a> {
         }
     }
     
-    fn enable_moves(&mut self, nodes: LinkedHashSet<Node>) {
+    fn enable_moves(&mut self, nodes: LinkedHashSet<NodeIndex>) {
         for n in nodes.iter() {
             let n = *n;
             for mov in self.node_moves(n).iter() {
@@ -410,7 +412,7 @@ impl <'a> GraphColoring<'a> {
         }
     }
     
-    pub fn get_alias(&self, node: Node) -> Node {
+    pub fn get_alias(&self, node: NodeIndex) -> NodeIndex {
         if self.coalesced_nodes.contains(&node) {
             self.get_alias(*self.alias.get(&node).unwrap())
         } else {
@@ -418,14 +420,14 @@ impl <'a> GraphColoring<'a> {
         }
     }
     
-    fn add_worklist(&mut self, node: Node) {
+    fn add_worklist(&mut self, node: NodeIndex) {
         if !self.is_move_related(node) && self.degree(node) < self.n_regs_for_node(node) {
             self.worklist_freeze.remove(&node);
             self.worklist_simplify.insert(node);
         }
     }
     
-    fn ok(&self, u: Node, v: Node) -> bool {
+    fn ok(&self, u: NodeIndex, v: NodeIndex) -> bool {
         for t in self.adjacent(v).iter() {
             let t = *t;
             if !self.precolored.contains(&t) 
@@ -438,7 +440,7 @@ impl <'a> GraphColoring<'a> {
         true
     }
     
-    fn conservative(&self, u: Node, v: Node) -> bool {
+    fn conservative(&self, u: NodeIndex, v: NodeIndex) -> bool {
         debug_assert!(self.ig.get_group_of(u) == self.ig.get_group_of(v));
         
         let adj_u = self.adjacent(u);
@@ -459,7 +461,7 @@ impl <'a> GraphColoring<'a> {
         k < self.n_regs_for_node(u)
     }
     
-    fn combine(&mut self, u: Node, v: Node) {
+    fn combine(&mut self, u: NodeIndex, v: NodeIndex) {
         if self.worklist_freeze.contains(&v) {
             self.worklist_freeze.remove(&v);
             self.coalesced_nodes.insert(v);
@@ -501,7 +503,7 @@ impl <'a> GraphColoring<'a> {
         }
     }
     
-    fn add_edge(&mut self, u: Node, v: Node) {
+    fn add_edge(&mut self, u: NodeIndex, v: NodeIndex) {
         if u != v && !self.ig.is_adj(u, v) {
             if !self.precolored.contains(&u) {
                 self.ig.add_interference_edge(u, v);
@@ -525,7 +527,7 @@ impl <'a> GraphColoring<'a> {
         self.freeze_moves(node);
     }
     
-    fn freeze_moves(&mut self, u: Node) {
+    fn freeze_moves(&mut self, u: NodeIndex) {
         for m in self.node_moves(u).iter() {
             let m = *m;
             let mut v = self.get_alias(m.from);
@@ -547,7 +549,7 @@ impl <'a> GraphColoring<'a> {
     
     fn select_spill(&mut self) {
         trace!("Selecting a node to spill...");
-        let mut m : Option<Node> = None;
+        let mut m : Option<NodeIndex> = None;
         
         for n in self.worklist_spill.iter() {
             let n = *n;

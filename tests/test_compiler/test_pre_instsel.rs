@@ -1,6 +1,5 @@
 extern crate mu;
 
-use common::*;
 use test_ir::test_ir::factorial;
 use test_ir::test_ir::sum;
 use self::mu::ast::ir::*;
