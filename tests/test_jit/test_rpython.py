@@ -194,6 +194,9 @@ def test_quicksort():
     setstate(init_state)
     lst, init_state = rand_list_of(n)
 
+    print "original list:"
+    print lst
+
     with lltype.scoped_alloc(rffi.CArray(rffi.LONGLONG), n) as arr:
         for i, k in enumerate(lst):
             arr[i] = k
@@ -201,12 +204,22 @@ def test_quicksort():
         fnc(arr, 0, n - 1)  # inplace sort
 
         lst_s = sorted(lst)
+
+	print "expected list:"
+	print lst_s
+
+	print "result:"
+	for i in range(n):
+	    print arr[i],
+        else:
+	    print
+
         for i in range(n):
             assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
 
 
 @may_spawn_proc
-def test_quicksort_partition():
+def test_partition_in_quicksort():
     # algorithm taken from Wikipedia
     def swap(arr, i, j):
         t = arr[i]
