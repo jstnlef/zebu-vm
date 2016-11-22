@@ -448,3 +448,225 @@ fn sgt_u8_value() -> VM {
 
     vm
 }
+
+#[test]
+fn test_sgt_i32_branch() {
+    let lib = testutil::compile_fnc("sgt_i32_branch", &sgt_i32_branch);
+
+    unsafe {
+        let sgt_i32 : libloading::Symbol<unsafe extern fn(i32, i32) -> u32> = lib.get(b"sgt_i32_branch").unwrap();
+
+        let res = sgt_i32(-1, 0);
+        println!("sgt_i32(-1, 0) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_i32(0, -1);
+        println!("sgt_i32(0, -1) = {}", res);
+        assert!(res == 1);
+
+        let res = sgt_i32(-1, -1);
+        println!("sgt_i32(-1, -1) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_i32(2, 1);
+        println!("sgt_i32(2, 1) = {}", res);
+        assert!(res == 1);
+
+        let res = sgt_i32(1, 2);
+        println!("sgt_i32(1, 2) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_i32(2, 2);
+        println!("sgt_i32(2, 2) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_i32(-2, -1);
+        println!("sgt_i32(-2, -1) = {}", res);
+        assert!(res == 0);
+
+        let res = sgt_i32(-1, -2);
+        println!("sgt_i32(-1, -2) = {}", res);
+        assert!(res == 1);
+
+        let res = sgt_i32(0, 0);
+        println!("sgt_i32(0, 0) = {}", res);
+        assert!(res == 0);
+    }
+}
+
+fn sgt_i32_branch() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int32 = mu_int(32));
+    typedef! ((vm) int1  = mu_int(1));
+
+    constdef!((vm) <int32> int32_0 = Constant::Int(0));
+    constdef!((vm) <int32> int32_1 = Constant::Int(1));
+
+    funcsig! ((vm) sig = (int32, int32) -> (int32));
+    funcdecl!((vm) <sig> sgt_i32_branch);
+    funcdef! ((vm) <sig> sgt_i32_branch VERSION sgt_i32_branch_v1);
+
+    // blk entry
+    block!   ((vm, sgt_i32_branch_v1) blk_entry);
+    ssa!     ((vm, sgt_i32_branch_v1) <int32> blk_entry_a);
+    ssa!     ((vm, sgt_i32_branch_v1) <int32> blk_entry_b);
+
+    ssa!     ((vm, sgt_i32_branch_v1) <int1> blk_entry_cond);
+    inst!    ((vm, sgt_i32_branch_v1) blk_entry_cmp:
+        blk_entry_cond = CMPOP (CmpOp::SGT) blk_entry_a blk_entry_b
+    );
+
+    block!   ((vm, sgt_i32_branch_v1) blk_ret1);
+    consta!  ((vm, sgt_i32_branch_v1) int32_1_local = int32_1);
+    block!   ((vm, sgt_i32_branch_v1) blk_ret0);
+    consta!  ((vm, sgt_i32_branch_v1) int32_0_local = int32_0);
+
+    inst!   ((vm, sgt_i32_branch_v1) blk_entry_branch:
+        BRANCH2 (blk_entry_cond, int32_1_local, int32_0_local)
+            IF (OP 0)
+            THEN blk_ret1 (vec![1]) WITH 0.6f32,
+            ELSE blk_ret0 (vec![2])
+    );
+
+    define_block! ((vm, sgt_i32_branch_v1) blk_entry(blk_entry_a, blk_entry_b){
+        blk_entry_cmp, blk_entry_branch
+    });
+
+    // blk_ret1
+    ssa!    ((vm, sgt_i32_branch_v1) <int32> blk_ret1_res);
+    inst!   ((vm, sgt_i32_branch_v1) blk_ret1_inst:
+        RET (blk_ret1_res)
+    );
+
+    define_block! ((vm, sgt_i32_branch_v1) blk_ret1(blk_ret1_res){
+        blk_ret1_inst
+    });
+
+    // blk_ret0
+    ssa!    ((vm, sgt_i32_branch_v1) <int32> blk_ret0_res);
+    inst!   ((vm, sgt_i32_branch_v1) blk_ret0_inst:
+        RET (blk_ret0_res)
+    );
+
+    define_block! ((vm, sgt_i32_branch_v1) blk_ret0(blk_ret0_res){
+        blk_ret0_inst
+    });
+
+    define_func_ver!((vm) sgt_i32_branch_v1 (entry: blk_entry) {
+        blk_entry, blk_ret1, blk_ret0
+    });
+
+    vm
+}
+
+#[test]
+fn test_sge_i32_branch() {
+    let lib = testutil::compile_fnc("sge_i32_branch", &sge_i32_branch);
+
+    unsafe {
+        let sge_i32 : libloading::Symbol<unsafe extern fn(i32, i32) -> u32> = lib.get(b"sge_i32_branch").unwrap();
+
+        let res = sge_i32(-1, 0);
+        println!("sge_i32(-1, 0) = {}", res);
+        assert!(res == 0);
+
+        let res = sge_i32(0, -1);
+        println!("sge_i32(0, -1) = {}", res);
+        assert!(res == 1);
+
+        let res = sge_i32(-1, -1);
+        println!("sge_i32(-1, -1) = {}", res);
+        assert!(res == 1);
+
+        let res = sge_i32(2, 1);
+        println!("sge_i32(2, 1) = {}", res);
+        assert!(res == 1);
+
+        let res = sge_i32(1, 2);
+        println!("sge_i32(1, 2) = {}", res);
+        assert!(res == 0);
+
+        let res = sge_i32(2, 2);
+        println!("sge_i32(2, 2) = {}", res);
+        assert!(res == 1);
+
+        let res = sge_i32(-2, -1);
+        println!("sge_i32(-2, -1) = {}", res);
+        assert!(res == 0);
+
+        let res = sge_i32(-1, -2);
+        println!("sge_i32(-1, -2) = {}", res);
+        assert!(res == 1);
+
+        let res = sge_i32(0, 0);
+        println!("sge_i32(0, 0) = {}", res);
+        assert!(res == 1);
+    }
+}
+
+fn sge_i32_branch() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int32 = mu_int(32));
+    typedef! ((vm) int1  = mu_int(1));
+
+    constdef!((vm) <int32> int32_0 = Constant::Int(0));
+    constdef!((vm) <int32> int32_1 = Constant::Int(1));
+
+    funcsig! ((vm) sig = (int32, int32) -> (int32));
+    funcdecl!((vm) <sig> sge_i32_branch);
+    funcdef! ((vm) <sig> sge_i32_branch VERSION sge_i32_branch_v1);
+
+    // blk entry
+    block!   ((vm, sge_i32_branch_v1) blk_entry);
+    ssa!     ((vm, sge_i32_branch_v1) <int32> blk_entry_a);
+    ssa!     ((vm, sge_i32_branch_v1) <int32> blk_entry_b);
+
+    ssa!     ((vm, sge_i32_branch_v1) <int1> blk_entry_cond);
+    inst!    ((vm, sge_i32_branch_v1) blk_entry_cmp:
+        blk_entry_cond = CMPOP (CmpOp::SGE) blk_entry_a blk_entry_b
+    );
+
+    block!   ((vm, sge_i32_branch_v1) blk_ret1);
+    consta!  ((vm, sge_i32_branch_v1) int32_1_local = int32_1);
+    block!   ((vm, sge_i32_branch_v1) blk_ret0);
+    consta!  ((vm, sge_i32_branch_v1) int32_0_local = int32_0);
+
+    inst!   ((vm, sge_i32_branch_v1) blk_entry_branch:
+        BRANCH2 (blk_entry_cond, int32_1_local, int32_0_local)
+            IF (OP 0)
+            THEN blk_ret1 (vec![1]) WITH 0.6f32,
+            ELSE blk_ret0 (vec![2])
+    );
+
+    define_block! ((vm, sge_i32_branch_v1) blk_entry(blk_entry_a, blk_entry_b){
+        blk_entry_cmp, blk_entry_branch
+    });
+
+    // blk_ret1
+    ssa!    ((vm, sge_i32_branch_v1) <int32> blk_ret1_res);
+    inst!   ((vm, sge_i32_branch_v1) blk_ret1_inst:
+        RET (blk_ret1_res)
+    );
+
+    define_block! ((vm, sge_i32_branch_v1) blk_ret1(blk_ret1_res){
+        blk_ret1_inst
+    });
+
+    // blk_ret0
+    ssa!    ((vm, sge_i32_branch_v1) <int32> blk_ret0_res);
+    inst!   ((vm, sge_i32_branch_v1) blk_ret0_inst:
+        RET (blk_ret0_res)
+    );
+
+    define_block! ((vm, sge_i32_branch_v1) blk_ret0(blk_ret0_res){
+        blk_ret0_inst
+    });
+
+    define_func_ver!((vm) sge_i32_branch_v1 (entry: blk_entry) {
+        blk_entry, blk_ret1, blk_ret0
+    });
+
+    vm
+}
