@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
     bldr_21->new_bb(bldr_21, id_280, (MuID [1]){id_281}, (MuTypeNode [1]){id_274}, 1, MU_NO_ID, (MuInstNode [2]){id_283, id_284}, 2);
     bldr_21->new_func_ver(bldr_21, id_279, id_278, (MuBBNode [1]){id_280}, 1);
     bldr_21->load(bldr_21);
-    mu_21->compile_to_sharedlib(mu_21, "test_ccall.dylib", (char*[]){&"../suite/test_ccall_fnc.c"}, 1);
+    mu_21->compile_to_sharedlib(mu_21, "test_ccall.dylib", (char*[]){&"suite/test_ccall_fnc.c"}, 1);
     printf("%s\n", "test_ccall.dylib");
     return 0;
 }
