@@ -6,6 +6,7 @@ from tempfile import mkdtemp
 import py, os, sys
 import subprocess as subp
 import ctypes
+import math
 
 from rpython.translator.interactive import Translation
 from rpython.config.translationoption import set_opt_level
@@ -83,22 +84,31 @@ def perf_fibonacci():
                         backend='mu', muimpl='fast', mucodegen='api', mutestjit=True)
         set_opt_level(t.config, '3')
         db, bdlgen, fnc_name = t.compile_mu()
-        libname = 'lib%(fnc_name)s.dylib' % locals()
-        bdlgen.mu.compile_to_sharedlib(libname, [])
-        libpath = py.path.local().join('emit', libname)
+        libpath = tmpdir.join('lib%(fnc_name)s.dylib' % locals())
+        bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
         fnp = getattr(ctypes.CDLL(libpath.strpath), fnc_name)
         return fnp
 
-    def get_average_time(run_fnc, args, warmup=5, iterations=100):
+    def get_stat(run_fnc, args, warmup=5, iterations=100):
         for i in range(warmup):
             run_fnc(*args)
 
-        total = 0.0
+        times = []
         for i in range(iterations):
-            total += run_fnc(*args)
-        return total / iterations
+            times.append(run_fnc(*args))
 
-    def get_average_time_compiled(compile_fnc, args, warmup=5, iterations=100):
+        times.sort()
+        avg = sum(times) / float(len(times))
+        t_min = t_max = t_std = None
+        if len(times) > 1:
+            t_min = times[0]
+            t_max = times[-1]
+            squares = ((t - avg) ** 2 for t in times)
+            t_std = math.sqrt(sum(squares) / (len(times) - 1))
+
+        return {'average': avg, 't_min': t_min, 't_max': t_max, 'std_dev': t_std}
+
+    def get_stat_compiled(compile_fnc, args, warmup=5, iterations=100):
         def run_funcptr(fnp, N):
             t0 = time()
             fnp(N)
@@ -106,26 +116,33 @@ def perf_fibonacci():
             return t1 - t0
 
         fnp = compile_fnc()
-        return get_average_time(lambda *a: run_funcptr(fnp, *a), args, warmup, iterations)
+        return get_stat(lambda *a: run_funcptr(fnp, *a), args, warmup, iterations)
+
+    def get_display_str(stat):
+        output = "average: %(average)s\n" \
+                 "min: %(t_min)s\n" \
+                 "max: %(t_max)s\n" \
+                 "std_dev: %(std_dev)s\n"
+        return output % stat
 
     N = 30
     warmup = 0
-    iterations = 1
+    iterations = 10
 
-    t_cpython = get_average_time(run_cpython, [N], warmup, iterations=iterations)
-    t_pypy_nojit = get_average_time(run_pypy_nojit, [N], warmup, iterations=iterations)
-    t_pypy = get_average_time(run_pypy, [N], warmup, iterations=iterations)
-    t_rpyc = get_average_time_compiled(compile_rpython_c, [N], warmup, iterations=iterations)
-    t_rpyc_jit = get_average_time_compiled(compile_rpython_c_jit, [N], warmup, iterations=iterations)
-    t_rpyc_mu = get_average_time_compiled(compile_rpython_mu, [N], warmup, iterations=iterations)
-    t_c = get_average_time_compiled(compile_c, [N], warmup, iterations=iterations)
-    print "CPython:", t_cpython
-    print "PyPy (no JIT):", t_pypy_nojit
-    print "PyPy:", t_pypy
-    print "RPython C:", t_rpyc
-    print "RPython C (with JIT):", t_rpyc_jit
-    print "RPython Mu Zebu:", t_rpyc_mu
-    print "C:", t_c
+    results = {
+        'cpython': get_stat(run_cpython, [N], warmup, iterations=iterations),
+        'pypy_nojit': get_stat(run_pypy_nojit, [N], warmup, iterations=iterations),
+        'pypy': get_stat(run_pypy, [N], warmup, iterations=iterations),
+        'rpy_c': get_stat_compiled(compile_rpython_c, [N], warmup, iterations=iterations),
+        'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, [N], warmup, iterations=iterations),
+        'rpy_mu': get_stat_compiled(compile_rpython_mu, [N], warmup, iterations=iterations),
+        'c': get_stat_compiled(compile_c, [N], warmup, iterations=iterations),
+    }
+    
+    for python, result in results.items():
+        print '\033[35m---- %(python)s ----\033[0m' % locals()
+        print get_display_str(result)
+
 
 if __name__ == '__main__':
     perf_fibonacci()
