@@ -74,7 +74,7 @@ impl ASMCode {
         false
     }
 
-    fn is_block_end(&self, inst: usize) -> bool {
+    fn is_last_inst_in_block(&self, inst: usize) -> bool {
         for block in self.blocks.values() {
             if block.end_inst == inst + 1 {
                 return true;
@@ -108,6 +108,7 @@ impl ASMCode {
         insert_before: HashMap<usize, Vec<Box<ASMCode>>>,
         insert_after: HashMap<usize, Vec<Box<ASMCode>>>) -> Box<ASMCode>
     {
+        trace!("insert spilling code");
         let mut ret = ASMCode {
             name: self.name.clone(),
             code: vec![],
@@ -124,8 +125,11 @@ impl ASMCode {
         let mut location_map : HashMap<usize, usize> = HashMap::new();
 
         for i in 0..self.number_of_insts() {
+            trace!("Inst{}", i);
+
             if self.is_block_start(i) {
                 cur_block_start = i + inst_offset;
+                trace!("  block start is shifted to {}", cur_block_start);
             }
 
             // insert code before this instruction
@@ -133,6 +137,7 @@ impl ASMCode {
                 for insert in insert_before.get(&i).unwrap() {
                     ret.append_code_sequence_all(insert);
                     inst_offset += insert.number_of_insts();
+                    trace!("  inserted {} insts before", insert.number_of_insts());
                 }
             }
 
@@ -141,6 +146,7 @@ impl ASMCode {
 
             // old ith inst is now the (i + inst_offset)th instruction
             location_map.insert(i, i + inst_offset);
+            trace!("  Inst{} is now Inst{}", i, i + inst_offset);
 
             // this instruction has been offset by several instructions('inst_offset')
             // update its info
@@ -169,19 +175,28 @@ impl ASMCode {
                 for insert in insert_after.get(&i).unwrap() {
                     ret.append_code_sequence_all(insert);
                     inst_offset += insert.number_of_insts();
+                    trace!("  inserted {} insts after", insert.number_of_insts());
                 }
             }
 
-            if self.is_block_end(i) {
-                let cur_block_end = i + inst_offset;
+            if self.is_last_inst_in_block(i) {
+                let cur_block_end = i + 1 + inst_offset;
 
                 // copy the block
                 let (name, block) = self.get_block_by_inst(i);
 
-                let mut new_block = block.clone();
-                new_block.start_inst = cur_block_start;
+                let mut new_block = ASMBlock{
+                    start_inst: cur_block_start,
+                    end_inst: cur_block_end,
+
+                    livein: vec![],
+                    liveout: vec![]
+                };
+
+                trace!("  old block: {:?}", block);
+                trace!("  new block: {:?}", new_block);
+
                 cur_block_start = usize::MAX;
-                new_block.end_inst = cur_block_end;
 
                 // add to the new code
                 ret.blocks.insert(name.clone(), new_block);
@@ -780,18 +795,11 @@ impl ASMCodeGen {
     }
     
     fn add_asm_ret(&mut self, code: String) {
-        let uses : HashMap<MuID, Vec<ASMLocation>> = {
-            let mut ret = HashMap::new();
-            for reg in x86_64::RETURN_GPRs.iter() {
-                ret.insert(reg.id(), vec![]);
-            }
-            for reg in x86_64::RETURN_FPRs.iter() {
-                ret.insert(reg.id(), vec![]);
-            }
-            ret
-        };
-        
-        self.add_asm_inst(code, hashmap!{}, uses, false);
+        // return instruction does not use anything (not RETURN REGS)
+        // otherwise it will keep RETURN REGS alive
+        // and if there is no actual move into RETURN REGS, it will keep RETURN REGS for alive for very long
+        // and prevents anything using those regsiters
+        self.add_asm_inst(code, hashmap!{}, hashmap!{}, false);
     }
     
     fn add_asm_branch(&mut self, code: String, target: MuName) {

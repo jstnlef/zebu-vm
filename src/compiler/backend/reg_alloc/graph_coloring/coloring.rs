@@ -390,6 +390,8 @@ impl <'a> GraphColoring<'a> {
                 self.add_worklist(u);
             }
         } else if precolored_v || self.ig.is_adj(u, v) {
+            trace!("precolored_v: {}", precolored_v);
+            trace!("is_adj(u, v): {}", self.ig.is_adj(u, v));
             trace!("v is precolored or u,v is adjacent, the move is constrained");
             self.constrained_moves.insert(m);
             if !precolored_u {
@@ -430,11 +432,11 @@ impl <'a> GraphColoring<'a> {
     fn ok(&self, u: NodeIndex, v: NodeIndex) -> bool {
         for t in self.adjacent(v).iter() {
             let t = *t;
-            if !self.precolored.contains(&t) 
-              || self.degree(t) < self.n_regs_for_node(t)
-              || self.ig.is_adj(t, u) {
+            if !(self.degree(t) < self.n_regs_for_node(t)
+                || self.precolored.contains(&t)
+                || self.ig.is_adj(t, u)) {
                 return false;
-            } 
+            }
         }
         
         true
@@ -453,7 +455,8 @@ impl <'a> GraphColoring<'a> {
         
         let mut k = 0;
         for n in nodes.iter() {
-            if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) {
+//            if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) {
+            if self.degree(*n) >= self.n_regs_for_node(*n) {
                 k += 1;
             }
         }

@@ -566,3 +566,83 @@ fn create_simple_spill() -> VM {
 
     vm
 }
+
+#[test]
+#[cfg(target_arch = "x86_64")]
+fn test_coalesce_branch_moves() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(coalesce_branch_moves());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+
+    let func_id = vm.id_of("coalesce_branch_moves");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+
+        // check
+        let fv_id = func_ver.id();
+
+        let cfs = vm.compiled_funcs().read().unwrap();
+        let cf  = cfs.get(&fv_id).unwrap().read().unwrap();
+
+        let mut n_mov_insts = 0;
+
+        let mc = cf.mc();
+        for i in 0..mc.number_of_insts() {
+            if mc.is_move(i) {
+                n_mov_insts += 1;
+            }
+        }
+
+        assert!(n_mov_insts == 1, "The function should not yield any mov instructions other than mov %rsp->%rbp (some possible coalescing failed)");
+    }
+}
+
+fn coalesce_branch_moves() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int64 = mu_int(64));
+
+    funcsig! ((vm) sig = (int64, int64, int64, int64) -> ());
+    funcdecl!((vm) <sig> coalesce_branch_moves);
+    funcdef! ((vm) <sig> coalesce_branch_moves VERSION coalesce_branch_moves_v1);
+
+    // blk entry
+    block!   ((vm, coalesce_branch_moves_v1) blk_entry);
+    ssa!     ((vm, coalesce_branch_moves_v1) <int64> arg0);
+    ssa!     ((vm, coalesce_branch_moves_v1) <int64> arg1);
+    ssa!     ((vm, coalesce_branch_moves_v1) <int64> arg2);
+    ssa!     ((vm, coalesce_branch_moves_v1) <int64> arg3);
+
+    block!   ((vm, coalesce_branch_moves_v1) blk1);
+    inst!    ((vm, coalesce_branch_moves_v1) blk_entry_branch:
+        BRANCH blk1 (arg0, arg1, arg2, arg3)
+    );
+
+    define_block!((vm, coalesce_branch_moves_v1) blk_entry (arg0, arg1, arg2, arg3) {blk_entry_branch});
+
+    ssa!     ((vm, coalesce_branch_moves_v1) <int64> blk1_arg0);
+    ssa!     ((vm, coalesce_branch_moves_v1) <int64> blk1_arg1);
+    ssa!     ((vm, coalesce_branch_moves_v1) <int64> blk1_arg2);
+    ssa!     ((vm, coalesce_branch_moves_v1) <int64> blk1_arg3);
+
+    inst!    ((vm, coalesce_branch_moves_v1) blk1_ret:
+        RET
+    );
+
+    define_block!((vm, coalesce_branch_moves_v1) blk1 (blk1_arg0, blk1_arg1, blk1_arg2, blk1_arg3) {
+        blk1_ret
+    });
+
+    define_func_ver!((vm) coalesce_branch_moves_v1 (entry: blk_entry){
+        blk_entry, blk1
+    });
+
+    vm
+}

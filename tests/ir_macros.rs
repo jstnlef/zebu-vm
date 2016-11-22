@@ -260,7 +260,7 @@ macro_rules! inst {
     };
 
     // RET
-    (($vm: expr, $fv: ident) $name: ident: RET ($($val: ident), *)) => {
+    (($vm: expr, $fv: ident) $name: ident: RET ($($val: ident), +)) => {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  None,
@@ -269,6 +269,15 @@ macro_rules! inst {
                         let mut i = 0;
                         vec![$($val.clone()), *].iter().map(|_| {let ret = i; i+= 1; ret}).collect()
                     })
+        });
+    };
+    // RET (no value)
+    (($vm: expr, $fv: ident) $name: ident: RET) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  None,
+            ops:    RwLock::new(vec![]),
+            v:      Instruction_::Return(vec![])
         });
     };
 }

@@ -24,12 +24,40 @@ impl<K: Hash + Eq> LinkedHashSet<K> {
         ret
     }
 
+    pub fn to_vec(mut self) -> Vec<K> {
+        let mut ret = vec![];
+
+        while !self.is_empty() {
+            ret.push(self.pop_front().unwrap());
+        }
+
+        ret
+    }
+
     pub fn clear(&mut self) {
         self.0.clear();
     }
 }
 
 impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn pop_front(&mut self) -> Option<K> {
+        match self.0.pop_front() {
+            Some((k, _)) => Some(k),
+            None => None
+        }
+    }
+
+    pub fn pop_back(&mut self) -> Option<K> {
+        match self.0.pop_back() {
+            Some((k, _)) => Some(k),
+            None => None
+        }
+    }
+
     pub fn insert(&mut self, k: K) -> Option<()> {
         self.0.insert(k, ())
     }
@@ -56,18 +84,31 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
         self.0.is_empty()
     }
     
-    pub fn pop_front(&mut self) -> Option<K> {
-        match self.0.pop_front() {
-            Some((k, _)) => Some(k),
-            None => None
-        }
-    }
-    
     pub fn add_all(&mut self, mut other: Self) {
         while !other.is_empty() {
             let entry = other.pop_front().unwrap();
             self.insert(entry);
         }
+    }
+
+    pub fn add_from_vec(&mut self, mut vec: Vec<K>) {
+        while !vec.is_empty() {
+            self.insert(vec.pop().unwrap());
+        }
+    }
+
+    pub fn equals(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+
+        for ele in self.iter() {
+            if !other.contains(ele) {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
