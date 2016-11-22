@@ -220,6 +220,45 @@ macro_rules! inst {
         });
     };
 
+    // BRANCH2
+    // list all operands first
+    // then use vector expr to list operands for each destination
+    // (we cannot have two repetition list of different lengths in a macro)
+    (($vm: expr, $fv: ident) $name: ident:
+        BRANCH2 ($($op: ident), *)
+            IF (OP $cond: expr)
+            THEN $true_dest : ident ($true_args: expr) WITH $prob: expr,
+            ELSE $false_dest: ident ($false_args: expr)
+    ) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  None,
+            ops:    RwLock::new(vec![$($op.clone()),*]),
+            v:      {
+                let true_args = {
+                    $true_args.iter().map(|x| DestArg::Normal(*x)).collect()
+                };
+
+                let false_args = {
+                    $false_args.iter().map(|x| DestArg::Normal(*x)).collect()
+                };
+
+                Instruction_::Branch2{
+                    cond: $cond,
+                    true_dest: Destination {
+                        target: $true_dest.id(),
+                        args: true_args
+                    },
+                    false_dest: Destination {
+                        target: $false_dest.id(),
+                        args: false_args
+                    },
+                    true_prob: $prob
+                }
+            }
+        });
+    };
+
     // RET
     (($vm: expr, $fv: ident) $name: ident: RET ($($val: ident), *)) => {
         let $name = $fv.new_inst(Instruction{
