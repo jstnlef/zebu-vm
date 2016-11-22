@@ -7,13 +7,9 @@ import ctypes
 # -------------------
 # helper functions
 def rand_list_of(n):
-    from random import getrandbits
-    from struct import pack, unpack
-
-    lst = []
-    for i in range(n):
-        lst.append(rffi.r_longlong(unpack('i', pack('I', getrandbits(32)))[0]))
-    return lst
+    # 32 extend to 64-bit integers (to avoid overflow in summation
+    from random import randrange
+    return [rffi.r_longlong(randrange(-(1 << 31), (1 << 31) - 1)) for _ in range(n)]
 
 
 # --------------------------
@@ -75,7 +71,7 @@ def test_arraysum():
     from rpython.rlib.jit import JitDriver
     d = JitDriver(greens=[], reds='auto')
     def arraysum(arr, sz):
-        sum = 0
+        sum = rffi.r_longlong(0)
         for i in range(sz):
             d.jit_merge_point()
             sum += arr[i]
@@ -90,7 +86,7 @@ def test_arraysum():
         for i, k in enumerate(lst):
             arr[i] = k
 
-        assert fnc(arr, rffi.cast(rffi.SIZE_T, n)) == sum(lst)
+        assert fnc(arr, rffi.cast(rffi.SIZE_T, n)) == arraysum(arr, rffi.cast(rffi.SIZE_T, n))
 
 
 @may_spawn_proc
@@ -117,7 +113,7 @@ def test_quicksort():
             quicksort(arr, start, p - 1)
             quicksort(arr, p + 1, end)
 
-    fnc, (db, bdlgen) = fncptr_from_rpy_func(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T, rffi.SIZE_T], lltype.Void)
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(quicksort, [rffi.CArrayPtr(rffi.LONGLONG), lltype.Signed, lltype.Signed], lltype.Void)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     # fnc = quicksort
 
@@ -127,7 +123,7 @@ def test_quicksort():
         for i, k in enumerate(lst):
             arr[i] = k
 
-        fnc(arr, rffi.cast(rffi.SIZE_T, 0), rffi.cast(rffi.SIZE_T, n - 1))  # inplace sort
+        fnc(arr, 0, n - 1)  # inplace sort
 
         lst_s = sorted(lst)
         for i in range(n):
