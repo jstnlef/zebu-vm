@@ -1,7 +1,6 @@
 use compiler::machine_code::CompiledFunction;
 use ast::ir::*;
 use compiler::backend;
-use utils::vec_utils;
 use utils::LinkedHashSet;
 
 use std::collections::{HashMap, HashSet};
@@ -101,7 +100,12 @@ impl InterferenceGraph {
     }
 
     pub fn is_interferenced_with(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
-        self.graph.find_edge(node1, node2).is_some()
+        trace!("trying to find edge between {:?} and {:?}", node1, node2);
+        let edge = self.graph.find_edge(node1, node2);
+
+        trace!("edge: {:?}", edge);
+
+        edge.is_some()
     }
     
     pub fn color_node(&mut self, node: NodeIndex, color: MuID) {
@@ -160,6 +164,9 @@ impl InterferenceGraph {
     }
     
     pub fn print(&self, context: &FunctionContext) {
+        use compiler::backend::reg_alloc::graph_coloring::petgraph::dot::Dot;
+        use compiler::backend::reg_alloc::graph_coloring::petgraph::dot::Config;
+
         debug!("");
         debug!("Interference Graph");
 
@@ -175,72 +182,74 @@ impl InterferenceGraph {
         }
 
         debug!("graph:");
-        debug!("{:?}", self.graph);
+        debug!("\n\n{:?}\n", Dot::with_config(&self.graph, &[Config::EdgeNoLabel]));
         debug!("");
     }
 }
 
-#[allow(unused_variables)]
-fn build_live_set(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
+fn build_live_set (cf: &mut CompiledFunction) {
+    info!("start building live set");
+
     let n_insts = cf.mc().number_of_insts();
-    
-    let mut livein  : Vec<Vec<MuID>> = vec![vec![]; n_insts];
-    let mut liveout : Vec<Vec<MuID>> = vec![vec![]; n_insts];    
-    
+
+    let mut livein  : Vec<LinkedHashSet<MuID>> = vec![LinkedHashSet::new(); n_insts];
+    let mut liveout : Vec<LinkedHashSet<MuID>> = vec![LinkedHashSet::new(); n_insts];
+
     let mut is_changed = true;
-    
+
     while is_changed {
         // reset
         is_changed = false;
-        
+
         for n in 0..n_insts {
-            let in_set_old = livein[n].to_vec(); // copy to new vec
-            let out_set_old = liveout[n].to_vec();
-            
-            // in[n] <- use[n] + (out[n] - def[n])
-            // (1) in[n] = use[n]
-            let mut in_set_new = vec![];
-            in_set_new.extend_from_slice(&cf.mc().get_inst_reg_uses(n));
-            // (2) diff = out[n] - def[n]
-            let mut diff = liveout[n].to_vec();
-            for def in cf.mc().get_inst_reg_defines(n) {
-                vec_utils::remove_value(&mut diff, def);
+            let in_set_old = livein[n].clone();
+            let out_set_old = liveout[n].clone();
+
+            // in[n] <- use[n] + (out[n] - def[n]);
+            {
+                let ref mut inset = livein[n];
+
+                inset.clear();
+
+                // (1) in[n] = use[n]
+                inset.add_from_vec(cf.mc().get_inst_reg_uses(n));
+                // (2) + out[n]
+                inset.add_all(liveout[n].clone());
+                // (3) - def[n]
+                for def in cf.mc().get_inst_reg_defines(n) {
+                    inset.remove(&def);
+                }
             }
-            // (3) in[n] = in[n] + diff
-            vec_utils::append_unique(&mut in_set_new, &mut diff);
-            
-            // update livein[n]
-            livein[n].clear();
-            livein[n].extend_from_slice(&in_set_new);
-            
+
             // out[n] <- union(in[s] for every successor s of n)
-            let mut union = vec![];
-            for s in cf.mc().get_succs(n) {
-                vec_utils::append_clone_unique(&mut union, &livein[*s]);
+            {
+                let ref mut outset = liveout[n];
+                outset.clear();
+
+                for s in cf.mc().get_succs(n) {
+                    outset.add_all(livein[*s].clone());
+                }
             }
-            
-            // update liveout[n]
-            liveout[n].clear();
-            liveout[n].extend_from_slice(&union);
-            
-            let n_changed = !vec_utils::is_identical_ignore_order(&livein[n], &in_set_old)
-                || !vec_utils::is_identical_ignore_order(&liveout[n], &out_set_old);
+
+            // is in/out changed in this iteration?
+            let n_changed = !in_set_old.equals(&livein[n]) || !out_set_old.equals(&liveout[n]);
+
             is_changed = is_changed || n_changed;
         }
     }
-    
+
     for block in cf.mc().get_all_blocks().to_vec() {
         let start_inst = cf.mc().get_block_range(&block).unwrap().start;
-        cf.mc_mut().set_ir_block_livein(&block, livein[start_inst].to_vec());
+        cf.mc_mut().set_ir_block_livein(&block, livein[start_inst].clone().to_vec());
 
         let end_inst = cf.mc().get_block_range(&block).unwrap().end;
-        cf.mc_mut().set_ir_block_liveout(&block, liveout[end_inst].to_vec());
+        cf.mc_mut().set_ir_block_liveout(&block, liveout[end_inst].clone().to_vec());
     }
 }
 
 // from Tailoring Graph-coloring Register Allocation For Runtime Compilation, Figure 4
 pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
-    build_live_set(cf, func);
+    build_live_set(cf);
     
     let mut ig = InterferenceGraph::new();
     
