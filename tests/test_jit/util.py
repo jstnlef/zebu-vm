@@ -2,15 +2,15 @@ import subprocess as subp
 import os, sys
 import ctypes
 import py
-from multiprocessing import Process, Queue, ProcessError
+from multiprocessing import Process
 
 CC = os.environ.get('CC', 'clang')
 proj_dir = py.path.local(__file__).join('..', '..', '..')
 test_jit_dir = proj_dir.join('tests', 'test_jit')
 testsuite_dir = test_jit_dir.join('suite')
-bin_dir = test_jit_dir.join('temp')
-if not bin_dir.exists():
-    bin_dir.mkdir()
+# testsuite_dir = py.path.local('/Users/johnz/Documents/Work/mu-client-pypy/rpython/translator/mu/test_impl')
+bin_dir = py.path.local('/tmp')
+
 if sys.platform.startswith('darwin'):
     libext = '.dylib'
 elif sys.platform.startswith('linux'):
@@ -43,14 +43,14 @@ def compile_c_script(c_src_name):
     os.environ['LD_LIBRARY_PATH'] = "%s:%s" % ("%(proj_dir)s/target/debug" % globals(),
                                                os.environ['LD_LIBRARY_PATH'] if 'LD_LIBRARY_PATH' in os.environ else "")
     # run
-    p = subp.Popen([bin_path.strpath], stdout=subp.PIPE, stderr=subp.PIPE, cwd=str(bin_dir), env=os.environ)
+    p = subp.Popen([bin_path.strpath], stdout=subp.PIPE, stderr=subp.PIPE, env=os.environ)
     out, err = p.communicate()
     if p.returncode != 0:  # failed
         sys.stdout.write(out + '\n')
         sys.stderr.write(err + '\n')
         raise subp.CalledProcessError(p.returncode, bin_path)
 
-    return bin_dir.join('emit', '%(testname)s.dylib' % locals()).strpath
+    return py.path.local('emit').join('%(testname)s.dylib' % locals())
 
 
 def fncptr_from_lib(lib, fnc_name, argtypes=[], restype=ctypes.c_longlong):
@@ -61,8 +61,8 @@ def fncptr_from_lib(lib, fnc_name, argtypes=[], restype=ctypes.c_longlong):
 
 
 def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglong):
-    lib_path = compile_c_script(c_src_name)
-    lib = ctypes.CDLL(lib_path)
+    libpath = compile_c_script(c_src_name)
+    lib = ctypes.CDLL(libpath.strpath)
     return fncptr_from_lib(lib, name, argtypes, restype), lib
 
 
@@ -79,10 +79,10 @@ def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
 
     id_dict = py_fnc(bldr, rmu)
     bldr.load()
-    libname = 'lib%(name)s.dylib' % locals()
-    mu.compile_to_sharedlib(libname, [])
+    libpath = py.path.local('lib%(name)s.dylib' % locals())
+    mu.compile_to_sharedlib(libpath.strpath, [])
 
-    lib = ctypes.CDLL('emit/%(libname)s' % locals())
+    lib = ctypes.CDLL(libpath.strpath)
     return fncptr_from_lib(lib, name, argtypes, restype), (mu, ctx, bldr)
 
 
@@ -121,9 +121,9 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     set_opt_level(t.config, '3')
     if kwargs['backend'] == 'mu':
         db, bdlgen, fnc_name = t.compile_mu()
-        libname = 'lib%(fnc_name)s.dylib' % locals()
-        bdlgen.mu.compile_to_sharedlib(libname, [])
-        eci = rffi.ExternalCompilationInfo(libraries=[test_jit_dir.join('emit', libname).strpath])
+        libpath = py.path.local('lib%(fnc_name)s.dylib' % locals())
+        bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
+        eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
         extras = (db, bdlgen)
     else:
         libpath = t.compile_c()
