@@ -54,9 +54,9 @@ def compile_rpython_c(config):
     set_opt_level(t.config, '3')
     t.ensure_opt('gc', 'none')
     libpath = t.compile_c()
-    fnp = getattr(ctypes.CDLL(libpath.strpath), 'pypy_g_' + rpyfnc.__name__)
-    fnp.argtypes = config['c_arg_ts']
-    fnp.restypes = config['c_res_t']
+    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
+    fnp = rffi.llexternal('pypy_g_' + rpyfnc.__name__, config['llarg_ts'], config['llres_t'],
+                          compilation_info=eci, _nowrapper=True)
     return fnp
 
 
@@ -67,9 +67,9 @@ def compile_rpython_c_jit(config):
     set_opt_level(t.config, 'jit')
     t.ensure_opt('gc', 'none')
     libpath = t.compile_c()
-    fnp = getattr(ctypes.CDLL(libpath.strpath), 'pypy_g_' + rpyfnc.__name__)
-    fnp.argtypes = config['c_arg_ts']
-    fnp.restypes = config['c_res_t']
+    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
+    fnp = rffi.llexternal('pypy_g_' + rpyfnc.__name__, config['llarg_ts'], config['llres_t'],
+                          compilation_info=eci, _nowrapper=True)
     return fnp
 
 
@@ -82,19 +82,18 @@ def compile_rpython_mu(config):
     set_opt_level(t.config, '3')
     db, bdlgen, fnc_name = t.compile_mu()
     bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
-    fnp = getattr(ctypes.CDLL(libpath.strpath), fnc_name)
-    fnp.argtypes = config['c_arg_ts']
-    fnp.restypes = config['c_res_t']
+    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
+    fnp = rffi.llexternal(fnc_name, config['llarg_ts'], config['llres_t'],
+                          compilation_info=eci, _nowrapper=True)
     return fnp
 
 
 def compile_c(config):
     libpath = config['libpath_c']
     run([CC, '-fpic', '--shared', '-o', libpath.strpath, config['c_file'].strpath])
-    lib = ctypes.CDLL(libpath.strpath)
-    fnp = getattr(lib, config['c_sym_name'])
-    fnp.argtypes = config['c_arg_ts']
-    fnp.restypes = config['c_res_t']
+    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
+    fnp = rffi.llexternal(config['c_sym_name'], config['llarg_ts'], config['llres_t'],
+                          compilation_info=eci, _nowrapper=True)
     return fnp
 
 
@@ -121,7 +120,6 @@ def get_stat(run_fnc, config, warmup=5, iterations=100):
 def get_stat_compiled(compile_fnc, config, warmup=5, iterations=100):
     def run_funcptr(fnp, config):
         args = config['setup'](*config['setup_args'])
-        print args
         t0 = time()
         fnp(*args)      # TODO: embed time measurement in RPython code
         t1 = time()
@@ -139,35 +137,45 @@ def get_display_str(stat):
              "std_dev: %(std_dev)s\n"
     return output % stat
 
+
 def perf(config, warmup, iterations):
     results = {
-        # 'cpython': get_stat(run_cpython, config, warmup, iterations=iterations),
-        # 'pypy_nojit': get_stat(run_pypy_nojit, config, warmup, iterations=iterations),
-        # 'pypy': get_stat(run_pypy, config, warmup, iterations=iterations),
-        # 'rpy_c': get_stat_compiled(compile_rpython_c, config, warmup, iterations=iterations),
-        # 'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, config, warmup, iterations=iterations),
+        'cpython': get_stat(run_cpython, config, warmup, iterations=iterations),
+        'pypy_nojit': get_stat(run_pypy_nojit, config, warmup, iterations=iterations),
+        'pypy': get_stat(run_pypy, config, warmup, iterations=iterations),
+        'rpy_c': get_stat_compiled(compile_rpython_c, config, warmup, iterations=iterations),
+        'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, config, warmup, iterations=iterations),
         'rpy_mu': get_stat_compiled(compile_rpython_mu, config, warmup, iterations=iterations),
-        # 'c': get_stat_compiled(compile_c, config, warmup, iterations=iterations),
+        'c': get_stat_compiled(compile_c, config, warmup=warmup, iterations=iterations),
     }
 
     for python, result in results.items():
         print '\033[35m---- %(python)s ----\033[0m' % locals()
         print get_display_str(result)
 
+    return results
+
+
+def save_results(test_name, results):
+    import json
+    json_file_path = py.path.local('result_%(test_name)s.json' % locals())
+
+    with json_file_path.open('w') as fp:
+        json.dump(results, fp, indent=4, separators=(',', ':'))
+
 
 def perf_fibonacci(N, warmup, iterations):
-    from perftarget.fibonacci import fib, rpy_entry
+    from perftarget.fibonacci import fib
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
 
     config = {
         'py_file': perf_target_dir.join('fibonacci.py'),
         'c_file': perf_target_dir.join('fibonacci.c'),
-        'rpy_fnc': rpy_entry,
+        'rpy_fnc': fib,
         'c_sym_name': 'fib',
-        'llarg_ts': [int],
-        'c_arg_ts': [ctypes.c_int64],
-        'c_res_t': ctypes.c_int64,
+        'llarg_ts': [lltype.Signed],
+        'llres_t': lltype.Signed,
         'setup_args': (N,),
         'setup': lambda N: (N, ),
         'teardown': lambda N: None,
@@ -175,7 +183,9 @@ def perf_fibonacci(N, warmup, iterations):
         'libpath_c': tmpdir.join('libfibonacci_c.dylib')
     }
 
-    perf(config, warmup, iterations)
+    results = perf(config, warmup, iterations)
+    results['problem_size'] = N
+    return results
 
 
 def perf_arraysum(N, warmup, iterations):
@@ -189,9 +199,7 @@ def perf_arraysum(N, warmup, iterations):
         'rpy_fnc': arraysum,
         'c_sym_name': 'arraysum',
         'llarg_ts': [rffi.CArrayPtr(rffi.LONGLONG), rffi.SIZE_T],
-        # 'c_arg_ts': [ctypes.ARRAY(ctypes.c_int64, N), ctypes.c_uint64],
-        'c_arg_ts': [ctypes.c_voidp, ctypes.c_uint64],
-        'c_res_t': ctypes.c_int64,
+        'llres_t': rffi.LONGLONG,
         'setup_args': (N, ),
         'setup': setup,
         'teardown': teardown,
@@ -199,9 +207,18 @@ def perf_arraysum(N, warmup, iterations):
         'libpath_c': tmpdir.join('libfibonacci_c.dylib')
     }
 
-    perf(config, warmup, iterations)
+    results = perf(config, warmup, iterations)
+    results['problem_size'] = N
+    return results
+
+
+def test_functional_fibonacci():
+    save_results('fibonacci', perf_fibonacci(5, 0, 1))
+
+
+def test_functional_arraysum():
+    save_results('arraysum', perf_arraysum(100, 0, 1))
 
 if __name__ == '__main__':
-    perf_fibonacci(5, 0, 1)
-    # perf_fibonacci(40, 5, 20)
-    # perf_arraysum(100, 0, 1)
+    save_results('fibonacci', perf_fibonacci(40, 5, 20))
+    save_results('arraysum', perf_arraysum(1000000, 5, 20))
