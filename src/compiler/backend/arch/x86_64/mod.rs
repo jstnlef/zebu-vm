@@ -162,6 +162,30 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
     }
 }
 
+pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
+    if get_color_for_precolroed(id1) == get_color_for_precolroed(id2) {
+        macro_rules! is_match {
+            ($a1: expr, $a2: expr; $b: expr) => {
+                $a1 == $b.id() || $a2 == $b.id()
+            }
+        };
+
+        if is_match!(id1, id2; AH) {
+            return false;
+        } else if is_match!(id1, id2; BH) {
+            return false;
+        } else if is_match!(id1, id2; CH) {
+            return false;
+        } else if is_match!(id1, id2; DH) {
+            return false;
+        } else {
+            return true;
+        }
+    } else {
+        return false;
+    }
+}
+
 pub fn get_color_for_precolroed(id: MuID) -> MuID {
     if id < FPR_ID_START {
         match GPR_ALIAS_LOOKUP.get(&id) {

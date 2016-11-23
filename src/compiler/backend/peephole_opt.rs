@@ -44,9 +44,8 @@ impl PeepholeOptimization {
                 }
             };
             
-            if backend::get_color_for_precolroed(src_machine_reg)
-                == backend::get_color_for_precolroed(dst_machine_reg) {
-                trace!("Redundant! removed");
+            if backend::is_aliased(src_machine_reg, dst_machine_reg) {
+                trace!("move between {} and {} is redundant! removed", src_machine_reg, dst_machine_reg);
                 // redundant, remove this move
                 cf.mc_mut().set_inst_nop(inst);
             } else {

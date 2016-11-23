@@ -25,7 +25,8 @@ pub mod x86_64;
 
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::init_machine_regs_for_func;
-
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::is_aliased;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::get_color_for_precolroed;
 #[cfg(target_arch = "x86_64")]
