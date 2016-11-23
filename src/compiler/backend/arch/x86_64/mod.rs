@@ -163,7 +163,7 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
 }
 
 pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
-    if get_color_for_precolroed(id1) == get_color_for_precolroed(id2) {
+    if get_color_for_precolored(id1) == get_color_for_precolored(id2) {
         macro_rules! is_match {
             ($a1: expr, $a2: expr; $b: expr) => {
                 $a1 == $b.id() || $a2 == $b.id()
@@ -186,7 +186,9 @@ pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
     }
 }
 
-pub fn get_color_for_precolroed(id: MuID) -> MuID {
+pub fn get_color_for_precolored(id: MuID) -> MuID {
+    debug_assert!(id < MACHINE_ID_END);
+
     if id < FPR_ID_START {
         match GPR_ALIAS_LOOKUP.get(&id) {
             Some(val) => val.id(),

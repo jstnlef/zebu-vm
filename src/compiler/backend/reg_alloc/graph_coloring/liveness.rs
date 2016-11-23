@@ -97,6 +97,32 @@ impl InterferenceGraph {
     
     pub fn add_interference_edge(&mut self, from: NodeIndex, to: NodeIndex) {
         self.graph.update_edge(from, to, ());
+
+        // if one of the node is machine register, we also add
+        // interference edge to its alias
+        // e.g. if we have %a, %edi interferenced,
+        // we also add %a, %rdi interference
+
+        let from_tmp = self.graph.node_weight(from).unwrap().temp;
+        let to_tmp   = self.graph.node_weight(to).unwrap().temp;
+
+        if from_tmp < MACHINE_ID_END || to_tmp < MACHINE_ID_END {
+            let from_tmp = if from_tmp < MACHINE_ID_END {
+                backend::get_color_for_precolored(from_tmp)
+            } else {
+                from_tmp
+            };
+
+            let to_tmp = if to_tmp < MACHINE_ID_END {
+                backend::get_color_for_precolored(to_tmp)
+            } else {
+                to_tmp
+            };
+
+            let from_tmp_node = self.get_node(from_tmp);
+            let to_tmp_node   = self.get_node(to_tmp);
+            self.graph.update_edge(from_tmp_node, to_tmp_node, ());
+        }
     }
 
     pub fn is_interferenced_with(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
@@ -258,7 +284,7 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
         let reg_id = reg.extract_ssa_id().unwrap();
         let node = ig.new_node(reg_id, &func.context);
 
-        let precolor = backend::get_color_for_precolroed(reg_id);
+        let precolor = backend::get_color_for_precolored(reg_id);
 
         ig.color_node(node, precolor);
     }

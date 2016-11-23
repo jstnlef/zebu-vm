@@ -185,7 +185,7 @@ impl ASMCode {
                 // copy the block
                 let (name, block) = self.get_block_by_inst(i);
 
-                let mut new_block = ASMBlock{
+                let new_block = ASMBlock{
                     start_inst: cur_block_start,
                     end_inst: cur_block_end,
 
