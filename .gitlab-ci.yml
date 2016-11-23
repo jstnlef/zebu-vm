@@ -64,10 +64,36 @@ testjit:cmpops:
   script:
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_cmpops.py -v
 
+testjit:controlflow:
+  stage: test
+  script:
+    - cd tests/test_jit
+    - RUST_BACKTRACE=1 pytest test_controlflow.py -v
+
 testjit:convops:
   stage: test
   script:
     - RUST_BACKTRACE=1 pytest tests/test_jit/test_convops.py -v
+
+testjit:double:
+  stage: test
+  script:
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_double.py -v
+
+testjit:memops:
+  stage: test
+  script:
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_memops.py -v
+
+testjit:milestones:
+  stage: test
+  script:
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_milestones.py -v
+
+testjit:otherops:
+  stage: test
+  script:
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_otherops.py -v
 
 testjit:rpython:
   stage: test
