@@ -54,3 +54,9 @@ def test_double_ordered_ge():
 def test_double_ordered_gt():
     fnp = fncptr_from_c_script("test_double_ordered_gt.c", "test_fnc")
     assert fnp() == 1
+
+
+def test_double_arg_pass():
+    fnp = fncptr_from_c_script("test_double_arg_pass.c", "test_fnc",
+                               [ctypes.c_double, ctypes.c_double], ctypes.c_double)
+    assert fnp(3.141593, 2.71828) == 5.859873
