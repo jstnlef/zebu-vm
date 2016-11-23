@@ -16,11 +16,11 @@ def setup(n):
     arr = lltype.malloc(rffi.CArray(rffi.LONGLONG), n, flavor='raw')
     for i, k in enumerate(lst):
         arr[i] = k
-    return rffi.ll2ctypes.lltype2ctypes(arr) , n
+    return arr, rffi.cast(lltype.Unsigned, n)
 
 
-def teardown(carr, n):
-    lltype.free(rffi.ll2ctypes.ctypes2lltype(rffi.CArray(rffi.LONGLONG), carr), 'raw')
+def teardown(arr, n):
+    lltype.free(arr, 'raw')
 
 
 def rand_list_of(n):
