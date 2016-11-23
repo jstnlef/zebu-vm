@@ -1696,6 +1696,26 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_mov_r64_imm64("mov", dest, src)
     }
 
+    fn emit_mov_fpr_r64 (&mut self, dest: Reg, src: Reg) {
+        trace!("emit: movq {} -> {}", src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(src, 5);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, 5 + reg1.len() + 1);
+
+        let asm = format!("movq {},{}", reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
     fn emit_mov_r_imm  (&mut self, dest: &P<Value>, src: i32) {
         self.internal_mov_r_imm("mov", dest, src)
     }

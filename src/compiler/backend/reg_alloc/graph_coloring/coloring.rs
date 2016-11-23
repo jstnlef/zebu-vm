@@ -356,6 +356,11 @@ impl <'a> GraphColoring<'a> {
         let m = self.worklist_moves.pop().unwrap();
         
         trace!("Coalescing on {}", self.display_move(m));
+
+        // if they are not from the same register group, we cannot coalesce them
+        if self.ig.get_group_of(m.from) != self.ig.get_group_of(m.to) {
+            return;
+        }
         
         let x = self.get_alias(m.from);
         let y = self.get_alias(m.to);
@@ -443,8 +448,6 @@ impl <'a> GraphColoring<'a> {
     }
     
     fn conservative(&self, u: NodeIndex, v: NodeIndex) -> bool {
-        debug_assert!(self.ig.get_group_of(u) == self.ig.get_group_of(v));
-        
         let adj_u = self.adjacent(u);
         let adj_v = self.adjacent(v);
         let nodes = {
@@ -461,7 +464,7 @@ impl <'a> GraphColoring<'a> {
             }
         }
         
-        k < self.n_regs_for_node(u)
+        k < self.n_regs_for_node(u) && k < self.n_regs_for_node(v)
     }
     
     fn combine(&mut self, u: NodeIndex, v: NodeIndex) {

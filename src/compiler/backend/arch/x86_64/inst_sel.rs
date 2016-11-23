@@ -2328,6 +2328,25 @@ impl <'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar(_) => pv.clone(),
+                    Value_::Constant(Constant::Double(val)) => {
+                        use std::mem;
+
+                        // val into u64
+                        let val_u64 : u64 = unsafe {mem::transmute(val)};
+
+                        // mov val_u64 -> tmp_int
+                        let tmp_int = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                        self.backend.emit_mov_r64_imm64(&tmp_int, val_u64 as i64);
+
+                        // movq tmp_int -> tmp_fp
+                        let tmp_fp = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
+                        self.backend.emit_mov_fpr_r64(&tmp_fp, &tmp_int);
+
+                        tmp_fp
+                    }
+                    Value_::Constant(Constant::Float(val)) => {
+                        unimplemented!()
+                    },
                     _ => panic!("expected fpreg")
                 }
             }

@@ -585,6 +585,8 @@ impl Value {
                     false
                 }
             },
+            Value_::Constant(Constant::Double(_)) => true,
+            Value_::Constant(Constant::Float(_))  => true,
             _ => false
         }
     }
