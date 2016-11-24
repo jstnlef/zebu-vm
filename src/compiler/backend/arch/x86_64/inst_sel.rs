@@ -166,6 +166,52 @@ impl <'a> InstructionSelection {
                                         self.backend.emit_jge(branch_target);
                                     }
                                 },
+
+                                // floating point
+
+                                op::CmpOp::FOEQ | op::CmpOp::FUEQ => {
+                                    if branch_if_true {
+                                        self.backend.emit_je(branch_target);
+                                    } else {
+                                        self.backend.emit_jne(branch_target);
+                                    }
+                                },
+                                op::CmpOp::FONE | op::CmpOp::FUNE => {
+                                    if branch_if_true {
+                                        self.backend.emit_jne(branch_target);
+                                    } else {
+                                        self.backend.emit_je(branch_target);
+                                    }
+                                },
+                                op::CmpOp::FOGT | op::CmpOp::FUGT => {
+                                    if branch_if_true {
+                                        self.backend.emit_ja(branch_target);
+                                    } else {
+                                        self.backend.emit_jbe(branch_target);
+                                    }
+                                },
+                                op::CmpOp::FOGE | op::CmpOp::FUGE => {
+                                    if branch_if_true {
+                                        self.backend.emit_jae(branch_target);
+                                    } else {
+                                        self.backend.emit_jb(branch_target);
+                                    }
+                                },
+                                op::CmpOp::FOLT | op::CmpOp::FULT => {
+                                    if branch_if_true {
+                                        self.backend.emit_jb(branch_target);
+                                    } else {
+                                        self.backend.emit_jae(branch_target);
+                                    }
+                                },
+                                op::CmpOp::FOLE | op::CmpOp::FULE => {
+                                    if branch_if_true {
+                                        self.backend.emit_jbe(branch_target);
+                                    } else {
+                                        self.backend.emit_ja(branch_target);
+                                    }
+                                },
+
                                 _ => unimplemented!()
                             }
                         } else if self.match_ireg(cond) {
@@ -254,44 +300,49 @@ impl <'a> InstructionSelection {
                     },
 
                     Instruction_::CmpOp(op, op1, op2) => {
+                        use ast::op::CmpOp::*;
+
                         trace!("instsel on CMPOP");
                         let ops = inst.ops.read().unwrap();
                         let ref op1 = ops[op1];
                         let ref op2 = ops[op2];
 
-                        if self.match_ireg(op1) {
-                            debug_assert!(self.match_ireg(op2));
+                        let tmp_res = self.get_result_value(node);
 
-                            let tmp_res = self.get_result_value(node);
+                        // cmov only take (16/32/64bits registers)
+                        // make res64, and set to zero
+                        let tmp_res64 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                        self.backend.emit_xor_r_r(&tmp_res64, &tmp_res64);
 
-                            // make res64, and set to zero
-                            let tmp_res64 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                            self.backend.emit_xor_r_r(&tmp_res64, &tmp_res64);
+                        // set tmp1 as 1 (cmov doesnt allow immediate or reg8 as operand)
+                        let tmp_1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                        self.backend.emit_mov_r_imm(&tmp_1, 1);
 
-                            // set tmp1 as 1 (cmov doesnt allow immediate or reg8 as operand)
-                            let tmp_1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                            self.backend.emit_mov_r_imm(&tmp_1, 1);
+                        // cmov 1 to result
+                        match self.emit_cmp_res(node, f_content, f_context, vm) {
+                            EQ  => self.backend.emit_cmove_r_r (&tmp_res64, &tmp_1),
+                            NE  => self.backend.emit_cmovne_r_r(&tmp_res64, &tmp_1),
+                            SGE => self.backend.emit_cmovge_r_r(&tmp_res64, &tmp_1),
+                            SGT => self.backend.emit_cmovg_r_r (&tmp_res64, &tmp_1),
+                            SLE => self.backend.emit_cmovle_r_r(&tmp_res64, &tmp_1),
+                            SLT => self.backend.emit_cmovl_r_r (&tmp_res64, &tmp_1),
+                            UGE => self.backend.emit_cmovae_r_r(&tmp_res64, &tmp_1),
+                            UGT => self.backend.emit_cmova_r_r (&tmp_res64, &tmp_1),
+                            ULE => self.backend.emit_cmovbe_r_r(&tmp_res64, &tmp_1),
+                            ULT => self.backend.emit_cmovb_r_r (&tmp_res64, &tmp_1),
 
-                            // cmov 1 to result
-                            match self.emit_cmp_res(node, f_content, f_context, vm) {
-                                op::CmpOp::EQ  => self.backend.emit_cmove_r_r (&tmp_res64, &tmp_1),
-                                op::CmpOp::NE  => self.backend.emit_cmovne_r_r(&tmp_res64, &tmp_1),
-                                op::CmpOp::SGE => self.backend.emit_cmovge_r_r(&tmp_res64, &tmp_1),
-                                op::CmpOp::SGT => self.backend.emit_cmovg_r_r (&tmp_res64, &tmp_1),
-                                op::CmpOp::SLE => self.backend.emit_cmovle_r_r(&tmp_res64, &tmp_1),
-                                op::CmpOp::SLT => self.backend.emit_cmovl_r_r (&tmp_res64, &tmp_1),
-                                op::CmpOp::UGE => self.backend.emit_cmovae_r_r(&tmp_res64, &tmp_1),
-                                op::CmpOp::UGT => self.backend.emit_cmova_r_r (&tmp_res64, &tmp_1),
-                                op::CmpOp::ULE => self.backend.emit_cmovbe_r_r(&tmp_res64, &tmp_1),
-                                op::CmpOp::ULT => self.backend.emit_cmovb_r_r (&tmp_res64, &tmp_1),
-                                _ => panic!("expecting integer comparison op with int values")
-                            }
+                            FOEQ | FUEQ => self.backend.emit_cmove_r_r (&tmp_res64, &tmp_1),
+                            FONE | FUNE => self.backend.emit_cmovne_r_r(&tmp_res64, &tmp_1),
+                            FOGT | FUGT => self.backend.emit_cmova_r_r (&tmp_res64, &tmp_1),
+                            FOGE | FUGE => self.backend.emit_cmovae_r_r(&tmp_res64, &tmp_1),
+                            FOLT | FULT => self.backend.emit_cmovb_r_r (&tmp_res64, &tmp_1),
+                            FOLE | FULE => self.backend.emit_cmovbe_r_r(&tmp_res64, &tmp_1),
 
-                            // truncate tmp_res64 to tmp_res (probably u8)
-                            self.backend.emit_mov_r_r(&tmp_res, &tmp_res64);
-                        } else {
-                            unimplemented!()
+                            _ => unimplemented!()
                         }
+
+                        // truncate tmp_res64 to tmp_res (probably u8)
+                        self.backend.emit_mov_r_r(&tmp_res, &tmp_res64);
                     }
 
                     Instruction_::Branch1(ref dest) => {
@@ -879,7 +930,85 @@ impl <'a> InstructionSelection {
                                     // add op2 res
                                     self.backend.emit_addsd_f64_f64(&res_tmp, &reg_op2);
                                 } else {
-                                    unimplemented!()
+                                    panic!("unexpected fadd: {}", node)
+                                }
+                            }
+
+                            op::BinOp::FSub => {
+                                if self.match_fpreg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                                    trace!("emit sub-fpreg-mem");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let mem_op2 = self.emit_mem(&ops[op2], vm);
+
+                                    // mov op1, res
+                                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                                    // sub op2 res
+                                    self.backend.emit_subsd_f64_mem64(&res_tmp, &mem_op2);
+                                } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                                    trace!("emit sub-fpreg-fpreg");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+
+                                    // movsd op1, res
+                                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                                    // sub op2 res
+                                    self.backend.emit_subsd_f64_f64(&res_tmp, &reg_op2);
+                                } else {
+                                    panic!("unexpected fsub: {}", node)
+                                }
+                            }
+
+                            op::BinOp::FMul => {
+                                if self.match_fpreg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                                    trace!("emit mul-fpreg-mem");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let mem_op2 = self.emit_mem(&ops[op2], vm);
+
+                                    // mov op1, res
+                                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                                    // mul op2 res
+                                    self.backend.emit_mulsd_f64_mem64(&res_tmp, &mem_op2);
+                                } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                                    trace!("emit mul-fpreg-fpreg");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+
+                                    // movsd op1, res
+                                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                                    // mul op2 res
+                                    self.backend.emit_mulsd_f64_f64(&res_tmp, &reg_op2);
+                                } else {
+                                    panic!("unexpected fmul: {}", node)
+                                }
+                            }
+
+                            op::BinOp::FDiv => {
+                                if self.match_fpreg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                                    trace!("emit div-fpreg-mem");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let mem_op2 = self.emit_mem(&ops[op2], vm);
+
+                                    // mov op1, res
+                                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                                    // div op2 res
+                                    self.backend.emit_divsd_f64_mem64(&res_tmp, &mem_op2);
+                                } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                                    trace!("emit div-fpreg-fpreg");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+
+                                    // movsd op1, res
+                                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                                    // div op2 res
+                                    self.backend.emit_divsd_f64_f64(&res_tmp, &reg_op2);
+                                } else {
+                                    panic!("unexpected fdiv: {}", node)
                                 }
                             }
                             
@@ -2215,7 +2344,33 @@ impl <'a> InstructionSelection {
                                 unimplemented!()
                             }
                         } else {
-                            unimplemented!()
+                            // floating point comparison
+                            let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                            let reg_op2 = self.emit_fpreg(op2, f_content, f_context, vm);
+
+                            match op {
+                                op::CmpOp::FOEQ
+                                | op::CmpOp::FOGT
+                                | op::CmpOp::FOGE
+                                | op::CmpOp::FOLT
+                                | op::CmpOp::FOLE
+                                | op::CmpOp::FONE => {
+                                    self.backend.emit_comisd_f64_f64(&reg_op2, &reg_op1);
+
+                                    op
+                                },
+                                op::CmpOp::FUEQ
+                                | op::CmpOp::FUGT
+                                | op::CmpOp::FUGE
+                                | op::CmpOp::FULT
+                                | op::CmpOp::FULE
+                                | op::CmpOp::FUNE => {
+                                    self.backend.emit_ucomisd_f64_f64(&reg_op2, &reg_op1);
+
+                                    op
+                                },
+                                _ => unimplemented!()
+                            }
                         }
                     }
                     

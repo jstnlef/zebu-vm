@@ -108,10 +108,6 @@ pub trait CodeGenerator {
     fn emit_sub_r_mem(&mut self, dest: Reg, src: Mem);
     fn emit_sub_r_imm(&mut self, dest: Reg, src: i32);
 
-    // floating point
-    fn emit_addsd_f64_f64  (&mut self, dest: Reg, src: Reg);
-    fn emit_addsd_f64_mem64(&mut self, dest: Reg, src: Mem);
-
     // multiply
     fn emit_mul_r  (&mut self, src: Reg);
     fn emit_mul_mem(&mut self, src: Mem);
@@ -161,8 +157,27 @@ pub trait CodeGenerator {
     fn emit_pop_r64(&mut self, dest: &P<Value>);
 
     // fpr move
-
     fn emit_movsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>);
     fn emit_movsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>); // load
     fn emit_movsd_mem64_f64(&mut self, dest: &P<Value>, src: &P<Value>); // store
+
+    // fp add
+    fn emit_addsd_f64_f64  (&mut self, dest: Reg, src: Reg);
+    fn emit_addsd_f64_mem64(&mut self, dest: Reg, src: Mem);
+
+    // fp sub
+    fn emit_subsd_f64_f64  (&mut self, dest: Reg, src: Reg);
+    fn emit_subsd_f64_mem64(&mut self, dest: Reg, src: Mem);
+
+    // fp div
+    fn emit_divsd_f64_f64  (&mut self, dest: Reg, src: Reg);
+    fn emit_divsd_f64_mem64(&mut self, dest: Reg, src: Mem);
+
+    // fp mul
+    fn emit_mulsd_f64_f64  (&mut self, dest: Reg, src: Reg);
+    fn emit_mulsd_f64_mem64(&mut self, dest: Reg, src: Mem);
+
+    // fp comparison
+    fn emit_comisd_f64_f64  (&mut self, op1: Reg, op2: Reg);
+    fn emit_ucomisd_f64_f64 (&mut self, op1: Reg, op2: Reg);
 }

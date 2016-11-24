@@ -379,8 +379,22 @@ impl MachineCode for ASMCode {
     fn is_move(&self, index: usize) -> bool {
         let inst = self.code.get(index);
         match inst {
-            Some(inst) => inst.code.starts_with("mov")
-                && !(inst.code.starts_with("movs") || inst.code.starts_with("movz")),
+            Some(inst) => {
+                let ref inst = inst.code;
+
+                if inst.starts_with("movsd") || inst.starts_with("movss") {
+                    // floating point move
+                    true
+                } else if inst.starts_with("movs") || inst.starts_with("movz") {
+                    // sign extend, zero extend
+                    false
+                } else if inst.starts_with("mov") {
+                    // normal mov
+                    true
+                } else {
+                    false
+                }
+            },
             None => false
         }
     }
@@ -1471,6 +1485,65 @@ impl ASMCodeGen {
             true
         )
     }
+
+    fn internal_fp_binop_no_def_r_r(&mut self, inst: &str, op1: &P<Value>, op2: &P<Value>) {
+        trace!("emit: {} {} {}", inst, op1, op2);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(op1, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(op2, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{},
+            {
+                if id1 == id2 {
+                    hashmap!{
+                        id1 => vec![loc1, loc2]
+                    }
+                } else {
+                    hashmap!{
+                        id1 => vec![loc1],
+                        id2 => vec![loc2]
+                    }
+                }
+            },
+            false
+        )
+    }
+
+    fn internal_fp_binop_def_r_r(&mut self, inst: &str, dest: Reg, src: Reg) {
+        trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            {
+                if id1 == id2 {
+                    hashmap!{id1 => vec![loc1, loc2]}
+                } else {
+                    hashmap! {
+                        id1 => vec![loc1],
+                        id2 => vec![loc2]
+                    }
+                }
+            },
+            false
+        )
+    }
+
+    fn internal_fp_binop_def_r_mem(&mut self, inst: &str, dest: Reg, src: Reg) {
+        trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
+        unimplemented!()
+    }
 }
 
 #[inline(always)]
@@ -2532,30 +2605,40 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
+    fn emit_comisd_f64_f64  (&mut self, op1: Reg, op2: Reg) {
+        self.internal_fp_binop_no_def_r_r("comisd", op1, op2);
+    }
+    fn emit_ucomisd_f64_f64 (&mut self, op1: Reg, op2: Reg) {
+        self.internal_fp_binop_no_def_r_r("ucomisd", op1, op2);
+    }
+
     fn emit_addsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: addsd {}, {} -> {}", dest, src, dest);
-
-        let (reg1, id1, loc1) = self.prepare_fpreg(src, 5 + 1);
-        let (reg2, id2, loc2) = self.prepare_fpreg(dest, 5 + 1 + reg1.len() + 1);
-
-        let asm = format!("addsd {},{}", reg1, reg2);
-
-        self.add_asm_inst(
-            asm,
-            hashmap!{
-                id2 => vec![loc2.clone()]
-            },
-            hashmap!{
-                id1 => vec![loc1],
-                id2 => vec![loc2]
-            },
-            false
-        )
+        self.internal_fp_binop_def_r_r("addsd", dest, src);
     }
 
     fn emit_addsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: addsd {}, {} -> {}", dest, src, dest);
-        unimplemented!()
+        self.internal_fp_binop_def_r_mem("addsd", dest, src);
+    }
+
+    fn emit_subsd_f64_f64  (&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_binop_def_r_r("subsd", dest, src);
+    }
+    fn emit_subsd_f64_mem64(&mut self, dest: Reg, src: Mem) {
+        self.internal_fp_binop_def_r_mem("subsd", dest, src);
+    }
+
+    fn emit_divsd_f64_f64  (&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_binop_def_r_r("divsd", dest, src);
+    }
+    fn emit_divsd_f64_mem64(&mut self, dest: Reg, src: Mem) {
+        self.internal_fp_binop_def_r_mem("divsd", dest, src);
+    }
+
+    fn emit_mulsd_f64_f64  (&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_binop_def_r_r("mulsd", dest, src);
+    }
+    fn emit_mulsd_f64_mem64(&mut self, dest: Reg, src: Mem) {
+        self.internal_fp_binop_def_r_mem("mulsd", dest, src);
     }
 }
 
