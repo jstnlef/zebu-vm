@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     id_368 = bldr_29->gen_sym(bldr_29, "@test_fnc.v1.blk0");
     id_369 = bldr_29->gen_sym(bldr_29, "@test_fnc.v1.blk0.res");
     id_370 = bldr_29->gen_sym(bldr_29, NULL);
-    bldr_29->new_binop(bldr_29, id_370, id_369, MU_BINOP_FMUL, id_362, id_363, id_364, MU_NO_ID);
+    bldr_29->new_binop(bldr_29, id_370, id_369, MU_BINOP_FDIV, id_362, id_363, id_364, MU_NO_ID);
     id_371 = bldr_29->gen_sym(bldr_29, NULL);
     bldr_29->new_ret(bldr_29, id_371, (MuVarNode [1]){id_369}, 1);
     bldr_29->new_bb(bldr_29, id_368, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_370, id_371}, 2);
