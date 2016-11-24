@@ -111,7 +111,7 @@ def get_stat(run_fnc, config, iterations=100):
         squares = ((t - avg) ** 2 for t in times)
         t_std = math.sqrt(sum(squares) / (len(times) - 1))
 
-    return {'average': avg, 't_min': t_min, 't_max': t_max, 'std_dev': t_std}
+    return {'average': avg, 't_min': t_min, 't_max': t_max, 'std_dev': t_std, 'data': times}
 
 
 def get_stat_compiled(compile_fnc, config, iterations=100):
@@ -141,7 +141,7 @@ def perf(config, iterations):
         'pypy_nojit': get_stat(run_pypy_nojit, config, iterations=iterations),
         'pypy': get_stat(run_pypy, config, iterations=iterations),
         'rpy_c': get_stat_compiled(compile_rpython_c, config, iterations=iterations),
-        'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, config, iterations=iterations),
+        # 'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, config, iterations=iterations),
         'rpy_mu': get_stat_compiled(compile_rpython_mu, config, iterations=iterations),
         'c': get_stat_compiled(compile_c, config, iterations=iterations),
     }
@@ -181,7 +181,6 @@ def perf_fibonacci(N, iterations):
     }
 
     results = perf(config, iterations)
-    results['problem_size'] = N
     return results
 
 
@@ -205,7 +204,6 @@ def perf_arraysum(N, iterations):
     }
 
     results = perf(config, iterations)
-    results['problem_size'] = N
     return results
 
 
@@ -229,7 +227,6 @@ def perf_quicksort(N, iterations):
     }
 
     results = perf(config, iterations)
-    results['problem_size'] = N
     return results
 
 
@@ -243,6 +240,38 @@ def test_functional_arraysum():
 
 def test_functional_quicksort():
     save_results('quicksort', perf_quicksort(100, 1))
+
+
+def plot(perf_fnc, N, iteration=5):
+    results = perf_fnc(N, iteration)
+
+    import matplotlib.pyplot as plt
+    fig = plt.figure(1, figsize=(9, 6))
+    ax = fig.add_subplot(111)
+    width = 0.1
+
+    colors = ['#c82829',
+              '#f5871f',
+              '#eab700',
+              '#718c00',
+              '#3e999f',
+              '#4271ae',
+              '#8959a8',
+              '#1d1f21']
+
+    data = [(tgt, results[tgt]['average'], results[tgt]['std_dev']) for tgt in results]
+    data.sort(key=lambda (tgt, avg, std): avg)
+    for i, (tgt, avg, std_dev) in enumerate(data):
+        ax.bar(width / 2 + width * i, avg, width, color=colors[i], yerr=std_dev, label=tgt)
+        ax.text(width / 2 + width * i + 0.01, avg, "%.6f" % avg, color='#1d1f21', fontweight='bold')
+
+    plt.legend(loc=2)
+    plt.title("%s with input size %d" % (perf_fnc.__name__, N))
+    plt.show()
+
+
+def test_plot():
+    plot(perf_quicksort, 100000)
 
 
 if __name__ == '__main__':
