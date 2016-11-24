@@ -97,10 +97,7 @@ def compile_c(config):
     return fnp
 
 
-def get_stat(run_fnc, config, warmup=5, iterations=100):
-    for i in range(warmup):
-        run_fnc(config)
-
+def get_stat(run_fnc, config, iterations=100):
     times = []
     for i in range(iterations):
         times.append(run_fnc(config))
@@ -117,7 +114,7 @@ def get_stat(run_fnc, config, warmup=5, iterations=100):
     return {'average': avg, 't_min': t_min, 't_max': t_max, 'std_dev': t_std}
 
 
-def get_stat_compiled(compile_fnc, config, warmup=5, iterations=100):
+def get_stat_compiled(compile_fnc, config, iterations=100):
     def run_funcptr(fnp, config):
         args = config['setup'](*config['setup_args'])
         t0 = time()
@@ -127,7 +124,7 @@ def get_stat_compiled(compile_fnc, config, warmup=5, iterations=100):
         return t1 - t0
 
     fnp = compile_fnc(config)
-    return get_stat(lambda config: run_funcptr(fnp, config), config, warmup, iterations)
+    return get_stat(lambda config: run_funcptr(fnp, config), config, iterations)
 
 
 def get_display_str(stat):
@@ -138,15 +135,15 @@ def get_display_str(stat):
     return output % stat
 
 
-def perf(config, warmup, iterations):
+def perf(config, iterations):
     results = {
-        'cpython': get_stat(run_cpython, config, warmup, iterations=iterations),
-        'pypy_nojit': get_stat(run_pypy_nojit, config, warmup, iterations=iterations),
-        'pypy': get_stat(run_pypy, config, warmup, iterations=iterations),
-        'rpy_c': get_stat_compiled(compile_rpython_c, config, warmup, iterations=iterations),
-        'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, config, warmup, iterations=iterations),
-        'rpy_mu': get_stat_compiled(compile_rpython_mu, config, warmup, iterations=iterations),
-        'c': get_stat_compiled(compile_c, config, warmup=warmup, iterations=iterations),
+        'cpython': get_stat(run_cpython, config, iterations=iterations),
+        'pypy_nojit': get_stat(run_pypy_nojit, config, iterations=iterations),
+        'pypy': get_stat(run_pypy, config, iterations=iterations),
+        'rpy_c': get_stat_compiled(compile_rpython_c, config, iterations=iterations),
+        'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, config, iterations=iterations),
+        'rpy_mu': get_stat_compiled(compile_rpython_mu, config, iterations=iterations),
+        'c': get_stat_compiled(compile_c, config, iterations=iterations),
     }
 
     for python, result in results.items():
@@ -164,7 +161,7 @@ def save_results(test_name, results):
         json.dump(results, fp, indent=4, separators=(',', ':'))
 
 
-def perf_fibonacci(N, warmup, iterations):
+def perf_fibonacci(N, iterations):
     from perftarget.fibonacci import fib
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
@@ -183,12 +180,12 @@ def perf_fibonacci(N, warmup, iterations):
         'libpath_c': tmpdir.join('libfibonacci_c.dylib')
     }
 
-    results = perf(config, warmup, iterations)
+    results = perf(config, iterations)
     results['problem_size'] = N
     return results
 
 
-def perf_arraysum(N, warmup, iterations):
+def perf_arraysum(N, iterations):
     from perftarget.arraysum import arraysum, setup, teardown
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
@@ -207,19 +204,48 @@ def perf_arraysum(N, warmup, iterations):
         'libpath_c': tmpdir.join('libfibonacci_c.dylib')
     }
 
-    results = perf(config, warmup, iterations)
+    results = perf(config, iterations)
+    results['problem_size'] = N
+    return results
+
+
+def perf_quicksort(N, iterations):
+    from perftarget.quicksort import quicksort, setup, teardown
+    tmpdir = py.path.local(mkdtemp())
+    print tmpdir
+
+    config = {
+        'py_file': perf_target_dir.join('quicksort.py'),
+        'c_file': perf_target_dir.join('quicksort.c'),
+        'rpy_fnc': quicksort,
+        'c_sym_name': 'quicksort',
+        'llarg_ts': [rffi.CArrayPtr(rffi.LONGLONG), lltype.Signed, lltype.Signed],
+        'llres_t': lltype.Void,
+        'setup_args': (N,),
+        'setup': setup,
+        'teardown': teardown,
+        'libpath_mu': tmpdir.join('libquicksort_mu.dylib'),
+        'libpath_c': tmpdir.join('libquicksort_c.dylib')
+    }
+
+    results = perf(config, iterations)
     results['problem_size'] = N
     return results
 
 
 def test_functional_fibonacci():
-    save_results('fibonacci', perf_fibonacci(5, 0, 1))
+    save_results('fibonacci', perf_fibonacci(5, 1))
 
 
 def test_functional_arraysum():
-    save_results('arraysum', perf_arraysum(100, 0, 1))
+    save_results('arraysum', perf_arraysum(100, 1))
+
+
+def test_functional_quicksort():
+    save_results('quicksort', perf_quicksort(100, 1))
 
 
 if __name__ == '__main__':
-    save_results('fibonacci', perf_fibonacci(40, 5, 20))
-    save_results('arraysum', perf_arraysum(1000000, 5, 20))
+    save_results('fibonacci', perf_fibonacci(40, 20))
+    save_results('arraysum', perf_arraysum(1000000, 20))
+    save_results('quicksort', perf_quicksort(1000000, 20))
