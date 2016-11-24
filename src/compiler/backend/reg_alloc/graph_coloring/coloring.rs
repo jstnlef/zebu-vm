@@ -359,6 +359,9 @@ impl <'a> GraphColoring<'a> {
 
         // if they are not from the same register group, we cannot coalesce them
         if self.ig.get_group_of(m.from) != self.ig.get_group_of(m.to) {
+            info!("a move instruction of two temporaries of different reigsters group");
+            info!("from: {:?}, to: {:?}", m.from, m.to);
+
             return;
         }
         
@@ -407,7 +410,10 @@ impl <'a> GraphColoring<'a> {
             }
         } else if (precolored_u && self.ok(u, v)) 
           || (!precolored_u && self.conservative(u, v)) {
-            trace!("precolored_u&&ok(u,v) || !precolored_u&&conserv(u,v), coalesce and combine the move");  
+            trace!("ok(u, v) = {}", self.ok(u, v));
+            trace!("conservative(u, v) = {}", self.conservative(u, v));
+
+            trace!("precolored_u&&ok(u,v) || !precolored_u&&conserv(u,v), coalesce and combine the move");
             self.coalesced_moves.insert(m);
             self.combine(u, v);
             if !precolored_u {
@@ -458,8 +464,7 @@ impl <'a> GraphColoring<'a> {
         
         let mut k = 0;
         for n in nodes.iter() {
-//            if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) {
-            if self.degree(*n) >= self.n_regs_for_node(*n) {
+            if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) {
                 k += 1;
             }
         }
@@ -597,11 +602,17 @@ impl <'a> GraphColoring<'a> {
             trace!("Assigning color to {}", self.display_node(n));
             
             let mut ok_colors : LinkedHashSet<MuID> = self.colors.get(&self.ig.get_group_of(n)).unwrap().clone();
+
+            trace!("all the colors for this temp: {:?}", ok_colors);
+
             for w in self.ig.outedges_of(n) {
-                let w = self.get_alias(w);
-                match self.ig.get_color_of(w) {
+                let w_alias = self.get_alias(w);
+                match self.ig.get_color_of(w_alias) {
                     None => {}, // do nothing
-                    Some(color) => {ok_colors.remove(&color);}
+                    Some(color) => {
+                        trace!("color {} is used for its neighbor {:?} (aliasing to {:?})", color, self.display_node(w), self.display_node(w_alias));
+                        ok_colors.remove(&color);
+                    }
                 }
             }
             trace!("available colors: {:?}", ok_colors);

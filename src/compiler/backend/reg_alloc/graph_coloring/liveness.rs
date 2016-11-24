@@ -92,6 +92,27 @@ impl InterferenceGraph {
     }
     
     fn add_move(&mut self, src: NodeIndex, dst: NodeIndex) {
+        let src = {
+            let temp_src = self.get_temp_of(src);
+            if temp_src < MACHINE_ID_END {
+                let alias = backend::get_color_for_precolored(self.get_temp_of(src));
+                self.get_node(alias)
+            } else {
+                src
+            }
+        };
+
+
+        let dst = {
+            let temp_dst = self.get_temp_of(dst);
+            if temp_dst < MACHINE_ID_END {
+                let alias = backend::get_color_for_precolored(self.get_temp_of(dst));
+                self.get_node(alias)
+            } else {
+                dst
+            }
+        };
+
         self.moves.insert(Move{from: src, to: dst});
     }
     
@@ -126,10 +147,7 @@ impl InterferenceGraph {
     }
 
     pub fn is_interferenced_with(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
-        trace!("trying to find edge between {:?} and {:?}", node1, node2);
         let edge = self.graph.find_edge(node1, node2);
-
-        trace!("edge: {:?}", edge);
 
         edge.is_some()
     }
