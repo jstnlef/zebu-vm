@@ -137,13 +137,13 @@ def get_display_str(stat):
 
 def perf(config, iterations):
     results = {
-        'cpython': get_stat(run_cpython, config, iterations=iterations),
-        'pypy_nojit': get_stat(run_pypy_nojit, config, iterations=iterations),
-        'pypy': get_stat(run_pypy, config, iterations=iterations),
-        'rpy_c': get_stat_compiled(compile_rpython_c, config, iterations=iterations),
-        'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, config, iterations=iterations),
+        # 'cpython': get_stat(run_cpython, config, iterations=iterations),
+        # 'pypy_nojit': get_stat(run_pypy_nojit, config, iterations=iterations),
+        # 'pypy': get_stat(run_pypy, config, iterations=iterations),
+        # 'rpy_c': get_stat_compiled(compile_rpython_c, config, iterations=iterations),
+        # 'rpy_c_jit': get_stat_compiled(compile_rpython_c_jit, config, iterations=iterations),
         'rpy_mu': get_stat_compiled(compile_rpython_mu, config, iterations=iterations),
-        'c': get_stat_compiled(compile_c, config, iterations=iterations),
+        # 'c': get_stat_compiled(compile_c, config, iterations=iterations),
     }
 
     for python, result in results.items():
@@ -162,14 +162,14 @@ def save_results(test_name, results):
 
 
 def perf_fibonacci(N, iterations):
-    from perftarget.fibonacci import fib
+    from perftarget.fibonacci import fib, rpy_entry
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
 
     config = {
         'py_file': perf_target_dir.join('fibonacci.py'),
         'c_file': perf_target_dir.join('fibonacci.c'),
-        'rpy_fnc': fib,
+        'rpy_fnc': rpy_entry,
         'c_sym_name': 'fib',
         'llarg_ts': [lltype.Signed],
         'llres_t': lltype.Signed,
