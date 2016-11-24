@@ -23,7 +23,7 @@ def test_double_mul():
 
 def test_double_div():
     fnp, _ = fncptr_from_c_script("test_double_div.c", "test_fnc", restype=ctypes.c_double)
-    assert fnp() == within_err(fnp(), 1.1557282546316052)
+    assert within_err(fnp(), 1.1557282546316052)
 
 
 def test_double_ordered_eq():
