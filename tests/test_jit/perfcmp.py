@@ -90,7 +90,7 @@ def compile_rpython_mu(config):
 
 def compile_c(config):
     libpath = config['libpath_c']
-    run([CC, '-fpic', '--shared', '-o', libpath.strpath, config['c_file'].strpath])
+    run([CC, '-fpic', '-O3', '--shared', '-o', libpath.strpath, config['c_file'].strpath])
     eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
     fnp = rffi.llexternal(config['c_sym_name'], config['llarg_ts'], config['llres_t'],
                           compilation_info=eci, _nowrapper=True)
