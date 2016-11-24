@@ -67,13 +67,16 @@ def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglo
 
 
 def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
+    import os
     # NOTE: requires mu-client-pypy
     from rpython.rlib import rmu_fast as rmu
 
     # load libmu before rffi so to load it with RTLD_GLOBAL
     libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
-    mu = rmu.MuVM("--log-level=none --aot-emit-dir=emit")
+    loglvl = os.environ.get('MU_LOG_LEVEL', 'none')
+    emit_dir = os.environ.get('MU_EMIT_DIR', 'emit')
+    mu = rmu.MuVM("--log-level=%(loglvl)s --aot-emit-dir=%(emit_dir)s" % locals())
     ctx = mu.new_context()
     bldr = ctx.new_ir_builder()
 
