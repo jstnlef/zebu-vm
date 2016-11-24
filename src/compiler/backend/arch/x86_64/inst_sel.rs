@@ -1011,8 +1011,21 @@ impl <'a> InstructionSelection {
                                     panic!("unexpected fdiv: {}", node)
                                 }
                             }
-                            
-                            _ => unimplemented!()
+
+                            op::BinOp::FRem => {
+                                if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                                    trace!("emit frem-fpreg-fpreg");
+
+                                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
+                                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+
+                                    let reg_tmp = self.get_result_value(node);
+
+                                    self.emit_runtime_entry(&entrypoints::FREM, vec![reg_op1.clone(), reg_op2.clone()], Some(vec![reg_tmp.clone()]), Some(node), f_content, f_context, vm);
+                                } else {
+                                    panic!("unexpected fdiv: {}", node)
+                                }
+                            }
                         }
                     }
 
@@ -1092,6 +1105,26 @@ impl <'a> InstructionSelection {
                                     self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op)
+                                }
+                            }
+                            op::ConvOp::SITOFP => {
+                                let tmp_res = self.get_result_value(node);
+
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                    self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!("unexpected op (expected ireg): {}", op)
+                                }
+                            }
+                            op::ConvOp::FPTOSI => {
+                                let tmp_res = self.get_result_value(node);
+
+                                if self.match_fpreg(op) {
+                                    let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                    self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!("unexpected op (expected fpreg): {}", op)
                                 }
                             }
 
@@ -2499,7 +2532,7 @@ impl <'a> InstructionSelection {
 
                         tmp_fp
                     }
-                    Value_::Constant(Constant::Float(val)) => {
+                    Value_::Constant(Constant::Float(_)) => {
                         unimplemented!()
                     },
                     _ => panic!("expected fpreg")
@@ -2895,17 +2928,28 @@ impl <'a> InstructionSelection {
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
             if self.match_iimm(src) {
                 let src_imm = self.node_iimm_to_i32(src);
-                self.backend.emit_mov_r_imm(dest, src_imm);
+                if dest.is_int_reg() {
+                    self.backend.emit_mov_r_imm(dest, src_imm);
+                } else if dest.is_mem() {
+                    self.backend.emit_mov_mem_imm(dest, src_imm);
+                } else {
+                    panic!("unexpected dest: {}", dest);
+                }
             } else if self.match_ireg(src) {
                 let src_reg = self.emit_ireg(src, f_content, f_context, vm);
-                self.backend.emit_mov_r_r(dest, &src_reg);
+                self.emit_move_value_to_value(dest, &src_reg);
             } else {
-                panic!("expected an int type op");
+                panic!("expected src: {}", src);
             }
-        } else if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
-            unimplemented!()
+        } else if types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
+            if self.match_fpreg(src) {
+                let src_reg = self.emit_fpreg(src, f_content, f_context, vm);
+                self.emit_move_value_to_value(dest, &src_reg)
+            } else {
+                panic!("unexpected fp src: {}", src);
+            }
         } else {
-            panic!("unexpected type for move");
+            unimplemented!()
         } 
     }
 

@@ -3,6 +3,10 @@ macro_rules! typedef {
         let $name = $vm.declare_type($vm.next_id(), MuType_::int($len));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
+    (($vm: expr) $name: ident = mu_double) => {
+        let $name = $vm.declare_type($vm.next_id(), MuType_::double());
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    };
     (($vm: expr) $name: ident = mu_ref($ty: ident)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::muref($ty.clone()));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));

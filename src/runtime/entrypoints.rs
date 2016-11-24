@@ -73,4 +73,15 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_throw_exception")),
         jit: RwLock::new(None),
     };
+
+    // impl/decl: math.rs
+    pub static ref FREM : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig{
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![DOUBLE_TYPE.clone()],
+            arg_tys: vec![DOUBLE_TYPE.clone(), DOUBLE_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_frem")),
+        jit: RwLock::new(None)
+    };
 }

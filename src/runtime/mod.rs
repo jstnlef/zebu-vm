@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 pub extern crate gc as mm;
 pub mod thread;
+pub mod math;
 pub mod entrypoints;
 
 #[cfg(target_arch = "x86_64")]

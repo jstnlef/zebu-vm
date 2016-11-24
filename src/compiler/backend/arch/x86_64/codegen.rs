@@ -180,4 +180,8 @@ pub trait CodeGenerator {
     // fp comparison
     fn emit_comisd_f64_f64  (&mut self, op1: Reg, op2: Reg);
     fn emit_ucomisd_f64_f64 (&mut self, op1: Reg, op2: Reg);
+
+    // fp conversion
+    fn emit_cvtsi2sd_f64_r  (&mut self, dest: Reg, src: Reg);
+    fn emit_cvtsd2si_r_f64  (&mut self, dest: Reg, src: Reg);
 }

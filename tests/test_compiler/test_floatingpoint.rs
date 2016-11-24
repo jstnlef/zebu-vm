@@ -8,6 +8,7 @@ use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
+use self::mu::testutil;
 
 use std::sync::RwLock;
 use std::sync::Arc;
@@ -109,6 +110,163 @@ fn fp_add() -> VM {
     });
 
     vm.define_func_version(func_ver);
+
+    vm
+}
+
+#[test]
+fn test_fp_ogt_branch() {
+    let lib = testutil::compile_fnc("fp_ogt_branch", &fp_ogt_branch);
+
+    unsafe {
+        let fp_ogt : libloading::Symbol<unsafe extern fn(f64, f64) -> u32> = lib.get(b"fp_ogt_branch").unwrap();
+
+        let res = fp_ogt(-1f64, 0f64);
+        println!("fp_ogt(-1, 0) = {}", res);
+        assert!(res == 0);
+
+        let res = fp_ogt(0f64, -1f64);
+        println!("fp_ogt(0, -1) = {}", res);
+        assert!(res == 1);
+
+        let res = fp_ogt(-1f64, -1f64);
+        println!("fp_ogt(-1, -1) = {}", res);
+        assert!(res == 0);
+
+        let res = fp_ogt(-1f64, -2f64);
+        println!("fp_ogt(-1, -2) = {}", res);
+        assert!(res == 1);
+
+        let res = fp_ogt(-2f64, -1f64);
+        println!("fp_ogt(-2, -1) = {}", res);
+        assert!(res == 0);
+
+        let res = fp_ogt(1f64, 2f64);
+        println!("fp_ogt(1, 2) = {}", res);
+        assert!(res == 0);
+
+        let res = fp_ogt(2f64, 1f64);
+        println!("fp_ogt(2, 1) = {}", res);
+        assert!(res == 1);
+    }
+}
+
+fn fp_ogt_branch() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) double = mu_double);
+    typedef!    ((vm) int32  = mu_int(32));
+    typedef!    ((vm) int1   = mu_int(1));
+
+    constdef!   ((vm) <int32> int32_0 = Constant::Int(0));
+    constdef!   ((vm) <int32> int32_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (double, double) -> (int32));
+    funcdecl!   ((vm) <sig> fp_ogt_branch);
+    funcdef!    ((vm) <sig> fp_ogt_branch VERSION fp_ogt_branch_v1);
+
+    // blk entry
+    block!      ((vm, fp_ogt_branch_v1) blk_entry);
+    ssa!        ((vm, fp_ogt_branch_v1) <double> a);
+    ssa!        ((vm, fp_ogt_branch_v1) <double> b);
+
+    ssa!        ((vm, fp_ogt_branch_v1) <int1> cond);
+    inst!       ((vm, fp_ogt_branch_v1) blk_entry_cmp:
+        cond = CMPOP (CmpOp::FOGT) a b
+    );
+
+    block!      ((vm, fp_ogt_branch_v1) blk_ret1);
+    consta!     ((vm, fp_ogt_branch_v1) int32_1_local = int32_1);
+    block!      ((vm, fp_ogt_branch_v1) blk_ret0);
+    consta!     ((vm, fp_ogt_branch_v1) int32_0_local = int32_0);
+
+    inst!       ((vm, fp_ogt_branch_v1) blk_entry_branch:
+        BRANCH2 (cond, int32_1_local, int32_0_local)
+            IF (OP 0)
+            THEN blk_ret1 (vec![1]) WITH 0.6f32,
+            ELSE blk_ret0 (vec![2])
+    );
+
+    define_block! ((vm, fp_ogt_branch_v1) blk_entry(a, b){
+        blk_entry_cmp, blk_entry_branch
+    });
+
+    // blk_ret1
+    ssa!        ((vm, fp_ogt_branch_v1) <int32> blk_ret1_res);
+    inst!       ((vm, fp_ogt_branch_v1) blk_ret1_inst:
+        RET (blk_ret1_res)
+    );
+
+    define_block! ((vm, fp_ogt_branch_v1) blk_ret1(blk_ret1_res){
+        blk_ret1_inst
+    });
+
+    // blk_ret0
+    ssa!        ((vm, fp_ogt_branch_v1) <int32> blk_ret0_res);
+    inst!       ((vm, fp_ogt_branch_v1) blk_ret0_inst:
+        RET (blk_ret0_res)
+    );
+
+    define_block! ((vm, fp_ogt_branch_v1) blk_ret0(blk_ret0_res){
+        blk_ret0_inst
+    });
+
+    define_func_ver!((vm) fp_ogt_branch_v1 (entry: blk_entry) {
+        blk_entry, blk_ret1, blk_ret0
+    });
+
+    vm
+}
+
+#[test]
+fn test_sitofp() {
+    let lib = testutil::compile_fnc("sitofp", &sitofp);
+
+    unsafe {
+        let sitofp : libloading::Symbol<unsafe extern fn(i64) -> f64> = lib.get(b"sitofp").unwrap();
+
+        let res = sitofp(-1i64);
+        println!("sitofp(-1) = {}", res);
+        assert!(res == -1f64);
+
+        let res = sitofp(0i64);
+        println!("sitofp(0) = {}", res);
+        assert!(res == 0f64);
+
+        let res = sitofp(1i64);
+        println!("sitofp(1) = {}", res);
+        assert!(res == 1f64);
+    }
+}
+
+fn sitofp() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (int64) -> (double));
+    funcdecl!   ((vm) <sig> sitofp);
+    funcdef!    ((vm) <sig> sitofp VERSION sitofp_v1);
+
+    // blk entry
+    block!      ((vm, sitofp_v1) blk_entry);
+    ssa!        ((vm, sitofp_v1) <int64> x);
+
+    ssa!        ((vm, sitofp_v1) <double> res);
+    inst!       ((vm, sitofp_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::SITOFP) <int64 double> x
+    );
+
+    inst!       ((vm, sitofp_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, sitofp_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) sitofp_v1 (entry: blk_entry) {blk_entry});
 
     vm
 }

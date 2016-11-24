@@ -2640,6 +2640,52 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mulsd_f64_mem64(&mut self, dest: Reg, src: Mem) {
         self.internal_fp_binop_def_r_mem("mulsd", dest, src);
     }
+
+    fn emit_cvtsi2sd_f64_r  (&mut self, dest: Reg, src: Reg) {
+        let len = check_op_len(src);
+
+        let inst = "cvtsi2sd".to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg  (src,  inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    fn emit_cvtsd2si_r_f64  (&mut self, dest: Reg, src: Reg) {
+        let len = check_op_len(dest);
+
+        let inst = "cvtsd2si".to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src,  inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg  (dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            hashmap!{
+                id2 => vec![loc2]
+            },
+            hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
 }
 
 fn create_emit_directory(vm: &VM) {
