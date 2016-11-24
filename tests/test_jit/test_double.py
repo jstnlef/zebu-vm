@@ -60,3 +60,24 @@ def test_double_arg_pass():
     fnp, _ = fncptr_from_c_script("test_double_arg_pass.c", "test_fnc",
                                [ctypes.c_double, ctypes.c_double], ctypes.c_double)
     assert fnp(3.141593, 2.71828) == 5.859873
+
+
+def test_double_sitofp():
+    fnp, _ = fncptr_from_c_script("test_double_sitofp.c", "test_fnc", restype=ctypes.c_double)
+    assert fnp() == -42.0
+
+
+def test_double_uitofp():
+    fnp, _ = fncptr_from_c_script("test_double_uitofp.c", "test_fnc", restype=ctypes.c_double)
+    assert fnp() == 42.0
+
+
+def test_double_fptosi():
+    fnp, _ = fncptr_from_c_script("test_double_fptosi.c", "test_fnc", restype=ctypes.c_int64)
+    assert fnp() == -3
+
+
+def test_double_fptoui():
+    fnp, _ = fncptr_from_c_script("test_double_fptoui.c", "test_fnc", restype=ctypes.c_uint64)
+    assert fnp() == 3
+
