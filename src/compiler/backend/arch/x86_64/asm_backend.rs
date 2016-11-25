@@ -15,6 +15,7 @@ use utils::vec_utils;
 use utils::string_utils;
 use ast::ptr::P;
 use ast::ir::*;
+use ast::types::*;
 
 use std::collections::HashMap;
 use std::str;
@@ -778,13 +779,14 @@ impl ASMCodeGen {
     
     fn add_asm_call(&mut self, code: String) {
         // a call instruction will use all the argument registers
+        // do not need
         let mut uses : HashMap<MuID, Vec<ASMLocation>> = HashMap::new();
-        for reg in x86_64::ARGUMENT_GPRs.iter() {
-            uses.insert(reg.id(), vec![]);
-        }
-        for reg in x86_64::ARGUMENT_FPRs.iter() {
-            uses.insert(reg.id(), vec![]);
-        }
+//        for reg in x86_64::ARGUMENT_GPRs.iter() {
+//            uses.insert(reg.id(), vec![]);
+//        }
+//        for reg in x86_64::ARGUMENT_FPRs.iter() {
+//            uses.insert(reg.id(), vec![]);
+//        }
 
         // defines: return registers
         let mut defines : HashMap<MuID, Vec<ASMLocation>> = HashMap::new();
@@ -2822,14 +2824,23 @@ pub fn spill_rewrite(
     vm: &VM) -> Vec<P<Value>>
 {
     trace!("spill rewrite for x86_64 asm backend");
+
+    trace!("code before spilling");
+    cf.mc().trace_mc();
+
     let mut new_nodes = vec![];
 
     // record code and their insertion point, so we can do the copy/insertion all at once
     let mut spill_code_before: HashMap<usize, Vec<Box<ASMCode>>> = HashMap::new();
     let mut spill_code_after: HashMap<usize, Vec<Box<ASMCode>>> = HashMap::new();
 
+    // map from old to new
+    let mut temp_for_cur_inst : HashMap<MuID, P<Value>> = HashMap::new();
+
     // iterate through all instructions
     for i in 0..cf.mc().number_of_insts() {
+        temp_for_cur_inst.clear();
+
         trace!("---Inst {}---", i);
         // find use of any register that gets spilled
         {
@@ -2843,7 +2854,7 @@ pub fn spill_rewrite(
 
                     // generate a random new temporary
                     let temp_ty = val_reg.ty.clone();
-                    let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
+                    let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
                     vec_utils::add_unique(&mut new_nodes, temp.clone());
                     trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
 
@@ -2851,7 +2862,12 @@ pub fn spill_rewrite(
                     let code = {
                         let mut codegen = ASMCodeGen::new();
                         codegen.start_code_sequence();
-                        codegen.emit_mov_r_mem(&temp, spill_mem);
+
+                        if is_fp(&temp_ty) {
+                            codegen.emit_movsd_f64_mem64(&temp, spill_mem);
+                        } else {
+                            codegen.emit_mov_r_mem(&temp, spill_mem);
+                        }
 
                         codegen.finish_code_sequence_asm()
                     };
@@ -2865,6 +2881,8 @@ pub fn spill_rewrite(
 
                     // replace register reg with temp
                     cf.mc_mut().replace_use_tmp_for_inst(reg, temp.id(), i);
+
+                    temp_for_cur_inst.insert(reg, temp.clone());
                 }
             }
         }
@@ -2878,15 +2896,26 @@ pub fn spill_rewrite(
 
                     let spill_mem = spills.get(&reg).unwrap();
 
-                    let temp_ty = val_reg.ty.clone();
-                    let temp = func.new_ssa(vm.next_id(), temp_ty).clone_value();
-                    vec_utils::add_unique(&mut new_nodes, temp.clone());
+                    let temp = if temp_for_cur_inst.contains_key(&reg) {
+                        temp_for_cur_inst.get(&reg).unwrap().clone()
+                    } else {
+                        let temp_ty = val_reg.ty.clone();
+                        let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
+                        vec_utils::add_unique(&mut new_nodes, temp.clone());
+
+                        temp
+                    };
                     trace!("reg {} defined in Inst{} is replaced as {}", val_reg, i, temp);
 
                     let code = {
                         let mut codegen = ASMCodeGen::new();
                         codegen.start_code_sequence();
-                        codegen.emit_mov_mem_r(spill_mem, &temp);
+
+                        if is_fp(&temp.ty) {
+                            codegen.emit_movsd_mem64_f64(spill_mem, &temp);
+                        } else {
+                            codegen.emit_mov_mem_r(spill_mem, &temp);
+                        }
 
                         codegen.finish_code_sequence_asm()
                     };
@@ -2914,5 +2943,9 @@ pub fn spill_rewrite(
     cf.mc = Some(new_mc);
 
     trace!("spill rewrite done");
+
+    trace!("code after spilling");
+    cf.mc().trace_mc();
+
     new_nodes
 }

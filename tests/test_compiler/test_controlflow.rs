@@ -264,6 +264,64 @@ fn select_eq_zero() -> VM {
 }
 
 #[test]
+fn test_select_u8_eq_zero() {
+    let lib = testutil::compile_fnc("select_u8_eq_zero", &select_u8_eq_zero);
+
+    unsafe {
+        let select_eq_zero : libloading::Symbol<unsafe extern fn(u8) -> u8> = lib.get(b"select_u8_eq_zero").unwrap();
+
+        let res = select_eq_zero(0);
+        println!("select_u8_eq_zero(0) = {}", res);
+        assert!(res == 1);
+
+        let res = select_eq_zero(1);
+        println!("select_u8_eq_zero(1) = {}", res);
+        assert!(res == 0);
+    }
+}
+
+fn select_u8_eq_zero() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int8 = mu_int(8));
+    typedef! ((vm) int1  = mu_int(1));
+    constdef!((vm) <int8> int8_0 = Constant::Int(0));
+    constdef!((vm) <int8> int8_1 = Constant::Int(1));
+
+    funcsig! ((vm) sig = (int8) -> (int8));
+    funcdecl!((vm) <sig> select_u8_eq_zero);
+    funcdef! ((vm) <sig> select_u8_eq_zero VERSION select_u8_eq_zero_v1);
+
+    // blk entry
+    block! ((vm, select_u8_eq_zero_v1) blk_entry);
+    ssa!   ((vm, select_u8_eq_zero_v1) <int8> blk_entry_n);
+
+    ssa!   ((vm, select_u8_eq_zero_v1) <int1> blk_entry_cond);
+    consta!((vm, select_u8_eq_zero_v1) int8_0_local = int8_0);
+    consta!((vm, select_u8_eq_zero_v1) int8_1_local = int8_1);
+    inst!  ((vm, select_u8_eq_zero_v1) blk_entry_inst_cmp:
+        blk_entry_cond = CMPOP (CmpOp::EQ) blk_entry_n int8_0_local
+    );
+
+    ssa!   ((vm, select_u8_eq_zero_v1) <int8> blk_entry_ret);
+    inst!  ((vm, select_u8_eq_zero_v1) blk_entry_inst_select:
+        blk_entry_ret = SELECT blk_entry_cond int8_1_local int8_0_local
+    );
+
+    inst!  ((vm, select_u8_eq_zero_v1) blk_entry_inst_ret:
+        RET (blk_entry_ret)
+    );
+
+    define_block!   ((vm, select_u8_eq_zero_v1) blk_entry(blk_entry_n){
+        blk_entry_inst_cmp, blk_entry_inst_select, blk_entry_inst_ret
+    });
+
+    define_func_ver!((vm) select_u8_eq_zero_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
 fn test_select_sge_zero() {
     let lib = testutil::compile_fnc("select_sge_zero", &select_sge_zero);
 

@@ -161,14 +161,14 @@ def save_results(test_name, results):
 
 
 def perf_fibonacci(N, iterations):
-    from perftarget.fibonacci import fib
+    from perftarget.fibonacci import fib, rpy_entry
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
 
     config = {
         'py_file': perf_target_dir.join('fibonacci.py'),
         'c_file': perf_target_dir.join('fibonacci.c'),
-        'rpy_fnc': fib,
+        'rpy_fnc': rpy_entry,
         'c_sym_name': 'fib',
         'llarg_ts': [lltype.Signed],
         'llres_t': lltype.Signed,
