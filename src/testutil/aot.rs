@@ -18,8 +18,9 @@ fn link_executable_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
 
     println!("output as {:?}", out.as_path());
     if cfg!(target_os = "linux") {
-        gcc.arg("-lrt");
         gcc.arg("-ldl");
+        gcc.arg("-lrt");
+        gcc.arg("-lm");
         gcc.arg("-lpthread");
     }
     // so we can find symbols in itself
