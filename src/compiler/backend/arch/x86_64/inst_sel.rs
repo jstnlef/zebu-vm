@@ -1204,7 +1204,7 @@ impl <'a> InstructionSelection {
                             self.backend.emit_mov_r_mem(&res_temp, &resolved_loc);
                         } else {
                             // emit mov(FPR)
-                            unimplemented!()
+                            self.backend.emit_movsd_f64_mem64(&res_temp, &resolved_loc);
                         }
                     }
                     
@@ -1242,8 +1242,10 @@ impl <'a> InstructionSelection {
                                 unimplemented!()
                             }
                         } else {
+                            let val = self.emit_fpreg(val_op, f_content, f_context, vm);
+
                             // emit mov(FPR)
-                            unimplemented!()
+                            self.backend.emit_movsd_mem64_f64(&resolved_loc, &val);
                         }
                     }
 

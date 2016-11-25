@@ -270,3 +270,130 @@ fn sitofp() -> VM {
 
     vm
 }
+
+#[test]
+fn test_fp_arraysum() {
+    use std::os::raw::c_double;
+
+    let lib = testutil::compile_fnc("fp_arraysum", &fp_arraysum);
+
+    unsafe {
+        let fp_arraysum : libloading::Symbol<unsafe extern fn(*const c_double, u64) -> f64> = lib.get(b"fp_arraysum").unwrap();
+
+        let array : [f64; 10] = [0f64, 0.1f64, 0.2f64, 0.3f64, 0.4f64, 0.5f64, 0.6f64, 0.7f64, 0.8f64, 0.9f64];
+        let c_array = array.as_ptr() as *const c_double;
+
+        let res = fp_arraysum(c_array, 10);
+        println!("fp_arraysum(array, 10) = {}", res);
+        assert!(res == 4.5f64);
+    }
+}
+
+fn fp_arraysum() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64  = mu_int(64));
+    typedef!    ((vm) int1   = mu_int(1));
+    typedef!    ((vm) double = mu_double);
+    typedef!    ((vm) hybrid = mu_hybrid(none; double));
+    typedef!    ((vm) uptr_hybrid = mu_uptr(hybrid));
+    typedef!    ((vm) uptr_double = mu_uptr(double));
+
+    constdef!   ((vm) <int64> int64_0   = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1   = Constant::Int(1));
+    constdef!   ((vm) <double> double_0 = Constant::Double(0f64));
+
+    funcsig!    ((vm) sig = (uptr_hybrid, int64) -> (double));
+    funcdecl!   ((vm) <sig> fp_arraysum);
+    funcdef!    ((vm) <sig> fp_arraysum VERSION fp_arraysum_v1);
+
+    // blk entry
+    block!      ((vm, fp_arraysum_v1) blk_entry);
+    ssa!        ((vm, fp_arraysum_v1) <uptr_hybrid> blk_entry_arr);
+    ssa!        ((vm, fp_arraysum_v1) <int64> blk_entry_sz);
+
+    block!      ((vm, fp_arraysum_v1) blk1);
+    consta!     ((vm, fp_arraysum_v1) int64_0_local  = int64_0);
+    consta!     ((vm, fp_arraysum_v1) int64_1_local  = int64_1);
+    consta!     ((vm, fp_arraysum_v1) double_0_local = double_0);
+    inst!       ((vm, fp_arraysum_v1) blk_entry_branch:
+        BRANCH blk1 (blk_entry_arr, double_0_local, int64_0_local, blk_entry_sz)
+    );
+
+    define_block!   ((vm, fp_arraysum_v1) blk_entry(blk_entry_arr, blk_entry_sz) {blk_entry_branch});
+
+    // blk1
+    ssa!        ((vm, fp_arraysum_v1) <uptr_hybrid> blk1_arr);
+    ssa!        ((vm, fp_arraysum_v1) <double> blk1_sum);
+    ssa!        ((vm, fp_arraysum_v1) <int64> blk1_v1);
+    ssa!        ((vm, fp_arraysum_v1) <int64> blk1_v2);
+
+    ssa!        ((vm, fp_arraysum_v1) <int1> blk1_rtn);
+    inst!       ((vm, fp_arraysum_v1) blk1_sge:
+        blk1_rtn = CMPOP (CmpOp::SGE) blk1_v1 blk1_v2
+    );
+
+    block!      ((vm, fp_arraysum_v1) blk2);
+    block!      ((vm, fp_arraysum_v1) blk3);
+    inst!       ((vm, fp_arraysum_v1) blk1_branch2:
+        BRANCH2 (blk1_rtn, blk1_sum, blk1_v2, blk1_v1, blk1_arr)
+        IF (OP 0)
+        THEN blk3 (vec![1]) WITH 0.2f32,
+        ELSE blk2 (vec![2, 3, 4, 1])
+    );
+
+    define_block!   ((vm, fp_arraysum_v1) blk1(blk1_arr, blk1_sum, blk1_v1, blk1_v2) {
+        blk1_sge, blk1_branch2
+    });
+
+    // blk2
+    ssa!        ((vm, fp_arraysum_v1) <int64> blk2_v4);
+    ssa!        ((vm, fp_arraysum_v1) <int64> blk2_next);
+    ssa!        ((vm, fp_arraysum_v1) <uptr_hybrid> blk2_arr);
+    ssa!        ((vm, fp_arraysum_v1) <double> blk2_sum);
+
+    ssa!        ((vm, fp_arraysum_v1) <int64> blk2_v5);
+    inst!       ((vm, fp_arraysum_v1) blk2_add:
+        blk2_v5 = BINOP (BinOp::Add) blk2_next int64_1_local
+    );
+
+    ssa!        ((vm, fp_arraysum_v1) <uptr_double> blk2_rtn2);
+    inst!       ((vm, fp_arraysum_v1) blk2_getvarpart:
+        blk2_rtn2 = GETVARPARTIREF blk2_arr (is_ptr: true)
+    );
+
+    ssa!        ((vm, fp_arraysum_v1) <uptr_double> blk2_rtn3);
+    inst!       ((vm, fp_arraysum_v1) blk2_shiftiref:
+        blk2_rtn3 = SHIFTIREF blk2_rtn2 blk2_next (is_ptr: true)
+    );
+
+    ssa!        ((vm, fp_arraysum_v1) <double> blk2_v7);
+    inst!       ((vm, fp_arraysum_v1) blk2_load:
+        blk2_v7 = LOAD blk2_rtn3 (is_ptr: true, order: MemoryOrder::NotAtomic)
+    );
+
+    ssa!        ((vm, fp_arraysum_v1) <double> blk2_sum2);
+    inst!       ((vm, fp_arraysum_v1) blk2_fadd:
+        blk2_sum2 = BINOP (BinOp::FAdd) blk2_sum blk2_v7
+    );
+
+    inst!       ((vm, fp_arraysum_v1) blk2_branch:
+        BRANCH blk1 (blk2_arr, blk2_sum2, blk2_v5, blk2_v4)
+    );
+
+    define_block!   ((vm, fp_arraysum_v1) blk2(blk2_v4, blk2_next, blk2_arr, blk2_sum) {
+        blk2_add, blk2_getvarpart, blk2_shiftiref, blk2_load, blk2_fadd, blk2_branch
+    });
+
+    // blk3
+    ssa!        ((vm, fp_arraysum_v1) <double> blk3_v8);
+    inst!       ((vm, fp_arraysum_v1) blk3_ret:
+        RET (blk3_v8)
+    );
+
+    define_block!   ((vm, fp_arraysum_v1) blk3(blk3_v8) {blk3_ret});
+
+    define_func_ver!    ((vm) fp_arraysum_v1 (entry: blk_entry) {blk_entry, blk1, blk2, blk3});
+
+    vm
+}

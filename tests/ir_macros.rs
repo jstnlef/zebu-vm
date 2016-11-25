@@ -7,6 +7,7 @@ macro_rules! typedef {
         let $name = $vm.declare_type($vm.next_id(), MuType_::double());
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
+
     (($vm: expr) $name: ident = mu_ref($ty: ident)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::muref($ty.clone()));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
@@ -15,8 +16,26 @@ macro_rules! typedef {
         let $name = $vm.declare_type($vm.next_id(), MuType_::iref($ty.clone()));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
+    (($vm: expr) $name: ident = mu_uptr($ty: ident)) => {
+        let $name = $vm.declare_type($vm.next_id(), MuType_::uptr($ty.clone()));
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    };
+
     (($vm: expr) $name: ident = mu_struct($($ty: ident), *)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::mustruct(Mu(stringify!($name)), vec![$($ty.clone()),*]));
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    };
+    (($vm: expr) $name: ident = mu_struct()) => {
+        let $name = $vm.declare_type($vm.next_id(), MuType_::mustruct(Mu(stringify!($name)), vec![]));
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    };
+
+    (($vm: expr) $name: ident = mu_hybrid($($ty: ident), *); $var_ty: ident) => {
+        let $name = $vm.declare_type($vm.next_id(), MuType_::hybrid(Mu(stringify!($name)), vec![$($ty.clone()), *], $var_ty.clone()));
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    };
+    (($vm: expr) $name: ident = mu_hybrid(none; $var_ty: ident)) => {
+        let $name = $vm.declare_type($vm.next_id(), MuType_::hybrid(Mu(stringify!($name)), vec![], $var_ty.clone()));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
 }
@@ -126,6 +145,33 @@ macro_rules! inst {
                         is_ptr: $is_ptr,
                         base: 0,
                         index: $index
+            }
+        });
+    };
+
+    // GETVARPARTIREF
+    (($vm: expr, $fv: ident) $name: ident: $value: ident = GETVARPARTIREF $op: ident (is_ptr: $is_ptr: expr)) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  Some(vec![$value.clone_value()]),
+            ops:    RwLock::new(vec![$op.clone()]),
+            v:      Instruction_::GetVarPartIRef {
+                        is_ptr: $is_ptr,
+                        base: 0
+            }
+        });
+    };
+
+    // SHIFTIREF
+    (($vm: expr, $fv: ident) $name: ident: $value: ident = SHIFTIREF $op: ident $offset: ident (is_ptr: $is_ptr: expr)) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  Some(vec![$value.clone_value()]),
+            ops:    RwLock::new(vec![$op.clone(), $offset.clone()]),
+            v:      Instruction_::ShiftIRef {
+                        is_ptr: $is_ptr,
+                        base: 0,
+                        offset: 1
             }
         });
     };
