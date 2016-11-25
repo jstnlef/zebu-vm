@@ -46,53 +46,97 @@ def run_pypy(config):
     out, _ = run([PYPY, py_file.strpath] + map(str, config['setup_args']))
     return float(out)
 
+rpy_wrapper = \
+"""
+def rpy_measure_%(name)s_%(target)s(%(args)s):
+    from time import time
+    t0 = time()
+    %(rpy_fnc)s(%(args)s)
+    t1 = time()
+    return t1 - t0
+"""
+
 
 def compile_rpython_c(config):
+    target = 'rpy_c'
     rpyfnc = config['rpy_fnc']
-    t = Translation(rpyfnc, config['llarg_ts'],
-                    gc='none')
+    wrapper_config = {
+        'name': rpyfnc.__name__ + target,
+        'target': target,
+        'rpy_fnc': rpyfnc.__name__,
+        'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
+    }
+    tl_config = {'gc': 'none'}
+
+    wrapper = rpy_wrapper % wrapper_config
+    locals()[rpyfnc.__name__] = rpyfnc
+    exec wrapper in locals()
+    rpy_measure_fnc = locals()['rpy_measure_%(name)s_%(target)s' % wrapper_config]
+    t = Translation(rpy_measure_fnc, config['llarg_ts'], **tl_config)
     set_opt_level(t.config, '3')
-    t.ensure_opt('gc', 'none')
     libpath = t.compile_c()
     eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
-    fnp = rffi.llexternal('pypy_g_' + rpyfnc.__name__, config['llarg_ts'], config['llres_t'],
-                          compilation_info=eci, _nowrapper=True)
-    return fnp
-
-
-def compile_rpython_c_jit(config):
-    rpyfnc = config['rpy_fnc']
-    t = Translation(rpyfnc, config['llarg_ts'],
-                    gc='none')
-    set_opt_level(t.config, 'jit')
-    t.ensure_opt('gc', 'none')
-    libpath = t.compile_c()
-    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
-    fnp = rffi.llexternal('pypy_g_' + rpyfnc.__name__, config['llarg_ts'], config['llres_t'],
+    fnp = rffi.llexternal('pypy_g_' + rpy_measure_fnc.__name__, config['llarg_ts'], rffi.DOUBLE,
                           compilation_info=eci, _nowrapper=True)
     return fnp
 
 
 def compile_rpython_mu(config):
     preload_libmu()
+
+    target = 'rpy_mu'
     rpyfnc = config['rpy_fnc']
-    libpath = config['libpath_mu']
-    t = Translation(rpyfnc, config['llarg_ts'],
-                    backend='mu', muimpl='fast', mucodegen='api', mutestjit=True)
+    wrapper_config = {
+        'name': rpyfnc.__name__ + target,
+        'target': target,
+        'rpy_fnc': rpyfnc.__name__,
+        'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
+    }
+    tl_config = {'backend': 'mu', 'muimpl': 'fast', 'mucodegen': 'api', 'mutestjit': True}
+
+    wrapper = rpy_wrapper % wrapper_config
+    locals()[rpyfnc.__name__] = rpyfnc
+    exec wrapper in locals()
+    rpy_measure_fnc = locals()['rpy_measure_%(name)s_%(target)s' % wrapper_config]
+    t = Translation(rpy_measure_fnc, config['llarg_ts'], **tl_config)
     set_opt_level(t.config, '3')
+
     db, bdlgen, fnc_name = t.compile_mu()
+    libpath = libpath = config['libpath_mu']
     bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
     eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
-    fnp = rffi.llexternal(fnc_name, config['llarg_ts'], config['llres_t'],
+    fnp = rffi.llexternal(fnc_name, config['llarg_ts'], rffi.DOUBLE,
                           compilation_info=eci, _nowrapper=True)
     return fnp
 
 
 def compile_c(config):
     libpath = config['libpath_c']
-    run([CC, '-fpic', '-O3', '--shared', '-o', libpath.strpath, config['c_file'].strpath])
+    c_fnc = rffi.llexternal(config['c_sym_name'], config['llarg_ts'], config['llres_t'],
+                            compilation_info=rffi.ExternalCompilationInfo(
+                                includes=['quicksort.h'],
+                                include_dirs=[perf_target_dir.strpath],
+                                separate_module_sources=['#include "quicksort.c"']
+                            ), _nowrapper=True)
+
+    target = 'c'
+    rpyfnc = config['rpy_fnc']
+    wrapper_config = {
+        'name': rpyfnc.__name__ + target,
+        'target': target,
+        'rpy_fnc': 'c_fnc',
+        'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
+    }
+    tl_config = {'gc': 'none'}
+
+    wrapper = rpy_wrapper % wrapper_config
+    exec wrapper in locals()
+    rpy_measure_fnc = locals()['rpy_measure_%(name)s_%(target)s' % wrapper_config]
+    t = Translation(rpy_measure_fnc, config['llarg_ts'], **tl_config)
+    set_opt_level(t.config, '3')
+    libpath = t.compile_c()
     eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
-    fnp = rffi.llexternal(config['c_sym_name'], config['llarg_ts'], config['llres_t'],
+    fnp = rffi.llexternal('pypy_g_' + rpy_measure_fnc.__name__, config['llarg_ts'], rffi.DOUBLE,
                           compilation_info=eci, _nowrapper=True)
     return fnp
 
@@ -137,9 +181,9 @@ def get_display_str(stat):
 
 def perf(config, iterations):
     results = {
-        'cpython': get_stat(run_cpython, config, iterations=iterations),
-        'pypy_nojit': get_stat(run_pypy_nojit, config, iterations=iterations),
-        'pypy': get_stat(run_pypy, config, iterations=iterations),
+        # 'cpython': get_stat(run_cpython, config, iterations=iterations),
+        # 'pypy_nojit': get_stat(run_pypy_nojit, config, iterations=iterations),
+        # 'pypy': get_stat(run_pypy, config, iterations=iterations),
         'rpy_c': get_stat_compiled(compile_rpython_c, config, iterations=iterations),
         'rpy_mu': get_stat_compiled(compile_rpython_mu, config, iterations=iterations),
         'c': get_stat_compiled(compile_c, config, iterations=iterations),
@@ -216,7 +260,8 @@ def perf_quicksort(N, iterations):
     from perftarget.quicksort import quicksort, setup, teardown
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
-
+    import os
+    os.environ['LIBRARY_PATH'] = tmpdir.strpath
     config = {
         'py_file': perf_target_dir.join('quicksort.py'),
         'c_file': perf_target_dir.join('quicksort.c'),
@@ -227,8 +272,8 @@ def perf_quicksort(N, iterations):
         'setup_args': (N,),
         'setup': setup,
         'teardown': teardown,
-        'libpath_mu': tmpdir.join('libquicksort_mu.dylib'),
-        'libpath_c': tmpdir.join('libquicksort_c.dylib')
+        'libpath_mu': tmpdir.join('libquicksort_mu' + libext),
+        'libpath_c': tmpdir.join('libquicksort_c' + libext)
     }
 
     results = perf(config, iterations)
@@ -247,7 +292,7 @@ def test_functional_arraysum():
 
 
 def test_functional_quicksort():
-    save_results('quicksort', perf_quicksort(100, 1))
+    save_results('quicksort', perf_quicksort(100, 5))
 
 
 def plot(result_dic):
@@ -291,9 +336,10 @@ def test_plot():
 
 
 if __name__ == '__main__':
-    fib_res = perf_fibonacci(40, 20)
-    save_results('fibonacci', fib_res)
-    arraysum_res = perf_arraysum(1000000, 20)
-    save_results('arraysum', arraysum_res)
-    quicksort_res = perf_quicksort(1000000, 20)
-    save_results('quicksort', quicksort_res)
+    # fib_res = perf_fibonacci(40, 20)
+    # save_results('fibonacci', fib_res)
+    # arraysum_res = perf_arraysum(1000000, 20)
+    # save_results('arraysum', arraysum_res)
+    # quicksort_res = perf_quicksort(1000000, 20)
+    # save_results('quicksort', quicksort_res)
+    test_functional_quicksort()
