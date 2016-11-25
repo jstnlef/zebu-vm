@@ -161,11 +161,9 @@ def get_stat(run_fnc, config, iterations=100):
 def get_stat_compiled(compile_fnc, config, iterations=100):
     def run_funcptr(fnp, config):
         args = config['setup'](*config['setup_args'])
-        t0 = time()
-        fnp(*args)      # TODO: embed time measurement in RPython code
-        t1 = time()
+        t = fnp(*args)
         config['teardown'](*args)
-        return t1 - t0
+        return t
 
     fnp = compile_fnc(config)
     return get_stat(lambda config: run_funcptr(fnp, config), config, iterations)
