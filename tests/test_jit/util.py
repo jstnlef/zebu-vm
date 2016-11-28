@@ -66,7 +66,7 @@ def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglo
     return fncptr_from_lib(lib, name, argtypes, restype), lib
 
 
-def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
+def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong):
     import os
     # NOTE: requires mu-client-pypy
     from rpython.rlib import rmu_fast as rmu
@@ -82,6 +82,8 @@ def fncptr_from_py_script(py_fnc, name, argtypes=[], restype=ctypes.c_longlong):
 
     id_dict = py_fnc(bldr, rmu)
     bldr.load()
+    if heapinit_fnc:
+        heapinit_fnc(ctx, id_dict, rmu)
     libpath = py.path.local('lib%(name)s.dylib' % locals())
     mu.compile_to_sharedlib(libpath.strpath, [])
 

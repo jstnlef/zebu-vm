@@ -575,7 +575,7 @@ def test_threadtran_fib():
             "result_type": i64
         }
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'fib', [ctypes.c_longlong])
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, None, 'fib', [ctypes.c_longlong])
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
@@ -646,7 +646,7 @@ def test_new():
             "@i64": i64
         }
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, None, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp() == 1
@@ -712,7 +712,7 @@ def test_new_cmpeq():
             "@i64": i64
         }
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, 'test_fnc')
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, None, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp() == 0
