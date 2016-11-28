@@ -320,24 +320,21 @@ def plot(result_dic):
         ax.text(width * (i + 1), avg - std_dev, "%.6f" % std_dev, color='#1d1f21', fontweight='bold')
 
     # plt.legend(loc=2)
-    plt.xticks([width * (i + 1) for i in range(len(targets))], targets)
+    plt.xticks([width * (i + 1) for i in range(len(targets))], [tgt for (tgt, _, _) in data])
     plt.title("%(test_name)s with input size %(input_size)d" % result_dic)
     plt.show()
 
 
 def test_plot():
     plot(perf_quicksort(1000, 20))
-    # import json
-    # with open('result_quicksort.json', 'r') as fp:
-    #     dic = json.load(fp)
-    # plot(dic)
-
 
 if __name__ == '__main__':
+    import sys
+    N = int(sys.argv[1])
     # fib_res = perf_fibonacci(40, 20)
     # save_results('fibonacci', fib_res)
     # arraysum_res = perf_arraysum(1000000, 20)
     # save_results('arraysum', arraysum_res)
-    # quicksort_res = perf_quicksort(1000000, 20)
-    # save_results('quicksort', quicksort_res)
-    test_functional_quicksort()
+    quicksort_res = perf_quicksort(N, 100)
+    save_results('quicksort', quicksort_res)
+    plot(quicksort_res)

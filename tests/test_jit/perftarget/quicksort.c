@@ -1,13 +1,13 @@
 #include <stdint.h>
 #include "quicksort.h"
-void swap(int64_t* arr, int64_t i, int64_t j) {
+static inline void swap(int64_t* arr, int64_t i, int64_t j) {
     int64_t t;
     t = arr[i];
     arr[i] = arr[j];
     arr[j] = t;
 }
 
-int64_t partition(int64_t* arr, int64_t idx_low, int64_t idx_high) {
+static inline int64_t partition(int64_t* arr, int64_t idx_low, int64_t idx_high) {
     int64_t pivot, i, j;
     pivot = arr[idx_high];
     i = idx_low;
