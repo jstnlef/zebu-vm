@@ -403,6 +403,30 @@ impl MachineCode for ASMCode {
     fn is_using_mem_op(&self, index: usize) -> bool {
         self.code[index].is_mem_op_used
     }
+
+    fn is_jmp(&self, index: usize) -> Option<MuName> {
+        let inst = self.code.get(index);
+        match inst {
+            Some(inst) if inst.code.starts_with("jmp") => {
+                let split : Vec<&str> = inst.code.split(' ').collect();
+
+                Some(String::from(split[1]))
+            }
+            _ => None
+        }
+    }
+
+    fn is_label(&self, index: usize) -> Option<MuName> {
+        let inst = self.code.get(index);
+        match inst {
+            Some(inst) if inst.code.ends_with(':') => {
+                let split : Vec<&str> = inst.code.split(':').collect();
+
+                Some(String::from(split[0]))
+            }
+            _ => None
+        }
+    }
     
     fn get_succs(&self, index: usize) -> &Vec<usize> {
         &self.code[index].succs

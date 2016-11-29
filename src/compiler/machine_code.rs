@@ -105,6 +105,8 @@ pub trait MachineCode {
     
     fn is_move(&self, index: usize) -> bool;
     fn is_using_mem_op(&self, index: usize) -> bool;
+    fn is_jmp(&self, index: usize) -> Option<MuName>;
+    fn is_label(&self, index: usize) -> Option<MuName>;
     
     fn get_succs(&self, index: usize) -> &Vec<usize>;
     fn get_preds(&self, index: usize) -> &Vec<usize>;

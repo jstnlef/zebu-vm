@@ -6,7 +6,9 @@ mod tree_gen;
 mod control_flow;
 mod trace_gen;
 mod gen_mov_phi;
+mod inlining;
 
+pub use compiler::passes::inlining::Inlining;
 pub use compiler::passes::def_use::DefUse;
 pub use compiler::passes::tree_gen::TreeGen;
 pub use compiler::passes::control_flow::ControlFlowAnalysis;

@@ -107,6 +107,8 @@ pub struct MuFunctionVersion {
     pub content: Option<FunctionContent>,
     pub context: FunctionContext,
 
+    pub force_inline: bool,
+
     pub block_trace: Option<Vec<MuID>> // only available after Trace Generation Pass
 }
 
@@ -142,7 +144,8 @@ impl MuFunctionVersion {
             sig: sig,
             content: None,
             context: FunctionContext::new(),
-            block_trace: None
+            block_trace: None,
+            force_inline: false
         }
     }
 

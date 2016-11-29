@@ -53,6 +53,35 @@ impl PeepholeOptimization {
             }
         }
     }
+
+    pub fn remove_unnecessary_jump(&mut self, inst: usize, cf: &mut CompiledFunction) {
+        let mut mc = cf.mc_mut();
+
+        // if this is last instruction, return
+        if inst == mc.number_of_insts() - 1 {
+            return;
+        }
+
+        // if this inst jumps to a label that directly follows it, we can set it to nop
+        let opt_dest = mc.is_jmp(inst);
+
+        match opt_dest {
+            Some(ref dest) => {
+                let opt_label = mc.is_label(inst + 1);
+                match opt_label {
+                    Some(ref label) if dest == label => {
+                            mc.set_inst_nop(inst);
+                    }
+                    _ => {
+                        // do nothing
+                    }
+                }
+            }
+            None => {
+                // do nothing
+            }
+        }
+    }
 }
 
 impl CompilerPass for PeepholeOptimization {
@@ -70,6 +99,7 @@ impl CompilerPass for PeepholeOptimization {
         
         for i in 0..cf.mc().number_of_insts() {
             self.remove_redundant_move(i, &mut cf);
+            self.remove_unnecessary_jump(i, &mut cf);
         }
         
         trace!("after peephole optimization:");

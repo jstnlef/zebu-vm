@@ -1150,6 +1150,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             content: Some(ctn),
             context: fcb.ctx,
             block_trace: None,
+            force_inline: false
         };
 
         trace!("Function version built {} {:?}", id, impl_fv);
