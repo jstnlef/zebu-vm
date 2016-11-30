@@ -81,7 +81,7 @@ def is_ctypes(t):
     return isinstance(t, type(ctypes.c_longlong))
 
 
-def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong):
+def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong, **kwargs):
     import os
     # NOTE: requires mu-client-pypy
     from rpython.rlib import rmu_fast as rmu
@@ -90,7 +90,7 @@ def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctype
     libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
 
     loglvl = os.environ.get('MU_LOG_LEVEL', 'none')
-    emit_dir = os.environ.get('MU_EMIT_DIR', 'emit')
+    emit_dir = kwargs.get('muemitdir', os.environ.get('MU_EMIT_DIR', 'emit'))
     mu = rmu.MuVM("--log-level=%(loglvl)s --aot-emit-dir=%(emit_dir)s" % locals())
     ctx = mu.new_context()
     bldr = ctx.new_ir_builder()
@@ -99,7 +99,7 @@ def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctype
     bldr.load()
     if heapinit_fnc:
         heapinit_fnc(ctx, id_dict, rmu)
-    libpath = py.path.local('lib%(name)s' % locals() + libext)
+    libpath = py.path.local(emit_dir).join('lib%(name)s' % locals() + libext)
     mu.compile_to_sharedlib(libpath.strpath, [])
 
     if (len(argtypes) > 0 and is_ctypes(argtypes[0])) or is_ctypes(restype):
@@ -138,12 +138,14 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     kwargs.setdefault('muimpl', 'fast')
     kwargs.setdefault('mucodegen', 'api')
     kwargs.setdefault('mutestjit', True)
+    kwargs.setdefault('muemitdir', os.environ.get('MU_EMIT_DIR', 'emit'))
 
     t = Translation(rpy_fnc, llargtypes, **kwargs)
     set_opt_level(t.config, '3')
     if kwargs['backend'] == 'mu':
         db, bdlgen, fnc_name = t.compile_mu()
-        libpath = py.path.local('lib%(fnc_name)s' % locals() + libext)
+        emit_dir = py.path.local(kwargs['muemitdir'])
+        libpath = emit_dir.join('lib%(fnc_name)s' % locals() + libext)
         bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
         extras = (db, bdlgen)
     else:

@@ -72,24 +72,34 @@ def wrap_with_measure_func(fnp, config, target):
 
 
 def compile_rpython_c(config):
+    print '\n\n'
+    print '\033[33;1m------------------------------------- rpy_c -------------------------------------\033[0m'
     rpy_fnc = config['rpy_fnc']
     return wrap_with_measure_func(rpy_fnc, config, 'rpy_c')
 
 
 def compile_rpython_mu(config):
+    print '\n\n'
+    print '\033[33;1m------------------------------------- rpy_mu -------------------------------------\033[0m'
     preload_libmu()
 
-    fnp, _ = fncptr_from_rpy_func(config['rpy_fnc'], config['llarg_ts'], config['llres_t'])
+    fnp, _ = fncptr_from_rpy_func(config['rpy_fnc'], config['llarg_ts'], config['llres_t'],
+                                  muemitdir=config['tmpdir'].strpath)
 
     return wrap_with_measure_func(fnp, config, 'rpy_mu')
 
 
 def compile_mu(config):
-    fnp, _ = fncptr_from_py_script(config['mu_build_fnc'], None, 'quicksort', config['llarg_ts'], config['llres_t'])
+    print '\n\n'
+    print '\033[33;1m------------------------------------- mu -------------------------------------\033[0m'
+    fnp, _ = fncptr_from_py_script(config['mu_build_fnc'], None, 'quicksort', config['llarg_ts'], config['llres_t'],
+                                   muemitdir=config['tmpdir'].strpath)
     return wrap_with_measure_func(fnp, config, 'mu')
 
 
 def compile_c(config):
+    print '\n\n'
+    print '\033[33;1m------------------------------------- c -------------------------------------\033[0m'
     c_fnc = rffi.llexternal(config['c_sym_name'], config['llarg_ts'], config['llres_t'],
                             compilation_info=rffi.ExternalCompilationInfo(
                                 includes=['quicksort.h'],
@@ -215,13 +225,24 @@ def perf_arraysum(N, iterations):
     return results
 
 
+def get_tmpdir(testname, problemsize, iterations):
+    from time import asctime
+    timestamp = asctime().replace(' ', '-').replace(':', '')
+    return py.path.local("/tmp/%s-%s-%d-%d" % (timestamp, testname, problemsize, iterations))
+
+
+def move_pypy_udir(tmpdir):
+    from rpython.tool.udir import udir
+    run(['mv', udir.strpath, tmpdir.join('pypy_udir').strpath])
+
+
 def perf_quicksort(N, iterations):
     from perftarget.quicksort import quicksort, build_quicksort_bundle, setup, teardown
-    tmpdir = py.path.local(mkdtemp())
-    print tmpdir
-    import os
-    os.environ['LIBRARY_PATH'] = tmpdir.strpath
+    tmpdir = get_tmpdir('quicksort', N, iterations)
+    tmpdir.mkdir()
+
     config = {
+        'tmpdir': tmpdir,
         'py_file': perf_target_dir.join('quicksort.py'),
         'c_file': perf_target_dir.join('quicksort.c'),
         'rpy_fnc': quicksort,
@@ -240,6 +261,8 @@ def perf_quicksort(N, iterations):
     results['test_name'] = 'quicksort'
     results['input_size'] = N
     results['iterations'] = iterations
+
+    move_pypy_udir(tmpdir)
     return results
 
 
@@ -261,10 +284,10 @@ def plot(result_dic):
     ax = fig.add_subplot(111)
     width = 0.1
 
-    colors = ['#c82829',
-              '#f5871f',
+    colors = ['#718c00',
               '#eab700',
-              '#718c00',
+              '#f5871f',
+              '#c82829',
               '#3e999f',
               '#4271ae',
               '#8959a8',
