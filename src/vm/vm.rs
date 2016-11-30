@@ -736,6 +736,17 @@ impl <'a> VM {
     pub fn func_vers(&self) -> &RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>> {
         &self.func_vers
     }
+
+    pub fn get_cur_version_of(&self, fid: MuID) -> Option<MuID> {
+        let funcs_guard = self.funcs.read().unwrap();
+        match funcs_guard.get(&fid) {
+            Some(rwlock_func) => {
+                let func_guard = rwlock_func.read().unwrap();
+                func_guard.cur_ver
+            },
+            None => None
+        }
+    }
     
     pub fn compiled_funcs(&self) -> &RwLock<HashMap<MuID, RwLock<CompiledFunction>>> {
         &self.compiled_funcs

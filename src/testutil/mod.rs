@@ -66,3 +66,25 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
     let dylib = aot::link_dylib(vec![Mu(fnc_name)], libname, &vm);
     ll::Library::new(dylib.as_os_str()).unwrap()
 }
+
+pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build_fnc: &'a Fn() -> VM) -> ll::Library {
+    VM::start_logging_trace;
+
+    let vm = Arc::new(build_fnc());
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+
+    for func in fnc_names.iter() {
+        let func_id = vm.id_of(func);
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        compiler.compile(&mut func_ver);
+    }
+
+    backend::emit_context(&vm);
+
+    let libname = &format!("lib{}.dylib", entry);
+    let dylib = aot::link_dylib(fnc_names.iter().map(|x| Mu(x)).collect(), libname, &vm);
+    ll::Library::new(dylib.as_os_str()).unwrap()
+}
