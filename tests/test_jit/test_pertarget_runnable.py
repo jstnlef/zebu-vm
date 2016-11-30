@@ -32,3 +32,39 @@ def test_fibonacci_iterative():
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
     assert fnc(rffi.cast(rffi.ULONGLONG, 20))
+
+
+@may_spawn_proc
+def test_quicksort():
+    from perftarget.quicksort import quicksort, setup, teardown
+    fnc, (db, bdlgen) = fncptr_from_rpy_func(quicksort,
+                                             [rffi.CArrayPtr(rffi.LONGLONG), lltype.Signed, lltype.Signed],
+                                             lltype.Void)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+
+    N = 100
+    arr, s, e = setup(100)
+    lst = list(arr)
+    fnc(arr, s, e)
+    lst.sort()
+    for i in range(len(lst)):
+        assert lst[i] == arr[i]
+    teardown(arr, s, e)
+
+
+@may_spawn_proc
+def test_quicksort_handcraft():
+    from perftarget.quicksort import build_quicksort_bundle, setup, teardown
+    fnc, (mu, ctx, bldr) = fncptr_from_py_script(build_quicksort_bundle, None, 'quicksort',
+                                                 [rffi.CArrayPtr(rffi.LONGLONG), lltype.Signed, lltype.Signed],
+                                                 lltype.Void)
+    mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+
+    N = 100
+    arr, s, e = setup(100)
+    lst = list(arr)
+    fnc(arr, s, e)
+    lst.sort()
+    for i in range(len(lst)):
+        assert lst[i] == arr[i]
+    teardown(arr, s, e)
