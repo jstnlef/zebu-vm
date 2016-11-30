@@ -29,6 +29,242 @@ def quicksort(arr, start, end):
         quicksort(arr, p + 1, end)
 
 
+def build_quicksort_bundle(bldr, rmu):
+    """
+    Builds the following test bundle.
+        .typedef @i64 = int<64>
+        .typedef @hi64 = hybrid<@i64>
+        .typedef @phi64 = uptr<@hi64>
+        .typedef @c_1 <@i64> = 1
+        .funcsig @sig_quicksort = (@phi64 @i64 @i64) -> ()
+        .funcsig @sig_partition = (@phi64 @i64 @i64) -> (@i64)
+        .funcdef @quicksort VERSION @quicksort.v1 <@sig_quicksort> {
+            %blk0(<@phi64> %parr <@i64> %start <@i64> %end):
+                %cmpres = SLT <@i64> %start %end
+                BRANCH2 %cmpres %blk2(%parr %start %end) %blk1()
+            %blk1():
+                RET ()
+            %blk2(<@phi64> %parr <@i64> %start <@i64> %end):
+                %p = CALL <@sig_partition> @partition (%parr %start %end)
+                %ps1 = SUB <@i64> %p @c_1
+                CALL <@sig_quicksort> @quicksort (%parr %start %ps1)
+                %pp1 = ADD <@i64> %p @c_1
+                CALL <@sig_quicksort> @quicksort (%parr %pp1 %end)
+                BRANCH %blk1()
+        }
+        .funcdef @partition VERSION @partition.v1 <@sig_partition> {
+            %blk0(<@phi64> %parr <@i64> %idx_low <@i64> %idx_high):
+                %pelm = GETVARPARTIREF PTR <@hi64> %parr
+                %pelm_idx_high = SHIFTIREF PTR <@i64 @i64> %pelm %idx_high
+                %pivot = LOAD PTR <@i64> %pelm_idx_high
+                BRANCH %blk1(%parr %idx_high %pivot %idx_low %idx_low %idx_high)
+
+            %blk1(<@phi64> %parr  <@i64> %idx_high  <@i64> %pivot  <@i64> %i  <@i64> %j  <@i64> %end):
+                %cmpres = SGE <@i64> %j %end
+                BRANCH2 %cmpres %blk4(%i %parr %idx_high)
+                                %blk2(%end %j %i %parr %idx_high %pivot)
+
+            %blk2(<@i64> %end  <@i64> %j  <@i64> %i  <@phi64> %parr  <@i64> %idx_high  <@i64> %pivot):
+                %jp1 = ADD <@i64> %j @c_1
+                %pelm_j = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %j     // reuse previously computed uptr
+                %elm_j = LOAD PTR <@i64> %pelm_j
+                %cmpres = SLT <@i64> %elm_j %pivot
+                BRANCH2 %cmpres %blk3(%jp1 %end %pivot %idx_high %j %i %parr)
+                                %blk1(%parr %idx_high %pivot %i %jp1 %end)
+
+            %blk3(<@i64> %jp1  <@i64> %end  <@i64> %pivot  <@i64> %idx_high  <@i64> %j  <@i64> %i  <@phi64> %parr):
+                %pelm_i = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %i
+                %t = LOAD PTR <@i64> %pelm_i
+                %pelm_j = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %j
+                %elm_j = LOAD PTR <@i64> %pelm_j
+                STORE PTR <@i64> %pelm_i %elm_j
+                STORE PTR <@i64> %pelm_j %t
+                %ip1 = ADD  <@i64> %i @c_1
+                BRANCH %blk1(%parr %idx_high %pivot %ip1 %jp1 %end)
+
+            %blk4(<@i64> %i  <@phi64> %parr  <@i64> %idx_high):
+                %pelm_i = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %i
+                %t = LOAD PTR <@i64> %pelm_i
+                %pelm_idx_high = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %idx_high
+                %elm_idx_high = LOAD PTR <@i64> %pelm_idx_high
+                STORE PTR <@i64> %pelm_i %elm_idx_high
+                STORE PTR <@i64> %pelm_idx_high %t
+                BRANCH %blk5(%i)
+
+            %blk5(<@i64> %i):
+                RET (%i)
+
+        }
+
+    Optimisations applied:
+        - reuse previously computed iref/uptrs
+
+    :type bldr: rpython.rlib.rmu.MuIRBuilder
+    :type rmu: rpython.rlib.rmu
+    :return: (rmu.MuVM(), rmu.MuCtx, rmu.MuIRBuilder, MuID, MuID)
+    """
+    NA = rmu.MuMemOrd.NOT_ATOMIC
+    
+    i64 = bldr.gen_sym("@i64"); bldr.new_type_int(i64, 64)
+    hi64 = bldr.gen_sym("@hi64"); bldr.new_type_hybrid(hi64, [], i64)
+    phi64 = bldr.gen_sym("@phi64"); bldr.new_type_uptr(phi64, hi64)
+    c_1 = bldr.gen_sym("@c_1"); bldr.new_const_int(c_1, i64, 1)
+    sig_quicksort = bldr.gen_sym("@sig_quicksort"); bldr.new_funcsig(sig_quicksort, [phi64, i64, i64], [])
+    sig_partition = bldr.gen_sym("@sig_partition"); bldr.new_funcsig(sig_partition, [phi64, i64, i64], [i64])
+    quicksort = bldr.gen_sym("@quicksort"); bldr.new_func(quicksort, sig_quicksort)
+    partition = bldr.gen_sym("@partition"); bldr.new_func(partition, sig_partition)
+
+    # quicksort
+    blk0 = bldr.gen_sym("@quicksort.v1.blk0")
+    blk1 = bldr.gen_sym("@quicksort.v1.blk1")
+    blk2 = bldr.gen_sym("@quicksort.v1.blk2")
+
+    # blk0
+    parr = bldr.gen_sym("@quicksort.v1.blk0.parr")
+    start = bldr.gen_sym("@quicksort.v1.blk0.start")
+    end = bldr.gen_sym("@quicksort.v1.blk0.end")
+    cmpres = bldr.gen_sym("@quicksort.v1.blk0.cmpres")
+    op_slt = bldr.gen_sym(); bldr.new_cmp(op_slt, cmpres, rmu.MuCmpOptr.SLT, i64, start, end)
+    dst_t = bldr.gen_sym(); bldr.new_dest_clause(dst_t, blk2, [parr, start, end])
+    dst_f = bldr.gen_sym(); bldr.new_dest_clause(dst_f, blk1, [])
+    op_br2 = bldr.gen_sym(); bldr.new_branch2(op_br2, cmpres, dst_t, dst_f)
+    bldr.new_bb(blk0, [parr, start, end], [phi64, i64, i64], rmu.MU_NO_ID, [op_slt, op_br2])
+
+    # blk1
+    op_ret = bldr.gen_sym(); bldr.new_ret(op_ret, [])
+    bldr.new_bb(blk1, [], [], rmu.MU_NO_ID, [op_ret])
+
+    # blk2
+    parr = bldr.gen_sym("@quicksort.v1.blk2.parr")
+    start = bldr.gen_sym("@quicksort.v1.blk2.start")
+    end = bldr.gen_sym("@quicksort.v1.blk2.end")
+    p = bldr.gen_sym("@quicksort.v1.blk2.p")
+    ps1 = bldr.gen_sym("@quicksort.v1.blk2.ps1")
+    pp1 = bldr.gen_sym("@quicksort.v1.blk2.pp1")
+    op_call1 = bldr.gen_sym(); bldr.new_call(op_call1, [p], sig_partition, partition, [parr, start, end])
+    op_sub = bldr.gen_sym(); bldr.new_binop(op_sub, ps1, rmu.MuBinOptr.SUB, i64, p, c_1)
+    op_call2 = bldr.gen_sym(); bldr.new_call(op_call2, [], sig_quicksort, quicksort, [parr, start, ps1])
+    op_add = bldr.gen_sym(); bldr.new_binop(op_add, pp1, rmu.MuBinOptr.ADD, i64, p, c_1)
+    op_call3 = bldr.gen_sym(); bldr.new_call(op_call3, [], sig_quicksort, quicksort, [parr, pp1, end])
+    dst = bldr.gen_sym(); bldr.new_dest_clause(dst, blk1, [])
+    op_br = bldr.gen_sym(); bldr.new_branch(op_br, dst)
+    bldr.new_bb(blk2, [parr, start, end], [phi64, i64, i64], rmu.MU_NO_ID,
+                [op_call1, op_sub, op_call2, op_add, op_call3, op_br])
+
+    bldr.new_func_ver(bldr.gen_sym("@quicksort.v1"), quicksort, [blk0, blk1, blk2])
+
+    # partition
+    blk0 = bldr.gen_sym("@partition.v1.blk0")
+    blk1 = bldr.gen_sym("@partition.v1.blk1")
+    blk2 = bldr.gen_sym("@partition.v1.blk2")
+    blk3 = bldr.gen_sym("@partition.v1.blk3")
+    blk4 = bldr.gen_sym("@partition.v1.blk4")
+    blk5 = bldr.gen_sym("@partition.v1.blk5")
+
+    # blk0
+    parr = bldr.gen_sym("@partition.v1.blk0.parr")
+    idx_low = bldr.gen_sym("@partition.v1.blk0.idx_low")
+    idx_high = bldr.gen_sym("@partition.v1.blk0.idx_high")
+    pelm = bldr.gen_sym("@partition.v1.blk0.pelm")
+    pelm_idx_high = bldr.gen_sym("@partition.v1.blk0.pelm_idx_high")
+    pivot = bldr.gen_sym("@partition.v1.blk0.pivot")
+    op_getvarpartiref = bldr.gen_sym(); bldr.new_getvarpartiref(op_getvarpartiref, pelm, True, hi64, parr)
+    op_shiftiref = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref, pelm_idx_high, True, i64, i64, pelm, idx_high)
+    op_load = bldr.gen_sym(); bldr.new_load(op_load, pivot, True, NA, i64, pelm_idx_high)
+    dst = bldr.gen_sym(); bldr.new_dest_clause(dst, blk1, [parr, idx_high, pivot, idx_low, idx_low, idx_high])
+    op_br = bldr.gen_sym(); bldr.new_branch(op_br, dst)
+    bldr.new_bb(blk0, [parr, idx_low, idx_high], [phi64, i64, i64], rmu.MU_NO_ID, [op_getvarpartiref, op_shiftiref, op_load, op_br])
+
+    # blk1
+    parr = bldr.gen_sym("@partition.v1.blk1.parr")
+    idx_high = bldr.gen_sym("@partition.v1.blk1.idx_high")
+    pivot = bldr.gen_sym("@partition.v1.blk1.pivot")
+    i = bldr.gen_sym("@partition.v1.blk1.i")
+    j = bldr.gen_sym("@partition.v1.blk1.j")
+    end = bldr.gen_sym("@partition.v1.blk1.end")
+    cmpres = bldr.gen_sym("@partition.v1.blk1.cmpres")
+    op_sge = bldr.gen_sym(); bldr.new_cmp(op_sge, cmpres, rmu.MuCmpOptr.SGE, i64, j, end)
+    dst_t = bldr.gen_sym(); bldr.new_dest_clause(dst_t, blk4, [i, parr, idx_high])
+    dst_f = bldr.gen_sym(); bldr.new_dest_clause(dst_f, blk2, [end, j, i, parr, idx_high, pivot])
+    op_br2 = bldr.gen_sym(); bldr.new_branch2(op_br2, cmpres, dst_t, dst_f)
+    bldr.new_bb(blk1, [parr, idx_high, pivot, i, j, end],
+                      [phi64, i64, i64, i64, i64, i64], rmu.MU_NO_ID, [op_sge, op_br2])
+
+    # blk2
+    end = bldr.gen_sym("@partition.v1.blk2.end")
+    j = bldr.gen_sym("@partition.v1.blk2.j")
+    i = bldr.gen_sym("@partition.v1.blk2.i")
+    parr = bldr.gen_sym("@partition.v1.blk2.parr")
+    idx_high = bldr.gen_sym("@partition.v1.blk2.idx_high")
+    pivot = bldr.gen_sym("@partition.v1.blk2.pivot")
+    jp1 = bldr.gen_sym("@partition.v1.blk2.jp1")
+    pelm_j = bldr.gen_sym("@partition.v1.blk2.pelm_j")
+    elm_j = bldr.gen_sym("@partition.v1.blk2.elm_j")
+    cmpres = bldr.gen_sym("@partition.v1.blk2.cmpres")
+    op_add = bldr.gen_sym(); bldr.new_binop(op_add, jp1, rmu.MuBinOptr.ADD, i64, j, c_1)
+    op_shiftiref = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref, pelm_j, True, i64, i64, pelm, j)
+    op_load = bldr.gen_sym(); bldr.new_load(op_load, elm_j, True, NA, i64, pelm_j)
+    op_slt = bldr.gen_sym(); bldr.new_cmp(op_slt, cmpres, rmu.MuCmpOptr.SLT, i64, elm_j, pivot)
+    dst_t = bldr.gen_sym(); bldr.new_dest_clause(dst_t, blk3, [jp1, end, pivot, idx_high, j, i, parr])
+    dst_f = bldr.gen_sym(); bldr.new_dest_clause(dst_f, blk1, [parr, idx_high, pivot, i, jp1, end])
+    op_br2 = bldr.gen_sym(); bldr.new_branch2(op_br2, cmpres, dst_t, dst_f)
+    bldr.new_bb(blk2, [end, j, i, parr, idx_high, pivot], [i64, i64, i64, phi64, i64, i64], rmu.MU_NO_ID,
+                [op_add, op_shiftiref, op_load, op_slt, op_br2])
+    bldr.new_func_ver(bldr.gen_sym("@partition.v1"), partition, [blk0, blk1, blk2, blk3, blk4, blk5])
+
+    # blk3
+    jp1 = bldr.gen_sym("@partition.v1.blk3.jp1")
+    end = bldr.gen_sym("@partition.v1.blk3.end")
+    pivot = bldr.gen_sym("@partition.v1.blk3.pivot")
+    idx_high = bldr.gen_sym("@partition.v1.blk3.idx_high")
+    j = bldr.gen_sym("@partition.v1.blk3.j")
+    i = bldr.gen_sym("@partition.v1.blk3.i")
+    parr = bldr.gen_sym("@partition.v1.blk3.parr")
+    pelm_i = bldr.gen_sym("@partition.v1.blk3.pelm_i")
+    t = bldr.gen_sym("@partition.v1.blk3.t")
+    pelm_j = bldr.gen_sym("@partition.v1.blk3.pelm_j")
+    elm_j = bldr.gen_sym("@partition.v1.blk3.elm_j")
+    ip1 = bldr.gen_sym("@partition.v1.blk3.ip1")
+    op_shiftiref1 = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref1, pelm_i, True, i64, i64, pelm, i)
+    op_load1 = bldr.gen_sym(); bldr.new_load(op_load1, t, True, NA, i64, pelm_i)
+    op_shiftiref2 = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref2, pelm_j, True, i64, i64, pelm, j)
+    op_load2 = bldr.gen_sym(); bldr.new_load(op_load2, elm_j, True, NA, i64, pelm_j)
+    op_store1 = bldr.gen_sym(); bldr.new_store(op_store1, True, NA, i64, pelm_i, elm_j)
+    op_store2 = bldr.gen_sym(); bldr.new_store(op_store2, True, NA, i64, pelm_j, t)
+    op_add = bldr.gen_sym(); bldr.new_binop(op_add, ip1, rmu.MuBinOptr.ADD, i64, i, c_1)
+    dst = bldr.gen_sym(); bldr.new_dest_clause(dst, blk1, [parr, idx_high, pivot, ip1, jp1, end])
+    op_br = bldr.gen_sym(); bldr.new_branch(op_br, dst)
+    bldr.new_bb(blk3, [jp1, end, pivot, idx_high, j, i, parr], [i64, i64, i64, i64, i64, i64, phi64], rmu.MU_NO_ID,
+                [op_shiftiref1, op_load1, op_shiftiref2, op_load2, op_store1, op_store2, op_add, op_br])
+
+    # blk4
+    i = bldr.gen_sym("@partition.v1.blk4.i")
+    parr = bldr.gen_sym("@partition.v1.blk4.parr")
+    idx_high = bldr.gen_sym("@partition.v1.blk4.idx_high")
+    pelm_i = bldr.gen_sym("@partition.v1.blk4.pelm_i")
+    t = bldr.gen_sym("@partition.v1.blk4.t")
+    pelm_idx_high = bldr.gen_sym("@partition.v1.blk4.pelm_idx_high")
+    elm_idx_high = bldr.gen_sym("@partition.v1.blk4.elm_idx_high")
+    op_shiftiref1 = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref1, pelm_i, True, i64, i64, pelm, i)
+    op_load1 = bldr.gen_sym(); bldr.new_load(op_load1, t, True, NA, i64, pelm_i)
+    op_shiftiref2 = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref2, pelm_idx_high, True, i64, i64, pelm, idx_high)
+    op_load2 = bldr.gen_sym(); bldr.new_load(op_load2, elm_idx_high, True, NA, i64, pelm_idx_high)
+    op_store1 = bldr.gen_sym(); bldr.new_store(op_store1, True, NA, i64, pelm_i, elm_idx_high)
+    op_store2 = bldr.gen_sym(); bldr.new_store(op_store2, True, NA, i64, pelm_idx_high, t)
+    dst = bldr.gen_sym(); bldr.new_dest_clause(dst, blk5, [i])
+    op_br = bldr.gen_sym(); bldr.new_branch(op_br, dst)
+    bldr.new_bb(blk4, [i, parr, idx_high], [i64, phi64, i64], rmu.MU_NO_ID,
+                [op_shiftiref1, op_load1, op_shiftiref2, op_load2, op_store1, op_store2, op_br])
+
+    # blk5
+    i = bldr.gen_sym("@partition.v1.blk5.i")
+    op_ret = bldr.gen_sym(); bldr.new_ret(op_ret, [i])
+    bldr.new_bb(blk5, [i], [i64], rmu.MU_NO_ID, [op_ret])
+
+    bldr.new_func_ver(bldr.gen_sym("@partition.v1"), partition, [blk0, blk1, blk2, blk3, blk4, blk5])
+    return None
+
+
 def setup(n):
     lst = rand_list_of(n)
     arr = lltype.malloc(rffi.CArray(rffi.LONGLONG), n, flavor='raw')

@@ -12,7 +12,7 @@ from rpython.rtyper.lltypesystem import lltype, rffi
 from rpython.translator.interactive import Translation
 from rpython.config.translationoption import set_opt_level
 
-from util import libext, preload_libmu
+from util import libext, preload_libmu, fncptr_from_py_script
 
 perf_target_dir = py.path.local(__file__).dirpath().join('perftarget')
 
@@ -61,7 +61,7 @@ def compile_rpython_c(config):
     target = 'rpy_c'
     rpyfnc = config['rpy_fnc']
     wrapper_config = {
-        'name': rpyfnc.__name__ + target,
+        'name': rpyfnc.__name__,
         'target': target,
         'rpy_fnc': rpyfnc.__name__,
         'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
@@ -87,7 +87,7 @@ def compile_rpython_mu(config):
     target = 'rpy_mu'
     rpyfnc = config['rpy_fnc']
     wrapper_config = {
-        'name': rpyfnc.__name__ + target,
+        'name': rpyfnc.__name__,
         'target': target,
         'rpy_fnc': rpyfnc.__name__,
         'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
@@ -110,6 +110,31 @@ def compile_rpython_mu(config):
     return fnp
 
 
+def compile_mu(config):
+    fnp, (mu, ctx, bldr) = fncptr_from_py_script(config['mu_build_fnc'], None, 'quicksort', config['llarg_ts'], config['llres_t'])
+
+    target = 'mu'
+    rpyfnc = config['rpy_fnc']
+    wrapper_config = {
+        'name': rpyfnc.__name__,
+        'target': target,
+        'rpy_fnc': 'fnp',
+        'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
+    }
+    tl_config = {'gc': 'none'}
+
+    wrapper = rpy_wrapper % wrapper_config
+    exec wrapper in locals()
+    rpy_measure_fnc = locals()['rpy_measure_%(name)s_%(target)s' % wrapper_config]
+    t = Translation(rpy_measure_fnc, config['llarg_ts'], **tl_config)
+    set_opt_level(t.config, '3')
+    libpath = t.compile_c()
+    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
+    fnp = rffi.llexternal('pypy_g_' + rpy_measure_fnc.__name__, config['llarg_ts'], rffi.DOUBLE,
+                          compilation_info=eci, _nowrapper=True)
+    return fnp
+
+
 def compile_c(config):
     libpath = config['libpath_c']
     c_fnc = rffi.llexternal(config['c_sym_name'], config['llarg_ts'], config['llres_t'],
@@ -122,7 +147,7 @@ def compile_c(config):
     target = 'c'
     rpyfnc = config['rpy_fnc']
     wrapper_config = {
-        'name': rpyfnc.__name__ + target,
+        'name': rpyfnc.__name__,
         'target': target,
         'rpy_fnc': 'c_fnc',
         'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
@@ -186,6 +211,8 @@ def perf(config, iterations):
         'rpy_mu': get_stat_compiled(compile_rpython_mu, config, iterations=iterations),
         'c': get_stat_compiled(compile_c, config, iterations=iterations),
     }
+    if config['mu_build_fnc']:
+        results['mu'] = get_stat_compiled(compile_mu, config, iterations)
 
     for python, result in results.items():
         print '\033[35m---- %(python)s ----\033[0m' % locals()
@@ -255,7 +282,7 @@ def perf_arraysum(N, iterations):
 
 
 def perf_quicksort(N, iterations):
-    from perftarget.quicksort import quicksort, setup, teardown
+    from perftarget.quicksort import quicksort, build_quicksort_bundle, setup, teardown
     tmpdir = py.path.local(mkdtemp())
     print tmpdir
     import os
@@ -265,6 +292,7 @@ def perf_quicksort(N, iterations):
         'c_file': perf_target_dir.join('quicksort.c'),
         'rpy_fnc': quicksort,
         'c_sym_name': 'quicksort',
+        'mu_build_fnc': build_quicksort_bundle,
         'llarg_ts': [rffi.CArrayPtr(rffi.LONGLONG), lltype.Signed, lltype.Signed],
         'llres_t': lltype.Void,
         'setup_args': (N,),
