@@ -53,17 +53,30 @@ def compile_c_script(c_src_name):
     return py.path.local('emit').join('%(testname)s.dylib' % locals())
 
 
-def fncptr_from_lib(lib, fnc_name, argtypes=[], restype=ctypes.c_longlong):
+def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_longlong):
+    lib = ctypes.CDLL(libpath.strpath)
     fnp = getattr(lib, fnc_name)
     fnp.argtypes = argtypes
     fnp.restype = restype
-    return fnp
+    return fnp, lib
+
+
+def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype):
+    from rpython.rtyper.lltypesystem import rffi
+    return rffi.llexternal(fnc_name, llargtypes, restype,
+                           compilation_info=rffi.ExternalCompilationInfo(
+                               libraries=[libpath.strpath],
+                           ),
+                           _nowrapper=True)
 
 
 def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglong):
     libpath = compile_c_script(c_src_name)
-    lib = ctypes.CDLL(libpath.strpath)
-    return fncptr_from_lib(lib, name, argtypes, restype), lib
+    return ctypes_fncptr_from_lib(libpath, name, argtypes, restype)
+
+
+def is_ctypes(t):
+    return isinstance(t, type(ctypes.c_longlong))
 
 
 def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong):
@@ -87,8 +100,10 @@ def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctype
     libpath = py.path.local('lib%(name)s.dylib' % locals())
     mu.compile_to_sharedlib(libpath.strpath, [])
 
-    lib = ctypes.CDLL(libpath.strpath)
-    return fncptr_from_lib(lib, name, argtypes, restype), (mu, ctx, bldr)
+    if (len(argtypes) > 0 and is_ctypes(argtypes[0])) or is_ctypes(restype):
+        return ctypes_fncptr_from_lib(libpath, name, argtypes, restype), (mu, ctx, bldr)
+    else:
+        return rffi_fncptr_from_lib(libpath, name, argtypes, restype), (mu, ctx, bldr)
 
 
 def preload_libmu():
@@ -128,12 +143,9 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
         db, bdlgen, fnc_name = t.compile_mu()
         libpath = py.path.local('lib%(fnc_name)s.dylib' % locals())
         bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
-        eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
         extras = (db, bdlgen)
     else:
         libpath = t.compile_c()
         fnc_name = 'pypy_g_' + rpy_fnc.__name__
-        eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
         extras = None
-
-    return rffi.llexternal(fnc_name, llargtypes, llrestype, compilation_info=eci, _nowrapper=True), extras
+    return rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, llrestype), extras

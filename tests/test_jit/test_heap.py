@@ -1,7 +1,8 @@
-from util import fncptr_from_py_script
+from util import fncptr_from_py_script, may_spawn_proc
 from rpython.rlib import rmu_fast as rmu    # NOTE: depends on RPython
 
 
+@may_spawn_proc
 def test_load_int_from_gcell():
     def build_test_bundle(bldr, rmu):
         """
@@ -53,12 +54,13 @@ def test_load_int_from_gcell():
         hdl_num = ctx.handle_from_sint64(42, 64)
         ctx.store(rmu.MuMemOrd.NOT_ATOMIC, gcl_hdl, hdl_num)
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, init_heap, 'test_fnc')
+    (fnp, _), (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, init_heap, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp() == 42
 
 
+@may_spawn_proc
 def test_load_ref_from_global():
     def build_test_bundle(bldr, rmu):
         """
@@ -120,12 +122,13 @@ def test_load_ref_from_global():
         gcl_hdl = ctx.handle_from_global(id_dic['@gcl'])
         ctx.store(rmu.MuMemOrd.NOT_ATOMIC, gcl_hdl, ref_hdl)
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, init_heap, 'test_fnc')
+    (fnp, _), (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, init_heap, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp() == 42
 
 
+@may_spawn_proc
 def test_preserve_ref_field():
     def build_test_bundle(bldr, rmu):
         """
@@ -239,7 +242,7 @@ def test_preserve_ref_field():
         gcl_hdl = ctx.handle_from_global(id_dic['@gcl'])
         ctx.store(rmu.MuMemOrd.NOT_ATOMIC, gcl_hdl, ref_hd)
 
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, init_heap, 'test_fnc')
+    (fnp, _), (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, init_heap, 'test_fnc')
 
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp() == 298
