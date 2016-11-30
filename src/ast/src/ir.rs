@@ -104,7 +104,10 @@ pub struct MuFunctionVersion {
          
     pub func_id: MuID,
     pub sig: P<MuFuncSig>,
+
+    pub orig_content: Option<FunctionContent>,
     pub content: Option<FunctionContent>,
+
     pub context: FunctionContext,
 
     pub force_inline: bool,
@@ -142,6 +145,7 @@ impl MuFunctionVersion {
             hdr: MuEntityHeader::unnamed(id),
             func_id: func,
             sig: sig,
+            orig_content: None,
             content: None,
             context: FunctionContext::new(),
             block_trace: None,
@@ -150,6 +154,7 @@ impl MuFunctionVersion {
     }
 
     pub fn define(&mut self, content: FunctionContent) {
+        self.orig_content = Some(content.clone());
         self.content = Some(content);
     }
 

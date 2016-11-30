@@ -68,7 +68,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
 }
 
 pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build_fnc: &'a Fn() -> VM) -> ll::Library {
-    VM::start_logging_trace;
+    VM::start_logging_trace();
 
     let vm = Arc::new(build_fnc());
     let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());

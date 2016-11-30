@@ -316,7 +316,7 @@ macro_rules! inst {
 
     // CALL
     (($vm: expr, $fv: ident) $name: ident: $res: ident = EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), +)) => {
-        let ops = vec![$func, $($val.clone()), *];
+        let ops = vec![$func.clone(), $($val.clone()), *];
         let ops_len = ops.len();
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),

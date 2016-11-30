@@ -96,14 +96,14 @@ if [ "$OS" == "linux" ]; then
 	if [ $# -eq 0 ]; then
 		RUST_BACKTRACE=1 PYTHONPATH=$project_path/mu-client-pypy MU_RUST=$project_path CC=clang-3.8 python -m pytest . -v
 	else
-		RUST_BACKTRACE=1 PYTHONPATH=$project_path/mu-client-pypy MU_RUST=$project_path CC=clang-3.8 python -m pytest . -v -k $@
+		RUST_BACKTRACE=1 PYTHONPATH=$project_path/mu-client-pypy MU_RUST=$project_path CC=clang-3.8 python -m pytest -v $@
 	fi
 
 elif [ "$OS" == "Darwin" ]; then
 	if [ $# -eq 0 ]; then
 		RUST_BACKTRACE=1 PYTHONPATH=$project_path/mu-client-pypy MU_RUST=$project_path CC=clang python2 -m pytest . -v
 	else
-		RUST_BACKTRACE=1 PYTHONPATH=$project_path/mu-client-pypy MU_RUST=$project_path CC=clang python2 -m pytest . -v -k $@
+		RUST_BACKTRACE=1 PYTHONPATH=$project_path/mu-client-pypy MU_RUST=$project_path CC=clang python2 -m pytest -v $@
 	fi
 else
 	echo "unknown OS. do not use this script to run"
