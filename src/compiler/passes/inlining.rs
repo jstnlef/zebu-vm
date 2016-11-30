@@ -28,7 +28,7 @@ impl Inlining {
         let mut inline_something = false;
 
         for func_id in func.get_static_call_edges().values() {
-            let should_inline_this = self.check_should_inline_func(*func_id, vm);
+            let should_inline_this = self.check_should_inline_func(*func_id, func.func_id, vm);
 
             inline_something = inline_something || should_inline_this;
         }
@@ -37,11 +37,16 @@ impl Inlining {
     }
 
     #[allow(unused_variables)]
-    fn check_should_inline_func(&mut self, func_id: MuID, vm: &VM) -> bool {
+    fn check_should_inline_func(&mut self, callee: MuID, caller: MuID, vm: &VM) -> bool {
+        // recursive call, do not inline
+        if callee == caller {
+            return false;
+        }
+
         let funcs_guard = vm.funcs().read().unwrap();
-        let func = match funcs_guard.get(&func_id) {
+        let func = match funcs_guard.get(&callee) {
             Some(func) => func.read().unwrap(),
-            None => panic!("callee {} is undeclared", func_id)
+            None => panic!("callee {} is undeclared", callee)
         };
 
         let fv_id = match func.cur_ver {
@@ -55,7 +60,7 @@ impl Inlining {
 
         match self.should_inline.get(&fv_id) {
             Some(flag) => {
-                trace!("func {} should be inlined (checked before)", func_id);
+                trace!("func {} should be inlined (checked before)", callee);
                 return *flag;
             }
             None => {}
@@ -66,7 +71,7 @@ impl Inlining {
 
         // if the function is forced inline, then we inline it
         if fv.force_inline {
-            trace!("func {} is forced as inline function", func_id);
+            trace!("func {} is forced as inline function", callee);
             return true;
         }
 
@@ -108,6 +113,7 @@ impl Inlining {
 
             // iterate through instructions
             for inst in block.content.unwrap().body {
+                trace!("check inst: {}", inst);
                 let inst_id = inst.id();
                 if call_edges.contains_key(&inst_id) {
                     trace!("inserting inlined function at {}", inst);
@@ -136,23 +142,24 @@ impl Inlining {
                     let ops = inst.ops.read().unwrap();
 
                     match inst.v {
-                        Instruction_::ExprCall {ref data, ..}
-                        | Instruction_::ExprCCall {ref data, ..} => {
+                        Instruction_::ExprCall {ref data, ..} => {
                             let arg_nodes  : Vec<P<TreeNode>> = data.args.iter().map(|x| ops[*x].clone()).collect();
                             let arg_indices: Vec<OpIndex> = (0..arg_nodes.len()).collect();
 
-                            let branch = Instruction{
+                            let branch = TreeNode::new_boxed_inst(Instruction{
                                 hdr: inst.hdr.clone(),
-                                value: inst.value.clone(),
-                                ops: RwLock::new(arg_nodes),
+                                value: None,
+                                ops: RwLock::new(arg_nodes.clone()),
                                 v: Instruction_::Branch1(Destination{
                                     target: inlined_entry,
                                     args: arg_indices.iter().map(|x| DestArg::Normal(*x)).collect()
                                 })
-                            };
+                            });
+
+                            trace!("branch inst: {}", branch);
 
                             // add branch to current block
-                            cur_block.content.as_mut().unwrap().body.push(TreeNode::new_boxed_inst(branch));
+                            cur_block.content.as_mut().unwrap().body.push(branch);
 
                             // finish current block
                             new_blocks.push(cur_block.clone());
@@ -160,7 +167,20 @@ impl Inlining {
 
                             // start a new block
                             cur_block = Block::new(vm.next_id());
+                            cur_block.content = Some(BlockContent{
+                                args: {
+                                    if inst.value.is_none() {
+                                        vec![]
+                                    } else {
+                                        inst.value.unwrap()
+                                    }
+                                },
+                                exn_arg: None,
+                                body: vec![],
+                                keepalives: None
+                            });
                             let new_name = format!("{}_cont_after_inline_{}", old_name, inst_id);
+                            trace!("create continue block for EXPRCALL/CCALL: {}", &new_name);
                             vm.set_name(cur_block.as_entity(), new_name);
 
                             // deal with the inlined function
@@ -168,14 +188,13 @@ impl Inlining {
                             copy_inline_context(f_context, &inlined_fv_guard.context);
                         },
 
-                        Instruction_::Call {ref data, ref resume}
-                        | Instruction_::CCall {ref data, ref resume} => {
+                        Instruction_::Call {ref data, ref resume} => {
                             let arg_nodes  : Vec<P<TreeNode>> = data.args.iter().map(|x| ops[*x].clone()).collect();
                             let arg_indices: Vec<OpIndex> = (0..arg_nodes.len()).collect();
 
                             let branch = Instruction{
                                 hdr: inst.hdr.clone(),
-                                value: inst.value.clone(),
+                                value: None,
                                 ops: RwLock::new(arg_nodes),
                                 v: Instruction_::Branch1(Destination{
                                     target: inlined_entry,
@@ -185,6 +204,12 @@ impl Inlining {
 
                             // add branch to current block
                             cur_block.content.as_mut().unwrap().body.push(TreeNode::new_boxed_inst(branch));
+
+                            // if normal_dest expects different number of arguments
+                            // other than the inlined function returns, we need an intermediate block to pass extra arguments
+                            if resume.normal_dest.args.len() != inlined_fv_guard.sig.ret_tys.len() {
+                                unimplemented!()
+                            }
 
                             // deal with inlined function
                             let next_block = resume.normal_dest.target;
@@ -195,8 +220,6 @@ impl Inlining {
 
                         _ => panic!("unexpected callsite: {}", inst)
                     }
-
-                    // change return in inlined function to a branch to the new block
                 } else {
                     cur_block.content.as_mut().unwrap().body.push(inst.clone());
                 }
@@ -213,6 +236,7 @@ impl Inlining {
 }
 
 fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &FunctionContent) {
+    trace!("trying to copy inlined function blocks to caller");
     for block in callee.blocks.values() {
         let mut block = block.clone();
 
@@ -259,6 +283,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
 }
 
 fn copy_inline_context(caller: &mut FunctionContext, callee: &FunctionContext) {
+    trace!("trying to copy inlined function context to caller");
     for (id, entry) in callee.values.iter() {
         caller.values.insert(*id, SSAVarEntry::new(entry.value().clone()));
     }
@@ -276,6 +301,8 @@ impl CompilerPass for Inlining {
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         if self.check(vm, func) {
             self.inline(vm, func);
+
+            debug!("after inlining: {:?}", func);
         }
     }
 }
