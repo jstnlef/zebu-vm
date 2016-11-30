@@ -9,10 +9,7 @@ import ctypes
 import math
 
 from rpython.rtyper.lltypesystem import lltype, rffi
-from rpython.translator.interactive import Translation
-from rpython.config.translationoption import set_opt_level
-
-from util import libext, preload_libmu, fncptr_from_py_script
+from util import libext, preload_libmu, fncptr_from_py_script, fncptr_from_rpy_func
 
 perf_target_dir = py.path.local(__file__).dirpath().join('perftarget')
 
@@ -57,66 +54,9 @@ def rpy_measure_%(name)s_%(target)s(%(args)s):
 """
 
 
-def compile_rpython_c(config):
-    target = 'rpy_c'
-    rpyfnc = config['rpy_fnc']
+def wrap_with_measure_func(fnp, config, target):
     wrapper_config = {
-        'name': rpyfnc.__name__,
-        'target': target,
-        'rpy_fnc': rpyfnc.__name__,
-        'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
-    }
-    tl_config = {'gc': 'none'}
-
-    wrapper = rpy_wrapper % wrapper_config
-    locals()[rpyfnc.__name__] = rpyfnc
-    exec wrapper in locals()
-    rpy_measure_fnc = locals()['rpy_measure_%(name)s_%(target)s' % wrapper_config]
-    t = Translation(rpy_measure_fnc, config['llarg_ts'], **tl_config)
-    set_opt_level(t.config, '3')
-    libpath = t.compile_c()
-    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
-    fnp = rffi.llexternal('pypy_g_' + rpy_measure_fnc.__name__, config['llarg_ts'], rffi.DOUBLE,
-                          compilation_info=eci, _nowrapper=True)
-    return fnp
-
-
-def compile_rpython_mu(config):
-    preload_libmu()
-
-    target = 'rpy_mu'
-    rpyfnc = config['rpy_fnc']
-    wrapper_config = {
-        'name': rpyfnc.__name__,
-        'target': target,
-        'rpy_fnc': rpyfnc.__name__,
-        'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
-    }
-    tl_config = {'backend': 'mu', 'muimpl': 'fast', 'mucodegen': 'api', 'mutestjit': True}
-
-    wrapper = rpy_wrapper % wrapper_config
-    locals()[rpyfnc.__name__] = rpyfnc
-    exec wrapper in locals()
-    rpy_measure_fnc = locals()['rpy_measure_%(name)s_%(target)s' % wrapper_config]
-    t = Translation(rpy_measure_fnc, config['llarg_ts'], **tl_config)
-    set_opt_level(t.config, '3')
-
-    db, bdlgen, fnc_name = t.compile_mu()
-    libpath = libpath = config['libpath_mu']
-    bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
-    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
-    fnp = rffi.llexternal(fnc_name, config['llarg_ts'], rffi.DOUBLE,
-                          compilation_info=eci, _nowrapper=True)
-    return fnp
-
-
-def compile_mu(config):
-    fnp, (mu, ctx, bldr) = fncptr_from_py_script(config['mu_build_fnc'], None, 'quicksort', config['llarg_ts'], config['llres_t'])
-
-    target = 'mu'
-    rpyfnc = config['rpy_fnc']
-    wrapper_config = {
-        'name': rpyfnc.__name__,
+        'name': config['rpy_fnc'].__name__,
         'target': target,
         'rpy_fnc': 'fnp',
         'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
@@ -126,17 +66,30 @@ def compile_mu(config):
     wrapper = rpy_wrapper % wrapper_config
     exec wrapper in locals()
     rpy_measure_fnc = locals()['rpy_measure_%(name)s_%(target)s' % wrapper_config]
-    t = Translation(rpy_measure_fnc, config['llarg_ts'], **tl_config)
-    set_opt_level(t.config, '3')
-    libpath = t.compile_c()
-    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
-    fnp = rffi.llexternal('pypy_g_' + rpy_measure_fnc.__name__, config['llarg_ts'], rffi.DOUBLE,
-                          compilation_info=eci, _nowrapper=True)
+    fnp, _ = fncptr_from_rpy_func(rpy_measure_fnc, config['llarg_ts'], rffi.DOUBLE,
+                                  backend='c', gc='none')
     return fnp
 
 
+def compile_rpython_c(config):
+    rpy_fnc = config['rpy_fnc']
+    return wrap_with_measure_func(rpy_fnc, config, 'rpy_c')
+
+
+def compile_rpython_mu(config):
+    preload_libmu()
+
+    fnp, _ = fncptr_from_rpy_func(config['rpy_fnc'], config['llarg_ts'], config['llres_t'])
+
+    return wrap_with_measure_func(fnp, config, 'rpy_mu')
+
+
+def compile_mu(config):
+    fnp, _ = fncptr_from_py_script(config['mu_build_fnc'], None, 'quicksort', config['llarg_ts'], config['llres_t'])
+    return wrap_with_measure_func(fnp, config, 'mu')
+
+
 def compile_c(config):
-    libpath = config['libpath_c']
     c_fnc = rffi.llexternal(config['c_sym_name'], config['llarg_ts'], config['llres_t'],
                             compilation_info=rffi.ExternalCompilationInfo(
                                 includes=['quicksort.h'],
@@ -144,26 +97,7 @@ def compile_c(config):
                                 separate_module_sources=['#include "quicksort.c"']
                             ), _nowrapper=True)
 
-    target = 'c'
-    rpyfnc = config['rpy_fnc']
-    wrapper_config = {
-        'name': rpyfnc.__name__,
-        'target': target,
-        'rpy_fnc': 'c_fnc',
-        'args': ', '.join(['v%d' % i for i in range(len(config['llarg_ts']))])
-    }
-    tl_config = {'gc': 'none'}
-
-    wrapper = rpy_wrapper % wrapper_config
-    exec wrapper in locals()
-    rpy_measure_fnc = locals()['rpy_measure_%(name)s_%(target)s' % wrapper_config]
-    t = Translation(rpy_measure_fnc, config['llarg_ts'], **tl_config)
-    set_opt_level(t.config, '3')
-    libpath = t.compile_c()
-    eci = rffi.ExternalCompilationInfo(libraries=[libpath.strpath])
-    fnp = rffi.llexternal('pypy_g_' + rpy_measure_fnc.__name__, config['llarg_ts'], rffi.DOUBLE,
-                          compilation_info=eci, _nowrapper=True)
-    return fnp
+    return wrap_with_measure_func(c_fnc, config, 'c')
 
 
 def get_stat(run_fnc, config, iterations=100):
@@ -337,7 +271,7 @@ def plot(result_dic):
               '#1d1f21']
 
     all_targets = ('cpython', 'pypy', 'pypy_nojit', 'rpy_c', 'rpy_mu', 'c')
-    compiled_targets = ('rpy_c', 'rpy_mu', 'c')
+    compiled_targets = ('rpy_c', 'rpy_mu', 'c', 'mu')
     targets = compiled_targets
     data = [(tgt, result_dic[tgt]['average'], result_dic[tgt]['std_dev'])
             for tgt in targets]
@@ -354,7 +288,10 @@ def plot(result_dic):
 
 
 def test_plot():
-    plot(perf_quicksort(1000, 20))
+    # plot(perf_quicksort(1000, 20))
+    import json
+    with open('result_quicksort.json', 'r') as fp:
+        plot(json.load(fp))
 
 if __name__ == '__main__':
     import sys
