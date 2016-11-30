@@ -38,6 +38,11 @@ macro_rules! typedef {
         let $name = $vm.declare_type($vm.next_id(), MuType_::hybrid(Mu(stringify!($name)), vec![], $var_ty.clone()));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
+
+    (($vm: expr) $name: ident = mu_funcref($sig: ident)) => {
+        let $name = $vm.declare_type($vm.next_id(), MuType_::funcref($sig.clone()));
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    }
 }
 
 macro_rules! constdef {
@@ -306,6 +311,25 @@ macro_rules! inst {
                     true_prob: $prob
                 }
             }
+        });
+    };
+
+    // CALL
+    (($vm: expr, $fv: ident) $name: ident: $res: ident = EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), +)) => {
+        let ops = vec![$func, $($val.clone()), *];
+        let ops_len = ops.len();
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  Some(vec![$res.clone_value()]),
+            ops:    RwLock::new(ops),
+            v:      Instruction_::ExprCall {
+                        data: CallData {
+                            func: 0,
+                            args: (1..ops_len).collect(),
+                            convention: $cc
+                        },
+                        is_abort: $is_abort
+                    }
         });
     };
 

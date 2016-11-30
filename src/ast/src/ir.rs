@@ -188,6 +188,78 @@ impl MuFunctionVersion {
             v: TreeNode_::Instruction(v),
         })
     }
+
+    /// get Map(CallSiteID -> FuncID) that are called by this function
+    pub fn get_static_call_edges(&self) -> HashMap<MuID, MuID> {
+        let mut ret = HashMap::new();
+
+        let f_content = self.content.as_ref().unwrap();
+
+        for (blk_id, block) in f_content.blocks.iter() {
+            let block_content = block.content.as_ref().unwrap();
+
+            for inst in block_content.body.iter() {
+                match inst.v {
+                    TreeNode_::Instruction(ref inst) => {
+                        let ops = inst.ops.read().unwrap();
+
+                        match inst.v {
+                            Instruction_::ExprCall{ref data, ..}
+                            | Instruction_::ExprCCall{ref data, ..}
+                            | Instruction_::Call {ref data, ..}
+                            | Instruction_::CCall {ref data, ..} => {
+                                let ref callee = ops[data.func];
+
+                                match callee.v {
+                                    TreeNode_::Instruction(_) => {},
+                                    TreeNode_::Value(ref pv) => match pv.v {
+                                        Value_::Constant(Constant::FuncRef(id)) => {ret.insert(inst.id(), id);},
+                                        _ => {}
+                                    }
+                                }
+                            },
+                            _ => {
+                                // do nothing
+                            }
+                        }
+                    },
+                    _ => {
+                        unreachable!()
+                    }
+                }
+            }
+        }
+
+        ret
+    }
+
+    pub fn has_throw(&self) -> bool {
+        let f_content = self.content.as_ref().unwrap();
+
+        for (blk_id, block) in f_content.blocks.iter() {
+            let block_content = block.content.as_ref().unwrap();
+
+            for inst in block_content.body.iter() {
+                match inst.v {
+                    TreeNode_::Instruction(ref inst) => {
+                        let ops = inst.ops.read().unwrap();
+
+                        match inst.v {
+                            Instruction_::Throw(_) => {return true;}
+                            _ => {
+                                // do nothing
+                            }
+                        }
+                    },
+                    _ => {
+                        unreachable!()
+                    }
+                }
+            }
+        }
+
+        false
+    }
 }
 
 #[derive(RustcEncodable, RustcDecodable, Clone)]
@@ -309,6 +381,16 @@ impl Block {
     
     pub fn is_exception_block(&self) -> bool {
         return self.content.as_ref().unwrap().exn_arg.is_some()
+    }
+
+    pub fn number_of_irs(&self) -> usize {
+        if self.content.is_none() {
+            0
+        } else {
+            let content = self.content.as_ref().unwrap();
+
+            content.body.len()
+        }
     }
 }
 
@@ -482,6 +564,13 @@ impl TreeNode {
         })
     }
 
+    pub fn new_boxed_inst(v: Instruction) -> Box<TreeNode> {
+        Box::new(TreeNode{
+            op: pick_op_code_for_inst(&v),
+            v: TreeNode_::Instruction(v),
+        })
+    }
+
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             TreeNode_::Value(ref pv) => {
@@ -511,6 +600,13 @@ impl TreeNode {
     pub fn into_value(self) -> Option<P<Value>> {
         match self.v {
             TreeNode_::Value(val) => Some(val),
+            _ => None
+        }
+    }
+
+    pub fn into_inst(self) -> Option<Instruction> {
+        match self.v {
+            TreeNode_::Instruction(inst) => Some(inst),
             _ => None
         }
     }

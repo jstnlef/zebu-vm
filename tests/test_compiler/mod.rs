@@ -12,3 +12,4 @@ mod test_binop;
 mod test_controlflow;
 mod test_call;
 mod test_mem_inst;
+mod test_inline;
