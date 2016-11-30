@@ -50,7 +50,7 @@ def compile_c_script(c_src_name):
         sys.stderr.write(err + '\n')
         raise subp.CalledProcessError(p.returncode, bin_path)
 
-    return py.path.local('emit').join('%(testname)s.dylib' % locals())
+    return py.path.local('emit').join('%(testname)s' % locals() + libext)
 
 
 def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_longlong):
@@ -99,7 +99,7 @@ def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctype
     bldr.load()
     if heapinit_fnc:
         heapinit_fnc(ctx, id_dict, rmu)
-    libpath = py.path.local('lib%(name)s.dylib' % locals())
+    libpath = py.path.local('lib%(name)s' % locals() + libext)
     mu.compile_to_sharedlib(libpath.strpath, [])
 
     if (len(argtypes) > 0 and is_ctypes(argtypes[0])) or is_ctypes(restype):
@@ -143,7 +143,7 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
     set_opt_level(t.config, '3')
     if kwargs['backend'] == 'mu':
         db, bdlgen, fnc_name = t.compile_mu()
-        libpath = py.path.local('lib%(fnc_name)s.dylib' % locals())
+        libpath = py.path.local('lib%(fnc_name)s' % locals() + libext)
         bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
         extras = (db, bdlgen)
     else:
