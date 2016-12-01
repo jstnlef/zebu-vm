@@ -165,9 +165,9 @@ def perf(config, iterations):
     return results
 
 
-def save_results(test_name, results):
+def save_results(test_name, results, tmpdir):
     import json
-    json_file_path = py.path.local('result_%(test_name)s.json' % locals())
+    json_file_path = tmpdir.join('result_%(test_name)s.json' % locals())
 
     with json_file_path.open('w') as fp:
         json.dump(results, fp, indent=4, separators=(',', ':'))
@@ -262,6 +262,8 @@ def perf_quicksort(N, iterations):
     results['input_size'] = N
     results['iterations'] = iterations
 
+    save_results('quicksort', quicksort_res, tmpdir)
+
     move_pypy_udir(tmpdir)
     return results
 
@@ -324,5 +326,4 @@ if __name__ == '__main__':
     # arraysum_res = perf_arraysum(1000000, 20)
     # save_results('arraysum', arraysum_res)
     quicksort_res = perf_quicksort(N, 100)
-    save_results('quicksort', quicksort_res)
     plot(quicksort_res)

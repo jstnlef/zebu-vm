@@ -66,16 +66,18 @@ def build_quicksort_bundle(bldr, rmu):
 
             %blk2(<@i64> %end  <@i64> %j  <@i64> %i  <@phi64> %parr  <@i64> %idx_high  <@i64> %pivot):
                 %jp1 = ADD <@i64> %j @c_1
-                %pelm_j = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %j     // reuse previously computed uptr
+                %pelm = GETVARPARTIREF PTR <@hi64> %parr
+                %pelm_j = SHIFTIREF PTR <@i64 @i64> %pelm %j
                 %elm_j = LOAD PTR <@i64> %pelm_j
                 %cmpres = SLT <@i64> %elm_j %pivot
                 BRANCH2 %cmpres %blk3(%jp1 %end %pivot %idx_high %j %i %parr)
                                 %blk1(%parr %idx_high %pivot %i %jp1 %end)
 
             %blk3(<@i64> %jp1  <@i64> %end  <@i64> %pivot  <@i64> %idx_high  <@i64> %j  <@i64> %i  <@phi64> %parr):
-                %pelm_i = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %i
+                %pelm = GETVARPARTIREF PTR <@hi64> %parr
+                %pelm_i = SHIFTIREF PTR <@i64 @i64> %pelm %i
                 %t = LOAD PTR <@i64> %pelm_i
-                %pelm_j = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %j
+                %pelm_j = SHIFTIREF PTR <@i64 @i64> %pelm %j
                 %elm_j = LOAD PTR <@i64> %pelm_j
                 STORE PTR <@i64> %pelm_i %elm_j
                 STORE PTR <@i64> %pelm_j %t
@@ -83,9 +85,10 @@ def build_quicksort_bundle(bldr, rmu):
                 BRANCH %blk1(%parr %idx_high %pivot %ip1 %jp1 %end)
 
             %blk4(<@i64> %i  <@phi64> %parr  <@i64> %idx_high):
+                %pelm = GETVARPARTIREF PTR <@hi64> %parr
                 %pelm_i = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %i
                 %t = LOAD PTR <@i64> %pelm_i
-                %pelm_idx_high = SHIFTIREF PTR <@i64 @i64> @partition.blk0.pelm %idx_high
+                %pelm_idx_high = SHIFTIREF PTR <@i64 @i64> %pelm %idx_high
                 %elm_idx_high = LOAD PTR <@i64> %pelm_idx_high
                 STORE PTR <@i64> %pelm_i %elm_idx_high
                 STORE PTR <@i64> %pelm_idx_high %t
@@ -96,15 +99,12 @@ def build_quicksort_bundle(bldr, rmu):
 
         }
 
-    Optimisations applied:
-        - reuse previously computed iref/uptrs
-
     :type bldr: rpython.rlib.rmu.MuIRBuilder
     :type rmu: rpython.rlib.rmu
     :return: (rmu.MuVM(), rmu.MuCtx, rmu.MuIRBuilder, MuID, MuID)
     """
     NA = rmu.MuMemOrd.NOT_ATOMIC
-    
+
     i64 = bldr.gen_sym("@i64"); bldr.new_type_int(i64, 64)
     hi64 = bldr.gen_sym("@hi64"); bldr.new_type_hybrid(hi64, [], i64)
     phi64 = bldr.gen_sym("@phi64"); bldr.new_type_uptr(phi64, hi64)
@@ -198,10 +198,12 @@ def build_quicksort_bundle(bldr, rmu):
     idx_high = bldr.gen_sym("@partition.v1.blk2.idx_high")
     pivot = bldr.gen_sym("@partition.v1.blk2.pivot")
     jp1 = bldr.gen_sym("@partition.v1.blk2.jp1")
+    pelm = bldr.gen_sym("@partition.v1.blk2.pelm")
     pelm_j = bldr.gen_sym("@partition.v1.blk2.pelm_j")
     elm_j = bldr.gen_sym("@partition.v1.blk2.elm_j")
     cmpres = bldr.gen_sym("@partition.v1.blk2.cmpres")
     op_add = bldr.gen_sym(); bldr.new_binop(op_add, jp1, rmu.MuBinOptr.ADD, i64, j, c_1)
+    op_getvarpartiref = bldr.gen_sym(); bldr.new_getvarpartiref(op_getvarpartiref, pelm, True, hi64, parr)
     op_shiftiref = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref, pelm_j, True, i64, i64, pelm, j)
     op_load = bldr.gen_sym(); bldr.new_load(op_load, elm_j, True, NA, i64, pelm_j)
     op_slt = bldr.gen_sym(); bldr.new_cmp(op_slt, cmpres, rmu.MuCmpOptr.SLT, i64, elm_j, pivot)
@@ -209,8 +211,7 @@ def build_quicksort_bundle(bldr, rmu):
     dst_f = bldr.gen_sym(); bldr.new_dest_clause(dst_f, blk1, [parr, idx_high, pivot, i, jp1, end])
     op_br2 = bldr.gen_sym(); bldr.new_branch2(op_br2, cmpres, dst_t, dst_f)
     bldr.new_bb(blk2, [end, j, i, parr, idx_high, pivot], [i64, i64, i64, phi64, i64, i64], rmu.MU_NO_ID,
-                [op_add, op_shiftiref, op_load, op_slt, op_br2])
-    bldr.new_func_ver(bldr.gen_sym("@partition.v1"), partition, [blk0, blk1, blk2, blk3, blk4, blk5])
+                [op_add, op_getvarpartiref, op_shiftiref, op_load, op_slt, op_br2])
 
     # blk3
     jp1 = bldr.gen_sym("@partition.v1.blk3.jp1")
@@ -220,11 +221,13 @@ def build_quicksort_bundle(bldr, rmu):
     j = bldr.gen_sym("@partition.v1.blk3.j")
     i = bldr.gen_sym("@partition.v1.blk3.i")
     parr = bldr.gen_sym("@partition.v1.blk3.parr")
+    pelm = bldr.gen_sym("@partition.v1.blk2.pelm")
     pelm_i = bldr.gen_sym("@partition.v1.blk3.pelm_i")
     t = bldr.gen_sym("@partition.v1.blk3.t")
     pelm_j = bldr.gen_sym("@partition.v1.blk3.pelm_j")
     elm_j = bldr.gen_sym("@partition.v1.blk3.elm_j")
     ip1 = bldr.gen_sym("@partition.v1.blk3.ip1")
+    op_getvarpartiref = bldr.gen_sym(); bldr.new_getvarpartiref(op_getvarpartiref, pelm, True, hi64, parr)
     op_shiftiref1 = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref1, pelm_i, True, i64, i64, pelm, i)
     op_load1 = bldr.gen_sym(); bldr.new_load(op_load1, t, True, NA, i64, pelm_i)
     op_shiftiref2 = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref2, pelm_j, True, i64, i64, pelm, j)
@@ -235,16 +238,18 @@ def build_quicksort_bundle(bldr, rmu):
     dst = bldr.gen_sym(); bldr.new_dest_clause(dst, blk1, [parr, idx_high, pivot, ip1, jp1, end])
     op_br = bldr.gen_sym(); bldr.new_branch(op_br, dst)
     bldr.new_bb(blk3, [jp1, end, pivot, idx_high, j, i, parr], [i64, i64, i64, i64, i64, i64, phi64], rmu.MU_NO_ID,
-                [op_shiftiref1, op_load1, op_shiftiref2, op_load2, op_store1, op_store2, op_add, op_br])
+                [op_getvarpartiref, op_shiftiref1, op_load1, op_shiftiref2, op_load2, op_store1, op_store2, op_add, op_br])
 
     # blk4
     i = bldr.gen_sym("@partition.v1.blk4.i")
     parr = bldr.gen_sym("@partition.v1.blk4.parr")
     idx_high = bldr.gen_sym("@partition.v1.blk4.idx_high")
+    pelm = bldr.gen_sym("@partition.v1.blk2.pelm")
     pelm_i = bldr.gen_sym("@partition.v1.blk4.pelm_i")
     t = bldr.gen_sym("@partition.v1.blk4.t")
     pelm_idx_high = bldr.gen_sym("@partition.v1.blk4.pelm_idx_high")
     elm_idx_high = bldr.gen_sym("@partition.v1.blk4.elm_idx_high")
+    op_getvarpartiref = bldr.gen_sym(); bldr.new_getvarpartiref(op_getvarpartiref, pelm, True, hi64, parr)
     op_shiftiref1 = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref1, pelm_i, True, i64, i64, pelm, i)
     op_load1 = bldr.gen_sym(); bldr.new_load(op_load1, t, True, NA, i64, pelm_i)
     op_shiftiref2 = bldr.gen_sym(); bldr.new_shiftiref(op_shiftiref2, pelm_idx_high, True, i64, i64, pelm, idx_high)
@@ -254,7 +259,7 @@ def build_quicksort_bundle(bldr, rmu):
     dst = bldr.gen_sym(); bldr.new_dest_clause(dst, blk5, [i])
     op_br = bldr.gen_sym(); bldr.new_branch(op_br, dst)
     bldr.new_bb(blk4, [i, parr, idx_high], [i64, phi64, i64], rmu.MU_NO_ID,
-                [op_shiftiref1, op_load1, op_shiftiref2, op_load2, op_store1, op_store2, op_br])
+                [op_getvarpartiref, op_shiftiref1, op_load1, op_shiftiref2, op_load2, op_store1, op_store2, op_br])
 
     # blk5
     i = bldr.gen_sym("@partition.v1.blk5.i")

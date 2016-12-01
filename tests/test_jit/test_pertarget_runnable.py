@@ -43,7 +43,7 @@ def test_quicksort():
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
     N = 100
-    arr, s, e = setup(100)
+    arr, s, e = setup(N)
     lst = list(arr)
     fnc(arr, s, e)
     lst.sort()
@@ -61,7 +61,7 @@ def test_quicksort_handcraft():
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
     N = 100
-    arr, s, e = setup(100)
+    arr, s, e = setup(N)
     lst = list(arr)
     fnc(arr, s, e)
     lst.sort()
