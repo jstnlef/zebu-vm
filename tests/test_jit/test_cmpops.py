@@ -49,6 +49,10 @@ def test_sle():
     fn, _ = fncptr_from_c_script("test_sle.c", "test_fnc", restype=ctypes.c_uint8)
     assert fn() == 1
 
+def test_ule():
+    fn, _ = fncptr_from_c_script("test_ule.c", "test_fnc", restype=ctypes.c_uint8)
+    assert fn() == 1
+
 def test_slt():
     fn, _ = fncptr_from_c_script("test_slt.c", "test_fnc", restype=ctypes.c_uint8)
     assert fn() == 0

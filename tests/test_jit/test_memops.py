@@ -31,6 +31,22 @@ def test_getfieldiref():
     assert res == 0xcafebabe, "result: %s" % hex(res)
 
 
+def test_getelemiref():
+    Arr = ctypes.ARRAY(ctypes.c_int64, 5)
+    fn, _ = fncptr_from_c_script("test_getelemiref.c", "test_fnc",
+                                 argtypes=[ctypes.POINTER(Arr)],
+                                 restype=ctypes.c_int64)
+    arr = Arr()
+    arr[0] = -23
+    arr[1] = 35
+    arr[2] = 42
+    arr[3] = 0
+    arr[4] = 152
+
+    res = fn(ctypes.byref(arr), 2)
+    assert res == 42, "result: %d" % res
+
+
 def test_getvarpartiref():
     class Stt(ctypes.Structure):
         _fields_ = [('ui8', ctypes.c_uint8),

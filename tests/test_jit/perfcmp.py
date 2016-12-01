@@ -262,7 +262,7 @@ def perf_quicksort(N, iterations):
     results['input_size'] = N
     results['iterations'] = iterations
 
-    save_results('quicksort', quicksort_res, tmpdir)
+    save_results('quicksort', results, tmpdir)
 
     move_pypy_udir(tmpdir)
     return results
