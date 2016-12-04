@@ -1,11 +1,9 @@
-extern crate linked_hash_map;
-
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
 use std::borrow::Borrow;
 
-use self::linked_hash_map::Keys;
-pub use self::linked_hash_map::LinkedHashMap;
+use linked_hashmap::LinkedHashMap;
+use linked_hashmap::Keys;
 
 pub struct LinkedHashSet<K, S = RandomState>(LinkedHashMap<K, (), S>);
 

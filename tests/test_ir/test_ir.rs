@@ -5,9 +5,9 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
+use self::mu::utils::LinkedHashMap;
 
 use std::sync::RwLock;
-use std::collections::HashMap;
 
 #[test]
 #[allow(unused_variables)]
@@ -167,7 +167,7 @@ pub fn sum() -> VM {
     func_ver.define(FunctionContent{
             entry: blk_entry.id(),
             blocks: {
-                let mut blocks = HashMap::new();
+                let mut blocks = LinkedHashMap::new();
                 blocks.insert(blk_entry.id(), blk_entry);
                 blocks.insert(blk_head.id(), blk_head);
                 blocks.insert(blk_ret.id(), blk_ret);
@@ -365,7 +365,7 @@ pub fn factorial() -> VM {
     func_ver.define(FunctionContent{
             entry: blk_0.id(),
             blocks: {
-                let mut blocks = HashMap::new();
+                let mut blocks = LinkedHashMap::new();
                 blocks.insert(blk_0.id(), blk_0);
                 blocks.insert(blk_1.id(), blk_1);
                 blocks.insert(blk_2.id(), blk_2);
@@ -470,7 +470,7 @@ pub fn global_access() -> VM {
     func_ver.define(FunctionContent{
         entry: blk_0.id(),
         blocks: {
-            let mut ret = HashMap::new();
+            let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret
         }

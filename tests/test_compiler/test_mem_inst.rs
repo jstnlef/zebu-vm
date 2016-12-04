@@ -4,6 +4,7 @@ use mu::ast::inst::*;
 use mu::ast::op::*;
 use mu::vm::*;
 use mu::compiler::*;
+use mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -372,9 +373,11 @@ pub fn struct_insts() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry,
-            blk_check_id   => blk_check
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map.insert(blk_check_id, blk_check);
+            map
         }
     });
 
@@ -650,9 +653,11 @@ pub fn hybrid_fix_part_insts() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry,
-            blk_check_id   => blk_check
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map.insert(blk_check_id, blk_check);
+            map
         }
     });
 
@@ -1092,12 +1097,14 @@ pub fn hybrid_var_part_insts() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry,
-            blk_check.id() => blk_check,
-            blk_head.id()  => blk_head,
-            blk_body.id()  => blk_body,
-            blk_exit.id()  => blk_exit
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map.insert(blk_check.id(), blk_check);
+            map.insert(blk_head.id(),  blk_head);
+            map.insert(blk_body.id(),  blk_body);
+            map.insert(blk_exit.id(),  blk_exit);
+            map
         }
     });
 

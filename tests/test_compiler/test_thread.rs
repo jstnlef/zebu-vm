@@ -8,12 +8,11 @@ use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
-
+use self::mu::utils::LinkedHashMap;
 use self::mu::testutil::aot;
 
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::collections::HashMap;
 
 #[test]
 fn test_thread_create() {
@@ -71,7 +70,7 @@ fn primordial_main() -> VM {
     func_ver.define(FunctionContent {
         entry: blk_entry.id(),
         blocks: {
-            let mut blocks = HashMap::new();
+            let mut blocks = LinkedHashMap::new();
             blocks.insert(blk_entry.id(), blk_entry);
             blocks
         }

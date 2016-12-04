@@ -108,10 +108,12 @@ impl Inlining {
 
         let mut new_blocks : Vec<Block> = vec![];
 
-        for (_, block) in f_content.blocks.drain() {
+        for (_, block) in f_content.blocks.iter() {
             // clone curent block, and clear its instructions
             let mut cur_block = block.clone();
             cur_block.content.as_mut().unwrap().body.clear();
+
+            let block = block.clone();
 
             // iterate through instructions
             for inst in block.content.unwrap().body {

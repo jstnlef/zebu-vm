@@ -18,6 +18,7 @@ use ast::ir::*;
 use ast::types::*;
 use compiler::backend::RegGroup;
 
+use utils::LinkedHashMap;
 use std::collections::HashMap;
 
 macro_rules! GPR_ALIAS {
@@ -96,8 +97,8 @@ GPR_ALIAS!(R15_ALIAS: (64,R15) -> R15D,R15W,R15B);
 GPR_ALIAS!(RIP_ALIAS: (68,RIP));
 
 lazy_static! {
-    pub static ref GPR_ALIAS_TABLE : HashMap<MuID, Vec<P<Value>>> = {
-        let mut ret = HashMap::new();
+    pub static ref GPR_ALIAS_TABLE : LinkedHashMap<MuID, Vec<P<Value>>> = {
+        let mut ret = LinkedHashMap::new();
 
         ret.insert(RAX.id(), RAX_ALIAS.to_vec());
         ret.insert(RCX.id(), RCX_ALIAS.to_vec());
@@ -346,8 +347,8 @@ lazy_static!{
 }
 
 lazy_static! {
-    pub static ref ALL_MACHINE_REGs : HashMap<MuID, P<Value>> = {
-        let mut map = HashMap::new();
+    pub static ref ALL_MACHINE_REGs : LinkedHashMap<MuID, P<Value>> = {
+        let mut map = LinkedHashMap::new();
 
         for vec in GPR_ALIAS_TABLE.values() {
             for reg in vec {
@@ -432,7 +433,7 @@ pub fn number_of_all_regs() -> usize {
     ALL_MACHINE_REGs.len()
 }
 
-pub fn all_regs() -> &'static HashMap<MuID, P<Value>> {
+pub fn all_regs() -> &'static LinkedHashMap<MuID, P<Value>> {
     &ALL_MACHINE_REGs
 }
 

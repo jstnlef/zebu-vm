@@ -4,6 +4,7 @@ use inst::*;
 use op::*;
 
 use utils::vec_utils;
+use utils::LinkedHashMap;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -293,7 +294,7 @@ impl MuFunctionVersion {
 #[derive(RustcEncodable, RustcDecodable)]
 pub struct FunctionContent {
     pub entry: MuID,
-    pub blocks: HashMap<MuID, Block>
+    pub blocks: LinkedHashMap<MuID, Block>
 }
 
 impl fmt::Debug for FunctionContent {
@@ -313,7 +314,7 @@ impl fmt::Debug for FunctionContent {
 
 impl Clone for FunctionContent {
     fn clone(&self) -> Self {
-        let mut new_blocks = HashMap::new();
+        let mut new_blocks = LinkedHashMap::new();
 
         for (id, block) in self.blocks.iter() {
             new_blocks.insert(*id, block.clone());

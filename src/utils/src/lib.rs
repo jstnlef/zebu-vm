@@ -1,4 +1,5 @@
 extern crate byteorder;
+extern crate rustc_serialize;
 
 pub type ByteSize = usize;
 pub type Word = usize;
@@ -11,9 +12,28 @@ pub const WORD_SIZE        : ByteSize = 1 << LOG_POINTER_SIZE;
 
 pub mod mem;
 
+mod linked_hashmap;
 mod linked_hashset;
+pub use linked_hashmap::LinkedHashMap;
 pub use linked_hashset::LinkedHashSet;
-pub use linked_hashset::LinkedHashMap;
+
+#[macro_export]
+macro_rules! linked_hashmap {
+    (@single $($x:tt)*) => (());
+    (@count $($rest:expr),*) => (<[()]>::len(&[$(linked_hashmap!(@single $rest)),*]));
+
+    ($($key:expr => $value:expr,)+) => { linked_hashmap!($($key => $value),+) };
+    ($($key:expr => $value:expr),*) => {
+        {
+            let _cap = linked_hashmap!(@count $($key),*);
+            let mut _map = LinkedHashMap::with_capacity(_cap);
+            $(
+                _map.insert($key, $value);
+            )*
+            _map
+        }
+    };
+}
 
 mod address;
 pub use address::Address;

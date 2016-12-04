@@ -1,6 +1,7 @@
 use super::common::*;
 use ast::op::*;
 use ast::inst::*;
+use utils::LinkedHashMap;
 use std;
 
 pub struct MuIRBuilder {
@@ -1135,7 +1136,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let blocks = fv.bbs.iter().map(|bbid| {
             let block = self.build_block(&mut fcb, *bbid);
             (*bbid, block)
-        }).collect::<HashMap<MuID, Block>>();
+        }).collect::<LinkedHashMap<MuID, Block>>();
 
         let entry_id = *fv.bbs.first().unwrap();
         let ctn = FunctionContent {

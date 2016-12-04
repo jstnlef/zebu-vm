@@ -7,12 +7,12 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
+use self::mu::utils::LinkedHashMap;
 
 use self::mu::testutil::aot;
 
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::collections::HashMap;
 
 #[test]
 fn test_exception_simple_throw_catch() {
@@ -172,7 +172,7 @@ fn create_catch_exception_func (vm: &VM) {
     func_ver.define(FunctionContent{
         entry: blk_0.id(),
         blocks: {
-            let mut ret = HashMap::new();
+            let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret.insert(blk_normal_cont.id(), blk_normal_cont);
             ret.insert(blk_exn_cont.id(), blk_exn_cont);
@@ -257,7 +257,7 @@ fn create_throw_exception_func (vm: &VM) {
     func_ver.define(FunctionContent {
         entry: blk_0.id(),
         blocks: {
-            let mut ret = HashMap::new();
+            let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret
         }

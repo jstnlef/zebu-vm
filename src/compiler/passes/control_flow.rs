@@ -3,8 +3,7 @@ use ast::inst::Instruction_::*;
 use utils::vec_utils::as_str as vector_as_str;
 use vm::VM;
 use compiler::CompilerPass;
-
-use std::collections::HashMap;
+use utils::LinkedHashMap;
 use std::any::Any;
 
 pub struct ControlFlowAnalysis {
@@ -95,10 +94,10 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                         const BRANCH_DEFAULT_PROB : f32 = 0.1;
                         let switch_prob = (1.0f32 - BRANCH_DEFAULT_PROB) / (branches.len() as f32);
 
-                        let map : HashMap<MuID, BlockEdge> = {
-                            let mut ret = HashMap::new();
+                        let map : LinkedHashMap<MuID, BlockEdge> = {
+                            let mut ret = LinkedHashMap::new();
 
-                            let check_add_edge = |map: &mut HashMap<MuID, BlockEdge>, target: MuID, prob: f32| {
+                            let check_add_edge = |map: &mut LinkedHashMap<MuID, BlockEdge>, target: MuID, prob: f32| {
                                 if map.contains_key(&target) {
                                     let mut edge : &mut BlockEdge = map.get_mut(&target).unwrap();
                                     edge.probability += prob;

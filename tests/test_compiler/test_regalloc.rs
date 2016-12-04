@@ -2,6 +2,7 @@ extern crate mu;
 extern crate libloading;
 
 use mu::testutil::aot;
+use mu::utils::LinkedHashMap;
 use test_ir::test_ir::factorial;
 use self::mu::compiler::*;
 use self::mu::utils::vec_utils;
@@ -13,7 +14,6 @@ use self::mu::vm::VM;
 
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::collections::HashMap;
 
 fn get_number_of_moves(fv_id: MuID, vm: &VM) -> usize {
     let cfs = vm.compiled_funcs().read().unwrap();
@@ -280,7 +280,7 @@ fn create_spill1() -> VM {
     func_ver.define(FunctionContent {
         entry: blk_entry.id(),
         blocks: {
-            let mut blocks = HashMap::new();
+            let mut blocks = LinkedHashMap::new();
             blocks.insert(blk_entry.id(), blk_entry);
             blocks
         }
@@ -570,7 +570,7 @@ fn create_simple_spill() -> VM {
     func_ver.define(FunctionContent {
         entry: blk_entry.id(),
         blocks: {
-            let mut blocks = HashMap::new();
+            let mut blocks = LinkedHashMap::new();
             blocks.insert(blk_entry.id(), blk_entry);
             blocks.insert(blk_start.id(), blk_start);
             blocks.insert(blk_ret.id(), blk_ret);

@@ -6,6 +6,7 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
+use self::mu::utils::LinkedHashMap;
 
 use std::sync::RwLock;
 use mu::testutil;
@@ -84,8 +85,10 @@ fn add_u8() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map
         }
     });
 
@@ -221,8 +224,10 @@ fn sext() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map
         }
     });
 
@@ -305,8 +310,10 @@ fn add_9f() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map
         }
     });
 

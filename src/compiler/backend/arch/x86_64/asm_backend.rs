@@ -13,6 +13,8 @@ use runtime::ValueLocation;
 
 use utils::vec_utils;
 use utils::string_utils;
+use utils::LinkedHashMap;
+
 use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
@@ -27,7 +29,7 @@ struct ASMCode {
     name: MuName, 
     code: Vec<ASMInst>,
 
-    blocks: HashMap<MuName, ASMBlock>,
+    blocks: LinkedHashMap<MuName, ASMBlock>,
 
     frame_size_patchpoints: Vec<ASMLocation>
 }
@@ -113,7 +115,7 @@ impl ASMCode {
         let mut ret = ASMCode {
             name: self.name.clone(),
             code: vec![],
-            blocks: hashmap!{},
+            blocks: linked_hashmap!{},
             frame_size_patchpoints: vec![]
         };
 
@@ -659,8 +661,8 @@ enum ASMBranchTarget {
 struct ASMInst {
     code: String,
 
-    defines: HashMap<MuID, Vec<ASMLocation>>,
-    uses: HashMap<MuID, Vec<ASMLocation>>,
+    defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
+    uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
 
     is_mem_op_used: bool,
     preds: Vec<usize>,
@@ -672,8 +674,8 @@ impl ASMInst {
     fn symbolic(line: String) -> ASMInst {
         ASMInst {
             code: line,
-            defines: HashMap::new(),
-            uses: HashMap::new(),
+            defines: LinkedHashMap::new(),
+            uses: LinkedHashMap::new(),
             is_mem_op_used: false,
             preds: vec![],
             succs: vec![],
@@ -683,8 +685,8 @@ impl ASMInst {
     
     fn inst(
         inst: String,
-        defines: HashMap<MuID, Vec<ASMLocation>>,
-        uses: HashMap<MuID, Vec<ASMLocation>>,
+        defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
         is_mem_op_used: bool,
         target: ASMBranchTarget
     ) -> ASMInst
@@ -703,8 +705,8 @@ impl ASMInst {
     fn nop() -> ASMInst {
         ASMInst {
             code: "".to_string(),
-            defines: HashMap::new(),
-            uses: HashMap::new(),
+            defines: LinkedHashMap::new(),
+            uses: LinkedHashMap::new(),
             is_mem_op_used: false,
             preds: vec![],
             succs: vec![],
@@ -814,7 +816,7 @@ impl ASMCodeGen {
     fn add_asm_call(&mut self, code: String) {
         // a call instruction will use all the argument registers
         // do not need
-        let uses : HashMap<MuID, Vec<ASMLocation>> = HashMap::new();
+        let uses : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
 //        for reg in x86_64::ARGUMENT_GPRs.iter() {
 //            uses.insert(reg.id(), vec![]);
 //        }
@@ -823,7 +825,7 @@ impl ASMCodeGen {
 //        }
 
         // defines: return registers
-        let mut defines : HashMap<MuID, Vec<ASMLocation>> = HashMap::new();
+        let mut defines : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
         for reg in x86_64::RETURN_GPRs.iter() {
             defines.insert(reg.id(), vec![]);
         }
@@ -849,22 +851,22 @@ impl ASMCodeGen {
         // otherwise it will keep RETURN REGS alive
         // and if there is no actual move into RETURN REGS, it will keep RETURN REGS for alive for very long
         // and prevents anything using those regsiters
-        self.add_asm_inst_internal(code, hashmap!{}, hashmap!{}, false, ASMBranchTarget::Return);
+        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return);
     }
     
     fn add_asm_branch(&mut self, code: String, target: MuName) {
-        self.add_asm_inst_internal(code, hashmap!{}, hashmap!{}, false, ASMBranchTarget::Unconditional(target));
+        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Unconditional(target));
     }
     
     fn add_asm_branch2(&mut self, code: String, target: MuName) {
-        self.add_asm_inst_internal(code, hashmap!{}, hashmap!{}, false, ASMBranchTarget::Conditional(target));
+        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Conditional(target));
     }
     
     fn add_asm_inst(
         &mut self, 
         code: String, 
-        defines: HashMap<MuID, Vec<ASMLocation>>,
-        uses: HashMap<MuID, Vec<ASMLocation>>,
+        defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
         is_using_mem_op: bool)
     {
         self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None)
@@ -873,8 +875,8 @@ impl ASMCodeGen {
     fn add_asm_inst_internal(
         &mut self,
         code: String,
-        defines: HashMap<MuID, Vec<ASMLocation>>,
-        uses: HashMap<MuID, Vec<ASMLocation>>,
+        defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
         is_using_mem_op: bool,
         target: ASMBranchTarget)
     {
@@ -926,7 +928,7 @@ impl ASMCodeGen {
     }
     
     #[allow(unused_assignments)]
-    fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, HashMap<MuID, Vec<ASMLocation>>) {
+    fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, LinkedHashMap<MuID, Vec<ASMLocation>>) {
         if cfg!(debug_assertions) {
             match op.v {
                 Value_::Memory(_) => {},
@@ -1042,8 +1044,8 @@ impl ASMCodeGen {
             _ => panic!("expect mem location as value")
         }
 
-        let uses : HashMap<MuID, Vec<ASMLocation>> = {
-            let mut map : HashMap<MuID, Vec<ASMLocation>> = hashmap!{};
+        let uses : LinkedHashMap<MuID, Vec<ASMLocation>> = {
+            let mut map : LinkedHashMap<MuID, Vec<ASMLocation>> = linked_hashmap!{};
             for i in 0..ids.len() {
                 let id = ids[i];
                 let loc = locs[i].clone();
@@ -1104,14 +1106,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
+            linked_hashmap!{},
             {
                 if id1 == id2 {
-                    hashmap!{
+                    linked_hashmap!{
                         id1 => vec![loc1, loc2]
                     }
                 } else {
-                    hashmap!{
+                    linked_hashmap!{
                         id1 => vec![loc1],
                         id2 => vec![loc2]
                     }
@@ -1134,8 +1136,8 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
-            hashmap!{
+            linked_hashmap!{},
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
             false
@@ -1163,7 +1165,7 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
+            linked_hashmap!{},
             uses,
             true
         )
@@ -1189,7 +1191,7 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
+            linked_hashmap!{},
             uses,
             true
         )
@@ -1208,16 +1210,16 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2.clone()]
             },
             {
                 if id1 == id2 {
-                    hashmap!{
+                    linked_hashmap!{
                         id1 => vec![loc1, loc2]
                     }
                 } else {
-                    hashmap!{
+                    linked_hashmap!{
                         id1 => vec![loc1],
                         id2 => vec![loc2]
                     }
@@ -1241,10 +1243,10 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2.clone()]
             },
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2],
                 mreg => vec![]
             },
@@ -1265,10 +1267,10 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1.clone()]
             },
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             false
@@ -1298,7 +1300,7 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             uses,
@@ -1316,10 +1318,10 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
-            hashmap!{},
+            linked_hashmap!{},
             false
         )
     }
@@ -1337,10 +1339,10 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             false
@@ -1360,10 +1362,10 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
-            hashmap!{},
+            linked_hashmap!{},
             false
         )
     }
@@ -1381,7 +1383,7 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
             uses,
@@ -1411,7 +1413,7 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
+            linked_hashmap!{},
             uses,
             true
         )
@@ -1430,7 +1432,7 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
+            linked_hashmap!{},
             uses,
             true
         )
@@ -1446,14 +1448,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
+            linked_hashmap!{},
             {
                 if id1 == id2 {
-                    hashmap!{
+                    linked_hashmap!{
                         id1 => vec![loc1, loc2]
                     }
                 } else {
-                    hashmap!{
+                    linked_hashmap!{
                         id1 => vec![loc1],
                         id2 => vec![loc2]
                     }
@@ -1473,14 +1475,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2.clone()]
             },
             {
                 if id1 == id2 {
-                    hashmap!{id1 => vec![loc1, loc2]}
+                    linked_hashmap!{id1 => vec![loc1, loc2]}
                 } else {
-                    hashmap! {
+                    linked_hashmap! {
                         id1 => vec![loc1],
                         id2 => vec![loc2]
                     }
@@ -1512,7 +1514,7 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(Box::new(ASMCode {
             name: func_name.clone(),
             code: vec![],
-            blocks: hashmap! {},
+            blocks: linked_hashmap! {},
             frame_size_patchpoints: vec![]
         }));
 
@@ -1545,7 +1547,7 @@ impl CodeGenerator for ASMCodeGen {
         self.cur = Some(Box::new(ASMCode {
             name: "snippet".to_string(),
             code: vec![],
-            blocks: hashmap! {},
+            blocks: linked_hashmap! {},
             frame_size_patchpoints: vec![]
         }));
     }
@@ -1664,8 +1666,8 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{}, // let reg alloc ignore this instruction
-            hashmap!{},
+            linked_hashmap!{}, // let reg alloc ignore this instruction
+            linked_hashmap!{},
             false
         )
     }
@@ -1680,8 +1682,8 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
-            hashmap!{},
+            linked_hashmap!{},
+            linked_hashmap!{},
             false
         )
     }
@@ -1693,8 +1695,8 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap! {},
-            hashmap! {},
+            linked_hashmap! {},
+            linked_hashmap! {},
             false
         );
     }
@@ -1729,10 +1731,10 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             false
@@ -1771,10 +1773,10 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             false
@@ -1795,10 +1797,10 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             false
@@ -1974,11 +1976,11 @@ impl CodeGenerator for ASMCodeGen {
 
             self.add_asm_inst(
                 asm,
-                hashmap! {
+                linked_hashmap! {
                     rax => vec![],
                     rdx => vec![]
                 },
-                hashmap! {
+                linked_hashmap! {
                     id => vec![loc],
                     rax => vec![]
                 },
@@ -1989,10 +1991,10 @@ impl CodeGenerator for ASMCodeGen {
 
             self.add_asm_inst(
                 asm,
-                hashmap! {
+                linked_hashmap! {
                     rax => vec![]
                 },
-                hashmap! {
+                linked_hashmap! {
                     id => vec![loc],
                     rax => vec![]
                 },
@@ -2020,11 +2022,11 @@ impl CodeGenerator for ASMCodeGen {
             trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
             self.add_asm_inst(
                 asm,
-                hashmap!{
+                linked_hashmap!{
                 rdx => vec![],
                 rax => vec![],
             },
-                hashmap!{
+                linked_hashmap!{
                 id => vec![loc],
                 rdx => vec![],
                 rax => vec![]
@@ -2039,11 +2041,11 @@ impl CodeGenerator for ASMCodeGen {
 
             self.add_asm_inst(
                 asm,
-                hashmap!{
+                linked_hashmap!{
                     ah => vec![],
                     al => vec![]
                 },
-                hashmap!{
+                linked_hashmap!{
                     id => vec![loc],
                     ah => vec![],
                     al => vec![]
@@ -2076,7 +2078,7 @@ impl CodeGenerator for ASMCodeGen {
             trace!("emit: {} rdx:rax, {} -> quotient: rax + remainder: rdx", inst, src);
             self.add_asm_inst(
                 asm,
-                hashmap! {
+                linked_hashmap! {
                     rdx => vec![],
                     rax => vec![]
                 },
@@ -2099,7 +2101,7 @@ impl CodeGenerator for ASMCodeGen {
 
             self.add_asm_inst(
                 asm,
-                hashmap!{
+                linked_hashmap!{
                     ah => vec![],
                     al => vec![]
                 },
@@ -2126,11 +2128,11 @@ impl CodeGenerator for ASMCodeGen {
 
             self.add_asm_inst(
                 asm,
-                hashmap!{
+                linked_hashmap!{
                     rdx => vec![],
                     rax => vec![],
                 },
-                hashmap!{
+                linked_hashmap!{
                     id => vec![loc],
                     rdx => vec![],
                     rax => vec![]
@@ -2145,11 +2147,11 @@ impl CodeGenerator for ASMCodeGen {
 
             self.add_asm_inst(
                 asm,
-                hashmap!{
+                linked_hashmap!{
                     ah => vec![],
                     al => vec![]
                 },
-                hashmap!{
+                linked_hashmap!{
                     id => vec![loc],
                     ah => vec![],
                     al => vec![]
@@ -2184,7 +2186,7 @@ impl CodeGenerator for ASMCodeGen {
 
             self.add_asm_inst(
                 asm,
-                hashmap! {
+                linked_hashmap! {
                     rdx => vec![],
                     rax => vec![]
                 },
@@ -2207,7 +2209,7 @@ impl CodeGenerator for ASMCodeGen {
 
             self.add_asm_inst(
                 asm,
-                hashmap!{
+                linked_hashmap!{
                     ah => vec![],
                     al => vec![]
                 },
@@ -2251,11 +2253,11 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 rdx => vec![],
                 rax => vec![]
             },
-            hashmap!{
+            linked_hashmap!{
                 rax => vec![]
             },
             false
@@ -2272,11 +2274,11 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 edx => vec![],
                 eax => vec![]
             },
-            hashmap!{
+            linked_hashmap!{
                 eax => vec![],
             },
             false
@@ -2293,11 +2295,11 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 dx => vec![],
                 ax => vec![]
             },
-            hashmap!{
+            linked_hashmap!{
                 ax => vec![],
             },
             false
@@ -2440,10 +2442,10 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 rsp => vec![]
             },
-            hashmap!{
+            linked_hashmap!{
                 id => vec![loc],
                 rsp => vec![]
             },
@@ -2460,10 +2462,10 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 rsp => vec![]
             },
-            hashmap!{
+            linked_hashmap!{
                 rsp => vec![]
             },
             false
@@ -2480,11 +2482,11 @@ impl CodeGenerator for ASMCodeGen {
         
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id => vec![loc.clone()],
                 rsp => vec![]
             },
-            hashmap!{
+            linked_hashmap!{
                 rsp => vec![]
             },
             false
@@ -2501,10 +2503,10 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             false
@@ -2522,7 +2524,7 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
             uses,
@@ -2549,7 +2551,7 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{},
+            linked_hashmap!{},
             uses,
             true
         )
@@ -2604,10 +2606,10 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             false
@@ -2627,10 +2629,10 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            hashmap!{
+            linked_hashmap!{
                 id2 => vec![loc2]
             },
-            hashmap!{
+            linked_hashmap!{
                 id1 => vec![loc1]
             },
             false

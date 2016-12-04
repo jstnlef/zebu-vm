@@ -8,6 +8,7 @@ use mu::compiler::*;
 use std::sync::RwLock;
 use std::sync::Arc;
 use mu::testutil::aot;
+use mu::utils::LinkedHashMap;
 
 #[test]
 fn test_ccall_exit() {
@@ -131,8 +132,10 @@ fn ccall_exit() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map
         }
     });
 

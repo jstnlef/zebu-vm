@@ -5,12 +5,10 @@ use mu::ast::ir::*;
 use mu::ast::inst::*;
 use mu::ast::op::*;
 use mu::vm::*;
-use mu::compiler::*;
 use mu::testutil;
+use mu::utils::LinkedHashMap;
 
-use std::sync::Arc;
 use std::sync::RwLock;
-use mu::testutil::aot;
 
 #[test]
 fn test_inline_add() {

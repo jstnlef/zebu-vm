@@ -7,9 +7,10 @@ use vm::VM;
 
 use utils::vec_utils;
 use utils::LinkedHashSet;
+use utils::LinkedHashMap;
+use std::collections::HashMap;
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 use compiler::backend::reg_alloc::graph_coloring::liveness::Move;
 use compiler::backend::reg_alloc::graph_coloring::petgraph::graph::NodeIndex;
@@ -24,22 +25,22 @@ pub struct GraphColoring<'a> {
     pub ig: InterferenceGraph,
 
     precolored: LinkedHashSet<NodeIndex>,
-    colors: HashMap<backend::RegGroup, LinkedHashSet<MuID>>,
+    colors: LinkedHashMap<backend::RegGroup, LinkedHashSet<MuID>>,
     pub colored_nodes: Vec<NodeIndex>,
     
     initial: Vec<NodeIndex>,
-    degree: HashMap<NodeIndex, usize>,
+    degree: LinkedHashMap<NodeIndex, usize>,
     
     worklist_moves: Vec<Move>,
-    movelist: HashMap<NodeIndex, RefCell<Vec<Move>>>,
+    movelist: LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>,
     active_moves: LinkedHashSet<Move>,
     coalesced_nodes: LinkedHashSet<NodeIndex>,
     coalesced_moves: LinkedHashSet<Move>,
     constrained_moves: LinkedHashSet<Move>,
-    alias: HashMap<NodeIndex, NodeIndex>,
+    alias: LinkedHashMap<NodeIndex, NodeIndex>,
     
     worklist_spill: Vec<NodeIndex>,
-    spillable: HashMap<MuID, bool>,
+    spillable: LinkedHashMap<MuID, bool>,
     spilled_nodes: Vec<NodeIndex>,
     
     worklist_freeze: LinkedHashSet<NodeIndex>,
@@ -65,7 +66,7 @@ impl <'a> GraphColoring<'a> {
 
             precolored: LinkedHashSet::new(),
             colors: {
-                let mut map = HashMap::new();
+                let mut map = LinkedHashMap::new();
                 map.insert(backend::RegGroup::GPR, LinkedHashSet::new());
                 map.insert(backend::RegGroup::FPR, LinkedHashSet::new());
                 map
@@ -73,18 +74,18 @@ impl <'a> GraphColoring<'a> {
             colored_nodes: Vec::new(),
             
             initial: Vec::new(),
-            degree: HashMap::new(),
+            degree: LinkedHashMap::new(),
             
             worklist_moves: Vec::new(),
-            movelist: HashMap::new(),
+            movelist: LinkedHashMap::new(),
             active_moves: LinkedHashSet::new(),
             coalesced_nodes: LinkedHashSet::new(),
             coalesced_moves: LinkedHashSet::new(),
             constrained_moves: LinkedHashSet::new(),
-            alias: HashMap::new(),
+            alias: LinkedHashMap::new(),
             
             worklist_spill: Vec::new(),
-            spillable: HashMap::new(),
+            spillable: LinkedHashMap::new(),
             spilled_nodes: Vec::new(),
             
             worklist_freeze: LinkedHashSet::new(),
@@ -252,19 +253,19 @@ impl <'a> GraphColoring<'a> {
     // avoid using &mut self as argument
     // in build(), we will need to mutate on self.movelist while
     // holding an immmutable reference of self(self.ig)
-    fn movelist_mut(list: &mut HashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) -> &RefCell<Vec<Move>> {
+    fn movelist_mut(list: &mut LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) -> &RefCell<Vec<Move>> {
         GraphColoring::movelist_check(list, node);
         unsafe {GraphColoring::movelist_nocheck(list, node)}
     }
     
-    fn movelist_check(list: &mut HashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) {
+    fn movelist_check(list: &mut LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) {
         if !list.contains_key(&node) {
             list.insert(node, RefCell::new(Vec::new()));
         }
     }
     
     // allows getting the Vec<Move> without a mutable reference of the hashmap
-    unsafe fn movelist_nocheck(list: &HashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) -> &RefCell<Vec<Move>> {
+    unsafe fn movelist_nocheck(list: &LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) -> &RefCell<Vec<Move>> {
         list.get(&node).unwrap()
     }
     

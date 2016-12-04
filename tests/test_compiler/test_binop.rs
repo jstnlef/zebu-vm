@@ -8,6 +8,7 @@ use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::testutil;
+use mu::utils::LinkedHashMap;
 
 use std::sync::RwLock;
 
@@ -81,8 +82,10 @@ fn udiv() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map
         }
     });
 
@@ -165,8 +168,10 @@ fn sdiv() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map
         }
     });
 
@@ -252,8 +257,10 @@ fn shl() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map
         }
     });
 
@@ -335,8 +342,10 @@ fn lshr() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map
         }
     });
 

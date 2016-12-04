@@ -9,10 +9,10 @@ use self::mu::vm::*;
 use self::mu::compiler::*;
 use self::mu::runtime::thread::MuThread;
 use self::mu::utils::Address;
+use self::mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::collections::HashMap;
 use self::mu::testutil::aot;
 
 #[test]
@@ -179,7 +179,7 @@ pub fn alloc_new() -> VM {
     func_ver.define(FunctionContent{
         entry: blk_0.id(),
         blocks: {
-            let mut ret = HashMap::new();
+            let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret
         }

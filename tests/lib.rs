@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate mu;
 #[macro_use]
 extern crate log;

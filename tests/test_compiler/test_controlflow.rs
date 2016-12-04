@@ -6,6 +6,7 @@ use mu::ast::inst::*;
 use mu::ast::op::*;
 use mu::vm::*;
 use mu::testutil;
+use mu::utils::LinkedHashMap;
 
 use std::sync::RwLock;
 
@@ -191,12 +192,14 @@ fn switch() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry,
-            blk_default_id => blk_default,
-            blk_ret0_id => blk_ret0,
-            blk_ret1_id => blk_ret1,
-            blk_ret2_id => blk_ret2
+        blocks: {
+            let mut map = LinkedHashMap::new();
+            map.insert(blk_entry.id(), blk_entry);
+            map.insert(blk_default_id, blk_default);
+            map.insert(blk_ret0_id, blk_ret0);
+            map.insert(blk_ret1_id, blk_ret1);
+            map.insert(blk_ret2_id, blk_ret2);
+            map
         }
     });
 

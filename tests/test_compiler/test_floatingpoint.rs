@@ -9,6 +9,7 @@ use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
 use self::mu::testutil;
+use mu::utils::LinkedHashMap;
 
 use std::sync::RwLock;
 use std::sync::Arc;
@@ -104,8 +105,10 @@ fn fp_add() -> VM {
 
     func_ver.define(FunctionContent{
         entry: blk_entry.id(),
-        blocks: hashmap!{
-            blk_entry.id() => blk_entry
+        blocks: {
+            let mut ret = LinkedHashMap::new();
+            ret.insert(blk_entry.id(), blk_entry);
+            ret
         }
     });
 
