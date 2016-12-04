@@ -231,8 +231,8 @@ impl InterferenceGraph {
     }
 }
 
-fn build_live_set (cf: &mut CompiledFunction) {
-    info!("start building live set");
+fn build_live_set (cf: &mut CompiledFunction, func: &MuFunctionVersion) {
+    info!("---start building live set---");
 
     let n_insts = cf.mc().number_of_insts();
 
@@ -241,7 +241,11 @@ fn build_live_set (cf: &mut CompiledFunction) {
 
     let mut is_changed = true;
 
+    let mut i = 0;
     while is_changed {
+        trace!("---iteration {}---", i);
+        i += 1;
+
         // reset
         is_changed = false;
 
@@ -255,14 +259,13 @@ fn build_live_set (cf: &mut CompiledFunction) {
 
                 inset.clear();
 
-                // (1) in[n] = use[n]
-                inset.add_from_vec(cf.mc().get_inst_reg_uses(n));
-                // (2) + out[n]
+                // (1) out[n] - def[n]
                 inset.add_all(liveout[n].clone());
-                // (3) - def[n]
                 for def in cf.mc().get_inst_reg_defines(n) {
                     inset.remove(&def);
                 }
+                // (2) in[n] + (out[n] - def[n])
+                inset.add_from_vec(cf.mc().get_inst_reg_uses(n));
             }
 
             // out[n] <- union(in[s] for every successor s of n)
@@ -278,22 +281,42 @@ fn build_live_set (cf: &mut CompiledFunction) {
             // is in/out changed in this iteration?
             let n_changed = !in_set_old.equals(&livein[n]) || !out_set_old.equals(&liveout[n]);
 
+            trace!("inst {}", n);
+            trace!("in(old)  = {:?}", in_set_old);
+            trace!("in(new)  = {:?}", livein[n]);
+            trace!("out(old) = {:?}", out_set_old);
+            trace!("out(new) = {:?}", liveout[n]);
+
             is_changed = is_changed || n_changed;
         }
     }
 
+    info!("---finish building live set---");
+
     for block in cf.mc().get_all_blocks().to_vec() {
         let start_inst = cf.mc().get_block_range(&block).unwrap().start;
-        cf.mc_mut().set_ir_block_livein(&block, livein[start_inst].clone().to_vec());
+        let livein = livein[start_inst].clone().to_vec();
+        {
+            let display_array : Vec<String> =  livein.iter().map(|x| func.context.get_temp_display(*x)).collect();
+            trace!("livein  for block {}: {:?}", block, display_array);
+        }
+        cf.mc_mut().set_ir_block_livein(&block, livein);
 
-        let end_inst = cf.mc().get_block_range(&block).unwrap().end;
-        cf.mc_mut().set_ir_block_liveout(&block, liveout[end_inst].clone().to_vec());
+        let end_inst = cf.mc().get_block_range(&block).unwrap().end - 1;
+        let liveout = liveout[end_inst].clone().to_vec();
+        {
+            let display_array : Vec<String> = liveout.iter().map(|x| func.context.get_temp_display(*x)).collect();
+            trace!("liveout for block {}: {:?}", block, display_array);
+        }
+        cf.mc_mut().set_ir_block_liveout(&block, liveout);
     }
 }
 
 // from Tailoring Graph-coloring Register Allocation For Runtime Compilation, Figure 4
 pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
-    build_live_set(cf);
+    build_live_set(cf, func);
+
+    info!("---start building interference graph---");
     
     let mut ig = InterferenceGraph::new();
     
@@ -341,7 +364,9 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
         // for every inst I in reverse order
         for i in range.unwrap().rev() {
             if cfg!(debug_assertions) {
-                trace!("Block{}: Inst{}: start. current_live:", block, i);
+                trace!("Block{}: Inst{}", block, i);
+                cf.mc().trace_inst(i);
+                trace!("current live: ");
                 for ele in current_live.iter() {
                     trace!("{}", func.context.get_temp_display(*ele));
                 }
@@ -436,7 +461,8 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
             }
         }
     }
-    
+
+    info!("---finish building interference graph---");
     ig
 }
 

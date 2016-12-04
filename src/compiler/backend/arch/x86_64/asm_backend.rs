@@ -278,6 +278,9 @@ impl ASMCode {
         };
 
         for i in 0..n_insts {
+            if TRACE_CFA {
+                trace!("---inst {}---", i);
+            }
             // determine predecessor - if cur is not block start, its predecessor is previous insts
             let is_block_start = block_start.contains(&i);
             if !is_block_start {
@@ -339,6 +342,12 @@ impl ASMCode {
                         trace!("inst {}: set PREDS as {}", target_n, i);
                     }
                 },
+                ASMBranchTarget::Return => {
+                    if TRACE_CFA {
+                        trace!("inst {}: is a return", i);
+                        trace!("inst {}: has no successor", i);
+                    }
+                }
                 ASMBranchTarget::None => {
                     // not branch nor cond branch, succ is next inst
                     if TRACE_CFA {
@@ -642,7 +651,8 @@ impl MachineCode for ASMCode {
 enum ASMBranchTarget {
     None,
     Conditional(MuName),
-    Unconditional(MuName)
+    Unconditional(MuName),
+    Return
 }
 
 #[derive(Clone, Debug)]
@@ -839,7 +849,7 @@ impl ASMCodeGen {
         // otherwise it will keep RETURN REGS alive
         // and if there is no actual move into RETURN REGS, it will keep RETURN REGS for alive for very long
         // and prevents anything using those regsiters
-        self.add_asm_inst(code, hashmap!{}, hashmap!{}, false);
+        self.add_asm_inst_internal(code, hashmap!{}, hashmap!{}, false, ASMBranchTarget::Return);
     }
     
     fn add_asm_branch(&mut self, code: String, target: MuName) {
@@ -1074,92 +1084,6 @@ impl ASMCodeGen {
     
     fn mangle_block_label(&self, label: MuName) -> String {
         format!("{}_{}", self.cur().name, label)
-    }
-    
-    fn control_flow_analysis(&mut self) {
-        // control flow analysis
-        let n_insts = self.line();
-
-        let code = self.cur_mut();
-        let ref blocks = code.blocks;
-        let ref mut asm = code.code;
-
-        let block_start = {
-            let mut ret = vec![];
-            for block in blocks.values() {
-                ret.push(block.start_inst);
-            }
-            ret
-        };
-        
-        for i in 0..n_insts {
-            // determine predecessor - if cur is not block start, its predecessor is previous insts
-            let is_block_start = block_start.contains(&i);
-            if !is_block_start {
-                if i > 0 {
-                    trace!("inst {}: not a block start", i);
-                    trace!("inst {}: set PREDS as previous inst {}", i, i-1);
-                    asm[i].preds.push(i - 1);
-                }
-            } else {
-                // if cur is a branch target, we already set its predecessor
-                // if cur is a fall-through block, we set it in a sanity check pass
-            }
-            
-            // determine successor
-            let branch = asm[i].branch.clone();
-            match branch {
-                ASMBranchTarget::Unconditional(ref target) => {
-                    // branch to target
-                    trace!("inst {}: is a branch to {}", i, target);
-
-                    let target_n = code.blocks.get(target).unwrap().start_inst;
-                    trace!("inst {}: branch target index is {}", i, target_n);
-
-                    // cur inst's succ is target
-                    trace!("inst {}: set SUCCS as branch target {}", i, target_n);
-                    asm[i].succs.push(target_n);
-
-                    // target's pred is cur
-                    trace!("inst {}: set PREDS as branch source {}", target_n, i);
-                    asm[target_n].preds.push(i);
-                },
-                ASMBranchTarget::Conditional(ref target) => {
-                    // branch to target
-                    trace!("inst {}: is a cond branch to {}", i, target);
-
-                    let target_n = code.blocks.get(target).unwrap().start_inst;
-                    trace!("inst {}: branch target index is {}", i, target_n);
-
-                    // cur insts' succ is target and next inst
-                    asm[i].succs.push(target_n);
-                    trace!("inst {}: set SUCCS as branch target {}", i, target_n);
-                    if i < n_insts - 1 {
-                        trace!("inst {}: set SUCCS as next inst", i + 1);
-                        asm[i].succs.push(i + 1);
-                    }
-
-                    // target's pred is cur
-                    asm[target_n].preds.push(i);
-                    trace!("inst {}: set PREDS as {}", target_n, i);
-                },
-                ASMBranchTarget::None => {
-                    // not branch nor cond branch, succ is next inst
-                    trace!("inst {}: not a branch inst", i);
-                    if i < n_insts - 1 {
-                        trace!("inst {}: set SUCCS as next inst {}", i, i + 1);
-                        asm[i].succs.push(i + 1);
-                    }
-                }
-            }
-        }
-        
-        // a sanity check for fallthrough blocks
-        for i in 0..n_insts {
-            if i != 0 && asm[i].preds.len() == 0 {
-                asm[i].preds.push(i - 1);
-            }
-        }        
     }
 
     fn finish_code_sequence_asm(&mut self) -> Box<ASMCode> {
@@ -1609,7 +1533,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(directive_globl(symbol(func_end.clone())));
         self.add_asm_symbolic(format!("{}:", symbol(func_end.clone())));
 
-        self.control_flow_analysis();
+        self.cur.as_mut().unwrap().control_flow_analysis();
 
         (
             self.cur.take().unwrap(),

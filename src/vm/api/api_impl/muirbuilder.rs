@@ -1143,16 +1143,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             blocks: blocks,
         };
 
-        let impl_fv = MuFunctionVersion {
-            hdr: hdr,
-            func_id: func_id,
-            sig: impl_sig,
-            orig_content: Some(ctn.clone()),
-            content: Some(ctn),
-            context: fcb.ctx,
-            block_trace: None,
-            force_inline: false
-        };
+        let impl_fv = MuFunctionVersion::new_(hdr, func_id, impl_sig, ctn, fcb.ctx);
 
         trace!("Function version built {} {:?}", id, impl_fv);
 

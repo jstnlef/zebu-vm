@@ -140,6 +140,9 @@ impl Inlining {
                         let inlined_fv_lock   = inlined_fvs_guard.get(&inlined_fvid).unwrap();
                         let inlined_fv_guard  = inlined_fv_lock.read().unwrap();
 
+                        trace!("QINSOON_DEBUG: orig_content: {:?}", inlined_fv_guard.get_orig_ir().unwrap());
+                        trace!("QINSOON_DEBUG: content     : {:?}", inlined_fv_guard.content.as_ref().unwrap());
+
                         let new_inlined_entry_id = vm.next_id();
 
                         // change current call insts to a branch
@@ -191,7 +194,7 @@ impl Inlining {
 
                                 // deal with the inlined function
                                 copy_inline_blocks(&mut new_blocks, cur_block.id(),
-                                                   inlined_fv_guard.content.as_ref().unwrap(), new_inlined_entry_id,
+                                                   inlined_fv_guard.get_orig_ir().unwrap(), new_inlined_entry_id,
                                                    vm);
                                 copy_inline_context(f_context, &inlined_fv_guard.context);
                             },
@@ -223,7 +226,7 @@ impl Inlining {
                                 let next_block = resume.normal_dest.target;
 
                                 copy_inline_blocks(&mut new_blocks, next_block,
-                                                   inlined_fv_guard.content.as_ref().unwrap(), new_inlined_entry_id,
+                                                   inlined_fv_guard.get_orig_ir().unwrap(), new_inlined_entry_id,
                                                    vm);
                                 copy_inline_context(f_context, &inlined_fv_guard.context);
                             },
@@ -277,12 +280,15 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
     };
 
     for block in callee.blocks.values() {
+        let old_id = block.id();
         let new_id = *block_map.get(&block.id()).unwrap();
         let mut block = Block {
             hdr: MuEntityHeader::named(new_id, format!("IB{}_for_{}", new_id, block.id())),
             content: block.content.clone(),
             control_flow: ControlFlow::default()
         };
+
+        trace!("starts copying instruction from {} to {}", old_id, new_id);
 
         // check its last instruction
         {
@@ -292,6 +298,8 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
 
             match last_inst.v {
                 TreeNode_::Instruction(inst) => {
+                    trace!("last instruction: {}", inst);
+
                     let hdr = inst.hdr;
                     let value = inst.value;
                     let ops = inst.ops;
@@ -310,6 +318,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
                                 })
                             };
 
+                            trace!("rewrite to: {}", branch);
                             block_content.body.push(TreeNode::new_boxed_inst(branch));
                         },
 
@@ -322,6 +331,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
                                 v: Instruction_::Branch1(fix_dest(dest))
                             };
 
+                            trace!("rewrite to: {}", branch);
                             block_content.body.push(TreeNode::new_boxed_inst(branch));
                         }
                         Instruction_::Branch2{cond, true_dest, false_dest, true_prob} => {
@@ -337,6 +347,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
                                 }
                             };
 
+                            trace!("rewrite to: {}", branch2);
                             block_content.body.push(TreeNode::new_boxed_inst(branch2));
                         }
                         Instruction_::Call{data, resume} => {
@@ -350,6 +361,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
                                 }
                             };
 
+                            trace!("rewrite to: {}", call);
                             block_content.body.push(TreeNode::new_boxed_inst(call));
                         }
                         Instruction_::CCall{data, resume} => {
@@ -363,6 +375,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
                                 }
                             };
 
+                            trace!("rewrite to: {}", call);
                             block_content.body.push(TreeNode::new_boxed_inst(call));
                         }
                         Instruction_::Switch {cond, default, mut branches} => {
@@ -377,6 +390,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
                                 }
                             };
 
+                            trace!("rewrite to: {}", switch);
                             block_content.body.push(TreeNode::new_boxed_inst(switch));
                         }
 

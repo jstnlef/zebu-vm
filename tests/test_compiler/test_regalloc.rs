@@ -15,6 +15,22 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::collections::HashMap;
 
+fn get_number_of_moves(fv_id: MuID, vm: &VM) -> usize {
+    let cfs = vm.compiled_funcs().read().unwrap();
+    let cf  = cfs.get(&fv_id).unwrap().read().unwrap();
+
+    let mut n_mov_insts = 0;
+
+    let mc = cf.mc();
+    for i in 0..mc.number_of_insts() {
+        if mc.is_move(i) {
+            n_mov_insts += 1;
+        }
+    }
+
+    n_mov_insts
+}
+
 #[test]
 fn test_ir_liveness_fac() {
     VM::start_logging_trace();
@@ -97,7 +113,7 @@ fn test_spill1() {
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
-        let simple_spill : libloading::Symbol<unsafe extern fn() -> u64> = match lib.get(b"spill1") {
+        let spill1 : libloading::Symbol<unsafe extern fn() -> u64> = match lib.get(b"spill1") {
             Ok(symbol) => symbol,
             Err(e) => panic!("cannot find symbol spill1 in dylib: {:?}", e)
         };
@@ -588,19 +604,7 @@ fn test_coalesce_branch_moves() {
         // check
         let fv_id = func_ver.id();
 
-        let cfs = vm.compiled_funcs().read().unwrap();
-        let cf  = cfs.get(&fv_id).unwrap().read().unwrap();
-
-        let mut n_mov_insts = 0;
-
-        let mc = cf.mc();
-        for i in 0..mc.number_of_insts() {
-            if mc.is_move(i) {
-                n_mov_insts += 1;
-            }
-        }
-
-        assert!(n_mov_insts == 1, "The function should not yield any mov instructions other than mov %rsp->%rbp (some possible coalescing failed)");
+        assert!(get_number_of_moves(fv_id, &vm) == 1, "The function should not yield any mov instructions other than mov %rsp->%rbp (some possible coalescing failed)");
     }
 }
 
@@ -642,6 +646,203 @@ fn coalesce_branch_moves() -> VM {
 
     define_func_ver!((vm) coalesce_branch_moves_v1 (entry: blk_entry){
         blk_entry, blk1
+    });
+
+    vm
+}
+
+#[test]
+#[cfg(target_arch = "x86_64")]
+fn test_coalesce_args() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(coalesce_args());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+
+    let func_id = vm.id_of("coalesce_args");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+
+        // check
+        let fv_id = func_ver.id();
+
+        assert!(get_number_of_moves(fv_id, &vm) == 1, "The function should not yield any mov instructions other than mov %rsp->%rbp (some possible coalescing failed)");
+    }
+}
+
+fn coalesce_args() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    funcsig!    ((vm) sig = (int64, int64, int64, int64) -> ());
+    funcdecl!   ((vm) <sig> coalesce_args);
+    funcdef!    ((vm) <sig> coalesce_args VERSION coalesce_args_v1);
+
+    typedef!    ((vm) funcref_to_sig = mu_funcref(sig));
+    constdef!   ((vm) <funcref_to_sig> funcref = Constant::FuncRef(coalesce_args));
+
+    // blk entry
+    block!      ((vm, coalesce_args_v1) blk_entry);
+    ssa!        ((vm, coalesce_args_v1) <int64> arg0);
+    ssa!        ((vm, coalesce_args_v1) <int64> arg1);
+    ssa!        ((vm, coalesce_args_v1) <int64> arg2);
+    ssa!        ((vm, coalesce_args_v1) <int64> arg3);
+
+    consta!     ((vm, coalesce_args_v1) funcref_local = funcref);
+    inst!       ((vm, coalesce_args_v1) blk_entry_call:
+        EXPRCALL (CallConvention::Mu, is_abort: false) funcref_local (arg0, arg1, arg2, arg3)
+    );
+
+    inst!       ((vm, coalesce_args_v1) blk_entry_ret:
+        RET
+    );
+
+    define_block!   ((vm, coalesce_args_v1) blk_entry(arg0, arg1, arg2, arg3) {blk_entry_call, blk_entry_ret});
+
+    define_func_ver!((vm) coalesce_args_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+#[cfg(target_arch = "x86_64")]
+fn test_coalesce_branch2_moves() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(coalesce_branch2_moves());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+
+    let func_id = vm.id_of("coalesce_branch2_moves");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+
+        // check
+        let fv_id = func_ver.id();
+
+        assert!(get_number_of_moves(fv_id, &vm) <= 3, "too many moves (some possible coalescing failed)");
+    }
+
+    backend::emit_context(&vm);
+
+    let dylib = aot::link_dylib(vec![Mu("coalesce_branch2_moves")], "libcoalesce_branch2_moves.dylib", &vm);
+
+    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
+    unsafe {
+        let coalesce_branch2_moves : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64, u64, u64) -> u64> = match lib.get(b"coalesce_branch2_moves") {
+            Ok(symbol) => symbol,
+            Err(e) => panic!("cannot find symbol coalesce_branch2_moves in dylib: {:?}", e)
+        };
+
+        let res = coalesce_branch2_moves(1, 1, 10, 10, 0, 0);
+        println!("if 0 == 0 then return 1 + 1 else return 10 + 10");
+        println!("coalesce_branch2_moves(1, 1, 10, 10, 0, 0) = {}", res);
+        assert!(res == 2);
+
+        let res = coalesce_branch2_moves(1, 1, 10, 10, 1, 0);
+        println!("if 1 == 0 then return 1 + 1 else return 10 + 10");
+        println!("coalesce_branch2_moves(1, 1, 10, 10, 1, 0) = {}", res);
+        assert!(res == 20);
+    }
+}
+
+fn coalesce_branch2_moves() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int64 = mu_int(64));
+    typedef! ((vm) int1  = mu_int(1));
+
+    funcsig! ((vm) sig = (int64, int64, int64, int64) -> ());
+    funcdecl!((vm) <sig> coalesce_branch2_moves);
+    funcdef! ((vm) <sig> coalesce_branch2_moves VERSION coalesce_branch2_moves_v1);
+
+    // blk entry
+    block!   ((vm, coalesce_branch2_moves_v1) blk_entry);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> arg0);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> arg1);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> arg2);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> arg3);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> arg4);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> arg5);
+
+    block!   ((vm, coalesce_branch2_moves_v1) blk1);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int1> cond);
+    inst!    ((vm, coalesce_branch2_moves_v1) blk_entry_cmp:
+        cond = CMPOP (CmpOp::EQ) arg4 arg5
+    );
+
+    block!   ((vm, coalesce_branch2_moves_v1) blk_add01);
+    block!   ((vm, coalesce_branch2_moves_v1) blk_add23);
+    block!   ((vm, coalesce_branch2_moves_v1) blk_ret);
+    inst!    ((vm, coalesce_branch2_moves_v1) blk_entry_branch2:
+        BRANCH2 (cond, arg0, arg1, arg2, arg3)
+            IF (OP 0)
+            THEN blk_add01 (vec![1, 2]) WITH 0.6f32,
+            ELSE blk_add23 (vec![3, 4])
+    );
+
+    define_block!((vm, coalesce_branch2_moves_v1) blk_entry (arg0, arg1, arg2, arg3, arg4, arg5) {
+        blk_entry_cmp, blk_entry_branch2
+    });
+
+    // blk_add01
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> blk_add01_arg0);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> blk_add01_arg1);
+
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> res01);
+    inst!    ((vm, coalesce_branch2_moves_v1) blk_add01_add:
+        res01 = BINOP (BinOp::Add) blk_add01_arg0 blk_add01_arg1
+    );
+
+    inst!    ((vm, coalesce_branch2_moves_v1) blk_add01_branch:
+        BRANCH blk_ret (res01)
+    );
+
+    define_block!((vm, coalesce_branch2_moves_v1) blk_add01 (blk_add01_arg0, blk_add01_arg1) {
+        blk_add01_add, blk_add01_branch
+    });
+
+    // blk_add23
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> blk_add23_arg2);
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> blk_add23_arg3);
+
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> res23);
+    inst!    ((vm, coalesce_branch2_moves_v1) blk_add23_add:
+        res23 = BINOP (BinOp::Add) blk_add23_arg2 blk_add23_arg3
+    );
+
+    inst!    ((vm, coalesce_branch2_moves_v1) blk_add23_branch:
+        BRANCH blk_ret (res23)
+    );
+
+    define_block!((vm, coalesce_branch2_moves_v1) blk_add23 (blk_add23_arg2, blk_add23_arg3) {
+        blk_add23_add, blk_add23_branch
+    });
+
+    // blk_ret
+    ssa!     ((vm, coalesce_branch2_moves_v1) <int64> res);
+    inst!    ((vm, coalesce_branch2_moves_v1) blk_ret_ret:
+        RET (res)
+    );
+
+    define_block!((vm, coalesce_branch2_moves_v1) blk_ret (res) {
+        blk_ret_ret
+    });
+
+    define_func_ver!((vm) coalesce_branch2_moves_v1 (entry: blk_entry){
+        blk_entry, blk_add01, blk_add23, blk_ret
     });
 
     vm

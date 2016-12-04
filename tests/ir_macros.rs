@@ -332,6 +332,24 @@ macro_rules! inst {
                     }
         });
     };
+        (($vm: expr, $fv: ident) $name: ident: EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), +)) => {
+        let ops = vec![$func.clone(), $($val.clone()), *];
+        let ops_len = ops.len();
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  Some(vec![]),
+            ops:    RwLock::new(ops),
+            v:      Instruction_::ExprCall {
+                        data: CallData {
+                            func: 0,
+                            args: (1..ops_len).collect(),
+                            convention: $cc
+                        },
+                        is_abort: $is_abort
+                    }
+        });
+    };
+
 
     // RET
     (($vm: expr, $fv: ident) $name: ident: RET ($($val: ident), +)) => {

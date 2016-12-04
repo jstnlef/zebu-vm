@@ -105,7 +105,7 @@ pub struct MuFunctionVersion {
     pub func_id: MuID,
     pub sig: P<MuFuncSig>,
 
-    pub orig_content: Option<FunctionContent>,
+    orig_content: Option<FunctionContent>,
     pub content: Option<FunctionContent>,
 
     pub context: FunctionContext,
@@ -151,6 +151,23 @@ impl MuFunctionVersion {
             block_trace: None,
             force_inline: false
         }
+    }
+
+    pub fn new_(hdr: MuEntityHeader, id: MuID, sig: P<MuFuncSig>, content: FunctionContent, context: FunctionContext) -> MuFunctionVersion {
+        MuFunctionVersion {
+            hdr: hdr,
+            func_id: id,
+            sig: sig,
+            orig_content: Some(content.clone()),
+            content: Some(content),
+            context: context,
+            block_trace: None,
+            force_inline: false
+        }
+    }
+
+    pub fn get_orig_ir(&self) -> Option<&FunctionContent> {
+        self.orig_content.as_ref()
     }
 
     pub fn define(&mut self, content: FunctionContent) {
@@ -267,7 +284,7 @@ impl MuFunctionVersion {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable, Clone)]
+#[derive(RustcEncodable, RustcDecodable)]
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: HashMap<MuID, Block>
@@ -285,6 +302,21 @@ impl fmt::Debug for FunctionContent {
             write!(f, "{:?}\n", block).unwrap();
         }
         Ok(())
+    }
+}
+
+impl Clone for FunctionContent {
+    fn clone(&self) -> Self {
+        let mut new_blocks = HashMap::new();
+
+        for (id, block) in self.blocks.iter() {
+            new_blocks.insert(*id, block.clone());
+        }
+
+        FunctionContent {
+            entry: self.entry,
+            blocks: new_blocks
+        }
     }
 }
 
