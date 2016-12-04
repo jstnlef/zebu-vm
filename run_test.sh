@@ -68,7 +68,7 @@ rm -rf emit/*
 
 if [ "$OS" == "linux" ]; then
 	rm -rf target/*
-	RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang-3.8 cargo test "$@"
+	RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test "$@"
 elif [ "$OS" == "Darwin" ]; then
 	RUSTFLAGS=-Zincremental=target/incr-cache RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test "$@"
 else

@@ -237,7 +237,7 @@ impl CompilerPass for GenMovPhi {
             f_content.blocks.insert(block.id(), block);
         }
 
-        func.define(f_content);
+        func.content = Some(f_content);
     }
 }
 

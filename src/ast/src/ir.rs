@@ -107,6 +107,7 @@ pub struct MuFunctionVersion {
 
     orig_content: Option<FunctionContent>,
     pub content: Option<FunctionContent>,
+    is_defined: bool,
 
     pub context: FunctionContext,
 
@@ -147,6 +148,7 @@ impl MuFunctionVersion {
             sig: sig,
             orig_content: None,
             content: None,
+            is_defined: false,
             context: FunctionContext::new(),
             block_trace: None,
             force_inline: false
@@ -160,6 +162,7 @@ impl MuFunctionVersion {
             sig: sig,
             orig_content: Some(content.clone()),
             content: Some(content),
+            is_defined: true,
             context: context,
             block_trace: None,
             force_inline: false
@@ -171,6 +174,11 @@ impl MuFunctionVersion {
     }
 
     pub fn define(&mut self, content: FunctionContent) {
+        if self.is_defined {
+            panic!("alread defined the function: {}", self);
+        }
+
+        self.is_defined = true;
         self.orig_content = Some(content.clone());
         self.content = Some(content);
     }
