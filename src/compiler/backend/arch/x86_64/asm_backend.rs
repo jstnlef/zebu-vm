@@ -814,7 +814,7 @@ impl ASMCodeGen {
     fn add_asm_call(&mut self, code: String) {
         // a call instruction will use all the argument registers
         // do not need
-        let mut uses : HashMap<MuID, Vec<ASMLocation>> = HashMap::new();
+        let uses : HashMap<MuID, Vec<ASMLocation>> = HashMap::new();
 //        for reg in x86_64::ARGUMENT_GPRs.iter() {
 //            uses.insert(reg.id(), vec![]);
 //        }

@@ -9,6 +9,7 @@ use std::fmt;
 use std::sync::RwLock;
 
 #[derive(Debug)]
+// this implements RustcEncodable, RustcDecodable, Clone and Display
 pub struct Instruction {
     pub hdr: MuEntityHeader,
     pub value : Option<Vec<P<Value>>>,
@@ -83,6 +84,7 @@ impl fmt::Display for Instruction {
     }
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub enum Instruction_ {
     // non-terminal instruction

@@ -4,6 +4,7 @@ use inst::*;
 use types::MuType_::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[allow(non_camel_case_types)]
 pub enum OpCode {
     // SSA
     RegI64,

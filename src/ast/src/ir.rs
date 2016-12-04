@@ -225,7 +225,7 @@ impl MuFunctionVersion {
 
         let f_content = self.content.as_ref().unwrap();
 
-        for (blk_id, block) in f_content.blocks.iter() {
+        for (_, block) in f_content.blocks.iter() {
             let block_content = block.content.as_ref().unwrap();
 
             for inst in block_content.body.iter() {
@@ -266,14 +266,12 @@ impl MuFunctionVersion {
     pub fn has_throw(&self) -> bool {
         let f_content = self.content.as_ref().unwrap();
 
-        for (blk_id, block) in f_content.blocks.iter() {
+        for (_, block) in f_content.blocks.iter() {
             let block_content = block.content.as_ref().unwrap();
 
             for inst in block_content.body.iter() {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
-                        let ops = inst.ops.read().unwrap();
-
                         match inst.v {
                             Instruction_::Throw(_) => {return true;}
                             _ => {
