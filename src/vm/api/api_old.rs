@@ -73,23 +73,23 @@ impl MuVM {
 
 pub type MuArraySize = usize;
 
-pub type MuIntValue   = APIMuValue;
+pub type MuIntValue   = APIHandleKey;
 
-pub type MuBundleNode = APIMuValue;
-pub type MuChildNode  = APIMuValue;
-pub type MuTypeNode   = APIMuValue;
-pub type MuFuncSigNode= APIMuValue;
-pub type MuConstNode  = APIMuValue;
-pub type MuGlobalNode = APIMuValue;
-pub type MuFuncNode   = APIMuValue;
-pub type MuFuncVerNode= APIMuValue;
-pub type MuBBNode     = APIMuValue;
-pub type MuNorParamNode = APIMuValue;
-pub type MuExcParamNode = APIMuValue;
-pub type MuInstNode     = APIMuValue;
-pub type MuInstResNode  = APIMuValue;
-pub type MuLocalVarNode = APIMuValue;
-pub type MuVarNode      = APIMuValue;
+pub type MuBundleNode = APIHandleKey;
+pub type MuChildNode  = APIHandleKey;
+pub type MuTypeNode   = APIHandleKey;
+pub type MuFuncSigNode= APIHandleKey;
+pub type MuConstNode  = APIHandleKey;
+pub type MuGlobalNode = APIHandleKey;
+pub type MuFuncNode   = APIHandleKey;
+pub type MuFuncVerNode= APIHandleKey;
+pub type MuBBNode     = APIHandleKey;
+pub type MuNorParamNode = APIHandleKey;
+pub type MuExcParamNode = APIHandleKey;
+pub type MuInstNode     = APIHandleKey;
+pub type MuInstResNode  = APIHandleKey;
+pub type MuLocalVarNode = APIHandleKey;
+pub type MuVarNode      = APIHandleKey;
 
 pub type MuFlag          = usize;
 pub type MuDestKind      = MuFlag;

@@ -105,17 +105,17 @@ fn from_MuBool(cbool: CMuBool) -> bool {
     cbool != 0
 }
 
-// APIMuValue is immutable when used.
+// APIHandleKey is immutable when used.
 #[inline(always)]
-fn from_handle<'a>(cmuvalue: CMuValue) -> &'a APIMuValue {
+fn from_handle<'a>(cmuvalue: CMuValue) -> &'a APIHandleKey {
     debug_assert!(!cmuvalue.is_null());
     unsafe {
-        &*(cmuvalue as *const APIMuValue)
+        &*(cmuvalue as *const APIHandleKey)
     }
 }
 
 #[inline(always)]
-fn from_handle_optional<'a>(cmuvalue: CMuValue) -> Option<&'a APIMuValue> {
+fn from_handle_optional<'a>(cmuvalue: CMuValue) -> Option<&'a APIHandleKey> {
     if cmuvalue.is_null() {
         None
     } else {
@@ -157,11 +157,11 @@ fn from_MuFlag_array<'a>(ptr: *const CMuFlag, len: usize) -> &'a [CMuFlag] {
 /// way as raw pointers. So this function will convert each element. This function is only called
 /// by `new_thread_nor`. As always, thread creation dominates the time.
 #[inline(always)]
-fn from_handle_array<'a>(ptr: *const CMuValue, len: usize) -> Vec<&'a APIMuValue> {
+fn from_handle_array<'a>(ptr: *const CMuValue, len: usize) -> Vec<&'a APIHandleKey> {
     let slc = from_array_direct(ptr, len);
     slc.iter().map(|&e| {
         debug_assert!(!e.is_null());
-        unsafe { &*(e as *const APIMuValue) }
+        unsafe { &*(e as *const APIHandleKey) }
     }).collect::<Vec<_>>()
 }
 
@@ -190,7 +190,7 @@ fn to_MuID(value: MuID) -> CMuID {
 }
 
 #[inline(always)]
-fn to_handle(muvalue: *const APIMuValue) -> CMuValue {
+fn to_handle(muvalue: *const APIHandleKey) -> CMuValue {
     debug_assert!(!muvalue.is_null());
     muvalue as CMuValue
 }

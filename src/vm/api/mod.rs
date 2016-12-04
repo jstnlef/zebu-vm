@@ -10,7 +10,7 @@ mod deps {
     pub use ast::ir::MuID;
     pub use ast::ir::MuName;
     pub use ast::ir::CName;
-    pub use ast::bundle::APIMuValue;
+    pub use ast::bundle::APIHandleKey;
     extern crate ast;
 }
 

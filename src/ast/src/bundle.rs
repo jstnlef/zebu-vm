@@ -37,13 +37,13 @@ impl MuBundle {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct APIMuValue {
+pub struct APIHandleKey {
     pub id: MuID,
-    pub v: APIMuValueKind
+    pub v: APIHandleKeyKind
 } 
 
 #[derive(Copy, Clone, Debug)]
-pub enum APIMuValueKind {
+pub enum APIHandleKeyKind {
     Int,
     Float,
     Double,
@@ -88,9 +88,9 @@ pub enum APIMuValueKind {
 
 macro_rules! handle_constructor {
     ($fn_name: ident, $kind: ident) => {
-        pub fn $fn_name(id: MuID) -> APIMuValue {
-            APIMuValue{
-                id: id, v: APIMuValueKind::$kind
+        pub fn $fn_name(id: MuID) -> APIHandleKey {
+            APIHandleKey{
+                id: id, v: APIHandleKeyKind::$kind
             }
         }
     }

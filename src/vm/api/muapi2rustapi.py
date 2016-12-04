@@ -169,7 +169,7 @@ def to_high_level_ret_ty(cty, rty):
     if cty in _cty_to_high_level_ret_ty:
         hlt = _cty_to_high_level_ret_ty[cty]
     elif cty_is_handle(cty):
-        hlt = "*const APIMuValue"
+        hlt = "*const APIHandleKey"
     elif cty_is_node(cty):
         hlt = "MuID"
     else:
@@ -262,7 +262,7 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
             if cty_is_handle(c_base_ty):
                 converter = "from_handle_array({}, {})".format(
                         rpn, sz_rpn)
-                stub_rty = "Vec<&APIMuValue>"
+                stub_rty = "Vec<&APIHandleKey>"
             elif cty_is_node(c_base_ty) or c_base_ty == "MuID":
                 converter = "from_MuID_array({}, {})".format(
                         rpn, sz_rpn)
@@ -279,7 +279,7 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
 
             if cty_is_handle(cty):
                 converter = "from_handle_optional({})".format(rpn)
-                stub_rty = "Option<&APIMuValue>"
+                stub_rty = "Option<&APIHandleKey>"
             elif cty_is_node(cty):
                 converter = "from_MuID_optional({})".format(rpn)
                 stub_rty = "Option<MuID>"
@@ -296,7 +296,7 @@ def generate_forwarder_and_stub(st, meth) -> Tuple[str, str]:
                 stub_rty = to_rust_type(c_base_ty)
             elif cty_is_handle(cty):
                 converter = "from_handle({})".format(rpn)
-                stub_rty = "&APIMuValue"
+                stub_rty = "&APIHandleKey"
             elif cty_is_node(cty):
                 converter = "from_MuID({})".format(rpn)
                 stub_rty = "MuID"

@@ -777,7 +777,6 @@ fn coalesce_branch2_moves() -> VM {
     ssa!     ((vm, coalesce_branch2_moves_v1) <int64> arg4);
     ssa!     ((vm, coalesce_branch2_moves_v1) <int64> arg5);
 
-    block!   ((vm, coalesce_branch2_moves_v1) blk1);
     ssa!     ((vm, coalesce_branch2_moves_v1) <int1> cond);
     inst!    ((vm, coalesce_branch2_moves_v1) blk_entry_cmp:
         cond = CMPOP (CmpOp::EQ) arg4 arg5
