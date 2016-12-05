@@ -48,6 +48,16 @@ pub fn exec_nocheck (mut cmd: Command) -> Output {
     output
 }
 
+#[cfg(target_os = "macos")]
+pub fn get_dylib_name(name: &'static str) -> String {
+    format!("lib{}.dylib", name)
+}
+
+#[cfg(target_os = "linux")]
+pub fn get_dylib_name(name: &'static str) -> String {
+    format!("lib{}.so", name)
+}
+
 pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll::Library {
     VM::start_logging_trace();
 
@@ -62,7 +72,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
         compiler.compile(&mut func_ver);
     }
     backend::emit_context(&vm);
-    let libname = &format!("lib{}.dylib", fnc_name);
+    let libname = &get_dylib_name(fnc_name);
     let dylib = aot::link_dylib(vec![Mu(fnc_name)], libname, &vm);
     ll::Library::new(dylib.as_os_str()).unwrap()
 }
@@ -84,7 +94,7 @@ pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build
 
     backend::emit_context(&vm);
 
-    let libname = &format!("lib{}.dylib", entry);
+    let libname = &get_dylib_name(entry);
     let dylib = aot::link_dylib(fnc_names.iter().map(|x| Mu(x)).collect(), libname, &vm);
     ll::Library::new(dylib.as_os_str()).unwrap()
 }

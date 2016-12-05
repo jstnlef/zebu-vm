@@ -13,6 +13,7 @@ use self::mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
 use std::sync::RwLock;
+use self::mu::testutil;
 use self::mu::testutil::aot;
 
 #[test]
@@ -65,7 +66,7 @@ fn test_instruction_new_on_cur_thread() {
     backend::emit_context(&vm);
 
     // link
-    let libname = &format!("liballoc_new_on_cur_thraed.dylib");
+    let libname = &testutil::get_dylib_name("alloc_new_on_cur_thread");
     let dylib = aot::link_dylib(vec![Mu("alloc_new")], libname, &vm);
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
 

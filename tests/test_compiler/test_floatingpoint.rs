@@ -17,28 +17,8 @@ use mu::testutil::aot;
 
 #[test]
 fn test_fp_add() {
-    VM::start_logging_trace();
+    let lib = testutil::compile_fnc("fp_add", &fp_add);
 
-    let vm = Arc::new(fp_add());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
-
-    let func_id = vm.id_of("fp_add");
-
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-        compiler.compile(&mut func_ver);
-    }
-
-    backend::emit_context(&vm);
-
-    let dylib = aot::link_dylib(vec![Mu("fp_add")], "libfp_add.dylib", &vm);
-
-    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
         let fp_add : libloading::Symbol<unsafe extern fn(f64, f64) -> f64> = lib.get(b"fp_add").unwrap();
 

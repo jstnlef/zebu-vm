@@ -1,6 +1,7 @@
 extern crate mu;
 extern crate libloading;
 
+use mu::testutil;
 use mu::testutil::aot;
 use mu::utils::LinkedHashMap;
 use test_ir::test_ir::factorial;
@@ -109,7 +110,7 @@ fn test_spill1() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("spill1")], "libspill1.dylib", &vm);
+    let dylib = aot::link_dylib(vec![Mu("spill1")], &testutil::get_dylib_name("spill1"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
@@ -311,7 +312,7 @@ fn test_simple_spill() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("simple_spill")], "libsimple_spill.dylib", &vm);
+    let dylib = aot::link_dylib(vec![Mu("simple_spill")], &testutil::get_dylib_name("simple_spill"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
@@ -737,7 +738,7 @@ fn test_coalesce_branch2_moves() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("coalesce_branch2_moves")], "libcoalesce_branch2_moves.dylib", &vm);
+    let dylib = aot::link_dylib(vec![Mu("coalesce_branch2_moves")], &testutil::get_dylib_name("coalesce_branch2_moves"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
