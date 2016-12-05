@@ -50,7 +50,7 @@ def compile_c_script(c_src_name):
         sys.stderr.write(err + '\n')
         raise subp.CalledProcessError(p.returncode, bin_path)
 
-    return py.path.local('emit').join('%(testname)s' % locals() + libext)
+    return py.path.local('emit').join('lib%(testname)s' % locals() + libext)
 
 
 def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_longlong):

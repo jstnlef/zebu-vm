@@ -1,49 +1,55 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
-    MuVM* mu_5;
-    MuCtx* ctx_5;
-    MuIRBuilder* bldr_5;
-    MuID id_41;
-    MuID id_42;
-    MuID id_43;
-    MuID id_44;
-    MuID id_45;
-    MuID id_46;
-    MuID id_47;
-    MuID id_48;
-    MuID id_49;
-    MuID id_50;
-    mu_5 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
-    ctx_5 = mu_5->new_context(mu_5);
-    bldr_5 = ctx_5->new_ir_builder(ctx_5);
-    id_41 = bldr_5->gen_sym(bldr_5, "@i8");
-    bldr_5->new_type_int(bldr_5, id_41, 8);
-    id_42 = bldr_5->gen_sym(bldr_5, "@0xff_i8");
-    bldr_5->new_const_int(bldr_5, id_42, id_41, 255);
-    id_43 = bldr_5->gen_sym(bldr_5, "@0x0a_i8");
-    bldr_5->new_const_int(bldr_5, id_43, id_41, 10);
-    id_44 = bldr_5->gen_sym(bldr_5, "@sig__i8");
-    bldr_5->new_funcsig(bldr_5, id_44, NULL, 0, (MuTypeNode [1]){id_41}, 1);
-    id_45 = bldr_5->gen_sym(bldr_5, "@test_fnc");
-    bldr_5->new_func(bldr_5, id_45, id_44);
-    id_46 = bldr_5->gen_sym(bldr_5, "@test_fnc_v1");
-    id_47 = bldr_5->gen_sym(bldr_5, "@test_fnc_v1.blk0");
-    id_48 = bldr_5->gen_sym(bldr_5, "@test_fnc_v1.blk0.res");
-    id_49 = bldr_5->gen_sym(bldr_5, NULL);
-    bldr_5->new_binop(bldr_5, id_49, id_48, MU_BINOP_UREM, id_41, id_42, id_43, MU_NO_ID);
-    id_50 = bldr_5->gen_sym(bldr_5, NULL);
-    bldr_5->new_ret(bldr_5, id_50, (MuVarNode [1]){id_48}, 1);
-    bldr_5->new_bb(bldr_5, id_47, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_49, id_50}, 2);
-    bldr_5->new_func_ver(bldr_5, id_46, id_45, (MuBBNode [1]){id_47}, 1);
-    bldr_5->load(bldr_5);
-    mu_5->compile_to_sharedlib(mu_5, "test_urem.dylib", NULL, 0);
-    printf("%s\n", "test_urem.dylib");
+    MuVM* mu_7;
+    MuCtx* ctx_7;
+    MuIRBuilder* bldr_7;
+    MuID id_61;
+    MuID id_62;
+    MuID id_63;
+    MuID id_64;
+    MuID id_65;
+    MuID id_66;
+    MuID id_67;
+    MuID id_68;
+    MuID id_69;
+    MuID id_70;
+    mu_7 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
+    ctx_7 = mu_7->new_context(mu_7);
+    bldr_7 = ctx_7->new_ir_builder(ctx_7);
+    id_61 = bldr_7->gen_sym(bldr_7, "@i8");
+    bldr_7->new_type_int(bldr_7, id_61, 0x00000008ull);
+    id_62 = bldr_7->gen_sym(bldr_7, "@0xff_i8");
+    bldr_7->new_const_int(bldr_7, id_62, id_61, 0x00000000000000ffull);
+    id_63 = bldr_7->gen_sym(bldr_7, "@0x0a_i8");
+    bldr_7->new_const_int(bldr_7, id_63, id_61, 0x000000000000000aull);
+    id_64 = bldr_7->gen_sym(bldr_7, "@sig__i8");
+    bldr_7->new_funcsig(bldr_7, id_64, NULL, 0, (MuTypeNode [1]){id_61}, 1);
+    id_65 = bldr_7->gen_sym(bldr_7, "@test_fnc");
+    bldr_7->new_func(bldr_7, id_65, id_64);
+    id_66 = bldr_7->gen_sym(bldr_7, "@test_fnc_v1");
+    id_67 = bldr_7->gen_sym(bldr_7, "@test_fnc_v1.blk0");
+    id_68 = bldr_7->gen_sym(bldr_7, "@test_fnc_v1.blk0.res");
+    id_69 = bldr_7->gen_sym(bldr_7, NULL);
+    bldr_7->new_binop(bldr_7, id_69, id_68, MU_BINOP_UREM, id_61, id_62, id_63, MU_NO_ID);
+    id_70 = bldr_7->gen_sym(bldr_7, NULL);
+    bldr_7->new_ret(bldr_7, id_70, (MuVarNode [1]){id_68}, 1);
+    bldr_7->new_bb(bldr_7, id_67, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_69, id_70}, 2);
+    bldr_7->new_func_ver(bldr_7, id_66, id_65, (MuBBNode [1]){id_67}, 1);
+    bldr_7->load(bldr_7);
+    mu_7->compile_to_sharedlib(mu_7, LIB_FILE_NAME("test_urem"), NULL, 0);
     return 0;
 }

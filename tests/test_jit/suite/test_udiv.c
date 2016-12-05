@@ -1,11 +1,18 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
     MuVM* mu_4;
     MuCtx* ctx_4;
@@ -24,11 +31,11 @@ int main(int argc, char** argv) {
     ctx_4 = mu_4->new_context(mu_4);
     bldr_4 = ctx_4->new_ir_builder(ctx_4);
     id_31 = bldr_4->gen_sym(bldr_4, "@i8");
-    bldr_4->new_type_int(bldr_4, id_31, 8);
+    bldr_4->new_type_int(bldr_4, id_31, 0x00000008ull);
     id_32 = bldr_4->gen_sym(bldr_4, "@0x80_i8");
-    bldr_4->new_const_int(bldr_4, id_32, id_31, 128);
+    bldr_4->new_const_int(bldr_4, id_32, id_31, 0x0000000000000080ull);
     id_33 = bldr_4->gen_sym(bldr_4, "@0x0a_i8");
-    bldr_4->new_const_int(bldr_4, id_33, id_31, 10);
+    bldr_4->new_const_int(bldr_4, id_33, id_31, 0x000000000000000aull);
     id_34 = bldr_4->gen_sym(bldr_4, "@sig__i8");
     bldr_4->new_funcsig(bldr_4, id_34, NULL, 0, (MuTypeNode [1]){id_31}, 1);
     id_35 = bldr_4->gen_sym(bldr_4, "@test_fnc");
@@ -43,7 +50,6 @@ int main(int argc, char** argv) {
     bldr_4->new_bb(bldr_4, id_37, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_39, id_40}, 2);
     bldr_4->new_func_ver(bldr_4, id_36, id_35, (MuBBNode [1]){id_37}, 1);
     bldr_4->load(bldr_4);
-    mu_4->compile_to_sharedlib(mu_4, "test_udiv.dylib", NULL, 0);
-    printf("%s\n", "test_udiv.dylib");
+    mu_4->compile_to_sharedlib(mu_4, LIB_FILE_NAME("test_udiv"), NULL, 0);
     return 0;
 }

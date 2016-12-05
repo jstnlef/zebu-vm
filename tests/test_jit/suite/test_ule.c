@@ -1,11 +1,18 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
     MuVM* mu_22;
     MuCtx* ctx_22;
@@ -31,13 +38,13 @@ int main(int argc, char** argv) {
     ctx_22 = mu_22->new_context(mu_22);
     bldr_22 = ctx_22->new_ir_builder(ctx_22);
     id_255 = bldr_22->gen_sym(bldr_22, "@i1");
-    bldr_22->new_type_int(bldr_22, id_255, 1);
+    bldr_22->new_type_int(bldr_22, id_255, 0x00000001ull);
     id_256 = bldr_22->gen_sym(bldr_22, "@i8");
-    bldr_22->new_type_int(bldr_22, id_256, 8);
+    bldr_22->new_type_int(bldr_22, id_256, 0x00000008ull);
     id_257 = bldr_22->gen_sym(bldr_22, "@0xff_i8");
-    bldr_22->new_const_int(bldr_22, id_257, id_256, 255);
+    bldr_22->new_const_int(bldr_22, id_257, id_256, 0x00000000000000ffull);
     id_258 = bldr_22->gen_sym(bldr_22, "@0x0a_i8");
-    bldr_22->new_const_int(bldr_22, id_258, id_256, 10);
+    bldr_22->new_const_int(bldr_22, id_258, id_256, 0x000000000000000aull);
     id_259 = bldr_22->gen_sym(bldr_22, "@sig__i8");
     bldr_22->new_funcsig(bldr_22, id_259, NULL, 0, (MuTypeNode [1]){id_256}, 1);
     id_260 = bldr_22->gen_sym(bldr_22, "@test_fnc");
@@ -61,7 +68,6 @@ int main(int argc, char** argv) {
     bldr_22->new_bb(bldr_22, id_262, NULL, NULL, 0, MU_NO_ID, (MuInstNode [5]){id_267, id_268, id_269, id_270, id_271}, 5);
     bldr_22->new_func_ver(bldr_22, id_261, id_260, (MuBBNode [1]){id_262}, 1);
     bldr_22->load(bldr_22);
-    mu_22->compile_to_sharedlib(mu_22, "test_ule.dylib", NULL, 0);
-    printf("%s\n", "test_ule.dylib");
+    mu_22->compile_to_sharedlib(mu_22, LIB_FILE_NAME("test_ule"), NULL, 0);
     return 0;
 }

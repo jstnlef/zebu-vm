@@ -1,49 +1,55 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
-    MuVM* mu_27;
-    MuCtx* ctx_27;
-    MuIRBuilder* bldr_27;
-    MuID id_342;
-    MuID id_343;
-    MuID id_344;
-    MuID id_345;
-    MuID id_346;
-    MuID id_347;
-    MuID id_348;
-    MuID id_349;
-    MuID id_350;
-    MuID id_351;
-    mu_27 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
-    ctx_27 = mu_27->new_context(mu_27);
-    bldr_27 = ctx_27->new_ir_builder(ctx_27);
-    id_342 = bldr_27->gen_sym(bldr_27, "@dbl");
-    bldr_27->new_type_double(bldr_27, id_342);
-    id_343 = bldr_27->gen_sym(bldr_27, "@pi");
-    bldr_27->new_const_double(bldr_27, id_343, id_342, 3.14159299999999985786);
-    id_344 = bldr_27->gen_sym(bldr_27, "@e");
-    bldr_27->new_const_double(bldr_27, id_344, id_342, 2.71828000000000002956);
-    id_345 = bldr_27->gen_sym(bldr_27, "@sig__dbl");
-    bldr_27->new_funcsig(bldr_27, id_345, NULL, 0, (MuTypeNode [1]){id_342}, 1);
-    id_346 = bldr_27->gen_sym(bldr_27, "@test_fnc");
-    bldr_27->new_func(bldr_27, id_346, id_345);
-    id_347 = bldr_27->gen_sym(bldr_27, "@test_fnc.v1");
-    id_348 = bldr_27->gen_sym(bldr_27, "@test_fnc.v1.blk0");
-    id_349 = bldr_27->gen_sym(bldr_27, "@test_fnc.v1.blk0.res");
-    id_350 = bldr_27->gen_sym(bldr_27, NULL);
-    bldr_27->new_binop(bldr_27, id_350, id_349, MU_BINOP_FSUB, id_342, id_343, id_344, MU_NO_ID);
-    id_351 = bldr_27->gen_sym(bldr_27, NULL);
-    bldr_27->new_ret(bldr_27, id_351, (MuVarNode [1]){id_349}, 1);
-    bldr_27->new_bb(bldr_27, id_348, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_350, id_351}, 2);
-    bldr_27->new_func_ver(bldr_27, id_347, id_346, (MuBBNode [1]){id_348}, 1);
-    bldr_27->load(bldr_27);
-    mu_27->compile_to_sharedlib(mu_27, "test_double_sub.dylib", NULL, 0);
-    printf("%s\n", "test_double_sub.dylib");
+    MuVM* mu_32;
+    MuCtx* ctx_32;
+    MuIRBuilder* bldr_32;
+    MuID id_399;
+    MuID id_400;
+    MuID id_401;
+    MuID id_402;
+    MuID id_403;
+    MuID id_404;
+    MuID id_405;
+    MuID id_406;
+    MuID id_407;
+    MuID id_408;
+    mu_32 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
+    ctx_32 = mu_32->new_context(mu_32);
+    bldr_32 = ctx_32->new_ir_builder(ctx_32);
+    id_399 = bldr_32->gen_sym(bldr_32, "@dbl");
+    bldr_32->new_type_double(bldr_32, id_399);
+    id_400 = bldr_32->gen_sym(bldr_32, "@pi");
+    bldr_32->new_const_double(bldr_32, id_400, id_399, *(double*)(uint64_t [1]){0x400921fb82c2bd7full});
+    id_401 = bldr_32->gen_sym(bldr_32, "@e");
+    bldr_32->new_const_double(bldr_32, id_401, id_399, *(double*)(uint64_t [1]){0x4005bf0995aaf790ull});
+    id_402 = bldr_32->gen_sym(bldr_32, "@sig__dbl");
+    bldr_32->new_funcsig(bldr_32, id_402, NULL, 0, (MuTypeNode [1]){id_399}, 1);
+    id_403 = bldr_32->gen_sym(bldr_32, "@test_fnc");
+    bldr_32->new_func(bldr_32, id_403, id_402);
+    id_404 = bldr_32->gen_sym(bldr_32, "@test_fnc.v1");
+    id_405 = bldr_32->gen_sym(bldr_32, "@test_fnc.v1.blk0");
+    id_406 = bldr_32->gen_sym(bldr_32, "@test_fnc.v1.blk0.res");
+    id_407 = bldr_32->gen_sym(bldr_32, NULL);
+    bldr_32->new_binop(bldr_32, id_407, id_406, MU_BINOP_FSUB, id_399, id_400, id_401, MU_NO_ID);
+    id_408 = bldr_32->gen_sym(bldr_32, NULL);
+    bldr_32->new_ret(bldr_32, id_408, (MuVarNode [1]){id_406}, 1);
+    bldr_32->new_bb(bldr_32, id_405, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_407, id_408}, 2);
+    bldr_32->new_func_ver(bldr_32, id_404, id_403, (MuBBNode [1]){id_405}, 1);
+    bldr_32->load(bldr_32);
+    mu_32->compile_to_sharedlib(mu_32, LIB_FILE_NAME("test_double_sub"), NULL, 0);
     return 0;
 }

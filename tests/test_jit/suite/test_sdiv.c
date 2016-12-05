@@ -1,49 +1,55 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
-    MuVM* mu_4;
-    MuCtx* ctx_4;
-    MuIRBuilder* bldr_4;
-    MuID id_31;
-    MuID id_32;
-    MuID id_33;
-    MuID id_34;
-    MuID id_35;
-    MuID id_36;
-    MuID id_37;
-    MuID id_38;
-    MuID id_39;
-    MuID id_40;
-    mu_4 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
-    ctx_4 = mu_4->new_context(mu_4);
-    bldr_4 = ctx_4->new_ir_builder(ctx_4);
-    id_31 = bldr_4->gen_sym(bldr_4, "@i8");
-    bldr_4->new_type_int(bldr_4, id_31, 8);
-    id_32 = bldr_4->gen_sym(bldr_4, "@0x80_i8");
-    bldr_4->new_const_int(bldr_4, id_32, id_31, 128);
-    id_33 = bldr_4->gen_sym(bldr_4, "@0x0a_i8");
-    bldr_4->new_const_int(bldr_4, id_33, id_31, 10);
-    id_34 = bldr_4->gen_sym(bldr_4, "@sig__i8");
-    bldr_4->new_funcsig(bldr_4, id_34, NULL, 0, (MuTypeNode [1]){id_31}, 1);
-    id_35 = bldr_4->gen_sym(bldr_4, "@test_fnc");
-    bldr_4->new_func(bldr_4, id_35, id_34);
-    id_36 = bldr_4->gen_sym(bldr_4, "@test_fnc_v1");
-    id_37 = bldr_4->gen_sym(bldr_4, "@test_fnc_v1.blk0");
-    id_38 = bldr_4->gen_sym(bldr_4, "@test_fnc_v1.blk0.res");
-    id_39 = bldr_4->gen_sym(bldr_4, NULL);
-    bldr_4->new_binop(bldr_4, id_39, id_38, MU_BINOP_SDIV, id_31, id_32, id_33, MU_NO_ID);
-    id_40 = bldr_4->gen_sym(bldr_4, NULL);
-    bldr_4->new_ret(bldr_4, id_40, (MuVarNode [1]){id_38}, 1);
-    bldr_4->new_bb(bldr_4, id_37, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_39, id_40}, 2);
-    bldr_4->new_func_ver(bldr_4, id_36, id_35, (MuBBNode [1]){id_37}, 1);
-    bldr_4->load(bldr_4);
-    mu_4->compile_to_sharedlib(mu_4, "test_sdiv.dylib", NULL, 0);
-    printf("%s\n", "test_sdiv.dylib");
+    MuVM* mu_5;
+    MuCtx* ctx_5;
+    MuIRBuilder* bldr_5;
+    MuID id_41;
+    MuID id_42;
+    MuID id_43;
+    MuID id_44;
+    MuID id_45;
+    MuID id_46;
+    MuID id_47;
+    MuID id_48;
+    MuID id_49;
+    MuID id_50;
+    mu_5 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
+    ctx_5 = mu_5->new_context(mu_5);
+    bldr_5 = ctx_5->new_ir_builder(ctx_5);
+    id_41 = bldr_5->gen_sym(bldr_5, "@i8");
+    bldr_5->new_type_int(bldr_5, id_41, 0x00000008ull);
+    id_42 = bldr_5->gen_sym(bldr_5, "@0x80_i8");
+    bldr_5->new_const_int(bldr_5, id_42, id_41, 0x0000000000000080ull);
+    id_43 = bldr_5->gen_sym(bldr_5, "@0x0a_i8");
+    bldr_5->new_const_int(bldr_5, id_43, id_41, 0x000000000000000aull);
+    id_44 = bldr_5->gen_sym(bldr_5, "@sig__i8");
+    bldr_5->new_funcsig(bldr_5, id_44, NULL, 0, (MuTypeNode [1]){id_41}, 1);
+    id_45 = bldr_5->gen_sym(bldr_5, "@test_fnc");
+    bldr_5->new_func(bldr_5, id_45, id_44);
+    id_46 = bldr_5->gen_sym(bldr_5, "@test_fnc_v1");
+    id_47 = bldr_5->gen_sym(bldr_5, "@test_fnc_v1.blk0");
+    id_48 = bldr_5->gen_sym(bldr_5, "@test_fnc_v1.blk0.res");
+    id_49 = bldr_5->gen_sym(bldr_5, NULL);
+    bldr_5->new_binop(bldr_5, id_49, id_48, MU_BINOP_SDIV, id_41, id_42, id_43, MU_NO_ID);
+    id_50 = bldr_5->gen_sym(bldr_5, NULL);
+    bldr_5->new_ret(bldr_5, id_50, (MuVarNode [1]){id_48}, 1);
+    bldr_5->new_bb(bldr_5, id_47, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_49, id_50}, 2);
+    bldr_5->new_func_ver(bldr_5, id_46, id_45, (MuBBNode [1]){id_47}, 1);
+    bldr_5->load(bldr_5);
+    mu_5->compile_to_sharedlib(mu_5, LIB_FILE_NAME("test_sdiv"), NULL, 0);
     return 0;
 }

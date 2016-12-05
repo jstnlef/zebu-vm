@@ -1,68 +1,74 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
-    MuVM* mu_31;
-    MuCtx* ctx_31;
-    MuIRBuilder* bldr_31;
-    MuID id_386;
-    MuID id_387;
-    MuID id_388;
-    MuID id_389;
-    MuID id_390;
-    MuID id_391;
-    MuID id_392;
-    MuID id_393;
-    MuID id_394;
-    MuID id_395;
-    MuID id_396;
-    MuID id_397;
-    MuID id_398;
-    MuID id_399;
-    MuID id_400;
-    MuID id_401;
-    MuID id_402;
-    mu_31 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
-    ctx_31 = mu_31->new_context(mu_31);
-    bldr_31 = ctx_31->new_ir_builder(ctx_31);
-    id_386 = bldr_31->gen_sym(bldr_31, "@dbl");
-    bldr_31->new_type_double(bldr_31, id_386);
-    id_387 = bldr_31->gen_sym(bldr_31, "@i1");
-    bldr_31->new_type_int(bldr_31, id_387, 1);
-    id_388 = bldr_31->gen_sym(bldr_31, "@i64");
-    bldr_31->new_type_int(bldr_31, id_388, 64);
-    id_389 = bldr_31->gen_sym(bldr_31, "@1_dbl");
-    bldr_31->new_const_double(bldr_31, id_389, id_386, 1.00000000000000000000);
-    id_390 = bldr_31->gen_sym(bldr_31, "@3_dbl");
-    bldr_31->new_const_double(bldr_31, id_390, id_386, 3.00000000000000000000);
-    id_391 = bldr_31->gen_sym(bldr_31, "@zp3");
-    bldr_31->new_const_double(bldr_31, id_391, id_386, 0.29999999999999998890);
-    id_392 = bldr_31->gen_sym(bldr_31, "@sig__i64");
-    bldr_31->new_funcsig(bldr_31, id_392, NULL, 0, (MuTypeNode [1]){id_388}, 1);
-    id_393 = bldr_31->gen_sym(bldr_31, "@test_fnc");
-    bldr_31->new_func(bldr_31, id_393, id_392);
-    id_394 = bldr_31->gen_sym(bldr_31, "@test_fnc.v1");
-    id_395 = bldr_31->gen_sym(bldr_31, "@test_fnc.v1.blk0");
-    id_396 = bldr_31->gen_sym(bldr_31, "@test_fnc.v1.blk0.k");
-    id_397 = bldr_31->gen_sym(bldr_31, "@test_fnc.v1.blk0.cmpres");
-    id_398 = bldr_31->gen_sym(bldr_31, "@test_fnc.v1.blk0.res");
-    id_399 = bldr_31->gen_sym(bldr_31, NULL);
-    bldr_31->new_binop(bldr_31, id_399, id_396, MU_BINOP_FDIV, id_386, id_389, id_390, MU_NO_ID);
-    id_400 = bldr_31->gen_sym(bldr_31, NULL);
-    bldr_31->new_cmp(bldr_31, id_400, id_397, MU_CMP_FONE, id_386, id_396, id_391);
-    id_401 = bldr_31->gen_sym(bldr_31, NULL);
-    bldr_31->new_conv(bldr_31, id_401, id_398, MU_CONV_ZEXT, id_387, id_388, id_397);
-    id_402 = bldr_31->gen_sym(bldr_31, NULL);
-    bldr_31->new_ret(bldr_31, id_402, (MuVarNode [1]){id_398}, 1);
-    bldr_31->new_bb(bldr_31, id_395, NULL, NULL, 0, MU_NO_ID, (MuInstNode [4]){id_399, id_400, id_401, id_402}, 4);
-    bldr_31->new_func_ver(bldr_31, id_394, id_393, (MuBBNode [1]){id_395}, 1);
-    bldr_31->load(bldr_31);
-    mu_31->compile_to_sharedlib(mu_31, "test_double_ordered_ne.dylib", NULL, 0);
-    printf("%s\n", "test_double_ordered_ne.dylib");
+    MuVM* mu_36;
+    MuCtx* ctx_36;
+    MuIRBuilder* bldr_36;
+    MuID id_443;
+    MuID id_444;
+    MuID id_445;
+    MuID id_446;
+    MuID id_447;
+    MuID id_448;
+    MuID id_449;
+    MuID id_450;
+    MuID id_451;
+    MuID id_452;
+    MuID id_453;
+    MuID id_454;
+    MuID id_455;
+    MuID id_456;
+    MuID id_457;
+    MuID id_458;
+    MuID id_459;
+    mu_36 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
+    ctx_36 = mu_36->new_context(mu_36);
+    bldr_36 = ctx_36->new_ir_builder(ctx_36);
+    id_443 = bldr_36->gen_sym(bldr_36, "@dbl");
+    bldr_36->new_type_double(bldr_36, id_443);
+    id_444 = bldr_36->gen_sym(bldr_36, "@i1");
+    bldr_36->new_type_int(bldr_36, id_444, 0x00000001ull);
+    id_445 = bldr_36->gen_sym(bldr_36, "@i64");
+    bldr_36->new_type_int(bldr_36, id_445, 0x00000040ull);
+    id_446 = bldr_36->gen_sym(bldr_36, "@1_dbl");
+    bldr_36->new_const_double(bldr_36, id_446, id_443, *(double*)(uint64_t [1]){0x3ff0000000000000ull});
+    id_447 = bldr_36->gen_sym(bldr_36, "@3_dbl");
+    bldr_36->new_const_double(bldr_36, id_447, id_443, *(double*)(uint64_t [1]){0x4008000000000000ull});
+    id_448 = bldr_36->gen_sym(bldr_36, "@zp3");
+    bldr_36->new_const_double(bldr_36, id_448, id_443, *(double*)(uint64_t [1]){0x3fd3333333333333ull});
+    id_449 = bldr_36->gen_sym(bldr_36, "@sig__i64");
+    bldr_36->new_funcsig(bldr_36, id_449, NULL, 0, (MuTypeNode [1]){id_445}, 1);
+    id_450 = bldr_36->gen_sym(bldr_36, "@test_fnc");
+    bldr_36->new_func(bldr_36, id_450, id_449);
+    id_451 = bldr_36->gen_sym(bldr_36, "@test_fnc.v1");
+    id_452 = bldr_36->gen_sym(bldr_36, "@test_fnc.v1.blk0");
+    id_453 = bldr_36->gen_sym(bldr_36, "@test_fnc.v1.blk0.k");
+    id_454 = bldr_36->gen_sym(bldr_36, "@test_fnc.v1.blk0.cmpres");
+    id_455 = bldr_36->gen_sym(bldr_36, "@test_fnc.v1.blk0.res");
+    id_456 = bldr_36->gen_sym(bldr_36, NULL);
+    bldr_36->new_binop(bldr_36, id_456, id_453, MU_BINOP_FDIV, id_443, id_446, id_447, MU_NO_ID);
+    id_457 = bldr_36->gen_sym(bldr_36, NULL);
+    bldr_36->new_cmp(bldr_36, id_457, id_454, MU_CMP_FONE, id_443, id_453, id_448);
+    id_458 = bldr_36->gen_sym(bldr_36, NULL);
+    bldr_36->new_conv(bldr_36, id_458, id_455, MU_CONV_ZEXT, id_444, id_445, id_454);
+    id_459 = bldr_36->gen_sym(bldr_36, NULL);
+    bldr_36->new_ret(bldr_36, id_459, (MuVarNode [1]){id_455}, 1);
+    bldr_36->new_bb(bldr_36, id_452, NULL, NULL, 0, MU_NO_ID, (MuInstNode [4]){id_456, id_457, id_458, id_459}, 4);
+    bldr_36->new_func_ver(bldr_36, id_451, id_450, (MuBBNode [1]){id_452}, 1);
+    bldr_36->load(bldr_36);
+    mu_36->compile_to_sharedlib(mu_36, LIB_FILE_NAME("test_double_ordered_ne"), NULL, 0);
     return 0;
 }

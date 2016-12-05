@@ -1,67 +1,73 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
-    MuVM* mu_14;
-    MuCtx* ctx_14;
-    MuIRBuilder* bldr_14;
-    MuID id_147;
-    MuID id_148;
-    MuID id_149;
-    MuID id_150;
-    MuID id_151;
-    MuID id_152;
-    MuID id_153;
-    MuID id_154;
-    MuID id_155;
-    MuID id_156;
-    MuID id_157;
-    MuID id_158;
-    MuID id_159;
-    MuID id_160;
-    MuID id_161;
-    MuID id_162;
-    MuID id_163;
-    mu_14 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
-    ctx_14 = mu_14->new_context(mu_14);
-    bldr_14 = ctx_14->new_ir_builder(ctx_14);
-    id_147 = bldr_14->gen_sym(bldr_14, "@i1");
-    bldr_14->new_type_int(bldr_14, id_147, 1);
-    id_148 = bldr_14->gen_sym(bldr_14, "@i8");
-    bldr_14->new_type_int(bldr_14, id_148, 8);
-    id_149 = bldr_14->gen_sym(bldr_14, "@0xff_i8");
-    bldr_14->new_const_int(bldr_14, id_149, id_148, 255);
-    id_150 = bldr_14->gen_sym(bldr_14, "@0x0a_i8");
-    bldr_14->new_const_int(bldr_14, id_150, id_148, 10);
-    id_151 = bldr_14->gen_sym(bldr_14, "@sig__i8");
-    bldr_14->new_funcsig(bldr_14, id_151, NULL, 0, (MuTypeNode [1]){id_148}, 1);
-    id_152 = bldr_14->gen_sym(bldr_14, "@test_fnc");
-    bldr_14->new_func(bldr_14, id_152, id_151);
-    id_153 = bldr_14->gen_sym(bldr_14, "@test_fnc_v1");
-    id_154 = bldr_14->gen_sym(bldr_14, "@test_fnc_v1.blk0");
-    id_155 = bldr_14->gen_sym(bldr_14, "@test_fnc_v1.blk0.cmp_res_1");
-    id_156 = bldr_14->gen_sym(bldr_14, "@test_fnc_v1.blk0.cmp_res_2");
-    id_157 = bldr_14->gen_sym(bldr_14, "@test_fnc_v1.blk0.bin_res");
-    id_158 = bldr_14->gen_sym(bldr_14, "@test_fnc_v1.blk0.res");
-    id_159 = bldr_14->gen_sym(bldr_14, NULL);
-    bldr_14->new_cmp(bldr_14, id_159, id_155, MU_CMP_SGE, id_148, id_149, id_150);
-    id_160 = bldr_14->gen_sym(bldr_14, NULL);
-    bldr_14->new_cmp(bldr_14, id_160, id_156, MU_CMP_SGE, id_148, id_149, id_149);
-    id_161 = bldr_14->gen_sym(bldr_14, NULL);
-    bldr_14->new_binop(bldr_14, id_161, id_157, MU_BINOP_XOR, id_147, id_155, id_156, MU_NO_ID);
-    id_162 = bldr_14->gen_sym(bldr_14, NULL);
-    bldr_14->new_conv(bldr_14, id_162, id_158, MU_CONV_ZEXT, id_147, id_148, id_157);
-    id_163 = bldr_14->gen_sym(bldr_14, NULL);
-    bldr_14->new_ret(bldr_14, id_163, (MuVarNode [1]){id_158}, 1);
-    bldr_14->new_bb(bldr_14, id_154, NULL, NULL, 0, MU_NO_ID, (MuInstNode [5]){id_159, id_160, id_161, id_162, id_163}, 5);
-    bldr_14->new_func_ver(bldr_14, id_153, id_152, (MuBBNode [1]){id_154}, 1);
-    bldr_14->load(bldr_14);
-    mu_14->compile_to_sharedlib(mu_14, "test_sge.dylib", NULL, 0);
-    printf("%s\n", "test_sge.dylib");
+    MuVM* mu_18;
+    MuCtx* ctx_18;
+    MuIRBuilder* bldr_18;
+    MuID id_187;
+    MuID id_188;
+    MuID id_189;
+    MuID id_190;
+    MuID id_191;
+    MuID id_192;
+    MuID id_193;
+    MuID id_194;
+    MuID id_195;
+    MuID id_196;
+    MuID id_197;
+    MuID id_198;
+    MuID id_199;
+    MuID id_200;
+    MuID id_201;
+    MuID id_202;
+    MuID id_203;
+    mu_18 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
+    ctx_18 = mu_18->new_context(mu_18);
+    bldr_18 = ctx_18->new_ir_builder(ctx_18);
+    id_187 = bldr_18->gen_sym(bldr_18, "@i1");
+    bldr_18->new_type_int(bldr_18, id_187, 0x00000001ull);
+    id_188 = bldr_18->gen_sym(bldr_18, "@i8");
+    bldr_18->new_type_int(bldr_18, id_188, 0x00000008ull);
+    id_189 = bldr_18->gen_sym(bldr_18, "@0xff_i8");
+    bldr_18->new_const_int(bldr_18, id_189, id_188, 0x00000000000000ffull);
+    id_190 = bldr_18->gen_sym(bldr_18, "@0x0a_i8");
+    bldr_18->new_const_int(bldr_18, id_190, id_188, 0x000000000000000aull);
+    id_191 = bldr_18->gen_sym(bldr_18, "@sig__i8");
+    bldr_18->new_funcsig(bldr_18, id_191, NULL, 0, (MuTypeNode [1]){id_188}, 1);
+    id_192 = bldr_18->gen_sym(bldr_18, "@test_fnc");
+    bldr_18->new_func(bldr_18, id_192, id_191);
+    id_193 = bldr_18->gen_sym(bldr_18, "@test_fnc_v1");
+    id_194 = bldr_18->gen_sym(bldr_18, "@test_fnc_v1.blk0");
+    id_195 = bldr_18->gen_sym(bldr_18, "@test_fnc_v1.blk0.cmp_res_1");
+    id_196 = bldr_18->gen_sym(bldr_18, "@test_fnc_v1.blk0.cmp_res_2");
+    id_197 = bldr_18->gen_sym(bldr_18, "@test_fnc_v1.blk0.bin_res");
+    id_198 = bldr_18->gen_sym(bldr_18, "@test_fnc_v1.blk0.res");
+    id_199 = bldr_18->gen_sym(bldr_18, NULL);
+    bldr_18->new_cmp(bldr_18, id_199, id_195, MU_CMP_SGE, id_188, id_189, id_190);
+    id_200 = bldr_18->gen_sym(bldr_18, NULL);
+    bldr_18->new_cmp(bldr_18, id_200, id_196, MU_CMP_SGE, id_188, id_189, id_189);
+    id_201 = bldr_18->gen_sym(bldr_18, NULL);
+    bldr_18->new_binop(bldr_18, id_201, id_197, MU_BINOP_XOR, id_187, id_195, id_196, MU_NO_ID);
+    id_202 = bldr_18->gen_sym(bldr_18, NULL);
+    bldr_18->new_conv(bldr_18, id_202, id_198, MU_CONV_ZEXT, id_187, id_188, id_197);
+    id_203 = bldr_18->gen_sym(bldr_18, NULL);
+    bldr_18->new_ret(bldr_18, id_203, (MuVarNode [1]){id_198}, 1);
+    bldr_18->new_bb(bldr_18, id_194, NULL, NULL, 0, MU_NO_ID, (MuInstNode [5]){id_199, id_200, id_201, id_202, id_203}, 5);
+    bldr_18->new_func_ver(bldr_18, id_193, id_192, (MuBBNode [1]){id_194}, 1);
+    bldr_18->load(bldr_18);
+    mu_18->compile_to_sharedlib(mu_18, LIB_FILE_NAME("test_sge"), NULL, 0);
     return 0;
 }

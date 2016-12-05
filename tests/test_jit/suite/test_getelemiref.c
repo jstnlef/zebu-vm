@@ -1,11 +1,18 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
     MuVM* mu_50;
     MuCtx* ctx_50;
@@ -28,9 +35,9 @@ int main(int argc, char** argv) {
     ctx_50 = mu_50->new_context(mu_50);
     bldr_50 = ctx_50->new_ir_builder(ctx_50);
     id_663 = bldr_50->gen_sym(bldr_50, "@i64");
-    bldr_50->new_type_int(bldr_50, id_663, 64);
+    bldr_50->new_type_int(bldr_50, id_663, 0x00000040ull);
     id_664 = bldr_50->gen_sym(bldr_50, "@arr");
-    bldr_50->new_type_array(bldr_50, id_664, id_663, 5);
+    bldr_50->new_type_array(bldr_50, id_664, id_663, 0x0000000000000005ull);
     id_665 = bldr_50->gen_sym(bldr_50, "@parr");
     bldr_50->new_type_uptr(bldr_50, id_665, id_664);
     id_666 = bldr_50->gen_sym(bldr_50, "@sig_parri64_i64");
@@ -52,7 +59,6 @@ int main(int argc, char** argv) {
     bldr_50->new_bb(bldr_50, id_669, (MuID [2]){id_670, id_671}, (MuTypeNode [2]){id_665, id_663}, 2, MU_NO_ID, (MuInstNode [3]){id_674, id_675, id_676}, 3);
     bldr_50->new_func_ver(bldr_50, id_668, id_667, (MuBBNode [1]){id_669}, 1);
     bldr_50->load(bldr_50);
-    mu_50->compile_to_sharedlib(mu_50, "test_getelemiref.dylib", NULL, 0);
-    printf("%s\n", "test_getelemiref.dylib");
+    mu_50->compile_to_sharedlib(mu_50, LIB_FILE_NAME("test_getelemiref"), NULL, 0);
     return 0;
 }

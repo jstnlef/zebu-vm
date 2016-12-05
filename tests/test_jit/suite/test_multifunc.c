@@ -1,11 +1,18 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
     MuVM* mu;
     MuCtx* ctx;
@@ -51,15 +58,15 @@ int main(int argc, char** argv) {
     ctx = mu->new_context(mu);
     bldr = ctx->new_ir_builder(ctx);
     id = bldr->gen_sym(bldr, "@i64");
-    bldr->new_type_int(bldr, id, 64);
+    bldr->new_type_int(bldr, id, 0x00000040ull);
     id_2 = bldr->gen_sym(bldr, "@0_i64");
-    bldr->new_const_int(bldr, id_2, id, 0);
+    bldr->new_const_int(bldr, id_2, id, 0x0000000000000000ull);
     id_3 = bldr->gen_sym(bldr, "@1_i64");
-    bldr->new_const_int(bldr, id_3, id, 1);
+    bldr->new_const_int(bldr, id_3, id, 0x0000000000000001ull);
     id_4 = bldr->gen_sym(bldr, "@2_i64");
-    bldr->new_const_int(bldr, id_4, id, 2);
+    bldr->new_const_int(bldr, id_4, id, 0x0000000000000002ull);
     id_5 = bldr->gen_sym(bldr, "@20_i64");
-    bldr->new_const_int(bldr, id_5, id, 20);
+    bldr->new_const_int(bldr, id_5, id, 0x0000000000000014ull);
     id_6 = bldr->gen_sym(bldr, "@sig_i64_i64");
     bldr->new_funcsig(bldr, id_6, (MuTypeNode [1]){id}, 1, (MuTypeNode [1]){id}, 1);
     id_7 = bldr->gen_sym(bldr, "@sig__i64");
@@ -116,7 +123,6 @@ int main(int argc, char** argv) {
     bldr->new_bb(bldr, id_34, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_36, id_37}, 2);
     bldr->new_func_ver(bldr, id_33, id_32, (MuBBNode [1]){id_34}, 1);
     bldr->load(bldr);
-    mu->compile_to_sharedlib(mu, "test_multifunc.dylib", NULL, 0);
-    printf("%s\n", "test_multifunc.dylib");
+    mu->compile_to_sharedlib(mu, LIB_FILE_NAME("test_multifunc"), NULL, 0);
     return 0;
 }

@@ -1,52 +1,58 @@
 
-// Compile with flag -std=c99
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <dlfcn.h>
 #include "muapi.h"
 #include "mu-fastimpl.h"
+#ifdef __APPLE__
+    #define LIB_EXT ".dylib"
+#elif __linux__
+    #define LIB_EXT ".so"
+#elif _WIN32
+    #define LIB_EXT ".dll"
+#endif
+#define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
-    MuVM* mu_40;
-    MuCtx* ctx_40;
-    MuIRBuilder* bldr_40;
-    MuID id_500;
-    MuID id_501;
-    MuID id_502;
-    MuID id_503;
-    MuID id_504;
-    MuID id_505;
-    MuID id_506;
-    MuID id_507;
-    MuID id_508;
-    MuID id_509;
-    MuID id_510;
-    mu_40 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
-    ctx_40 = mu_40->new_context(mu_40);
-    bldr_40 = ctx_40->new_ir_builder(ctx_40);
-    id_500 = bldr_40->gen_sym(bldr_40, "@dbl");
-    bldr_40->new_type_double(bldr_40, id_500);
-    id_501 = bldr_40->gen_sym(bldr_40, "@i1");
-    bldr_40->new_type_int(bldr_40, id_501, 1);
-    id_502 = bldr_40->gen_sym(bldr_40, "@i64");
-    bldr_40->new_type_int(bldr_40, id_502, 64);
-    id_503 = bldr_40->gen_sym(bldr_40, "@pi");
-    bldr_40->new_const_double(bldr_40, id_503, id_500, 3.14159260000000006841);
-    id_504 = bldr_40->gen_sym(bldr_40, "@sig__i64");
-    bldr_40->new_funcsig(bldr_40, id_504, NULL, 0, (MuTypeNode [1]){id_502}, 1);
-    id_505 = bldr_40->gen_sym(bldr_40, "@test_fnc");
-    bldr_40->new_func(bldr_40, id_505, id_504);
-    id_506 = bldr_40->gen_sym(bldr_40, "@test_fnc.v1");
-    id_507 = bldr_40->gen_sym(bldr_40, "@test_fnc.v1.blk0");
-    id_508 = bldr_40->gen_sym(bldr_40, "@test_fnc.v1.blk0.res");
-    id_509 = bldr_40->gen_sym(bldr_40, NULL);
-    bldr_40->new_conv(bldr_40, id_509, id_508, MU_CONV_FPTOUI, id_500, id_502, id_503);
-    id_510 = bldr_40->gen_sym(bldr_40, NULL);
-    bldr_40->new_ret(bldr_40, id_510, (MuVarNode [1]){id_508}, 1);
-    bldr_40->new_bb(bldr_40, id_507, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_509, id_510}, 2);
-    bldr_40->new_func_ver(bldr_40, id_506, id_505, (MuBBNode [1]){id_507}, 1);
-    bldr_40->load(bldr_40);
-    mu_40->compile_to_sharedlib(mu_40, "test_double_fptoui.dylib", NULL, 0);
-    printf("%s\n", "test_double_fptoui.dylib");
+    MuVM* mu_45;
+    MuCtx* ctx_45;
+    MuIRBuilder* bldr_45;
+    MuID id_557;
+    MuID id_558;
+    MuID id_559;
+    MuID id_560;
+    MuID id_561;
+    MuID id_562;
+    MuID id_563;
+    MuID id_564;
+    MuID id_565;
+    MuID id_566;
+    MuID id_567;
+    mu_45 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
+    ctx_45 = mu_45->new_context(mu_45);
+    bldr_45 = ctx_45->new_ir_builder(ctx_45);
+    id_557 = bldr_45->gen_sym(bldr_45, "@dbl");
+    bldr_45->new_type_double(bldr_45, id_557);
+    id_558 = bldr_45->gen_sym(bldr_45, "@i1");
+    bldr_45->new_type_int(bldr_45, id_558, 0x00000001ull);
+    id_559 = bldr_45->gen_sym(bldr_45, "@i64");
+    bldr_45->new_type_int(bldr_45, id_559, 0x00000040ull);
+    id_560 = bldr_45->gen_sym(bldr_45, "@pi");
+    bldr_45->new_const_double(bldr_45, id_560, id_557, *(double*)(uint64_t [1]){0x400921fb4d12d84aull});
+    id_561 = bldr_45->gen_sym(bldr_45, "@sig__i64");
+    bldr_45->new_funcsig(bldr_45, id_561, NULL, 0, (MuTypeNode [1]){id_559}, 1);
+    id_562 = bldr_45->gen_sym(bldr_45, "@test_fnc");
+    bldr_45->new_func(bldr_45, id_562, id_561);
+    id_563 = bldr_45->gen_sym(bldr_45, "@test_fnc.v1");
+    id_564 = bldr_45->gen_sym(bldr_45, "@test_fnc.v1.blk0");
+    id_565 = bldr_45->gen_sym(bldr_45, "@test_fnc.v1.blk0.res");
+    id_566 = bldr_45->gen_sym(bldr_45, NULL);
+    bldr_45->new_conv(bldr_45, id_566, id_565, MU_CONV_FPTOUI, id_557, id_559, id_560);
+    id_567 = bldr_45->gen_sym(bldr_45, NULL);
+    bldr_45->new_ret(bldr_45, id_567, (MuVarNode [1]){id_565}, 1);
+    bldr_45->new_bb(bldr_45, id_564, NULL, NULL, 0, MU_NO_ID, (MuInstNode [2]){id_566, id_567}, 2);
+    bldr_45->new_func_ver(bldr_45, id_563, id_562, (MuBBNode [1]){id_564}, 1);
+    bldr_45->load(bldr_45);
+    mu_45->compile_to_sharedlib(mu_45, LIB_FILE_NAME("test_double_fptoui"), NULL, 0);
     return 0;
 }
