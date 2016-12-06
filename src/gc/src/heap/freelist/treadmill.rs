@@ -2,7 +2,10 @@
 
 use utils::Address;
 use utils::mem::memmap;
+use utils::LOG_POINTER_SIZE;
 use common::AddressMap;
+
+use objectmodel;
 
 use std::ptr;
 use std::sync::Arc;
@@ -64,17 +67,97 @@ impl FreeListSpace {
             size / BLOCK_SIZE + 1
         };
 
+        trace!("before allocation, space: {}", self);
+
         trace!("requiring {} bytes ({} blocks)", size, blocks_needed);
-        let mut treadmill = self.treadmill.lock().unwrap();
-        let res = treadmill.alloc_blocks(blocks_needed);
+        let res = {
+            let mut treadmill = self.treadmill.lock().unwrap();
+            treadmill.alloc_blocks(blocks_needed)
+        };
+
+        trace!("after allocation, space: {}", self);
 
         res
     }
 
-    pub fn sweep(&self) {
-        let mut treadmill = self.treadmill.lock().unwrap();
+    pub fn init_object(&self, addr: Address, encode: u8) {
+        unsafe {
+            *self.alloc_map().offset((addr.diff(self.start) >> LOG_POINTER_SIZE) as isize) = encode;
+            objectmodel::mark_as_untraced(self.trace_map(), self.start, addr, objectmodel::load_mark_state());
+        }
+    }
 
-        unimplemented!()
+    pub fn sweep(&self) {
+        trace!("going to sweep treadmill space");
+        trace!("{}", self);
+
+        let mut treadmill = self.treadmill.lock().unwrap();
+        let trace_map = self.trace_map();
+        let mark_state = objectmodel::load_mark_state();
+
+        let mut resnapped_any = false;
+
+        loop {
+            trace!("scanning {}", unsafe{&*treadmill.scan});
+            let addr = unsafe{&*treadmill.scan}.payload;
+
+            if objectmodel::is_traced(trace_map, self.start, unsafe { addr.to_object_reference() }, mark_state) {
+                // the object is alive, do not need to 'move' its node
+
+                // but they will be alive, we will set them to opposite mark color
+                // (meaning they are not available after flip)
+                unsafe{&mut *treadmill.scan}.color = objectmodel::flip(mark_state);
+
+                trace!("is alive, set color to {}", objectmodel::flip(mark_state));
+
+                // advance cur backwards
+                treadmill.scan = unsafe{&*treadmill.scan}.prev();
+            } else {
+                // this object is dead
+                // we do not need to set their color
+
+                // we resnap it after current 'free' pointer
+                if treadmill.scan != treadmill.free {
+                    // since we are going to move current node (scan), we get its prev first
+                    let prev = unsafe{&*treadmill.scan}.prev();
+                    trace!("get scan's prev before resnapping it: {}", unsafe{&*prev});
+
+                    let alive_node = unsafe { &mut *treadmill.scan }.remove();
+
+                    trace!("is dead, take it out of treadmill");
+                    trace!("treadmill: {}", &treadmill as &Treadmill);
+
+                    // insert alive node after free
+                    unsafe{&mut *treadmill.free}.insert_after(alive_node);
+                    trace!("insert after free");
+                    trace!("treadmill: {}", &treadmill as &Treadmill);
+
+                    // if this is the first object inserted, it is the 'bottom'
+                    // then 1) all resnapped objects will be between 'free' and 'bottom'
+                    //      2) the traversal can stop when scan meets bottom
+                    if !resnapped_any {
+                        treadmill.b = treadmill.scan;
+                        resnapped_any = true;
+                    }
+
+                    treadmill.scan = prev;
+                } else {
+                    trace!("is dead and it is free pointer, do not move it");
+                    treadmill.scan = unsafe{&*treadmill.scan}.prev();
+                }
+            }
+
+            // check if we can stop
+            if resnapped_any && treadmill.scan == treadmill.b {
+                return;
+            }
+            if !resnapped_any && treadmill.scan == treadmill.free {
+                // we never set bottom (meaning everything is alive)
+
+                println!("didnt free up any memory in treadmill space");
+                panic!("we ran out of memory in large object space")
+            }
+        }
     }
 }
 
@@ -116,11 +199,8 @@ impl fmt::Display for FreeListSpace {
 }
 
 struct Treadmill{
-    available_color: TreadmillNodeColor,
-
     free: *mut TreadmillNode,
     scan: *mut TreadmillNode,
-    t   : *mut TreadmillNode,
     b   : *mut TreadmillNode
 }
 
@@ -134,24 +214,25 @@ impl Treadmill {
         let mut tail = free;
 
         while addr < end {
-            tail = unsafe {(&mut *tail)}.insert_after(addr);
+            tail = unsafe {(&mut *tail)}.init_insert_after(addr);
             addr = addr.plus(BLOCK_SIZE);
         }
 
         Treadmill {
-            available_color: TreadmillNodeColor::Ecru,
             free: free,
             scan: free,
-            t: free,
             b: free
         }
     }
 
     fn alloc_blocks(&mut self, n_blocks: usize) -> Address {
+        let unavailable_color = objectmodel::load_mark_state();
+
         // check if we have n_blocks available
         let mut cur = self.free;
         for _ in 0..n_blocks {
-            if unsafe{&*cur}.color != self.available_color {
+            if unsafe{&*cur}.color == unavailable_color {
+                trace!("next block color is {}, no available blocks, return zero", unavailable_color);
                 return unsafe {Address::zero()};
             }
 
@@ -161,12 +242,16 @@ impl Treadmill {
         // we make sure that n_blocks are available, mark them as black
         let mut cur2 = self.free;
         for _ in 0..n_blocks {
-            unsafe{&mut *cur2}.color = TreadmillNodeColor::Black;
+            unsafe{&mut *cur2}.color = unavailable_color;
             cur2 = unsafe {&*cur2}.next
         }
 
+        debug_assert!(cur == cur2);
+
         let ret = self.free;
         self.free = cur;
+
+        trace!("set free to {}", unsafe {&*cur});
 
         unsafe{&*ret}.payload
     }
@@ -176,6 +261,7 @@ impl fmt::Display for Treadmill {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut cursor = self.free;
 
+        write!(f, "\n").unwrap();
         loop {
             write!(f, "{}", unsafe{&*cursor}).unwrap();
 
@@ -188,14 +274,11 @@ impl fmt::Display for Treadmill {
             if cursor == self.b {
                 write!(f, "(bottom)").unwrap();
             }
-            if cursor == self.t {
-                write!(f, "(top)").unwrap();
-            }
 
             if unsafe{&*cursor}.next() == self.free {
                 break;
             } else {
-                write!(f, "->").unwrap();
+                write!(f, "\n->").unwrap();
                 cursor = unsafe{&*cursor}.next();
             }
         }
@@ -204,17 +287,9 @@ impl fmt::Display for Treadmill {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TreadmillNodeColor {
-    Ecru,
-    White,
-    Black,
-    Grey
-}
-
 struct TreadmillNode {
     payload: Address,
-    color: TreadmillNodeColor,
+    color: u8,
 
     prev: *mut TreadmillNode,
     next: *mut TreadmillNode
@@ -230,7 +305,8 @@ impl TreadmillNode {
     fn singleton(addr: Address) -> *mut TreadmillNode {
         let mut ptr = Box::into_raw(Box::new(TreadmillNode {
             payload: addr,
-            color: TreadmillNodeColor::Ecru,
+            // starts as 0 (1, i.e. mark_state, means allocated/alive)
+            color: objectmodel::flip(objectmodel::load_mark_state()),
             prev: ptr::null_mut(),
             next: ptr::null_mut(),
         }));
@@ -245,12 +321,12 @@ impl TreadmillNode {
     }
 
     /// returns the inserted node
-    fn insert_after(&mut self, addr: Address) -> *mut TreadmillNode {
+    fn init_insert_after(&mut self, addr: Address) -> *mut TreadmillNode {
         unsafe {
             // node <- ptr -> node.next
             let mut ptr = Box::into_raw(Box::new(TreadmillNode {
                 payload: addr,
-                color: TreadmillNodeColor::Ecru,
+                color: objectmodel::flip(objectmodel::load_mark_state()),
                 // inserted between node and node.next
                 prev: self as *mut TreadmillNode,
                 next: self.next
@@ -263,6 +339,45 @@ impl TreadmillNode {
             self.next = ptr;
 
             ptr
+        }
+    }
+
+    fn insert_after(&mut self, node: *mut TreadmillNode) {
+        unsafe {
+            // self <- node -> self.next
+            (&mut *node).next = self.next;
+            (&mut *node).prev = self as *mut TreadmillNode;
+
+            // self.next -> node
+            self.next = node;
+            // node <- node.next.prev
+            (&mut *(&mut *node).next).prev = node;
+        }
+    }
+
+    /// remove current node from treadmill, and returns the node
+    fn remove(&mut self) -> *mut TreadmillNode {
+        if self.next == self as *mut TreadmillNode && self.prev == self as *mut TreadmillNode {
+            // if this is the only node, return itself
+            self as *mut TreadmillNode
+        } else {
+            // we need to take it out from the list
+            unsafe {
+                use std::ptr;
+
+                // its prev node's next will be its next node
+                (&mut *self.prev).next = self.next as *mut TreadmillNode;
+
+                // its next node' prev will be its prev node
+                (&mut *self.next).prev = self.prev as *mut TreadmillNode;
+
+                // clear current node prev and next
+                self.prev = ptr::null_mut();
+                self.next = ptr::null_mut();
+            }
+
+            // then return it
+            self as *mut TreadmillNode
         }
     }
 

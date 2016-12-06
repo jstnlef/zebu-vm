@@ -66,6 +66,9 @@ pub extern fn get_spaces() -> (Arc<ImmixSpace>, Arc<FreeListSpace>) {
 pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
     // set this line to turn on certain level of debugging info
 //    simple_logger::init_with_level(log::LogLevel::Trace).ok();
+
+    // init object model - init this first, since spaces may use it
+    objectmodel::init();
     
     // init space size
     heap::IMMIX_SPACE_SIZE.store(immix_size, Ordering::SeqCst);
@@ -86,9 +89,6 @@ pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
     // gc threads
     heap::gc::GC_THREADS.store(n_gcthreads, Ordering::SeqCst);
     info!("{} gc threads", n_gcthreads);
-    
-    // init object model
-    objectmodel::init();
 }
 
 #[no_mangle]
@@ -125,15 +125,21 @@ pub extern fn yieldpoint_slow(mutator: *mut ImmixMutatorLocal) {
 #[no_mangle]
 #[inline(always)]
 pub extern fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
-    let addr = unsafe {mutator.as_mut().unwrap()}.alloc(size, align);
+    let addr = unsafe {&mut *mutator}.alloc(size, align);
     unsafe {addr.to_object_reference()}
+}
+
+#[no_mangle]
+#[inline(always)]
+pub extern fn init_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u8) {
+    unsafe {&mut *mutator}.init_object(obj.to_address(), encode);
 }
 
 #[no_mangle]
 #[inline(never)]
 pub extern fn muentry_alloc_slow(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
     trace!("muentry_alloc_slow(mutator: {:?}, size: {}, align: {})", mutator, size, align);
-    let ret = unsafe {mutator.as_mut().unwrap()}.try_alloc_from_local(size, align);
+    let ret = unsafe {&mut *mutator}.try_alloc_from_local(size, align);
     unsafe {ret.to_object_reference()}
 }
 
@@ -142,4 +148,9 @@ pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, 
     trace!("muentry_alloc_large(mutator: {:?}, size: {}, align: {})", mutator, size, align);
     let ret = freelist::alloc_large(size, align, unsafe {mutator.as_mut().unwrap()}, MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone());
     unsafe {ret.to_object_reference()}
+}
+
+#[no_mangle]
+pub extern fn muentry_init_large_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u8) {
+    MY_GC.read().unwrap().as_ref().unwrap().lo_space.init_object(obj.to_address(), encode);
 }

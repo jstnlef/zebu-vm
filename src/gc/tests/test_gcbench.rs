@@ -16,6 +16,17 @@ use self::gc::heap::freelist::FreeListSpace;
 use std::mem::size_of;
 use std::sync::atomic::Ordering;
 
+extern crate log;
+extern crate simple_logger;
+use self::log::LogLevel;
+pub fn start_logging() {
+
+    match simple_logger::init_with_level(LogLevel::Trace) {
+        Ok(_) => {},
+        Err(_) => {}
+    }
+}
+
 const IMMIX_SPACE_SIZE : usize = 40 << 20;
 const LO_SPACE_SIZE    : usize = 40 << 20;
 
@@ -115,6 +126,8 @@ fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
 #[test]
 fn start() {
     unsafe {heap::gc::set_low_water_mark();}
+
+    start_logging();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
     gc::gc_stats();

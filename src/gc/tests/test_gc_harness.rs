@@ -63,6 +63,7 @@ fn test_exhaust_alloc_large() {
         mutator.yieldpoint();
 
         let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
+        gc::muentry_init_large_object(&mut mutator, res, 0b1100_0000);
     }
 
     mutator.destroy();
@@ -71,7 +72,7 @@ fn test_exhaust_alloc_large() {
 #[test]
 #[allow(unused_variables)]
 fn test_alloc_large_trigger_gc() {
-    gc::gc_init(IMMIX_SPACE_SIZE, SMALL_SPACE_SIZE, 8);
+    gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8);
     let mut mutator = gc::new_mutator();
 
     start_logging();
@@ -80,6 +81,7 @@ fn test_alloc_large_trigger_gc() {
         mutator.yieldpoint();
 
         let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
+        gc::muentry_init_large_object(&mut mutator, res, 0b1100_0000);
     }
 
     mutator.destroy();
@@ -106,7 +108,7 @@ fn test_alloc_mark() {
     let (shared_space, _) = gc::get_spaces();
 
     println!("Start marking");
-    let mark_state = objectmodel::MARK_STATE.load(Ordering::SeqCst) as u8;
+    let mark_state = objectmodel::load_mark_state();
 
     let line_mark_table = shared_space.line_mark_table();
     let (space_start, space_end) = (shared_space.start(), shared_space.end());

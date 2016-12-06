@@ -141,7 +141,7 @@ pub fn sync_barrier(mutator: &mut ImmixMutatorLocal) {
         block_current_thread(mutator);
         
         // reset current mutator
-        mutator.reset();
+        mutator.reset_after_gc();
     } else {
         // this thread is controller
         // other threads should block
@@ -174,7 +174,7 @@ pub fn sync_barrier(mutator: &mut ImmixMutatorLocal) {
             }
         }
         // every mutator thread will reset themselves, so only reset current mutator here
-        mutator.reset();
+        mutator.reset_after_gc();
 
         // resume
         {
@@ -289,7 +289,7 @@ fn start_steal_trace(stealer: Stealer<ObjectReference>, job_sender:mpsc::Sender<
     use objectmodel;
     
     let mut local_queue = vec![];
-    let mark_state = objectmodel::MARK_STATE.load(Ordering::SeqCst) as u8;
+    let mark_state = objectmodel::load_mark_state();
     
     loop {
         let work = {
@@ -340,6 +340,7 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
     } else if lo_space.addr_in_space(addr) {
         // mark object
         objectmodel::mark_as_traced(lo_space.trace_map(), lo_space.start(), obj, mark_state);
+        trace!("mark object @ {} to {}", obj, mark_state);
 
         (lo_space.alloc_map(), lo_space.start())
     } else {
@@ -355,6 +356,9 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
         let value = objectmodel::get_ref_byte(alloc_map, space_start, obj);
         let (ref_bits, short_encode) = (bit_utils::lower_bits(value, objectmodel::REF_BITS_LEN), bit_utils::test_nth_bit(value, objectmodel::SHORT_ENCODE_BIT));
         match ref_bits {
+            0b0000_0000 => {
+
+            },
             0b0000_0001 => {
                 steal_process_edge(base, 0, local_queue, job_sender, mark_state, immix_space, lo_space);
             },            

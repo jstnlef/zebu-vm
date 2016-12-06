@@ -1,23 +1,28 @@
 use std::sync::atomic;
-pub static MARK_STATE : atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
-
 use utils::{Address, ObjectReference};
 use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
 use utils::bit_utils;
 
 pub const OBJECT_HEADER_SIZE : usize = 0;
 
+pub static INIT_MARK_STATE : usize = 1;
+static MARK_STATE : atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
+
 pub fn init() {
-    MARK_STATE.store(1, atomic::Ordering::SeqCst);
+    MARK_STATE.store(INIT_MARK_STATE, atomic::Ordering::SeqCst);
 }
 
 pub fn flip_mark_state() {
     let mark_state = MARK_STATE.load(atomic::Ordering::SeqCst);
-    if mark_state == 0 {
-        MARK_STATE.store(1, atomic::Ordering::SeqCst);
-    } else {
-        MARK_STATE.store(0, atomic::Ordering::SeqCst);
-    }
+    MARK_STATE.store(mark_state ^ 1, atomic::Ordering::SeqCst);
+}
+
+pub fn load_mark_state() -> u8 {
+    MARK_STATE.load(atomic::Ordering::SeqCst) as u8
+}
+
+pub fn flip(mark: u8) -> u8 {
+    mark ^ 1
 }
 
 #[allow(unused_variables)]
@@ -80,6 +85,13 @@ fn interpret_hdr_for_print_object(hdr: u8, index: usize) -> &'static str {
 pub fn mark_as_traced(trace_map: *mut u8, space_start: Address, obj: ObjectReference, mark_state: u8) {
     unsafe {
         *trace_map.offset((obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize) = mark_state;
+    }
+}
+
+#[inline(always)]
+pub fn mark_as_untraced(trace_map: *mut u8, space_start: Address, addr: Address, mark_state: u8) {
+    unsafe {
+        *trace_map.offset((addr.diff(space_start) >> LOG_POINTER_SIZE) as isize) = mark_state ^ 1;
     }
 }
 
