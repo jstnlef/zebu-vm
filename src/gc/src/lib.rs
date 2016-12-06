@@ -33,16 +33,15 @@ pub use heap::immix::LIMIT_OFFSET as ALLOCATOR_LIMIT_OFFSET;
 #[repr(C)]
 pub struct GC {
     immix_space: Arc<ImmixSpace>,
-    lo_space   : Arc<RwLock<FreeListSpace>>
+    lo_space   : Arc<FreeListSpace>
 }
 
 impl fmt::Debug for GC {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "GC\n").unwrap();
         write!(f, "{}", self.immix_space).unwrap();
-        
-        let lo_lock = self.lo_space.read().unwrap();
-        write!(f, "{}", *lo_lock)
+
+        write!(f, "{}", self.lo_space)
     }
 }
 
@@ -56,7 +55,7 @@ pub extern fn gc_stats() {
 }
 
 #[no_mangle]
-pub extern fn get_spaces() -> (Arc<ImmixSpace>, Arc<RwLock<FreeListSpace>>) {
+pub extern fn get_spaces() -> (Arc<ImmixSpace>, Arc<FreeListSpace>) {
     let space_lock = MY_GC.read().unwrap();
     let space = space_lock.as_ref().unwrap();
     
@@ -74,7 +73,7 @@ pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
     
     let (immix_space, lo_space) = {
         let immix_space = Arc::new(ImmixSpace::new(immix_size));
-        let lo_space    = Arc::new(RwLock::new(FreeListSpace::new(lo_size)));
+        let lo_space    = Arc::new(FreeListSpace::new(lo_size));
 
         heap::gc::init(immix_space.clone(), lo_space.clone());        
         

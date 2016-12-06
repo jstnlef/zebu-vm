@@ -87,12 +87,12 @@ impl<K, V> Decodable for LinkedHashMap<K, V>
 }
 
 #[cfg(test)]
-mod serialize_test {
+mod tests {
     use super::*;
     use rustc_serialize::json;
 
     #[test]
-    fn serialize() {
+    fn test_serialize() {
         let a = {
             let mut ret = LinkedHashMap::new();
             ret.insert(0, 0);
