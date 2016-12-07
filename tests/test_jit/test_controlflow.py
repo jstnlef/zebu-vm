@@ -28,3 +28,11 @@ def test_throw():
     # mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fn(0) == 20
     assert fn(100) == 10
+
+def test_exception_stack_unwind():
+    # from rpython.rlib import rmu_fast as rmu
+    fn, _ = fncptr_from_c_script("test_exception_stack_unwind.c", "test_fnc", [ctypes.c_int64], ctypes.c_int64)
+    # mu = rmu.MuVM()
+    # mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+    assert fn(0) == 20
+    assert fn(100) == 10
