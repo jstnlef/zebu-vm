@@ -271,6 +271,7 @@ impl ImmixSpace {
         used_blocks_lock.append(&mut live_blocks);
         
         if cfg!(debug_assertions) {
+            debug!("---immix space---");
             debug!("free lines    = {} of {} total ({} blocks)", free_lines, self.total_blocks * immix::LINES_IN_BLOCK, self.total_blocks);
             debug!("usable blocks = {}", usable_blocks);
             debug!("full blocks   = {}", full_blocks);

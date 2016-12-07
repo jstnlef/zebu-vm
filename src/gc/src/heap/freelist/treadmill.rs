@@ -15,6 +15,8 @@ use std::sync::Mutex;
 const SPACE_ALIGN : usize = 1 << 19;
 const BLOCK_SIZE  : usize = 1 << 12;    // 4kb
 
+const TRACE_TREADMILL : bool = false;
+
 #[repr(C)]
 pub struct FreeListSpace {
     start : Address,
@@ -67,7 +69,9 @@ impl FreeListSpace {
             size / BLOCK_SIZE + 1
         };
 
-        trace!("before allocation, space: {}", self);
+        if TRACE_TREADMILL {
+            trace!("before allocation, space: {}", self);
+        }
 
         trace!("requiring {} bytes ({} blocks)", size, blocks_needed);
         let res = {
@@ -75,7 +79,9 @@ impl FreeListSpace {
             treadmill.alloc_blocks(blocks_needed)
         };
 
-        trace!("after allocation, space: {}", self);
+        if TRACE_TREADMILL {
+            trace!("after allocation, space: {}", self);
+        }
 
         res
     }
@@ -89,7 +95,13 @@ impl FreeListSpace {
 
     pub fn sweep(&self) {
         trace!("going to sweep treadmill space");
-        trace!("{}", self);
+        if TRACE_TREADMILL {
+            trace!("{}", self);
+        }
+
+        let mut nodes_scanned = 0;
+        let mut free_nodes_scanned = 0;
+        let mut alive_nodes_scanned = 0;
 
         let mut treadmill = self.treadmill.lock().unwrap();
         let trace_map = self.trace_map();
@@ -98,11 +110,14 @@ impl FreeListSpace {
         let mut resnapped_any = false;
 
         loop {
-            trace!("scanning {}", unsafe{&*treadmill.scan});
+            trace!("scanning {}", unsafe { &*treadmill.scan });
             let addr = unsafe{&*treadmill.scan}.payload;
 
-            if objectmodel::is_traced(trace_map, self.start, unsafe { addr.to_object_reference() }, mark_state) {
+            nodes_scanned += 1;
+
+            if objectmodel::is_traced(trace_map, self.start, unsafe { addr.to_object_reference() }, mark_state) && unsafe{&*treadmill.scan}.color == objectmodel::flip(mark_state) {
                 // the object is alive, do not need to 'move' its node
+                alive_nodes_scanned += 1;
 
                 // but they will be alive, we will set them to opposite mark color
                 // (meaning they are not available after flip)
@@ -116,21 +131,28 @@ impl FreeListSpace {
                 // this object is dead
                 // we do not need to set their color
 
+                free_nodes_scanned += 1;
+
                 // we resnap it after current 'free' pointer
                 if treadmill.scan != treadmill.free {
                     // since we are going to move current node (scan), we get its prev first
                     let prev = unsafe{&*treadmill.scan}.prev();
-                    trace!("get scan's prev before resnapping it: {}", unsafe{&*prev});
+                    trace!("get scan's prev before resnapping it: {}", unsafe { &*prev });
 
                     let alive_node = unsafe { &mut *treadmill.scan }.remove();
 
                     trace!("is dead, take it out of treadmill");
-                    trace!("treadmill: {}", &treadmill as &Treadmill);
+                    if TRACE_TREADMILL {
+                        trace!("treadmill: {}", &treadmill as &Treadmill);
+                    }
 
                     // insert alive node after free
                     unsafe{&mut *treadmill.free}.insert_after(alive_node);
+
                     trace!("insert after free");
-                    trace!("treadmill: {}", &treadmill as &Treadmill);
+                    if TRACE_TREADMILL {
+                        trace!("treadmill: {}", &treadmill as &Treadmill);
+                    }
 
                     // if this is the first object inserted, it is the 'bottom'
                     // then 1) all resnapped objects will be between 'free' and 'bottom'
@@ -149,7 +171,7 @@ impl FreeListSpace {
 
             // check if we can stop
             if resnapped_any && treadmill.scan == treadmill.b {
-                return;
+                break;
             }
             if !resnapped_any && treadmill.scan == treadmill.free {
                 // we never set bottom (meaning everything is alive)
@@ -157,6 +179,13 @@ impl FreeListSpace {
                 println!("didnt free up any memory in treadmill space");
                 panic!("we ran out of memory in large object space")
             }
+        }
+
+        if cfg!(debug_assertions) {
+            debug!("---tread mill space---");
+            debug!("total nodes scanned: {}", nodes_scanned);
+            debug!("alive nodes scanned: {}", alive_nodes_scanned);
+            debug!("free  nodes scanned: {}", free_nodes_scanned);
         }
     }
 }
@@ -285,6 +314,14 @@ impl fmt::Display for Treadmill {
 
         Ok(())
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum TreadmillNodeColor {
+    Offwhite,
+    White,
+    Grey,
+    Black
 }
 
 struct TreadmillNode {

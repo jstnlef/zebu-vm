@@ -88,6 +88,37 @@ fn test_alloc_large_trigger_gc() {
 }
 
 #[test]
+#[allow(unused_variables)]
+fn test_alloc_large_trigger_gc2() {
+    gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8);
+    let mut mutator = gc::new_mutator();
+
+    start_logging();
+
+    // this will exhaust the lo space
+    for _ in 0..10 {
+        mutator.yieldpoint();
+
+        let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
+        gc::muentry_init_large_object(&mut mutator, res, 0b1100_0000);
+    }
+
+    // this will trigger a gc, and allocate it in the collected space
+    let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
+    gc::muentry_init_large_object(&mut mutator, res, 0b1100_0000);
+
+    // this will trigger gcs for immix space
+    for _ in 0..100000 {
+        mutator.yieldpoint();
+
+        let res = mutator.alloc(OBJECT_SIZE, OBJECT_ALIGN);
+        mutator.init_object(res, 0b1100_0011);
+    }
+
+    mutator.destroy();
+}
+
+#[test]
 fn test_alloc_mark() {
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
     let mut mutator = gc::new_mutator();
