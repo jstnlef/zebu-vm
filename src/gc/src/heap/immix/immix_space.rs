@@ -73,16 +73,16 @@ impl LineMarkTable {
             self.set(line_table_index + 1, immix::LineMark::ConservLive);
         }
     }
-    
+
     #[inline(always)]
     pub fn mark_line_live2(&self, space_start: Address, addr: Address) {
         let line_table_index = addr.diff(space_start) >> immix::LOG_BYTES_IN_LINE;
-        
+
         self.set(line_table_index, immix::LineMark::Live);
-        
+
         if line_table_index < self.len - 1 {
             self.set(line_table_index + 1, immix::LineMark::ConservLive);
-        }        
+        }
     }
 }
 
@@ -231,7 +231,9 @@ impl ImmixSpace {
         let mut full_blocks = 0;
         
         let mut used_blocks_lock = self.used_blocks.lock().unwrap();
+
         let mut usable_blocks_lock = self.usable_blocks.lock().unwrap();
+        usable_blocks = usable_blocks_lock.len();
         
         let mut live_blocks : LinkedList<Box<ImmixBlock>> = LinkedList::new();
 
@@ -296,6 +298,29 @@ impl ImmixSpace {
     #[inline(always)]
     pub fn addr_in_space(&self, addr: Address) -> bool {
         addr >= self.start && addr < self.end
+    }
+}
+
+use heap::Space;
+impl Space for ImmixSpace {
+    #[inline(always)]
+    fn start(&self) -> Address {
+        self.start
+    }
+
+    #[inline(always)]
+    fn end(&self) -> Address {
+        self.end
+    }
+
+    #[inline(always)]
+    fn alloc_map(&self) -> *mut u8 {
+        self.alloc_map.ptr
+    }
+
+    #[inline(always)]
+    fn trace_map(&self) -> *mut u8 {
+        self.trace_map.ptr
     }
 }
 

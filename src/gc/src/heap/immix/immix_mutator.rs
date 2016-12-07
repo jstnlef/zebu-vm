@@ -2,6 +2,7 @@ use heap::immix;
 use heap::immix::ImmixSpace;
 use heap::immix::immix_space::ImmixBlock;
 use heap::gc;
+use objectmodel;
 
 use utils::LOG_POINTER_SIZE;
 use utils::Address;
@@ -32,6 +33,7 @@ pub struct ImmixMutatorLocal {
     // use raw pointer here instead of AddressMapTable
     // to avoid indirection in fast path    
     alloc_map : *mut u8,
+    trace_map : *mut u8,
     space_start: Address,
     
     // cursor might be invalid, but Option<Address> is expensive here
@@ -46,6 +48,8 @@ pub struct ImmixMutatorLocal {
     
     space     : Arc<ImmixSpace>,
     block     : Option<Box<ImmixBlock>>,
+
+    mark_state: u8
 }
 
 lazy_static! {
@@ -73,6 +77,11 @@ impl ImmixMutatorLocal {
         
         self.block = None;
     }
+
+    pub fn reset_after_gc(&mut self) {
+        self.reset();
+        self.mark_state ^= 1;
+    }
     
     pub fn new(space : Arc<ImmixSpace>) -> ImmixMutatorLocal {
         let global = Arc::new(ImmixMutatorGlobal::new());
@@ -89,9 +98,11 @@ impl ImmixMutatorLocal {
             cursor: unsafe {Address::zero()}, limit: unsafe {Address::zero()}, line: immix::LINES_IN_BLOCK,
             block: None,
             alloc_map: space.alloc_map.ptr,
+            trace_map: space.trace_map.ptr,
             space_start: space.start(),
             global: global,
-            space: space, 
+            space: space,
+            mark_state: objectmodel::INIT_MARK_STATE as u8
         };
         *id_lock += 1;
         
@@ -164,6 +175,7 @@ impl ImmixMutatorLocal {
     pub fn init_object(&mut self, addr: Address, encode: u8) {
         unsafe {
             *self.alloc_map.offset((addr.diff(self.space_start) >> LOG_POINTER_SIZE) as isize) = encode;
+            objectmodel::mark_as_untraced(self.trace_map, self.space_start, addr, self.mark_state);
         }
     }
     

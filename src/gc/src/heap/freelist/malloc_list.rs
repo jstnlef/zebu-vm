@@ -31,9 +31,9 @@ impl FreeListSpace {
 
     }
 
-    pub fn alloc(&mut self, size: usize, align: usize) -> Option<Address> {
+    pub fn alloc(&mut self, size: usize, align: usize) -> Address {
         if self.used_bytes + size > self.size {
-            None
+            unsafe {Address::zero()}
         } else {
             let ret = aligned_alloc::aligned_alloc(size, align);
 
@@ -43,7 +43,7 @@ impl FreeListSpace {
             self.node_id += 1;
             self.used_bytes += size;
 
-            Some(addr)
+            addr
         }
     }
 
@@ -105,27 +105,6 @@ pub enum NodeMark {
     Live,
 }
 unsafe impl Sync for NodeMark {}
-
-#[inline(never)]
-pub fn alloc_large(size: usize, align: usize, mutator: &mut immix::ImmixMutatorLocal, space: Arc<RwLock<FreeListSpace>>) -> Address {
-    loop {
-        mutator.yieldpoint();
-
-        let ret_addr = {
-            let mut lo_space_lock = space.write().unwrap();
-            lo_space_lock.alloc(size, align)
-        };
-
-        match ret_addr {
-            Some(addr) => {
-                return addr;
-            },
-            None => {
-                gc::trigger_gc();
-            }
-        }
-    }
-}
 
 use std::fmt;
 
