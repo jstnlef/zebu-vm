@@ -16,20 +16,18 @@ def plot(result_dic):
               '#8959a8',
               '#1d1f21']
 
-    all_targets = ('cpython', 'pypy', 'pypy_nojit', 'rpy_c', 'rpy_mu', 'c')
-    compiled_targets = ('rpy_c', 'rpy_mu', 'c', 'mu')
-    targets = compiled_targets
-    data = [(tgt, result_dic[tgt]['average'], result_dic[tgt]['std_dev'])
+    all_targets = ('cpython', 'pypy', 'pypy_nojit', 'rpy_c', 'rpy_mu', 'c', 'mu')
+    targets = tuple(k for k in all_targets if k in result_dic)
+    data = [(tgt, result_dic[tgt]['average'], result_dic[tgt]['std_dev'], result_dic[tgt]['slowdown'])
             for tgt in targets]
-    data.sort(key=lambda (tgt, avg, std): avg)
-    ratio = [avg / data[0][1] for (_, avg, _std) in data]
-    for i, (tgt, avg, std_dev) in enumerate(data):
+    data.sort(key=lambda (tgt, avg, std, sd): avg)
+    for i, (tgt, avg, std_dev, slowdown) in enumerate(data):
         ax.bar(width / 2 + width * i, avg, width, color=colors[i], yerr=std_dev, label=tgt)
         ax.text(width / 2 + width * i + 0.01, avg, "%.6f" % avg, color='#1d1f21', fontweight='bold')
         ax.text(width * (i + 1), avg - std_dev, "%.6f" % std_dev, color='#1d1f21', fontweight='bold')
-        ax.text(width * (i + 1) - 0.02, avg / 2, "%.3fx" % ratio[i], color='#1d1f21', fontweight='bold')
+        ax.text(width * (i + 1) - 0.02, avg / 2, "%.3fx" % slowdown, color='#1d1f21', fontweight='bold')
     # plt.legend(loc=2)
-    plt.xticks([width * (i + 1) for i in range(len(targets))], [tgt for (tgt, _, _) in data])
+    plt.xticks([width * (i + 1) for i in range(len(targets))], [tgt for (tgt, _, _, _) in data])
     plt.title("%(test_name)s with input size %(input_size)d" % result_dic)
     plt.show()
 
