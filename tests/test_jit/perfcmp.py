@@ -139,11 +139,12 @@ def get_stat_compiled(compile_fnc, config, iterations=100):
 
 
 def get_display_str(stat):
-    output = "average: %(average)s\n" \
-             "min: %(t_min)s\n" \
-             "max: %(t_max)s\n" \
-             "std_dev: %(std_dev)s\n"
-    return output % stat
+    output = "average: {average:.6f}\n" \
+             "min: {t_min:.6f}\n" \
+             "max: {t_max:.6f}\n" \
+             "std_dev: {std_dev:.6f}\n" \
+             "slowdown: {slowdown:.3f}x\n"
+    return output.format(**stat)
 
 
 def perf(config, iterations):
@@ -157,6 +158,10 @@ def perf(config, iterations):
     }
     if config['mu_build_fnc']:
         results['mu'] = get_stat_compiled(compile_mu, config, iterations)
+
+    baseline_target = 'c'
+    for python, result in results.items():
+        result['slowdown'] = result['average'] / results[baseline_target]['average']
 
     for python, result in results.items():
         print '\033[35m---- %(python)s ----\033[0m' % locals()
@@ -269,15 +274,15 @@ def perf_quicksort(N, iterations):
 
 
 def test_functional_fibonacci():
-    save_results('fibonacci', perf_fibonacci(5, 1))
+    perf_fibonacci(5, 1)
 
 
 def test_functional_arraysum():
-    save_results('arraysum', perf_arraysum(100, 1))
+    perf_arraysum(100, 1)
 
 
 def test_functional_quicksort():
-    save_results('quicksort', perf_quicksort(100, 5))
+    perf_quicksort(100, 5)
 
 if __name__ == '__main__':
     import sys
