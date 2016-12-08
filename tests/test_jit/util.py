@@ -63,11 +63,18 @@ def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_long
 
 def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype):
     from rpython.rtyper.lltypesystem import rffi
+    from rpython.translator.platform import platform
+    if platform.name.startswith('linux'):
+        link_extra = ['-Wl,-R' + libpath.dirpath().strpath]
+    else:
+        link_extra = []
     libname = libpath.basename[3:libpath.basename.index(libext)]
+
     return rffi.llexternal(fnc_name, llargtypes, restype,
                            compilation_info=rffi.ExternalCompilationInfo(
                                libraries=[libname],
-                               library_dirs=[libpath.dirpath().strpath]
+                               library_dirs=[libpath.dirpath().strpath],
+                               link_extra=link_extra
                            ),
                            _nowrapper=True)
 
