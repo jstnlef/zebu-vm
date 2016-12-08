@@ -453,6 +453,11 @@ impl CompilerPass for Inlining {
     }
 
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        if !vm.vm_options.flag_allow_inline {
+            info!("inlining is disabled");
+            return;
+        }
+
         if self.check(vm, func) {
             self.inline(vm, func);
 
