@@ -15,7 +15,7 @@ VM:
   --log-level=<level>               logging level: none, error, warn, info, debug, trace [default: trace]
 
 Compiler:
-  --allow-inline=<flag>             allow compiler inlining functions on its decision [default: true]
+  --disable-inline                  disable compiler function inlining
 
 AOT Compiler:
   --aot-emit-dir=<dir>              the emit directory for ahead-of-time compiling [default: emit]
@@ -29,7 +29,7 @@ Garbage Collection:
 #[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct VMOptions {
     pub flag_log_level: MuLogLevel,
-    pub flag_allow_inline: bool,
+    pub flag_disable_inline: bool,
     pub flag_aot_emit_dir: String,
     pub flag_gc_immixspace_size: usize,
     pub flag_gc_lospace_size: usize,

@@ -1,3 +1,5 @@
+extern crate hprof;
+
 use compiler::machine_code::CompiledFunction;
 use ast::ir::*;
 use compiler::backend;
@@ -231,6 +233,8 @@ impl InterferenceGraph {
     }
 }
 
+const TRACE_BUILD_LIVE_SET : bool = false;
+
 fn build_live_set (cf: &mut CompiledFunction, func: &MuFunctionVersion) {
     info!("---start building live set---");
 
@@ -243,7 +247,9 @@ fn build_live_set (cf: &mut CompiledFunction, func: &MuFunctionVersion) {
 
     let mut i = 0;
     while is_changed {
-        trace!("---iteration {}---", i);
+        if TRACE_BUILD_LIVE_SET {
+            trace!("---iteration {}---", i);
+        }
         i += 1;
 
         // reset
@@ -281,11 +287,13 @@ fn build_live_set (cf: &mut CompiledFunction, func: &MuFunctionVersion) {
             // is in/out changed in this iteration?
             let n_changed = !in_set_old.equals(&livein[n]) || !out_set_old.equals(&liveout[n]);
 
-            trace!("inst {}", n);
-            trace!("in(old)  = {:?}", in_set_old);
-            trace!("in(new)  = {:?}", livein[n]);
-            trace!("out(old) = {:?}", out_set_old);
-            trace!("out(new) = {:?}", liveout[n]);
+            if TRACE_BUILD_LIVE_SET {
+                trace!("inst {}", n);
+                trace!("in(old)  = {:?}", in_set_old);
+                trace!("in(new)  = {:?}", livein[n]);
+                trace!("out(old) = {:?}", out_set_old);
+                trace!("out(new) = {:?}", liveout[n]);
+            }
 
             is_changed = is_changed || n_changed;
         }
@@ -314,7 +322,11 @@ fn build_live_set (cf: &mut CompiledFunction, func: &MuFunctionVersion) {
 
 // from Tailoring Graph-coloring Register Allocation For Runtime Compilation, Figure 4
 pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
+    let _p = hprof::enter("regalloc: build live set");
     build_live_set(cf, func);
+    drop(_p);
+
+    let _p = hprof::enter("regalloc: build interference graph");
 
     info!("---start building interference graph---");
     
@@ -462,6 +474,7 @@ pub fn build_chaitin_briggs (cf: &mut CompiledFunction, func: &MuFunctionVersion
         }
     }
 
+    drop(_p);
     info!("---finish building interference graph---");
     ig
 }

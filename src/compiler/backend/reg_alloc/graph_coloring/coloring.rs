@@ -1,3 +1,5 @@
+extern crate hprof;
+
 use ast::ir::*;
 use compiler::backend;
 use compiler::backend::reg_alloc::graph_coloring;
@@ -113,6 +115,8 @@ impl <'a> GraphColoring<'a> {
     
     fn regalloc(mut self) -> GraphColoring<'a> {
         trace!("---InterenceGraph---");
+        let _p = hprof::enter("regalloc: graph coloring");
+
         self.ig.print(&self.func.context);
         
         // precolor for all machine registers
@@ -160,6 +164,8 @@ impl <'a> GraphColoring<'a> {
         } {}
         
         self.assign_colors();
+
+        drop(_p);
 
         if !self.spilled_nodes.is_empty() {
             trace!("spill required");
