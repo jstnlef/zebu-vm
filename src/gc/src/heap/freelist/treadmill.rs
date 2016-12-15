@@ -9,7 +9,6 @@ use common::AddressMap;
 
 use objectmodel;
 
-use std::ptr;
 use std::sync::Arc;
 use std::fmt;
 use std::sync::Mutex;
@@ -259,7 +258,7 @@ impl Treadmill {
 
 impl fmt::Display for Treadmill {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "next: {}", self.from_space_next);
+        write!(f, "next: {}", self.from_space_next).unwrap();
         write!(f, "from:").unwrap();
         for i in 0..self.spaces[self.from].len() {
             write!(f, "{}->", self.spaces[self.from][i]).unwrap();
@@ -306,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_treadmill_alloc() {
-        let mut space = FreeListSpace::new(BLOCK_SIZE * 10);
+        let space = FreeListSpace::new(BLOCK_SIZE * 10);
 
         for i in 0..10 {
             let ret = space.alloc(BLOCK_SIZE, 8);
@@ -317,7 +316,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_treadmill_alloc_spanblock() {
-        let mut space = FreeListSpace::new(BLOCK_SIZE * 10);
+        let space = FreeListSpace::new(BLOCK_SIZE * 10);
 
         for i in 0..5 {
             let ret = space.alloc(BLOCK_SIZE * 2, 8);
@@ -327,7 +326,7 @@ mod tests {
 
     #[test]
     fn test_treadmill_alloc_exhaust() {
-        let mut space = FreeListSpace::new(BLOCK_SIZE * 10);
+        let space = FreeListSpace::new(BLOCK_SIZE * 10);
 
         for i in 0..20 {
             let ret = space.alloc(BLOCK_SIZE, 8);

@@ -151,6 +151,7 @@ pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, 
 }
 
 #[no_mangle]
+#[allow(unused_variables)]
 pub extern fn muentry_init_large_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u8) {
     MY_GC.read().unwrap().as_ref().unwrap().lo_space.init_object(obj.to_address(), encode);
 }

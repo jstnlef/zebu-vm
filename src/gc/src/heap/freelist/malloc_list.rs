@@ -1,11 +1,9 @@
+#![allow(dead_code)]
+
 use utils::Address;
-use heap::immix;
-use heap::gc;
 use aligned_alloc;
 
 use std::collections::LinkedList;
-use std::sync::Arc;
-use std::sync::RwLock;
 
 pub struct FreeListSpace {
     current_nodes : LinkedList<Box<FreeListNode>>,

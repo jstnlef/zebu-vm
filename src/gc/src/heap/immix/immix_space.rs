@@ -225,6 +225,7 @@ impl ImmixSpace {
     }
     
     #[allow(unused_variables)]
+    #[allow(unused_assignments)]
     pub fn sweep(&self) {
         let mut free_lines = 0;
         let mut usable_blocks = 0;

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use utils::ByteSize;
 
 #[derive(Clone, Debug)]
@@ -9,6 +11,7 @@ pub struct GCType {
 }
 
 impl GCType {
+    #[allow(unused_assignments)]
     pub fn gen_ref_offsets(&self) -> Vec<ByteSize> {
         let mut ret = vec![];
 
@@ -78,7 +81,7 @@ impl RepeatingRefPattern {
     pub fn append_offsets(&self, base: ByteSize, vec: &mut Vec<ByteSize>) -> ByteSize {
         let mut cur_base = base;
 
-        for i in 0..self.count {
+        for _ in 0..self.count {
             cur_base = self.pattern.append_offsets(cur_base, vec);
         }
 

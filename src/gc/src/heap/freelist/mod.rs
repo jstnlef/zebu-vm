@@ -5,9 +5,8 @@ mod treadmill;
 pub use heap::freelist::treadmill::FreeListSpace;
 
 use std::sync::Arc;
-use std::sync::RwLock;
 use heap::gc;
-use utils::{Address, ObjectReference};
+use utils::Address;
 use heap::immix;
 
 #[inline(never)]

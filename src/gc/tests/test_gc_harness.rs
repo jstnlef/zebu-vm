@@ -22,11 +22,16 @@ const OBJECT_ALIGN: usize = 8;
 
 const WORK_LOAD : usize = 10000;
 
+#[allow(dead_code)]
 const SPACIOUS_SPACE_SIZE : usize = 500 << 20;  // 500mb
+#[allow(dead_code)]
 const LIMITED_SPACE_SIZE  : usize = 20  << 20;  // 20mb
+#[allow(dead_code)]
 const SMALL_SPACE_SIZE    : usize = 1   << 19;  // 512kb
 
+#[allow(dead_code)]
 const IMMIX_SPACE_SIZE : usize = SPACIOUS_SPACE_SIZE;
+#[allow(dead_code)]
 const LO_SPACE_SIZE    : usize = SPACIOUS_SPACE_SIZE;
 
 #[test]

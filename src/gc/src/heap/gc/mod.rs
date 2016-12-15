@@ -2,13 +2,12 @@ use heap::immix::MUTATORS;
 use heap::immix::N_MUTATORS;
 use heap::immix::ImmixMutatorLocal;
 use heap::immix::ImmixSpace;
-use heap::immix::ImmixLineMarkTable;
 use heap::freelist::FreeListSpace;
 use objectmodel;
 use heap::Space;
 
 use utils::{Address, ObjectReference};
-use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
+use utils::POINTER_SIZE;
 use utils::bit_utils;
 
 use std::sync::atomic::{AtomicIsize, Ordering};
