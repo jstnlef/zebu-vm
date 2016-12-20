@@ -13,6 +13,7 @@ pub mod common;
 pub mod objectmodel;
 pub mod heap;
 
+use common::gctype::GCType;
 use utils::ObjectReference;
 use heap::immix::BYTES_IN_LINE;
 use heap::immix::ImmixSpace;
@@ -33,7 +34,9 @@ pub use heap::immix::LIMIT_OFFSET as ALLOCATOR_LIMIT_OFFSET;
 #[repr(C)]
 pub struct GC {
     immix_space: Arc<ImmixSpace>,
-    lo_space   : Arc<FreeListSpace>
+    lo_space   : Arc<FreeListSpace>,
+
+    gc_types   : Vec<GCType>
 }
 
 impl fmt::Debug for GC {
@@ -63,6 +66,19 @@ pub extern fn get_spaces() -> (Arc<ImmixSpace>, Arc<FreeListSpace>) {
 }
 
 #[no_mangle]
+pub extern fn add_gc_type(mut ty: GCType) -> usize {
+    let mut gc_guard = MY_GC.write().unwrap();
+    let mut gc = gc_guard.as_mut().unwrap();
+
+    let index = gc.gc_types.len();
+    ty.id = index;
+
+    gc.gc_types.push(ty);
+
+    index
+}
+
+#[no_mangle]
 pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
     // set this line to turn on certain level of debugging info
 //    simple_logger::init_with_level(log::LogLevel::Trace).ok();
@@ -78,16 +94,19 @@ pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
         let immix_space = Arc::new(ImmixSpace::new(immix_size));
         let lo_space    = Arc::new(FreeListSpace::new(lo_size));
 
-        heap::gc::init(immix_space.clone(), lo_space.clone());        
+        heap::gc::init(n_gcthreads);
         
         (immix_space, lo_space)
     };
     
-    *MY_GC.write().unwrap() = Some(GC {immix_space: immix_space, lo_space: lo_space});
+    *MY_GC.write().unwrap() = Some(GC {
+        immix_space: immix_space,
+        lo_space: lo_space,
+
+        gc_types: vec![]
+    });
+
     info!("heap is {} bytes (immix: {} bytes, lo: {} bytes) . ", immix_size + lo_size, immix_size, lo_size);
-    
-    // gc threads
-    heap::gc::GC_THREADS.store(n_gcthreads, Ordering::SeqCst);
     info!("{} gc threads", n_gcthreads);
 }
 

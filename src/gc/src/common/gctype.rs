@@ -4,10 +4,10 @@ use utils::ByteSize;
 
 #[derive(Clone, Debug)]
 pub struct GCType {
-    id: usize,
-    size: ByteSize,
-    non_repeat_refs: Option<RefPattern>,
-    repeat_refs    : Option<RepeatingRefPattern>
+    pub id: usize,
+    pub size: ByteSize,
+    pub non_repeat_refs: Option<RefPattern>,
+    pub repeat_refs    : Option<RepeatingRefPattern>
 }
 
 impl GCType {
@@ -73,8 +73,8 @@ impl RefPattern {
 
 #[derive(Clone, Debug)]
 pub struct RepeatingRefPattern {
-    pattern: RefPattern,
-    count: usize
+    pub pattern: RefPattern,
+    pub count: usize
 }
 
 impl RepeatingRefPattern {

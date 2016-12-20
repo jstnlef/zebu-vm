@@ -5,6 +5,7 @@ use heap::immix::ImmixSpace;
 use heap::freelist::FreeListSpace;
 use objectmodel;
 use heap::Space;
+use MY_GC;
 
 use utils::{Address, ObjectReference};
 use utils::POINTER_SIZE;
@@ -24,8 +25,6 @@ lazy_static! {
     static ref STW_COND : Arc<(Mutex<usize>, Condvar)> = {
         Arc::new((Mutex::new(0), Condvar::new()))
     };
-
-    static ref GC_CONTEXT : RwLock<GCContext> = RwLock::new(GCContext{immix_space: None, lo_space: None});
     
     static ref ROOTS : RwLock<Vec<ObjectReference>> = RwLock::new(vec![]);
 }
@@ -33,16 +32,10 @@ lazy_static! {
 static CONTROLLER : AtomicIsize = atomic::ATOMIC_ISIZE_INIT;
 const  NO_CONTROLLER : isize    = -1;
 
-pub struct GCContext {
-    immix_space : Option<Arc<ImmixSpace>>,
-    lo_space    : Option<Arc<FreeListSpace>>
-}
-
-pub fn init(immix_space: Arc<ImmixSpace>, lo_space: Arc<FreeListSpace>) {
+pub fn init(n_gcthreads: usize) {
     CONTROLLER.store(NO_CONTROLLER, Ordering::SeqCst);
-    let mut gccontext = GC_CONTEXT.write().unwrap();
-    gccontext.immix_space = Some(immix_space);
-    gccontext.lo_space = Some(lo_space);
+
+    GC_THREADS.store(n_gcthreads, Ordering::SeqCst);
 }
 
 pub fn trigger_gc() {
@@ -83,11 +76,12 @@ pub fn stack_scan() -> Vec<ObjectReference> {
     
     let mut cursor = stack_ptr;
     let mut ret = vec![];
-    
-    let gccontext = GC_CONTEXT.read().unwrap();
 
-    let immix_space = gccontext.immix_space.as_ref().unwrap();
-    let lo_space = gccontext.lo_space.as_ref().unwrap();
+    let gccontext_guard = MY_GC.read().unwrap();
+    let gccontext = gccontext_guard.as_ref().unwrap();
+
+    let immix_space = gccontext.immix_space.clone();
+    let lo_space = gccontext.lo_space.clone();
     
     while cursor < low_water_mark {
         let value : Address = unsafe {cursor.load::<Address>()};
@@ -212,8 +206,9 @@ fn gc() {
     
     // mark & trace
     {
-        let gccontext = GC_CONTEXT.read().unwrap();
-        let (immix_space, lo_space) = (gccontext.immix_space.as_ref().unwrap(), gccontext.lo_space.as_ref().unwrap());
+        let gccontext_guard = MY_GC.read().unwrap();
+        let gccontext = gccontext_guard.as_ref().unwrap();
+        let (immix_space, lo_space) = (&gccontext.immix_space, &gccontext.lo_space);
         
         start_trace(&mut roots, immix_space.clone(), lo_space.clone());
     }
@@ -222,12 +217,13 @@ fn gc() {
     
     // sweep
     {
-        let gccontext = GC_CONTEXT.read().unwrap();
+        let gccontext_guard = MY_GC.read().unwrap();
+        let gccontext = gccontext_guard.as_ref().unwrap();
 
-        let immix_space = gccontext.immix_space.as_ref().unwrap();
+        let ref immix_space = gccontext.immix_space;
         immix_space.sweep();
 
-        let lo_space = gccontext.lo_space.as_ref().unwrap();
+        let ref lo_space = gccontext.lo_space;
         lo_space.sweep();
     }
     
