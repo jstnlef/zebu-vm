@@ -394,6 +394,26 @@ pub fn is_ptr(ty: &MuType) -> bool {
     }
 }
 
+/// this a type reference type (located in heap)?
+pub fn is_reference(ty: &MuType) -> bool {
+    match ty.v {
+        MuType_::Ref(_)
+        | MuType_::IRef(_)
+        | MuType_::WeakRef(_) => true,
+        _ => false
+    }
+}
+
+/// this is a aggregated type (consited of other types)
+pub fn is_aggregate(ty: &MuType) -> bool {
+    match ty.v {
+        MuType_::Struct(_)
+        | MuType_::Hybrid(_)
+        | MuType_::Array(_, _) => true,
+        _ => false
+    }
+}
+
 /// is a type scalar type?
 pub fn is_scalar(ty: &MuType) -> bool {
     match ty.v {

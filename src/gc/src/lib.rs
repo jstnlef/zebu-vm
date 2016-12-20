@@ -6,6 +6,7 @@ extern crate log;
 extern crate simple_logger;
 extern crate aligned_alloc;
 extern crate crossbeam;
+extern crate rustc_serialize;
 
 use std::sync::atomic::Ordering;
 
@@ -36,7 +37,7 @@ pub struct GC {
     immix_space: Arc<ImmixSpace>,
     lo_space   : Arc<FreeListSpace>,
 
-    gc_types   : Vec<GCType>
+    gc_types   : Vec<Arc<GCType>>
 }
 
 impl fmt::Debug for GC {
@@ -66,16 +67,18 @@ pub extern fn get_spaces() -> (Arc<ImmixSpace>, Arc<FreeListSpace>) {
 }
 
 #[no_mangle]
-pub extern fn add_gc_type(mut ty: GCType) -> usize {
+pub extern fn add_gc_type(mut ty: GCType) -> Arc<GCType> {
     let mut gc_guard = MY_GC.write().unwrap();
     let mut gc = gc_guard.as_mut().unwrap();
 
     let index = gc.gc_types.len();
     ty.id = index;
 
-    gc.gc_types.push(ty);
+    let ty = Arc::new(ty);
 
-    index
+    gc.gc_types.push(ty.clone());
+
+    ty
 }
 
 #[no_mangle]

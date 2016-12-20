@@ -1,8 +1,13 @@
 #![allow(dead_code)]
 
+use std::sync::Arc;
+use utils::POINTER_SIZE;
 use utils::ByteSize;
 
-#[derive(Clone, Debug)]
+use std::usize;
+pub const GCTYPE_INIT_ID: usize = usize::MAX;
+
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct GCType {
     pub id: usize,
     pub size: ByteSize,
@@ -11,6 +16,27 @@ pub struct GCType {
 }
 
 impl GCType {
+    pub fn new_noreftype(size: ByteSize) -> GCType {
+        GCType {
+            id: GCTYPE_INIT_ID,
+            size: size,
+            non_repeat_refs: None,
+            repeat_refs    : None
+        }
+    }
+
+    pub fn new_reftype() -> GCType {
+        GCType {
+            id: GCTYPE_INIT_ID,
+            size: POINTER_SIZE,
+            non_repeat_refs: Some(RefPattern::Map{
+                offsets: vec![0],
+                size: POINTER_SIZE
+            }),
+            repeat_refs: None
+        }
+    }
+
     #[allow(unused_assignments)]
     pub fn gen_ref_offsets(&self) -> Vec<ByteSize> {
         let mut ret = vec![];
@@ -34,13 +60,13 @@ impl GCType {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub enum RefPattern {
     Map{
         offsets: Vec<ByteSize>,
         size : usize
     },
-    NestedType(Vec<GCType>)
+    NestedType(Vec<Arc<GCType>>)
 }
 
 impl RefPattern {
@@ -71,7 +97,7 @@ impl RefPattern {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct RepeatingRefPattern {
     pub pattern: RefPattern,
     pub count: usize
@@ -92,6 +118,7 @@ impl RepeatingRefPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
     use utils::ByteSize;
 
     fn create_types() -> Vec<GCType> {
@@ -126,7 +153,7 @@ mod tests {
             size: 1600,
             non_repeat_refs: None,
             repeat_refs    : Some(RepeatingRefPattern {
-                pattern: RefPattern::NestedType(vec![b.clone()]),
+                pattern: RefPattern::NestedType(vec![Arc::new(b.clone()).clone()]),
                 count  : 10
             })
         };

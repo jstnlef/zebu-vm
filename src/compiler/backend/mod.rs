@@ -3,7 +3,10 @@ pub mod reg_alloc;
 pub mod peephole_opt;
 pub mod code_emission;
 
+use ast::types;
 use utils::ByteSize;
+use runtime::mm;
+use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern, RepeatingRefPattern};
 
 pub type Word = usize;
 pub const WORD_SIZE : ByteSize = 8;
@@ -64,35 +67,77 @@ use ast::ptr::*;
 use ast::ir::*;
 pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
     match ty.v {
-        // integral
+        // integer
         MuType_::Int(size_in_bit) => {
             match size_in_bit {
-                1  => BackendTypeInfo{size: 1, alignment: 1, struct_layout: None},
-                8  => BackendTypeInfo{size: 1, alignment: 1, struct_layout: None},
-                16 => BackendTypeInfo{size: 2, alignment: 2, struct_layout: None},
-                32 => BackendTypeInfo{size: 4, alignment: 4, struct_layout: None},
-                64 => BackendTypeInfo{size: 8, alignment: 8, struct_layout: None},
+                1  => BackendTypeInfo{
+                    size: 1, alignment: 1, struct_layout: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(1))
+                },
+                8  => BackendTypeInfo{
+                    size: 1, alignment: 1, struct_layout: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(1))
+                },
+                16 => BackendTypeInfo{
+                    size: 2, alignment: 2, struct_layout: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(2))
+                },
+                32 => BackendTypeInfo{
+                    size: 4, alignment: 4, struct_layout: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(4))
+                },
+                64 => BackendTypeInfo{
+                    size: 8, alignment: 8, struct_layout: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(8))
+                },
                 _ => unimplemented!()
             }
         },
-        // pointer of any type
+        // reference of any type
         MuType_::Ref(_)
         | MuType_::IRef(_)
-        | MuType_::WeakRef(_)
-        | MuType_::UPtr(_)
-        | MuType_::FuncRef(_)
+        | MuType_::WeakRef(_) => BackendTypeInfo{
+            size: 8, alignment: 8, struct_layout: None,
+            gc_type: mm::add_gc_type(GCType::new_reftype())
+        },
+        // pointer
+        MuType_::UPtr(_)
         | MuType_::UFuncPtr(_)
-        | MuType_::Tagref64
+        | MuType_::FuncRef(_)
         | MuType_::ThreadRef
-        | MuType_::StackRef => BackendTypeInfo{size: 8, alignment: 8, struct_layout: None},
+        | MuType_::StackRef => BackendTypeInfo{
+            size: 8, alignment: 8, struct_layout: None,
+            gc_type: mm::add_gc_type(GCType::new_noreftype(8))
+        },
+        // tagref
+        MuType_::Tagref64 => unimplemented!(),
         // floating point
-        MuType_::Float => BackendTypeInfo{size: 4, alignment: 4, struct_layout: None},
-        MuType_::Double => BackendTypeInfo{size: 8, alignment: 8, struct_layout: None},
+        MuType_::Float => BackendTypeInfo{
+            size: 4, alignment: 4, struct_layout: None,
+            gc_type: mm::add_gc_type(GCType::new_noreftype(4))
+        },
+        MuType_::Double => BackendTypeInfo {
+            size: 8, alignment: 8, struct_layout: None,
+            gc_type: mm::add_gc_type(GCType::new_noreftype(8))
+        },
         // array
         MuType_::Array(ref ty, len) => {
             let ele_ty = vm.get_backend_type_info(ty.id());
             
-            BackendTypeInfo{size: ele_ty.size * len, alignment: ele_ty.alignment, struct_layout: None}
+            BackendTypeInfo{
+                size         : ele_ty.size * len,
+                alignment    : ele_ty.alignment,
+                struct_layout: None,
+                gc_type      : mm::add_gc_type(GCType {
+                    id             : GCTYPE_INIT_ID,
+                    size           : ele_ty.size * len,
+                    non_repeat_refs: None,
+                    repeat_refs    : Some(RepeatingRefPattern{
+                        pattern: RefPattern::NestedType(vec![ele_ty.gc_type]),
+                        count  : len
+                    })
+                })
+            }
         }
         // struct
         MuType_::Struct(ref name) => {
@@ -118,16 +163,29 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             let mut ret = layout_struct(fix_tys, vm);
             
             // treat var_ty as array (getting its alignment)
-            let var_align = vm.get_backend_type_info(var_ty.id()).alignment;
-            
+            let var_ele_ty = vm.get_backend_type_info(var_ty.id());
+            let var_align = var_ele_ty.alignment;
+
+            // fix type info as hybrid
+            // 1. check alignment
             if ret.alignment < var_align {
                 ret.alignment = var_align;
             }
+            // 2. fix gc type
+            let mut gctype = ret.gc_type.as_ref().clone();
+            gctype.repeat_refs = Some(RepeatingRefPattern {
+                pattern: RefPattern::NestedType(vec![var_ele_ty.gc_type.clone()]),
+                count  : 0
+            });
+            ret.gc_type = mm::add_gc_type(gctype);
             
             ret
         }
         // void
-        MuType_::Void => BackendTypeInfo{size: 0, alignment: 8, struct_layout: None},
+        MuType_::Void => BackendTypeInfo{
+            size: 0, alignment: 8, struct_layout: None,
+            gc_type: mm::add_gc_type(GCType::new_noreftype(0))
+        },
         // vector
         MuType_::Vector(_, _) => unimplemented!()
     }
@@ -137,6 +195,11 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
     let mut offsets : Vec<ByteSize> = vec![];
     let mut cur : ByteSize = 0;
     let mut struct_align : ByteSize = 1;
+
+    // for gc type
+    let mut use_ref_offsets = true;
+    let mut ref_offsets = vec![];
+    let mut gc_types    = vec![];
     
     for ty in tys.iter() {
         let ty_info = vm.get_backend_type_info(ty.id());
@@ -154,19 +217,48 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
         
         offsets.push(cur);
         trace!("aligned to {}", cur);
+
+        // for convenience, if the struct contains other struct/array
+        // we do not use reference map
+        if types::is_aggregate(ty) {
+            use_ref_offsets = false;
+        }
+
+        // if this type is reference type, we store its offsets
+        // we may not use this ref map though
+        if types::is_reference(ty) {
+            ref_offsets.push(cur);
+        }
+        // always store its gc type (we may not use it as well)
+        gc_types.push(ty_info.gc_type.clone());
         
         cur += ty_info.size;
     }
     
     // if we need padding at the end
-    if cur % struct_align != 0 {
-        cur = (cur / struct_align + 1) * struct_align;
-    }
+    let size = if cur % struct_align != 0 {
+        (cur / struct_align + 1) * struct_align
+    } else {
+        cur
+    };
     
     BackendTypeInfo {
-        size: cur,
-        alignment: struct_align,
-        struct_layout: Some(offsets)
+        size         : size,
+        alignment    : struct_align,
+        struct_layout: Some(offsets),
+        gc_type      : mm::add_gc_type(GCType {
+            id             : GCTYPE_INIT_ID,
+            size           : size,
+            non_repeat_refs: Some(if use_ref_offsets {
+                RefPattern::Map {
+                    offsets: ref_offsets,
+                    size: size
+                }
+            } else {
+                RefPattern::NestedType(gc_types)
+            }),
+            repeat_refs    : None
+        })
     }
 }
 
@@ -180,7 +272,9 @@ pub fn sequetial_layout(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, ByteSize, V
 pub struct BackendTypeInfo {
     pub size: ByteSize,
     pub alignment: ByteSize,
-    pub struct_layout: Option<Vec<ByteSize>>
+    pub struct_layout: Option<Vec<ByteSize>>,
+
+    pub gc_type: P<GCType>
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
