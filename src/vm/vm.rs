@@ -56,7 +56,7 @@ pub struct VM {
     
     // partially serialize
     // 13
-    compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,    
+    compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
 }
 
 const VM_SERIALIZE_FIELDS : usize = 14;
@@ -474,6 +474,37 @@ impl <'a> VM {
         let vm : VM = json::decode(serialized_vm).unwrap();
         
         vm.init_vm();
+
+        // restore gc types
+        {
+            let type_info_guard = vm.backend_type_info.read().unwrap();
+            let mut type_info_vec: Vec<Box<BackendTypeInfo>> = type_info_guard.values().map(|x| x.clone()).collect();
+            type_info_vec.sort_by(|a, b| a.gc_type.id.cmp(&b.gc_type.id));
+
+            let mut expect_id = 0;
+            for ty_info in type_info_vec.iter() {
+                use runtime::mm;
+
+                let ref gc_type = ty_info.gc_type;
+
+                if gc_type.id != expect_id {
+                    debug_assert!(expect_id < gc_type.id);
+
+                    while expect_id < gc_type.id {
+                        use runtime::mm::common::gctype::GCType;
+
+                        mm::add_gc_type(GCType::new_noreftype(0));
+                        expect_id += 1;
+                    }
+                }
+
+                // now expect_id == gc_type.id
+                debug_assert!(expect_id == gc_type.id);
+
+                mm::add_gc_type(gc_type.as_ref().clone());
+                expect_id += 1;
+            }
+        }
         
         vm
     }
