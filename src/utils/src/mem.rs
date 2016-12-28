@@ -35,7 +35,7 @@ pub fn as_word(mut u8_array: Vec<u8>) -> Word {
 #[cfg(test)]
 mod tests{
     use super::*;
-    use compiler::backend::Word;
+    use Word;
     
     #[test]
     fn test_primitive_to_raw() {

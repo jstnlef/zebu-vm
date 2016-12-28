@@ -5,6 +5,7 @@ use common::AddressMap;
 use heap::gc::malloc_zero;
 
 use utils::mem::memmap;
+use utils::mem::memsec;
 
 use std::*;
 use std::collections::LinkedList;
@@ -61,6 +62,10 @@ impl LineMarkTable {
     fn set(&self, index: usize, value: immix::LineMark) {
         debug_assert!(index <= self.len);
         unsafe {*self.ptr.offset(index as isize) = value};
+    }
+
+    pub fn index_to_address(&self, index: usize) -> Address {
+        self.space_start.plus(index << immix::LOG_BYTES_IN_LINE)
     }
     
     #[inline(always)]
@@ -347,6 +352,20 @@ impl ImmixBlock {
             }
         }
         i
+    }
+
+    pub fn lazy_zeroing(&mut self) {
+        let line_mark_table = self.line_mark_table();
+        for i in 0..line_mark_table.len {
+            if line_mark_table.get(i) == immix::LineMark::Free {
+                let line_start : Address = self.start.plus(i << immix::LOG_BYTES_IN_LINE);
+
+                // zero the line
+                unsafe {
+                    memsec::memzero(line_start.to_ptr_mut::<u8>(), immix::BYTES_IN_LINE);
+                }
+            }
+        }
     }
     
     pub fn id(&self) -> usize {

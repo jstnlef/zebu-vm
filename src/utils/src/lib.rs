@@ -1,8 +1,9 @@
 extern crate byteorder;
 extern crate rustc_serialize;
 
-pub type ByteSize = usize;
-pub type Word = usize;
+pub type ByteOffset = isize;
+pub type ByteSize   = usize;
+pub type Word       = usize;
 
 #[cfg(target_arch = "x86_64")]
 pub const LOG_POINTER_SIZE : usize = 3;

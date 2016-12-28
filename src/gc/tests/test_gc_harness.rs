@@ -34,6 +34,22 @@ const IMMIX_SPACE_SIZE : usize = SPACIOUS_SPACE_SIZE;
 #[allow(dead_code)]
 const LO_SPACE_SIZE    : usize = SPACIOUS_SPACE_SIZE;
 
+#[cfg(feature = "use-sidemap")]
+const FIXSIZE_NOREF_ENCODE : u64 = 0b1100_0000u64;
+#[cfg(not(feature = "use-sidemap"))]
+const FIXSIZE_NOREF_ENCODE : u64 = 0xb000000000000000u64;
+
+#[cfg(feature = "use-sidemap")]
+const FIXSIZE_REFx2_ENCODE : u64 = 0b1100_0011u64;
+#[cfg(not(feature = "use-sidemap"))]
+const FIXSIZE_REFx2_ENCODE : u64 = 0xb000000000000003u64;
+
+#[cfg(feature = "use-sidemap")]
+const FIXSIZE_REFx1_ENCODE : u64 = 0b1100_0001u64;
+#[cfg(not(feature = "use-sidemap"))]
+const FIXSIZE_REFx1_ENCODE : u64 = 0xb000000000000001u64;
+
+
 #[test]
 fn test_exhaust_alloc() {
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
@@ -48,7 +64,7 @@ fn test_exhaust_alloc() {
         mutator.yieldpoint();
 
         let res = mutator.alloc(OBJECT_SIZE, OBJECT_ALIGN);
-        mutator.init_object(res, 0b1100_0011);
+        mutator.init_object(res, FIXSIZE_NOREF_ENCODE);
     }
 
     mutator.destroy();
@@ -68,7 +84,7 @@ fn test_exhaust_alloc_large() {
         mutator.yieldpoint();
 
         let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
-        gc::muentry_init_large_object(&mut mutator, res, 0b1100_0000);
+        gc::muentry_init_large_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
     }
 
     mutator.destroy();
@@ -76,7 +92,10 @@ fn test_exhaust_alloc_large() {
 
 #[test]
 #[allow(unused_variables)]
-fn test_alloc_large_trigger_gc() {
+fn test_alloc_large_lo_trigger_gc() {
+    const KEEP_N_ROOTS : usize = 1;
+    let mut roots : usize = 0;
+
     gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8);
     let mut mutator = gc::new_mutator();
 
@@ -86,7 +105,12 @@ fn test_alloc_large_trigger_gc() {
         mutator.yieldpoint();
 
         let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
-        gc::muentry_init_large_object(&mut mutator, res, 0b1100_0000);
+        gc::muentry_init_large_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
+
+        if roots < KEEP_N_ROOTS {
+            gc::add_to_root(res);
+            roots += 1;
+        }
     }
 
     mutator.destroy();
@@ -94,7 +118,7 @@ fn test_alloc_large_trigger_gc() {
 
 #[test]
 #[allow(unused_variables)]
-fn test_alloc_large_trigger_gc2() {
+fn test_alloc_large_both_trigger_gc() {
     gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8);
     let mut mutator = gc::new_mutator();
 
@@ -105,25 +129,26 @@ fn test_alloc_large_trigger_gc2() {
         mutator.yieldpoint();
 
         let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
-        gc::muentry_init_large_object(&mut mutator, res, 0b1100_0000);
+        gc::muentry_init_large_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
     }
 
     // this will trigger a gc, and allocate it in the collected space
     let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
-    gc::muentry_init_large_object(&mut mutator, res, 0b1100_0000);
+    gc::muentry_init_large_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
 
     // this will trigger gcs for immix space
     for _ in 0..100000 {
         mutator.yieldpoint();
 
         let res = mutator.alloc(OBJECT_SIZE, OBJECT_ALIGN);
-        mutator.init_object(res, 0b1100_0011);
+        mutator.init_object(res, FIXSIZE_REFx2_ENCODE);
     }
 
     mutator.destroy();
 }
 
 #[test]
+#[cfg(feature = "use-sidemap")]
 fn test_alloc_mark() {
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
     let mut mutator = gc::new_mutator();
@@ -136,7 +161,7 @@ fn test_alloc_mark() {
     let mut objs = vec![];
     for _ in 0..WORK_LOAD {
         let res = mutator.alloc(ACTUAL_OBJECT_SIZE, OBJECT_ALIGN);
-        mutator.init_object(res, 0b1100_0011);
+        mutator.init_object(res, FIXSIZE_REFx2_ENCODE);
 
         objs.push(unsafe {res.to_object_reference()});
     }
@@ -156,6 +181,50 @@ fn test_alloc_mark() {
 
         // mark the object as traced
         objectmodel::mark_as_traced(trace_map, space_start, obj, mark_state);
+
+        // mark meta-data
+        if obj.to_address() >= space_start && obj.to_address() < space_end {
+            line_mark_table.mark_line_live2(space_start, obj.to_address());
+        }
+    }
+
+    mutator.destroy();
+}
+
+#[test]
+#[cfg(not(feature = "use-sidemap"))]
+fn test_alloc_mark() {
+    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    let mut mutator = gc::new_mutator();
+
+    println!("Trying to allocate 1 object of (size {}, align {}). ", OBJECT_SIZE, OBJECT_ALIGN);
+    const ACTUAL_OBJECT_SIZE : usize = OBJECT_SIZE;
+    println!("Considering header size of {}, an object should be {}. ", 0, ACTUAL_OBJECT_SIZE);
+
+    println!("Trying to allocate {} objects, which will take roughly {} bytes", WORK_LOAD, WORK_LOAD * ACTUAL_OBJECT_SIZE);
+    let mut objs = vec![];
+    for _ in 0..WORK_LOAD {
+        let res = mutator.alloc(ACTUAL_OBJECT_SIZE, OBJECT_ALIGN);
+        mutator.init_object(res, FIXSIZE_REFx2_ENCODE);
+
+        objs.push(unsafe {res.to_object_reference()});
+    }
+
+    let (shared_space, _) = gc::get_spaces();
+
+    println!("Start marking");
+    let mark_state = objectmodel::load_mark_state();
+
+    let line_mark_table = shared_space.line_mark_table();
+    let (space_start, space_end) = (shared_space.start(), shared_space.end());
+
+    let trace_map = shared_space.trace_map.ptr;
+
+    for i in 0..objs.len() {
+        let obj = unsafe {*objs.get_unchecked(i)};
+
+        // mark the object as traced
+        objectmodel::mark_as_traced(obj, mark_state);
 
         // mark meta-data
         if obj.to_address() >= space_start && obj.to_address() < space_end {
@@ -187,12 +256,12 @@ fn test_alloc_trace() {
 
     println!("Trying to allocate {} objects, which will take roughly {} bytes", WORK_LOAD, WORK_LOAD * ACTUAL_OBJECT_SIZE);
     let root = mutator.alloc(ACTUAL_OBJECT_SIZE, OBJECT_ALIGN);
-    mutator.init_object(root, 0b1100_0001);
+    mutator.init_object(root, FIXSIZE_REFx1_ENCODE);
 
     let mut prev = root;
     for _ in 0..WORK_LOAD - 1 {
         let res = mutator.alloc(ACTUAL_OBJECT_SIZE, OBJECT_ALIGN);
-        mutator.init_object(res, 0b1100_0001);
+        mutator.init_object(res, FIXSIZE_REFx1_ENCODE);
 
         // set prev's 1st field (offset 0) to this object
         unsafe {prev.store::<Address>(res)};

@@ -66,6 +66,8 @@ impl FreeListSpace {
         // every block is 'BLOCK_SIZE' aligned, usually we do not need to align
         assert!(BLOCK_SIZE % align == 0);
 
+        let size = size + objectmodel::OBJECT_HEADER_SIZE;
+
         let blocks_needed = if size % BLOCK_SIZE == 0 {
             size / BLOCK_SIZE
         } else {
@@ -90,14 +92,38 @@ impl FreeListSpace {
             trace!("after allocation, space: {}", self);
         }
 
-        res
+        if res.is_zero() {
+            res
+        } else {
+            res.offset(-objectmodel::OBJECT_HEADER_OFFSET)
+        }
     }
 
-    pub fn init_object(&self, addr: Address, encode: u8) {
+    #[cfg(feature = "use-sidemap")]
+    pub fn init_object(&self, addr: Address, encode: u64) {
         unsafe {
-            *self.alloc_map().offset((addr.diff(self.start) >> LOG_POINTER_SIZE) as isize) = encode;
+            *self.alloc_map().offset((addr.diff(self.start) >> LOG_POINTER_SIZE) as isize) = encode as u8;
             objectmodel::mark_as_untraced(self.trace_map(), self.start, addr, objectmodel::load_mark_state());
         }
+    }
+
+    #[cfg(not(feature = "use-sidemap"))]
+    pub fn init_object(&self, addr: Address, encode: u64) {
+        unsafe {
+            addr.offset(objectmodel::OBJECT_HEADER_OFFSET).store(encode);
+        }
+    }
+
+    #[inline(always)]
+    #[cfg(feature = "use-sidemap")]
+    fn is_traced(&self, addr: Address, mark_state: u8) -> bool {
+        objectmodel::is_traced(self.trace_map(), self.start, unsafe { addr.to_object_reference() }, mark_state)
+    }
+
+    #[inline(always)]
+    #[cfg(not(feature = "use-sidemap"))]
+    fn is_traced(&self, addr: Address, mark_state: u8) -> bool {
+        objectmodel::is_traced(unsafe{addr.to_object_reference()}, mark_state)
     }
 
     pub fn sweep(&self) {
@@ -127,7 +153,9 @@ impl FreeListSpace {
 
                 nodes_scanned += 1;
 
-                if objectmodel::is_traced(trace_map, self.start, unsafe { addr.to_object_reference() }, mark_state) {
+                let traced = self.is_traced(addr, mark_state);
+
+                if traced {
                     // this object is alive
                     alive_nodes_scanned += 1;
 
@@ -246,12 +274,30 @@ impl Treadmill {
     fn alloc_blocks(&mut self, n_blocks: usize) -> Address {
         let ref from_space = self.spaces[self.from];
         if self.from_space_next + n_blocks <= from_space.len() {
+            // zero blocks
+            for i in 0..n_blocks {
+                let block_i = self.from_space_next + i;
+                let block_start = from_space[block_i].payload;
+
+                Treadmill::zeroing_block(block_start);
+            }
+
+            // return first block
+            // FIXME: the blocks may not be contiguous!!! we cannot allocate multiple blocks
             let ret = from_space[self.from_space_next].payload;
             self.from_space_next += n_blocks;
 
             ret
         } else {
             unsafe {Address::zero()}
+        }
+    }
+
+    fn zeroing_block(start: Address) {
+        use utils::mem::memsec;
+
+        unsafe {
+            memsec::memzero(start.to_ptr_mut::<u8>(), BLOCK_SIZE);
         }
     }
 }
@@ -308,7 +354,7 @@ mod tests {
         let space = FreeListSpace::new(BLOCK_SIZE * 10);
 
         for i in 0..10 {
-            let ret = space.alloc(BLOCK_SIZE, 8);
+            let ret = space.alloc(BLOCK_SIZE / 2, 8);
             println!("Allocation{}: {}", i, ret);
         }
     }
@@ -329,7 +375,7 @@ mod tests {
         let space = FreeListSpace::new(BLOCK_SIZE * 10);
 
         for i in 0..20 {
-            let ret = space.alloc(BLOCK_SIZE, 8);
+            let ret = space.alloc(BLOCK_SIZE / 2, 8);
             println!("Allocation{}: {}", i, ret);
         }
     }

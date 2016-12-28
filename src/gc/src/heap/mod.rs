@@ -33,6 +33,7 @@ pub trait Space {
     fn trace_map(&self) -> *mut u8;
 
     #[inline(always)]
+    #[cfg(feature = "use-sidemap")]
     fn is_valid_object(&self, addr: Address) -> bool {
         let start = self.start();
         let end = self.end();
@@ -43,7 +44,33 @@ pub trait Space {
 
         let index = (addr.diff(start) >> LOG_POINTER_SIZE) as isize;
 
-        if !bit_utils::test_nth_bit(unsafe {*self.alloc_map().offset(index)}, objectmodel::OBJ_START_BIT) {
+        // use side map
+        if !bit_utils::test_nth_bit_u8(unsafe { *self.alloc_map().offset(index) }, objectmodel::OBJ_START_BIT) {
+            return false;
+        }
+
+        if !addr.is_aligned_to(POINTER_SIZE) {
+            return false;
+        }
+
+        true
+    }
+
+    #[inline(always)]
+    #[cfg(not(feature = "use-sidemap"))]
+    fn is_valid_object(&self, addr: Address) -> bool {
+        let start = self.start();
+        let end = self.end();
+
+        if addr >= end || addr < start {
+            return false;
+        }
+
+        let index = (addr.diff(start) >> LOG_POINTER_SIZE) as isize;
+
+        // use header
+        let hdr = unsafe {addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
+        if !objectmodel::header_is_object_start(hdr) {
             return false;
         }
 

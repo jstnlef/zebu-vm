@@ -22,6 +22,8 @@ use heap::immix::ImmixMutatorLocal;
 use heap::freelist;
 use heap::freelist::FreeListSpace;
 
+use utils::LinkedHashSet;
+
 use std::fmt;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -37,7 +39,8 @@ pub struct GC {
     immix_space: Arc<ImmixSpace>,
     lo_space   : Arc<FreeListSpace>,
 
-    gc_types   : Vec<Arc<GCType>>
+    gc_types   : Vec<Arc<GCType>>,
+    roots      : LinkedHashSet<ObjectReference>
 }
 
 impl fmt::Debug for GC {
@@ -106,7 +109,8 @@ pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
         immix_space: immix_space,
         lo_space: lo_space,
 
-        gc_types: vec![]
+        gc_types: vec![],
+        roots   : LinkedHashSet::new()
     });
 
     info!("heap is {} bytes (immix: {} bytes, lo: {} bytes) . ", immix_size + lo_size, immix_size, lo_size);
@@ -132,6 +136,20 @@ extern "C" {
     pub fn set_low_water_mark();
 }
 
+// explicitly control roots
+
+#[no_mangle]
+pub extern fn add_to_root(obj: ObjectReference) {
+    let mut gc = MY_GC.write().unwrap();
+    gc.as_mut().unwrap().roots.insert(obj);
+}
+
+#[no_mangle]
+pub extern fn remove_root(obj: ObjectReference) {
+    let mut gc = MY_GC.write().unwrap();
+    gc.as_mut().unwrap().roots.remove(&obj);
+}
+
 #[no_mangle]
 #[inline(always)]
 pub extern fn yieldpoint(mutator: *mut ImmixMutatorLocal) {
@@ -153,27 +171,29 @@ pub extern fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) 
 
 #[no_mangle]
 #[inline(always)]
-pub extern fn init_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u8) {
+pub extern fn init_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64) {
     unsafe {&mut *mutator}.init_object(obj.to_address(), encode);
 }
 
 #[no_mangle]
 #[inline(never)]
 pub extern fn muentry_alloc_slow(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
-    trace!("muentry_alloc_slow(mutator: {:?}, size: {}, align: {})", mutator, size, align);
     let ret = unsafe {&mut *mutator}.try_alloc_from_local(size, align);
+    trace!("muentry_alloc_slow(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
+
     unsafe {ret.to_object_reference()}
 }
 
 #[no_mangle]
 pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
-    trace!("muentry_alloc_large(mutator: {:?}, size: {}, align: {})", mutator, size, align);
     let ret = freelist::alloc_large(size, align, unsafe {mutator.as_mut().unwrap()}, MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone());
+    trace!("muentry_alloc_large(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
+
     unsafe {ret.to_object_reference()}
 }
 
 #[no_mangle]
 #[allow(unused_variables)]
-pub extern fn muentry_init_large_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u8) {
+pub extern fn muentry_init_large_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64) {
     MY_GC.read().unwrap().as_ref().unwrap().lo_space.init_object(obj.to_address(), encode);
 }

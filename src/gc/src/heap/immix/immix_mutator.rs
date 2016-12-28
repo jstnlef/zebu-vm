@@ -144,7 +144,9 @@ impl ImmixMutatorLocal {
     pub fn alloc(&mut self, size: usize, align: usize) -> Address {
         let start = self.cursor.align_up(align);
         let end = start.plus(size);
-        
+
+        let size = size + objectmodel::OBJECT_HEADER_SIZE;
+
         if end > self.limit {
             let ret = self.try_alloc_from_local(size, align);
             
@@ -156,7 +158,7 @@ impl ImmixMutatorLocal {
                 }
             }
             
-            ret
+            ret.offset(-objectmodel::OBJECT_HEADER_OFFSET)
         } else {
             if cfg!(debug_assertions) {
                 if !start.is_aligned_to(align) {
@@ -167,21 +169,25 @@ impl ImmixMutatorLocal {
             }
             self.cursor = end;
             
-            start            
+            start.offset(-objectmodel::OBJECT_HEADER_OFFSET)
         } 
     }
     
     #[inline(always)]
-    pub fn init_object(&mut self, addr: Address, encode: u8) {
+    #[cfg(feature = "use-sidemap")]
+    pub fn init_object(&mut self, addr: Address, encode: u64) {
         unsafe {
-            *self.alloc_map.offset((addr.diff(self.space_start) >> LOG_POINTER_SIZE) as isize) = encode;
+            *self.alloc_map.offset((addr.diff(self.space_start) >> LOG_POINTER_SIZE) as isize) = encode as u8;
             objectmodel::mark_as_untraced(self.trace_map, self.space_start, addr, self.mark_state);
         }
     }
-    
-    #[inline(never)]
-    pub fn init_object_no_inline(&mut self, addr: Address, encode: u8) {
-        self.init_object(addr, encode);
+
+    #[inline(always)]
+    #[cfg(not(feature = "use-sidemap"))]
+    pub fn init_object(&mut self, addr: Address, encode: u64) {
+        unsafe {
+            addr.offset(objectmodel::OBJECT_HEADER_OFFSET).store(encode);
+        }
     }
     
     #[inline(never)]
@@ -231,7 +237,10 @@ impl ImmixMutatorLocal {
             let new_block : Option<Box<ImmixBlock>> = self.space.get_next_usable_block();
             
             match new_block {
-                Some(b) => {
+                Some(mut b) => {
+                    // zero the block
+                    b.lazy_zeroing();
+
                     self.block    = Some(b);
                     self.cursor   = self.block().start();
                     self.limit    = self.block().start();

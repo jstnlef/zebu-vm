@@ -122,14 +122,16 @@ pub fn sync_barrier(mutator: &mut ImmixMutatorLocal) {
     // prepare the mutator for gc - return current block (if it has)
     mutator.prepare_for_gc();
     
-    // scan its stack
-    let mut thread_roots = stack_scan();
-    ROOTS.write().unwrap().append(&mut thread_roots);
-    
     // user thread call back to prepare for gc
 //    USER_THREAD_PREPARE_FOR_GC.read().unwrap()();
     
     if controller_id != NO_CONTROLLER {
+        // scan its stack
+        {
+            let mut thread_roots = stack_scan();
+            ROOTS.write().unwrap().append(&mut thread_roots);
+        }
+
         // this thread will block
         block_current_thread(mutator);
         
@@ -138,6 +140,23 @@ pub fn sync_barrier(mutator: &mut ImmixMutatorLocal) {
     } else {
         // this thread is controller
         // other threads should block
+
+        // init roots
+        {
+            let mut roots = ROOTS.write().unwrap();
+            // clear existing roots (roots from last gc)
+            roots.clear();
+
+            // add explicity roots
+            let gc = MY_GC.read().unwrap();
+            for objref in gc.as_ref().unwrap().roots.iter() {
+                roots.push(*objref);
+            }
+
+            // scan its stack
+            let mut thread_roots = stack_scan();
+            roots.append(&mut thread_roots);
+        }
         
         // wait for all mutators to be blocked
         let &(ref lock, ref cvar) = &*STW_COND.clone();
@@ -203,6 +222,7 @@ fn gc() {
     
     // creates root deque
     let mut roots : &mut Vec<ObjectReference> = &mut ROOTS.write().unwrap();
+    trace!("total roots: {}", roots.len());
     
     // mark & trace
     {
@@ -305,6 +325,7 @@ fn start_steal_trace(stealer: Stealer<ObjectReference>, job_sender:mpsc::Sender<
 } 
 
 #[inline(always)]
+#[cfg(feature = "use-sidemap")]
 pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectReference>, job_sender: &mpsc::Sender<ObjectReference>, mark_state: u8, immix_space: &ImmixSpace, lo_space: &FreeListSpace) {
     if cfg!(debug_assertions) {
         // check if this object in within the heap, if it is an object
@@ -349,7 +370,7 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
     let mut base = addr;
     loop {
         let value = objectmodel::get_ref_byte(alloc_map, space_start, obj);
-        let (ref_bits, short_encode) = (bit_utils::lower_bits(value, objectmodel::REF_BITS_LEN), bit_utils::test_nth_bit(value, objectmodel::SHORT_ENCODE_BIT));
+        let (ref_bits, short_encode) = (bit_utils::lower_bits_u8(value, objectmodel::REF_BITS_LEN), bit_utils::test_nth_bit_u8(value, objectmodel::SHORT_ENCODE_BIT));
         match ref_bits {
             0b0000_0000 => {
 
@@ -382,6 +403,84 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
 }
 
 #[inline(always)]
+#[cfg(not(feature = "use-sidemap"))]
+pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectReference>, job_sender: &mpsc::Sender<ObjectReference>, mark_state: u8, immix_space: &ImmixSpace, lo_space: &FreeListSpace) {
+    if cfg!(debug_assertions) {
+        // check if this object in within the heap, if it is an object
+        if !immix_space.is_valid_object(obj.to_address()) && !lo_space.is_valid_object(obj.to_address()){
+            use std::process;
+
+            println!("trying to trace an object that is not valid");
+            println!("address: 0x{:x}", obj);
+            println!("---");
+            println!("immix space: {}", immix_space);
+            println!("lo space: {}", lo_space);
+
+            println!("invalid object during tracing");
+            process::exit(101);
+        }
+    }
+
+    let addr = obj.to_address();
+
+    // mark object
+    objectmodel::mark_as_traced(obj, mark_state);
+
+    if immix_space.addr_in_space(addr) {
+        // mark line
+        immix_space.line_mark_table.mark_line_live(addr);
+    } else if lo_space.addr_in_space(addr) {
+        // do nothing
+    } else {
+        println!("unexpected address: {}", addr);
+        println!("immix space: {}", immix_space);
+        println!("lo space   : {}", lo_space);
+
+        panic!("error during tracing object")
+    }
+
+    let hdr = unsafe {addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
+
+    if objectmodel::header_is_fix_size(hdr) {
+        // fix sized type
+        if objectmodel::header_has_ref_map(hdr) {
+            // has ref map
+            let ref_map = objectmodel::header_get_ref_map(hdr);
+
+            match ref_map {
+                0 => {
+
+                },
+                0b0000_0001 => {
+                    steal_process_edge(addr, 0, local_queue, job_sender, mark_state, immix_space, lo_space);
+                }
+                0b0000_0011 => {
+                    steal_process_edge(addr, 0, local_queue, job_sender, mark_state, immix_space, lo_space);
+                    steal_process_edge(addr, 8, local_queue, job_sender, mark_state, immix_space, lo_space);
+                },
+                0b0000_1111 => {
+                    steal_process_edge(addr, 0, local_queue, job_sender, mark_state, immix_space, lo_space);
+                    steal_process_edge(addr, 8, local_queue, job_sender, mark_state, immix_space, lo_space);
+                    steal_process_edge(addr, 16,local_queue, job_sender, mark_state, immix_space, lo_space);
+                    steal_process_edge(addr, 24,local_queue, job_sender, mark_state, immix_space, lo_space);
+                },
+                _ => {
+                    error!("unexpected ref_bits patterns: {:b}", ref_map);
+                    unimplemented!()
+                }
+            }
+        } else {
+            // by type ID
+            unimplemented!()
+        }
+    } else {
+        // hybrids
+        unimplemented!()
+    }
+}
+
+#[inline(always)]
+#[cfg(feature = "use-sidemap")]
 pub fn steal_process_edge(base: Address, offset: usize, local_queue:&mut Vec<ObjectReference>, job_sender: &mpsc::Sender<ObjectReference>, mark_state: u8, immix_space: &ImmixSpace, lo_space: &FreeListSpace) {
     let field_addr = base.plus(offset);
     let edge = unsafe{field_addr.load::<ObjectReference>()};
@@ -419,6 +518,49 @@ pub fn steal_process_edge(base: Address, offset: usize, local_queue:&mut Vec<Obj
                 local_queue.push(edge);
             }
         } else if lo_space.addr_in_space(edge.to_address()) && !objectmodel::is_traced(lo_space.trace_map(), lo_space.start(), edge, mark_state) {
+            if local_queue.len() >= PUSH_BACK_THRESHOLD {
+                job_sender.send(edge).unwrap();
+            } else {
+                local_queue.push(edge);
+            }
+        }
+    }
+}
+
+#[inline(always)]
+#[cfg(not(feature = "use-sidemap"))]
+pub fn steal_process_edge(base: Address, offset: usize, local_queue:&mut Vec<ObjectReference>, job_sender: &mpsc::Sender<ObjectReference>, mark_state: u8, immix_space: &ImmixSpace, lo_space: &FreeListSpace) {
+    let field_addr = base.plus(offset);
+    let edge = unsafe {field_addr.load::<ObjectReference>()};
+
+    if cfg!(debug_assertions) {
+        use std::process;
+        // check if this object in within the heap, if it is an object
+        if !edge.to_address().is_zero() && !immix_space.is_valid_object(edge.to_address()) && !lo_space.is_valid_object(edge.to_address()) {
+            println!("trying to follow an edge that is not a valid object");
+            println!("edge address: 0x{:x} from 0x{:x}", edge, field_addr);
+            println!("base address: 0x{:x}", base);
+            println!("---");
+            if immix_space.addr_in_space(base) {
+                objectmodel::print_object(base);
+                objectmodel::print_object(edge.to_address());
+                println!("---");
+                println!("immix space:{}", immix_space);
+            } else if lo_space.addr_in_space(base) {
+                objectmodel::print_object(base);
+                println!("---");
+                println!("lo space:{}", lo_space);
+            } else {
+                println!("not in immix/lo space")
+            }
+
+            println!("invalid object during tracing");
+            process::exit(101);
+        }
+    }
+
+    if !edge.to_address().is_zero() {
+        if !objectmodel::is_traced(edge, mark_state) {
             if local_queue.len() >= PUSH_BACK_THRESHOLD {
                 job_sender.send(edge).unwrap();
             } else {

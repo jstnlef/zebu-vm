@@ -13,6 +13,7 @@ use self::gc::heap::immix::ImmixMutatorLocal;
 use self::gc::heap::immix::ImmixSpace;
 use self::gc::heap::freelist;
 use self::gc::heap::freelist::FreeListSpace;
+use self::gc::objectmodel;
 use std::mem::size_of;
 use std::sync::atomic::Ordering;
 
@@ -114,11 +115,32 @@ fn TimeConstruction(depth: i32, mutator: &mut ImmixMutatorLocal) {
     println!("\tButtom up construction took {} msec", (tFinish - tStart).num_milliseconds());
 }
 
+#[cfg(feature = "use-sidemap")]
+const FIXSIZE_REFx2_ENCODE : u64 = 0b1100_0011u64;
+#[cfg(not(feature = "use-sidemap"))]
+const FIXSIZE_REFx2_ENCODE : u64 = 0xb000000000000003u64;
+
 #[inline(always)]
+#[cfg(feature = "use-sidemap")]
 fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
     let addr = mutator.alloc(size_of::<Node>(), 8);
-    mutator.init_object(addr, 0b1100_0011);
-    //    objectmodel::init_header(unsafe{addr.to_object_reference()}, HEADER_INIT_U64);
+    mutator.init_object(addr, FIXSIZE_REFx2_ENCODE);
+
+    addr.to_ptr_mut::<Node>()
+}
+
+#[inline(always)]
+#[cfg(not(feature = "use-sidemap"))]
+fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
+    let addr = mutator.alloc(size_of::<Node>(), 8);
+    mutator.init_object(addr, FIXSIZE_REFx2_ENCODE);
+
+    if cfg!(debug_assertions) {
+        unsafe {
+            let hdr = addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>();
+            assert!(objectmodel::header_is_object_start(hdr));
+        }
+    }
 
     addr.to_ptr_mut::<Node>()
 }
@@ -129,7 +151,7 @@ fn start() {
 
     start_logging();
 
-    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1);
     gc::gc_stats();
 
     let mut mutator = gc::new_mutator();
