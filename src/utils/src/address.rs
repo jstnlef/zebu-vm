@@ -71,6 +71,10 @@ impl Address {
         unsafe {mem::transmute(ptr)}
     }
     #[inline(always)]
+    pub fn from_mut_ptr<T> (ptr: *mut T) -> Address {
+        unsafe {mem::transmute(ptr)}
+    }
+    #[inline(always)]
     pub fn to_ptr<T> (&self) -> *const T {
         unsafe {mem::transmute(self.0)}
     }

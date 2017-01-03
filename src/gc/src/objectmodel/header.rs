@@ -59,7 +59,7 @@ pub fn print_object(obj: Address) {
             trace!("- has type ID: {}", header_get_gctype_id(hdr));
         }
     } else {
-        trace!("more info about hybrid, not implemented");
+        trace!("- more info about hybrid, not implemented");
     }
 
     trace!("0x{:x} | val: 0x{:15x} | hdr: {:b}",

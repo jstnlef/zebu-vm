@@ -142,10 +142,10 @@ impl ImmixMutatorLocal {
     
     #[inline(always)]
     pub fn alloc(&mut self, size: usize, align: usize) -> Address {
+        let size = size + objectmodel::OBJECT_HEADER_SIZE;
+
         let start = self.cursor.align_up(align);
         let end = start.plus(size);
-
-        let size = size + objectmodel::OBJECT_HEADER_SIZE;
 
         if end > self.limit {
             let ret = self.try_alloc_from_local(size, align);
@@ -238,8 +238,9 @@ impl ImmixMutatorLocal {
             
             match new_block {
                 Some(mut b) => {
-                    // zero the block
-                    b.lazy_zeroing();
+                    // zero the block - do not need to zero the block here
+                    // we zero lines that get used in try_alloc_from_local()
+//                    b.lazy_zeroing();
 
                     self.block    = Some(b);
                     self.cursor   = self.block().start();
@@ -264,9 +265,26 @@ impl ImmixMutatorLocal {
     fn return_block(&mut self) {
         if self.block.is_some() {
             trace!("finishing block {:?}", self.block.as_ref().unwrap());
+
+            if cfg!(debug_assertions) {
+                let block = self.block.as_ref().unwrap();
+                ImmixMutatorLocal::sanity_check_finished_block(block);
+            }
+
             self.space.return_used_block(self.block.take().unwrap());
         }        
     }
+
+    #[cfg(feature = "use-sidemap")]
+    fn sanity_check_finished_block(block: &ImmixBlock) {
+
+    }
+
+    #[cfg(not(feature = "use-sidemap"))]
+    fn sanity_check_finished_block(block: &ImmixBlock) {
+
+    }
+
     fn block(&mut self) -> &mut ImmixBlock {
         self.block.as_mut().unwrap()
     }

@@ -150,6 +150,8 @@ pub extern fn remove_root(obj: ObjectReference) {
     gc.as_mut().unwrap().roots.remove(&obj);
 }
 
+// yieldpoint
+
 #[no_mangle]
 #[inline(always)]
 pub extern fn yieldpoint(mutator: *mut ImmixMutatorLocal) {
@@ -161,6 +163,8 @@ pub extern fn yieldpoint(mutator: *mut ImmixMutatorLocal) {
 pub extern fn yieldpoint_slow(mutator: *mut ImmixMutatorLocal) {
     unsafe {mutator.as_mut().unwrap()}.yieldpoint_slow()
 }
+
+// allocation
 
 #[no_mangle]
 #[inline(always)]
@@ -196,4 +200,10 @@ pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, 
 #[allow(unused_variables)]
 pub extern fn muentry_init_large_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64) {
     MY_GC.read().unwrap().as_ref().unwrap().lo_space.init_object(obj.to_address(), encode);
+}
+
+// force gc
+#[no_mangle]
+pub extern fn force_gc() {
+    heap::gc::trigger_gc();
 }

@@ -304,7 +304,7 @@ impl Treadmill {
 
 impl fmt::Display for Treadmill {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "next: {}", self.from_space_next).unwrap();
+        write!(f, "next: {}\n", self.from_space_next).unwrap();
         write!(f, "from:").unwrap();
         for i in 0..self.spaces[self.from].len() {
             write!(f, "{}->", self.spaces[self.from][i]).unwrap();

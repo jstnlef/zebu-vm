@@ -7,6 +7,7 @@
 
 extern crate gc;
 extern crate time;
+extern crate utils;
 
 use self::gc::heap;
 use self::gc::heap::immix::ImmixMutatorLocal;
@@ -14,6 +15,7 @@ use self::gc::heap::immix::ImmixSpace;
 use self::gc::heap::freelist;
 use self::gc::heap::freelist::FreeListSpace;
 use self::gc::objectmodel;
+use self::utils::{ObjectReference, Address};
 use std::mem::size_of;
 use std::sync::atomic::Ordering;
 
@@ -157,6 +159,7 @@ fn start() {
     let mut mutator = gc::new_mutator();
 
     println!("Garbage Collector Test");
+    println!(" Node size = {}", size_of::<Node>());
     println!(" Live storage will peak at {} bytes.\n",
              2 * (size_of::<Node>() as i32) * TreeSize(kLongLivedTreeDepth) +
                  (size_of::<Array>() as i32));
@@ -173,6 +176,7 @@ fn start() {
     println!(" Creating a long-lived binary tree of depth {}", kLongLivedTreeDepth);
     let longLivedTree = alloc(&mut mutator);
     Populate(kLongLivedTreeDepth, longLivedTree, &mut mutator);
+    gc::add_to_root(unsafe{Address::from_mut_ptr(longLivedTree).to_object_reference()});
 
     println!(" Creating a long-lived array of {} doubles", kArraySize);
     //    mm::alloc_large(&mut mutator, size_of::<Array>(), 8);
