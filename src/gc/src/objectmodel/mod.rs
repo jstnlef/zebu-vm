@@ -1,9 +1,8 @@
 use std::sync::atomic;
-use utils::{Address, ObjectReference};
-use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
-use utils::bit_utils;
 
+#[cfg(feature = "use-sidemap")]
 mod sidemap;
+#[cfg(not(feature = "use-sidemap"))]
 mod header;
 
 // mark state

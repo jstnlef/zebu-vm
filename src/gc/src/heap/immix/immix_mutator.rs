@@ -3,8 +3,6 @@ use heap::immix::ImmixSpace;
 use heap::immix::immix_space::ImmixBlock;
 use heap::gc;
 use objectmodel;
-
-use utils::LOG_POINTER_SIZE;
 use utils::Address;
 
 use std::*;
@@ -239,7 +237,7 @@ impl ImmixMutatorLocal {
             let new_block : Option<Box<ImmixBlock>> = self.space.get_next_usable_block();
             
             match new_block {
-                Some(mut b) => {
+                Some(b) => {
                     // zero the block - do not need to zero the block here
                     // we zero lines that get used in try_alloc_from_local()
 //                    b.lazy_zeroing();
@@ -278,11 +276,13 @@ impl ImmixMutatorLocal {
     }
 
     #[cfg(feature = "use-sidemap")]
+    #[allow(unused_variables)]
     fn sanity_check_finished_block(block: &ImmixBlock) {
 
     }
 
     #[cfg(not(feature = "use-sidemap"))]
+    #[allow(unused_variables)]
     fn sanity_check_finished_block(block: &ImmixBlock) {
 
     }

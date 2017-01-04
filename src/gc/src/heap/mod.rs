@@ -1,7 +1,5 @@
 use utils::Address;
-use utils::bit_utils;
 use utils::POINTER_SIZE;
-use utils::LOG_POINTER_SIZE;
 use std::sync::atomic::AtomicUsize;
 
 use objectmodel;
@@ -65,8 +63,6 @@ pub trait Space {
         if addr >= end || addr < start {
             return false;
         }
-
-        let index = (addr.diff(start) >> LOG_POINTER_SIZE) as isize;
 
         // use header
         let hdr = unsafe {addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};

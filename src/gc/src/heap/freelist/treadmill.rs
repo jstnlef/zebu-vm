@@ -4,7 +4,6 @@ extern crate doubly;
 
 use utils::Address;
 use utils::mem::memmap;
-use utils::LOG_POINTER_SIZE;
 use common::AddressMap;
 
 use objectmodel;
@@ -124,7 +123,6 @@ impl FreeListSpace {
         let mut treadmill = self.treadmill.lock().unwrap();
 
         {
-            let trace_map = self.trace_map();
             let mark_state = objectmodel::load_mark_state();
 
             let from = treadmill.from;

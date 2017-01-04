@@ -9,7 +9,6 @@ use MY_GC;
 
 use utils::{Address, ObjectReference};
 use utils::POINTER_SIZE;
-use utils::bit_utils;
 
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::{Arc, Mutex, Condvar, RwLock};

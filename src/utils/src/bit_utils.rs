@@ -1,8 +1,8 @@
 // u8
 
 #[inline(always)]
-pub fn test_nth_bit_u8(value: u8, index: usize) -> bool {
-    value & (1 << index) != 0
+pub fn test_nth_bit_u8(value: u8, index: usize, val: u8) -> bool {
+    ((value >> index) & 1) as u8 == val
 }
 
 #[inline(always)]
@@ -18,8 +18,8 @@ pub fn set_nth_bit_u64 (value: u64, index: usize, set_value: u8) -> u64 {
 }
 
 #[inline(always)]
-pub fn test_nth_bit_u64(value: u64, index: usize) -> bool {
-    value & (1 << index) != 0
+pub fn test_nth_bit_u64(value: u64, index: usize, val: u8) -> bool {
+    ((value >> index) & 1) as u8 == val
 }
 
 #[cfg(test)]

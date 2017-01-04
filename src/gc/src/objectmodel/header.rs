@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// * use 1 word  (64bits)  header
 
 /// * header is before an object reference
@@ -23,6 +25,7 @@
 ///                      0
 
 use common::gctype::GCType;
+use objectmodel;
 use utils::ByteSize;
 use utils::ByteOffset;
 use utils::bit_utils;
@@ -87,7 +90,7 @@ pub fn print_object(obj: Address) {
     let hdr = unsafe {cursor.offset(OBJECT_HEADER_OFFSET).load::<u64>()};
 
     trace!("- is object start? {}", header_is_object_start(hdr));
-    trace!("- is traced? {}", header_is_traced(hdr));
+    trace!("- is traced? {}", header_is_traced(hdr, objectmodel::load_mark_state()));
     if header_is_fix_size(hdr) {
         trace!("- is fix sized? true");
         if header_has_ref_map(hdr) {
@@ -142,28 +145,28 @@ pub fn mark_as_untraced(addr: Address, mark_state: u8) {
 pub fn is_traced(obj: ObjectReference, mark_state: u8) -> bool {
     unsafe {
         let hdr = obj.to_address().offset(OBJECT_HEADER_OFFSET).load::<u64>();
-        bit_utils::test_nth_bit_u64(hdr, BIT_IS_TRACED)
+        bit_utils::test_nth_bit_u64(hdr, BIT_IS_TRACED, mark_state)
     }
 }
 
 #[inline(always)]
 pub fn header_is_object_start(hdr: u64) -> bool {
-    bit_utils::test_nth_bit_u64(hdr, BIT_IS_OBJ_START)
+    bit_utils::test_nth_bit_u64(hdr, BIT_IS_OBJ_START, 1u8)
 }
 
 #[inline(always)]
 pub fn header_is_fix_size(hdr: u64) -> bool {
-    bit_utils::test_nth_bit_u64(hdr, BIT_IS_FIX_SIZE)
+    bit_utils::test_nth_bit_u64(hdr, BIT_IS_FIX_SIZE, 1u8)
 }
 
 #[inline(always)]
-pub fn header_is_traced(hdr: u64) -> bool {
-    bit_utils::test_nth_bit_u64(hdr, BIT_IS_TRACED)
+pub fn header_is_traced(hdr: u64, mark_state: u8) -> bool {
+    bit_utils::test_nth_bit_u64(hdr, BIT_IS_TRACED, mark_state)
 }
 
 #[inline(always)]
 pub fn header_has_ref_map(hdr: u64) -> bool {
-    bit_utils::test_nth_bit_u64(hdr, BIT_HAS_REF_MAP)
+    bit_utils::test_nth_bit_u64(hdr, BIT_HAS_REF_MAP, 1u8)
 }
 
 #[inline(always)]
@@ -202,7 +205,7 @@ mod tests {
         let hdr = hdr_hex;
 
         assert!(header_is_object_start(hdr));
-        assert!(!header_is_traced(hdr));
+        assert!(!header_is_traced(hdr, 1u8));
         assert!(header_is_fix_size(hdr));
         assert!(header_has_ref_map(hdr));
 
@@ -223,7 +226,7 @@ mod tests {
         let hdr = hdr_hex;
 
         assert!(header_is_object_start(hdr));
-        assert!(!header_is_traced(hdr));
+        assert!(!header_is_traced(hdr, 1u8));
         assert!(header_is_fix_size(hdr));
         assert!(!header_has_ref_map(hdr));
 
@@ -244,7 +247,7 @@ mod tests {
         let hdr = hdr_hex;
 
         assert!(header_is_object_start(hdr));
-        assert!(!header_is_traced(hdr));
+        assert!(!header_is_traced(hdr, 1u8));
         assert!(!header_is_fix_size(hdr));
 
         assert_eq!(header_get_hybrid_length(hdr), 128);
