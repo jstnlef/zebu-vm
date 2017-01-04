@@ -22,12 +22,14 @@
 /// | start? | trace? | fix? | hybrid length (29bits ~ 500M) | gc type ID    (32bits) |
 ///                      0
 
+use common::gctype::GCType;
 use utils::ByteSize;
 use utils::ByteOffset;
 use utils::bit_utils;
 
 use utils::{Address, ObjectReference};
 use utils::POINTER_SIZE;
+use utils::LOG_POINTER_SIZE;
 
 pub const OBJECT_HEADER_SIZE   : ByteSize   = 8;
 pub const OBJECT_HEADER_OFFSET : ByteOffset = - (OBJECT_HEADER_SIZE as ByteOffset);
@@ -37,10 +39,45 @@ pub const BIT_IS_TRACED     : usize = 62;
 pub const BIT_IS_FIX_SIZE   : usize = 61;
 pub const BIT_HAS_REF_MAP   : usize = 60;
 
+pub const REF_MAP_LENGTH    : usize = 32;
 pub const MASK_REF_MAP      : u64 = 0xFFFFFFFFu64;
 pub const MASK_GCTYPE_ID    : u64 = 0xFFFFFFFFu64;
 pub const MASK_HYBRID_LENGTH: u64 = 0x1FFFFFFF00000000u64;
 pub const SHR_HYBRID_LENGTH : usize = 32;
+
+pub fn gen_gctype_encode(ty: &GCType) -> u64 {
+    let mut ret = 0u64;
+
+    if ty.repeat_refs.is_some() {
+        // var sized
+        let len = ty.repeat_refs.as_ref().unwrap().count;
+
+        // encode length
+        ret = ret | (( (len as u64) << SHR_HYBRID_LENGTH) & MASK_HYBRID_LENGTH);
+        // encode gc id
+        ret = ret | (ty.id as u64);
+    } else {
+        // fix sized
+        ret = ret | (1 << BIT_IS_FIX_SIZE);
+
+        // encode ref map?
+        if ty.size < REF_MAP_LENGTH * POINTER_SIZE {
+            // encode ref map
+            let offsets = ty.gen_ref_offsets();
+            let mut ref_map = 0;
+
+            for offset in offsets {
+                ref_map = ref_map | (1 << (offset >> LOG_POINTER_SIZE));
+            }
+
+            ret = ret | (ref_map & MASK_REF_MAP);
+        } else {
+            ret = ret | (ty.id as u64);
+        }
+    }
+
+    ret
+}
 
 #[allow(unused_variables)]
 pub fn print_object(obj: Address) {
@@ -147,6 +184,9 @@ pub fn header_get_gctype_id(hdr: u64) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::gctype::*;
+    use utils::POINTER_SIZE;
+    use std::sync::Arc;
 
     #[test]
     fn fixsize_header_refmap() {
@@ -209,5 +249,130 @@ mod tests {
 
         assert_eq!(header_get_hybrid_length(hdr), 128);
         assert_eq!(header_get_gctype_id(hdr), 0xff);
+    }
+
+    #[test]
+    fn gctype_to_encode1() {
+        // linked list: struct {ref, int64}
+        let a = GCType{
+            id: 0,
+            size: 16,
+            non_repeat_refs: Some(RefPattern::Map{
+                offsets: vec![0],
+                size: 16
+            }),
+            repeat_refs    : None
+        };
+        println!("gctype: {:?}", a);
+
+        let encode = gen_gctype_encode(&a);
+        println!("encode: {:64b}", encode);
+
+        assert!(header_is_fix_size(encode));
+        assert_eq!(header_get_ref_map(encode), 0b1);
+    }
+
+    #[test]
+    fn gctype_to_encode2() {
+        // doubly linked list: struct {ref, ref, int64, int64}
+        let a = GCType{
+            id: 0,
+            size: 32,
+            non_repeat_refs: Some(RefPattern::Map{
+                offsets: vec![0, 8],
+                size: 32
+            }),
+            repeat_refs    : None
+        };
+        println!("gctype: {:?}", a);
+
+        let encode = gen_gctype_encode(&a);
+        println!("encode: {:64b}", encode);
+
+        assert!(header_is_fix_size(encode));
+        assert_eq!(header_get_ref_map(encode), 0b11);
+    }
+
+    #[test]
+    fn gctype_to_encode3() {
+        // a struct of 64 references
+        const N_REF : usize = 64;
+        let a = GCType{
+            id: 999,
+            size: N_REF * POINTER_SIZE,
+            non_repeat_refs: Some(RefPattern::Map{
+                offsets: (0..N_REF).map(|x| x * POINTER_SIZE).collect(),
+                size: N_REF * POINTER_SIZE
+            }),
+            repeat_refs    : None
+        };
+        println!("gctype: {:?}", a);
+
+        let encode = gen_gctype_encode(&a);
+        println!("encode: {:64b}", encode);
+
+        assert!(header_is_fix_size(encode));
+        assert_eq!(header_get_gctype_id(encode), 999);
+    }
+
+    #[test]
+    fn gctype_to_encode4() {
+        // array of struct {ref, int64} with length 10
+        let a = GCType {
+            id: 1,
+            size: 160,
+            non_repeat_refs: None,
+            repeat_refs    : Some(RepeatingRefPattern {
+                pattern: RefPattern::Map{
+                    offsets: vec![0],
+                    size   : 16
+                },
+                count  : 10
+            }),
+        };
+        println!("gctype: {:?}", a);
+
+        let encode = gen_gctype_encode(&a);
+        println!("encode: {:64b}", encode);
+
+        assert!(!header_is_fix_size(encode));
+        assert_eq!(header_get_hybrid_length(encode), 10);
+        assert_eq!(header_get_gctype_id(encode), 1);
+    }
+
+    #[test]
+    fn gctype_to_encode5() {
+        // array of struct {ref, int64} with length 10
+        let b = GCType {
+            id: 1,
+            size: 160,
+            non_repeat_refs: None,
+            repeat_refs    : Some(RepeatingRefPattern {
+                pattern: RefPattern::Map{
+                    offsets: vec![0],
+                    size   : 16
+                },
+                count  : 10
+            }),
+        };
+
+        // array(10) of array(10) of struct {ref, int64}
+        let a = GCType {
+            id: 2,
+            size: 1600,
+            non_repeat_refs: None,
+            repeat_refs    : Some(RepeatingRefPattern {
+                pattern: RefPattern::NestedType(vec![Arc::new(b.clone()).clone()]),
+                count  : 10
+            })
+        };
+        println!("gctype: {:?}", a);
+
+        let encode = gen_gctype_encode(&a);
+        println!("encode: {:64b}", encode);
+
+        assert!(!header_is_fix_size(encode));
+        assert_eq!(header_get_hybrid_length(encode), 10);
+        assert_eq!(header_get_gctype_id(encode), 2);
     }
 }

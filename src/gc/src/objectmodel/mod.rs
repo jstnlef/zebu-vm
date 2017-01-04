@@ -31,6 +31,9 @@ pub fn flip(mark: u8) -> u8 {
 // sidemap object model
 
 #[cfg(feature = "use-sidemap")]
+pub use self::sidemap::gen_gctype_encode;
+
+#[cfg(feature = "use-sidemap")]
 pub use self::sidemap::OBJECT_HEADER_SIZE;
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::REF_BITS_LEN;
@@ -51,6 +54,9 @@ pub use self::sidemap::is_traced;
 pub use self::sidemap::get_ref_byte;
 
 // header
+
+#[cfg(not(feature = "use-sidemap"))]
+pub use self::header::gen_gctype_encode;
 
 // flag bit
 #[cfg(not(feature = "use-sidemap"))]

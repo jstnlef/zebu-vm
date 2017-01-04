@@ -84,7 +84,7 @@ fn test_exhaust_alloc_large() {
         mutator.yieldpoint();
 
         let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
-        gc::muentry_init_large_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
+        gc::muentry_init_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
     }
 
     mutator.destroy();
@@ -105,7 +105,7 @@ fn test_alloc_large_lo_trigger_gc() {
         mutator.yieldpoint();
 
         let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
-        gc::muentry_init_large_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
+        gc::muentry_init_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
 
         if roots < KEEP_N_ROOTS {
             gc::add_to_root(res);
@@ -129,12 +129,12 @@ fn test_alloc_large_both_trigger_gc() {
         mutator.yieldpoint();
 
         let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
-        gc::muentry_init_large_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
+        gc::muentry_init_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
     }
 
     // this will trigger a gc, and allocate it in the collected space
     let res = gc::muentry_alloc_large(&mut mutator, LARGE_OBJECT_SIZE, OBJECT_ALIGN);
-    gc::muentry_init_large_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
+    gc::muentry_init_object(&mut mutator, res, FIXSIZE_NOREF_ENCODE);
 
     // this will trigger gcs for immix space
     for _ in 0..100000 {

@@ -74,7 +74,7 @@ pub extern fn add_gc_type(mut ty: GCType) -> Arc<GCType> {
     let mut gc_guard = MY_GC.write().unwrap();
     let mut gc = gc_guard.as_mut().unwrap();
 
-    let index = gc.gc_types.len();
+    let index = gc.gc_types.len() as u32;
     ty.id = index;
 
     let ty = Arc::new(ty);
@@ -82,6 +82,14 @@ pub extern fn add_gc_type(mut ty: GCType) -> Arc<GCType> {
     gc.gc_types.push(ty.clone());
 
     ty
+}
+
+#[no_mangle]
+pub extern fn get_gc_type_encode(id: u32) -> u64 {
+    let gc_lock = MY_GC.read().unwrap();
+    let ref gctype  = gc_lock.as_ref().unwrap().gc_types[id as usize];
+
+    objectmodel::gen_gctype_encode(gctype)
 }
 
 #[no_mangle]
@@ -174,8 +182,8 @@ pub extern fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) 
 }
 
 #[no_mangle]
-#[inline(always)]
-pub extern fn init_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64) {
+#[inline(never)]
+pub extern fn muentry_init_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64) {
     unsafe {&mut *mutator}.init_object(obj.to_address(), encode);
 }
 
@@ -194,12 +202,6 @@ pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, 
     trace!("muentry_alloc_large(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
 
     unsafe {ret.to_object_reference()}
-}
-
-#[no_mangle]
-#[allow(unused_variables)]
-pub extern fn muentry_init_large_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64) {
-    MY_GC.read().unwrap().as_ref().unwrap().lo_space.init_object(obj.to_address(), encode);
 }
 
 // force gc

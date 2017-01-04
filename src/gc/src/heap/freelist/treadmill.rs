@@ -99,21 +99,6 @@ impl FreeListSpace {
         }
     }
 
-    #[cfg(feature = "use-sidemap")]
-    pub fn init_object(&self, addr: Address, encode: u64) {
-        unsafe {
-            *self.alloc_map().offset((addr.diff(self.start) >> LOG_POINTER_SIZE) as isize) = encode as u8;
-            objectmodel::mark_as_untraced(self.trace_map(), self.start, addr, objectmodel::load_mark_state());
-        }
-    }
-
-    #[cfg(not(feature = "use-sidemap"))]
-    pub fn init_object(&self, addr: Address, encode: u64) {
-        unsafe {
-            addr.offset(objectmodel::OBJECT_HEADER_OFFSET).store(encode);
-        }
-    }
-
     #[inline(always)]
     #[cfg(feature = "use-sidemap")]
     fn is_traced(&self, addr: Address, mark_state: u8) -> bool {

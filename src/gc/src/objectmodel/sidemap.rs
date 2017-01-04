@@ -1,4 +1,5 @@
 use std::sync::atomic;
+use common::gctype::GCType;
 use utils::{Address, ObjectReference};
 use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
 use utils::bit_utils;
@@ -6,6 +7,11 @@ use utils::{ByteSize, ByteOffset};
 
 pub const OBJECT_HEADER_SIZE : ByteSize = 0;
 pub const OBJECT_HEADER_OFFSET : ByteOffset = 0;
+
+pub fn gen_gctype_encode(ty: &GCType) -> u64 {
+    unimplemented!()
+}
+
 #[allow(unused_variables)]
 pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, alloc_map: *mut u8) {
     let mut cursor = obj;

@@ -4,15 +4,15 @@ use std::sync::Arc;
 use utils::POINTER_SIZE;
 use utils::ByteSize;
 
-use std::usize;
-pub const GCTYPE_INIT_ID: usize = usize::MAX;
+use std::u32;
+pub const GCTYPE_INIT_ID: u32 = u32::MAX;
 
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct GCType {
-    pub id: usize,
+    pub id: u32,
     pub size: ByteSize,
     pub non_repeat_refs: Option<RefPattern>,
-    pub repeat_refs    : Option<RepeatingRefPattern>
+    pub repeat_refs    : Option<RepeatingRefPattern>,
 }
 
 impl GCType {
@@ -21,7 +21,7 @@ impl GCType {
             id: GCTYPE_INIT_ID,
             size: size,
             non_repeat_refs: None,
-            repeat_refs    : None
+            repeat_refs    : None,
         }
     }
 
@@ -144,7 +144,7 @@ mod tests {
                     size   : 16
                 },
                 count  : 10
-            })
+            }),
         };
 
         // array(10) of array(10) of struct {ref, int64}

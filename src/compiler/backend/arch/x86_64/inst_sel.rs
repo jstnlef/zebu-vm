@@ -14,6 +14,7 @@ use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 use compiler::backend;
+use compiler::backend::BackendTypeInfo;
 use compiler::backend::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
@@ -1327,7 +1328,7 @@ impl <'a> InstructionSelection {
 
                         let const_size = self.make_value_int_const(size as u64, vm);
                         
-                        self.emit_alloc_sequence(const_size, ty_align, node, f_content, f_context, vm);
+                        self.emit_alloc_sequence(&ty_info, const_size, ty_align, node, f_content, f_context, vm);
                     }
 
                     Instruction_::NewHybrid(ref ty, var_len) => {
@@ -1417,7 +1418,7 @@ impl <'a> InstructionSelection {
                             }
                         };
 
-                        self.emit_alloc_sequence(actual_size, ty_align, node, f_content, f_context, vm);
+                        self.emit_alloc_sequence(&ty_info, actual_size, ty_align, node, f_content, f_context, vm);
                     }
                     
                     Instruction_::Throw(op_index) => {
@@ -1481,13 +1482,13 @@ impl <'a> InstructionSelection {
         })
     }
 
-    fn emit_alloc_sequence (&mut self, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
+    fn emit_alloc_sequence (&mut self, ty_info: &BackendTypeInfo, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
             if size.extract_int_const() > mm::LARGE_OBJECT_THRESHOLD as u64 {
-                self.emit_alloc_sequence_large(size, align, node, f_content, f_context, vm);
+                self.emit_alloc_sequence_large(ty_info, size, align, node, f_content, f_context, vm);
             } else {
-                self.emit_alloc_sequence_small(size, align, node, f_content, f_context, vm);
+                self.emit_alloc_sequence_small(ty_info, size, align, node, f_content, f_context, vm);
             }
         } else {
             // size is unknown at compile time
@@ -1508,7 +1509,7 @@ impl <'a> InstructionSelection {
             self.backend.emit_jg(blk_alloc_large.clone());
 
             // alloc small here
-            let tmp_res = self.emit_alloc_sequence_small(size.clone(), align, node, f_content, f_context, vm);
+            let tmp_res = self.emit_alloc_sequence_small(ty_info, size.clone(), align, node, f_content, f_context, vm);
 
             self.backend.emit_jmp(blk_alloc_large_end.clone());
 
@@ -1522,7 +1523,7 @@ impl <'a> InstructionSelection {
             self.backend.start_block(blk_alloc_large.clone());
             self.backend.set_block_livein(blk_alloc_large.clone(), &vec![size.clone()]);
 
-            let tmp_res = self.emit_alloc_sequence_large(size, align, node, f_content, f_context, vm);
+            let tmp_res = self.emit_alloc_sequence_large(ty_info, size, align, node, f_content, f_context, vm);
 
             self.backend.end_block(blk_alloc_large.clone());
             self.backend.set_block_liveout(blk_alloc_large.clone(), &vec![tmp_res]);
@@ -1533,7 +1534,7 @@ impl <'a> InstructionSelection {
         }
     }
 
-    fn emit_alloc_sequence_large (&mut self, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_alloc_sequence_large (&mut self, ty_info: &BackendTypeInfo, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         let tmp_res = self.get_result_value(node);
 
         // ASM: %tl = get_thread_local()
@@ -1549,15 +1550,24 @@ impl <'a> InstructionSelection {
 
         self.emit_runtime_entry(
             &entrypoints::ALLOC_LARGE,
-            vec![tmp_allocator, size.clone(), const_align],
+            vec![tmp_allocator.clone(), size.clone(), const_align],
             Some(vec![tmp_res.clone()]),
+            Some(node), f_content, f_context, vm
+        );
+
+        // ASM: call muentry_init_object(%allocator, %tmp_res, encode)
+        let encode = self.make_value_int_const(mm::get_gc_type_encode(ty_info.gc_type.id), vm);
+        self.emit_runtime_entry(
+            &entrypoints::INIT_OBJ,
+            vec![tmp_allocator.clone(), tmp_res.clone(), encode],
+            None,
             Some(node), f_content, f_context, vm
         );
 
         tmp_res
     }
 
-    fn emit_alloc_sequence_small (&mut self, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_alloc_sequence_small (&mut self, ty_info: &BackendTypeInfo, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         // emit immix allocation fast path
 
         // ASM: %tl = get_thread_local()
@@ -1634,7 +1644,7 @@ impl <'a> InstructionSelection {
 
         self.emit_runtime_entry(
             &entrypoints::ALLOC_SLOW,
-            vec![tmp_allocator, size.clone(), const_align],
+            vec![tmp_allocator.clone(), size.clone(), const_align],
             Some(vec![
             tmp_res.clone()
             ]),
@@ -1648,6 +1658,15 @@ impl <'a> InstructionSelection {
         // block: alloc_end
         self.backend.start_block(allocend.clone());
         self.current_block = Some(allocend.clone());
+
+        // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
+        let encode = self.make_value_int_const(mm::get_gc_type_encode(ty_info.gc_type.id), vm);
+        self.emit_runtime_entry(
+            &entrypoints::INIT_OBJ,
+            vec![tmp_allocator.clone(), tmp_res.clone(), encode],
+            None,
+            Some(node), f_content, f_context, vm
+        );
 
         tmp_res
     }
@@ -1888,8 +1907,10 @@ impl <'a> InstructionSelection {
                         stack_args.push(arg.clone());
                     }
                 } else {
-                    // put the constant to memory
-                    unimplemented!()
+                    // FIXME: put the constant to memory
+                    let int_const = arg.extract_int_const() as i64;
+                    self.backend.emit_mov_r64_imm64(&arg_gpr, int_const);
+                    gpr_arg_count += 1;
                 }
             } else if arg.is_mem() {
                 unimplemented!()

@@ -176,10 +176,12 @@ impl ImmixMutatorLocal {
     #[inline(always)]
     #[cfg(feature = "use-sidemap")]
     pub fn init_object(&mut self, addr: Address, encode: u64) {
-        unsafe {
-            *self.alloc_map.offset((addr.diff(self.space_start) >> LOG_POINTER_SIZE) as isize) = encode as u8;
-            objectmodel::mark_as_untraced(self.trace_map, self.space_start, addr, self.mark_state);
-        }
+//        unsafe {
+//            *self.alloc_map.offset((addr.diff(self.space_start) >> LOG_POINTER_SIZE) as isize) = encode as u8;
+//            objectmodel::mark_as_untraced(self.trace_map, self.space_start, addr, self.mark_state);
+//        }
+
+        unimplemented!()
     }
 
     #[inline(always)]
