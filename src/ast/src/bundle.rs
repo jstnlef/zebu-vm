@@ -1,6 +1,7 @@
 use ir::*;
 use ptr::*;
 use types::*;
+use utils::Address;
 
 use std::collections::HashMap;
 
@@ -130,3 +131,25 @@ handle_constructor!(handle_expfunc, ExpFunc);
 handle_constructor!(handle_norparam, NorParam);
 handle_constructor!(handle_excparam, ExcParam);
 handle_constructor!(handle_instres, InstRes);
+
+#[derive(Clone)]
+pub enum APIHandleValue {
+    Int(u64),
+    Float(f32),
+    Double(f64),
+    UPtr(Address),
+    UFP(Address),
+
+    Struct(Vec<APIHandleValue>),
+    Array(Vec<APIHandleValue>),
+    Vector(Vec<APIHandleValue>),
+
+    Ref(Address),
+    IRef(Address),
+    TagRef64(u64),
+    FuncRef(MuID),
+    ThreadRef,
+    StackRef,
+    FCRef,
+    IBRef
+}

@@ -13,7 +13,7 @@
 ///       16 bits -
 
 /// fix-sized with reference map
-/// | start? | trace? | fix? | ref map? | (unused bits)  ... | reference map (32bits) |
+/// | start? | trace? | fix? | ref map? | size (28bits)      | reference map (32bits) |
 ///                      1        1
 
 /// fix-sized with ID
@@ -43,10 +43,15 @@ pub const BIT_IS_FIX_SIZE   : usize = 61;
 pub const BIT_HAS_REF_MAP   : usize = 60;
 
 pub const REF_MAP_LENGTH    : usize = 32;
+
 pub const MASK_REF_MAP      : u64 = 0xFFFFFFFFu64;
 pub const MASK_GCTYPE_ID    : u64 = 0xFFFFFFFFu64;
+
 pub const MASK_HYBRID_LENGTH: u64 = 0x1FFFFFFF00000000u64;
 pub const SHR_HYBRID_LENGTH : usize = 32;
+
+pub const MASK_OBJ_SIZE     : u64   = 0x0FFFFFFF00000000u64;
+pub const SHR_OBJ_SIZE      : usize = 32;
 
 pub fn gen_gctype_encode(ty: &GCType) -> u64 {
     let mut ret = 0u64;
@@ -74,6 +79,9 @@ pub fn gen_gctype_encode(ty: &GCType) -> u64 {
             }
 
             ret = ret | (ref_map & MASK_REF_MAP);
+
+            // encode size
+            ret = ret | (((ty.size as u64) << SHR_OBJ_SIZE) & MASK_OBJ_SIZE);
         } else {
             ret = ret | (ty.id as u64);
         }
@@ -184,6 +192,11 @@ pub fn header_get_gctype_id(hdr: u64) -> u32 {
     (hdr & MASK_GCTYPE_ID) as u32
 }
 
+#[inline(always)]
+pub fn header_get_object_size(hdr: u64) -> u32 {
+    ((hdr & MASK_OBJ_SIZE) >> SHR_OBJ_SIZE) as u32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,6 +285,7 @@ mod tests {
         println!("encode: {:64b}", encode);
 
         assert!(header_is_fix_size(encode));
+        assert_eq!(header_get_object_size(encode), 16);
         assert_eq!(header_get_ref_map(encode), 0b1);
     }
 
@@ -293,6 +307,7 @@ mod tests {
         println!("encode: {:64b}", encode);
 
         assert!(header_is_fix_size(encode));
+        assert_eq!(header_get_object_size(encode), 32);
         assert_eq!(header_get_ref_map(encode), 0b11);
     }
 
