@@ -41,6 +41,7 @@ pub struct VM {
     constants: RwLock<HashMap<MuID, P<Value>>>,
     // 6
     globals: RwLock<HashMap<MuID, P<Value>>>,
+    global_locations: RwLock<HashMap<MuID, ValueLocation>>,
     // 7
     func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
     // 8
@@ -357,6 +358,7 @@ impl Decodable for VM {
                 backend_type_info: RwLock::new(backend_type_info),
                 constants: RwLock::new(constants),
                 globals: RwLock::new(globals),
+                global_locations: RwLock::new(hashmap!{}),
                 func_sigs: RwLock::new(func_sigs),
                 funcs: RwLock::new(funcs),
                 func_vers: RwLock::new(func_vers),
@@ -400,6 +402,7 @@ impl <'a> VM {
             backend_type_info: RwLock::new(HashMap::new()),
 
             globals: RwLock::new(HashMap::new()),
+            global_locations: RwLock::new(hashmap!{}),
 
             func_sigs: RwLock::new(HashMap::new()),
             func_vers: RwLock::new(HashMap::new()),
@@ -554,6 +557,7 @@ impl <'a> VM {
         debug_assert!(!constants.contains_key(&id));
         
         let ret = P(Value{hdr: MuEntityHeader::unnamed(id), ty: ty, v: Value_::Constant(val)});
+        trace!("declare const #{} = {}", id, ret);
         constants.insert(id, ret.clone());
         
         ret
@@ -570,12 +574,17 @@ impl <'a> VM {
     pub fn declare_global(&self, id: MuID, ty: P<MuType>) -> P<Value> {
         let global = P(Value{
             hdr: MuEntityHeader::unnamed(id),
-            ty: P(MuType::new(self.next_id(), MuType_::iref(ty.clone()))),
+            ty: self.declare_type(self.next_id(), MuType_::iref(ty.clone())),
             v: Value_::Global(ty)
         });
         
         let mut globals = self.globals.write().unwrap();
         globals.insert(id, global.clone());
+
+        // allocate global
+        let loc = gc::allocate_value(global.clone(), self);
+        let mut global_locs = self.global_locations.write().unwrap();
+        global_locs.insert(id, loc);
         
         global
     }
@@ -585,7 +594,8 @@ impl <'a> VM {
         
         let mut types = self.types.write().unwrap();
         debug_assert!(!types.contains_key(&id));
-        
+
+        trace!("declare type #{} = {}", ty.id(), ty);
         types.insert(ty.id(), ty.clone());
         
         ty

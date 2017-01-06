@@ -12,7 +12,7 @@ use std::ffi::CString;
 use std::ffi::CStr;
 use std::sync::Arc;
 
-pub extern crate gc as mm;
+pub mod mm;
 pub mod thread;
 pub mod math;
 pub mod entrypoints;

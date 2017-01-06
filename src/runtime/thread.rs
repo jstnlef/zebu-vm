@@ -200,7 +200,7 @@ pub enum MuStackState {
 // do not change the layout (unless change the offset of fields correspondingly)
 pub struct MuThread {
     pub hdr: MuEntityHeader,
-    allocator: mm::Mutator,
+    pub allocator: mm::Mutator,
     pub stack: Option<Box<MuStack>>,
     
     native_sp_loc: Address,
@@ -277,6 +277,11 @@ impl MuThread {
     pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) {
         use std::usize;
 
+        if ! unsafe{muentry_get_thread_local()}.is_zero() {
+            warn!("current thread has a thread local (has a muthread to it)");
+            return;
+        }
+
         // fake a stack for current thread
         let fake_mu_stack_for_cur = Box::new(MuStack {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
@@ -328,8 +333,6 @@ impl MuThread {
 //        unsafe {
 //            fake_swap_mu_thread(sp_threadlocal_loc);
 //        }
-
-        debug!("returned to Rust thread (fake muthread)");
     }
     
     pub fn new_thread_normal(mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>, vm: Arc<VM>) -> JoinHandle<()> {

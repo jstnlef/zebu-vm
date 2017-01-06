@@ -8,6 +8,7 @@ use self::mu::vm::*;
 use self::mu::utils::LinkedHashMap;
 
 use std::sync::RwLock;
+use std::sync::Arc;
 
 #[test]
 #[allow(unused_variables)]
@@ -381,13 +382,20 @@ pub fn factorial() -> VM {
 #[test]
 #[allow(unused_variables)]
 fn test_global_access() {
-    let vm = global_access();
+    use utils::Address;
+    use mu::runtime::thread::MuThread;
+
+    let vm = Arc::new(VM::new());
+
+    unsafe {
+        MuThread::current_thread_as_mu_thread(Address::zero(), vm.clone());
+    }
+
+    global_access(&vm);
 }
 
 #[allow(unused_variables)]
-pub fn global_access() -> VM {
-    let vm = VM::new();
-    
+pub fn global_access(vm: &VM) {
     // .typedef @int64 = int<64>
     // .typedef @iref_int64 = iref<int<64>>
     let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
@@ -451,7 +459,7 @@ pub fn global_access() -> VM {
             mem_loc: 0
         }
     });
-    
+
     let blk_0_term = func_ver.new_inst(Instruction{
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
@@ -477,6 +485,4 @@ pub fn global_access() -> VM {
     });
     
     vm.define_func_version(func_ver);
-    
-    vm
 }

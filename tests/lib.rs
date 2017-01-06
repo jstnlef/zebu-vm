@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate mu;
 #[macro_use]
+extern crate utils;
+#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate maplit;

@@ -52,6 +52,13 @@ macro_rules! constdef {
     }
 }
 
+macro_rules! globaldef {
+    (($vm: expr) <$ty: ident> $name: ident) => {
+        let $name = $vm.declare_global($vm.next_id(), $ty.clone());
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    }
+}
+
 macro_rules! funcsig {
     (($vm: expr) $name: ident = ($($arg_ty: ident),*) -> ($($ret_ty: ident),*)) => {
         let $name = $vm.declare_func_sig($vm.next_id(), vec![$($ret_ty.clone()),*], vec![$($arg_ty.clone()),*]);
@@ -118,6 +125,12 @@ macro_rules! ssa {
 macro_rules! consta {
     (($vm: expr, $fv: ident) $name: ident = $c: ident) => {
         let $name = $fv.new_constant($c.clone());
+    }
+}
+
+macro_rules! global {
+    (($vm: expr, $fv: ident) $name: ident = $g: ident) => {
+        let $name = $fv.new_global($g.clone());
     }
 }
 
