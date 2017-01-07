@@ -19,7 +19,7 @@ mod deps {
     pub type MuName = String;
     pub type CName  = MuName;
 
-    pub struct APIHandleKey {
+    pub struct APIHandle {
         // stub
     }
 

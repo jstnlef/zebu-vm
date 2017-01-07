@@ -45,5 +45,7 @@ mod common {
     pub use ast::ir::*;
     pub use ast::ptr::*;
     pub use ast::types::*;
+
+    pub use vm::handle::*;
 }
 

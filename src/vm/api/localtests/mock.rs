@@ -23,7 +23,7 @@ mod deps {
     }
 
     #[derive(Debug)]
-    pub struct APIHandleKey {
+    pub struct APIHandle {
         pub ty: MuID,
         pub vb: ValueBox,
     }

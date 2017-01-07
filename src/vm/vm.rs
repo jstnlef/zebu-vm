@@ -10,7 +10,9 @@ use compiler::machine_code::CompiledFunction;
 use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::ByteSize;
+use utils::BitSize;
 use runtime::mm as gc;
+use vm::handle::*;
 use vm::vm_options::VMOptions;
 use vm::vm_options::MuLogLevel;
 
@@ -18,6 +20,7 @@ use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use log::LogLevel;
 use std::path;
 use std::sync::RwLock;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 
 // FIXME:
@@ -58,6 +61,9 @@ pub struct VM {
     // partially serialize
     // 13
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
+
+    // not serialize
+    active_handles: RwLock<HashMap<MuID, Arc<APIHandle>>>
 }
 
 const VM_SERIALIZE_FIELDS : usize = 14;
@@ -366,6 +372,8 @@ impl Decodable for VM {
                 is_running: ATOMIC_BOOL_INIT,
                 vm_options: vm_options,
                 compiled_funcs: RwLock::new(compiled_funcs),
+
+                active_handles: RwLock::new(hashmap!{})
             };
             
             vm.next_id.store(next_id, Ordering::SeqCst);
@@ -409,7 +417,8 @@ impl <'a> VM {
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
 
-            primordial: RwLock::new(None)
+            primordial: RwLock::new(None),
+            active_handles: RwLock::new(hashmap!{})
         };
 
         {
@@ -831,5 +840,38 @@ impl <'a> VM {
         let serialized = json::encode(&self).unwrap();
         
         unimplemented!() 
+    }
+
+    pub fn handle_from_global(&self, id: MuID) -> Arc<APIHandle> {
+        let global_iref = {
+            let global_locs = self.global_locations.read().unwrap();
+            global_locs.get(&id).unwrap().to_address()
+        };
+
+        let handle_id = self.next_id();
+
+        let ret = Arc::new(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::IRef(global_iref)
+        });
+
+        let mut handles = self.active_handles.write().unwrap();
+        handles.insert(handle_id, ret.clone());
+
+        ret
+    }
+
+    pub fn handle_from_uint64(&self, num: u64, len: BitSize) -> Arc<APIHandle> {
+        let handle_id = self.next_id();
+
+        let ret = Arc::new(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Int(num, len)
+        });
+
+        let mut handles = self.active_handles.write().unwrap();
+        handles.insert(handle_id, ret.clone());
+
+        ret
     }
 }

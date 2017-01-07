@@ -1,6 +1,7 @@
 extern crate byteorder;
 extern crate rustc_serialize;
 
+pub type BitSize    = usize;
 pub type ByteOffset = isize;
 pub type ByteSize   = usize;
 pub type Word       = usize;

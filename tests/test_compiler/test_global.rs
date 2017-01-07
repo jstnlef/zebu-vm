@@ -13,6 +13,7 @@ use self::mu::ast::op::*;
 use utils::Address;
 use utils::LinkedHashMap;
 use mu::testutil;
+use mu::vm::handle;
 
 use std::sync::RwLock;
 use std::sync::Arc;
@@ -64,6 +65,14 @@ fn test_set_global_by_api() {
     }
 
     // set global by api here
+    {
+        let global_id = vm.id_of("a");
+        let global_handle = vm.handle_from_global(global_id);
+
+        let uint64_1_handle = vm.handle_from_uint64(1, 64);
+
+        handle::store(MemoryOrder::Relaxed, global_handle, uint64_1_handle);
+    }
 
     // then emit context (global will be put into context.s
     backend::emit_context(&vm);
