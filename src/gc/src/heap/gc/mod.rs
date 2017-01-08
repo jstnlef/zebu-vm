@@ -4,6 +4,7 @@ use heap::immix::ImmixMutatorLocal;
 use heap::immix::ImmixSpace;
 use heap::freelist::FreeListSpace;
 use objectmodel;
+use common::gctype::*;
 use heap::Space;
 use MY_GC;
 
@@ -438,6 +439,9 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
         panic!("error during tracing object")
     }
 
+    // this part of code has some duplication with code in objectdump
+    // FIXME: remove the duplicate code - use 'Tracer' trait
+
     let hdr = unsafe {addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
 
     if objectmodel::header_is_fix_size(hdr) {
@@ -464,17 +468,41 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
                     steal_process_edge(addr, 24,local_queue, job_sender, mark_state, immix_space, lo_space);
                 },
                 _ => {
-                    error!("unexpected ref_bits patterns: {:b}", ref_map);
-                    unimplemented!()
+                    warn!("ref bits fall into slow path: {:b}", ref_map);
+
+                    let mut i = 0;
+                    while i < objectmodel::REF_MAP_LENGTH {
+                        let has_ref : bool = ((ref_map >> i) & 1) == 1;
+
+                        if has_ref {
+                            steal_process_edge(addr, i * POINTER_SIZE, local_queue, job_sender, mark_state, immix_space, lo_space);
+                        }
+
+                        i += 1;
+                    }
                 }
             }
         } else {
             // by type ID
-            unimplemented!()
+            let gctype_id = objectmodel::header_get_gctype_id(hdr);
+
+            let gc_lock = MY_GC.read().unwrap();
+            let gctype : Arc<GCType> = gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
+
+            for offset in gctype.gen_ref_offsets() {
+                steal_process_edge(addr, offset, local_queue, job_sender, mark_state, immix_space, lo_space);
+            }
         }
     } else {
         // hybrids
-        unimplemented!()
+        let gctype_id = objectmodel::header_get_gctype_id(hdr);
+
+        let gc_lock = MY_GC.read().unwrap();
+        let gctype : Arc<GCType> = gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
+
+        for offset in gctype.gen_ref_offsets() {
+            steal_process_edge(addr, offset, local_queue, job_sender, mark_state, immix_space, lo_space);
+        }
     }
 }
 

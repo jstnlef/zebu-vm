@@ -27,7 +27,7 @@ pub fn flip(mark: u8) -> u8 {
     mark ^ 1
 }
 
-// sidemap object model
+// --- sidemap object model ---
 
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::gen_gctype_encode;
@@ -52,7 +52,7 @@ pub use self::sidemap::is_traced;
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::get_ref_byte;
 
-// header
+// --- header ----
 
 #[cfg(not(feature = "use-sidemap"))]
 pub use self::header::gen_gctype_encode;
@@ -74,6 +74,8 @@ pub use self::header::MASK_GCTYPE_ID;
 pub use self::header::MASK_HYBRID_LENGTH;
 #[cfg(not(feature = "use-sidemap"))]
 pub use self::header::MASK_REF_MAP;
+#[cfg(not(feature = "use-sidemap"))]
+pub use self::header::REF_MAP_LENGTH;
 #[cfg(not(feature = "use-sidemap"))]
 pub use self::header::SHR_HYBRID_LENGTH;
 
@@ -101,4 +103,5 @@ pub use self::header::header_is_object_start;
 pub use self::header::header_get_gctype_id;
 #[cfg(not(feature = "use-sidemap"))]
 pub use self::header::header_get_ref_map;
-
+#[cfg(not(feature = "use-sidemap"))]
+pub use self::header::header_get_object_size;

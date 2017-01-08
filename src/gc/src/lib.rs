@@ -21,8 +21,10 @@ use heap::immix::ImmixSpace;
 use heap::immix::ImmixMutatorLocal;
 use heap::freelist;
 use heap::freelist::FreeListSpace;
+use common::objectdump;
 
 use utils::LinkedHashSet;
+use utils::Address;
 
 use std::fmt;
 use std::sync::Arc;
@@ -208,4 +210,10 @@ pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, 
 #[no_mangle]
 pub extern fn force_gc() {
     heap::gc::trigger_gc();
+}
+
+// dump heap
+#[no_mangle]
+pub extern fn persist_heap(roots: Vec<Address>) -> objectdump::HeapDump {
+    objectdump::HeapDump::from_roots(roots)
 }

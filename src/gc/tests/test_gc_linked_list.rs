@@ -172,6 +172,41 @@ fn create_linked_list() {
 }
 
 #[test]
+fn linked_list_heap_dump() {
+    unsafe {heap::gc::set_low_water_mark();}
+
+    start_logging();
+
+    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1);
+    gc::gc_stats();
+
+    let mut mutator = gc::new_mutator();
+
+    {
+        let mut linked_list = LinkedList::new(&mut mutator);
+
+        const N: usize = 5;
+
+        for i in 0..N {
+            linked_list.add(i);
+
+            println!("after add: {:?}", linked_list);
+        }
+
+        // check
+        linked_list.verify((0..N).collect());
+
+        // dump heap from head
+        let head_addr = Address::from_mut_ptr(linked_list.head);
+        let heap_dump = gc::persist_heap(vec![head_addr]);
+
+        println!("{:?}", heap_dump);
+    }
+
+    mutator.destroy();
+}
+
+#[test]
 #[ignore]
 // disable this test because it will cause gcbench fail for unknown reason
 fn linked_list_survive_gc() {
