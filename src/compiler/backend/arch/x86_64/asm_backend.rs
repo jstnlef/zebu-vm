@@ -2752,9 +2752,15 @@ pub fn emit_context(vm: &VM) {
             write_data_bytes(&mut file, obj_dump.mem_start, obj_dump.reference_addr);
 
             // .globl global_cell_name
+            // global_cell_name:
+            let global_cell_name = symbol(global_value.name().unwrap());
+            file.write_fmt(format_args!("\t{}\n", directive_globl(global_cell_name.clone()))).unwrap();
+            file.write_fmt(format_args!("\t{}:\n", global_cell_name)).unwrap();
             // .globl dump_label
-            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global_value.name().unwrap())))).unwrap();
-            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global_dump.relocatable_refs.get(&obj_dump.reference_addr).unwrap().clone())))).unwrap();
+            // dump_label:
+            let dump_label = symbol(global_dump.relocatable_refs.get(&obj_dump.reference_addr).unwrap().clone());
+            file.write_fmt(format_args!("\t{}\n", directive_globl(dump_label.clone()))).unwrap();
+            file.write_fmt(format_args!("\t{}:\n", dump_label)).unwrap();
 
             let base = obj_dump.reference_addr;
             let mut cursor = obj_dump.reference_addr;
