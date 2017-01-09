@@ -44,7 +44,7 @@ pub struct VM {
     constants: RwLock<HashMap<MuID, P<Value>>>,
     // 6
     globals: RwLock<HashMap<MuID, P<Value>>>,
-    global_locations: RwLock<HashMap<MuID, ValueLocation>>,
+    pub global_locations: RwLock<HashMap<MuID, ValueLocation>>,
     // 7
     func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
     // 8

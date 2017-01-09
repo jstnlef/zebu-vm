@@ -3,6 +3,8 @@
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
+use utils::Address;
+use utils::POINTER_SIZE;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::{Reg, Mem};
@@ -2648,9 +2650,10 @@ fn create_emit_directory(vm: &VM) {
     }    
 }
 
+use std::fs::File;
+
 pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     use std::io::prelude::*;
-    use std::fs::File;
     use std::path;
     
     let funcs = vm.funcs().read().unwrap();
@@ -2680,7 +2683,6 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 
 pub fn emit_context(vm: &VM) {
     use std::path;
-    use std::fs::File;
     use std::io::prelude::*;
     use rustc_serialize::json;
     
@@ -2697,39 +2699,86 @@ pub fn emit_context(vm: &VM) {
     };
     
     // bss
+    file.write_fmt(format_args!("\t.bss\n")).unwrap();
+
     {
         // put globals into bss section
-        file.write_fmt(format_args!("\t.bss\n")).unwrap();
-        
-        let globals = vm.globals().read().unwrap();
-        for global in globals.values() {
-            debug!("emit global: {}", global);
-            let (size, align) = {
-                let alloc_ty = {
-                    match global.v {
-                        Value_::Global(ref ty) => ty,
-                        _ => panic!("expected a global")
-                    }
-                };
-                
-                debug!("getting type: {:?}", alloc_ty);
-                let ty_info = vm.get_backend_type_info(alloc_ty.id());
-                (ty_info.size, ty_info.alignment)
-            };
-            
-            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name().unwrap())))).unwrap();
-            file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name().unwrap()), size, align))).unwrap();
-            file.write("\n".as_bytes()).unwrap();
+//        let globals = vm.globals().read().unwrap();
+//        for global in globals.values() {
+//            debug!("emit global: {}", global);
+//            let (size, align) = {
+//                let alloc_ty = {
+//                    match global.v {
+//                        Value_::Global(ref ty) => ty,
+//                        _ => panic!("expected a global")
+//                    }
+//                };
+//
+//                debug!("getting type: {:?}", alloc_ty);
+//                let ty_info = vm.get_backend_type_info(alloc_ty.id());
+//                (ty_info.size, ty_info.alignment)
+//            };
+//
+//            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name().unwrap())))).unwrap();
+//            file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name().unwrap()), size, align))).unwrap();
+//            file.write("\n".as_bytes()).unwrap();
         }
     }
     
     // data
+    file.write("\t.data\n".as_bytes()).unwrap();
+
+    {
+        use runtime::mm;
+        use runtime::mm::common::objectdump::*;
+
+        // presist globals
+        let global_locs_lock = vm.global_locations.read().unwrap();
+        let global_lock      = vm.globals.read().unwrap();
+
+        // dump heap from globals
+        let global_addrs : Vec<Address> = global_locs_lock.values().map(|x| x.to_address()).collect();
+        let global_dump = mm::persist_heap(global_addrs);
+
+        for id in global_locs_lock.keys() {
+            let global_value = global_lock.get(id).unwrap();
+            let global_addr  = global_locs_lock.get(id).unwrap();
+
+            let obj_dump     = global_dump.objects.get(&global_addr).unwrap();
+
+            // .bytes xx,xx,xx,xx (between mem_start to reference_addr)
+            write_data_bytes(file, obj_dump.mem_start, obj_dump.reference_addr);
+
+            // .globl global_cell_name
+            // .globl dump_label
+            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global_value.name().unwrap())))).unwrap();
+            file.write_fmt(format_args!("\t.quad {}\n", directive_globl(symbol(global_dump.relocatable_refs.get(&obj_dump.reference_start).unwrap())))).unwrap();
+
+            let base = obj_dump.reference_start;
+            let mut cursor = obj_dump.reference_start;
+            for ref_offset in obj_dump.reference_offsets {
+                let cur_ref_addr = base.plus(ref_offset);
+
+                if cursor < cur_ref_addr {
+                    // write all non-ref data
+                    write_data_bytes(file, cursor, cur_ref_addr);
+                }
+
+                // write ref with label
+                file.write_fmt(format_args!("\t.quad {}\n", directive_globl(symbol(global_dump.relocatable_refs.get(&cur_ref_addr).unwrap())))).unwrap();
+
+                cursor = cur_ref_addr.plus(POINTER_SIZE);
+            }
+
+            // write whatever is after the last ref
+            write_data_bytes(file, cursor, obj_dump.mem_start.plus(obj_dump.mem_size));
+        }
+    }
+
     // serialize vm
     trace!("start serializing vm");
     {
         let serialize_vm = json::encode(&vm).unwrap();
-        
-        file.write("\t.data\n".as_bytes()).unwrap();
         
         let vm_symbol = symbol("vm".to_string());
         file.write_fmt(format_args!("{}\n", directive_globl(vm_symbol.clone()))).unwrap();
@@ -2745,6 +2794,15 @@ pub fn emit_context(vm: &VM) {
 //    }
     
     debug!("---finish---");
+}
+
+fn write_data_bytes(f: &mut File, from: Address, to: Address) -> String {
+    if from < to {
+        let mut cursor = from;
+        unimplemented!()
+    } else {
+        String::from("")
+    }
 }
 
 fn directive_globl(name: String) -> String {

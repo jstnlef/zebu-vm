@@ -15,11 +15,11 @@ pub struct HeapDump {
 }
 
 pub struct ObjectDump {
-    pub reference_addr: Address,
-
     pub mem_start: Address,
     pub mem_size : ByteSize,
-    pub reference_offsets: Vec<ByteSize>
+
+    pub reference_addr: Address,
+    pub reference_offsets: Vec<ByteSize> // based on reference_addr
 }
 
 impl HeapDump {
