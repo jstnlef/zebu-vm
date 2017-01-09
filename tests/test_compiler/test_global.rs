@@ -71,6 +71,7 @@ fn test_set_global_by_api() {
 
         let uint64_1_handle = vm.handle_from_uint64(1, 64);
 
+        debug!("write {:?} to location {:?}", uint64_1_handle, global_handle);
         handle::store(MemoryOrder::Relaxed, global_handle, uint64_1_handle);
     }
 

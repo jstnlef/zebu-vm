@@ -24,6 +24,7 @@ pub struct ObjectDump {
 
 impl HeapDump {
     pub fn from_roots(roots: Vec<Address>) -> HeapDump {
+        trace!("dump heap from {:?}", roots);
         let mut work_queue : Vec<Address> = roots;
         let mut heap : HeapDump = HeapDump {
             objects: HashMap::new(),
@@ -48,6 +49,7 @@ impl HeapDump {
     }
 
     fn persist_object(&self, obj: Address) -> ObjectDump {
+        trace!("dump object: {}", obj);
         let hdr_addr = obj.offset(objectmodel::OBJECT_HEADER_OFFSET);
         let hdr = unsafe {hdr_addr.load::<u64>()};
 
@@ -56,6 +58,8 @@ impl HeapDump {
             if objectmodel::header_has_ref_map(hdr) {
                 // has ref map
                 let ref_map = objectmodel::header_get_ref_map(hdr);
+
+                trace!("fix sized, ref map as {:b}", ref_map);
 
                 let mut offsets = vec![];
                 let mut i = 0;
@@ -79,13 +83,15 @@ impl HeapDump {
                 // by type ID
                 let gctype_id = objectmodel::header_get_gctype_id(hdr);
 
+                trace!("fix size, type id as {}", gctype_id);
+
                 let gc_lock = MY_GC.read().unwrap();
                 let gctype : Arc<GCType> = gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
 
                 ObjectDump {
                     reference_addr: obj,
                     mem_start     : hdr_addr,
-                    mem_size      : gctype.size,
+                    mem_size      : gctype.size + objectmodel::OBJECT_HEADER_SIZE,
                     reference_offsets: gctype.gen_ref_offsets()
                 }
             }
@@ -93,13 +99,15 @@ impl HeapDump {
             // hybrids - same as above
             let gctype_id = objectmodel::header_get_gctype_id(hdr);
 
+            trace!("var sized, type id as {}", gctype_id);
+
             let gc_lock = MY_GC.read().unwrap();
             let gctype : Arc<GCType> = gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
 
             ObjectDump {
                 reference_addr: obj,
                 mem_start     : hdr_addr,
-                mem_size      : gctype.size,
+                mem_size      : gctype.size + objectmodel::OBJECT_HEADER_SIZE,
                 reference_offsets: gctype.gen_ref_offsets()
             }
         }

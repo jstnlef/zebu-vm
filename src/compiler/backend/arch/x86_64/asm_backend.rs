@@ -2722,7 +2722,7 @@ pub fn emit_context(vm: &VM) {
 //            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name().unwrap())))).unwrap();
 //            file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name().unwrap()), size, align))).unwrap();
 //            file.write("\n".as_bytes()).unwrap();
-        }
+//        }
     }
     
     // data
@@ -2734,44 +2734,46 @@ pub fn emit_context(vm: &VM) {
 
         // presist globals
         let global_locs_lock = vm.global_locations.read().unwrap();
-        let global_lock      = vm.globals.read().unwrap();
+        let global_lock      = vm.globals().read().unwrap();
 
         // dump heap from globals
         let global_addrs : Vec<Address> = global_locs_lock.values().map(|x| x.to_address()).collect();
+        debug!("going to dump these globals: {:?}", global_addrs);
         let global_dump = mm::persist_heap(global_addrs);
+        debug!("Heap Dump from GC: {:?}", global_dump);
 
         for id in global_locs_lock.keys() {
             let global_value = global_lock.get(id).unwrap();
-            let global_addr  = global_locs_lock.get(id).unwrap();
+            let global_addr  = global_locs_lock.get(id).unwrap().to_address();
 
             let obj_dump     = global_dump.objects.get(&global_addr).unwrap();
 
             // .bytes xx,xx,xx,xx (between mem_start to reference_addr)
-            write_data_bytes(file, obj_dump.mem_start, obj_dump.reference_addr);
+            write_data_bytes(&mut file, obj_dump.mem_start, obj_dump.reference_addr);
 
             // .globl global_cell_name
             // .globl dump_label
             file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global_value.name().unwrap())))).unwrap();
-            file.write_fmt(format_args!("\t.quad {}\n", directive_globl(symbol(global_dump.relocatable_refs.get(&obj_dump.reference_start).unwrap())))).unwrap();
+            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global_dump.relocatable_refs.get(&obj_dump.reference_addr).unwrap().clone())))).unwrap();
 
-            let base = obj_dump.reference_start;
-            let mut cursor = obj_dump.reference_start;
-            for ref_offset in obj_dump.reference_offsets {
-                let cur_ref_addr = base.plus(ref_offset);
+            let base = obj_dump.reference_addr;
+            let mut cursor = obj_dump.reference_addr;
+            for ref_offset in obj_dump.reference_offsets.iter() {
+                let cur_ref_addr = base.plus(*ref_offset);
 
                 if cursor < cur_ref_addr {
                     // write all non-ref data
-                    write_data_bytes(file, cursor, cur_ref_addr);
+                    write_data_bytes(&mut file, cursor, cur_ref_addr);
                 }
 
                 // write ref with label
-                file.write_fmt(format_args!("\t.quad {}\n", directive_globl(symbol(global_dump.relocatable_refs.get(&cur_ref_addr).unwrap())))).unwrap();
+                file.write_fmt(format_args!("\t.quad {}\n", symbol(global_dump.relocatable_refs.get(&cur_ref_addr).unwrap().clone()))).unwrap();
 
                 cursor = cur_ref_addr.plus(POINTER_SIZE);
             }
 
             // write whatever is after the last ref
-            write_data_bytes(file, cursor, obj_dump.mem_start.plus(obj_dump.mem_size));
+            write_data_bytes(&mut file, cursor, obj_dump.mem_start.plus(obj_dump.mem_size));
         }
     }
 
@@ -2796,12 +2798,25 @@ pub fn emit_context(vm: &VM) {
     debug!("---finish---");
 }
 
-fn write_data_bytes(f: &mut File, from: Address, to: Address) -> String {
+fn write_data_bytes(f: &mut File, from: Address, to: Address) {
+    use std::io::Write;
+
     if from < to {
+        f.write("\t.byte ".as_bytes()).unwrap();
+
         let mut cursor = from;
-        unimplemented!()
-    } else {
-        String::from("")
+        while cursor < to {
+            let byte = unsafe {cursor.load::<u8>()};
+            f.write_fmt(format_args!("0x{:x}", byte)).unwrap();
+
+            cursor = cursor.plus(1);
+
+            if cursor != to {
+                f.write(",".as_bytes()).unwrap();
+            }
+        }
+
+        f.write("\n".as_bytes()).unwrap();
     }
 }
 

@@ -588,11 +588,13 @@ impl <'a> VM {
         });
         
         let mut globals = self.globals.write().unwrap();
+        trace!("declare global #{} = {}", id, global);
         globals.insert(id, global.clone());
 
         // allocate global
-        let loc = gc::allocate_value(global.clone(), self);
+        let loc = gc::allocate_global(global.clone(), self);
         let mut global_locs = self.global_locations.write().unwrap();
+        trace!("allocate global #{} as {}", id, loc);
         global_locs.insert(id, loc);
         
         global

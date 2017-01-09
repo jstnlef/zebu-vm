@@ -173,5 +173,14 @@ mod tests {
         assert_eq!(vec[0].gen_ref_offsets(), vec![0]);
         assert_eq!(vec[1].gen_ref_offsets(), vec![0, 16, 32, 48, 64, 80, 96, 112, 128, 144]);
         assert_eq!(vec[2].gen_ref_offsets(), (0..100).map(|x| x * 16).collect::<Vec<ByteSize>>());
+
+        let int = GCType {
+            id: 3,
+            size: 8,
+            non_repeat_refs: None,
+            repeat_refs: None
+        };
+
+        assert_eq!(int.gen_ref_offsets(), vec![]);
     }
 }
