@@ -276,6 +276,17 @@ pub struct BackendTypeInfo {
     pub gc_type: P<GCType>
 }
 
+impl BackendTypeInfo {
+    pub fn get_field_offset(&self, index: usize) -> ByteSize {
+        if self.struct_layout.is_some() {
+            let layout = self.struct_layout.as_ref().unwrap();
+            layout[index]
+        } else {
+            panic!("trying to get field offset on a non-struct type")
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
 pub enum RegGroup {GPR, FPR}
 

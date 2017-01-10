@@ -125,3 +125,214 @@ fn set_global_by_api(vm: &VM) {
         blk_entry
     });
 }
+
+#[test]
+fn test_persist_linked_list() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(VM::new());
+    unsafe {
+        MuThread::current_thread_as_mu_thread(Address::zero(), vm.clone());
+    }
+    persist_linked_list(&vm);
+
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let func_id = vm.id_of("persist_linked_list");
+
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+    }
+
+    // create a linked list by api
+    const LINKED_LIST_SIZE : usize = 5;
+    {
+        let mut i = 0;
+        let mut last_node : Option<Arc<handle::APIHandle>> = None;
+
+        let node_tyid = vm.id_of("node");
+
+        while i < LINKED_LIST_SIZE {
+            // new node
+            let node_ref  = vm.new_fixed(node_tyid);
+            let node_iref = vm.handle_get_iref(node_ref.clone());
+
+            // store i as payload
+            let payload_iref = vm.handle_get_field_iref(node_iref.clone(), 1);  // payload is the 2nd field
+            let int_handle = vm.handle_from_uint64(i as u64, 64);
+            handle::store(MemoryOrder::Relaxed, payload_iref, int_handle);
+
+            // store last_node as next
+            let next_iref = vm.handle_get_field_iref(node_iref, 0);
+            if last_node.is_some() {
+                let handle = last_node.take().unwrap();
+                handle::store(MemoryOrder::Relaxed, next_iref, handle);
+            }
+
+            last_node = Some(node_ref);
+            i += 1;
+        }
+
+        // store last_node in global
+        let global_id = vm.id_of("my_global");
+        let global_handle = vm.handle_from_global(global_id);
+
+        handle::store(MemoryOrder::Relaxed, global_handle, last_node.unwrap());
+    }
+
+    // then emit context (global will be put into context.s
+    vm.make_primordial_thread(func_id, vec![]);
+    backend::emit_context(&vm);
+
+    // link
+    let executable = aot::link_primordial(vec![Mu("persist_linked_list")], "persist_linked_list_test", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    assert!(output.status.code().is_some());
+
+    let ret_code = output.status.code().unwrap();
+    println!("return code: {} (i.e. the value set before)", ret_code);
+    assert!(ret_code == 10);
+}
+
+fn persist_linked_list(vm: &VM) {
+    typedef!    ((vm) int1       = mu_int(1));
+    typedef!    ((vm) int64      = mu_int(64));
+    typedef!    ((vm) node       = mu_struct_placeholder());
+    typedef!    ((vm) iref_node  = mu_iref(node));
+    typedef!    ((vm) iref_int64 = mu_iref(int64));
+    typedef!    ((vm) ref_node   = mu_ref(node));
+    typedef!    ((vm) iref_ref_node = mu_iref(ref_node));
+    typedef!    ((vm) mu_struct_put(node, ref_node, int64));
+
+    globaldef!  ((vm) <ref_node> my_global);
+
+    constdef!   ((vm) <int64>    int64_0       = Constant::Int(0));
+    constdef!   ((vm) <ref_node> ref_node_null = Constant::NullRef);
+
+    funcsig!    ((vm) sig = () -> (int64));
+    funcdecl!   ((vm) <sig> persist_linked_list);
+    funcdef!    ((vm) <sig> persist_linked_list VERSION persist_linked_list_v1);
+
+    // --- blk entry ---
+    block!      ((vm, persist_linked_list_v1) blk_entry);
+    consta!     ((vm, persist_linked_list_v1) int64_0_local = int64_0);
+    global!     ((vm, persist_linked_list_v1) blk_entry_my_global = my_global);
+
+    // %head = LOAD %blk_entry_my_global
+    ssa!        ((vm, persist_linked_list_v1) <ref_node> head);
+    inst!       ((vm, persist_linked_list_v1) blk_entry_load:
+        head = LOAD blk_entry_my_global (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    // branch blk_loop_head (%head, 0)
+    block!      ((vm, persist_linked_list_v1) blk_loop_head);
+    inst!       ((vm, persist_linked_list_v1) blk_entry_branch:
+        BRANCH blk_loop_head (head, int64_0_local)
+    );
+
+    define_block!   ((vm, persist_linked_list_v1) blk_entry() {
+        blk_entry_load, blk_entry_branch
+    });
+
+    // --- blk loop_head ---
+    ssa!        ((vm, persist_linked_list_v1) <ref_node> cursor);
+    ssa!        ((vm, persist_linked_list_v1) <int64> sum);
+
+    // %cond = CMP EQ cursor NULLREF
+    ssa!        ((vm, persist_linked_list_v1) <int1> cond);
+    consta!     ((vm, persist_linked_list_v1) ref_node_null_local = ref_node_null);
+    inst!       ((vm, persist_linked_list_v1) blk_loop_head_cmp:
+        cond = CMPOP (CmpOp::EQ) cursor ref_node_null_local
+    );
+
+    // BRANCH2 exit[sum] loop_body[cursor, sum]
+    block!      ((vm, persist_linked_list_v1) blk_exit);
+    block!      ((vm, persist_linked_list_v1) blk_loop_body);
+    inst!       ((vm, persist_linked_list_v1) blk_loop_head_branch2:
+        BRANCH2 (cond, sum, cursor)
+            IF (OP 0)
+            THEN blk_exit (vec![1]) WITH 0.1f32,
+            ELSE blk_loop_body (vec![2, 1])
+    );
+
+    define_block!   ((vm, persist_linked_list_v1) blk_loop_head(cursor, sum) {
+        blk_loop_head_cmp, blk_loop_head_branch2
+    });
+
+    // --- blk loop_body ---
+    ssa!        ((vm, persist_linked_list_v1) <ref_node> body_cursor);
+    ssa!        ((vm, persist_linked_list_v1) <int64>    body_sum);
+
+    // %iref_cursor = GETIREF %body_cursor
+    ssa!        ((vm, persist_linked_list_v1) <iref_node> iref_cursor);
+    inst!       ((vm, persist_linked_list_v1) blk_loop_body_getiref:
+        iref_cursor = GETIREF body_cursor
+    );
+
+    // %iref_payload = GETFIELDIREF iref_cursor 1
+    ssa!        ((vm, persist_linked_list_v1) <iref_int64> iref_payload);
+    inst!       ((vm, persist_linked_list_v1) blk_loop_body_getfieldiref:
+        iref_payload = GETFIELDIREF iref_cursor (is_ptr: false, index: 1)
+    );
+
+    // %payload = LOAD %iref_payload
+    ssa!        ((vm, persist_linked_list_v1) <int64> payload);
+    inst!       ((vm, persist_linked_list_v1) blk_loop_body_load:
+        payload = LOAD iref_payload (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    // %body_sum2 = BINOP ADD body_sum payload
+    ssa!        ((vm, persist_linked_list_v1) <int64> body_sum2);
+    inst!       ((vm, persist_linked_list_v1) blk_loop_body_add:
+        body_sum2 = BINOP (BinOp::Add) body_sum payload
+    );
+
+    // %iref_next = GETFIELDIREF iref_cursor 0
+    ssa!        ((vm, persist_linked_list_v1) <iref_ref_node> iref_next);
+    inst!       ((vm, persist_linked_list_v1) blk_loop_body_getfieldiref2:
+        iref_next = GETFIELDIREF iref_cursor (is_ptr: false, index: 0)
+    );
+
+    // %next = LOAD %iref_next
+    ssa!        ((vm, persist_linked_list_v1) <ref_node> next);
+    inst!       ((vm, persist_linked_list_v1) blk_loop_body_load2:
+        next = LOAD iref_next (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    // BRANCH blk_loop_head (next, body_sum2)
+    inst!       ((vm, persist_linked_list_v1) blk_loop_body_branch:
+        BRANCH blk_loop_head (next, body_sum2)
+    );
+
+    define_block!   ((vm, persist_linked_list_v1) blk_loop_body(body_cursor, body_sum){
+        blk_loop_body_getiref,
+        blk_loop_body_getfieldiref,
+        blk_loop_body_load,
+        blk_loop_body_add,
+        blk_loop_body_getfieldiref2,
+        blk_loop_body_load2,
+        blk_loop_body_branch
+    });
+
+    // --- blk exit ---
+    ssa!       ((vm, persist_linked_list_v1) <int64> res);
+
+    let blk_exit_exit = gen_ccall_exit(res.clone(), &mut persist_linked_list_v1, &vm);
+
+    inst!      ((vm, persist_linked_list_v1) blk_exit_ret:
+        RET (res)
+    );
+
+    define_block!   ((vm, persist_linked_list_v1) blk_exit(res) {
+        blk_exit_exit, blk_exit_ret
+    });
+
+    define_func_ver!((vm) persist_linked_list_v1 (entry: blk_entry) {
+        blk_entry, blk_loop_head, blk_loop_body, blk_exit
+    });
+}

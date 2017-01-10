@@ -65,6 +65,24 @@ impl MuType {
         }
     }
 
+    pub fn get_field_ty(&self, index: usize) -> Option<P<MuType>> {
+        match self.v {
+            MuType_::Struct(ref tag) => {
+                let map_lock = STRUCT_TAG_MAP.read().unwrap();
+                let struct_inner = map_lock.get(tag).unwrap();
+
+                Some(struct_inner.tys[index].clone())
+            },
+            MuType_::Hybrid(ref tag) => {
+                let map_lock = HYBRID_TAG_MAP.read().unwrap();
+                let hybrid_inner = map_lock.get(tag).unwrap();
+
+                Some(hybrid_inner.fix_tys[index].clone())
+            },
+            _ => None
+        }
+    }
+
     pub fn get_referenced_ty(&self) -> Option<P<MuType>> {
         use types::MuType_::*;
         match self.v {

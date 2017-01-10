@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ast::ptr::P;
+use ast::ptr::*;
 use ast::ir::*;
 use ast::types;
 use ast::types::*;
@@ -844,36 +844,86 @@ impl <'a> VM {
         unimplemented!() 
     }
 
+    // -- API ---
+    fn new_handle(&self, handle: APIHandle) -> Arc<APIHandle> {
+        let ret = Arc::new(handle);
+
+        let mut handles = self.active_handles.write().unwrap();
+        handles.insert(ret.id, ret.clone());
+
+        ret
+    }
+
+    pub fn new_fixed(&self, tyid: MuID) -> Arc<APIHandle> {
+        let ty = {
+            let types_lock = self.types.read().unwrap();
+            types_lock.get(&tyid).unwrap().clone()
+        };
+
+        let addr = gc::allocate_fixed(ty.clone(), self);
+        trace!("API: allocated fixed type {} at {}", ty, addr);
+
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v : APIHandleValue::Ref(ty, addr)
+        })
+    }
+
+    pub fn handle_get_iref(&self, handle_ref: Arc<APIHandle>) -> Arc<APIHandle> {
+        let (ty, addr) = handle_ref.v.as_ref();
+
+        // iref has the same address as ref
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v : APIHandleValue::IRef(ty, addr)
+        })
+    }
+
+    pub fn handle_get_field_iref(&self, handle_iref: Arc<APIHandle>, field: usize) -> Arc<APIHandle> {
+        let (ty, addr) = handle_iref.v.as_iref();
+
+        let field_ty = match ty.get_field_ty(field) {
+            Some(ty) => ty,
+            None => panic!("ty is not struct ty: {}", ty)
+        };
+
+        let field_addr = {
+            let backend_ty = self.get_backend_type_info(ty.id());
+            let field_offset = backend_ty.get_field_offset(field);
+            addr.plus(field_offset)
+        };
+
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v : APIHandleValue::IRef(field_ty, field_addr)
+        })
+    }
+
     pub fn handle_from_global(&self, id: MuID) -> Arc<APIHandle> {
         let global_iref = {
             let global_locs = self.global_locations.read().unwrap();
             global_locs.get(&id).unwrap().to_address()
         };
 
+        let global_inner_ty = {
+            let global_lock = self.globals.read().unwrap();
+            global_lock.get(&id).unwrap().ty.get_referenced_ty().unwrap()
+        };
+
         let handle_id = self.next_id();
 
-        let ret = Arc::new(APIHandle {
+        self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::IRef(global_iref)
-        });
-
-        let mut handles = self.active_handles.write().unwrap();
-        handles.insert(handle_id, ret.clone());
-
-        ret
+            v : APIHandleValue::IRef(global_inner_ty, global_iref)
+        })
     }
 
     pub fn handle_from_uint64(&self, num: u64, len: BitSize) -> Arc<APIHandle> {
         let handle_id = self.next_id();
 
-        let ret = Arc::new(APIHandle {
+        self.new_handle(APIHandle {
             id: handle_id,
             v : APIHandleValue::Int(num, len)
-        });
-
-        let mut handles = self.active_handles.write().unwrap();
-        handles.insert(handle_id, ret.clone());
-
-        ret
+        })
     }
 }

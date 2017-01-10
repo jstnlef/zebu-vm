@@ -29,6 +29,13 @@ macro_rules! typedef {
         let $name = $vm.declare_type($vm.next_id(), MuType_::mustruct(Mu(stringify!($name)), vec![]));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
+    (($vm: expr) $name: ident = mu_struct_placeholder()) => {
+        let $name = $vm.declare_type($vm.next_id(), MuType_::mustruct_empty(Mu(stringify!($name))));
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    };
+    (($vm: expr) mu_struct_put($name: ident, $($ty: ident), *)) => {
+        MuType_::mustruct_put(&Mu(stringify!($name)), vec![$($ty.clone()), *])
+    };
 
     (($vm: expr) $name: ident = mu_hybrid($($ty: ident), *); $var_ty: ident) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::hybrid(Mu(stringify!($name)), vec![$($ty.clone()), *], $var_ty.clone()));

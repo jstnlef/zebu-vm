@@ -2741,9 +2741,19 @@ pub fn emit_context(vm: &VM) {
         use runtime::mm;
         use runtime::mm::common::objectdump::*;
 
-        // presist globals
+        // persist globals
         let global_locs_lock = vm.global_locations.read().unwrap();
         let global_lock      = vm.globals().read().unwrap();
+
+        let global_addr_id_map = {
+            let mut map : LinkedHashMap<Address, MuID> = LinkedHashMap::new();
+
+            for (id, global_loc) in global_locs_lock.iter() {
+                map.insert(global_loc.to_address(), *id);
+            }
+
+            map
+        };
 
         // dump heap from globals
         let global_addrs : Vec<Address> = global_locs_lock.values().map(|x| x.to_address()).collect();
@@ -2751,24 +2761,27 @@ pub fn emit_context(vm: &VM) {
         let global_dump = mm::persist_heap(global_addrs);
         debug!("Heap Dump from GC: {:?}", global_dump);
 
-        for id in global_locs_lock.keys() {
-            let global_value = global_lock.get(id).unwrap();
-            let global_addr  = global_locs_lock.get(id).unwrap().to_address();
+        let ref objects          = global_dump.objects;
+        let ref relocatable_refs = global_dump.relocatable_refs;
 
-            let obj_dump     = global_dump.objects.get(&global_addr).unwrap();
-
+        for obj_dump in objects.values() {
             // .bytes xx,xx,xx,xx (between mem_start to reference_addr)
             write_data_bytes(&mut file, obj_dump.mem_start, obj_dump.reference_addr);
 
-            // .globl global_cell_name
-            // global_cell_name:
-            let global_cell_name = symbol(global_value.name().unwrap());
-            file.write_fmt(format_args!("\t{}\n", directive_globl(global_cell_name.clone()))).unwrap();
-            file.write_fmt(format_args!("{}:\n", global_cell_name)).unwrap();
-            // .globl dump_label
+            if global_addr_id_map.contains_key(&obj_dump.reference_addr) {
+                let global_id = global_addr_id_map.get(&obj_dump.reference_addr).unwrap();
+
+                let global_value = global_lock.get(global_id).unwrap();
+
+                // .globl global_cell_name
+                // global_cell_name:
+                let global_cell_name = symbol(global_value.name().unwrap());
+                file.write_fmt(format_args!("\t{}\n", directive_globl(global_cell_name.clone()))).unwrap();
+                file.write_fmt(format_args!("{}:\n", global_cell_name)).unwrap();
+            }
+
             // dump_label:
             let dump_label = symbol(global_dump.relocatable_refs.get(&obj_dump.reference_addr).unwrap().clone());
-            file.write_fmt(format_args!("\t{}\n", directive_globl(dump_label.clone()))).unwrap();
             file.write_fmt(format_args!("{}:\n", dump_label)).unwrap();
 
             let base = obj_dump.reference_addr;
@@ -2782,7 +2795,17 @@ pub fn emit_context(vm: &VM) {
                 }
 
                 // write ref with label
-                file.write_fmt(format_args!("\t.quad {}\n", symbol(global_dump.relocatable_refs.get(&cur_ref_addr).unwrap().clone()))).unwrap();
+                let load_ref = unsafe {cur_ref_addr.load::<Address>()};
+                if load_ref.is_zero() {
+                    file.write("\t.quad 0\n".as_bytes());
+                } else {
+                    let label = match global_dump.relocatable_refs.get(&load_ref) {
+                        Some(label) => label,
+                        None => panic!("cannot find label for address {}, it is not dumped by GC (why GC didn't trace to it)", load_ref)
+                    };
+
+                    file.write_fmt(format_args!("\t.quad {}\n", symbol(label.clone()))).unwrap();
+                }
 
                 cursor = cur_ref_addr.plus(POINTER_SIZE);
             }

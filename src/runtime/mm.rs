@@ -6,6 +6,8 @@ use utils::ByteSize;
 use utils::ObjectReference;
 use ast::ir::*;
 use ast::ptr::*;
+use ast::types::*;
+use utils::Address;
 use compiler::backend::RegGroup;
 use vm::VM;
 use runtime::ValueLocation;
@@ -25,6 +27,18 @@ fn allocate(size: ByteSize, align: ByteSize, encode: u64) -> ObjectReference {
     ret
 }
 
+pub fn allocate_fixed(ty: P<MuType>, vm: &VM) -> Address {
+    let backendtype = vm.get_backend_type_info(ty.id());
+    let gctype = backendtype.gc_type.clone();
+    let encode = get_gc_type_encode(gctype.id);
+
+    trace!("API: allocate fixed ty: {}", ty);
+    trace!("API:          gc ty   : {:?}", gctype);
+    trace!("API:          encode  : {:b}", encode);
+
+    allocate(backendtype.size, backendtype.alignment, encode).to_address()
+}
+
 pub fn allocate_global(value: P<Value>, vm: &VM) -> ValueLocation {
     let tyid = value.ty.id();
 
@@ -38,7 +52,10 @@ pub fn allocate_global(value: P<Value>, vm: &VM) -> ValueLocation {
     let gctype_id = gctype.id;
     let encode = get_gc_type_encode(gctype_id);
 
-    trace!("allocating global as gctype {:?}", gctype);
+    trace!("API: allocate global ty: {}", referenced_type);
+    trace!("API:          gc ty    : {:?}", gctype);
+    trace!("API:          encode   : {:b}", encode);
+
     let addr = allocate(backendtype.size, backendtype.alignment, encode).to_address();
 
     ValueLocation::Direct(RegGroup::GPR, addr)

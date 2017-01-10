@@ -72,6 +72,9 @@ pub fn gen_gctype_encode(ty: &GCType) -> u64 {
 
         // encode ref map?
         if ty.size < REF_MAP_LENGTH * POINTER_SIZE {
+            // has ref map
+            ret = ret | (1 << BIT_HAS_REF_MAP);
+
             // encode ref map
             let offsets = ty.gen_ref_offsets();
             let mut ref_map = 0;
@@ -286,6 +289,7 @@ mod tests {
         println!("encode: {:64b}", encode);
 
         assert!(header_is_fix_size(encode));
+        assert!(header_has_ref_map(encode));
         assert_eq!(header_get_object_size(encode), 16);
         assert_eq!(header_get_ref_map(encode), 0b1);
     }
@@ -307,6 +311,7 @@ mod tests {
         println!("encode: {:64b}", encode);
 
         assert!(header_is_fix_size(encode));
+        assert!(header_has_ref_map(encode));
         assert_eq!(header_get_object_size(encode), 32);
         assert_eq!(header_get_ref_map(encode), 0b11);
     }
@@ -330,6 +335,7 @@ mod tests {
         println!("encode: {:64b}", encode);
 
         assert!(header_is_fix_size(encode));
+        assert!(!header_has_ref_map(encode));
         assert_eq!(header_get_gctype_id(encode), 999);
     }
 

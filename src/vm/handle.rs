@@ -1,5 +1,7 @@
 use ast::ir::*;
 use ast::inst::*;
+use ast::ptr::*;
+use ast::types::*;
 
 use utils::BitSize;
 use utils::Address;
@@ -25,8 +27,8 @@ pub enum APIHandleValue {
     Vector(Vec<APIHandleValue>),
 
     // GenRef
-    Ref(Address),
-    IRef(Address),
+    Ref (P<MuType>, Address),   // referenced type
+    IRef(P<MuType>, Address),
     TagRef64(u64),
     FuncRef,
     ThreadRef,
@@ -56,9 +58,16 @@ pub enum APIHandleValue {
 }
 
 impl APIHandleValue {
-    pub fn as_iref(&self) -> Address {
+    pub fn as_ref(&self) -> (P<MuType>, Address) {
         match self {
-            &APIHandleValue::IRef(addr) => addr,
+            &APIHandleValue::Ref(ref ty, addr) => (ty.clone(), addr),
+            _ => panic!("expected Ref")
+        }
+    }
+
+    pub fn as_iref(&self) -> (P<MuType>, Address) {
+        match self {
+            &APIHandleValue::IRef(ref ty, addr) => (ty.clone(), addr),
             _ => panic!("expected IRef")
         }
     }
@@ -68,7 +77,7 @@ pub fn store(ord: MemoryOrder, loc: Arc<APIHandle>, val: Arc<APIHandle>) {
     // FIXME: take memory order into consideration
 
     // get address
-    let addr = loc.v.as_iref();
+    let (_, addr) = loc.v.as_iref();
 
     // get value and store
     // we will store here (its unsafe)
@@ -92,8 +101,8 @@ pub fn store(ord: MemoryOrder, loc: Arc<APIHandle>, val: Arc<APIHandle>) {
             | APIHandleValue::Array(_)
             | APIHandleValue::Vector(_) => panic!("cannot store an aggregated value to an address"),
 
-            APIHandleValue::Ref(aval)
-            | APIHandleValue::IRef(aval) => addr.store::<Address>(aval),
+            APIHandleValue::Ref(_, aval)
+            | APIHandleValue::IRef(_, aval) => addr.store::<Address>(aval),
 
             _ => unimplemented!()
         }

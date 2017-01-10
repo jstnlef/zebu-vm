@@ -2741,21 +2741,18 @@ impl <'a> InstructionSelection {
         }
     }
 
-    fn emit_get_mem_from_inst_inner(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {
-        let header_size = mm::objectmodel::OBJECT_HEADER_SIZE as u64;
-
-        match op.v {
+    fn emit_get_mem_from_inst_inner(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {        match op.v {
             TreeNode_::Instruction(ref inst) => {
                 let ref ops = inst.ops.read().unwrap();
                 
                 match inst.v {
-                    // GETIREF -> [base + HDR_SIZE]
+                    // GETIREF -> [base]
                     Instruction_::GetIRef(op_index) => {
                         let ref ref_op = ops[op_index];
 
                         let ret = MemoryLocation::Address {
                             base: ref_op.clone_value(),
-                            offset: Some(self.make_value_int_const(header_size, vm)),
+                            offset: None,
                             index: None,
                             scale: None
                         };
