@@ -72,23 +72,23 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             match size_in_bit {
                 1  => BackendTypeInfo{
                     size: 1, alignment: 1, struct_layout: None,
-                    gc_type: mm::add_gc_type(GCType::new_noreftype(1))
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
                 },
                 8  => BackendTypeInfo{
                     size: 1, alignment: 1, struct_layout: None,
-                    gc_type: mm::add_gc_type(GCType::new_noreftype(1))
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
                 },
                 16 => BackendTypeInfo{
                     size: 2, alignment: 2, struct_layout: None,
-                    gc_type: mm::add_gc_type(GCType::new_noreftype(2))
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
                 },
                 32 => BackendTypeInfo{
                     size: 4, alignment: 4, struct_layout: None,
-                    gc_type: mm::add_gc_type(GCType::new_noreftype(4))
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
                 },
                 64 => BackendTypeInfo{
                     size: 8, alignment: 8, struct_layout: None,
-                    gc_type: mm::add_gc_type(GCType::new_noreftype(8))
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
                 },
                 _ => unimplemented!()
             }
@@ -107,18 +107,18 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         | MuType_::ThreadRef
         | MuType_::StackRef => BackendTypeInfo{
             size: 8, alignment: 8, struct_layout: None,
-            gc_type: mm::add_gc_type(GCType::new_noreftype(8))
+            gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
         },
         // tagref
         MuType_::Tagref64 => unimplemented!(),
         // floating point
         MuType_::Float => BackendTypeInfo{
             size: 4, alignment: 4, struct_layout: None,
-            gc_type: mm::add_gc_type(GCType::new_noreftype(4))
+            gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
         },
         MuType_::Double => BackendTypeInfo {
             size: 8, alignment: 8, struct_layout: None,
-            gc_type: mm::add_gc_type(GCType::new_noreftype(8))
+            gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
         },
         // array
         MuType_::Array(ref ty, len) => {
@@ -131,6 +131,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
                 gc_type      : mm::add_gc_type(GCType {
                     id             : GCTYPE_INIT_ID,
                     size           : ele_ty.size * len,
+                    alignment: ele_ty.alignment,
                     non_repeat_refs: None,
                     repeat_refs    : Some(RepeatingRefPattern{
                         pattern: RefPattern::NestedType(vec![ele_ty.gc_type]),
@@ -184,7 +185,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         // void
         MuType_::Void => BackendTypeInfo{
             size: 0, alignment: 8, struct_layout: None,
-            gc_type: mm::add_gc_type(GCType::new_noreftype(0))
+            gc_type: mm::add_gc_type(GCType::new_noreftype(0, 8))
         },
         // vector
         MuType_::Vector(_, _) => unimplemented!()
@@ -249,6 +250,7 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
         gc_type      : mm::add_gc_type(GCType {
             id             : GCTYPE_INIT_ID,
             size           : size,
+            alignment: struct_align,
             non_repeat_refs: Some(if use_ref_offsets {
                 RefPattern::Map {
                     offsets: ref_offsets,

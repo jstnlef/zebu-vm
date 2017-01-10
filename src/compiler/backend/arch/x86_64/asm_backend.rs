@@ -1026,8 +1026,17 @@ impl ASMCodeGen {
                 loc_cursor += 1;
             },
             Value_::Memory(MemoryLocation::Symbolic{ref base, ref label}) => {
-                result_str.push_str(&symbol(label.clone()));
-                loc_cursor += label.len();
+                if base.is_some() && base.as_ref().unwrap().id() == x86_64::RIP.id() {
+                    // pc relative address
+//                    let pic_symbol = pic_symbol(label.clone());
+                    let pic_symbol = symbol(label.clone()); // not sure if we need this
+                    result_str.push_str(&pic_symbol);
+                    loc_cursor += label.len();
+                } else {
+                    let symbol = symbol(label.clone());
+                    result_str.push_str(&symbol);
+                    loc_cursor += label.len();
+                }
                 
                 if base.is_some() {
                     result_str.push('(');
@@ -2838,10 +2847,20 @@ fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
 pub fn symbol(name: String) -> String {
     name
 }
-
 #[cfg(target_os = "macos")]
 pub fn symbol(name: String) -> String {
     format!("_{}", name)
+}
+
+#[allow(dead_code)]
+#[cfg(target_os = "linux")]
+pub fn pic_symbol(name: String) -> String {
+    format!("{}@GOTPCREL", name)
+}
+#[allow(dead_code)]
+#[cfg(target_os = "macos")]
+pub fn pic_symbol(name: String) -> String {
+    symbol(name)
 }
 
 use compiler::machine_code::CompiledFunction;

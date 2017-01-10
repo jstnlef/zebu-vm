@@ -505,7 +505,7 @@ impl <'a> VM {
                     while expect_id < gc_type.id {
                         use runtime::mm::common::gctype::GCType;
 
-                        mm::add_gc_type(GCType::new_noreftype(0));
+                        mm::add_gc_type(GCType::new_noreftype(0, 8));
                         expect_id += 1;
                     }
                 }

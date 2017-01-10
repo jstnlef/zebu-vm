@@ -11,15 +11,17 @@ pub const GCTYPE_INIT_ID: u32 = u32::MAX;
 pub struct GCType {
     pub id: u32,
     pub size: ByteSize,
+    pub alignment: ByteSize,
     pub non_repeat_refs: Option<RefPattern>,
     pub repeat_refs    : Option<RepeatingRefPattern>,
 }
 
 impl GCType {
-    pub fn new_noreftype(size: ByteSize) -> GCType {
+    pub fn new_noreftype(size: ByteSize, align: ByteSize) -> GCType {
         GCType {
             id: GCTYPE_INIT_ID,
             size: size,
+            alignment: align,
             non_repeat_refs: None,
             repeat_refs    : None,
         }
@@ -29,6 +31,7 @@ impl GCType {
         GCType {
             id: GCTYPE_INIT_ID,
             size: POINTER_SIZE,
+            alignment: POINTER_SIZE,
             non_repeat_refs: Some(RefPattern::Map{
                 offsets: vec![0],
                 size: POINTER_SIZE
@@ -126,6 +129,7 @@ mod tests {
         let a = GCType{
             id: 0,
             size: 16,
+            alignment: 8,
             non_repeat_refs: Some(RefPattern::Map{
                 offsets: vec![0],
                 size: 16
@@ -137,6 +141,7 @@ mod tests {
         let b = GCType {
             id: 1,
             size: 160,
+            alignment: 8,
             non_repeat_refs: None,
             repeat_refs    : Some(RepeatingRefPattern {
                 pattern: RefPattern::Map{
@@ -151,6 +156,7 @@ mod tests {
         let c = GCType {
             id: 2,
             size: 1600,
+            alignment: 8,
             non_repeat_refs: None,
             repeat_refs    : Some(RepeatingRefPattern {
                 pattern: RefPattern::NestedType(vec![Arc::new(b.clone()).clone()]),
@@ -177,6 +183,7 @@ mod tests {
         let int = GCType {
             id: 3,
             size: 8,
+            alignment: 8,
             non_repeat_refs: None,
             repeat_refs: None
         };

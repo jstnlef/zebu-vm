@@ -55,6 +55,7 @@ fn link_dylib_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
 
     let mut gcc = Command::new(get_test_clang_path());
     gcc.arg("-shared");
+    gcc.arg("-fPIC");
     gcc.arg("-Wl");
     gcc.arg("-undefined");
     gcc.arg("dynamic_lookup");

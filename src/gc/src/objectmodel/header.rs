@@ -273,6 +273,7 @@ mod tests {
         let a = GCType{
             id: 0,
             size: 16,
+            alignment: 8,
             non_repeat_refs: Some(RefPattern::Map{
                 offsets: vec![0],
                 size: 16
@@ -295,6 +296,7 @@ mod tests {
         let a = GCType{
             id: 0,
             size: 32,
+            alignment: 8,
             non_repeat_refs: Some(RefPattern::Map{
                 offsets: vec![0, 8],
                 size: 32
@@ -317,6 +319,7 @@ mod tests {
         const N_REF : usize = 64;
         let a = GCType{
             id: 999,
+            alignment: 8,
             size: N_REF * POINTER_SIZE,
             non_repeat_refs: Some(RefPattern::Map{
                 offsets: (0..N_REF).map(|x| x * POINTER_SIZE).collect(),
@@ -339,6 +342,7 @@ mod tests {
         let a = GCType {
             id: 1,
             size: 160,
+            alignment: 8,
             non_repeat_refs: None,
             repeat_refs    : Some(RepeatingRefPattern {
                 pattern: RefPattern::Map{
@@ -364,6 +368,7 @@ mod tests {
         let b = GCType {
             id: 1,
             size: 160,
+            alignment: 8,
             non_repeat_refs: None,
             repeat_refs    : Some(RepeatingRefPattern {
                 pattern: RefPattern::Map{
@@ -378,6 +383,7 @@ mod tests {
         let a = GCType {
             id: 2,
             size: 1600,
+            alignment: 8,
             non_repeat_refs: None,
             repeat_refs    : Some(RepeatingRefPattern {
                 pattern: RefPattern::NestedType(vec![Arc::new(b.clone()).clone()]),
