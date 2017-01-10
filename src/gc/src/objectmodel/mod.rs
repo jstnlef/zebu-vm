@@ -1,4 +1,5 @@
 use std::sync::atomic;
+use utils::ByteSize;
 
 #[cfg(feature = "use-sidemap")]
 mod sidemap;
@@ -27,11 +28,22 @@ pub fn flip(mark: u8) -> u8 {
     mark ^ 1
 }
 
+#[inline(always)]
+pub fn check_alignment(align: ByteSize) -> ByteSize {
+    if align < MINIMAL_ALIGNMENT {
+        MINIMAL_ALIGNMENT
+    } else {
+        align
+    }
+}
+
 // --- sidemap object model ---
 
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::gen_gctype_encode;
 
+#[cfg(feature = "use-sidemap")]
+pub use self::sidemap::MINIMAL_ALIGNMENT;
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::OBJECT_HEADER_SIZE;
 #[cfg(feature = "use-sidemap")]
@@ -80,6 +92,8 @@ pub use self::header::REF_MAP_LENGTH;
 pub use self::header::SHR_HYBRID_LENGTH;
 
 // header location/size
+#[cfg(not(feature = "use-sidemap"))]
+pub use self::header::MINIMAL_ALIGNMENT;
 #[cfg(not(feature = "use-sidemap"))]
 pub use self::header::OBJECT_HEADER_SIZE;
 #[cfg(not(feature = "use-sidemap"))]

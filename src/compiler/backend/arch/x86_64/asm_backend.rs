@@ -2764,12 +2764,12 @@ pub fn emit_context(vm: &VM) {
             // global_cell_name:
             let global_cell_name = symbol(global_value.name().unwrap());
             file.write_fmt(format_args!("\t{}\n", directive_globl(global_cell_name.clone()))).unwrap();
-            file.write_fmt(format_args!("\t{}:\n", global_cell_name)).unwrap();
+            file.write_fmt(format_args!("{}:\n", global_cell_name)).unwrap();
             // .globl dump_label
             // dump_label:
             let dump_label = symbol(global_dump.relocatable_refs.get(&obj_dump.reference_addr).unwrap().clone());
             file.write_fmt(format_args!("\t{}\n", directive_globl(dump_label.clone()))).unwrap();
-            file.write_fmt(format_args!("\t{}:\n", dump_label)).unwrap();
+            file.write_fmt(format_args!("{}:\n", dump_label)).unwrap();
 
             let base = obj_dump.reference_addr;
             let mut cursor = obj_dump.reference_addr;

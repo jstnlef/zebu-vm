@@ -140,7 +140,10 @@ impl ImmixMutatorLocal {
     
     #[inline(always)]
     pub fn alloc(&mut self, size: usize, align: usize) -> Address {
+        // this part of code will slow down allocation
+        let align = objectmodel::check_alignment(align);
         let size = size + objectmodel::OBJECT_HEADER_SIZE;
+        // end
 
         let start = self.cursor.align_up(align);
         let end = start.plus(size);
@@ -155,7 +158,8 @@ impl ImmixMutatorLocal {
                     process::exit(102);
                 }
             }
-            
+
+            // this offset should be removed as well (for performance)
             ret.offset(-objectmodel::OBJECT_HEADER_OFFSET)
         } else {
             if cfg!(debug_assertions) {

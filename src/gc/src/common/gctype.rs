@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use utils::POINTER_SIZE;
 use utils::ByteSize;
+use objectmodel;
 
 use std::u32;
 pub const GCTYPE_INIT_ID: u32 = u32::MAX;
@@ -11,12 +12,22 @@ pub const GCTYPE_INIT_ID: u32 = u32::MAX;
 pub struct GCType {
     pub id: u32,
     pub size: ByteSize,
-    pub alignment: ByteSize,
+    alignment: ByteSize,
     pub non_repeat_refs: Option<RefPattern>,
     pub repeat_refs    : Option<RepeatingRefPattern>,
 }
 
 impl GCType {
+    pub fn new(id: u32, size: ByteSize, alignment: ByteSize, non_repeat_refs: Option<RefPattern>, repeat_refs: Option<RepeatingRefPattern>) -> GCType {
+        GCType {
+            id: id,
+            size: size,
+            alignment: objectmodel::check_alignment(alignment),
+            non_repeat_refs: non_repeat_refs,
+            repeat_refs: repeat_refs
+        }
+    }
+
     pub fn new_noreftype(size: ByteSize, align: ByteSize) -> GCType {
         GCType {
             id: GCTYPE_INIT_ID,

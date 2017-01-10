@@ -5,6 +5,8 @@ use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
 use utils::bit_utils;
 use utils::{ByteSize, ByteOffset};
 
+pub const MINIMAL_ALIGNMENT : ByteSize = 1;
+
 pub const OBJECT_HEADER_SIZE : ByteSize = 0;
 pub const OBJECT_HEADER_OFFSET : ByteOffset = 0;
 

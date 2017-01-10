@@ -34,6 +34,8 @@ use utils::{Address, ObjectReference};
 use utils::POINTER_SIZE;
 use utils::LOG_POINTER_SIZE;
 
+pub const MINIMAL_ALIGNMENT : ByteSize = 8;
+
 pub const OBJECT_HEADER_SIZE   : ByteSize   = 8;
 pub const OBJECT_HEADER_OFFSET : ByteOffset = - (OBJECT_HEADER_SIZE as ByteOffset);
 
@@ -270,16 +272,14 @@ mod tests {
     #[test]
     fn gctype_to_encode1() {
         // linked list: struct {ref, int64}
-        let a = GCType{
-            id: 0,
-            size: 16,
-            alignment: 8,
-            non_repeat_refs: Some(RefPattern::Map{
-                offsets: vec![0],
-                size: 16
-            }),
-            repeat_refs    : None
-        };
+        let a = GCType::new(0,
+                            16,
+                            8,
+                            Some(RefPattern::Map{
+                                offsets: vec![0],
+                                size: 16
+                            }),
+                            None);
         println!("gctype: {:?}", a);
 
         let encode = gen_gctype_encode(&a);
@@ -293,16 +293,14 @@ mod tests {
     #[test]
     fn gctype_to_encode2() {
         // doubly linked list: struct {ref, ref, int64, int64}
-        let a = GCType{
-            id: 0,
-            size: 32,
-            alignment: 8,
-            non_repeat_refs: Some(RefPattern::Map{
-                offsets: vec![0, 8],
-                size: 32
-            }),
-            repeat_refs    : None
-        };
+        let a = GCType::new(0,
+                            32,
+                            8,
+                            Some(RefPattern::Map{
+                                offsets: vec![0, 8],
+                                size: 32
+                            }),
+                            None);
         println!("gctype: {:?}", a);
 
         let encode = gen_gctype_encode(&a);
@@ -317,16 +315,15 @@ mod tests {
     fn gctype_to_encode3() {
         // a struct of 64 references
         const N_REF : usize = 64;
-        let a = GCType{
-            id: 999,
-            alignment: 8,
-            size: N_REF * POINTER_SIZE,
-            non_repeat_refs: Some(RefPattern::Map{
-                offsets: (0..N_REF).map(|x| x * POINTER_SIZE).collect(),
-                size: N_REF * POINTER_SIZE
-            }),
-            repeat_refs    : None
-        };
+        let a = GCType::new(999,
+                            N_REF * POINTER_SIZE,
+                            8,
+                            Some(RefPattern::Map{
+                                offsets: (0..N_REF).map(|x| x * POINTER_SIZE).collect(),
+                                size: N_REF * POINTER_SIZE
+                            }),
+                            None
+        );
         println!("gctype: {:?}", a);
 
         let encode = gen_gctype_encode(&a);
@@ -339,19 +336,17 @@ mod tests {
     #[test]
     fn gctype_to_encode4() {
         // array of struct {ref, int64} with length 10
-        let a = GCType {
-            id: 1,
-            size: 160,
-            alignment: 8,
-            non_repeat_refs: None,
-            repeat_refs    : Some(RepeatingRefPattern {
-                pattern: RefPattern::Map{
-                    offsets: vec![0],
-                    size   : 16
-                },
-                count  : 10
-            }),
-        };
+        let a = GCType::new(1,
+                            160,
+                            8,
+                            None,
+                            Some(RepeatingRefPattern {
+                                pattern: RefPattern::Map{
+                                    offsets: vec![0],
+                                    size   : 16
+                                },
+                                count  : 10
+                            }));
         println!("gctype: {:?}", a);
 
         let encode = gen_gctype_encode(&a);
@@ -365,31 +360,27 @@ mod tests {
     #[test]
     fn gctype_to_encode5() {
         // array of struct {ref, int64} with length 10
-        let b = GCType {
-            id: 1,
-            size: 160,
-            alignment: 8,
-            non_repeat_refs: None,
-            repeat_refs    : Some(RepeatingRefPattern {
-                pattern: RefPattern::Map{
-                    offsets: vec![0],
-                    size   : 16
-                },
-                count  : 10
-            }),
-        };
+        let b = GCType::new(1,
+                            160,
+                            8,
+                            None,
+                            Some(RepeatingRefPattern {
+                                pattern: RefPattern::Map{
+                                    offsets: vec![0],
+                                    size   : 16
+                                },
+                                count  : 10
+                            }));
 
         // array(10) of array(10) of struct {ref, int64}
-        let a = GCType {
-            id: 2,
-            size: 1600,
-            alignment: 8,
-            non_repeat_refs: None,
-            repeat_refs    : Some(RepeatingRefPattern {
-                pattern: RefPattern::NestedType(vec![Arc::new(b.clone()).clone()]),
-                count  : 10
-            })
-        };
+        let a = GCType::new(2,
+                            1600,
+                            8,
+                            None,
+                            Some(RepeatingRefPattern {
+                                pattern: RefPattern::NestedType(vec![Arc::new(b.clone()).clone()]),
+                                count  : 10
+                            }));
         println!("gctype: {:?}", a);
 
         let encode = gen_gctype_encode(&a);

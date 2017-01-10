@@ -128,16 +128,15 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
                 size         : ele_ty.size * len,
                 alignment    : ele_ty.alignment,
                 struct_layout: None,
-                gc_type      : mm::add_gc_type(GCType {
-                    id             : GCTYPE_INIT_ID,
-                    size           : ele_ty.size * len,
-                    alignment: ele_ty.alignment,
-                    non_repeat_refs: None,
-                    repeat_refs    : Some(RepeatingRefPattern{
-                        pattern: RefPattern::NestedType(vec![ele_ty.gc_type]),
-                        count  : len
-                    })
-                })
+                gc_type      : mm::add_gc_type(GCType::new(GCTYPE_INIT_ID,
+                                                           ele_ty.size * len,
+                                                           ele_ty.alignment,
+                                                           None,
+                                                           Some(RepeatingRefPattern{
+                                                                pattern: RefPattern::NestedType(vec![ele_ty.gc_type]),
+                                                                count  : len
+                                                            })
+                ))
             }
         }
         // struct
@@ -247,20 +246,18 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
         size         : size,
         alignment    : struct_align,
         struct_layout: Some(offsets),
-        gc_type      : mm::add_gc_type(GCType {
-            id             : GCTYPE_INIT_ID,
-            size           : size,
-            alignment: struct_align,
-            non_repeat_refs: Some(if use_ref_offsets {
-                RefPattern::Map {
-                    offsets: ref_offsets,
-                    size: size
-                }
-            } else {
-                RefPattern::NestedType(gc_types)
-            }),
-            repeat_refs    : None
-        })
+        gc_type      : mm::add_gc_type(GCType::new(GCTYPE_INIT_ID,
+                                                   size,
+                                                   struct_align,
+                                                   Some(if use_ref_offsets {
+                                                       RefPattern::Map {
+                                                           offsets: ref_offsets,
+                                                           size: size
+                                                       }
+                                                   } else {
+                                                       RefPattern::NestedType(gc_types)
+                                                   }),
+                                                   None))
     }
 }
 
