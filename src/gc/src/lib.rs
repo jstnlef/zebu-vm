@@ -91,7 +91,11 @@ pub extern fn get_gc_type_encode(id: u32) -> u64 {
     let gc_lock = MY_GC.read().unwrap();
     let ref gctype  = gc_lock.as_ref().unwrap().gc_types[id as usize];
 
-    objectmodel::gen_gctype_encode(gctype)
+    if gctype.is_hybrid() {
+        objectmodel::gen_hybrid_gctype_encode(gctype, 0) // fake length
+    } else {
+        objectmodel::gen_gctype_encode(gctype)
+    }
 }
 
 #[no_mangle]
@@ -187,6 +191,12 @@ pub extern fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) 
 #[inline(never)]
 pub extern fn muentry_init_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64) {
     unsafe {&mut *mutator}.init_object(obj.to_address(), encode);
+}
+
+#[no_mangle]
+#[inline(never)]
+pub extern fn muentry_init_hybrid(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64, length: u64) {
+    unsafe {&mut *mutator}.init_hybrid(obj.to_address(), encode, length);
 }
 
 #[no_mangle]

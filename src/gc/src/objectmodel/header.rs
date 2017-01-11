@@ -56,41 +56,47 @@ pub const MASK_OBJ_SIZE     : u64   = 0x0FFFFFFF00000000u64;
 pub const SHR_OBJ_SIZE      : usize = 32;
 
 pub fn gen_gctype_encode(ty: &GCType) -> u64 {
+    assert!(!ty.is_hybrid());
+
     let mut ret = 0u64;
 
-    if ty.repeat_refs.is_some() {
-        // var sized
-        let len = ty.repeat_refs.as_ref().unwrap().count;
+    // fix sized
+    ret = ret | (1 << BIT_IS_FIX_SIZE);
 
-        // encode length
-        ret = ret | (( (len as u64) << SHR_HYBRID_LENGTH) & MASK_HYBRID_LENGTH);
-        // encode gc id
-        ret = ret | (ty.id as u64);
-    } else {
-        // fix sized
-        ret = ret | (1 << BIT_IS_FIX_SIZE);
+    // encode ref map?
+    if ty.size() < REF_MAP_LENGTH * POINTER_SIZE {
+        // has ref map
+        ret = ret | (1 << BIT_HAS_REF_MAP);
 
-        // encode ref map?
-        if ty.size < REF_MAP_LENGTH * POINTER_SIZE {
-            // has ref map
-            ret = ret | (1 << BIT_HAS_REF_MAP);
+        // encode ref map
+        let offsets = ty.gen_ref_offsets();
+        let mut ref_map = 0;
 
-            // encode ref map
-            let offsets = ty.gen_ref_offsets();
-            let mut ref_map = 0;
-
-            for offset in offsets {
-                ref_map = ref_map | (1 << (offset >> LOG_POINTER_SIZE));
-            }
-
-            ret = ret | (ref_map & MASK_REF_MAP);
-
-            // encode size
-            ret = ret | (((ty.size as u64) << SHR_OBJ_SIZE) & MASK_OBJ_SIZE);
-        } else {
-            ret = ret | (ty.id as u64);
+        for offset in offsets {
+            ref_map = ref_map | (1 << (offset >> LOG_POINTER_SIZE));
         }
+
+        ret = ret | (ref_map & MASK_REF_MAP);
+
+        // encode size
+        ret = ret | (((ty.size() as u64) << SHR_OBJ_SIZE) & MASK_OBJ_SIZE);
+    } else {
+        ret = ret | (ty.id as u64);
     }
+
+    ret
+}
+
+pub fn gen_hybrid_gctype_encode(ty: &GCType, length: u32) -> u64 {
+    assert!(ty.is_hybrid());
+
+    let mut ret = 0u64;
+
+    // encode length
+    ret = ret | (((length as u64) << SHR_HYBRID_LENGTH) & MASK_HYBRID_LENGTH);
+
+    // encode type
+    ret = ret | (ty.id as u64);
 
     ret
 }
@@ -214,7 +220,7 @@ mod tests {
         let hdr_bin = 0b10110000_00000000_00000000_00000000_00000000_00000000_00000000_00000011u64;
         let hdr_hex = 0xb000000000000003u64;
 
-        println!("");
+        println!();
         println!("binary: {:b}", hdr_bin);
         println!("hex   : {:b}", hdr_hex);
 
@@ -235,7 +241,7 @@ mod tests {
         let hdr_bin = 0b10100000_00000000_00000000_00000000_00000000_00000000_00000000_11111111u64;
         let hdr_hex = 0xa0000000000000ffu64;
 
-        println!("");
+        println!();
         println!("binary: {:b}", hdr_bin);
         println!("hex   : {:b}", hdr_hex);
 
@@ -256,7 +262,7 @@ mod tests {
         let hdr_bin = 0b10000000_00000000_00000000_10000000_00000000_00000000_00000000_11111111u64;
         let hdr_hex = 0x80000080000000ffu64;
 
-        println!("");
+        println!();
         println!("binary: {:b}", hdr_bin);
         println!("hex   : {:b}", hdr_hex);
 
@@ -275,14 +281,13 @@ mod tests {
     #[test]
     fn gctype_to_encode1() {
         // linked list: struct {ref, int64}
-        let a = GCType::new(0,
+        let a = GCType::new_fix(0,
                             16,
                             8,
                             Some(RefPattern::Map{
                                 offsets: vec![0],
                                 size: 16
-                            }),
-                            None);
+                            }));
         println!("gctype: {:?}", a);
 
         let encode = gen_gctype_encode(&a);
@@ -297,14 +302,13 @@ mod tests {
     #[test]
     fn gctype_to_encode2() {
         // doubly linked list: struct {ref, ref, int64, int64}
-        let a = GCType::new(0,
+        let a = GCType::new_fix(0,
                             32,
                             8,
                             Some(RefPattern::Map{
                                 offsets: vec![0, 8],
                                 size: 32
-                            }),
-                            None);
+                            }));
         println!("gctype: {:?}", a);
 
         let encode = gen_gctype_encode(&a);
@@ -320,14 +324,13 @@ mod tests {
     fn gctype_to_encode3() {
         // a struct of 64 references
         const N_REF : usize = 64;
-        let a = GCType::new(999,
+        let a = GCType::new_fix(999,
                             N_REF * POINTER_SIZE,
                             8,
                             Some(RefPattern::Map{
                                 offsets: (0..N_REF).map(|x| x * POINTER_SIZE).collect(),
                                 size: N_REF * POINTER_SIZE
-                            }),
-                            None
+                            })
         );
         println!("gctype: {:?}", a);
 
@@ -342,20 +345,18 @@ mod tests {
     #[test]
     fn gctype_to_encode4() {
         // array of struct {ref, int64} with length 10
-        let a = GCType::new(1,
-                            160,
+        let a = GCType::new_hybrid(1,
+                            0,
                             8,
                             None,
-                            Some(RepeatingRefPattern {
-                                pattern: RefPattern::Map{
+                            Some(RefPattern::Map{
                                     offsets: vec![0],
                                     size   : 16
-                                },
-                                count  : 10
-                            }));
+                            }),
+                            16);
         println!("gctype: {:?}", a);
 
-        let encode = gen_gctype_encode(&a);
+        let encode = gen_hybrid_gctype_encode(&a, 10);
         println!("encode: {:64b}", encode);
 
         assert!(!header_is_fix_size(encode));
@@ -366,30 +367,28 @@ mod tests {
     #[test]
     fn gctype_to_encode5() {
         // array of struct {ref, int64} with length 10
-        let b = GCType::new(1,
+        let b = GCType::new_fix(1,
                             160,
                             8,
-                            None,
-                            Some(RepeatingRefPattern {
-                                pattern: RefPattern::Map{
+                            Some(RefPattern::Repeat {
+                                pattern: Box::new(RefPattern::Map{
                                     offsets: vec![0],
                                     size   : 16
-                                },
+                                }),
                                 count  : 10
                             }));
 
-        // array(10) of array(10) of struct {ref, int64}
-        let a = GCType::new(2,
-                            1600,
+        // hybrid(10) of array(10) of struct {ref, int64}
+        let a = GCType::new_hybrid(2,
+                            0,
                             8,
                             None,
-                            Some(RepeatingRefPattern {
-                                pattern: RefPattern::NestedType(vec![Arc::new(b.clone()).clone()]),
-                                count  : 10
-                            }));
+                            Some(RefPattern::NestedType(vec![Arc::new(b.clone()).clone()])),
+                            160
+                            );
         println!("gctype: {:?}", a);
 
-        let encode = gen_gctype_encode(&a);
+        let encode = gen_hybrid_gctype_encode(&a, 10);
         println!("encode: {:64b}", encode);
 
         assert!(!header_is_fix_size(encode));

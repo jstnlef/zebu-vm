@@ -496,11 +496,12 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
     } else {
         // hybrids
         let gctype_id = objectmodel::header_get_gctype_id(hdr);
+        let var_length = objectmodel::header_get_hybrid_length(hdr);
 
         let gc_lock = MY_GC.read().unwrap();
         let gctype : Arc<GCType> = gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
 
-        for offset in gctype.gen_ref_offsets() {
+        for offset in gctype.gen_hybrid_ref_offsets(var_length) {
             steal_process_edge(addr, offset, local_queue, job_sender, mark_state, immix_space, lo_space);
         }
     }

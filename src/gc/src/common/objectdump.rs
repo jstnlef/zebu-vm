@@ -91,13 +91,14 @@ impl HeapDump {
                 ObjectDump {
                     reference_addr: obj,
                     mem_start     : hdr_addr,
-                    mem_size      : gctype.size + objectmodel::OBJECT_HEADER_SIZE,
+                    mem_size      : gctype.size() + objectmodel::OBJECT_HEADER_SIZE,
                     reference_offsets: gctype.gen_ref_offsets()
                 }
             }
         } else {
             // hybrids - same as above
-            let gctype_id = objectmodel::header_get_gctype_id(hdr);
+            let gctype_id  = objectmodel::header_get_gctype_id(hdr);
+            let var_length = objectmodel::header_get_hybrid_length(hdr);
 
             trace!("var sized, type id as {}", gctype_id);
 
@@ -107,8 +108,8 @@ impl HeapDump {
             ObjectDump {
                 reference_addr: obj,
                 mem_start     : hdr_addr,
-                mem_size      : gctype.size + objectmodel::OBJECT_HEADER_SIZE,
-                reference_offsets: gctype.gen_ref_offsets()
+                mem_size      : gctype.size_hybrid(var_length) + objectmodel::OBJECT_HEADER_SIZE,
+                reference_offsets: gctype.gen_hybrid_ref_offsets(var_length)
             }
         }
     }

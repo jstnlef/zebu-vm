@@ -185,10 +185,23 @@ impl ImmixMutatorLocal {
 
         unimplemented!()
     }
-
     #[inline(always)]
     #[cfg(not(feature = "use-sidemap"))]
     pub fn init_object(&mut self, addr: Address, encode: u64) {
+        unsafe {
+            addr.offset(objectmodel::OBJECT_HEADER_OFFSET).store(encode);
+        }
+    }
+
+    #[inline(always)]
+    #[cfg(feature = "use-sidemap")]
+    pub fn init_hybrid(&mut self, addr: Address, encode: u64, len: u64) {
+        unimplemented!()
+    }
+    #[inline(always)]
+    #[cfg(not(feature = "use-sidemap"))]
+    pub fn init_hybrid(&mut self, addr: Address, encode: u64, len: u64) {
+        let encode = encode | ((len << objectmodel::SHR_HYBRID_LENGTH) & objectmodel::MASK_HYBRID_LENGTH);
         unsafe {
             addr.offset(objectmodel::OBJECT_HEADER_OFFSET).store(encode);
         }

@@ -6,7 +6,7 @@ pub mod code_emission;
 use ast::types;
 use utils::ByteSize;
 use runtime::mm;
-use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern, RepeatingRefPattern};
+use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern};
 
 pub type Word = usize;
 pub const WORD_SIZE : ByteSize = 8;
@@ -128,12 +128,11 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
                 size         : ele_ty.size * len,
                 alignment    : ele_ty.alignment,
                 struct_layout: None,
-                gc_type      : mm::add_gc_type(GCType::new(GCTYPE_INIT_ID,
+                gc_type      : mm::add_gc_type(GCType::new_fix(GCTYPE_INIT_ID,
                                                            ele_ty.size * len,
                                                            ele_ty.alignment,
-                                                           None,
-                                                           Some(RepeatingRefPattern{
-                                                                pattern: RefPattern::NestedType(vec![ele_ty.gc_type]),
+                                                           Some(RefPattern::Repeat{
+                                                                pattern: Box::new(RefPattern::NestedType(vec![ele_ty.gc_type])),
                                                                 count  : len
                                                             })
                 ))
@@ -173,10 +172,8 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             }
             // 2. fix gc type
             let mut gctype = ret.gc_type.as_ref().clone();
-            gctype.repeat_refs = Some(RepeatingRefPattern {
-                pattern: RefPattern::NestedType(vec![var_ele_ty.gc_type.clone()]),
-                count  : 0
-            });
+            gctype.var_refs = Some(RefPattern::NestedType(vec![var_ele_ty.gc_type.clone()]));
+            gctype.var_size = Some(var_ele_ty.size);
             ret.gc_type = mm::add_gc_type(gctype);
             
             ret
@@ -246,7 +243,7 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
         size         : size,
         alignment    : struct_align,
         struct_layout: Some(offsets),
-        gc_type      : mm::add_gc_type(GCType::new(GCTYPE_INIT_ID,
+        gc_type      : mm::add_gc_type(GCType::new_fix(GCTYPE_INIT_ID,
                                                    size,
                                                    struct_align,
                                                    Some(if use_ref_offsets {
@@ -256,8 +253,7 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
                                                        }
                                                    } else {
                                                        RefPattern::NestedType(gc_types)
-                                                   }),
-                                                   None))
+                                                   })))
     }
 }
 
@@ -277,6 +273,10 @@ pub struct BackendTypeInfo {
 }
 
 impl BackendTypeInfo {
+    pub fn is_hybrid(&self) -> bool {
+        self.gc_type.is_hybrid()
+    }
+
     pub fn get_field_offset(&self, index: usize) -> ByteSize {
         if self.struct_layout.is_some() {
             let layout = self.struct_layout.as_ref().unwrap();

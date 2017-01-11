@@ -14,6 +14,10 @@ pub fn gen_gctype_encode(ty: &GCType) -> u64 {
     unimplemented!()
 }
 
+pub fn gen_hybrid_gctype_encode(ty: &GCType) -> u64 {
+    unimplemented!()
+}
+
 #[allow(unused_variables)]
 pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, alloc_map: *mut u8) {
     let mut cursor = obj;

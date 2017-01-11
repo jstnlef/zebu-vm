@@ -41,6 +41,8 @@ pub fn check_alignment(align: ByteSize) -> ByteSize {
 
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::gen_gctype_encode;
+#[cfg(feature = "use-sidemap")]
+pub use self::sidemap::gen_hybrid_gctype_encode;
 
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::MINIMAL_ALIGNMENT;
@@ -68,6 +70,8 @@ pub use self::sidemap::get_ref_byte;
 
 #[cfg(not(feature = "use-sidemap"))]
 pub use self::header::gen_gctype_encode;
+#[cfg(not(feature = "use-sidemap"))]
+pub use self::header::gen_hybrid_gctype_encode;
 
 // flag bit
 #[cfg(not(feature = "use-sidemap"))]
@@ -119,3 +123,5 @@ pub use self::header::header_get_gctype_id;
 pub use self::header::header_get_ref_map;
 #[cfg(not(feature = "use-sidemap"))]
 pub use self::header::header_get_object_size;
+#[cfg(not(feature = "use-sidemap"))]
+pub use self::header::header_get_hybrid_length;
