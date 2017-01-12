@@ -73,7 +73,7 @@ fn test_set_global_by_api() {
         let uint64_10_handle = vm.handle_from_uint64(10, 64);
 
         debug!("write {:?} to location {:?}", uint64_10_handle, global_handle);
-        handle::store(MemoryOrder::Relaxed, global_handle, uint64_10_handle);
+        vm.handle_store(MemoryOrder::Relaxed, &global_handle, &uint64_10_handle);
     }
 
     // then emit context (global will be put into context.s
@@ -151,25 +151,25 @@ fn test_persist_linked_list() {
     const LINKED_LIST_SIZE : usize = 5;
     {
         let mut i = 0;
-        let mut last_node : Option<Arc<handle::APIHandle>> = None;
+        let mut last_node : Option<Box<handle::APIHandle>> = None;
 
         let node_tyid = vm.id_of("node");
 
         while i < LINKED_LIST_SIZE {
             // new node
             let node_ref  = vm.new_fixed(node_tyid);
-            let node_iref = vm.handle_get_iref(node_ref.clone());
+            let node_iref = vm.handle_get_iref(&node_ref);
 
             // store i as payload
-            let payload_iref = vm.handle_get_field_iref(node_iref.clone(), 1);  // payload is the 2nd field
+            let payload_iref = vm.handle_get_field_iref(&node_iref, 1);  // payload is the 2nd field
             let int_handle = vm.handle_from_uint64(i as u64, 64);
-            handle::store(MemoryOrder::Relaxed, payload_iref, int_handle);
+            vm.handle_store(MemoryOrder::Relaxed, &payload_iref, &int_handle);
 
             // store last_node as next
-            let next_iref = vm.handle_get_field_iref(node_iref, 0);
+            let next_iref = vm.handle_get_field_iref(&node_iref, 0);
             if last_node.is_some() {
                 let handle = last_node.take().unwrap();
-                handle::store(MemoryOrder::Relaxed, next_iref, handle);
+                vm.handle_store(MemoryOrder::Relaxed, &next_iref, &handle);
             }
 
             last_node = Some(node_ref);
@@ -180,7 +180,7 @@ fn test_persist_linked_list() {
         let global_id = vm.id_of("my_global");
         let global_handle = vm.handle_from_global(global_id);
 
-        handle::store(MemoryOrder::Relaxed, global_handle, last_node.unwrap());
+        vm.handle_store(MemoryOrder::Relaxed, &global_handle, last_node.as_ref().unwrap());
     }
 
     // then emit context (global will be put into context.s
@@ -363,10 +363,10 @@ fn test_persist_hybrid() {
     {
         let hybrid_tyid = vm.id_of("hybrid");
         let hybrid_len  = vm.handle_from_uint64(HYBRID_LENGTH as u64, 64);
-        let hybrid      = vm.new_hybrid(hybrid_tyid, hybrid_len);
+        let hybrid      = vm.new_hybrid(hybrid_tyid, &hybrid_len);
 
-        let hybrid_iref    = vm.handle_get_iref(hybrid.clone());
-        let hybrid_varpart = vm.handle_get_var_part_iref(hybrid_iref);
+        let hybrid_iref    = vm.handle_get_iref(&hybrid);
+        let hybrid_varpart = vm.handle_get_var_part_iref(&hybrid_iref);
 
         // create int64 objects to fill var part
         let int64_tyid = vm.id_of("int64");
@@ -374,22 +374,22 @@ fn test_persist_hybrid() {
         for i in 0..HYBRID_LENGTH {
             // new node
             let node_ref  = vm.new_fixed(int64_tyid);
-            let node_iref = vm.handle_get_iref(node_ref.clone());
+            let node_iref = vm.handle_get_iref(&node_ref);
 
             // store i into node
             let int_handle = vm.handle_from_uint64(i as u64, 64);
-            handle::store(MemoryOrder::Relaxed, node_iref, int_handle.clone());
+            vm.handle_store(MemoryOrder::Relaxed, &node_iref, &int_handle);
 
             // store node to hybrid
-            let hybrid_cell = vm.handle_shift_iref(hybrid_varpart.clone(), int_handle);
-            handle::store(MemoryOrder::Relaxed, hybrid_cell, node_ref);
+            let hybrid_cell = vm.handle_shift_iref(&hybrid_varpart, &int_handle);
+            vm.handle_store(MemoryOrder::Relaxed, &hybrid_cell, &node_ref);
         }
 
         // store last_node in global
         let global_id = vm.id_of("my_global");
         let global_handle = vm.handle_from_global(global_id);
 
-        handle::store(MemoryOrder::Relaxed, global_handle, hybrid);
+        vm.handle_store(MemoryOrder::Relaxed, &global_handle, &hybrid);
     }
 
     // then emit context (global will be put into context.s

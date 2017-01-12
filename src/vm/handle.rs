@@ -1,11 +1,13 @@
 use ast::ir::*;
-use ast::inst::*;
 use ast::ptr::*;
 use ast::types::*;
 
 use utils::BitSize;
 use utils::Address;
 use std::sync::Arc;
+
+pub type APIHandleResult = Box<APIHandle>;
+pub type APIHandleArg<'a>    = &'a APIHandle;
 
 #[derive(Clone, Debug)]
 pub struct APIHandle {
@@ -76,42 +78,6 @@ impl APIHandleValue {
         match self {
             &APIHandleValue::Int(val, _) => val,
             _ => panic!("expected Int handle")
-        }
-    }
-}
-
-pub fn store(ord: MemoryOrder, loc: Arc<APIHandle>, val: Arc<APIHandle>) {
-    // FIXME: take memory order into consideration
-
-    // get address
-    let (_, addr) = loc.v.as_iref();
-
-    // get value and store
-    // we will store here (its unsafe)
-    unsafe {
-        match val.v {
-            APIHandleValue::Int(ival, bits) => {
-                match bits {
-                    8 => addr.store::<u8>(ival as u8),
-                    16 => addr.store::<u16>(ival as u16),
-                    32 => addr.store::<u32>(ival as u32),
-                    64 => addr.store::<u64>(ival),
-                    _ => panic!("unimplemented int length")
-                }
-            },
-            APIHandleValue::Float(fval) => addr.store::<f32>(fval),
-            APIHandleValue::Double(fval) => addr.store::<f64>(fval),
-            APIHandleValue::UPtr(aval) => addr.store::<Address>(aval),
-            APIHandleValue::UFP(aval) => addr.store::<Address>(aval),
-
-            APIHandleValue::Struct(_)
-            | APIHandleValue::Array(_)
-            | APIHandleValue::Vector(_) => panic!("cannot store an aggregated value to an address"),
-
-            APIHandleValue::Ref(_, aval)
-            | APIHandleValue::IRef(_, aval) => addr.store::<Address>(aval),
-
-            _ => unimplemented!()
         }
     }
 }

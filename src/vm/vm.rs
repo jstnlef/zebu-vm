@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use ast::ptr::*;
 use ast::ir::*;
+use ast::inst::*;
 use ast::types;
 use ast::types::*;
 use compiler::backend;
@@ -11,6 +12,7 @@ use runtime::thread::*;
 use runtime::ValueLocation;
 use utils::ByteSize;
 use utils::BitSize;
+use utils::Address;
 use runtime::mm as gc;
 use vm::handle::*;
 use vm::vm_options::VMOptions;
@@ -20,7 +22,6 @@ use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use log::LogLevel;
 use std::path;
 use std::sync::RwLock;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 
 // FIXME:
@@ -61,9 +62,6 @@ pub struct VM {
     // partially serialize
     // 13
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
-
-    // not serialize
-    active_handles: RwLock<HashMap<MuID, Arc<APIHandle>>>
 }
 
 const VM_SERIALIZE_FIELDS : usize = 14;
@@ -371,9 +369,7 @@ impl Decodable for VM {
                 primordial: RwLock::new(primordial),
                 is_running: ATOMIC_BOOL_INIT,
                 vm_options: vm_options,
-                compiled_funcs: RwLock::new(compiled_funcs),
-
-                active_handles: RwLock::new(hashmap!{})
+                compiled_funcs: RwLock::new(compiled_funcs)
             };
             
             vm.next_id.store(next_id, Ordering::SeqCst);
@@ -417,8 +413,7 @@ impl <'a> VM {
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
 
-            primordial: RwLock::new(None),
-            active_handles: RwLock::new(hashmap!{})
+            primordial: RwLock::new(None)
         };
 
         // insert all intenral types
@@ -849,16 +844,13 @@ impl <'a> VM {
     }
 
     // -- API ---
-    fn new_handle(&self, handle: APIHandle) -> Arc<APIHandle> {
-        let ret = Arc::new(handle);
-
-        let mut handles = self.active_handles.write().unwrap();
-        handles.insert(ret.id, ret.clone());
+    fn new_handle(&self, handle: APIHandle) -> APIHandleResult {
+        let ret = Box::new(handle);
 
         ret
     }
 
-    pub fn new_fixed(&self, tyid: MuID) -> Arc<APIHandle> {
+    pub fn new_fixed(&self, tyid: MuID) -> APIHandleResult {
         let ty = {
             let types_lock = self.types.read().unwrap();
             types_lock.get(&tyid).unwrap().clone()
@@ -873,7 +865,7 @@ impl <'a> VM {
         })
     }
 
-    pub fn new_hybrid(&self, tyid: MuID, length: Arc<APIHandle>) -> Arc<APIHandle> {
+    pub fn new_hybrid(&self, tyid: MuID, length: APIHandleArg) -> APIHandleResult {
         let ty  = self.get_type(tyid);
         let len = self.handle_to_uint64(length);
 
@@ -886,7 +878,7 @@ impl <'a> VM {
         })
     }
 
-    pub fn handle_get_iref(&self, handle_ref: Arc<APIHandle>) -> Arc<APIHandle> {
+    pub fn handle_get_iref(&self, handle_ref: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = handle_ref.v.as_ref();
 
         // iref has the same address as ref
@@ -896,7 +888,7 @@ impl <'a> VM {
         })
     }
 
-    pub fn handle_shift_iref(&self, handle_iref: Arc<APIHandle>, offset: Arc<APIHandle>) -> Arc<APIHandle> {
+    pub fn handle_shift_iref(&self, handle_iref: APIHandleArg, offset: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = handle_iref.v.as_iref();
         let offset = self.handle_to_uint64(offset);
 
@@ -911,7 +903,7 @@ impl <'a> VM {
         })
     }
 
-    pub fn handle_get_var_part_iref(&self, handle_iref: Arc<APIHandle>) -> Arc<APIHandle> {
+    pub fn handle_get_var_part_iref(&self, handle_iref: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = handle_iref.v.as_iref();
 
         let varpart_addr = {
@@ -930,7 +922,7 @@ impl <'a> VM {
         })
     }
 
-    pub fn handle_get_field_iref(&self, handle_iref: Arc<APIHandle>, field: usize) -> Arc<APIHandle> {
+    pub fn handle_get_field_iref(&self, handle_iref: APIHandleArg, field: usize) -> APIHandleResult {
         let (ty, addr) = handle_iref.v.as_iref();
 
         let field_ty = match ty.get_field_ty(field) {
@@ -950,7 +942,43 @@ impl <'a> VM {
         })
     }
 
-    pub fn handle_from_global(&self, id: MuID) -> Arc<APIHandle> {
+    pub fn handle_store(&self, ord: MemoryOrder, loc: APIHandleArg, val: APIHandleArg) {
+        // FIXME: take memory order into consideration
+
+        // get address
+        let (_, addr) = loc.v.as_iref();
+
+        // get value and store
+        // we will store here (its unsafe)
+        unsafe {
+            match val.v {
+                APIHandleValue::Int(ival, bits) => {
+                    match bits {
+                        8 => addr.store::<u8>(ival as u8),
+                        16 => addr.store::<u16>(ival as u16),
+                        32 => addr.store::<u32>(ival as u32),
+                        64 => addr.store::<u64>(ival),
+                        _ => panic!("unimplemented int length")
+                    }
+                },
+                APIHandleValue::Float(fval) => addr.store::<f32>(fval),
+                APIHandleValue::Double(fval) => addr.store::<f64>(fval),
+                APIHandleValue::UPtr(aval) => addr.store::<Address>(aval),
+                APIHandleValue::UFP(aval) => addr.store::<Address>(aval),
+
+                APIHandleValue::Struct(_)
+                | APIHandleValue::Array(_)
+                | APIHandleValue::Vector(_) => panic!("cannot store an aggregated value to an address"),
+
+                APIHandleValue::Ref(_, aval)
+                | APIHandleValue::IRef(_, aval) => addr.store::<Address>(aval),
+
+                _ => unimplemented!()
+            }
+        }
+    }
+
+    pub fn handle_from_global(&self, id: MuID) -> APIHandleResult {
         let global_iref = {
             let global_locs = self.global_locations.read().unwrap();
             global_locs.get(&id).unwrap().to_address()
@@ -969,7 +997,7 @@ impl <'a> VM {
         })
     }
 
-    pub fn handle_from_uint64(&self, num: u64, len: BitSize) -> Arc<APIHandle> {
+    pub fn handle_from_uint64(&self, num: u64, len: BitSize) -> APIHandleResult {
         let handle_id = self.next_id();
 
         self.new_handle(APIHandle {
@@ -978,7 +1006,7 @@ impl <'a> VM {
         })
     }
 
-    pub fn handle_to_uint64(&self, handle: Arc<APIHandle>) -> u64 {
+    pub fn handle_to_uint64(&self, handle: APIHandleArg) -> u64 {
         handle.v.as_int()
     }
 }
