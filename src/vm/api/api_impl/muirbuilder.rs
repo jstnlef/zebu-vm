@@ -841,6 +841,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
         }
 
+        for id in self.b.bundle.globals.keys() {
+            if !self.visited.contains(id) {
+                self.build_global(*id)
+            }
+        }
+
         for id in self.b.bundle.funcs.keys() {
             if !self.visited.contains(id) {
                 self.build_func(*id)
@@ -1079,6 +1085,27 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.built_constants.insert(id, P(impl_val));
     }
 
+    fn build_global(&mut self, id: MuID) {
+        self.visited.insert(id);
+
+        let global = self.b.bundle.globals.get(&id).unwrap();
+
+        trace!("Building global {} {:?}", id, global);
+
+        let hdr = self.make_mu_entity_header(id);
+        let impl_ty = self.ensure_type_rec(global.ty); // global type
+
+        let impl_val = Value {
+            hdr: hdr,
+            ty: self.ensure_iref(impl_ty.id()), // iref to global
+            v: Value_::Global(impl_ty)
+        };
+
+        trace!("Global built: {} {:?}", id, impl_val);
+
+        self.built_globals.insert(id, P(impl_val));
+    }
+
     fn build_func(&mut self, id: MuID) {
         self.visited.insert(id);
 
@@ -1192,6 +1219,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         if let Some(tn) = fcb.tree_nodes.get(&id) {
             tn.clone()
         } else if let Some(v) = self.built_constants.get(&id) {
+            self.new_global(v.clone())
+        } else if let Some(v) = self.built_globals.get(&id) {
             self.new_global(v.clone())
         } else {
             panic!("Operand {} is neither a local var or a global var", id)

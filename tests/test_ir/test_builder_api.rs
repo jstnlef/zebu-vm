@@ -160,6 +160,35 @@ fn test_consts_loading() {
     }
 }
 
+#[test]
+#[allow(unused_variables)]
+fn test_globals_loading() {
+    let mut csp : CStringPool = Default::default();
+
+    unsafe {
+        VM::start_logging_trace();
+
+        info!("Starting micro VM...");
+
+        let mvm = mu_fastimpl_new();
+
+        let ctx = ((*mvm).new_context)(mvm);
+
+        let b = ((*ctx).new_ir_builder)(ctx);
+
+        let id_int32 = ((*b).gen_sym)(b, csp.get("@i32"));
+        ((*b).new_type_int)(b, id_int32, 32);
+
+        let id_global = ((*b).gen_sym)(b, csp.get("@my_global"));
+        ((*b).new_global_cell)(b, id_global, id_int32);
+
+        ((*b).load)(b);
+        ((*ctx).close_context)(ctx);
+
+        info!("Finished. ");
+    }
+}
+
 
 #[test]
 #[allow(unused_variables)]
