@@ -869,6 +869,19 @@ impl <'a> VM {
         })
     }
 
+    pub fn new_hybrid(&self, tyid: MuID, length: Arc<APIHandle>) -> Arc<APIHandle> {
+        let ty  = self.get_type(tyid);
+        let len = self.handle_to_uint64(length);
+
+        let addr = gc::allocate_hybrid(ty.clone(), len, self);
+        trace!("API: allocated hybrid type {} of length {} at {}", ty, len, addr);
+
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v: APIHandleValue::Ref(ty, addr)
+        })
+    }
+
     pub fn handle_get_iref(&self, handle_ref: Arc<APIHandle>) -> Arc<APIHandle> {
         let (ty, addr) = handle_ref.v.as_ref();
 
@@ -876,6 +889,40 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ty, addr)
+        })
+    }
+
+    pub fn handle_shift_iref(&self, handle_iref: Arc<APIHandle>, offset: Arc<APIHandle>) -> Arc<APIHandle> {
+        let (ty, addr) = handle_iref.v.as_iref();
+        let offset = self.handle_to_uint64(offset);
+
+        let offset_addr = {
+            let backend_ty = self.get_backend_type_info(ty.id());
+            addr.plus(backend_ty.size * (offset as usize))
+        };
+
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v : APIHandleValue::IRef(ty, offset_addr)
+        })
+    }
+
+    pub fn handle_get_var_part_iref(&self, handle_iref: Arc<APIHandle>) -> Arc<APIHandle> {
+        let (ty, addr) = handle_iref.v.as_iref();
+
+        let varpart_addr = {
+            let backend_ty = self.get_backend_type_info(ty.id());
+            addr.plus(backend_ty.size)
+        };
+
+        let varpart_ty = match ty.get_hybrid_varpart_ty() {
+            Some(ty) => ty,
+            None => panic!("cannot get varpart ty from {}", ty)
+        };
+
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v : APIHandleValue::IRef(varpart_ty, varpart_addr)
         })
     }
 
@@ -925,5 +972,9 @@ impl <'a> VM {
             id: handle_id,
             v : APIHandleValue::Int(num, len)
         })
+    }
+
+    pub fn handle_to_uint64(&self, handle: Arc<APIHandle>) -> u64 {
+        handle.v.as_int()
     }
 }

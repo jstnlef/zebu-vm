@@ -1,4 +1,5 @@
 macro_rules! typedef {
+    // int, floating point
     (($vm: expr) $name: ident = mu_int($len: expr)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::int($len));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
@@ -8,6 +9,7 @@ macro_rules! typedef {
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
 
+    // ref, iref, ptr
     (($vm: expr) $name: ident = mu_ref($ty: ident)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::muref($ty.clone()));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
@@ -21,6 +23,7 @@ macro_rules! typedef {
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
 
+    // struct
     (($vm: expr) $name: ident = mu_struct($($ty: ident), *)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::mustruct(Mu(stringify!($name)), vec![$($ty.clone()),*]));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
@@ -37,6 +40,7 @@ macro_rules! typedef {
         MuType_::mustruct_put(&Mu(stringify!($name)), vec![$($ty.clone()), *])
     };
 
+    // hybrid
     (($vm: expr) $name: ident = mu_hybrid($($ty: ident), *); $var_ty: ident) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::hybrid(Mu(stringify!($name)), vec![$($ty.clone()), *], $var_ty.clone()));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
@@ -46,6 +50,7 @@ macro_rules! typedef {
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
 
+    // funcref
     (($vm: expr) $name: ident = mu_funcref($sig: ident)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::funcref($sig.clone()));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));

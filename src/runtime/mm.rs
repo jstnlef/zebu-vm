@@ -13,7 +13,7 @@ use vm::VM;
 use runtime::ValueLocation;
 use runtime::thread::MuThread;
 
-fn allocate(size: ByteSize, align: ByteSize, encode: u64) -> ObjectReference {
+fn allocate(size: ByteSize, align: ByteSize, encode: u64, hybrid_len: Option<u64>) -> ObjectReference {
     let allocator = (&mut MuThread::current_mut().allocator) as *mut Mutator;
 
     let ret = if size > LARGE_OBJECT_THRESHOLD {
@@ -22,7 +22,11 @@ fn allocate(size: ByteSize, align: ByteSize, encode: u64) -> ObjectReference {
         alloc(allocator, size, align)
     };
 
-    muentry_init_object(allocator, ret, encode);
+    if hybrid_len.is_none() {
+        muentry_init_object(allocator, ret, encode);
+    } else {
+        muentry_init_hybrid(allocator, ret, encode, hybrid_len.unwrap());
+    }
 
     ret
 }
@@ -36,27 +40,29 @@ pub fn allocate_fixed(ty: P<MuType>, vm: &VM) -> Address {
     trace!("API:          gc ty   : {:?}", gctype);
     trace!("API:          encode  : {:b}", encode);
 
-    allocate(backendtype.size, backendtype.alignment, encode).to_address()
+    allocate(gctype.size(), gctype.alignment, encode, None).to_address()
 }
 
-pub fn allocate_global(value: P<Value>, vm: &VM) -> ValueLocation {
-    let tyid = value.ty.id();
+pub fn allocate_hybrid(ty: P<MuType>, len: u64, vm: &VM) -> Address {
+    let backendtype = vm.get_backend_type_info((ty.id()));
+    let gctype = backendtype.gc_type.clone();
+    let encode = get_gc_type_encode(gctype.id);
 
-    let referenced_type = match value.ty.get_referenced_ty() {
+    trace!("API: allocate fixed ty: {}", ty);
+    trace!("API:          gc ty   : {:?}", gctype);
+    trace!("API:          encode  : {:b}", encode);
+
+    allocate(gctype.size_hybrid(len as u32), gctype.alignment, encode, Some(len)).to_address()
+}
+
+pub fn allocate_global(iref_global: P<Value>, vm: &VM) -> ValueLocation {
+    let tyid = iref_global.ty.id();
+
+    let referenced_type = match iref_global.ty.get_referenced_ty() {
         Some(ty) => ty,
-        None => panic!("expected global to be an iref type, found {}", value.ty)
+        None => panic!("expected global to be an iref type, found {}", iref_global.ty)
     };
 
-    let backendtype = vm.get_backend_type_info(referenced_type.id());
-    let gctype = backendtype.gc_type.clone();
-    let gctype_id = gctype.id;
-    let encode = get_gc_type_encode(gctype_id);
-
-    trace!("API: allocate global ty: {}", referenced_type);
-    trace!("API:          gc ty    : {:?}", gctype);
-    trace!("API:          encode   : {:b}", encode);
-
-    let addr = allocate(backendtype.size, backendtype.alignment, encode).to_address();
-
+    let addr = allocate_fixed(referenced_type, vm);
     ValueLocation::Direct(RegGroup::GPR, addr)
 }

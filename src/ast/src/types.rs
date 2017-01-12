@@ -83,6 +83,18 @@ impl MuType {
         }
     }
 
+    pub fn get_hybrid_varpart_ty(&self) -> Option<P<MuType>> {
+        match self.v {
+            MuType_::Hybrid(ref tag) => {
+                let map_lock = HYBRID_TAG_MAP.read().unwrap();
+                let hybrid_inner = map_lock.get(tag).unwrap();
+
+                Some(hybrid_inner.var_ty.clone())
+            },
+            _ => None
+        }
+    }
+
     pub fn get_referenced_ty(&self) -> Option<P<MuType>> {
         use types::MuType_::*;
         match self.v {

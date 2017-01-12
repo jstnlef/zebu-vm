@@ -195,7 +195,7 @@ fn test_persist_linked_list() {
     assert!(output.status.code().is_some());
 
     let ret_code = output.status.code().unwrap();
-    println!("return code: {} (i.e. the value set before)", ret_code);
+    println!("return code: {}", ret_code);
     assert!(ret_code == 10);
 }
 
@@ -250,7 +250,7 @@ fn persist_linked_list(vm: &VM) {
         cond = CMPOP (CmpOp::EQ) cursor ref_node_null_local
     );
 
-    // BRANCH2 exit[sum] loop_body[cursor, sum]
+    // BRANCH2 cond exit[sum] loop_body[cursor, sum]
     block!      ((vm, persist_linked_list_v1) blk_exit);
     block!      ((vm, persist_linked_list_v1) blk_loop_body);
     inst!       ((vm, persist_linked_list_v1) blk_loop_head_branch2:
@@ -333,6 +333,226 @@ fn persist_linked_list(vm: &VM) {
     });
 
     define_func_ver!((vm) persist_linked_list_v1 (entry: blk_entry) {
+        blk_entry, blk_loop_head, blk_loop_body, blk_exit
+    });
+}
+
+#[test]
+fn test_persist_hybrid() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(VM::new());
+    unsafe {
+        MuThread::current_thread_as_mu_thread(Address::zero(), vm.clone());
+    }
+    persist_hybrid(&vm);
+
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let func_id = vm.id_of("persist_hybrid");
+
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+    }
+
+    // create hybrid by api
+    const HYBRID_LENGTH : usize = 5;
+    {
+        let hybrid_tyid = vm.id_of("hybrid");
+        let hybrid_len  = vm.handle_from_uint64(HYBRID_LENGTH as u64, 64);
+        let hybrid      = vm.new_hybrid(hybrid_tyid, hybrid_len);
+
+        let hybrid_iref    = vm.handle_get_iref(hybrid.clone());
+        let hybrid_varpart = vm.handle_get_var_part_iref(hybrid_iref);
+
+        // create int64 objects to fill var part
+        let int64_tyid = vm.id_of("int64");
+
+        for i in 0..HYBRID_LENGTH {
+            // new node
+            let node_ref  = vm.new_fixed(int64_tyid);
+            let node_iref = vm.handle_get_iref(node_ref.clone());
+
+            // store i into node
+            let int_handle = vm.handle_from_uint64(i as u64, 64);
+            handle::store(MemoryOrder::Relaxed, node_iref, int_handle.clone());
+
+            // store node to hybrid
+            let hybrid_cell = vm.handle_shift_iref(hybrid_varpart.clone(), int_handle);
+            handle::store(MemoryOrder::Relaxed, hybrid_cell, node_ref);
+        }
+
+        // store last_node in global
+        let global_id = vm.id_of("my_global");
+        let global_handle = vm.handle_from_global(global_id);
+
+        handle::store(MemoryOrder::Relaxed, global_handle, hybrid);
+    }
+
+    // then emit context (global will be put into context.s
+    vm.make_primordial_thread(func_id, vec![Constant::Int(HYBRID_LENGTH as u64)]);
+    backend::emit_context(&vm);
+
+    // link
+    let executable = aot::link_primordial(vec![Mu("persist_hybrid")], "persist_hybrid_test", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    assert!(output.status.code().is_some());
+
+    let ret_code = output.status.code().unwrap();
+    println!("return code: {}", ret_code);
+    assert!(ret_code == 10);
+}
+
+fn persist_hybrid(vm: &VM) {
+    typedef!    ((vm) int1            = mu_int(1));
+    typedef!    ((vm) int64           = mu_int(64));
+    typedef!    ((vm) ref_int64       = mu_ref(int64));
+    typedef!    ((vm) iref_int64      = mu_iref(int64));
+    typedef!    ((vm) hybrid          = mu_hybrid(none; ref_int64));
+    typedef!    ((vm) ref_hybrid      = mu_ref(hybrid));
+    typedef!    ((vm) iref_ref_hybrid = mu_iref(ref_hybrid));
+    typedef!    ((vm) iref_ref_int64  = mu_iref(ref_int64));
+
+    globaldef!  ((vm) <ref_hybrid> my_global);
+
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (int64) -> (int64));
+    funcdecl!   ((vm) <sig> persist_hybrid);
+    funcdef!    ((vm) <sig> persist_hybrid VERSION persist_hybrid_v1);
+
+    // --- blk entry ---
+    block!      ((vm, persist_hybrid_v1) blk_entry);
+    ssa!        ((vm, persist_hybrid_v1) <int64> hybrid_len);
+    global!     ((vm, persist_hybrid_v1) blk_entry_my_global = my_global);
+
+    // %h = LOAD %blk_entry_my_global
+    ssa!        ((vm, persist_hybrid_v1) <ref_hybrid> h);
+    inst!       ((vm, persist_hybrid_v1) blk_entry_load:
+        h = LOAD blk_entry_my_global (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    // %var_h = GETVARPARTIREF %h
+    ssa!        ((vm, persist_hybrid_v1) <iref_ref_int64> var_h);
+    inst!       ((vm, persist_hybrid_v1) blk_entry_getvarpart:
+        var_h = GETVARPARTIREF h (is_ptr: false)
+    );
+
+    // BRANCH loop_head (varpart: %var_h, sum: 0, i: 0, n: %hybrid_len)
+    block!      ((vm, persist_hybrid_v1) blk_loop_head);
+    consta!     ((vm, persist_hybrid_v1) int64_0_local = int64_0);
+    inst!       ((vm, persist_hybrid_v1) blk_entry_branch:
+        BRANCH blk_loop_head (var_h, int64_0_local, int64_0_local, hybrid_len)
+    );
+
+    define_block!   ((vm, persist_hybrid_v1) blk_entry(hybrid_len) {
+        blk_entry_load, blk_entry_getvarpart, blk_entry_branch
+    });
+
+    // --- blk loop_head ---
+    ssa!        ((vm, persist_hybrid_v1) <iref_ref_int64> head_varpart);
+    ssa!        ((vm, persist_hybrid_v1) <int64> head_sum);
+    ssa!        ((vm, persist_hybrid_v1) <int64> head_i);
+    ssa!        ((vm, persist_hybrid_v1) <int64> head_n);
+
+    // %cond = CMP ULT %i %n
+    ssa!        ((vm, persist_hybrid_v1) <int1> cond);
+    inst!       ((vm, persist_hybrid_v1) blk_loop_head_cmp:
+        cond = CMPOP (CmpOp::ULT) head_i head_n
+    );
+
+    // BRANCH2 cond loop_body[varpart, sum, i, n] exit[sum]
+    block!      ((vm, persist_hybrid_v1) blk_loop_body);
+    block!      ((vm, persist_hybrid_v1) blk_exit);
+    inst!       ((vm, persist_hybrid_v1) blk_loop_head_branch2:
+        BRANCH2 (cond, head_varpart, head_sum, head_i, head_n)
+            IF (OP 0)
+            THEN blk_loop_body (vec![1, 2, 3, 4]) WITH 0.9f32,
+            ELSE blk_exit (vec![2])
+    );
+
+    define_block!   ((vm, persist_hybrid_v1) blk_loop_head(head_varpart, head_sum, head_i, head_n) {
+        blk_loop_head_cmp, blk_loop_head_branch2
+    });
+
+    // --- blk loop_body ---
+    ssa!        ((vm, persist_hybrid_v1) <iref_ref_int64> varpart);
+    ssa!        ((vm, persist_hybrid_v1) <int64> sum);
+    ssa!        ((vm, persist_hybrid_v1) <int64> i);
+    ssa!        ((vm, persist_hybrid_v1) <int64> n);
+
+    // %cell = SHIFTIREF %varpart %i
+    ssa!        ((vm, persist_hybrid_v1) <iref_ref_int64> cell);
+    inst!       ((vm, persist_hybrid_v1) blk_loop_body_shiftiref:
+        cell = SHIFTIREF varpart i (is_ptr: false)
+    );
+
+    // %int_obj = LOAD %cell
+    ssa!        ((vm, persist_hybrid_v1) <ref_int64> int_obj);
+    inst!       ((vm, persist_hybrid_v1) blk_loop_body_load_obj:
+        int_obj = LOAD cell (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    // %iref_int_obj = GETIREF %int_obj
+    ssa!        ((vm, persist_hybrid_v1) <iref_int64> iref_int_obj);
+    inst!       ((vm, persist_hybrid_v1) blk_loop_body_getiref:
+        iref_int_obj = GETIREF int_obj
+    );
+
+    // %val = LOAD %iref_int_obj
+    ssa!        ((vm, persist_hybrid_v1) <int64> val);
+    inst!       ((vm, persist_hybrid_v1) blk_loop_body_load_val:
+        val = LOAD iref_int_obj (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    // %sum2 = BINOP ADD sum val
+    ssa!        ((vm, persist_hybrid_v1) <int64> sum2);
+    inst!       ((vm, persist_hybrid_v1) blk_loop_body_add:
+        sum2 = BINOP (BinOp::Add) sum val
+    );
+
+    // %i2 = BINOP ADD %i 1
+    ssa!        ((vm, persist_hybrid_v1) <int64> i2);
+    consta!     ((vm, persist_hybrid_v1) int64_1_local = int64_1);
+    inst!       ((vm, persist_hybrid_v1) blk_loop_body_add2:
+        i2 = BINOP (BinOp::Add) i int64_1_local
+    );
+
+    // BRANCH loop_head (%varpart, %sum2, %i2, %n)
+    inst!       ((vm, persist_hybrid_v1) blk_loop_body_branch:
+        BRANCH blk_loop_head (varpart, sum2, i2, n)
+    );
+
+    define_block!   ((vm, persist_hybrid_v1) blk_loop_body(varpart, sum, i, n) {
+        blk_loop_body_shiftiref,
+        blk_loop_body_load_obj,
+        blk_loop_body_getiref,
+        blk_loop_body_load_val,
+        blk_loop_body_add,
+        blk_loop_body_add2,
+        blk_loop_body_branch
+    });
+
+    // --- blk exit ---
+    ssa!        ((vm, persist_hybrid_v1) <int64> res);
+
+    let blk_exit_exit = gen_ccall_exit(res.clone(), &mut persist_hybrid_v1, &vm);
+
+    inst!       ((vm, persist_hybrid_v1) blk_exit_ret:
+        RET (res)
+    );
+
+    define_block!   ((vm, persist_hybrid_v1) blk_exit(res) {
+        blk_exit_exit, blk_exit_ret
+    });
+
+    define_func_ver! ((vm) persist_hybrid_v1 (entry: blk_entry) {
         blk_entry, blk_loop_head, blk_loop_body, blk_exit
     });
 }
