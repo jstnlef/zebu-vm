@@ -2739,7 +2739,6 @@ pub fn emit_context(vm: &VM) {
 
     {
         use runtime::mm;
-        use runtime::mm::common::objectdump::*;
 
         // persist globals
         let global_locs_lock = vm.global_locations.read().unwrap();
@@ -2797,7 +2796,7 @@ pub fn emit_context(vm: &VM) {
                 // write ref with label
                 let load_ref = unsafe {cur_ref_addr.load::<Address>()};
                 if load_ref.is_zero() {
-                    file.write("\t.quad 0\n".as_bytes());
+                    file.write("\t.quad 0\n".as_bytes()).unwrap();
                 } else {
                     let label = match global_dump.relocatable_refs.get(&load_ref) {
                         Some(label) => label,

@@ -51,6 +51,18 @@ lazy_static! {
     ];    
 }
 
+pub fn init_types() {
+    {
+        let mut map_lock = STRUCT_TAG_MAP.write().unwrap();
+        map_lock.clear();
+    }
+
+    {
+        let mut map_lock = HYBRID_TAG_MAP.write().unwrap();
+        map_lock.clear();
+    }
+}
+
 #[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
 pub struct MuType {
     pub hdr: MuEntityHeader,

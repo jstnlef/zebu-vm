@@ -14,7 +14,6 @@ use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 use compiler::backend;
-use compiler::backend::BackendTypeInfo;
 use compiler::backend::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
@@ -1329,7 +1328,7 @@ impl <'a> InstructionSelection {
                         let const_size = self.make_value_int_const(size as u64, vm);
 
                         let tmp_allocator = self.emit_get_allocator(node, f_content, f_context, vm);
-                        let tmp_res = self.emit_alloc_sequence(tmp_allocator.clone(), &ty_info, const_size, ty_align, node, f_content, f_context, vm);
+                        let tmp_res = self.emit_alloc_sequence(tmp_allocator.clone(), const_size, ty_align, node, f_content, f_context, vm);
 
                         // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
                         let encode = self.make_value_int_const(mm::get_gc_type_encode(ty_info.gc_type.id), vm);
@@ -1432,7 +1431,7 @@ impl <'a> InstructionSelection {
                         };
 
                         let tmp_allocator = self.emit_get_allocator(node, f_content, f_context, vm);
-                        let tmp_res = self.emit_alloc_sequence(tmp_allocator.clone(), &ty_info, actual_size, ty_align, node, f_content, f_context, vm);
+                        let tmp_res = self.emit_alloc_sequence(tmp_allocator.clone(), actual_size, ty_align, node, f_content, f_context, vm);
 
                         // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
                         let encode = self.make_value_int_const(mm::get_gc_type_encode(ty_info.gc_type.id), vm);
@@ -1505,13 +1504,13 @@ impl <'a> InstructionSelection {
         })
     }
 
-    fn emit_alloc_sequence (&mut self, tmp_allocator: P<Value>, ty_info: &BackendTypeInfo, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_alloc_sequence (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
             if size.extract_int_const() > mm::LARGE_OBJECT_THRESHOLD as u64 {
-                self.emit_alloc_sequence_large(tmp_allocator, ty_info, size, align, node, f_content, f_context, vm)
+                self.emit_alloc_sequence_large(tmp_allocator, size, align, node, f_content, f_context, vm)
             } else {
-                self.emit_alloc_sequence_small(tmp_allocator, ty_info, size, align, node, f_content, f_context, vm)
+                self.emit_alloc_sequence_small(tmp_allocator, size, align, node, f_content, f_context, vm)
             }
         } else {
             // size is unknown at compile time
@@ -1532,7 +1531,7 @@ impl <'a> InstructionSelection {
             self.backend.emit_jg(blk_alloc_large.clone());
 
             // alloc small here
-            let tmp_res = self.emit_alloc_sequence_small(tmp_allocator.clone(), ty_info, size.clone(), align, node, f_content, f_context, vm);
+            let tmp_res = self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
 
             self.backend.emit_jmp(blk_alloc_large_end.clone());
 
@@ -1546,7 +1545,7 @@ impl <'a> InstructionSelection {
             self.backend.start_block(blk_alloc_large.clone());
             self.backend.set_block_livein(blk_alloc_large.clone(), &vec![size.clone()]);
 
-            let tmp_res = self.emit_alloc_sequence_large(tmp_allocator.clone(), ty_info, size, align, node, f_content, f_context, vm);
+            let tmp_res = self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_content, f_context, vm);
 
             self.backend.end_block(blk_alloc_large.clone());
             self.backend.set_block_liveout(blk_alloc_large.clone(), &vec![tmp_res.clone()]);
@@ -1571,7 +1570,7 @@ impl <'a> InstructionSelection {
         tmp_allocator
     }
 
-    fn emit_alloc_sequence_large (&mut self, tmp_allocator: P<Value>, ty_info: &BackendTypeInfo, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_alloc_sequence_large (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         let tmp_res = self.get_result_value(node);
 
         // ASM: %tmp_res = call muentry_alloc_large(%allocator, size, align)
@@ -1587,7 +1586,7 @@ impl <'a> InstructionSelection {
         tmp_res
     }
 
-    fn emit_alloc_sequence_small (&mut self, tmp_allocator: P<Value>, ty_info: &BackendTypeInfo, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_alloc_sequence_small (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         // emit immix allocation fast path
 
         // ASM: %tl = get_thread_local()

@@ -4,8 +4,6 @@ use compiler::*;
 use ast::ir::*;
 use vm::*;
 use std::sync::Arc;
-use runtime::thread::MuThread;
-use utils::Address;
 
 use std::process::Command;
 use std::process::Output;

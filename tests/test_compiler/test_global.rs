@@ -13,7 +13,6 @@ use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use utils::Address;
 use utils::LinkedHashMap;
-use mu::testutil;
 use mu::testutil::aot;
 use mu::vm::handle;
 

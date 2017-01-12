@@ -56,8 +56,6 @@ pub fn allocate_hybrid(ty: P<MuType>, len: u64, vm: &VM) -> Address {
 }
 
 pub fn allocate_global(iref_global: P<Value>, vm: &VM) -> ValueLocation {
-    let tyid = iref_global.ty.id();
-
     let referenced_type = match iref_global.ty.get_referenced_ty() {
         Some(ty) => ty,
         None => panic!("expected global to be an iref type, found {}", iref_global.ty)

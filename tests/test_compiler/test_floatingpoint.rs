@@ -7,13 +7,10 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
-use self::mu::compiler::*;
 use self::mu::testutil;
 use mu::utils::LinkedHashMap;
 
 use std::sync::RwLock;
-use std::sync::Arc;
-use mu::testutil::aot;
 
 #[test]
 fn test_fp_add() {

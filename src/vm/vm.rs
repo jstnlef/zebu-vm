@@ -421,6 +421,7 @@ impl <'a> VM {
             active_handles: RwLock::new(hashmap!{})
         };
 
+        // insert all intenral types
         {
             let mut types = ret.types.write().unwrap();
             for ty in INTERNAL_TYPES.iter() {
@@ -448,6 +449,9 @@ impl <'a> VM {
     fn init_vm(&self) {
         // init log
         VM::start_logging(self.vm_options.flag_log_level);
+
+        // init types
+        types::init_types();
 
         // init gc
         {
