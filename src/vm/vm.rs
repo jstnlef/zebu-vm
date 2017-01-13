@@ -380,6 +380,22 @@ impl Decodable for VM {
     }
 }
 
+macro_rules! gen_handle_int {
+    ($fn_from: ident, $fn_to: ident, $int_ty: ty) => {
+        pub fn $fn_from (&self, num: $int_ty, len: BitSize) -> APIHandleResult {
+            let handle_id = self.next_id();
+            self.new_handle (APIHandle {
+                id: handle_id,
+                v: APIHandleValue::Int(num as u64, len)
+            })
+        }
+
+        pub fn $fn_to (&self, handle: APIHandleArg) -> $int_ty {
+            handle.v.as_int() as $int_ty
+        }
+    }
+}
+
 impl <'a> VM {
     pub fn new() -> VM {
         VM::new_internal(VMOptions::default())
@@ -436,17 +452,17 @@ impl <'a> VM {
         // synchronise at the time of inter-thread communication, rather than creation of the VM.
         ret.next_id.store(USER_ID_START, Ordering::Relaxed);
 
-        ret.init_vm();
+        // init types
+        types::init_types();
+
+        ret.init_runtime();
 
         ret
     }
 
-    fn init_vm(&self) {
+    fn init_runtime(&self) {
         // init log
         VM::start_logging(self.vm_options.flag_log_level);
-
-        // init types
-        types::init_types();
 
         // init gc
         {
@@ -484,7 +500,7 @@ impl <'a> VM {
         
         let vm : VM = json::decode(serialized_vm).unwrap();
         
-        vm.init_vm();
+        vm.init_runtime();
 
         // restore gc types
         {
@@ -942,6 +958,29 @@ impl <'a> VM {
         })
     }
 
+    pub fn handle_load(&self, ord: MemoryOrder, loc: APIHandleArg) -> APIHandleResult {
+        let (ty, addr) = loc.v.as_iref();
+
+        let handle_id = self.next_id();
+        let handle_value = {
+            match ty.v {
+                MuType_::Int(len)     => APIHandleValue::Int(unsafe {addr.load::<u64>()}, len),
+                MuType_::Float        => APIHandleValue::Float(unsafe {addr.load::<f32>()}),
+                MuType_::Double       => APIHandleValue::Double(unsafe {addr.load::<f64>()}),
+                MuType_::Ref(ref ty)  => APIHandleValue::Ref(ty.clone(), unsafe {addr.load::<Address>()}),
+                MuType_::IRef(ref ty) => APIHandleValue::IRef(ty.clone(), unsafe {addr.load::<Address>()}),
+                MuType_::UPtr(ref ty) => APIHandleValue::UPtr(ty.clone(), unsafe {addr.load::<Address>()}),
+
+                _ => unimplemented!()
+            }
+        };
+
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : handle_value
+        })
+    }
+
     pub fn handle_store(&self, ord: MemoryOrder, loc: APIHandleArg, val: APIHandleArg) {
         // FIXME: take memory order into consideration
 
@@ -963,8 +1002,8 @@ impl <'a> VM {
                 },
                 APIHandleValue::Float(fval) => addr.store::<f32>(fval),
                 APIHandleValue::Double(fval) => addr.store::<f64>(fval),
-                APIHandleValue::UPtr(aval) => addr.store::<Address>(aval),
-                APIHandleValue::UFP(aval) => addr.store::<Address>(aval),
+                APIHandleValue::UPtr(_, aval) => addr.store::<Address>(aval),
+                APIHandleValue::UFP(_, aval) => addr.store::<Address>(aval),
 
                 APIHandleValue::Struct(_)
                 | APIHandleValue::Array(_)
@@ -997,16 +1036,109 @@ impl <'a> VM {
         })
     }
 
-    pub fn handle_from_uint64(&self, num: u64, len: BitSize) -> APIHandleResult {
-        let handle_id = self.next_id();
+    pub fn handle_from_const(&self, id: MuID) -> APIHandleResult {
+        let constant = {
+            let lock = self.constants.read().unwrap();
+            lock.get(&id).unwrap().clone()
+        };
 
-        self.new_handle(APIHandle {
+        let ref const_ty = constant.ty;
+
+        let handle_id = self.next_id();
+        let handle = match constant.v {
+            Value_::Constant(Constant::Int(val)) => {
+                let len = match const_ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expected ty to be Int for a Constant::Int, found {}", const_ty)
+                };
+
+                APIHandle {
+                    id: handle_id,
+                    v : APIHandleValue::Int(val, len)
+                }
+            }
+            Value_::Constant(Constant::Float(val)) => {
+                APIHandle {
+                    id: handle_id,
+                    v : APIHandleValue::Float(val)
+                }
+            }
+            Value_::Constant(Constant::Double(val)) => {
+                APIHandle {
+                    id: handle_id,
+                    v : APIHandleValue::Double(val)
+                }
+            }
+            Value_::Constant(Constant::FuncRef(id)) => {
+                unimplemented!()
+            }
+            Value_::Constant(Constant::NullRef) => {
+                unimplemented!()
+            }
+            _ => unimplemented!()
+        };
+
+        self.new_handle(handle)
+    }
+
+    gen_handle_int!(handle_from_uint64, handle_to_uint64, u64);
+    gen_handle_int!(handle_from_uint32, handle_to_uint32, u32);
+    gen_handle_int!(handle_from_uint16, handle_to_uint16, u16);
+    gen_handle_int!(handle_from_uint8 , handle_to_uint8 , u8 );
+    gen_handle_int!(handle_from_sint64, handle_to_sint64, i64);
+    gen_handle_int!(handle_from_sint32, handle_to_sint32, i32);
+    gen_handle_int!(handle_from_sint16, handle_to_sint16, i16);
+    gen_handle_int!(handle_from_sint8 , handle_to_sint8 , i8 );
+
+    pub fn handle_from_float(&self, num: f32) -> APIHandleResult {
+        let handle_id = self.next_id();
+        self.new_handle (APIHandle {
             id: handle_id,
-            v : APIHandleValue::Int(num, len)
+            v: APIHandleValue::Float(num)
         })
     }
 
-    pub fn handle_to_uint64(&self, handle: APIHandleArg) -> u64 {
-        handle.v.as_int()
+    pub fn handle_to_float (&self, handle: APIHandleArg) -> f32 {
+        handle.v.as_float()
+    }
+
+    pub fn handle_from_double(&self, num: f64) -> APIHandleResult {
+        let handle_id = self.next_id();
+        self.new_handle (APIHandle {
+            id: handle_id,
+            v: APIHandleValue::Double(num)
+        })
+    }
+
+    pub fn handle_to_double (&self, handle: APIHandleArg) -> f64 {
+        handle.v.as_double()
+    }
+
+    pub fn handle_from_uptr(&self, tyid: MuID, ptr: Address) -> APIHandleResult {
+        let ty = self.get_type(tyid);
+
+        let handle_id = self.next_id();
+        self.new_handle (APIHandle {
+            id: handle_id,
+            v : APIHandleValue::UPtr(ty, ptr)
+        })
+    }
+
+    pub fn handle_to_uptr(&self, handle: APIHandleArg) -> Address {
+        handle.v.as_uptr().1
+    }
+
+    pub fn handle_from_ufp(&self, tyid: MuID, ptr: Address) -> APIHandleResult {
+        let ty = self.get_type(tyid);
+
+        let handle_id = self.next_id();
+        self.new_handle (APIHandle {
+            id: handle_id,
+            v : APIHandleValue::UFP(ty, ptr)
+        })
+    }
+
+    pub fn handle_to_ufp(&self, handle: APIHandleArg) -> Address {
+        handle.v.as_ufp().1
     }
 }

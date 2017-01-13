@@ -4,7 +4,6 @@ use ast::types::*;
 
 use utils::BitSize;
 use utils::Address;
-use std::sync::Arc;
 
 pub type APIHandleResult = Box<APIHandle>;
 pub type APIHandleArg<'a>    = &'a APIHandle;
@@ -20,8 +19,8 @@ pub enum APIHandleValue {
     Int(u64, BitSize),
     Float(f32),
     Double(f64),
-    UPtr(Address),
-    UFP(Address),
+    UPtr(P<MuType>, Address),  // uptr<T>
+    UFP (P<MuType>, Address),  // ufuncptr<sig>
 
     // SeqValue
     Struct(Vec<APIHandleValue>),
@@ -48,7 +47,6 @@ pub enum APIHandleValue {
     Inst,
 
     // GenRef->IR->Child->Var->Global
-    Const,
     Global(MuID),
     Func,
     ExpFunc,
@@ -78,6 +76,34 @@ impl APIHandleValue {
         match self {
             &APIHandleValue::Int(val, _) => val,
             _ => panic!("expected Int handle")
+        }
+    }
+
+    pub fn as_float(&self) -> f32 {
+        match self {
+            &APIHandleValue::Float(val) => val,
+            _ => panic!("expected Float handle")
+        }
+    }
+
+    pub fn as_double(&self) -> f64 {
+        match self {
+            &APIHandleValue::Double(val) => val,
+            _ => panic!("expected Double handle")
+        }
+    }
+
+    pub fn as_uptr(&self) -> (P<MuType>, Address) {
+        match self {
+            &APIHandleValue::UPtr(ref ty, addr) => (ty.clone(), addr),
+            _ => panic!("expected UPtr handle")
+        }
+    }
+
+    pub fn as_ufp(&self) -> (P<MuType>, Address) {
+        match self {
+            &APIHandleValue::UFP(ref ty, addr) => (ty.clone(), addr),
+            _ => panic!("expected UFP handle")
         }
     }
 }
