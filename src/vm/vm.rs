@@ -20,6 +20,7 @@ use vm::vm_options::MuLogLevel;
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use log::LogLevel;
+use std::sync::Arc;
 use std::path;
 use std::sync::RwLock;
 use std::sync::RwLockWriteGuard;
@@ -757,7 +758,8 @@ impl <'a> VM {
                         new_constants: &mut HashMap<MuID, P<Value>>,
                         new_globals: &mut HashMap<MuID, P<Value>>,
                         new_funcs: &mut HashMap<MuID, Box<MuFunction>>,
-                        new_func_vers: &mut HashMap<MuID, Box<MuFunctionVersion>>
+                        new_func_vers: &mut HashMap<MuID, Box<MuFunctionVersion>>,
+                        arc_vm: Arc<VM>
                         ) {
         // Make sure other components, if ever acquiring multiple locks at the same time, acquire
         // them in this order, to prevent deadlock.
@@ -817,10 +819,14 @@ impl <'a> VM {
             let mut global_locs = self.global_locations.write().unwrap();
 
             // make sure current thread has allocator
-//            MuThread::current_thread_as_mu_thread(unsafe {Address::zero()}, self);
+            let created = unsafe {MuThread::current_thread_as_mu_thread(Address::zero(), arc_vm.clone())};
 
             for (id, global) in globals.iter() {
                 self.alloc_global(&mut global_locs, *id, global.clone());
+            }
+
+            if created {
+                unsafe {MuThread::cleanup_current_mu_thread()};
             }
         }
     }
@@ -1135,7 +1141,7 @@ impl <'a> VM {
                     v : APIHandleValue::Double(val)
                 }
             }
-            Value_::Constant(Constant::FuncRef(id)) => {
+            Value_::Constant(Constant::FuncRef(_)) => {
                 unimplemented!()
             }
             Value_::Constant(Constant::NullRef) => {

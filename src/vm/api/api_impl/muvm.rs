@@ -100,7 +100,7 @@ impl MuVM {
             thread::MuThread::current_thread_as_mu_thread(
                 transmute::<CMuCPtr, Address>(threadlocal),
                 self.vm.clone()
-                )
+            );
         }
     }
 

@@ -274,12 +274,14 @@ impl MuThread {
     #[allow(unused_unsafe)]
     // pieces of this function are not safe (we want to mark it unsafe)
     // this function is exposed as unsafe because it is not always safe to call it
-    pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) {
+    /// returns true if we have created MuThread on this call
+    /// (false means we had MuThread for current thread before)
+    pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) -> bool {
         use std::usize;
 
         if ! unsafe{muentry_get_thread_local()}.is_zero() {
             warn!("current thread has a thread local (has a muthread to it)");
-            return;
+            return false;
         }
 
         // fake a stack for current thread
@@ -333,17 +335,20 @@ impl MuThread {
 //        unsafe {
 //            fake_swap_mu_thread(sp_threadlocal_loc);
 //        }
+
+        true
     }
 
     /// turn this current mu thread back as normal thread
+    #[allow(unused_variables)]
     pub unsafe fn cleanup_current_mu_thread() {
-        let mu_thread_addr = unsafe {muentry_get_thread_local()};
+        let mu_thread_addr = muentry_get_thread_local();
 
         if !mu_thread_addr.is_zero() {
             let mu_thread : *mut MuThread = mu_thread_addr.to_ptr_mut();
             mm::drop_mutator(&mut (*mu_thread).allocator as *mut mm::Mutator);
 
-            let mu_thread : Box<MuThread> = unsafe {Box::from_raw(mu_thread)};
+            let mu_thread : Box<MuThread> = Box::from_raw(mu_thread);
 
             // drop mu_thread here
         }

@@ -55,6 +55,11 @@ impl MuIRBuilder {
     }
 
     #[inline(always)]
+    fn get_mvm_immutable<'a, 'b>(&'a self) -> &'b MuVM {
+        unsafe { & *self.mvm }
+    }
+
+    #[inline(always)]
     fn get_vm<'a, 'b>(&'a mut self) -> &'b VM {
         &self.get_mvm().vm
     }
@@ -1859,7 +1864,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn add_everything_to_vm(&mut self) {
-        let vm = self.vm;
+        let vm = self.b.get_mvm_immutable().vm.clone();
+        let arc_vm = vm.clone();
 
         trace!("Loading bundle to the VM...");
 
@@ -1871,6 +1877,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             &mut self.built_globals,
             &mut self.built_funcs,
             &mut self.built_funcvers,
+            arc_vm
             );
 
         trace!("Bundle loaded to the VM!");

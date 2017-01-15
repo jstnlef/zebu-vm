@@ -10,7 +10,6 @@ use ast::types::*;
 use utils::Address;
 use compiler::backend::RegGroup;
 use compiler::backend::BackendTypeInfo;
-use vm::VM;
 use runtime::ValueLocation;
 use runtime::thread::MuThread;
 
