@@ -23,7 +23,7 @@ pub fn current_thread_as_mu_thread(threadlocal: Address, api_vm: *const api_c::C
         let hdr = ((*api_vm).header) as *const api_impl::MuVM;
         let vm = ((*hdr).vm).clone();
 
-        thread::MuThread::current_thread_as_mu_thread(threadlocal, vm)
+        thread::MuThread::current_thread_as_mu_thread(threadlocal, vm);
     }
 }
 

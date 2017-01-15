@@ -22,6 +22,7 @@ use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use log::LogLevel;
 use std::path;
 use std::sync::RwLock;
+use std::sync::RwLockWriteGuard;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 
 // FIXME:
@@ -578,13 +579,18 @@ impl <'a> VM {
     
     pub fn declare_const(&self, id: MuID, ty: P<MuType>, val: Constant) -> P<Value> {
         let mut constants = self.constants.write().unwrap();
-        debug_assert!(!constants.contains_key(&id));
-        
         let ret = P(Value{hdr: MuEntityHeader::unnamed(id), ty: ty, v: Value_::Constant(val)});
-        trace!("declare const #{} = {}", id, ret);
-        constants.insert(id, ret.clone());
+
+        self.declare_const_internal(&mut constants, id, ret.clone());
         
         ret
+    }
+
+    fn declare_const_internal(&self, map: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>, id: MuID, val: P<Value>) {
+        debug_assert!(!map.contains_key(&id));
+
+        info!("declare const #{} = {}", id, val);
+        map.insert(id, val);
     }
     
     pub fn get_const(&self, id: MuID) -> P<Value> {
@@ -603,28 +609,61 @@ impl <'a> VM {
         });
         
         let mut globals = self.globals.write().unwrap();
-        trace!("declare global #{} = {}", id, global);
-        globals.insert(id, global.clone());
-
-        // allocate global
-        let loc = gc::allocate_global(global.clone(), self);
         let mut global_locs = self.global_locations.write().unwrap();
-        trace!("allocate global #{} as {}", id, loc);
-        global_locs.insert(id, loc);
+
+        self.declare_global_internal(&mut globals, &mut global_locs, id, global.clone());
         
         global
+    }
+
+    fn declare_global_internal(
+        &self,
+        globals: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>,
+        global_locs: &mut RwLockWriteGuard<HashMap<MuID, ValueLocation>>,
+        id: MuID, val: P<Value>
+    ) {
+        self.declare_global_internal_no_alloc(globals, id, val.clone());
+        self.alloc_global(global_locs, id, val);
+    }
+
+    // when bulk declaring, we hold locks for everything, we cannot resolve backend type, and do alloc
+    fn declare_global_internal_no_alloc(
+        &self,
+        globals: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>,
+        id: MuID, val: P<Value>
+    ) {
+        debug_assert!(!globals.contains_key(&id));
+
+        info!("declare global #{} = {}", id, val);
+        globals.insert(id, val.clone());
+    }
+
+    fn alloc_global(
+        &self,
+        global_locs: &mut RwLockWriteGuard<HashMap<MuID, ValueLocation>>,
+        id: MuID, val: P<Value>
+    ) {
+        let backend_ty = self.get_backend_type_info(val.ty.get_referenced_ty().unwrap().id());
+        let loc = gc::allocate_global(val, backend_ty);
+        info!("allocate global #{} as {}", id, loc);
+        global_locs.insert(id, loc);
     }
     
     pub fn declare_type(&self, id: MuID, ty: MuType_) -> P<MuType> {
         let ty = P(MuType{hdr: MuEntityHeader::unnamed(id), v: ty});
         
         let mut types = self.types.write().unwrap();
-        debug_assert!(!types.contains_key(&id));
 
-        trace!("declare type #{} = {}", ty.id(), ty);
-        types.insert(ty.id(), ty.clone());
+        self.declare_type_internal(&mut types, id, ty.clone());
         
         ty
+    }
+
+    fn declare_type_internal(&self, types: &mut RwLockWriteGuard<HashMap<MuID, P<MuType>>>, id: MuID, ty: P<MuType>) {
+        debug_assert!(!types.contains_key(&id));
+
+        info!("declare type #{} = {}", id, ty);
+        types.insert(id, ty.clone());
     }
     
     pub fn get_type(&self, id: MuID) -> P<MuType> {
@@ -636,13 +675,19 @@ impl <'a> VM {
     }    
     
     pub fn declare_func_sig(&self, id: MuID, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
-        let mut func_sigs = self.func_sigs.write().unwrap();
-        debug_assert!(!func_sigs.contains_key(&id));
-        
         let ret = P(MuFuncSig{hdr: MuEntityHeader::unnamed(id), ret_tys: ret_tys, arg_tys: arg_tys});
-        func_sigs.insert(id, ret.clone());
+
+        let mut func_sigs = self.func_sigs.write().unwrap();
+        self.declare_func_sig_internal(&mut func_sigs, id, ret.clone());
         
         ret
+    }
+
+    fn declare_func_sig_internal(&self, sigs: &mut RwLockWriteGuard<HashMap<MuID, P<MuFuncSig>>>, id: MuID, sig: P<MuFuncSig>) {
+        debug_assert!(!sigs.contains_key(&id));
+
+        info!("declare func sig #{} = {}", id, sig);
+        sigs.insert(id, sig);
     }
     
     pub fn get_func_sig(&self, id: MuID) -> P<MuFuncSig> {
@@ -654,9 +699,16 @@ impl <'a> VM {
     }
     
     pub fn declare_func (&self, func: MuFunction) {
-        info!("declare function {}", func);
         let mut funcs = self.funcs.write().unwrap();
-        funcs.insert(func.id(), RwLock::new(func));
+
+        self.declare_func_internal(&mut funcs, func.id(), func);
+    }
+
+    fn declare_func_internal(&self, funcs: &mut RwLockWriteGuard<HashMap<MuID, RwLock<MuFunction>>>, id: MuID, func: MuFunction) {
+        debug_assert!(!funcs.contains_key(&id));
+
+        info!("declare func #{} = {}", id, func);
+        funcs.insert(id, RwLock::new(func));
     }
     
     /// The IR builder needs to look-up the function signature from the existing function ID.
@@ -709,53 +761,68 @@ impl <'a> VM {
                         ) {
         // Make sure other components, if ever acquiring multiple locks at the same time, acquire
         // them in this order, to prevent deadlock.
-        let mut id_name_map = self.id_name_map.write().unwrap();
-        let mut name_id_map = self.name_id_map.write().unwrap();
-        let mut types = self.types.write().unwrap();
-        let mut constants = self.constants.write().unwrap();
-        let mut globals = self.globals.write().unwrap();
-        let mut func_sigs = self.func_sigs.write().unwrap();
-        let mut funcs = self.funcs.write().unwrap();
-        let mut func_vers = self.func_vers.write().unwrap();
+        {
+            let mut id_name_map = self.id_name_map.write().unwrap();
+            let mut name_id_map = self.name_id_map.write().unwrap();
+            let mut types = self.types.write().unwrap();
+            let mut constants = self.constants.write().unwrap();
+            let mut globals = self.globals.write().unwrap();
+            let mut func_sigs = self.func_sigs.write().unwrap();
+            let mut funcs = self.funcs.write().unwrap();
+            let mut func_vers = self.func_vers.write().unwrap();
 
-        for (id, name) in new_id_name_map.drain() {
-            id_name_map.insert(id, name.clone());
-            name_id_map.insert(name, id);
-        }
+            for (id, name) in new_id_name_map.drain() {
+                id_name_map.insert(id, name.clone());
+                name_id_map.insert(name, id);
+            }
 
-        for (id, obj) in new_types.drain() {
-            types.insert(id, obj);
-        }
+            for (id, obj) in new_types.drain() {
+                self.declare_type_internal(&mut types, id, obj);
+            }
 
-        for (id, obj) in new_constants.drain() {
-            constants.insert(id, obj);
-        }
+            for (id, obj) in new_constants.drain() {
+                self.declare_const_internal(&mut constants, id, obj);
+            }
 
-        for (id, obj) in new_globals.drain() {
-            globals.insert(id, obj);
-        }
+            for (id, obj) in new_globals.drain() {
+                // we bulk allocate later (since we are holding all the locks, we cannot find ty info)
+                self.declare_global_internal_no_alloc(&mut globals, id, obj);
+            }
 
-        for (id, obj) in new_func_sigs.drain() {
-            func_sigs.insert(id, obj);
-        }
+            for (id, obj) in new_func_sigs.drain() {
+                self.declare_func_sig_internal(&mut func_sigs, id, obj);
+            }
 
-        for (id, obj) in new_funcs.drain() {
-            funcs.insert(id, RwLock::new(*obj));
-        }
+            for (id, obj) in new_funcs.drain() {
+                self.declare_func_internal(&mut funcs, id, *obj);
+            }
 
-        for (id, obj) in new_func_vers.drain() {
-            let func_id = obj.func_id;
-            func_vers.insert(id, RwLock::new(*obj));
+            for (id, obj) in new_func_vers.drain() {
+                let func_id = obj.func_id;
+                func_vers.insert(id, RwLock::new(*obj));
 
-            {
-                trace!("Adding funcver {} as a version of {}...", id, func_id);
-                let func = funcs.get_mut(&func_id).unwrap();
-                func.write().unwrap().new_version(id);
-                trace!("Added funcver {} as a version of {} {:?}.", id, func_id, func);
+                {
+                    trace!("Adding funcver {} as a version of {}...", id, func_id);
+                    let func = funcs.get_mut(&func_id).unwrap();
+                    func.write().unwrap().new_version(id);
+                    trace!("Added funcver {} as a version of {} {:?}.", id, func_id, func);
+                }
             }
         }
-
         // Locks released here
+
+        // allocate all the globals defined
+        {
+            let globals = self.globals.read().unwrap();
+            let mut global_locs = self.global_locations.write().unwrap();
+
+            // make sure current thread has allocator
+//            MuThread::current_thread_as_mu_thread(unsafe {Address::zero()}, self);
+
+            for (id, global) in globals.iter() {
+                self.alloc_global(&mut global_locs, *id, global.clone());
+            }
+        }
     }
     
     pub fn add_compiled_func (&self, func: CompiledFunction) {
@@ -867,12 +934,10 @@ impl <'a> VM {
     }
 
     pub fn new_fixed(&self, tyid: MuID) -> APIHandleResult {
-        let ty = {
-            let types_lock = self.types.read().unwrap();
-            types_lock.get(&tyid).unwrap().clone()
-        };
+        let ty = self.get_type(tyid);
 
-        let addr = gc::allocate_fixed(ty.clone(), self);
+        let backend_ty = self.get_backend_type_info(tyid);
+        let addr = gc::allocate_fixed(ty.clone(), backend_ty);
         trace!("API: allocated fixed type {} at {}", ty, addr);
 
         self.new_handle(APIHandle {
@@ -885,7 +950,8 @@ impl <'a> VM {
         let ty  = self.get_type(tyid);
         let len = self.handle_to_uint64(length);
 
-        let addr = gc::allocate_hybrid(ty.clone(), len, self);
+        let backend_ty = self.get_backend_type_info(tyid);
+        let addr = gc::allocate_hybrid(ty.clone(), len, backend_ty);
         trace!("API: allocated hybrid type {} of length {} at {}", ty, len, addr);
 
         self.new_handle(APIHandle {

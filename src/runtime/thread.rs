@@ -334,6 +334,20 @@ impl MuThread {
 //            fake_swap_mu_thread(sp_threadlocal_loc);
 //        }
     }
+
+    /// turn this current mu thread back as normal thread
+    pub unsafe fn cleanup_current_mu_thread() {
+        let mu_thread_addr = unsafe {muentry_get_thread_local()};
+
+        if !mu_thread_addr.is_zero() {
+            let mu_thread : *mut MuThread = mu_thread_addr.to_ptr_mut();
+            mm::drop_mutator(&mut (*mu_thread).allocator as *mut mm::Mutator);
+
+            let mu_thread : Box<MuThread> = unsafe {Box::from_raw(mu_thread)};
+
+            // drop mu_thread here
+        }
+    }
     
     pub fn new_thread_normal(mut stack: Box<MuStack>, threadlocal: Address, vals: Vec<ValueLocation>, vm: Arc<VM>) -> JoinHandle<()> {
         // set up arguments on stack
