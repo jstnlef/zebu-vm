@@ -15,6 +15,7 @@ use utils::Address;
 use utils::LinkedHashMap;
 use mu::testutil::aot;
 use mu::vm::handle;
+use mu::testutil;
 
 use std::sync::RwLock;
 use std::sync::Arc;
@@ -121,6 +122,88 @@ fn set_global_by_api(vm: &VM) {
     });
 
     define_func_ver!((vm) set_global_by_api_v1 (entry: blk_entry) {
+        blk_entry
+    });
+}
+
+#[test]
+fn test_get_global_in_dylib() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(VM::new());
+    unsafe {
+        MuThread::current_thread_as_mu_thread(Address::zero(), vm.clone());
+    }
+    get_global_in_dylib(&vm);
+
+    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let func_id = vm.id_of("get_global_in_dylib");
+
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+    }
+
+    // set global by api here
+    {
+        let global_id = vm.id_of("my_global");
+        let global_handle = vm.handle_from_global(global_id);
+
+        let uint64_10_handle = vm.handle_from_uint64(10, 64);
+
+        debug!("write {:?} to location {:?}", uint64_10_handle, global_handle);
+        vm.handle_store(MemoryOrder::Relaxed, &global_handle, &uint64_10_handle);
+    }
+
+    // then emit context (global will be put into context.s
+    backend::emit_context(&vm);
+
+    // link
+    let libname = &testutil::get_dylib_name("get_global_in_dylib");
+    let libpath = testutil::aot::link_dylib(vec![Mu("get_global_in_dylib")], libname, &vm);
+    let lib     = libloading::Library::new(libpath.as_os_str()).unwrap();
+
+    unsafe {
+        let get_global_in_dylib : libloading::Symbol<unsafe extern fn () -> u64> = lib.get(b"get_global_in_dylib").unwrap();
+        let res = get_global_in_dylib();
+
+        println!("my_global = {}", res);
+        assert_eq!(res, 10);
+    }
+}
+
+fn get_global_in_dylib(vm: &VM) {
+    typedef!    ((vm) int64      = mu_int(64));
+    typedef!    ((vm) iref_int64 = mu_iref(int64));
+
+    globaldef!  ((vm) <int64> my_global);
+
+    funcsig!    ((vm) sig = () -> (int64));
+    funcdecl!   ((vm) <sig> get_global_in_dylib);
+    funcdef!    ((vm) <sig> get_global_in_dylib VERSION get_global_in_dylib_v1);
+
+    // blk entry
+    block!      ((vm, get_global_in_dylib_v1) blk_entry);
+    ssa!        ((vm, get_global_in_dylib_v1) <int64> val);
+    global!     ((vm, get_global_in_dylib_v1) blk_entry_my_global = my_global);
+    inst!       ((vm, get_global_in_dylib_v1) blk_entry_load:
+        val = LOAD blk_entry_my_global (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    // won't execute this inst
+    inst!       ((vm, get_global_in_dylib_v1) blk_entry_ret:
+        RET (val)
+    );
+
+    define_block!   ((vm, get_global_in_dylib_v1) blk_entry() {
+        blk_entry_load, blk_entry_ret
+    });
+
+    define_func_ver!((vm) get_global_in_dylib_v1 (entry: blk_entry) {
         blk_entry
     });
 }

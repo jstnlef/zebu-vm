@@ -1028,8 +1028,8 @@ impl ASMCodeGen {
             Value_::Memory(MemoryLocation::Symbolic{ref base, ref label}) => {
                 if base.is_some() && base.as_ref().unwrap().id() == x86_64::RIP.id() {
                     // pc relative address
-//                    let pic_symbol = pic_symbol(label.clone());
-                    let pic_symbol = symbol(label.clone()); // not sure if we need this
+                    let pic_symbol = pic_symbol(label.clone());
+//                    let pic_symbol = symbol(label.clone()); // not sure if we need this
                     result_str.push_str(&pic_symbol);
                     loc_cursor += label.len();
                 } else {

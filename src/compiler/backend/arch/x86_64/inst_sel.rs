@@ -2683,14 +2683,36 @@ impl <'a> InstructionSelection {
                             unimplemented!()
                         } else {
                             // symbolic
-                            P(Value{
-                                hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                ty: types::get_referent_ty(&pv.ty).unwrap(),
-                                v: Value_::Memory(MemoryLocation::Symbolic{
-                                    base: Some(x86_64::RIP.clone()),
-                                    label: pv.name().unwrap()
+                            if cfg!(target_os = "macos") {
+                                P(Value {
+                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                    ty: types::get_referent_ty(&pv.ty).unwrap(),
+                                    v: Value_::Memory(MemoryLocation::Symbolic {
+                                        base: Some(x86_64::RIP.clone()),
+                                        label: pv.name().unwrap()
+                                    })
                                 })
-                            })
+                            } else if cfg!(target_os = "linux") {
+                                // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
+                                // then load from the address.
+                                // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
+                                let got_loc = P(Value {
+                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                    ty: pv.ty.clone(),
+                                    v: Value_::Memory(MemoryLocation::Symbolic {
+                                        base: Some(x86_64::RIP.clone()),
+                                        label: pv.name().unwrap()
+                                    })
+                                });
+
+                                // mov (got_loc) -> actual_loc
+                                let actual_loc = self.make_temporary(f_context, pv.ty.clone(), vm);
+                                self.emit_move_value_to_value(&actual_loc, &got_loc);
+
+                                self.make_memory_op_base_offset(&actual_loc, 0, types::get_referent_ty(&pv.ty).unwrap(), vm)
+                            } else {
+                                unimplemented!()
+                            }
                         }
                     },
                     Value_::Memory(_) => pv.clone(),
