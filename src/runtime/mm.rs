@@ -13,9 +13,24 @@ use compiler::backend::BackendTypeInfo;
 use runtime::ValueLocation;
 use runtime::thread::MuThread;
 
-fn allocate(size: ByteSize, align: ByteSize, encode: u64, hybrid_len: Option<u64>) -> ObjectReference {
-    let allocator = (&mut MuThread::current_mut().allocator) as *mut Mutator;
+fn check_allocator(size: ByteSize, align: ByteSize, encode: u64, hybrid_len: Option<u64>) -> ObjectReference {
+    if MuThread::has_current() {
+        // we have an allocator
+        let allocator = (&mut MuThread::current_mut().allocator) as *mut Mutator;
+        allocate(allocator, size, align, encode, hybrid_len)
+    } else {
+        let mut allocator = new_mutator();
 
+        let ret = allocate(&mut allocator as *mut Mutator, size, align, encode, hybrid_len);
+
+        drop_mutator(&mut allocator as *mut Mutator);
+
+        ret
+    }
+}
+
+#[inline(always)]
+fn allocate(allocator: *mut Mutator, size: ByteSize, align: ByteSize, encode: u64, hybrid_len: Option<u64>) -> ObjectReference {
     let ret = if size > LARGE_OBJECT_THRESHOLD {
         muentry_alloc_large(allocator, size, align)
     } else {
@@ -39,7 +54,7 @@ pub fn allocate_fixed(ty: P<MuType>, backendtype: Box<BackendTypeInfo>) -> Addre
     trace!("API:          gc ty   : {:?}", gctype);
     trace!("API:          encode  : {:b}", encode);
 
-    allocate(gctype.size(), gctype.alignment, encode, None).to_address()
+    check_allocator(gctype.size(), gctype.alignment, encode, None).to_address()
 }
 
 pub fn allocate_hybrid(ty: P<MuType>, len: u64, backendtype: Box<BackendTypeInfo>) -> Address {
@@ -50,7 +65,7 @@ pub fn allocate_hybrid(ty: P<MuType>, len: u64, backendtype: Box<BackendTypeInfo
     trace!("API:          gc ty   : {:?}", gctype);
     trace!("API:          encode  : {:b}", encode);
 
-    allocate(gctype.size_hybrid(len as u32), gctype.alignment, encode, Some(len)).to_address()
+    check_allocator(gctype.size_hybrid(len as u32), gctype.alignment, encode, Some(len)).to_address()
 }
 
 pub fn allocate_global(iref_global: P<Value>, backendtype: Box<BackendTypeInfo>) -> ValueLocation {

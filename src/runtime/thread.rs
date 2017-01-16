@@ -14,6 +14,7 @@ use utils::Word;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
+use std::ptr;
 use std::mem;
 use std::thread;
 use std::thread::JoinHandle;
@@ -256,6 +257,11 @@ impl MuThread {
             exception_obj: unsafe {Address::zero()}
         }
     }
+
+    #[inline(always)]
+    pub fn has_current() -> bool {
+        ! unsafe {muentry_get_thread_local()}.is_zero()
+    }
     
     #[inline(always)]
     pub fn current() -> &'static MuThread {
@@ -349,6 +355,9 @@ impl MuThread {
             mm::drop_mutator(&mut (*mu_thread).allocator as *mut mm::Mutator);
 
             let mu_thread : Box<MuThread> = Box::from_raw(mu_thread);
+
+            // set thread local to zero
+            set_thread_local(ptr::null_mut())
 
             // drop mu_thread here
         }

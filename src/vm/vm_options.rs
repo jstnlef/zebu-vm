@@ -21,8 +21,8 @@ AOT Compiler:
   --aot-emit-dir=<dir>              the emit directory for ahead-of-time compiling [default: emit]
 
 Garbage Collection:
-  --gc-immixspace-size=<kb>         immix space size (default 65536kb = 64mb) [default: 65536]
-  --gc-lospace-size=<kb>            large object space size (default 65536kb = 64mb) [default: 65536]
+  --gc-immixspace-size=<kb>         immix space size (default 65536kb = 64mb) [default: 67108864]
+  --gc-lospace-size=<kb>            large object space size (default 65536kb = 64mb) [default: 67108864]
   --gc-nthreads=<n>                 number of threads for parallel gc [default: 8]
 ";
 

@@ -969,7 +969,12 @@ impl <'a> VM {
     pub fn handle_get_iref(&self, handle_ref: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = handle_ref.v.as_ref();
 
+        /// FIXME: iref/ref share the same address - this actually depends on GC
         // iref has the same address as ref
+
+        trace!("API: get iref from {:?}", handle_ref);
+        trace!("API: result {} {:?}", ty, addr);
+
         self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ty, addr)
@@ -1145,7 +1150,10 @@ impl <'a> VM {
                 unimplemented!()
             }
             Value_::Constant(Constant::NullRef) => {
-                unimplemented!()
+                APIHandle {
+                    id: handle_id,
+                    v : APIHandleValue::Ref(types::VOID_TYPE.clone(), unsafe {Address::zero()})
+                }
             }
             _ => unimplemented!()
         };

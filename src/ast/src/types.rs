@@ -47,7 +47,8 @@ lazy_static! {
         UINT16_TYPE.clone(),
         UINT32_TYPE.clone(),
         UINT64_TYPE.clone(),
-        DOUBLE_TYPE.clone()
+        DOUBLE_TYPE.clone(),
+        VOID_TYPE.clone()
     ];    
 }
 
