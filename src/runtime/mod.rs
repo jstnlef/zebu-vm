@@ -28,6 +28,7 @@ pub mod exception;
 extern "C" {
     fn dlopen(filename: *const c_char, flags: isize) -> *const c_void;
     fn dlsym(handle: *const c_void, symbol: *const c_char) -> *const c_void;
+    fn dlerror() -> *const c_char;
 }
 
 pub fn resolve_symbol(symbol: String) -> Address {
@@ -35,9 +36,14 @@ pub fn resolve_symbol(symbol: String) -> Address {
     
     let rtld_default = unsafe {dlopen(ptr::null(), 0)};
     let ret = unsafe {dlsym(rtld_default, CString::new(symbol.clone()).unwrap().as_ptr())};
-    
-    if ret == 0 as *const c_void {
-        panic!("cannot find symbol {}", symbol);
+
+    let error = unsafe {dlerror()};
+    if !error.is_null() {
+        let cstr = unsafe {CStr::from_ptr(error)};
+        println!("cannot find symbol: {}", symbol);
+        println!("{}", cstr.to_str().unwrap());
+
+        panic!("failed to resolve symbol");
     }
     
     Address::from_ptr(ret)

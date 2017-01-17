@@ -109,7 +109,7 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
                         match cursor.callee_saved_locs.get(&$reg.id()) {
                             Some(addr) => unsafe {addr.load::<Word>()},
                             None => {
-                                warn!("no {} value was saved along unwinding, please check", $reg.name().unwrap());
+                                info!("no {} value was saved along unwinding", $reg.name().unwrap());
                                 0
                             }
                         }
@@ -125,7 +125,8 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
                 let array = vec![rbx, rbp, r12, r13, r14, r15];
                 
                 let rsp = cursor.rbp.offset(frame.cur_offset());
-                
+
+                info!("going to restore thread to {} with RSP {}", dest_addr, rsp);
                 unsafe {thread::exception_restore(dest_addr, array.as_ptr(), rsp)};
                 
                 unreachable!()

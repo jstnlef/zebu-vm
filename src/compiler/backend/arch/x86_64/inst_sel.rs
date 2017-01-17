@@ -2778,9 +2778,10 @@ impl <'a> InstructionSelection {
                     // GETIREF -> [base]
                     Instruction_::GetIRef(op_index) => {
                         let ref ref_op = ops[op_index];
+                        let tmp_op = self.emit_ireg(ref_op, f_content, f_context, vm);
 
                         let ret = MemoryLocation::Address {
-                            base: ref_op.clone_value(),
+                            base: tmp_op,
                             offset: None,
                             index: None,
                             scale: None

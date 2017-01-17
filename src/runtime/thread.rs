@@ -19,6 +19,7 @@ use std::mem;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::Arc;
+use std::fmt;
 
 pub const STACK_SIZE : ByteSize = (4 << 20); // 4mb
 
@@ -204,11 +205,11 @@ pub struct MuThread {
     pub allocator: mm::Mutator,
     pub stack: Option<Box<MuStack>>,
     
-    native_sp_loc: Address,
-    user_tls: Address, // can be zero
-    
-    pub vm: Arc<VM>,
-    pub exception_obj: Address
+    pub native_sp_loc: Address,
+    pub user_tls: Address, // can be zero
+
+    pub exception_obj: Address,
+    pub vm: Arc<VM>
 }
 
 // this depends on the layout of MuThread
@@ -216,14 +217,26 @@ lazy_static! {
     pub static ref ALLOCATOR_OFFSET : usize = mem::size_of::<MuEntityHeader>();
 
     pub static ref NATIVE_SP_LOC_OFFSET : usize = *ALLOCATOR_OFFSET
-                + mem::size_of::<Box<mm::Mutator>>()
+                + mem::size_of::<mm::Mutator>()
                 + mem::size_of::<Option<Box<MuStack>>>();
 
     pub static ref USER_TLS_OFFSET : usize = *NATIVE_SP_LOC_OFFSET + mem::size_of::<Address>();
-    
-    pub static ref VM_OFFSET : usize = *USER_TLS_OFFSET + mem::size_of::<Address>();
 
-    pub static ref EXCEPTION_OBJ_OFFSET : usize = *VM_OFFSET + mem::size_of::<Arc<VM>>();                
+    pub static ref EXCEPTION_OBJ_OFFSET : usize = *USER_TLS_OFFSET + mem::size_of::<Address>();
+}
+
+impl fmt::Display for MuThread {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "MuThread    @{:?}: {}\n", self as *const MuThread, self.hdr).unwrap();
+        write!(f, "- header    @{:?}\n",       &self.hdr as *const MuEntityHeader).unwrap();
+        write!(f, "- allocator @{:?}\n",       &self.allocator as *const mm::Mutator).unwrap();
+        write!(f, "- stack     @{:?}: {}\n", &self.stack as *const Option<Box<MuStack>>, self.stack.is_some()).unwrap();
+        write!(f, "- native sp @{:?}: {}\n", &self.native_sp_loc as *const Address, self.native_sp_loc).unwrap();
+        write!(f, "- user_tls  @{:?}: {}\n", &self.user_tls as *const Address, self.user_tls).unwrap();
+        write!(f, "- exc obj   @{:?}: {}\n", &self.exception_obj as *const Address, self.exception_obj).unwrap();
+
+        Ok(())
+    }
 }
 
 #[cfg(target_arch = "x86_64")]

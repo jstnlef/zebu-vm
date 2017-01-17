@@ -54,7 +54,7 @@ def compile_c_script(c_src_name):
 
 
 def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_longlong):
-    lib = ctypes.CDLL(libpath.strpath)
+    lib = ctypes.CDLL(libpath.strpath, ctypes.RTLD_GLOBAL)
     fnp = getattr(lib, fnc_name)
     fnp.argtypes = argtypes
     fnp.restype = restype

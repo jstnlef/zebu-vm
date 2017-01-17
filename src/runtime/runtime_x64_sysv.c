@@ -18,7 +18,7 @@ void set_thread_local(void* thread) {
 }
 
 void* muentry_get_thread_local() {
-    // printf("Thread%p: getting mu_tls as %p\n", (void*) pthread_self(), mu_tls);
+//    printf("Thread%p: getting mu_tls as %p\n", (void*) pthread_self(), mu_tls);
     return mu_tls;
 }
 
