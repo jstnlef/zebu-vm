@@ -224,7 +224,7 @@ impl MuCtx {
     }
 
     pub fn get_elem_iref(&mut self, opnd: &APIHandle, index: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_get_elem_iref(opnd, index))
     }
 
     pub fn shift_iref(&mut self, opnd: &APIHandle, offset: &APIHandle) -> *const APIHandle {

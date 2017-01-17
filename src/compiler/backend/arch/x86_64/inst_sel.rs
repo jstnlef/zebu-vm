@@ -2944,6 +2944,99 @@ impl <'a> InstructionSelection {
                             mem
                         }
                     }
+                    Instruction_::GetElementIRef {base, index, ..} => {
+                        let ref base = ops[base];
+                        let ref index = ops[index];
+
+                        let ref iref_array_ty = base.clone_value().ty;
+                        let array_ty = match iref_array_ty.get_referenced_ty() {
+                            Some(ty) => ty,
+                            None => panic!("expected base in GetElemIRef to be type IRef, found {}", iref_array_ty)
+                        };
+                        let ele_ty = match array_ty.get_elem_ty() {
+                            Some(ty) => ty,
+                            None => panic!("expected base in GetElemIRef to be type Array, found {}", array_ty)
+                        };
+                        let ele_ty_size = vm.get_backend_type_info(ele_ty.id()).size;
+
+                        if self.match_iimm(index) {
+                            let index = self.node_iimm_to_i32(index);
+                            let offset = ele_ty_size as i32 * index;
+
+                            match base.v {
+                                // GETELEMIREF(GETIREF) -> add offset
+                                TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
+                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                    let ret = self.addr_const_offset_adjust(mem, offset as u64, vm);
+
+                                    trace!("MEM from GETELEMIREF(GETIREF, const): {}", ret);
+                                    ret
+                                },
+                                // GETELEMIREF(GETFIELDIREF) -> add offset
+                                TreeNode_::Instruction(Instruction{v: Instruction_::GetFieldIRef{..}, ..}) => {
+                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                    let ret = self.addr_const_offset_adjust(mem, offset as u64, vm);
+
+                                    trace!("MEM from GETELEMIREF(GETFIELDIREF, const): {}", ret);
+                                    ret
+                                },
+                                // GETELEMIREF(ireg) => [base + offset]
+                                _ => {
+                                    let tmp = self.emit_ireg(base, f_content, f_context, vm);
+
+                                    let ret = MemoryLocation::Address {
+                                        base: tmp,
+                                        offset: Some(self.make_value_int_const(offset as u64, vm)),
+                                        index: None,
+                                        scale: None
+                                    };
+
+                                    trace!("MEM from GETELEMIREF(ireg, const): {}", ret);
+                                    ret
+                                }
+                            }
+                        } else {
+                            let tmp_index = self.emit_ireg(index, f_content, f_context, vm);
+                            let scale : u8 = match ele_ty_size {
+                                8 | 4 | 2 | 1 => ele_ty_size as u8,
+                                _  => unimplemented!()
+                            };
+
+                            match base.v {
+                                // GETELEMIREF(IREF, ireg) -> add index and scale
+                                TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
+                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index, scale, vm);
+
+                                    trace!("MEM from GETELEMIREF(GETIREF, ireg): {}", ret);
+                                    ret
+                                }
+                                // GETELEMIREF(GETFIELDIREF, ireg) -> add index and scale
+                                TreeNode_::Instruction(Instruction{v: Instruction_::GetFieldIRef{..}, ..}) => {
+                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index, scale, vm);
+
+                                    trace!("MEM from GETELEMIREF(GETFIELDIREF, ireg): {}", ret);
+                                    ret
+                                }
+                                // GETELEMIREF(ireg, ireg)
+                                _ => {
+                                    let tmp = self.emit_ireg(base, f_content, f_context, vm);
+
+                                    let ret = MemoryLocation::Address {
+                                        base: tmp,
+                                        offset: None,
+                                        index: Some(tmp_index),
+                                        scale: Some(scale)
+                                    };
+
+                                    trace!("MEM from GETELEMIREF(ireg, ireg): {}", ret);
+                                    ret
+                                }
+                            }
+                        }
+
+                    }
                     _ => unimplemented!()
                 }
             },

@@ -996,6 +996,25 @@ impl <'a> VM {
         })
     }
 
+    pub fn handle_get_elem_iref(&self, handle_iref: APIHandleArg, index: APIHandleArg) -> APIHandleResult {
+        let (ty, addr) = handle_iref.v.as_iref();
+        let index = self.handle_to_uint64(index);
+
+        let ele_ty = match ty.get_elem_ty() {
+            Some(ty) => ty,
+            None => panic!("cannot get element ty from {}", ty)
+        };
+        let elem_addr = {
+            let backend_ty = self.get_backend_type_info(ele_ty.id());
+            addr.plus(backend_ty.size * (index as usize))
+        };
+
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v : APIHandleValue::IRef(ele_ty, elem_addr)
+        })
+    }
+
     pub fn handle_get_var_part_iref(&self, handle_iref: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = handle_iref.v.as_iref();
 

@@ -78,6 +78,13 @@ impl MuType {
         }
     }
 
+    pub fn get_elem_ty(&self) -> Option<P<MuType>> {
+        match self.v {
+            MuType_::Array(ref elem_ty, _) => Some(elem_ty.clone()),
+            _ => None
+        }
+    }
+
     pub fn get_field_ty(&self, index: usize) -> Option<P<MuType>> {
         match self.v {
             MuType_::Struct(ref tag) => {
