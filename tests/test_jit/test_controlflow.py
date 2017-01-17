@@ -1,6 +1,5 @@
-from util import fncptr_from_c_script
+from util import fncptr_from_c_script, preload_libmu
 import ctypes, ctypes.util
-
 
 def test_branch():
     fn, _ = fncptr_from_c_script("test_branch.c", "test_fnc")
@@ -23,6 +22,7 @@ def test_extern_func():
 
 def test_throw():
     # from rpython.rlib import rmu_fast as rmu
+    preload_libmu()
     fn, _ = fncptr_from_c_script("test_throw.c", "test_fnc", [ctypes.c_int64], ctypes.c_int64)
     # mu = rmu.MuVM()
     # mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
@@ -31,6 +31,7 @@ def test_throw():
 
 def test_exception_stack_unwind():
     # from rpython.rlib import rmu_fast as rmu
+    preload_libmu()
     fn, _ = fncptr_from_c_script("test_exception_stack_unwind.c", "test_fnc", [ctypes.c_int64], ctypes.c_int64)
     # mu = rmu.MuVM()
     # mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))

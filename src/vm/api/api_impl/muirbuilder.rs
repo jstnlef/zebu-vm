@@ -1731,13 +1731,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let target = dest_clause.dest;
 
         let dest_args = dest_clause.vars.iter().map(|vid| {
-            if let Some(ind) = inst_result_ids.iter().position(|rid| *rid == *vid) {
-                DestArg::Freshbound(ind)
-            } else {
-                let my_index = ops.len();
-                self.add_opnd(fcb, ops, *vid);
-                DestArg::Normal(my_index)
-            }
+//            if let Some(ind) = inst_result_ids.iter().position(|rid| *rid == *vid) {
+//                DestArg::Freshbound(ind)
+//            } else {
+//                let my_index = ops.len();
+//                self.add_opnd(fcb, ops, *vid);
+//                DestArg::Normal(my_index)
+//            }
+            let my_index = ops.len();
+            self.add_opnd(fcb, ops, *vid);
+            DestArg::Normal(my_index)
         }).collect::<Vec<_>>();
 
         let impl_dest = Destination {
