@@ -1113,6 +1113,37 @@ impl <'a> VM {
         }
     }
 
+    // this function and the following two make assumption that GC will not move object
+    // they need to be reimplemented if we have a moving GC
+    pub fn handle_pin_object(&self, loc: APIHandleArg) -> APIHandleResult {
+        assert!(!gc::GC_MOVES_OBJECT);
+        // gc will not move, so we just put ref into uptr
+
+        let (ty, addr) = loc.v.as_ref_or_iref();
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v : APIHandleValue::UPtr(ty, addr)
+        })
+    }
+
+    #[allow(unused_variables)]
+    pub fn handle_unpin_object(&self, loc: APIHandleArg) {
+        assert!(!gc::GC_MOVES_OBJECT);
+        // gc will not move, do no need to unpin
+        // do nothing
+    }
+
+    pub fn handle_get_addr(&self, loc: APIHandleArg) -> APIHandleResult {
+        assert!(!gc::GC_MOVES_OBJECT);
+        // loc needs to be already pinned - we don't check since we don't pin
+
+        let (ty, addr) = loc.v.as_ref_or_iref();
+        self.new_handle(APIHandle {
+            id: self.next_id(),
+            v : APIHandleValue::UPtr(ty, addr)
+        })
+    }
+
     pub fn handle_from_global(&self, id: MuID) -> APIHandleResult {
         let global_iref = {
             let global_locs = self.global_locations.read().unwrap();

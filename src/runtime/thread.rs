@@ -300,7 +300,6 @@ impl MuThread {
 
         if ! unsafe{muentry_get_thread_local()}.is_zero() {
             warn!("current thread has a thread local (has a muthread to it)");
-            panic!("should not have muthread here");
             return false;
         }
 

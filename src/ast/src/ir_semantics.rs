@@ -29,6 +29,8 @@ pub fn is_terminal_inst(inst: &Instruction_) -> bool {
         | &Fence(_)
         | &CommonInst_GetThreadLocal
         | &CommonInst_SetThreadLocal(_)
+        | &CommonInst_Pin(_)
+        | &CommonInst_Unpin(_)
         | &Move(_) => false,
         &Return(_)
         | &ThreadExit
@@ -92,6 +94,8 @@ pub fn has_side_effect(inst: &Instruction_) -> bool {
         &ExnInstruction{..} => true,
         &CommonInst_GetThreadLocal => true,
         &CommonInst_SetThreadLocal(_) => true,
+        &CommonInst_Pin(_) => true,
+        &CommonInst_Unpin(_) => true,
         &Move(_) => false,
     }
 }

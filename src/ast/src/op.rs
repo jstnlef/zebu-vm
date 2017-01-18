@@ -61,6 +61,8 @@ pub enum OpCode {
 
     CommonInst_GetThreadLocal,
     CommonInst_SetThreadLocal,
+    CommonInst_Pin,
+    CommonInst_Unpin,
 
     Move
 }
@@ -289,6 +291,8 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
         Instruction_::ExnInstruction{..}            => OpCode::ExnInstruction,
         Instruction_::CommonInst_GetThreadLocal     => OpCode::CommonInst_GetThreadLocal,
         Instruction_::CommonInst_SetThreadLocal(_)  => OpCode::CommonInst_SetThreadLocal,
+        Instruction_::CommonInst_Pin(_)             => OpCode::CommonInst_Pin,
+        Instruction_::CommonInst_Unpin(_)           => OpCode::CommonInst_Unpin,
         Instruction_::Move(_)                    => OpCode::Move,
     }
 }

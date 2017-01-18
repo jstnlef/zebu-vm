@@ -368,15 +368,15 @@ impl MuCtx {
     }
 
     pub fn pin(&mut self, loc: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_pin_object(loc))
     }
 
     pub fn unpin(&mut self, loc: &APIHandle) {
-        panic!("Not implemented")
+        self.get_mvm().vm.handle_unpin_object(loc)
     }
 
     pub fn get_addr(&mut self, loc: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_get_addr(loc))
     }
 
     pub fn expose(&mut self, func: &APIHandle, call_conv: CMuCallConv, cookie: &APIHandle) -> *const APIHandle {

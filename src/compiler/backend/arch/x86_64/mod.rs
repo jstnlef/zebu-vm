@@ -480,28 +480,28 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         // simple
         BinOp(_, _, _)  => 1,
         CmpOp(_, _, _)  => 1,
-        ConvOp{..} => 0,
+        ConvOp{..}      => 0,
 
         // control flow
-        Branch1(_)  => 1,
-        Branch2{..} => 1,
-        Select{..}  => 2,
+        Branch1(_)     => 1,
+        Branch2{..}    => 1,
+        Select{..}     => 2,
         Watchpoint{..} => 1,
-        WPBranch{..} => 2,
-        Switch{..} => 3,
+        WPBranch{..}   => 2,
+        Switch{..}     => 3,
 
         // call
         ExprCall{..} | ExprCCall{..} | Call{..} | CCall{..} => 5,
-        Return(_) => 1,
+        Return(_)   => 1,
         TailCall(_) => 1,
 
         // memory access
         Load{..} | Store{..} => 1,
-        CmpXchg{..}   => 1,
-        AtomicRMW{..} => 1,
-        AllocA(_) => 1,
-        AllocAHybrid(_, _) => 1,
-        Fence(_) => 1,
+        CmpXchg{..}          => 1,
+        AtomicRMW{..}        => 1,
+        AllocA(_)            => 1,
+        AllocAHybrid(_, _)   => 1,
+        Fence(_)             => 1,
 
         // memory addressing
         GetIRef(_) | GetFieldIRef{..} | GetElementIRef{..} | ShiftIRef{..} | GetVarPartIRef{..} => 0,
@@ -509,10 +509,11 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         // runtime
         New(_) | NewHybrid(_, _) => 10,
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
-        ThreadExit => 10,
-        Throw(_) => 10,
+        ThreadExit    => 10,
+        Throw(_)      => 10,
         SwapStack{..} => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
+        CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
 
         // others
         Move(_) => 0,

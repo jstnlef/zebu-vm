@@ -58,6 +58,14 @@ pub enum APIHandleValue {
 }
 
 impl APIHandleValue {
+    pub fn as_ref_or_iref(&self) -> (P<MuType>, Address) {
+        match self {
+            &APIHandleValue::Ref(ref ty, addr)
+            | &APIHandleValue::IRef(ref ty, addr) => (ty.clone(), addr),
+            _ => panic!("expected Ref or IRef handle")
+        }
+    }
+
     pub fn as_ref(&self) -> (P<MuType>, Address) {
         match self {
             &APIHandleValue::Ref(ref ty, addr) => (ty.clone(), addr),

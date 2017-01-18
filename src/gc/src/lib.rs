@@ -30,6 +30,8 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::RwLock;
 
+pub const GC_MOVES_OBJECT : bool = false;
+
 pub const LARGE_OBJECT_THRESHOLD : usize = BYTES_IN_LINE;
 
 pub use heap::immix::ImmixMutatorLocal as Mutator;

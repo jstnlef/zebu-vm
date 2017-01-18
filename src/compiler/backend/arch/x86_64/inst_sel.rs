@@ -1300,6 +1300,32 @@ impl <'a> InstructionSelection {
                         self.emit_store_base_offset(&tl, *thread::USER_TLS_OFFSET as i32, &tmp_op, vm);
                     }
 
+                    Instruction_::CommonInst_Pin(op) => {
+                        trace!("instsel on PIN");
+
+                        if !mm::GC_MOVES_OBJECT {
+                            // non-moving GC: pin is a nop (move from op to result)
+                            let ops = inst.ops.read().unwrap();
+                            let ref op = ops[op];
+
+                            let tmp_res = self.get_result_value(node);
+
+                            self.emit_move_node_to_value(&tmp_res, op, f_content, f_context, vm);
+                        } else {
+                            unimplemented!()
+                        }
+                    }
+                    Instruction_::CommonInst_Unpin(_) => {
+                        trace!("instsel on UNPIN");
+
+                        if !mm::GC_MOVES_OBJECT {
+                            // do nothing
+                        } else {
+                            unimplemented!()
+                        }
+                    }
+
+
                     Instruction_::Move(op) => {
                         trace!("instsel on MOVE (internal IR)");
 

@@ -270,6 +270,10 @@ pub enum Instruction_ {
     CommonInst_GetThreadLocal,
     CommonInst_SetThreadLocal(OpIndex),
 
+    // pin/unpin
+    CommonInst_Pin  (OpIndex),
+    CommonInst_Unpin(OpIndex),
+
     // internal use: mov from ops[0] to value
     Move(OpIndex)
 }
@@ -388,6 +392,9 @@ impl Instruction_ {
             // common inst
             &Instruction_::CommonInst_GetThreadLocal => format!("COMMONINST GetThreadLocal"),
             &Instruction_::CommonInst_SetThreadLocal(op) => format!("COMMONINST SetThreadLocal {}", ops[op]),
+
+            &Instruction_::CommonInst_Pin(op)   => format!("COMMONINST Pin {}",   ops[op]),
+            &Instruction_::CommonInst_Unpin(op) => format!("COMMONINST Unpin {}", ops[op]),
 
             // move
             &Instruction_::Move(from) => format!("MOVE {}", ops[from])

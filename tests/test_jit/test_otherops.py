@@ -1,6 +1,5 @@
-from util import fncptr_from_c_script
+from util import fncptr_from_c_script, preload_libmu
 import ctypes
-
 
 def test_select():
     fnp, _ = fncptr_from_c_script('test_select.c', 'test_fnc', [ctypes.c_byte])

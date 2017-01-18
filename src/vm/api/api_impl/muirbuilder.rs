@@ -551,12 +551,18 @@ struct BundleLoader<'lb, 'lvm> {
     built_funcs: IdBMap<MuFunction>,
     built_funcvers: IdBMap<MuFunctionVersion>,
     struct_hybrid_id_tags: Vec<(MuID, MuName)>,
+
+    built_void: Option<P<MuType>>,
+    built_refvoid: Option<P<MuType>>,
     built_refi64: Option<P<MuType>>,
     built_i1: Option<P<MuType>>,
     built_i64: Option<P<MuType>>,
+
     built_funcref_of: IdPMap<MuType>,
     built_ref_of: IdPMap<MuType>,
     built_iref_of: IdPMap<MuType>,
+    built_uptr_of: IdPMap<MuType>,
+
     built_constint_of: HashMap<u64, P<Value>>,
 }
 
@@ -577,12 +583,15 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_funcs: Default::default(),
         built_funcvers: Default::default(),
         struct_hybrid_id_tags: Default::default(),
+        built_void: Default::default(),
+        built_refvoid: Default::default(),
         built_refi64: Default::default(),
         built_i1: Default::default(),
         built_i64: Default::default(),
         built_funcref_of: Default::default(),
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
+        built_uptr_of: Default::default(),
         built_constint_of: Default::default(),
     };
 
@@ -602,6 +611,44 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.ensure_names();
         self.build_toplevels();
         self.add_everything_to_vm();
+    }
+
+    fn ensure_void(&mut self) -> P<MuType> {
+        if let Some(ref void) = self.built_void {
+            return void.clone();
+        }
+
+        let id_void = self.vm.next_id();
+
+        let impl_void = P(MuType {
+            hdr: MuEntityHeader::unnamed(id_void),
+            v: MuType_::Void
+        });
+
+        trace!("Ensure void is defined: {} {:?}", id_void, impl_void);
+
+        self.built_types.insert(id_void, impl_void.clone());
+        self.built_void = Some(impl_void.clone());
+
+        impl_void
+    }
+
+    fn ensure_refvoid(&mut self) -> P<MuType> {
+        if let Some(ref refvoid) = self.built_refi64 {
+            return refvoid.clone();
+        }
+
+        let id_refvoid = self.vm.next_id();
+
+        let id_void = self.ensure_void().id();
+        let impl_refvoid = self.ensure_ref(id_void);
+
+        trace!("Ensure refvoid is defined: {} {:?}", id_refvoid, impl_refvoid);
+
+        self.built_types.insert(id_refvoid, impl_refvoid.clone());
+        self.built_refvoid = Some(impl_refvoid.clone());
+
+        impl_refvoid
     }
 
     fn ensure_refi64(&mut self) -> P<MuType> {
@@ -1715,6 +1762,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                                          exc_clause, keepalive_clause,
                                          true, CallConvention::Foreign(ForeignFFI::C))
             },
+            NodeInst::NodeCommInst {
+                id, ref result_ids, opcode,
+                ref flags, ref tys, ref sigs, ref args,
+                ref exc_clause, ref keepalive_clause
+            } => {
+                self.build_comm_inst(fcb, hdr, result_ids, opcode, flags, tys, sigs, args, exc_clause, keepalive_clause)
+            },
+
             ref i => panic!("{:?} not implemented", i),
         };
 
@@ -1850,6 +1905,80 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     }
                 },
             }
+        }
+    }
+
+    #[allow(unused_variables)]
+    fn build_comm_inst(&mut self, fcb: &mut FuncCtxBuilder, hdr: MuEntityHeader,
+                       result_ids: &Vec<MuID>, opcode: MuCommInst, flags: &Vec<Flag>,
+                       tys: &Vec<MuTypeNode>, sigs: &Vec<MuFuncSigNode>, args: &Vec<MuVarNode>,
+                       exc_clause: &Option<MuExcClause>, keepalives: &Option<MuKeepaliveClause>) -> Instruction {
+        match opcode {
+            CMU_CI_UVM_GET_THREADLOCAL => {
+                assert!(result_ids.len() == 1);
+
+                let rv_ty = self.ensure_refvoid();
+                let rv = self.new_ssa(fcb, result_ids[0], rv_ty).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![rv]),
+                    ops: RwLock::new(vec![]),
+                    v: Instruction_::CommonInst_GetThreadLocal
+                }
+            }
+            CMU_CI_UVM_SET_THREADLOCAL => {
+                assert!(args.len() == 1);
+
+                let op_ty = self.ensure_type_rec(tys[0]);
+                let op = self.get_treenode(fcb, args[0]);
+
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(vec![op]),
+                    v: Instruction_::CommonInst_SetThreadLocal(0)
+                }
+            }
+            CMU_CI_UVM_NATIVE_PIN => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 1);
+
+                let op_ty = self.ensure_type_rec(tys[0]);
+                let op = self.get_treenode(fcb, args[0]);
+
+                let referent_ty = match op_ty.get_referenced_ty() {
+                    Some(ty) => ty,
+                    _ => panic!("expected ty in PIN to be ref/iref, found {}", op_ty)
+                };
+
+                let rv_ty = self.ensure_uptr(referent_ty.id());
+                let rv = self.new_ssa(fcb, result_ids[0], rv_ty).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![rv]),
+                    ops: RwLock::new(vec![op]),
+                    v: Instruction_::CommonInst_Pin(0)
+                }
+            }
+            CMU_CI_UVM_NATIVE_UNPIN => {
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 1);
+
+                let op_ty = self.ensure_type_rec(tys[0]);
+                let op = self.get_treenode(fcb, args[0]);
+
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(vec![op]),
+                    v: Instruction_::CommonInst_Unpin(0)
+                }
+            }
+
+            _ => unimplemented!()
         }
     }
 
