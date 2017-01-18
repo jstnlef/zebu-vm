@@ -29,7 +29,7 @@ pub struct Frame {
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "Frame for FuncVer {} {{", self.func_ver_id).unwrap();
+        writeln!(f, "\nFrame for FuncVer {} {{", self.func_ver_id).unwrap();
         writeln!(f, "  allocated slots:").unwrap();
         for slot in self.allocated.values() {
             writeln!(f, "    {}", slot).unwrap();

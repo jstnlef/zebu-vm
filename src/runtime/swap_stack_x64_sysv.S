@@ -84,7 +84,13 @@ begin_func muentry_throw_exception
          # %rsp points to %rbx, pass this as 2nd argument
          movq  %rsp, %rsi
 
+#if defined (__linux__)
+         jmp CNAME(throw_exception_internal@PLT)
+#elif defined (__APPLE__)
          jmp CNAME(throw_exception_internal)
+#else
+         #error "Only Linux and OSX are supported. "
+#endif
          # won't return
 
 # _exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !

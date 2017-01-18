@@ -40,7 +40,7 @@ use std::fmt;
 // last_frame_callee_saved: a pointer passed from assembly, values of 6 callee_saved
 // registers are layed out as rbx, rbp, r12-r15 (from low address to high address)
 // and return address is put after 6 callee saved regsiters
-pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee_saved: Address) {
+pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee_saved: Address) -> ! {
     trace!("throwing exception: {}", exception_obj);
 
     trace!("callee saved registers of last frame is saved at {}", last_frame_callee_saved);
@@ -50,14 +50,15 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
     // set exception object
     cur_thread.exception_obj = exception_obj;
     
-    let cf_lock = cur_thread.vm.compiled_funcs().read().unwrap(); 
+    let cf_lock   = cur_thread.vm.compiled_funcs().read().unwrap();
+    let func_lock = cur_thread.vm.funcs().read().unwrap();
 
     let rust_frame_return_addr = unsafe {last_frame_callee_saved.plus(POINTER_SIZE * x86_64::CALLEE_SAVED_GPRs.len()).load::<Address>()};
     trace!("return address   : 0x{:x} - throw instruction", rust_frame_return_addr);
     
     // the return address is within throwing frame
     let throw_frame_callsite = rust_frame_return_addr;
-    let (throw_func, throw_fv) = find_func_for_address(&cf_lock, throw_frame_callsite);
+    let (throw_func, throw_fv) = find_func_for_address(&cf_lock, &func_lock, throw_frame_callsite);
     trace!("throwing fucntion: {}", throw_func);
     
     // skip to previous frame
@@ -88,12 +89,9 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
     trace!("Stack Unwinding starts");
     loop {
         trace!("frame cursor: {}", cursor);
-        // get return address (the slot above RBP slot)
-//        let return_addr = unsafe {rbp.plus(POINTER_SIZE).load::<Address>()};
-        
+
         // release the locks, and keep a clone of the frame
         // because we may improperly leave this function
-        // FIXME: consider using Rust () -> ! to tell Rust compiler that we may not finish the func
         let frame = {
             let rwlock_cf = match cf_lock.get(&cursor.func_ver_id) {
                 Some(ret) => ret,
@@ -119,7 +117,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
                 if reg_id == x86_64::RBP.id() {
                     
                 } else {
-                    warn!("failed to find an entry for it in current frame");
+                    info!("failed to find an entry for {} in current frame", reg_id);
                 }
             }
         }
@@ -171,7 +169,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
         
         // keep unwinding
         callsite = cursor.return_addr;
-        cursor.to_previous_frame(&cf_lock);
+        cursor.to_previous_frame(&cf_lock, &func_lock);
         trace!("cursor unwinds to previous frame: {}", cursor);        
     }
 }
@@ -182,7 +180,7 @@ fn inspect_nearby_address(base: Address, n: isize) {
         unsafe {
             let addr = base.offset(i * POINTER_SIZE as isize);
             let val  = addr.load::<Word>();
-            trace!("addr: 0x{:x} | val: 0x{:x}", addr, val);
+            trace!("addr: 0x{:x} | val: 0x{:x} {}", addr, val, {if addr == base {"<- base"} else {""}});
         }
         i -= 1;
     }
@@ -198,7 +196,7 @@ struct FrameCursor {
 
 impl fmt::Display for FrameCursor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "FrameCursor{{").unwrap();
+        writeln!(f, "\nFrameCursor{{").unwrap();
         writeln!(f, "  rbp=0x{:x}, return_addr=0x{:x}, func_id={}, func_version_id={}", self.rbp, self.return_addr, self.func_id, self.func_ver_id).unwrap();
         writeln!(f, "  callee_saved:").unwrap();
         for (reg, addr) in self.callee_saved_locs.iter() {
@@ -209,7 +207,7 @@ impl fmt::Display for FrameCursor {
 }
 
 impl FrameCursor {
-    fn to_previous_frame(&mut self, cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>) {
+    fn to_previous_frame(&mut self, cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>) {
         // check if return_addr is valid
         // FIXME: should use a sentinel value here
         if self.return_addr.is_zero() {
@@ -218,7 +216,7 @@ impl FrameCursor {
         
         let previous_rbp = unsafe {self.rbp.load::<Address>()};
         let previous_return_addr = unsafe {previous_rbp.plus(POINTER_SIZE).load::<Address>()};
-        let (previous_func, previous_fv_id) = find_func_for_address(cf, self.return_addr);
+        let (previous_func, previous_fv_id) = find_func_for_address(cf, funcs, self.return_addr);
         
         self.rbp = previous_rbp;
         self.return_addr = previous_return_addr;
@@ -227,14 +225,22 @@ impl FrameCursor {
     }
 }
 
-fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, pc_addr: Address) -> (MuID, MuID) {
+fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>, pc_addr: Address) -> (MuID, MuID) {
+    use std::ops::Deref;
+
     trace!("trying to find FuncVersion for address 0x{:x}", pc_addr);
     for (_, func) in cf.iter() {
         let func = func.read().unwrap();
+
+        let f = match funcs.get(&func.func_id) {
+            Some(f) => f,
+            None => panic!("failed to find func #{}", func.func_id)
+        };
+        let f_lock = f.read().unwrap();
         
         let start = func.start.to_address();
         let end = func.end.to_address();
-        trace!("CompiledFunction: func_id={}, fv_id={}, start=0x{:x}, end=0x{:x}", func.func_id, func.func_ver_id, start, end);
+        trace!("CompiledFunction: func={}, fv_id={}, start=0x{:x}, end=0x{:x}", f_lock.deref(), func.func_ver_id, start, end);
         
         // pc won't be the start of a function, but could be the end
         if pc_addr > start && pc_addr <= end {
