@@ -70,8 +70,25 @@ begin_func get_current_frame_rbp
           ret
 end_func get_current_frame_rbp
 
+# muentry_throw_exception(obj: Address)
+#                         %rdi
+begin_func muentry_throw_exception
+         # save all callee-saved
+         pushq %r15
+         pushq %r14
+         pushq %r13
+         pushq %r12
+         pushq %rbp
+         pushq %rbx
+
+         # %rsp points to %rbx, pass this as 2nd argument
+         movq  %rsp, %rsi
+
+         jmp CNAME(throw_exception_internal)
+         # won't return
+
 # _exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !
-#                    %rdi           %rsi                   %rdx
+#                    %rdi           %rsi                       %rdx
 # callee_saved: [rbx, rbp, r12, r13, r14, r15]
 begin_func exception_restore
           movq 0(%rsi), %rbx

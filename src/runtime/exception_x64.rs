@@ -11,22 +11,48 @@ use std::sync::RwLockReadGuard;
 use std::collections::HashMap;
 use std::fmt;
 
+// muentry_throw_exception in swap_stack_x64_sysV.S
+// is like a special calling convention to throw_exception_internal
+// in order to save all the callee saved registers at a known location
+
+// normal calling convention:
+// ---code---                                        ---stack---
+// push caller saved                                 caller saved
+// call                                              return addr
+//          -> (in callee) push rbp                  old rbp
+//                         mov  rsp -> rbp           callee saved
+//                         push callee saved
+
+// this function's calling convention
+// ---code---                                        ---stack---
+// push caller saved                                 caller saved
+// call                                              return addr
+//          -> (in asm)  push callee saved           all callee saved <- 2nd arg
+//             (in rust) push rbp                    (by rust) old rbp
+//                       mov  rsp -> rbp             (by rust) callee saved
+//                       push callee saved
+
+// we do not want to make any assumptionon  where rust saves rbp or callee saved
+// so we save them by ourselves in assembly, and pass a pointer as 2nd argument
+
 #[no_mangle]
 #[allow(unreachable_code)]
-pub extern fn muentry_throw_exception(exception_obj: Address) {
+// last_frame_callee_saved: a pointer passed from assembly, values of 6 callee_saved
+// registers are layed out as rbx, rbp, r12-r15 (from low address to high address)
+// and return address is put after 6 callee saved regsiters
+pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee_saved: Address) {
     trace!("throwing exception: {}", exception_obj);
+
+    trace!("callee saved registers of last frame is saved at {}", last_frame_callee_saved);
+    inspect_nearby_address(last_frame_callee_saved, 8);
     
     let mut cur_thread = thread::MuThread::current_mut();
     // set exception object
     cur_thread.exception_obj = exception_obj;
     
     let cf_lock = cur_thread.vm.compiled_funcs().read().unwrap(); 
-    
-    // rbp of current frame (mu_throw_exception(), Rust frame)
-    let rust_frame_rbp = unsafe {thread::get_current_frame_rbp()};
-    trace!("current frame RBP: 0x{:x}", rust_frame_rbp);
-    inspect_nearby_address(rust_frame_rbp, 5);    
-    let rust_frame_return_addr = unsafe {rust_frame_rbp.plus(POINTER_SIZE).load::<Address>()};
+
+    let rust_frame_return_addr = unsafe {last_frame_callee_saved.plus(POINTER_SIZE * x86_64::CALLEE_SAVED_GPRs.len()).load::<Address>()};
     trace!("return address   : 0x{:x} - throw instruction", rust_frame_return_addr);
     
     // the return address is within throwing frame
@@ -36,7 +62,9 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
     
     // skip to previous frame
     // this is the frame that throws the exception
-    let rbp = unsafe {rust_frame_rbp.load::<Address>()};
+    let previous_frame_rbp_loc = last_frame_callee_saved.plus(POINTER_SIZE);
+    let rbp = unsafe {previous_frame_rbp_loc.load::<Address>()};
+    trace!("rbp of previous frame is {} (last_frame_callee_saved {} + 8)", rbp, last_frame_callee_saved);
     
     // set cursor to throwing frame
     let mut cursor = FrameCursor {
@@ -44,7 +72,14 @@ pub extern fn muentry_throw_exception(exception_obj: Address) {
         return_addr: unsafe {rbp.plus(POINTER_SIZE).load::<Address>()},
         func_id: throw_func,
         func_ver_id: throw_fv,
-        callee_saved_locs: HashMap::new()
+        callee_saved_locs: hashmap!{
+            x86_64::RBX.id() => last_frame_callee_saved,
+            x86_64::RBP.id() => previous_frame_rbp_loc,
+            x86_64::R12.id() => last_frame_callee_saved.plus(POINTER_SIZE * 2),
+            x86_64::R13.id() => last_frame_callee_saved.plus(POINTER_SIZE * 3),
+            x86_64::R14.id() => last_frame_callee_saved.plus(POINTER_SIZE * 4),
+            x86_64::R15.id() => last_frame_callee_saved.plus(POINTER_SIZE * 5),
+        }
     };
     trace!("cursor at first Mu frame: {}", cursor);
     

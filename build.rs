@@ -5,7 +5,7 @@ extern crate gcc;
 fn main() {
     gcc::compile_library("libruntime.a", &["src/runtime/runtime_x64_sysv.c"]);
     
-    gcc::Config::new().flag("-O3")
+    gcc::Config::new().flag("-O3").flag("-c")
                      .file("src/runtime/swap_stack_x64_sysv.S")
                      .compile("libswap_stack.a"); 
 }
@@ -15,7 +15,7 @@ fn main() {
 fn main() {
     gcc::compile_library("libruntime.a", &["src/runtime/runtime_x64_sysv.c"]);
     
-    gcc::Config::new().flag("-O3")
+    gcc::Config::new().flag("-O3").flag("-c")
                      .file("src/runtime/swap_stack_x64_sysv.S")
                      .compile("libswap_stack.a"); 
 }
