@@ -20,6 +20,25 @@ else:
 libmu_path = proj_dir.join('target', 'debug', 'libmu' + libext)
 
 
+def mu_instance_via_ctyeps():
+    libmu = preload_libmu()
+    class MuVM(ctypes.Structure):
+        pass
+    MuVM._fields_ = [
+            ('header', ctypes.c_voidp),
+            ('new_context', ctypes.c_voidp),    # function pointers should have the same size as c_voidp
+            ('id_of', ctypes.c_voidp),
+            ('name_of', ctypes.c_voidp),
+            ('set_trap_handler', ctypes.c_voidp),
+            ('compile_to_sharedlib', ctypes.c_voidp),
+            ('current_thread_as_mu_thread', ctypes.CFUNCTYPE(None, ctypes.POINTER(MuVM), ctypes.c_voidp)),
+        ]
+    libmu.mu_fastimpl_new.restype = ctypes.POINTER(MuVM)
+    mu = libmu.mu_fastimpl_new()
+    mu.contents.current_thread_as_mu_thread(mu, None)
+    return mu
+
+
 def compile_c_script(c_src_name):
     testname = c_src_name[:-2]
     src_c = testsuite_dir.join(c_src_name)
@@ -53,15 +72,15 @@ def compile_c_script(c_src_name):
     return py.path.local('emit').join('lib%(testname)s' % locals() + libext)
 
 
-def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_longlong):
-    lib = ctypes.CDLL(libpath.strpath, ctypes.RTLD_GLOBAL)
+def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_longlong, mode=ctypes.RTLD_LOCAL):
+    lib = ctypes.CDLL(libpath.strpath, mode)
     fnp = getattr(lib, fnc_name)
     fnp.argtypes = argtypes
     fnp.restype = restype
     return fnp, lib
 
 
-def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype):
+def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype, mode=ctypes.RTLD_LOCAL):
     from rpython.rtyper.lltypesystem import rffi
     from rpython.translator.platform import platform
     if platform.name.startswith('linux'):
@@ -69,6 +88,9 @@ def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype):
     else:
         link_extra = []
     libname = libpath.basename[3:libpath.basename.index(libext)]
+
+    if mode == ctypes.RTLD_GLOBAL:
+        lib = ctypes.CDLL(libpath.strpath, mode)    # preload lib using RTLD_GLOBAL
 
     return rffi.llexternal(fnc_name, llargtypes, restype,
                            compilation_info=rffi.ExternalCompilationInfo(
@@ -79,22 +101,22 @@ def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype):
                            _nowrapper=True)
 
 
-def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglong):
+def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglong, mode=ctypes.RTLD_LOCAL):
     libpath = compile_c_script(c_src_name)
-    return ctypes_fncptr_from_lib(libpath, name, argtypes, restype)
+    return ctypes_fncptr_from_lib(libpath, name, argtypes, restype, mode)
 
 
 def is_ctypes(t):
     return isinstance(t, type(ctypes.c_longlong))
 
 
-def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong, **kwargs):
+def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong, mode=ctypes.RTLD_LOCAL, **kwargs):
     import os
     # NOTE: requires mu-client-pypy
     from rpython.rlib import rmu_fast as rmu
 
     # load libmu before rffi so to load it with RTLD_GLOBAL
-    libmu = ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
+    libmu = preload_libmu()
 
     loglvl = os.environ.get('MU_LOG_LEVEL', 'none')
     emit_dir = kwargs.get('muemitdir', os.environ.get('MU_EMIT_DIR', 'emit'))
@@ -110,9 +132,9 @@ def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctype
     mu.compile_to_sharedlib(libpath.strpath, [])
 
     if (len(argtypes) > 0 and is_ctypes(argtypes[0])) or is_ctypes(restype):
-        return ctypes_fncptr_from_lib(libpath, name, argtypes, restype), (mu, ctx, bldr)
+        return ctypes_fncptr_from_lib(libpath, name, argtypes, restype, mode), (mu, ctx, bldr)
     else:
-        return rffi_fncptr_from_lib(libpath, name, argtypes, restype), (mu, ctx, bldr)
+        return rffi_fncptr_from_lib(libpath, name, argtypes, restype, mode), (mu, ctx, bldr)
 
 
 def preload_libmu():
@@ -133,7 +155,7 @@ def may_spawn_proc(test_fnc):
     return wrapper
 
 
-def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
+def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, mode=ctypes.RTLD_LOCAL, **kwargs):
     # NOTE: requires mu-client-pypy
     from rpython.rtyper.lltypesystem import rffi
     from rpython.translator.interactive import Translation
@@ -159,4 +181,4 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, **kwargs):
         libpath = t.compile_c()
         fnc_name = 'pypy_g_' + rpy_fnc.__name__
         extras = None
-    return rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, llrestype), extras
+    return rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, llrestype, mode), extras

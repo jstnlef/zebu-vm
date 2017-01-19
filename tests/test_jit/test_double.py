@@ -1,6 +1,6 @@
 from util import fncptr_from_c_script
 import ctypes
-
+import pytest
 
 def within_err(res, exp, err=1e15):
     return abs(res - exp) < err
@@ -67,6 +67,7 @@ def test_double_sitofp():
     assert fnp() == -42.0
 
 
+@pytest.mark.xfail(reason='not implemented yet')
 def test_double_uitofp():
     fnp, _ = fncptr_from_c_script("test_double_uitofp.c", "test_fnc", restype=ctypes.c_double)
     assert fnp() == 42.0
@@ -77,6 +78,7 @@ def test_double_fptosi():
     assert fnp() == -3
 
 
+@pytest.mark.xfail(reason='not implemented yet')
 def test_double_fptoui():
     fnp, _ = fncptr_from_c_script("test_double_fptoui.c", "test_fnc", restype=ctypes.c_uint64)
     assert fnp() == 3

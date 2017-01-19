@@ -205,15 +205,6 @@ def test_quicksort():
 
         lst_s = sorted(lst)
 
-	print "expected list:"
-	print lst_s
-
-	print "result:"
-	for i in range(n):
-	    print arr[i],
-        else:
-	    print
-
         for i in range(n):
             assert lst_s[i] == arr[i], "%d != %d" % (lst_s[i], arr[i])
 
@@ -844,7 +835,7 @@ def test_throw():
 
     from rpython.rlib import rmu_fast as rmu
     (fnp, _), (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, None, 'test_fnc', [ctypes.c_int64],
-                                                      ctypes.c_int64)
+                                                      ctypes.c_int64, mode=ctypes.RTLD_GLOBAL)
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp(0) == 20
     assert fnp(100) == 10
@@ -991,7 +982,7 @@ def test_exception_stack_unwind():
             "@refi64": refi64
         }
     (fnp, _), (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, None, 'test_fnc', [ctypes.c_int64],
-                                                      ctypes.c_int64)
+                                                      ctypes.c_int64, mode=ctypes.RTLD_GLOBAL)
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
     assert fnp(0) == 20
     assert fnp(100) == 10
