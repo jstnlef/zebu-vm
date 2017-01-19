@@ -885,7 +885,9 @@ pub enum Constant {
     Vector(Vec<Constant>),
     //Pointer(Address),
     NullRef,
-    ExternSym(CName)
+    ExternSym(CName),
+
+    List(Vec<P<Value>>) // a composite type of several constants
 }
 
 impl fmt::Display for Constant {
@@ -907,7 +909,15 @@ impl fmt::Display for Constant {
                 write!(f, "]")
             }
             &Constant::NullRef => write!(f, "NullRef"),
-            &Constant::ExternSym(ref name) => write!(f, "ExternSym({})", name)
+            &Constant::ExternSym(ref name) => write!(f, "ExternSym({})", name),
+
+            &Constant::List(ref vec) => {
+                write!(f, "List(").unwrap();
+                for val in vec.iter() {
+                    write!(f, "{}, ", val).unwrap();
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -922,7 +932,8 @@ pub enum MemoryLocation {
     },
     Symbolic{
         base: Option<P<Value>>,
-        label: MuName
+        label: MuName,
+        is_global: bool
     }
 }
 
@@ -942,7 +953,7 @@ impl fmt::Display for MemoryLocation {
                 }
                 write!(f, "]")
             }
-            &MemoryLocation::Symbolic{ref base, ref label} => {
+            &MemoryLocation::Symbolic{ref base, ref label, ..} => {
                 if base.is_some() {
                     write!(f, "{}({})", label, base.as_ref().unwrap())
                 } else {

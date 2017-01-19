@@ -184,4 +184,13 @@ pub trait CodeGenerator {
     // fp conversion
     fn emit_cvtsi2sd_f64_r  (&mut self, dest: Reg, src: Reg);
     fn emit_cvtsd2si_r_f64  (&mut self, dest: Reg, src: Reg);
+
+    // used for unsigned int to fp conversion
+
+    // unpack low data - interleave low byte
+    fn emit_punpckldq_f64_mem128(&mut self, dest: Reg, src: Mem);
+    // substract packed double-fp
+    fn emit_subpd_f64_mem128   (&mut self, dest: Reg, src: Mem);
+    // packed double-fp horizontal add
+    fn emit_haddpd_f64_f64     (&mut self, dest: Reg, src: Reg);
 }

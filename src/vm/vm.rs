@@ -601,6 +601,25 @@ impl <'a> VM {
             None => panic!("cannot find const #{}", id)
         }
     }
+
+    pub fn get_const_nocheck(&self, id: MuID) -> Option<P<Value>> {
+        let const_lock = self.constants.read().unwrap();
+        match const_lock.get(&id) {
+            Some(ret) => Some(ret.clone()),
+            None => None
+        }
+    }
+
+    #[cfg(feature = "aot")]
+    pub fn allocate_const(&self, val: P<Value>) -> ValueLocation {
+        let id = val.id();
+        let name = match val.name() {
+            Some(name) => format!("CONST_{}_{}", id, name),
+            None => format!("CONST_{}", id)
+        };
+
+        ValueLocation::Relocatable(backend::RegGroup::GPR, name)
+    }
     
     pub fn declare_global(&self, id: MuID, ty: P<MuType>) -> P<Value> {
         let global = P(Value{

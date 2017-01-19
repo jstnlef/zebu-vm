@@ -1,4 +1,5 @@
 use ast::ir::*;
+use ast::ptr::*;
 use compiler::frame::*;
 use runtime::ValueLocation;
 
@@ -12,7 +13,10 @@ pub struct CompiledFunction {
     pub func_ver_id: MuID,
 
     // assumes one temporary maps to one register
-    pub temps: HashMap<MuID, MuID>,
+    pub temps : HashMap<MuID, MuID>,
+
+    pub consts: HashMap<MuID, P<Value>>,
+    pub const_mem: HashMap<MuID, P<Value>>,
     
     // not emitting this
     pub mc: Option<Box<MachineCode + Send + Sync>>,
@@ -27,19 +31,39 @@ const CF_SERIALIZE_FIELDS : usize = 6;
 impl Encodable for CompiledFunction {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
         s.emit_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |s| {
+            let mut i = 0;
+
             trace!("......serializing func_id");    
-            try!(s.emit_struct_field("func_id",     0, |s| self.func_id.encode(s)));
+            try!(s.emit_struct_field("func_id",     i, |s| self.func_id.encode(s)));
+            i += 1;
+
             trace!("......serializing func_ver_id");
-            try!(s.emit_struct_field("func_ver_id", 1, |s| self.func_ver_id.encode(s)));
+            try!(s.emit_struct_field("func_ver_id", i, |s| self.func_ver_id.encode(s)));
+            i += 1;
+
             trace!("......serializing temps");
-            try!(s.emit_struct_field("temps",       2, |s| self.temps.encode(s)));
+            try!(s.emit_struct_field("temps",       i, |s| self.temps.encode(s)));
+            i += 1;
+
+            trace!("......serializing consts");
+            try!(s.emit_struct_field("consts",      i, |s| self.consts.encode(s)));
+            i += 1;
+
+            trace!("......serializing const_mem");
+            try!(s.emit_struct_field("const_mem",   i, |s| self.const_mem.encode(s)));
+            i += 1;
+
             trace!("......serializing frame");
             trace!("{}", self.frame);
-            try!(s.emit_struct_field("frame",       3, |s| self.frame.encode(s)));
+            try!(s.emit_struct_field("frame",       i, |s| self.frame.encode(s)));
+            i += 1;
+
             trace!("......serializing start");
-            try!(s.emit_struct_field("start",       4, |s| self.start.encode(s)));
+            try!(s.emit_struct_field("start",       i, |s| self.start.encode(s)));
+            i += 1;
+
             trace!("......serializing end");
-            try!(s.emit_struct_field("end",         5, |s| self.end.encode(s)));
+            try!(s.emit_struct_field("end",         i, |s| self.end.encode(s)));
             
             Ok(())
         })
@@ -49,23 +73,38 @@ impl Encodable for CompiledFunction {
 impl Decodable for CompiledFunction {
     fn decode<D: Decoder>(d: &mut D) -> Result<CompiledFunction, D::Error> {
         d.read_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |d| {
+            let mut i = 0;
+
             let func_id = 
-                try!(d.read_struct_field("func_id",     0, |d| Decodable::decode(d)));
+                try!(d.read_struct_field("func_id",     i, |d| Decodable::decode(d)));
+            i += 1;
             let func_ver_id = 
-                try!(d.read_struct_field("func_ver_id", 1, |d| Decodable::decode(d)));
+                try!(d.read_struct_field("func_ver_id", i, |d| Decodable::decode(d)));
+            i += 1;
             let temps = 
-                try!(d.read_struct_field("temps",       2, |d| Decodable::decode(d)));
+                try!(d.read_struct_field("temps",       i, |d| Decodable::decode(d)));
+            i += 1;
+            let consts =
+                try!(d.read_struct_field("consts",      i, |d| Decodable::decode(d)));
+            i += 1;
+            let const_mem =
+                try!(d.read_struct_field("const_mem",   i, |d| Decodable::decode(d)));
+            i += 1;
             let frame = 
-                try!(d.read_struct_field("frame",       3, |d| Decodable::decode(d)));
+                try!(d.read_struct_field("frame",       i, |d| Decodable::decode(d)));
+            i += 1;
             let start = 
-                try!(d.read_struct_field("start",       4, |d| Decodable::decode(d)));
+                try!(d.read_struct_field("start",       i, |d| Decodable::decode(d)));
+            i += 1;
             let end =
-                try!(d.read_struct_field("end",         5, |d| Decodable::decode(d)));
+                try!(d.read_struct_field("end",         i, |d| Decodable::decode(d)));
             
             Ok(CompiledFunction{
                 func_id: func_id,
                 func_ver_id: func_ver_id,
                 temps: temps,
+                consts: consts,
+                const_mem: const_mem,
                 mc: None,
                 frame: frame,
                 start: start,
@@ -76,6 +115,22 @@ impl Decodable for CompiledFunction {
 }
 
 impl CompiledFunction {
+    pub fn new(func_id: MuID, fv_id: MuID, mc: Box<MachineCode + Send + Sync>,
+               constants: HashMap<MuID, P<Value>>, constant_locs: HashMap<MuID, P<Value>>,
+               frame: Frame, start_loc: ValueLocation, end_loc: ValueLocation) -> CompiledFunction {
+        CompiledFunction {
+            func_id: func_id,
+            func_ver_id: fv_id,
+            temps:  HashMap::new(),
+            consts: constants,
+            const_mem: constant_locs,
+            mc: Some(mc),
+            frame: frame,
+            start: start_loc,
+            end: end_loc
+        }
+    }
+
     pub fn mc(&self) -> &Box<MachineCode + Send + Sync> {
         match self.mc {
             Some(ref mc) => mc,

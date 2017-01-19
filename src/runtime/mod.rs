@@ -175,6 +175,13 @@ impl ValueLocation {
             &ValueLocation::Relocatable(_, ref symbol) => resolve_symbol(symbol.clone())
         }
     }
+
+    pub fn to_relocatable(&self) -> MuName {
+        match self {
+            &ValueLocation::Relocatable(_, ref name) => name.clone(),
+            _ => panic!("expecting Relocatable location, found {}", self)
+        }
+    }
 }
 
 pub const PRIMORDIAL_ENTRY : &'static str = "src/runtime/main.c";

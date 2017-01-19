@@ -43,6 +43,7 @@ lazy_static! {
     
     pub static ref INTERNAL_TYPES : Vec<P<MuType>> = vec![
         ADDRESS_TYPE.clone(),
+        UINT1_TYPE.clone(),
         UINT8_TYPE.clone(),
         UINT16_TYPE.clone(),
         UINT32_TYPE.clone(),

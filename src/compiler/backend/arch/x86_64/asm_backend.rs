@@ -1025,8 +1025,8 @@ impl ASMCodeGen {
                 result_str.push(')');
                 loc_cursor += 1;
             },
-            Value_::Memory(MemoryLocation::Symbolic{ref base, ref label}) => {
-                if base.is_some() && base.as_ref().unwrap().id() == x86_64::RIP.id() {
+            Value_::Memory(MemoryLocation::Symbolic{ref base, ref label, is_global}) => {
+                if base.is_some() && base.as_ref().unwrap().id() == x86_64::RIP.id() && is_global {
                     // pc relative address
                     let pic_symbol = pic_symbol(label.clone());
 //                    let pic_symbol = symbol(label.clone()); // not sure if we need this
@@ -2649,6 +2649,75 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
+
+    // unpack low data - interleave low byte
+    fn emit_punpckldq_f64_mem128(&mut self, dest: Reg, src: Mem) {
+        trace!("emit: punpckldq {} {} -> {}", src, dest, dest);
+
+        let (mem, mut uses) = self.prepare_mem(src, 9 + 1);
+        let (reg, id2, loc2) = self.prepare_fpreg(dest, 9 + 1 + mem.len() + 1);
+
+        let asm = format!("punpckldq {},{}", mem, reg);
+
+        // memory op won't use a fpreg, we insert the use of fpreg
+        uses.insert(id2, vec![loc2.clone()]);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            uses,
+            true
+        )
+    }
+    // substract packed double-fp
+    fn emit_subpd_f64_mem128   (&mut self, dest: Reg, src: Mem) {
+        trace!("emit: subpd {} {} -> {}", src, dest, dest);
+
+        let (mem, mut uses)  = self.prepare_mem(src, 5 + 1);
+        let (reg, id2, loc2) = self.prepare_fpreg(dest, 5 + 1 + mem.len() + 1);
+
+        let asm = format!("subpd {},{}", mem, reg);
+
+        uses.insert(id2, vec![loc2.clone()]);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            uses,
+            true
+        )
+    }
+    // packed double-fp horizontal add
+    fn emit_haddpd_f64_f64     (&mut self, op1: Reg, op2: Reg) {
+        trace!("emit: haddpd {} {} -> {}", op2, op1, op1);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(op1, 6 + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(op2, 6 + 1 + reg1.len() + 1);
+
+        let asm = format!("haddpd {},{}", reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            {
+                if id1 == id2 {
+                    linked_hashmap!{id1 => vec![loc1, loc2]}
+                } else {
+                    linked_hashmap!{
+                        id1 => vec![loc1],
+                        id2 => vec![loc2]
+                    }
+                }
+            },
+            false
+        )
+    }
 }
 
 fn create_emit_directory(vm: &VM) {
@@ -2671,8 +2740,6 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     let compiled_funcs = vm.compiled_funcs().read().unwrap();
     let cf = compiled_funcs.get(&fv.id()).unwrap().read().unwrap();
 
-    let code = cf.mc.as_ref().unwrap().emit();
-
     // create 'emit' directory
     create_emit_directory(vm);
 
@@ -2684,9 +2751,82 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         Ok(file) => file
     };
 
+    // constants in text section
+    file.write("\t.text\n".as_bytes()).unwrap();
+    file.write("\t.align 8\n".as_bytes()).unwrap();
+    for (id, constant) in cf.consts.iter() {
+        let mem = cf.const_mem.get(id).unwrap();
+
+        write_const(&mut file, constant.clone(), mem.clone());
+    }
+
+    // write code
+    let code = cf.mc.as_ref().unwrap().emit();
     match file.write_all(code.as_slice()) {
         Err(why) => panic!("couldn'd write to file {}: {}", file_path.to_str().unwrap(), why),
         Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
+    }
+}
+
+fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
+    use std::io::Write;
+
+    // label
+    let label = match loc.v {
+        Value_::Memory(MemoryLocation::Symbolic{ref label, ..}) => label.clone(),
+        _ => panic!("expecing a symbolic memory location for constant {}, found {}", constant, loc)
+    };
+    f.write_fmt(format_args!("{}:\n", symbol(label))).unwrap();
+
+    write_const_value(f, constant);
+}
+
+fn write_const_value(f: &mut File, constant: P<Value>) {
+    use std::mem;
+    use std::io::Write;
+
+    let ref ty = constant.ty;
+
+    let inner = match constant.v {
+        Value_::Constant(ref c) => c,
+        _ => panic!("expected constant, found {}", constant)
+    };
+
+    match inner {
+        &Constant::Int(val) => {
+            let len = ty.get_int_length().unwrap();
+            match len {
+                8  => f.write_fmt(format_args!("\t.byte {}\n", val as u8 )).unwrap(),
+                16 => f.write_fmt(format_args!("\t.word {}\n", val as u16)).unwrap(),
+                32 => f.write_fmt(format_args!("\t.long {}\n", val as u32)).unwrap(),
+                64 => f.write_fmt(format_args!("\t.quad {}\n", val as u64)).unwrap(),
+                _  => panic!("unimplemented int length: {}", len)
+            }
+        }
+        &Constant::Float(val) => {
+            let bytes: [u8; 4] = unsafe {mem::transmute(val)};
+            f.write("\t.long ".as_bytes()).unwrap();
+            f.write(&bytes).unwrap();
+            f.write("\n".as_bytes()).unwrap();
+        }
+        &Constant::Double(val) => {
+            let bytes: [u8; 8] = unsafe {mem::transmute(val)};
+            f.write("\t.quad ".as_bytes()).unwrap();
+            f.write(&bytes).unwrap();
+            f.write("\n".as_bytes()).unwrap();
+        }
+        &Constant::NullRef => {
+            f.write_fmt(format_args!("\t.quad 0\n")).unwrap()
+        }
+        &Constant::ExternSym(ref name) => {
+            f.write_fmt(format_args!("\t.quad {}\n", name)).unwrap()
+        }
+        &Constant::List(ref vals) => {
+            for val in vals {
+                write_const_value(f, val.clone())
+            }
+        },
+        _ => unimplemented!()
     }
 }
 

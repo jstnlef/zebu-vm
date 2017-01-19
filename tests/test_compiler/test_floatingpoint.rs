@@ -252,6 +252,55 @@ fn sitofp() -> VM {
 }
 
 #[test]
+fn test_uitofp() {
+    let lib = testutil::compile_fnc("uitofp", &uitofp);
+
+    unsafe {
+        let uitofp : libloading::Symbol<unsafe extern fn(u64) -> f64> = lib.get(b"uitofp").unwrap();
+
+        let res = uitofp(0u64);
+        println!("uitofp(0) = {}", res);
+        assert!(res == 0f64);
+
+        let res = uitofp(1u64);
+        println!("uitofp(1) = {}", res);
+        assert!(res == 1f64);
+    }
+}
+
+fn uitofp() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (int64) -> (double));
+    funcdecl!   ((vm) <sig> uitofp);
+    funcdef!    ((vm) <sig> uitofp VERSION uitofp_v1);
+
+    // blk entry
+    block!      ((vm, uitofp_v1) blk_entry);
+    ssa!        ((vm, uitofp_v1) <int64> x);
+
+    ssa!        ((vm, uitofp_v1) <double> res);
+    inst!       ((vm, uitofp_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::UITOFP) <int64 double> x
+    );
+
+    inst!       ((vm, uitofp_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, uitofp_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) uitofp_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
 fn test_fp_arraysum() {
     use std::os::raw::c_double;
 

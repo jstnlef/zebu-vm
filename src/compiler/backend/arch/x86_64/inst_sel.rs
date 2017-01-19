@@ -24,6 +24,60 @@ use compiler::frame::Frame;
 use std::collections::HashMap;
 use std::any::Any;
 
+lazy_static! {
+    pub static ref LONG_4_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::mustruct(Mu("long_4"), vec![UINT32_TYPE.clone(); 4]))
+    );
+
+    pub static ref UITOFP_C0 : P<Value> = P(Value{
+        hdr: MuEntityHeader::named(new_internal_id(), Mu("UITOFP_C0")),
+        ty : LONG_4_TYPE.clone(),
+        v  : Value_::Constant(Constant::List(vec![
+            P(Value{
+                hdr: MuEntityHeader::unnamed(new_internal_id()),
+                ty: UINT32_TYPE.clone(),
+                v : Value_::Constant(Constant::Int(1127219200u64))
+            }),
+            P(Value{
+                hdr: MuEntityHeader::unnamed(new_internal_id()),
+                ty: UINT32_TYPE.clone(),
+                v : Value_::Constant(Constant::Int(1160773632u64))
+            }),
+            P(Value{
+                hdr: MuEntityHeader::unnamed(new_internal_id()),
+                ty: UINT32_TYPE.clone(),
+                v : Value_::Constant(Constant::Int(0u64))
+            }),
+            P(Value{
+                hdr: MuEntityHeader::unnamed(new_internal_id()),
+                ty: UINT32_TYPE.clone(),
+                v : Value_::Constant(Constant::Int(0u64))
+            })
+        ]))
+    });
+
+    pub static ref QUAD_2_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::mustruct(Mu("quad_2"), vec![UINT64_TYPE.clone(); 2]))
+    );
+
+    pub static ref UITOFP_C1 : P<Value> = P(Value{
+        hdr: MuEntityHeader::named(new_internal_id(), Mu("UITOFP_C1")),
+        ty : QUAD_2_TYPE.clone(),
+        v  : Value_::Constant(Constant::List(vec![
+            P(Value{
+                hdr: MuEntityHeader::unnamed(new_internal_id()),
+                ty: UINT64_TYPE.clone(),
+                v : Value_::Constant(Constant::Int(4841369599423283200u64))
+            }),
+            P(Value{
+                hdr: MuEntityHeader::unnamed(new_internal_id()),
+                ty: UINT64_TYPE.clone(),
+                v : Value_::Constant(Constant::Int(4985484787499139072u64))
+            })
+        ]))
+    });
+}
+
 pub struct InstructionSelection {
     name: &'static str,
     backend: Box<CodeGenerator>,
@@ -35,7 +89,10 @@ pub struct InstructionSelection {
     // key: block id, val: callsite that names the block as exception block
     current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
     // key: block id, val: block location
-    current_exn_blocks: HashMap<MuID, ValueLocation>     
+    current_exn_blocks: HashMap<MuID, ValueLocation>,
+
+    current_constants: HashMap<MuID, P<Value>>,
+    current_constants_locs: HashMap<MuID, P<Value>>
 }
 
 impl <'a> InstructionSelection {
@@ -51,7 +108,10 @@ impl <'a> InstructionSelection {
             current_func_start: None,
             // key: block id, val: callsite that names the block as exception block
             current_exn_callsites: HashMap::new(), 
-            current_exn_blocks: HashMap::new()
+            current_exn_blocks: HashMap::new(),
+
+            current_constants: HashMap::new(),
+            current_constants_locs: HashMap::new()
         }
     }
 
@@ -1173,7 +1233,30 @@ impl <'a> InstructionSelection {
                                     panic!("unexpected op (expected fpreg): {}", op)
                                 }
                             }
+                            op::ConvOp::UITOFP => {
+                                let tmp_res = self.get_result_value(node);
 
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                                    // movd/movq op -> res
+                                    self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
+
+                                    // punpckldq UITOFP_C0, tmp_res -> tmp_res
+                                    // (interleaving low bytes: xmm = xmm[0] mem[0] xmm[1] mem[1]
+                                    let mem_c0 = self.get_mem_for_const(UITOFP_C0.clone(), vm);
+                                    self.backend.emit_punpckldq_f64_mem128(&tmp_res, &mem_c0);
+
+                                    // subpd UITOFP_C1, tmp_res -> tmp_res
+                                    let mem_c1 = self.get_mem_for_const(UITOFP_C1.clone(), vm);
+                                    self.backend.emit_subpd_f64_mem128(&tmp_res, &mem_c1);
+
+                                    // haddpd tmp_res, tmp_res -> tmp_res
+                                    self.backend.emit_haddpd_f64_f64(&tmp_res, &tmp_res);
+                                } else {
+                                    panic!("unexpected op (expected ireg): {}", op)
+                                }
+                            }
                             _ => unimplemented!()
                         }
                     }
@@ -2715,7 +2798,8 @@ impl <'a> InstructionSelection {
                                     ty: types::get_referent_ty(&pv.ty).unwrap(),
                                     v: Value_::Memory(MemoryLocation::Symbolic {
                                         base: Some(x86_64::RIP.clone()),
-                                        label: pv.name().unwrap()
+                                        label: pv.name().unwrap(),
+                                        is_global: true,
                                     })
                                 })
                             } else if cfg!(target_os = "linux") {
@@ -2727,7 +2811,8 @@ impl <'a> InstructionSelection {
                                     ty: pv.ty.clone(),
                                     v: Value_::Memory(MemoryLocation::Symbolic {
                                         base: Some(x86_64::RIP.clone()),
-                                        label: pv.name().unwrap()
+                                        label: pv.name().unwrap(),
+                                        is_global: true
                                     })
                                 });
 
@@ -3244,6 +3329,36 @@ impl <'a> InstructionSelection {
         self.current_callsite_id += 1;
         ret
     }
+
+    fn get_mem_for_const(&mut self, val: P<Value>, vm: &VM) -> P<Value> {
+        let id = val.id();
+
+        if self.current_constants.contains_key(&id) {
+            self.current_constants.get(&id).unwrap().clone()
+        } else {
+            let const_value_loc = vm.allocate_const(val.clone());
+
+            let const_mem_val = match const_value_loc {
+                ValueLocation::Relocatable(_, ref name) => {
+                    P(Value {
+                        hdr: MuEntityHeader::unnamed(vm.next_id()),
+                        ty : ADDRESS_TYPE.clone(),
+                        v  : Value_::Memory(MemoryLocation::Symbolic {
+                            base: Some(x86_64::RIP.clone()),
+                            label: name.clone(),
+                            is_global: false
+                        })
+                    })
+                }
+                _ => panic!("expecting relocatable location, found {}", const_value_loc)
+            };
+
+            self.current_constants.insert(id, val.clone());
+            self.current_constants_locs.insert(id, const_mem_val.clone());
+
+            const_mem_val
+        }
+    }
 }
 
 impl CompilerPass for InstructionSelection {
@@ -3268,6 +3383,9 @@ impl CompilerPass for InstructionSelection {
         self.current_callsite_id = 0;
         self.current_exn_callsites.clear();
         self.current_exn_blocks.clear();
+
+        self.current_constants.clear();
+        self.current_constants_locs.clear();
         
         // prologue (get arguments from entry block first)        
         let entry_block = func_ver.content.as_ref().unwrap().get_entry_block();
@@ -3347,15 +3465,9 @@ impl CompilerPass for InstructionSelection {
             }
         }
         
-        let compiled_func = CompiledFunction {
-            func_id: func.func_id,
-            func_ver_id: func.id(),
-            temps: HashMap::new(),
-            mc: Some(mc),
-            frame: frame,
-            start: self.current_func_start.take().unwrap(),
-            end: func_end 
-        };
+        let compiled_func = CompiledFunction::new(func.func_id, func.id(), mc,
+                                                  self.current_constants.clone(), self.current_constants_locs.clone(),
+                                                  frame, self.current_func_start.take().unwrap(), func_end);
         
         vm.add_compiled_func(compiled_func);
     }
