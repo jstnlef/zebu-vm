@@ -1,7 +1,8 @@
-from util import fncptr_from_c_script
+from util import fncptr_from_c_script, may_spawn_proc
 import ctypes
 
 
+@may_spawn_proc
 def test_uptr_bytestore_load():
     fn, _ = fncptr_from_c_script("test_uptr_bytestore_load.c", "test_fnc",
                                  argtypes=[ctypes.POINTER(ctypes.c_uint32)],
@@ -12,7 +13,7 @@ def test_uptr_bytestore_load():
     assert fn(ctypes.byref(ui32)) == 0x8d9f9c1d
     assert ui32.value == 0x8d9f9c1d
 
-
+@may_spawn_proc
 def test_getfieldiref():
     class Stt(ctypes.Structure):
         _fields_ = [('ui8', ctypes.c_uint8),
@@ -30,7 +31,7 @@ def test_getfieldiref():
     res = fn(ctypes.byref(stt))
     assert res == 0xcafebabe, "result: %s" % hex(res)
 
-
+@may_spawn_proc
 def test_getelemiref():
     Arr = ctypes.ARRAY(ctypes.c_int64, 5)
     fn, _ = fncptr_from_c_script("test_getelemiref.c", "test_fnc",
@@ -46,7 +47,7 @@ def test_getelemiref():
     res = fn(ctypes.byref(arr), 2)
     assert res == 42, "result: %d" % res
 
-
+@may_spawn_proc
 def test_getvarpartiref():
     class Stt(ctypes.Structure):
         _fields_ = [('ui8', ctypes.c_uint8),
@@ -64,7 +65,7 @@ def test_getvarpartiref():
     res = fn(ctypes.byref(stt))
     assert res == 0xcafebabe, "result: %s" % hex(res)
 
-
+@may_spawn_proc
 def test_getvarpartiref_nofix():
     Arr = ctypes.ARRAY(ctypes.c_uint32, 3)
 

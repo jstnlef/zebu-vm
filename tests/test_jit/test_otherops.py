@@ -1,6 +1,7 @@
 from util import fncptr_from_c_script, mu_instance_via_ctyeps, may_spawn_proc
 import ctypes
 
+@may_spawn_proc
 def test_select():
     fnp, _ = fncptr_from_c_script('test_select.c', 'test_fnc', [ctypes.c_byte])
     assert fnp(0) == 20
