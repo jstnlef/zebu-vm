@@ -61,7 +61,7 @@ def test_or():
     fn, _ = fncptr_from_c_script("test_or.c", "test_fnc", restype=ctypes.c_uint64)
     assert fn() == 0xddbffedff83febf5
 
-
+@may_spawn_proc
 def test_xor():
     fn, _ = fncptr_from_c_script("test_xor.c", "test_fnc", restype=ctypes.c_uint64)
     assert fn() == 0x58376ec3e83fa0e1
