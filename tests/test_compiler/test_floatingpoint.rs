@@ -252,50 +252,393 @@ fn sitofp() -> VM {
 }
 
 #[test]
-fn test_uitofp() {
-    let lib = testutil::compile_fnc("uitofp", &uitofp);
+fn test_ui64tofp() {
+    let lib = testutil::compile_fnc("ui64tofp", &ui64tofp);
 
     unsafe {
-        let uitofp : libloading::Symbol<unsafe extern fn(u64) -> f64> = lib.get(b"uitofp").unwrap();
+        let ui64tofp : libloading::Symbol<unsafe extern fn(u64) -> f64> = lib.get(b"ui64tofp").unwrap();
 
-        let res = uitofp(0u64);
-        println!("uitofp(0) = {}", res);
+        let res = ui64tofp(0u64);
+        println!("ui64tofp(0) = {}", res);
         assert!(res == 0f64);
 
-        let res = uitofp(1u64);
-        println!("uitofp(1) = {}", res);
+        let res = ui64tofp(1u64);
+        println!("ui64tofp(1) = {}", res);
         assert!(res == 1f64);
     }
 }
 
-fn uitofp() -> VM {
+fn ui64tofp() -> VM {
     let vm = VM::new();
 
     typedef!    ((vm) int64 = mu_int(64));
     typedef!    ((vm) double = mu_double);
 
     funcsig!    ((vm) sig = (int64) -> (double));
-    funcdecl!   ((vm) <sig> uitofp);
-    funcdef!    ((vm) <sig> uitofp VERSION uitofp_v1);
+    funcdecl!   ((vm) <sig> ui64tofp);
+    funcdef!    ((vm) <sig> ui64tofp VERSION ui64tofp_v1);
 
     // blk entry
-    block!      ((vm, uitofp_v1) blk_entry);
-    ssa!        ((vm, uitofp_v1) <int64> x);
+    block!      ((vm, ui64tofp_v1) blk_entry);
+    ssa!        ((vm, ui64tofp_v1) <int64> x);
 
-    ssa!        ((vm, uitofp_v1) <double> res);
-    inst!       ((vm, uitofp_v1) blk_entry_conv:
+    ssa!        ((vm, ui64tofp_v1) <double> res);
+    inst!       ((vm, ui64tofp_v1) blk_entry_conv:
         res = CONVOP (ConvOp::UITOFP) <int64 double> x
     );
 
-    inst!       ((vm, uitofp_v1) blk_entry_ret:
+    inst!       ((vm, ui64tofp_v1) blk_entry_ret:
         RET (res)
     );
 
-    define_block!((vm, uitofp_v1) blk_entry(x){
+    define_block!((vm, ui64tofp_v1) blk_entry(x){
         blk_entry_conv, blk_entry_ret
     });
 
-    define_func_ver!((vm) uitofp_v1 (entry: blk_entry) {blk_entry});
+    define_func_ver!((vm) ui64tofp_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_ui32tofp() {
+    let lib = testutil::compile_fnc("ui32tofp", &ui32tofp);
+
+    unsafe {
+        let ui32tofp : libloading::Symbol<unsafe extern fn(u32) -> f64> = lib.get(b"ui32tofp").unwrap();
+
+        let res = ui32tofp(0u32);
+        println!("ui32tofp(0) = {}", res);
+        assert!(res == 0f64);
+
+        let res = ui32tofp(1u32);
+        println!("ui32tofp(1) = {}", res);
+        assert!(res == 1f64);
+    }
+}
+
+fn ui32tofp() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int32 = mu_int(32));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (int32) -> (double));
+    funcdecl!   ((vm) <sig> ui32tofp);
+    funcdef!    ((vm) <sig> ui32tofp VERSION ui32tofp_v1);
+
+    // blk entry
+    block!      ((vm, ui32tofp_v1) blk_entry);
+    ssa!        ((vm, ui32tofp_v1) <int32> x);
+
+    ssa!        ((vm, ui32tofp_v1) <double> res);
+    inst!       ((vm, ui32tofp_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::UITOFP) <int32 double> x
+    );
+
+    inst!       ((vm, ui32tofp_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, ui32tofp_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) ui32tofp_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_ui16tofp() {
+    let lib = testutil::compile_fnc("ui16tofp", &ui16tofp);
+
+    unsafe {
+        let ui16tofp : libloading::Symbol<unsafe extern fn(u16) -> f64> = lib.get(b"ui16tofp").unwrap();
+
+        let res = ui16tofp(0u16);
+        println!("ui16tofp(0) = {}", res);
+        assert!(res == 0f64);
+
+        let res = ui16tofp(1u16);
+        println!("ui16tofp(1) = {}", res);
+        assert!(res == 1f64);
+    }
+}
+
+fn ui16tofp() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int16 = mu_int(16));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (int16) -> (double));
+    funcdecl!   ((vm) <sig> ui16tofp);
+    funcdef!    ((vm) <sig> ui16tofp VERSION ui16tofp_v1);
+
+    // blk entry
+    block!      ((vm, ui16tofp_v1) blk_entry);
+    ssa!        ((vm, ui16tofp_v1) <int16> x);
+
+    ssa!        ((vm, ui16tofp_v1) <double> res);
+    inst!       ((vm, ui16tofp_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::UITOFP) <int16 double> x
+    );
+
+    inst!       ((vm, ui16tofp_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, ui16tofp_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) ui16tofp_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_ui8tofp() {
+    let lib = testutil::compile_fnc("ui8tofp", &ui8tofp);
+
+    unsafe {
+        let ui8tofp : libloading::Symbol<unsafe extern fn(u8) -> f64> = lib.get(b"ui8tofp").unwrap();
+
+        let res = ui8tofp(0u8);
+        println!("ui8tofp(0) = {}", res);
+        assert!(res == 0f64);
+
+        let res = ui8tofp(1u8);
+        println!("ui8tofp(1) = {}", res);
+        assert!(res == 1f64);
+    }
+}
+
+fn ui8tofp() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int8 = mu_int(8));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (int8) -> (double));
+    funcdecl!   ((vm) <sig> ui8tofp);
+    funcdef!    ((vm) <sig> ui8tofp VERSION ui8tofp_v1);
+
+    // blk entry
+    block!      ((vm, ui8tofp_v1) blk_entry);
+    ssa!        ((vm, ui8tofp_v1) <int8> x);
+
+    ssa!        ((vm, ui8tofp_v1) <double> res);
+    inst!       ((vm, ui8tofp_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::UITOFP) <int8 double> x
+    );
+
+    inst!       ((vm, ui8tofp_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, ui8tofp_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) ui8tofp_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_fptoui64() {
+    let lib = testutil::compile_fnc("fptoui64", &fptoui64);
+
+    unsafe {
+        let fptoui64 : libloading::Symbol<unsafe extern fn(f64) -> u64> = lib.get(b"fptoui64").unwrap();
+
+        let res = fptoui64(0f64);
+        println!("fptoui64(0) = {}", res);
+        assert!(res == 0u64);
+
+        let res = fptoui64(1f64);
+        println!("fptoui64(1) = {}", res);
+        assert!(res == 1u64);
+    }
+}
+
+fn fptoui64() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (double) -> (int64));
+    funcdecl!   ((vm) <sig> fptoui64);
+    funcdef!    ((vm) <sig> fptoui64 VERSION fptoui64_v1);
+
+    // blk entry
+    block!      ((vm, fptoui64_v1) blk_entry);
+    ssa!        ((vm, fptoui64_v1) <double> x);
+
+    ssa!        ((vm, fptoui64_v1) <int64> res);
+    inst!       ((vm, fptoui64_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::FPTOUI) <double int64> x
+    );
+
+    inst!       ((vm, fptoui64_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, fptoui64_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) fptoui64_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_fptoui32() {
+    let lib = testutil::compile_fnc("fptoui32", &fptoui32);
+
+    unsafe {
+        let fptoui32 : libloading::Symbol<unsafe extern fn(f64) -> u32> = lib.get(b"fptoui32").unwrap();
+
+        let res = fptoui32(0f64);
+        println!("fptoui32(0) = {}", res);
+        assert!(res == 0u32);
+
+        let res = fptoui32(1f64);
+        println!("fptoui32(1) = {}", res);
+        assert!(res == 1u32);
+    }
+}
+
+fn fptoui32() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int32 = mu_int(32));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (double) -> (int32));
+    funcdecl!   ((vm) <sig> fptoui32);
+    funcdef!    ((vm) <sig> fptoui32 VERSION fptoui32_v1);
+
+    // blk entry
+    block!      ((vm, fptoui32_v1) blk_entry);
+    ssa!        ((vm, fptoui32_v1) <double> x);
+
+    ssa!        ((vm, fptoui32_v1) <int32> res);
+    inst!       ((vm, fptoui32_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::FPTOUI) <double int32> x
+    );
+
+    inst!       ((vm, fptoui32_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, fptoui32_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) fptoui32_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_fptoui16() {
+    let lib = testutil::compile_fnc("fptoui16", &fptoui16);
+
+    unsafe {
+        let fptoui16 : libloading::Symbol<unsafe extern fn(f64) -> u16> = lib.get(b"fptoui16").unwrap();
+
+        let res = fptoui16(0f64);
+        println!("fptoui16(0) = {}", res);
+        assert!(res == 0u16);
+
+        let res = fptoui16(1f64);
+        println!("fptoui16(1) = {}", res);
+        assert!(res == 1u16);
+    }
+}
+
+fn fptoui16() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int16 = mu_int(16));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (double) -> (int16));
+    funcdecl!   ((vm) <sig> fptoui16);
+    funcdef!    ((vm) <sig> fptoui16 VERSION fptoui16_v1);
+
+    // blk entry
+    block!      ((vm, fptoui16_v1) blk_entry);
+    ssa!        ((vm, fptoui16_v1) <double> x);
+
+    ssa!        ((vm, fptoui16_v1) <int16> res);
+    inst!       ((vm, fptoui16_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::FPTOUI) <double int16> x
+    );
+
+    inst!       ((vm, fptoui16_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, fptoui16_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) fptoui16_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_fptoui8() {
+    let lib = testutil::compile_fnc("fptoui8", &fptoui8);
+
+    unsafe {
+        let fptoui8 : libloading::Symbol<unsafe extern fn(f64) -> u8> = lib.get(b"fptoui8").unwrap();
+
+        let res = fptoui8(0f64);
+        println!("fptoui8(0) = {}", res);
+        assert!(res == 0u8);
+
+        let res = fptoui8(1f64);
+        println!("fptoui8(1) = {}", res);
+        assert!(res == 1u8);
+    }
+}
+
+fn fptoui8() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int8 = mu_int(8));
+    typedef!    ((vm) double = mu_double);
+
+    funcsig!    ((vm) sig = (double) -> (int8));
+    funcdecl!   ((vm) <sig> fptoui8);
+    funcdef!    ((vm) <sig> fptoui8 VERSION fptoui8_v1);
+
+    // blk entry
+    block!      ((vm, fptoui8_v1) blk_entry);
+    ssa!        ((vm, fptoui8_v1) <double> x);
+
+    ssa!        ((vm, fptoui8_v1) <int8> res);
+    inst!       ((vm, fptoui8_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::FPTOUI) <double int8> x
+    );
+
+    inst!       ((vm, fptoui8_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, fptoui8_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) fptoui8_v1 (entry: blk_entry) {blk_entry});
 
     vm
 }

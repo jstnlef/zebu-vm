@@ -184,6 +184,7 @@ pub trait CodeGenerator {
     // fp conversion
     fn emit_cvtsi2sd_f64_r  (&mut self, dest: Reg, src: Reg);
     fn emit_cvtsd2si_r_f64  (&mut self, dest: Reg, src: Reg);
+    fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg);
 
     // used for unsigned int to fp conversion
 
@@ -193,4 +194,8 @@ pub trait CodeGenerator {
     fn emit_subpd_f64_mem128   (&mut self, dest: Reg, src: Mem);
     // packed double-fp horizontal add
     fn emit_haddpd_f64_f64     (&mut self, dest: Reg, src: Reg);
+
+    // move aligned packed double-precision fp values
+    fn emit_movapd_f64_mem128(&mut self, dest: Reg, src: Mem);
+    fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Mem);
 }

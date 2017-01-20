@@ -76,6 +76,12 @@ lazy_static! {
             })
         ]))
     });
+
+    pub static ref FPTOUI_C : P<Value> = P(Value{
+        hdr: MuEntityHeader::named(new_internal_id(), Mu("FPTOUI_C")),
+        ty : UINT64_TYPE.clone(),
+        v  : Value_::Constant(Constant::Int(4890909195324358656u64))
+    });
 }
 
 pub struct InstructionSelection {
@@ -1239,20 +1245,104 @@ impl <'a> InstructionSelection {
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                                    // movd/movq op -> res
-                                    self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
+                                    let op_ty_size = vm.get_backend_type_info(tmp_op.ty.id()).size;
 
-                                    // punpckldq UITOFP_C0, tmp_res -> tmp_res
-                                    // (interleaving low bytes: xmm = xmm[0] mem[0] xmm[1] mem[1]
-                                    let mem_c0 = self.get_mem_for_const(UITOFP_C0.clone(), vm);
-                                    self.backend.emit_punpckldq_f64_mem128(&tmp_res, &mem_c0);
+                                    match op_ty_size {
+                                        8 => {
+                                            // movd/movq op -> res
+                                            self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
 
-                                    // subpd UITOFP_C1, tmp_res -> tmp_res
-                                    let mem_c1 = self.get_mem_for_const(UITOFP_C1.clone(), vm);
-                                    self.backend.emit_subpd_f64_mem128(&tmp_res, &mem_c1);
+                                            // punpckldq UITOFP_C0, tmp_res -> tmp_res
+                                            // (interleaving low bytes: xmm = xmm[0] mem[0] xmm[1] mem[1]
+                                            let mem_c0 = self.get_mem_for_const(UITOFP_C0.clone(), vm);
+                                            self.backend.emit_punpckldq_f64_mem128(&tmp_res, &mem_c0);
 
-                                    // haddpd tmp_res, tmp_res -> tmp_res
-                                    self.backend.emit_haddpd_f64_f64(&tmp_res, &tmp_res);
+                                            // subpd UITOFP_C1, tmp_res -> tmp_res
+                                            let mem_c1 = self.get_mem_for_const(UITOFP_C1.clone(), vm);
+                                            self.backend.emit_subpd_f64_mem128(&tmp_res, &mem_c1);
+
+                                            // haddpd tmp_res, tmp_res -> tmp_res
+                                            self.backend.emit_haddpd_f64_f64(&tmp_res, &tmp_res);
+                                        }
+                                        4 => {
+                                            let tmp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                                            // movl op -> tmp(32)
+                                            let tmp32 = unsafe {tmp.as_type(UINT32_TYPE.clone())};
+                                            self.backend.emit_mov_r_r(&tmp32, &tmp_op);
+
+                                            // cvtsi2sd %tmp(64) -> %tmp_res
+                                            self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp);
+                                        }
+                                        2 | 1 => {
+                                            let tmp_op32 = unsafe {tmp_op.as_type(UINT32_TYPE.clone())};
+                                            self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
+                                        }
+                                        _ => panic!("not implemented int length {}", op_ty_size)
+                                    }
+                                } else {
+                                    panic!("unexpected op (expected ireg): {}", op)
+                                }
+                            }
+                            op::ConvOp::FPTOUI => {
+                                let tmp_res = self.get_result_value(node);
+
+                                let res_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
+
+                                if self.match_fpreg(op) {
+                                    let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+
+                                    match res_ty_size {
+                                        8 => {
+                                            let tmp1 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
+                                            let tmp2 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
+
+                                            // movsd FPTOUI_C -> %tmp1
+                                            let mem_c = self.get_mem_for_const(FPTOUI_C.clone(), vm);
+                                            self.backend.emit_movsd_f64_mem64(&tmp1, &mem_c);
+
+                                            // movapd %tmp_op -> %tmp2
+                                            self.backend.emit_movapd_f64_f64(&tmp2, &tmp_op);
+
+                                            // subsd %tmp1, %tmp2 -> %tmp2
+                                            self.backend.emit_subsd_f64_f64(&tmp2, &tmp1);
+
+                                            // cvttsd2si %tmp2 -> %tmp_res
+                                            self.backend.emit_cvttsd2si_r_f64(&tmp_res, &tmp2);
+
+                                            let tmp_const = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                            // mov 0x8000000000000000 -> %tmp_const
+                                            self.backend.emit_mov_r64_imm64(&tmp_const, -9223372036854775808i64);
+
+                                            // xor %tmp_res, %tmp_const -> %tmp_const
+                                            self.backend.emit_xor_r_r(&tmp_const, &tmp_res);
+
+                                            // cvttsd2si %tmp_op -> %tmp_res
+                                            self.backend.emit_cvttsd2si_r_f64(&tmp_res, &tmp_op);
+
+                                            // ucomisd %tmp_op %tmp1
+                                            self.backend.emit_ucomisd_f64_f64(&tmp1, &tmp_op);
+
+                                            // cmovaeq %tmp_const -> %tmp_res
+                                            self.backend.emit_cmovae_r_r(&tmp_res, &tmp_const);
+                                        }
+                                        4 => {
+                                            let tmp_res64 = unsafe {tmp_res.as_type(UINT64_TYPE.clone())};
+
+                                            // cvttsd2si %tmp_op -> %tmp_res(64)
+                                            self.backend.emit_cvttsd2si_r_f64(&tmp_res64, &tmp_op);
+                                        }
+                                        2 | 1 => {
+                                            let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
+
+                                            // cvttsd2si %tmp_op -> %tmp_res(32)
+                                            self.backend.emit_cvttsd2si_r_f64(&tmp_res32, &tmp_op);
+
+                                            // movz %tmp_res -> %tmp_res(32)
+                                            self.backend.emit_movz_r_r(&tmp_res32, &tmp_res);
+                                        }
+                                        _ => panic!("not implemented int length {}", res_ty_size)
+                                    }
                                 } else {
                                     panic!("unexpected op (expected ireg): {}", op)
                                 }

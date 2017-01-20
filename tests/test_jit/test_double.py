@@ -67,8 +67,6 @@ def test_double_sitofp():
     fnp, _ = fncptr_from_c_script("test_double_sitofp.c", "test_fnc", restype=ctypes.c_double)
     assert fnp() == -42.0
 
-
-@pytest.mark.xfail(reason='not implemented yet')
 @may_spawn_proc
 def test_double_uitofp():
     fnp, _ = fncptr_from_c_script("test_double_uitofp.c", "test_fnc", restype=ctypes.c_double)
@@ -79,8 +77,6 @@ def test_double_fptosi():
     fnp, _ = fncptr_from_c_script("test_double_fptosi.c", "test_fnc", restype=ctypes.c_int64)
     assert fnp() == -3
 
-
-@pytest.mark.xfail(reason='not implemented yet')
 @may_spawn_proc
 def test_double_fptoui():
     fnp, _ = fncptr_from_c_script("test_double_fptoui.c", "test_fnc", restype=ctypes.c_uint64)

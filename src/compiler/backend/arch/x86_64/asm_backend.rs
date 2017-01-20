@@ -2718,6 +2718,77 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
+
+    // move aligned packed double-precision fp values
+    fn emit_movapd_f64_mem128(&mut self, dest: Reg, src: Mem) {
+        trace!("emit movapd {} -> {}", src, dest);
+
+        let (mem, mut uses) = self.prepare_mem(src,  6 + 1);
+        let (reg, id2, loc2)  = self.prepare_fpreg(dest, 6 + 1 + mem.len() + 1);
+
+        // memory op won't use a fpreg, we insert the use of fpreg
+        uses.insert(id2, vec![loc2.clone()]);
+
+        let asm = format!("movapd {},{}", mem, reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            uses,
+            true
+        )
+    }
+    fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Mem) {
+        trace!("emit movapd {} -> {}", src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src,  6 + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, 6 + 1 + reg1.len() + 1);
+
+        let asm = format!("movapd {},{}", reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            {
+                if id1 == id2 {
+                    linked_hashmap!{id1 => vec![loc1, loc2]}
+                } else {
+                    linked_hashmap!{
+                        id1 => vec![loc1],
+                        id2 => vec![loc2]
+                    }
+                }
+            },
+            false
+        )
+    }
+
+    fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg) {
+        let len = check_op_len(dest);
+
+        let inst = "cvttsd2si".to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src,  inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg  (dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            linked_hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
 }
 
 fn create_emit_directory(vm: &VM) {
@@ -2753,7 +2824,11 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 
     // constants in text section
     file.write("\t.text\n".as_bytes()).unwrap();
-    file.write("\t.align 8\n".as_bytes()).unwrap();
+
+    // FIXME: need a more precise way to determine alignment
+    // (probably use alignment backend info, which require introducing int128 to zebu)
+    write_const_min_align(&mut file);
+
     for (id, constant) in cf.consts.iter() {
         let mem = cf.const_mem.get(id).unwrap();
 
@@ -2766,6 +2841,19 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         Err(why) => panic!("couldn'd write to file {}: {}", file_path.to_str().unwrap(), why),
         Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
     }
+}
+
+// min alignment as 16 byte (written as 4 (2^4) on macos)
+
+#[cfg(target_os = "linux")]
+fn write_const_min_align(f: &mut File) {
+    use std::io::Write;
+    f.write("\t.align 16\n".as_bytes()).unwrap();
+}
+#[cfg(target_os = "macos")]
+fn write_const_min_align(f: &mut File) {
+    use std::io::Write;
+    f.write("\t.align 4\n".as_bytes()).unwrap();
 }
 
 fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
