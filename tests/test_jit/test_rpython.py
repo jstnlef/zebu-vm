@@ -1003,10 +1003,10 @@ def test_make_boot_image_simple():
     t = Translation(pypy_mu_entry, [rffi.INT, rffi.CCHARPP],
                     backend='mu', muimpl='fast', mucodegen='api')
     t.driver.standalone = True  # force standalone
-    t.driver.exe_name = 'test_make_boot_image_%(backend)s'
+    t.driver.exe_name = '/tmp/test_make_boot_image_%(backend)s'
     t.driver.disable(['entrypoint_mu'])
     t.compile_mu()
-    exe = py.path.local('test_make_boot_image_mu.mu')
+    exe = py.path.local('/tmp/test_make_boot_image_mu.mu')
     # zebu
     exe.chmod(stat.S_IRWXU)
     res = platform.execute(str(exe), 'abc', '123')
@@ -1016,6 +1016,36 @@ def test_make_boot_image_simple():
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
+
+@may_spawn_proc
+def test_rpytarget_sha1sum():
+    john1 = \
+'''
+In the beginning was the Word, and the Word was with God, and the Word was God.
+He was in the beginning with God.
+All things were made through him, and without him was not any thing made that was made.
+In him was life, and the life was the light of men.
+The light shines in the darkness, and the darkness has not overcome it.
+'''
+    from rpython.translator.goal.targetsha1sum import entry_point
+    from rpython.translator.interactive import Translation
+    t = Translation(entry_point, None,
+                    backend='mu', muimpl='fast', mucodegen='api')
+    t.driver.standalone = True  # force standalone
+    t.driver.exe_name = '/tmp/test_sha1sum_%(backend)s'
+    t.compile_mu()
+    exe = py.path.local('/tmp/test_sha1sum_mu.mu')
+    test_file = py.path.local('/tmp/john1.txt')
+    with test_file.open('w') as fp:
+        fp.write(john1)
+    # zebu
+    exe.chmod(stat.S_IRWXU)
+    res = platform.execute(str(exe), 'abc', '123')
+    # holstein
+    # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
+    #                      ['--vmLog=ERROR', str(exe), str(test_file)])
+    assert res.returncode == 0, res.err
+    assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'
 
 if __name__ == '__main__':
     import argparse
