@@ -1930,7 +1930,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_SET_THREADLOCAL => {
                 assert!(args.len() == 1);
 
-                let op_ty = self.ensure_type_rec(tys[0]);
                 let op = self.get_treenode(fcb, args[0]);
 
                 Instruction {
