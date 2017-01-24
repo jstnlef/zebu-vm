@@ -1,7 +1,8 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib import rmu_fast as rmu
+from rpython.translator.platform import platform
 from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
-import ctypes
+import ctypes, py, stat
 
 
 # -------------------
@@ -987,6 +988,33 @@ def test_exception_stack_unwind():
     assert fnp(0) == 20
     assert fnp(100) == 10
 
+
+@may_spawn_proc
+def test_make_boot_image_simple():
+    c_printf = rffi.llexternal('printf', [rffi.CCHARP], rffi.INT, _nowrapper=True)
+    c_putchar = rffi.llexternal('putchar', [rffi.CHAR], rffi.INT, _nowrapper=True)
+    def pypy_mu_entry(argc, argv):
+        for i in range(argc):
+            c_printf(argv[i])
+            c_putchar('\n')
+        return 0
+
+    from rpython.translator.interactive import Translation
+    t = Translation(pypy_mu_entry, [rffi.INT, rffi.CCHARPP],
+                    backend='mu', muimpl='fast', mucodegen='api')
+    t.driver.standalone = True  # force standalone
+    t.driver.exe_name = 'test_make_boot_image_%(backend)s'
+    t.driver.disable(['entrypoint_mu'])
+    t.compile_mu()
+    exe = py.path.local('test_make_boot_image_mu.mu')
+    # zebu
+    exe.chmod(stat.S_IRWXU)
+    res = platform.execute(str(exe), 'abc', '123')
+    # holstein
+    # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
+    #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
+    assert res.returncode == 0, res.err
+    assert res.out == '%s\nabc\n123\n' % exe
 
 
 if __name__ == '__main__':
