@@ -2918,50 +2918,28 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
     }
 }
 
-pub fn emit_context(vm: &VM) {
+pub fn emit_context_with_reloc(vm: &VM,
+                               symbols: HashMap<Address, String>,
+                               fields : HashMap<Address, String>) {
     use std::path;
     use std::io::prelude::*;
     use rustc_serialize::json;
-    
+
     debug!("---Emit VM Context---");
     create_emit_directory(vm);
-    
+
     let mut file_path = path::PathBuf::new();
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
     file_path.push(AOT_EMIT_CONTEXT_FILE);
-    
+
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create context file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     };
-    
+
     // bss
     file.write_fmt(format_args!("\t.bss\n")).unwrap();
 
-    {
-        // put globals into bss section
-//        let globals = vm.globals().read().unwrap();
-//        for global in globals.values() {
-//            debug!("emit global: {}", global);
-//            let (size, align) = {
-//                let alloc_ty = {
-//                    match global.v {
-//                        Value_::Global(ref ty) => ty,
-//                        _ => panic!("expected a global")
-//                    }
-//                };
-//
-//                debug!("getting type: {:?}", alloc_ty);
-//                let ty_info = vm.get_backend_type_info(alloc_ty.id());
-//                (ty_info.size, ty_info.alignment)
-//            };
-//
-//            file.write_fmt(format_args!("\t{}\n", directive_globl(symbol(global.name().unwrap())))).unwrap();
-//            file.write_fmt(format_args!("\t{}\n", directive_comm(symbol(global.name().unwrap()), size, align))).unwrap();
-//            file.write("\n".as_bytes()).unwrap();
-//        }
-    }
-    
     // data
     file.write("\t.data\n".as_bytes()).unwrap();
 
@@ -2985,11 +2963,16 @@ pub fn emit_context(vm: &VM) {
         // dump heap from globals
         let global_addrs : Vec<Address> = global_locs_lock.values().map(|x| x.to_address()).collect();
         debug!("going to dump these globals: {:?}", global_addrs);
-        let global_dump = mm::persist_heap(global_addrs);
+        let mut global_dump = mm::persist_heap(global_addrs);
         debug!("Heap Dump from GC: {:?}", global_dump);
 
         let ref objects          = global_dump.objects;
-        let ref relocatable_refs = global_dump.relocatable_refs;
+        let ref mut relocatable_refs = global_dump.relocatable_refs;
+
+        // merge symbols with relocatable_refs
+        for (addr, str) in symbols {
+            relocatable_refs.insert(addr, str);
+        }
 
         for obj_dump in objects.values() {
             // .bytes xx,xx,xx,xx (between mem_start to reference_addr)
@@ -3008,37 +2991,50 @@ pub fn emit_context(vm: &VM) {
             }
 
             // dump_label:
-            let dump_label = symbol(global_dump.relocatable_refs.get(&obj_dump.reference_addr).unwrap().clone());
+            let dump_label = symbol(relocatable_refs.get(&obj_dump.reference_addr).unwrap().clone());
             file.write_fmt(format_args!("{}:\n", dump_label)).unwrap();
 
             let base = obj_dump.reference_addr;
-            let mut cursor = obj_dump.reference_addr;
-            for ref_offset in obj_dump.reference_offsets.iter() {
-                let cur_ref_addr = base.plus(*ref_offset);
+            let end  = obj_dump.mem_start.plus(obj_dump.mem_size);
+            assert!(base.is_aligned_to(POINTER_SIZE));
 
-                if cursor < cur_ref_addr {
-                    // write all non-ref data
-                    write_data_bytes(&mut file, cursor, cur_ref_addr);
-                }
+            let mut offset = 0;
 
-                // write ref with label
-                let load_ref = unsafe {cur_ref_addr.load::<Address>()};
-                if load_ref.is_zero() {
-                    file.write("\t.quad 0\n".as_bytes()).unwrap();
-                } else {
-                    let label = match global_dump.relocatable_refs.get(&load_ref) {
-                        Some(label) => label,
-                        None => panic!("cannot find label for address {}, it is not dumped by GC (why GC didn't trace to it)", load_ref)
-                    };
+            while offset < obj_dump.mem_size {
+                let cur_addr = base.plus(offset);
+
+                if obj_dump.reference_offsets.contains(&offset) {
+                    // write ref with label
+                    let load_ref = unsafe {cur_addr.load::<Address>()};
+                    if load_ref.is_zero() {
+                        // write 0
+                        file.write("\t.quad 0\n".as_bytes()).unwrap();
+                    } else {
+                        let label = match relocatable_refs.get(&load_ref) {
+                            Some(label) => label,
+                            None => panic!("cannot find label for address {}, it is not dumped by GC (why GC didn't trace to it)", load_ref)
+                        };
+
+                        file.write_fmt(format_args!("\t.quad {}\n", symbol(label.clone()))).unwrap();
+                    }
+                } else if fields.contains_key(&cur_addr) {
+                    // write uptr (or other relocatable value) with label
+                    let label = fields.get(&cur_addr).unwrap();
 
                     file.write_fmt(format_args!("\t.quad {}\n", symbol(label.clone()))).unwrap();
+                } else {
+                    // write plain word (as bytes)
+                    let next_word_addr = cur_addr.plus(POINTER_SIZE);
+
+                    if next_word_addr <= end {
+                        write_data_bytes(&mut file, cur_addr, next_word_addr);
+                    } else {
+                        write_data_bytes(&mut file, cur_addr, end);
+                    }
                 }
 
-                cursor = cur_ref_addr.plus(POINTER_SIZE);
+                offset += POINTER_SIZE;
             }
-
-            // write whatever is after the last ref
-            write_data_bytes(&mut file, cursor, obj_dump.mem_start.plus(obj_dump.mem_size));
         }
     }
 
@@ -3046,21 +3042,25 @@ pub fn emit_context(vm: &VM) {
     trace!("start serializing vm");
     {
         let serialize_vm = json::encode(&vm).unwrap();
-        
+
         let vm_symbol = symbol("vm".to_string());
         file.write_fmt(format_args!("{}\n", directive_globl(vm_symbol.clone()))).unwrap();
         let escape_serialize_vm = serialize_vm.replace("\"", "\\\"");
         file.write_fmt(format_args!("\t{}: .asciz \"{}\"", vm_symbol, escape_serialize_vm)).unwrap();
         file.write("\n".as_bytes()).unwrap();
     }
-    
+
     // main_thread
-//    let primordial = vm.primordial.read().unwrap();
-//    if primordial.is_some() {
-//        let primordial = primordial.as_ref().unwrap();
-//    }
-    
+    //    let primordial = vm.primordial.read().unwrap();
+    //    if primordial.is_some() {
+    //        let primordial = primordial.as_ref().unwrap();
+    //    }
+
     debug!("---finish---");
+}
+
+pub fn emit_context(vm: &VM) {
+    emit_context_with_reloc(vm, hashmap!{}, hashmap!{});
 }
 
 fn write_data_bytes(f: &mut File, from: Address, to: Address) {

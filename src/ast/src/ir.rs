@@ -1046,7 +1046,7 @@ impl MuEntityHeader {
         *name_guard = Some(MuEntityHeader::name_check(name));
     }
 
-    fn name_check(name: MuName) -> MuName {
+    pub fn name_check(name: MuName) -> MuName {
         if name.starts_with("@") || name.starts_with("%") {
             let (_, name) = name.split_at(1);
 

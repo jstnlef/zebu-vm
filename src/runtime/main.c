@@ -5,15 +5,8 @@
 
 extern void* vm;
 extern void mu_main(char*, int, char**);
-extern void mu_trace_level_log();
 
 int main(int argc, char** argv) {
-    mu_trace_level_log();
-
-    printf("main(), going to launch mu_main()\n");
     char* serialize_vm = (char*) &vm;
-
-    printf("%s\n", serialize_vm);
-
     mu_main(serialize_vm, argc, argv);
 }

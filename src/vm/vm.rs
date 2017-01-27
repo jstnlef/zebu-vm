@@ -22,7 +22,6 @@ use vm::vm_options::MuLogLevel;
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use log::LogLevel;
 use std::sync::Arc;
-use std::path;
 use std::sync::RwLock;
 use std::sync::RwLockWriteGuard;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
@@ -944,45 +943,99 @@ impl <'a> VM {
     }
     
     #[allow(unused_variables)]
-    pub fn make_boot_image(&mut self,
+    pub fn make_boot_image(&self,
                            whitelist: Vec<MuID>,
                            primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>,
                            primordial_threadlocal: Option<&APIHandle>,
                            sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>,
                            reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>,
                            output_file: String) {
-        use rustc_serialize::json;
+        trace!("Making boot image...");
 
-        let compiler = Compiler::new(CompilerPolicy::default(), self);
-        let funcs = self.funcs().write().unwrap();
-        let func_vers = self.func_vers().write().unwrap();
+        let whitelist_funcs = {
+            let compiler = Compiler::new(CompilerPolicy::default(), self);
+            let funcs = self.funcs().read().unwrap();
+            let func_vers = self.func_vers().read().unwrap();
 
-        // make sure all functions in whitelist are compiled
-        for &id in whitelist.iter() {
-            if let Some(f) = funcs.get(&id) {
-                let f : &MuFunction = &f.read().unwrap();
-                match f.cur_ver {
-                    Some(fv_id) => {
-                        let mut func_ver = func_vers.get(&fv_id).unwrap().write().unwrap();
+            // make sure all functions in whitelist are compiled
+            let mut whitelist_funcs: Vec<MuID> = vec![];
+            for &id in whitelist.iter() {
+                if let Some(f) = funcs.get(&id) {
+                    whitelist_funcs.push(id);
 
-                        if !func_ver.is_compiled() {
-                            compiler.compile(&mut func_ver);
+                    let f: &MuFunction = &f.read().unwrap();
+                    match f.cur_ver {
+                        Some(fv_id) => {
+                            let mut func_ver = func_vers.get(&fv_id).unwrap().write().unwrap();
+
+                            if !func_ver.is_compiled() {
+                                compiler.compile(&mut func_ver);
+                            }
                         }
+                        None => panic!("whitelist function {} has no version defined", f)
                     }
-                    None => panic!("whitelist function {} has no version defined", f)
                 }
             }
+
+            whitelist_funcs
+        };
+
+        if primordial_threadlocal.is_some() {
+            // we are going to need to persist this threadlocal
+            unimplemented!()
         }
 
         // make sure only one of primordial_func or primoridial_stack is set
+        let has_primordial_func  = primordial_func.is_some();
+        let has_primordial_stack = primordial_stack.is_some();
         assert!(
-            (primordial_func.is_some() && primordial_stack.is_none())
-            || (primordial_func.is_none() && primordial_stack.is_some())
+            // do not have promordial stack/func
+            (!has_primordial_func && !has_primordial_stack)
+            // have either stack or func
+            || ((has_primordial_func && !has_primordial_stack) || (!has_primordial_func && has_primordial_stack))
         );
-        
-        let serialized = json::encode(self).unwrap();
-        
-        unimplemented!() 
+
+        // we assume client will start with a function (instead of a stack)
+        if has_primordial_stack {
+            unimplemented!()
+        } else {
+            // extract func id
+            let func_id = primordial_func.unwrap().v.as_func();
+
+            // make primordial thread in vm
+            self.make_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
+
+            // emit context (serialized vm, etc)
+            backend::emit_context(self);
+
+            // link
+            self.link_boot_image(whitelist_funcs, output_file);
+        }
+    }
+
+    #[cfg(feature = "aot")]
+    fn link_boot_image(&self, funcs: Vec<MuID>, output_file: String) {
+        use testutil;
+
+        trace!("Linking boot image...");
+
+        let func_names = {
+            let funcs_guard = self.funcs().read().unwrap();
+            funcs.iter().map(|x| funcs_guard.get(x).unwrap().read().unwrap().name().unwrap()).collect()
+        };
+
+        trace!("functions: {:?}", func_names);
+        trace!("output   : {}", output_file);
+
+        if output_file.ends_with("dylib") || output_file.ends_with("so") {
+            // compile as dynamic library
+            testutil::aot::link_dylib(func_names, &output_file, self);
+        } else {
+            // compile as executable
+            testutil::aot::link_primordial(func_names, &output_file, self);
+        }
+
+        trace!("Done!");
     }
 
     // -- API ---
@@ -1194,6 +1247,15 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::UPtr(ty, addr)
+        })
+    }
+
+    pub fn handle_from_func(&self, id: MuID) -> APIHandleResult {
+        let handle_id = self.next_id();
+
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Func(id)
         })
     }
 

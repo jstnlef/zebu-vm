@@ -102,15 +102,27 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(get_path_for_mu_context(vm));
 
         // copy primoridal entry
-        let source   = PathBuf::from(runtime::PRIMORDIAL_ENTRY);
-        let mut dest = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
-        dest.push("main.c");
+        let source   = get_path_under_mu(runtime::PRIMORDIAL_ENTRY);
+        let dest = {
+            let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+            ret.push("main.c");
+
+            ret
+        };
+
+        trace!("copying from {:?} to {:?}", source, dest);
         fs::copy(source.as_path(), dest.as_path()).unwrap();
+
         // include the primordial C main
         ret.push(dest);
 
         // include mu static lib
-        let libmu = PathBuf::from("target/debug/libmu.a");
+        let libmu_path = if cfg!(debug_assertions) {
+            "target/debug/libmu.a"
+        } else {
+            "target/release/libmu.a"
+        };
+        let libmu = get_path_under_mu(libmu_path);
         ret.push(libmu);
 
         ret

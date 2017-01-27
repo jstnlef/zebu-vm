@@ -1976,7 +1976,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::CommonInst_Unpin(0)
                 }
             }
-
+            CMU_CI_UVM_THREAD_EXIT => {
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: RwLock::new(vec![]),
+                    v: Instruction_::ThreadExit
+                }
+            }
             _ => unimplemented!()
         }
     }

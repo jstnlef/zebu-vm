@@ -48,7 +48,7 @@ pub enum APIHandleValue {
 
     // GenRef->IR->Child->Var->Global
     Global(MuID),
-    Func,
+    Func(MuID),
     ExpFunc,
 
     // GenRef->IR->Child->Var->Local
@@ -112,6 +112,13 @@ impl APIHandleValue {
         match self {
             &APIHandleValue::UFP(ref ty, addr) => (ty.clone(), addr),
             _ => panic!("expected UFP handle")
+        }
+    }
+
+    pub fn as_func(&self) -> MuID {
+        match self {
+            &APIHandleValue::Func(id) => id,
+            _ => panic!("expected FuncRef")
         }
     }
 }

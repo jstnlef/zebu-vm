@@ -79,7 +79,6 @@ impl<K, V> Decodable for LinkedHashMap<K, V>
             for i in 0..len {
                 let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
                 let val = try!(d.read_map_elt_val(i, |d| Decodable::decode(d)));
-                println!("insert {}", i);
                 map.insert(key, val);
             }
             Ok(map)

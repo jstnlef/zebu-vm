@@ -989,7 +989,6 @@ def test_exception_stack_unwind():
     assert fnp(100) == 10
 
 
-@pytest.mark.xfail(reason='not implemented yet')
 @may_spawn_proc
 def test_make_boot_image_simple():
     c_printf = rffi.llexternal('printf', [rffi.CCHARP], rffi.INT, _nowrapper=True)

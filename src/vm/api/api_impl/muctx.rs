@@ -168,7 +168,7 @@ impl MuCtx {
     }
 
     pub fn handle_from_func(&mut self, id: MuID) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_from_func(id))
     }
 
     pub fn handle_from_expose(&mut self, id: MuID) -> *const APIHandle {
@@ -406,7 +406,7 @@ impl MuCtx {
     }
 
     pub fn make_boot_image(&mut self, whitelist: Vec<MuID>, primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>, primordial_threadlocal: Option<&APIHandle>, sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>, reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>, output_file: String) {
-        panic!("Not implemented")
+        self.get_mvm().vm.make_boot_image(whitelist, primordial_func, primordial_stack, primordial_threadlocal, sym_fields, sym_strings, reloc_fields, reloc_strings, output_file);
     }
 
 }

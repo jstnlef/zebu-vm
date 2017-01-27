@@ -47,7 +47,7 @@ impl Address {
     pub fn align_up(&self, align: usize) -> Address {
         Address((self.0 + align - 1) & !(align - 1))
     }
-    
+
     pub fn is_aligned_to(&self, align: usize) -> bool {
         self.0 % align == 0
     }

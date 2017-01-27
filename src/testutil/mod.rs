@@ -5,6 +5,7 @@ use ast::ir::*;
 use vm::*;
 use std::sync::Arc;
 
+use std::path::PathBuf;
 use std::process::Command;
 use std::process::Output;
 use std::os::unix::process::ExitStatusExt;
@@ -46,6 +47,20 @@ pub fn exec_nocheck (mut cmd: Command) -> Output {
     }
 
     output
+}
+
+pub fn get_path_under_mu(str: &'static str) -> PathBuf {
+    use std::env;
+
+    match env::var("MU_RUST") {
+        Ok(v) => {
+            let mut ret = PathBuf::from(v);
+            ret.push(str);
+
+            ret
+        }
+        Err(_) => PathBuf::from(str)
+    }
 }
 
 #[cfg(target_os = "macos")]

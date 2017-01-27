@@ -2,9 +2,7 @@ extern crate hprof;
 
 use ast::ir::*;
 use vm::VM;
-
 use std::cell::RefCell;
-use std::sync::Arc;
 
 pub mod passes;
 pub mod backend;
