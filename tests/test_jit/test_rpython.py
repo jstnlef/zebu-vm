@@ -3,7 +3,7 @@ from rpython.rlib import rmu_fast as rmu
 from rpython.translator.platform import platform
 from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
 import ctypes, py, stat
-
+import pytest
 
 # -------------------
 # helper functions
@@ -989,6 +989,7 @@ def test_exception_stack_unwind():
     assert fnp(100) == 10
 
 
+@pytest.mark.xfail(reason='not implemented yet')
 @may_spawn_proc
 def test_make_boot_image_simple():
     c_printf = rffi.llexternal('printf', [rffi.CCHARP], rffi.INT, _nowrapper=True)
@@ -1017,6 +1018,7 @@ def test_make_boot_image_simple():
     assert res.out == '%s\nabc\n123\n' % exe
 
 
+@pytest.mark.xfail(reason='not implemented yet')
 @may_spawn_proc
 def test_rpytarget_sha1sum():
     john1 = \
