@@ -13,13 +13,13 @@ pub mod machine_code;
 
 pub use compiler::passes::CompilerPass;
 
-pub struct Compiler {
+pub struct Compiler<'vm> {
     policy: RefCell<CompilerPolicy>,
-    vm: Arc<VM>
+    vm: &'vm VM
 }
 
-impl Compiler {
-    pub fn new(policy: CompilerPolicy, vm: Arc<VM>) -> Compiler {
+impl <'vm> Compiler<'vm> {
+    pub fn new(policy: CompilerPolicy, vm: &VM) -> Compiler {
         Compiler{
             policy: RefCell::new(policy),
             vm: vm
@@ -37,13 +37,15 @@ impl Compiler {
         for pass in passes.iter_mut() {
             let _p = hprof::enter(pass.name());
 
-            pass.execute(&self.vm, func);
+            pass.execute(self.vm, func);
 
             drop(_p);
         }
 
         drop(_p);
         hprof::profiler().print_timing();
+
+        func.set_compiled();
     }
 
     pub fn get_policy(&self) -> &RefCell<CompilerPolicy> {

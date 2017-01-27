@@ -62,7 +62,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
     VM::start_logging_trace();
 
     let vm = Arc::new(build_fnc());
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     let func_id = vm.id_of(fnc_name);
     {
         let funcs = vm.funcs().read().unwrap();
@@ -81,7 +81,7 @@ pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build
     VM::start_logging_trace();
 
     let vm = Arc::new(build_fnc());
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     for func in fnc_names.iter() {
         let func_id = vm.id_of(func);

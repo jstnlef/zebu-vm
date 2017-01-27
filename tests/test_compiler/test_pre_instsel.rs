@@ -15,7 +15,7 @@ fn test_use_count() {
     let vm = Arc::new(factorial());
     let compiler = Compiler::new(CompilerPolicy::new(
         vec![Box::new(passes::DefUse::new())]
-    ), vm.clone());
+    ), &vm);
     
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
@@ -42,7 +42,7 @@ fn test_build_tree() {
     let compiler = Compiler::new(CompilerPolicy::new(
         vec![Box::new(passes::DefUse::new()),
              Box::new(passes::TreeGen::new())]
-    ), vm.clone());
+    ), &vm);
     
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
@@ -116,7 +116,7 @@ fn test_cfa_factorial() {
             Box::new(passes::TreeGen::new()),
             Box::new(passes::GenMovPhi::new()),
             Box::new(passes::ControlFlowAnalysis::new())
-    ]), vm.clone());
+    ]), &vm);
     
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
@@ -162,7 +162,7 @@ fn test_cfa_sum() {
             Box::new(passes::TreeGen::new()),
             Box::new(passes::GenMovPhi::new()),
             Box::new(passes::ControlFlowAnalysis::new())
-    ]), vm.clone());
+    ]), &vm);
     
     let func_id = vm.id_of("sum");
     let funcs = vm.funcs().read().unwrap();
@@ -228,7 +228,7 @@ fn test_trace_factorial() {
             Box::new(passes::GenMovPhi::new()),
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new())
-    ]), vm.clone());
+    ]), &vm);
     
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
@@ -255,7 +255,7 @@ fn test_trace_sum() {
             Box::new(passes::GenMovPhi::new()),
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new())
-    ]), vm.clone());
+    ]), &vm);
     
     let func_id = vm.id_of("sum");
     let funcs = vm.funcs().read().unwrap();

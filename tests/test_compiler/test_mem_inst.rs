@@ -18,7 +18,7 @@ fn test_struct() {
 
     let vm = Arc::new(struct_insts_macro());
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_id = vm.id_of("struct_insts");
     {
@@ -30,7 +30,7 @@ fn test_struct() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["struct_insts".to_string()], "struct_insts_test", &vm);
@@ -392,7 +392,7 @@ fn test_hybrid_fix_part() {
 
     let vm = Arc::new(hybrid_fix_part_insts());
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_id = vm.id_of("hybrid_fix_part_insts");
     {
@@ -404,7 +404,7 @@ fn test_hybrid_fix_part() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["hybrid_fix_part_insts".to_string()], "hybrid_fix_part_insts_test", &vm);
@@ -672,7 +672,7 @@ fn test_hybrid_var_part() {
 
     let vm = Arc::new(hybrid_var_part_insts());
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_id = vm.id_of("hybrid_var_part_insts");
     {
@@ -684,7 +684,7 @@ fn test_hybrid_var_part() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["hybrid_var_part_insts".to_string()], "hybrid_var_part_insts_test", &vm);

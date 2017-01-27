@@ -5,6 +5,7 @@ use ast::ir::*;
 use ast::inst::*;
 use ast::types;
 use ast::types::*;
+use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use compiler::machine_code::CompiledFunction;
@@ -937,16 +938,49 @@ impl <'a> VM {
         Box::new(MuStack::new(self.next_id(), self.resolve_function_address(func_id), func))
     }
     
-    pub fn make_primordial_thread(&self, func_id: MuID, args: Vec<Constant>) {
+    pub fn make_primordial_thread(&self, func_id: MuID, has_const_args: bool, args: Vec<Constant>) {
         let mut guard = self.primordial.write().unwrap();
-        *guard = Some(MuPrimordialThread{func_id: func_id, args: args});
+        *guard = Some(MuPrimordialThread{func_id: func_id, has_const_args: has_const_args, args: args});
     }
     
     #[allow(unused_variables)]
-    pub fn make_boot_image(self, output: &path::Path) {
+    pub fn make_boot_image(&mut self,
+                           whitelist: Vec<MuID>,
+                           primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>,
+                           primordial_threadlocal: Option<&APIHandle>,
+                           sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>,
+                           reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>,
+                           output_file: String) {
         use rustc_serialize::json;
+
+        let compiler = Compiler::new(CompilerPolicy::default(), self);
+        let funcs = self.funcs().write().unwrap();
+        let func_vers = self.func_vers().write().unwrap();
+
+        // make sure all functions in whitelist are compiled
+        for &id in whitelist.iter() {
+            if let Some(f) = funcs.get(&id) {
+                let f : &MuFunction = &f.read().unwrap();
+                match f.cur_ver {
+                    Some(fv_id) => {
+                        let mut func_ver = func_vers.get(&fv_id).unwrap().write().unwrap();
+
+                        if !func_ver.is_compiled() {
+                            compiler.compile(&mut func_ver);
+                        }
+                    }
+                    None => panic!("whitelist function {} has no version defined", f)
+                }
+            }
+        }
+
+        // make sure only one of primordial_func or primoridial_stack is set
+        assert!(
+            (primordial_func.is_some() && primordial_stack.is_none())
+            || (primordial_func.is_none() && primordial_stack.is_some())
+        );
         
-        let serialized = json::encode(&self).unwrap();
+        let serialized = json::encode(self).unwrap();
         
         unimplemented!() 
     }

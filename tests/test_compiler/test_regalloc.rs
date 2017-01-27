@@ -44,7 +44,7 @@ fn test_ir_liveness_fac() {
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new()),
             Box::new(backend::inst_sel::InstructionSelection::new()),
-    ]), vm.clone());
+    ]), &vm);
     
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();
@@ -96,7 +96,7 @@ fn test_spill1() {
     
     let vm = Arc::new(create_spill1());
     
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     
     let func_id = vm.id_of("spill1");
     {
@@ -298,7 +298,7 @@ fn test_simple_spill() {
 
     let vm = Arc::new(create_simple_spill());
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_id = vm.id_of("simple_spill");
     {
@@ -591,7 +591,7 @@ fn test_coalesce_branch_moves() {
 
     let vm = Arc::new(coalesce_branch_moves());
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_id = vm.id_of("coalesce_branch_moves");
     {
@@ -659,7 +659,7 @@ fn test_coalesce_args() {
 
     let vm = Arc::new(coalesce_args());
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_id = vm.id_of("coalesce_args");
     {
@@ -719,7 +719,7 @@ fn test_coalesce_branch2_moves() {
 
     let vm = Arc::new(coalesce_branch2_moves());
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_id = vm.id_of("coalesce_branch2_moves");
     {

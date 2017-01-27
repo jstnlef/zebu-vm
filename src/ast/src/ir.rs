@@ -109,6 +109,7 @@ pub struct MuFunctionVersion {
     orig_content: Option<FunctionContent>,
     pub content: Option<FunctionContent>,
     is_defined: bool,
+    is_compiled: bool,
 
     pub context: FunctionContext,
 
@@ -150,6 +151,7 @@ impl MuFunctionVersion {
             orig_content: None,
             content: None,
             is_defined: false,
+            is_compiled: false,
             context: FunctionContext::new(),
             block_trace: None,
             force_inline: false
@@ -164,6 +166,7 @@ impl MuFunctionVersion {
             orig_content: Some(content.clone()),
             content: Some(content),
             is_defined: true,
+            is_compiled: false,
             context: context,
             block_trace: None,
             force_inline: false
@@ -182,6 +185,13 @@ impl MuFunctionVersion {
         self.is_defined = true;
         self.orig_content = Some(content.clone());
         self.content = Some(content);
+    }
+
+    pub fn is_compiled(&self) -> bool {
+        self.is_compiled
+    }
+    pub fn set_compiled(&mut self) {
+        self.is_compiled = true;
     }
 
     pub fn new_ssa(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {

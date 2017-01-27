@@ -16,7 +16,7 @@ fn test_ccall_exit() {
 
     let vm = Arc::new(ccall_exit());
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_id = vm.id_of("ccall_exit");
     {
@@ -28,7 +28,7 @@ fn test_ccall_exit() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["ccall_exit".to_string()], "ccall_exit_test", &vm);

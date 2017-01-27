@@ -22,7 +22,7 @@ fn test_instruction_new() {
     
     let vm = Arc::new(alloc_new());
     
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     
     let func_id = vm.id_of("alloc_new");
     {
@@ -34,7 +34,7 @@ fn test_instruction_new() {
         compiler.compile(&mut func_ver);
     }
     
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test", &vm);
@@ -52,7 +52,7 @@ fn test_instruction_new_on_cur_thread() {
 
     // compile
     let vm = Arc::new(alloc_new());
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     let func_id = vm.id_of("alloc_new");
     {
         let funcs = vm.funcs().read().unwrap();

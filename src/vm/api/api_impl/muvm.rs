@@ -80,7 +80,7 @@ impl MuVM {
         use compiler::*;
         use testutil::aot;
 
-        let compiler = Compiler::new(CompilerPolicy::default(), self.vm.clone());
+        let compiler = Compiler::new(CompilerPolicy::default(), &self.vm);
         let funcs = self.vm.funcs().read().unwrap();
         let mut func_names = vec![];
         // NOTE: this fails because load() API call is not properly implemented yet.
