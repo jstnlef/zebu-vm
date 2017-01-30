@@ -489,11 +489,19 @@ impl <'a> VM {
     }
 
     fn start_logging_internal(level: LogLevel) {
-        use simple_logger;
+        use stderrlog;
 
-        match simple_logger::init_with_level(level) {
-            Ok(_) => {},
-            Err(_) => {}
+        let verbose = match level {
+            LogLevel::Error => 0,
+            LogLevel::Warn  => 1,
+            LogLevel::Info  => 2,
+            LogLevel::Debug => 3,
+            LogLevel::Trace => 4,
+        };
+
+        match stderrlog::new().verbosity(verbose).init() {
+            Ok(()) => info!("logger initialized"),
+            Err(e) => error!("failed to init logger, probably already initialized: {:?}", e)
         }
     }
     

@@ -3,7 +3,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate rustc_serialize;
-extern crate simple_logger;
+extern crate stderrlog;
 #[macro_use]
 extern crate maplit;
 

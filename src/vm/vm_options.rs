@@ -43,13 +43,13 @@ pub enum MuLogLevel {
 
 impl VMOptions {
     pub fn init(str: &str) -> VMOptions {
-        println!("init vm options with: {:?}", str);
+        info!("init vm options with: {:?}", str);
 
         let ret : VMOptions = Docopt::new(USAGE)
             .and_then(|d| d.argv(str.split_whitespace().into_iter()).parse())
             .unwrap_or_else(|e| e.exit()).decode().unwrap();
 
-        println!("parsed as {:?}", ret);
+        info!("parsed as {:?}", ret);
 
         ret
     }

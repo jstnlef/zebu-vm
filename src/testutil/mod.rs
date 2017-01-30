@@ -31,19 +31,19 @@ pub fn exec (cmd: Command) -> Output {
 }
 
 pub fn exec_nocheck (mut cmd: Command) -> Output {
-    println!("executing: {:?}", cmd);
+    trace!("executing: {:?}", cmd);
     let output = match cmd.output() {
         Ok(res) => res,
         Err(e) => panic!("failed to execute: {}", e)
     };
 
-    println!("---out---");
-    println!("{}", String::from_utf8_lossy(&output.stdout));
-    println!("---err---");
-    println!("{}", String::from_utf8_lossy(&output.stderr));
+    trace!("---out---");
+    trace!("{}", String::from_utf8_lossy(&output.stdout));
+    trace!("---err---");
+    trace!("{}", String::from_utf8_lossy(&output.stderr));
 
     if output.status.signal().is_some() {
-        println!("terminated by a signal: {}", output.status.signal().unwrap());
+        trace!("terminated by a signal: {}", output.status.signal().unwrap());
     }
 
     output
