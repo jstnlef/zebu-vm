@@ -247,9 +247,7 @@ fn build_live_set (cf: &mut CompiledFunction, func: &MuFunctionVersion) {
 
     let mut i = 0;
     while is_changed {
-        if TRACE_BUILD_LIVE_SET {
-            trace!("---iteration {}---", i);
-        }
+        trace!("---iteration {}---", i);
         i += 1;
 
         // reset

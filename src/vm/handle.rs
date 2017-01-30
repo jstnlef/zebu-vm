@@ -5,16 +5,30 @@ use ast::types::*;
 use utils::BitSize;
 use utils::Address;
 
+use std::fmt;
+
 pub type APIHandleResult = Box<APIHandle>;
 pub type APIHandleArg<'a>    = &'a APIHandle;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct APIHandle {
     pub id: MuID,
     pub v: APIHandleValue
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Display for APIHandle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl fmt::Debug for APIHandle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Handle#{}=[{:?}]", self.id, self.v)
+    }
+}
+
+#[derive(Clone)]
 pub enum APIHandleValue {
     Int(u64, BitSize),
     Float(f32),
@@ -55,6 +69,47 @@ pub enum APIHandleValue {
     NorParam,
     ExcParam,
     InstRes,
+}
+
+impl fmt::Display for APIHandleValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl fmt::Debug for APIHandleValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        use self::APIHandleValue::*;
+        match self {
+            &Int(val, len)            => write!(f, "{} as int<{}>", val, len),
+            &Float(val)               => write!(f, "{}", val),
+            &Double(val)              => write!(f, "{}", val),
+            &UPtr(ref ty, addr)           => write!(f, "uptr<{}> to {}", ty, addr),
+            &UFP(ref sig, addr)           => write!(f, "ufp<{}> to {}", sig, addr),
+            &Struct(ref vec)          => write!(f, "struct{{{:?}}}", vec),
+            &Array(ref vec)           => write!(f, "array{{{:?}}}", vec),
+            &Vector(ref vec)          => write!(f, "vector{{{:?}}}", vec),
+            &Ref(ref ty, addr)        => write!(f, "ref<{}> to {}", ty, addr),
+            &IRef(ref ty, addr)       => write!(f, "iref<{}> to {}", ty, addr),
+            &TagRef64(val)            => write!(f, "tagref64 0x{:x}", val),
+            &FuncRef                  => write!(f, "funcref"),
+            &ThreadRef                => write!(f, "threadref"),
+            &StackRef                 => write!(f, "stackref"),
+            &FCRef                    => write!(f, "framecursorref"),
+            &Bundle                   => write!(f, "IR.bundle"),
+            &Type(id)                 => write!(f, "IR.type to #{}", id),
+            &FuncSig(id)              => write!(f, "IR.funcsig to #{}", id),
+            &FuncVer(id)              => write!(f, "IR.funcver to #{}", id),
+            &BB                       => write!(f, "IR.BB"),
+            &Inst                     => write!(f, "IR.inst"),
+            &Global(id)               => write!(f, "IR.global to #{}", id),
+            &Func(id)                 => write!(f, "IR.func to #{}", id),
+            &ExpFunc                  => write!(f, "IR.expfunc"),
+            &NorParam                 => write!(f, "IR.norparam"),
+            &ExcParam                 => write!(f, "IR.excparam"),
+            &InstRes                  => write!(f, "IR.instres")
+        }
+    }
 }
 
 impl APIHandleValue {

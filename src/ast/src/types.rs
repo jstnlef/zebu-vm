@@ -79,6 +79,20 @@ impl MuType {
         }
     }
 
+    pub fn is_ref(&self) -> bool {
+        match self.v {
+            MuType_::Ref(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_iref(&self) -> bool {
+        match self.v {
+            MuType_::IRef(_) => true,
+            _ => false
+        }
+    }
+
     pub fn get_elem_ty(&self) -> Option<P<MuType>> {
         match self.v {
             MuType_::Array(ref elem_ty, _) => Some(elem_ty.clone()),

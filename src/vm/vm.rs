@@ -1072,6 +1072,37 @@ impl <'a> VM {
         })
     }
 
+    pub fn handle_refcast(&self, from_op: APIHandleArg, to_ty: MuID) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let to_ty = self.get_type(to_ty);
+
+        trace!("API: refcast {} into type {}", from_op, to_ty);
+
+        match from_op.v {
+            APIHandleValue::Ref(_, addr) => {
+                assert!(to_ty.is_ref());
+                let inner_ty = to_ty.get_referenced_ty().unwrap();
+
+                self.new_handle(APIHandle {
+                    id: handle_id,
+                    v: APIHandleValue::Ref(inner_ty, addr)
+                })
+            },
+            APIHandleValue::IRef(_, addr) => {
+                assert!(to_ty.is_iref());
+                let inner_ty = to_ty.get_referenced_ty().unwrap();
+
+                self.new_handle(APIHandle {
+                    id: handle_id,
+                    v : APIHandleValue::IRef(inner_ty, addr)
+                })
+            },
+            APIHandleValue::FuncRef => unimplemented!(),
+
+            _ => panic!("unexpected operand for refcast: {:?}", from_op)
+        }
+    }
+
     pub fn handle_get_iref(&self, handle_ref: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = handle_ref.v.as_ref();
 
@@ -1079,12 +1110,15 @@ impl <'a> VM {
         // iref has the same address as ref
 
         trace!("API: get iref from {:?}", handle_ref);
-        trace!("API: result {} {:?}", ty, addr);
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ty, addr)
-        })
+        });
+
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_shift_iref(&self, handle_iref: APIHandleArg, offset: APIHandleArg) -> APIHandleResult {
@@ -1141,6 +1175,8 @@ impl <'a> VM {
     }
 
     pub fn handle_get_field_iref(&self, handle_iref: APIHandleArg, field: usize) -> APIHandleResult {
+        trace!("API: get field iref from {:?}", handle_iref);
+
         let (ty, addr) = handle_iref.v.as_iref();
 
         let field_ty = match ty.get_field_ty(field) {
