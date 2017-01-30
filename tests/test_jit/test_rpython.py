@@ -1025,7 +1025,7 @@ def test_rpytarget_print_argv():
         print argv
         return 0
 
-    t = Translation(main, None, backend='mu', muimpl='ref', mucodegen='api')
+    t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
     t.driver.exe_name = '/tmp/test_printargv_%(backend)s'
     t.compile_mu()
     exe = py.path.local('/tmp/test_printargv_mu.mu')
