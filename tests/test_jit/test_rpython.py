@@ -1009,12 +1009,35 @@ def test_make_boot_image_simple():
     exe = py.path.local('/tmp/test_make_boot_image_mu.mu')
     # zebu
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), 'abc', '123')
+    res = platform.execute(str(exe), ['abc', '123'])
     # holstein
     # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
     #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
+
+
+@may_spawn_proc
+def test_rpytarget_print_argv():
+    from rpython.translator.interactive import Translation
+
+    def main(argv):
+        print argv
+        return 0
+
+    t = Translation(main, None, backend='mu', muimpl='ref', mucodegen='api')
+    t.driver.exe_name = '/tmp/test_printargv_%(backend)s'
+    t.compile_mu()
+    exe = py.path.local('/tmp/test_printargv_mu.mu')
+
+    # zebu
+    exe.chmod(stat.S_IRWXU)
+    res = platform.execute(str(exe), ['abc', '123'])
+    # holstein
+    # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
+    #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
+    assert res.returncode == 0, res.err
+    assert res.out == '[%s, abc, 123]\n' % exe
 
 
 @pytest.mark.xfail(reason='not implemented yet')
@@ -1041,7 +1064,7 @@ The light shines in the darkness, and the darkness has not overcome it.
         fp.write(john1)
     # zebu
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), 'abc', '123')
+    res = platform.execute(str(exe), [str(test_file)])
     # holstein
     # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
     #                      ['--vmLog=ERROR', str(exe), str(test_file)])
