@@ -142,8 +142,8 @@ impl Inlining {
                         let inlined_fv_lock   = inlined_fvs_guard.get(&inlined_fvid).unwrap();
                         let inlined_fv_guard  = inlined_fv_lock.read().unwrap();
 
-                        trace!("QINSOON_DEBUG: orig_content: {:?}", inlined_fv_guard.get_orig_ir().unwrap());
-                        trace!("QINSOON_DEBUG: content     : {:?}", inlined_fv_guard.content.as_ref().unwrap());
+                        trace!("orig_content: {:?}", inlined_fv_guard.get_orig_ir().unwrap());
+                        trace!("content     : {:?}", inlined_fv_guard.content.as_ref().unwrap());
 
                         let new_inlined_entry_id = vm.next_id();
 

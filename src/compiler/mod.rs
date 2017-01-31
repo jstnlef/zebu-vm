@@ -85,6 +85,7 @@ impl Default for CompilerPolicy {
     }
 }
 
+// rewrite parts of the hprof crates to print via log (instead of print!())
 use self::hprof::ProfileNode;
 use std::rc::Rc;
 

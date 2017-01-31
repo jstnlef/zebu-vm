@@ -265,7 +265,7 @@ impl ASMCode {
     }
 
     fn control_flow_analysis(&mut self) {
-        const TRACE_CFA : bool = false;
+        const TRACE_CFA : bool = true;
 
         // control flow analysis
         let n_insts = self.number_of_insts();
@@ -276,6 +276,9 @@ impl ASMCode {
         let block_start = {
             let mut ret = vec![];
             for block in blocks.values() {
+                if TRACE_CFA {
+                    trace!("Block starts at {}", block.start_inst);
+                }
                 ret.push(block.start_inst);
             }
             ret
@@ -285,19 +288,38 @@ impl ASMCode {
             if TRACE_CFA {
                 trace!("---inst {}---", i);
             }
-            // determine predecessor - if cur is not block start, its predecessor is previous insts
-            let is_block_start = block_start.contains(&i);
-            if !is_block_start {
-                if i > 0 {
-                    if TRACE_CFA {
-                        trace!("inst {}: not a block start", i);
-                        trace!("inst {}: set PREDS as previous inst {}", i, i - 1);
+
+            // skip symbol
+            if asm[i].is_symbol {
+                continue;
+            }
+
+            // determine predecessor
+
+            // we check if it is a fallthrough block
+            if i != 0 {
+                let last_inst = ASMCode::find_prev_inst(i, asm);
+
+                match last_inst {
+                    Some(last_inst) => {
+                        let last_inst_branch = asm[last_inst].branch.clone();
+                        match last_inst_branch {
+                            // if it is a fallthrough, we set its preds as last inst
+                            ASMBranchTarget::None => {
+                                if !asm[i].preds.contains(&last_inst) {
+                                    asm[i].preds.push(last_inst);
+
+                                    if TRACE_CFA {
+                                        trace!("inst {}: set PREDS as previous inst - fallthrough {}", i, last_inst);
+                                    }
+                                }
+                            }
+                            // otherwise do nothing
+                            _ => {}
+                        }
                     }
-                    asm[i].preds.push(i - 1);
+                    None => {}
                 }
-            } else {
-                // if cur is a branch target, we already set its predecessor
-                // if cur is a fall-through block, we set it in a sanity check pass
             }
 
             // determine successor
@@ -324,7 +346,7 @@ impl ASMCode {
                     // branch to target
                     let target_n = self.blocks.get(target).unwrap().start_inst;
 
-                    // cur insts' succ is target and next inst
+                    // cur insts' succ is target
                     asm[i].succs.push(target_n);
 
                     if TRACE_CFA {
@@ -333,17 +355,24 @@ impl ASMCode {
                         trace!("inst {}: set SUCCS as branch target {}", i, target_n);
                     }
 
-                    if i < n_insts - 1 {
-                        if TRACE_CFA {
-                            trace!("inst {}: set SUCCS as next inst", i + 1);
-                        }
-                        asm[i].succs.push(i + 1);
-                    }
-
                     // target's pred is cur
                     asm[target_n].preds.push(i);
                     if TRACE_CFA {
                         trace!("inst {}: set PREDS as {}", target_n, i);
+                    }
+
+                    if let Some(next_inst) = ASMCode::find_next_inst(i, asm) {
+                        // cur succ is next inst
+                        asm[i].succs.push(next_inst);
+
+                        // next inst's pred is cur
+                        asm[next_inst].preds.push(i);
+
+                        if TRACE_CFA {
+                            trace!("inst {}: SET SUCCS as c-branch fallthrough target {}", i, next_inst);
+                        }
+                    } else {
+                        panic!("conditional branch does not have a fallthrough target");
                     }
                 },
                 ASMBranchTarget::Return => {
@@ -357,21 +386,52 @@ impl ASMCode {
                     if TRACE_CFA {
                         trace!("inst {}: not a branch inst", i);
                     }
-                    if i < n_insts - 1 {
+                    if let Some(next_inst) = ASMCode::find_next_inst(i, asm) {
                         if TRACE_CFA {
-                            trace!("inst {}: set SUCCS as next inst {}", i, i + 1);
+                            trace!("inst {}: set SUCCS as next inst {}", i, next_inst);
                         }
-                        asm[i].succs.push(i + 1);
+                        asm[i].succs.push(next_inst);
                     }
                 }
             }
         }
+    }
 
-        // a sanity check for fallthrough blocks
-        for i in 0..n_insts {
-            if i != 0 && asm[i].preds.len() == 0 {
-                asm[i].preds.push(i - 1);
+    fn find_prev_inst(i: usize, asm: &Vec<ASMInst>) -> Option<usize> {
+        if i == 0 {
+            None
+        } else {
+            let mut cur = i - 1;
+            while cur != 0 {
+                if !asm[cur].is_symbol {
+                    return Some(cur);
+                }
+
+                if cur == 0 {
+                    return None;
+                } else {
+                    cur -= 1;
+                }
             }
+
+            None
+        }
+    }
+
+    fn find_next_inst(i: usize, asm: &Vec<ASMInst>) -> Option<usize> {
+        if i >= asm.len() - 1 {
+            None
+        } else {
+            let mut cur = i + 1;
+            while cur < asm.len() {
+                if !asm[cur].is_symbol {
+                    return Some(cur);
+                }
+
+                cur += 1;
+            }
+
+            None
         }
     }
 
@@ -667,6 +727,8 @@ struct ASMInst {
     uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
 
     is_mem_op_used: bool,
+    is_symbol: bool,
+
     preds: Vec<usize>,
     succs: Vec<usize>,
     branch: ASMBranchTarget
@@ -679,6 +741,7 @@ impl ASMInst {
             defines: LinkedHashMap::new(),
             uses: LinkedHashMap::new(),
             is_mem_op_used: false,
+            is_symbol: true,
             preds: vec![],
             succs: vec![],
             branch: ASMBranchTarget::None
@@ -697,6 +760,7 @@ impl ASMInst {
             code: inst,
             defines: defines,
             uses: uses,
+            is_symbol: false,
             is_mem_op_used: is_mem_op_used,
             preds: vec![],
             succs: vec![],
@@ -709,6 +773,7 @@ impl ASMInst {
             code: "".to_string(),
             defines: LinkedHashMap::new(),
             uses: LinkedHashMap::new(),
+            is_symbol: false,
             is_mem_op_used: false,
             preds: vec![],
             succs: vec![],

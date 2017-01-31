@@ -1016,7 +1016,7 @@ def test_make_boot_image_simple():
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
-
+@pytest.mark.xfail(reason='unimplemented')
 @may_spawn_proc
 def test_rpytarget_print_argv():
     from rpython.translator.interactive import Translation
@@ -1040,7 +1040,7 @@ def test_rpytarget_print_argv():
     assert res.out == '[%s, abc, 123]\n' % exe
 
 
-@pytest.mark.xfail(reason='not implemented yet')
+@pytest.mark.skipif("True")
 @may_spawn_proc
 def test_rpytarget_sha1sum():
     john1 = \

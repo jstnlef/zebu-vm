@@ -356,7 +356,8 @@ impl <'a> InstructionSelection {
                                 }
                                 // jcc
                                 _ => {
-                                    let blk_true = format!("{}_select_true", node.id());
+                                    let blk_true  = format!("{}_select_true", node.id());
+                                    let blk_false = format!("{}_select_false", node.id());
                                     let blk_end   = format!("{}_select_end", node.id());
 
                                     // jump to blk_true if true
@@ -381,6 +382,14 @@ impl <'a> InstructionSelection {
 
                                         _ => unimplemented!()
                                     }
+
+                                    // finishing current block
+                                    let cur_block = self.current_block.as_ref().unwrap().clone();
+                                    self.backend.end_block(cur_block.clone());
+
+                                    // blk_false:
+                                    self.current_block = Some(blk_false.clone());
+                                    self.backend.start_block(blk_false.clone());
 
                                     // mov false result here
                                     self.emit_move_node_to_value(&tmp_res, &false_val, f_content, f_context, vm);
@@ -505,6 +514,9 @@ impl <'a> InstructionSelection {
                                 } else {
                                     panic!("expecting ireg cond to be either iimm or ireg: {}", cond);
                                 }
+
+                                self.finish_block();
+                                self.start_block(format!("{}_switch_not_met_case_{}", node.id(), case_op_index));
                             }
 
                             // emit default
@@ -1729,6 +1741,9 @@ impl <'a> InstructionSelection {
             self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
             self.backend.emit_jg(blk_alloc_large.clone());
 
+            self.finish_block();
+            self.start_block(format!("{}_allocsmall", node.id()));
+
             // alloc small here
             let tmp_res = self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
 
@@ -1826,6 +1841,10 @@ impl <'a> InstructionSelection {
         // ASM: jg alloc_slow
         let slowpath = format!("{}_allocslow", node.id());
         self.backend.emit_jg(slowpath.clone());
+
+        // finish current block
+        self.finish_block();
+        self.start_block(format!("{}_updatecursor", node.id()));
 
         // update cursor
         // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
@@ -3448,6 +3467,16 @@ impl <'a> InstructionSelection {
 
             const_mem_val
         }
+    }
+
+    fn finish_block(&mut self) {
+        let cur_block = self.current_block.as_ref().unwrap().clone();
+        self.backend.end_block(cur_block.clone());
+    }
+
+    fn start_block(&mut self, block: String) {
+        self.current_block = Some(block.clone());
+        self.backend.start_block(block);
     }
 }
 
