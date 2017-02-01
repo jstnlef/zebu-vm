@@ -213,23 +213,23 @@ impl InterferenceGraph {
         use compiler::backend::reg_alloc::graph_coloring::petgraph::dot::Dot;
         use compiler::backend::reg_alloc::graph_coloring::petgraph::dot::Config;
 
-        debug!("");
-        debug!("Interference Graph");
+        trace!("");
+        trace!("Interference Graph");
 
-        debug!("nodes:");
+        trace!("nodes:");
         for id in self.nodes.keys() {
             let val = context.get_value(*id).unwrap().value();
-            debug!("Reg {} -> {:?}", val, self.nodes.get(&id).unwrap());
+            trace!("Reg {} -> {:?}", val, self.nodes.get(&id).unwrap());
         }
 
-        debug!("moves:");
+        trace!("moves:");
         for mov in self.moves.iter() {
-            debug!("Move {:?} -> {:?}", mov.from, mov.to);
+            trace!("Move {:?} -> {:?}", mov.from, mov.to);
         }
 
-        debug!("graph:");
-        debug!("\n\n{:?}\n", Dot::with_config(&self.graph, &[Config::EdgeNoLabel]));
-        debug!("");
+        trace!("graph:");
+        trace!("\n\n{:?}\n", Dot::with_config(&self.graph, &[Config::EdgeNoLabel]));
+        trace!("");
     }
 }
 
@@ -238,7 +238,7 @@ const TRACE_BUILD_LIVE_SET : bool = false;
 fn build_live_set (cf: &mut CompiledFunction, func: &MuFunctionVersion) {
     info!("---start building live set---");
 
-    let cfg = local_liveness_analysis(cf, func);
+    let cfg = local_liveness_analysis(cf);
     global_liveness_analysis(cfg, cf, func);
 
     info!("---finish building live set---");
@@ -255,7 +255,7 @@ struct CFGBlockNode {
     defs: Vec<MuID>
 }
 
-fn local_liveness_analysis (cf: &mut CompiledFunction, func: &MuFunctionVersion) -> HashMap<String, CFGBlockNode> {
+fn local_liveness_analysis (cf: &mut CompiledFunction) -> HashMap<String, CFGBlockNode> {
     info!("---local liveness analysis---");
     let mc = cf.mc();
 
@@ -272,7 +272,7 @@ fn local_liveness_analysis (cf: &mut CompiledFunction, func: &MuFunctionVersion)
             None => panic!("cannot find range for block {}", block)
         };
 
-        debug!("Block {}: start_inst={}, end_inst(inclusive)={}", block, range.start, range.end-1);
+        trace!("Block {}: start_inst={}, end_inst(inclusive)={}", block, range.start, range.end-1);
         start_inst_map.insert(range.start, block);
         end_inst_map.insert(range.end - 1, block);
     }
@@ -389,7 +389,8 @@ fn local_liveness_analysis (cf: &mut CompiledFunction, func: &MuFunctionVersion)
 //}
 
 fn global_liveness_analysis(blocks: HashMap<String, CFGBlockNode>, cf: &mut CompiledFunction, func: &MuFunctionVersion) {
-    let n_nodes = blocks.len();
+    info!("---global liveness analysis---");
+    info!("{} blocks", blocks.len());
 
     // init live in and live out
     let mut livein  : HashMap<String, LinkedHashSet<MuID>> = {
@@ -466,6 +467,8 @@ fn global_liveness_analysis(blocks: HashMap<String, CFGBlockNode>, cf: &mut Comp
         }
     }
 
+    info!("finished in {} iterations", i);
+
     for block in blocks.keys() {
         let livein : Vec<MuID> = livein.get(block).unwrap().clone().iter().map(|x| *x).collect();
         {
@@ -484,7 +487,7 @@ fn global_liveness_analysis(blocks: HashMap<String, CFGBlockNode>, cf: &mut Comp
 }
 
 #[allow(dead_code)]
-fn naive_global_liveness_analysis(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
+fn naive_global_liveness_analysis(cf: &mut CompiledFunction) {
     let n_insts = cf.mc().number_of_insts();
 
     let mut livein  : Vec<LinkedHashSet<MuID>> = vec![LinkedHashSet::new(); n_insts];
