@@ -133,7 +133,7 @@ impl <'a> InstructionSelection {
     // if any of these assumption breaks, we will need to re-emit the code
     #[allow(unused_variables)]
     fn instruction_select(&mut self, node: &'a TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
-        trace!("instsel on node {}", node);
+        trace!("instsel on node#{} {}", node.id(), node);
         
         match node.v {
             TreeNode_::Instruction(ref inst) => {
@@ -3571,13 +3571,22 @@ impl CompilerPass for InstructionSelection {
             func.name().unwrap()
         };
         
-        let (mc, func_end) = self.backend.finish_code(func_name);
+        let (mc, func_end) = self.backend.finish_code(func_name.clone());
         
         // insert exception branch info
-        let mut frame = self.current_frame.take().unwrap();
+        let mut frame = match self.current_frame.take() {
+            Some(frame) => frame,
+            None => panic!("no current_frame for function {} that is being compiled", func_name)
+        };
         for block_id in self.current_exn_blocks.keys() {
-            let block_loc = self.current_exn_blocks.get(&block_id).unwrap();
-            let callsites = self.current_exn_callsites.get(&block_id).unwrap();
+            let block_loc = match self.current_exn_blocks.get(&block_id) {
+                Some(loc) => loc,
+                None => panic!("failed to find exception block {}", block_id)
+            };
+            let callsites = match self.current_exn_callsites.get(&block_id) {
+                Some(callsite) => callsite,
+                None => panic!("failed to find callsite for block {}", block_id)
+            };
             
             for callsite in callsites {
                 frame.add_exception_callsite(callsite.clone(), block_loc.clone());
