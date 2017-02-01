@@ -1040,7 +1040,6 @@ def test_rpytarget_print_argv():
     assert res.out == '[%s, abc, 123]\n' % exe
 
 
-@pytest.mark.skipif("True")
 @may_spawn_proc
 def test_rpytarget_sha1sum():
     john1 = \

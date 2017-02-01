@@ -470,7 +470,17 @@ impl Destination {
 
         ret
     }
-    
+
+    pub fn get_arguments_as_node(&self, ops: &Vec<P<TreeNode>>) -> Vec<P<TreeNode>> {
+       vec_utils::map(&self.args,
+           |x| {
+               match x {
+                   &DestArg::Normal(i) => ops[i].clone(),
+                   &DestArg::Freshbound(_) => unimplemented!()
+               }
+       })
+    }
+
     pub fn get_arguments(&self, ops: &Vec<P<TreeNode>>) -> Vec<P<Value>> {
         vec_utils::map(&self.args, 
             |x| {

@@ -574,7 +574,10 @@ impl <'a> VM {
     
     pub fn id_of_by_refstring(&self, name: &String) -> MuID {
         let map = self.name_id_map.read().unwrap();
-        *map.get(name).unwrap()
+        match map.get(name) {
+            Some(id) => *id,
+            None => panic!("cannot find id for name: {}", name)
+        }
     }
     
     pub fn id_of(&self, name: &str) -> MuID {

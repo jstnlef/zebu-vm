@@ -4,7 +4,6 @@ use mu::runtime::thread;
 use mu::runtime::thread::MuThread;
 use mu::vm::VM;
 
-use std::usize;
 use std::sync::Arc;
 
 #[test]
