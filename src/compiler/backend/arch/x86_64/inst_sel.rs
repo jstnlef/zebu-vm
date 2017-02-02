@@ -87,7 +87,8 @@ lazy_static! {
 pub struct InstructionSelection {
     name: &'static str,
     backend: Box<CodeGenerator>,
-    
+
+    current_fv_id: MuID,
     current_callsite_id: usize,
     current_frame: Option<Frame>,
     current_block: Option<MuName>,
@@ -107,7 +108,8 @@ impl <'a> InstructionSelection {
         InstructionSelection{
             name: "Instruction Selection (x64)",
             backend: Box::new(ASMCodeGen::new()),
-            
+
+            current_fv_id: 0,
             current_callsite_id: 0,
             current_frame: None,
             current_block: None,
@@ -3430,9 +3432,9 @@ impl <'a> InstructionSelection {
     fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
         let ret = {
             if cur_node.is_some() {
-                format!("callsite_{}_{}", cur_node.unwrap().id(), self.current_callsite_id)
+                format!("callsite_{}_{}_{}", self.current_fv_id, cur_node.unwrap().id(), self.current_callsite_id)
             } else {
-                format!("callsite_anon_{}", self.current_callsite_id)
+                format!("callsite_{}_anon_{}", self.current_fv_id, self.current_callsite_id)
             }
         };
         self.current_callsite_id += 1;
@@ -3492,7 +3494,8 @@ impl CompilerPass for InstructionSelection {
     #[allow(unused_variables)]
     fn start_function(&mut self, vm: &VM, func_ver: &mut MuFunctionVersion) {
         debug!("{}", self.name());
-        
+
+        self.current_fv_id = func_ver.id();
         self.current_frame = Some(Frame::new(func_ver.id()));
         self.current_func_start = Some({
             let funcs = vm.funcs().read().unwrap();
