@@ -8,65 +8,83 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::process::Output;
 
-fn link_executable_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
-    let mut gcc = Command::new(get_test_clang_path());
+fn link_executable_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<String>, out: PathBuf) -> PathBuf {
+    let mut cc = Command::new(get_test_clang_path());
 
     for file in files {
         println!("link with {:?}", file.as_path());
-        gcc.arg(file.as_path());
+        cc.arg(file.as_path());
+    }
+
+    // external libs
+    for path in libpath.iter() {
+        cc.arg(format!("-L{}", path));
+    }
+    for l in lib.iter() {
+        cc.arg(format!("-l{}", l));
     }
 
     println!("output as {:?}", out.as_path());
     if cfg!(target_os = "linux") {
-        gcc.arg("-ldl");
-        gcc.arg("-lrt");
-        gcc.arg("-lm");
-        gcc.arg("-lpthread");
+        cc.arg("-ldl");
+        cc.arg("-lrt");
+        cc.arg("-lm");
+        cc.arg("-lpthread");
     }
-    // so we can find symbols in itself
-    gcc.arg("-rdynamic");
-    gcc.arg("-o");
-    gcc.arg(out.as_os_str());
 
-    assert!(exec(gcc).status.success());
+    // so we can find symbols in itself
+    cc.arg("-rdynamic");
+    cc.arg("-o");
+    cc.arg(out.as_os_str());
+
+    assert!(exec(cc).status.success());
 
     out
 }
 
-fn link_dylib_internal (files: Vec<PathBuf>, out: PathBuf) -> PathBuf {
+fn link_dylib_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<String>, out: PathBuf) -> PathBuf {
     let mut object_files : Vec<PathBuf> = vec![];
 
     for file in files {
-        let mut gcc = Command::new(get_test_clang_path());
+        let mut cc = Command::new(get_test_clang_path());
 
-        gcc.arg("-c");
-        gcc.arg("-fPIC");
+        cc.arg("-c");
+        cc.arg("-fPIC");
 
         let mut out = file.clone();
         out.set_extension("o");
 
-        gcc.arg(file.as_os_str());
-        gcc.arg("-o");
-        gcc.arg(out.as_os_str());
+        cc.arg(file.as_os_str());
+        cc.arg("-o");
+        cc.arg(out.as_os_str());
 
         object_files.push(out);
-        exec(gcc);
+        exec(cc);
     }
 
-    let mut gcc = Command::new(get_test_clang_path());
-    gcc.arg("-shared");
-    gcc.arg("-fPIC");
-    gcc.arg("-Wl");
-    gcc.arg("-undefined");
-    gcc.arg("dynamic_lookup");
+    let mut cc = Command::new(get_test_clang_path());
+
+    // external libs
+    for path in libpath.iter() {
+        cc.arg(format!("-L{}", path));
+    }
+    for l in lib.iter() {
+        cc.arg(format!("-l{}", l));
+    }
+
+    cc.arg("-shared");
+    cc.arg("-fPIC");
+    cc.arg("-Wl");
+    cc.arg("-undefined");
+    cc.arg("dynamic_lookup");
     for obj in object_files {
-        gcc.arg(obj.as_os_str());
+        cc.arg(obj.as_os_str());
     }
 
-    gcc.arg("-o");
-    gcc.arg(out.as_os_str());
+    cc.arg("-o");
+    cc.arg(out.as_os_str());
 
-    exec(gcc);
+    exec(cc);
 
     out
 }
@@ -131,7 +149,10 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     let mut out_path = emit_dir.clone();
     out_path.push(out);
 
-    link_executable_internal(files, out_path)
+    link_executable_internal(files,
+                             &vm.vm_options.flag_bootimage_external_lib,
+                             &vm.vm_options.flag_bootimage_external_libpath,
+                             out_path)
 }
 
 pub fn execute(executable: PathBuf) -> Output {
@@ -160,7 +181,10 @@ pub fn link_dylib (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     let mut out_path = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     out_path.push(out);
 
-    link_dylib_internal(files, out_path)
+    link_dylib_internal(files,
+                        &vm.vm_options.flag_bootimage_external_lib,
+                        &vm.vm_options.flag_bootimage_external_libpath,
+                        out_path)
 }
 
 pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &str, vm: &VM) -> PathBuf{
@@ -183,5 +207,8 @@ pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &s
     let mut out_path = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     out_path.push(out);
 
-    link_dylib_internal(files, out_path)
+    link_dylib_internal(files,
+                        &vm.vm_options.flag_bootimage_external_lib,
+                        &vm.vm_options.flag_bootimage_external_libpath,
+                        out_path)
 }
