@@ -1008,7 +1008,7 @@ impl <'a> VM {
 
         // we assume client will start with a function (instead of a stack)
         if has_primordial_stack {
-            unimplemented!()
+            panic!("Zebu doesnt support creating primordial thread through a stack, name a entry function instead")
         } else {
             // extract func id
             let func_id = primordial_func.unwrap().v.as_func();
