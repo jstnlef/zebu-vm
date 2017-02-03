@@ -99,7 +99,7 @@ impl MuIRBuilder {
     pub fn gen_sym(&mut self, name: Option<String>) -> MuID {
         let my_id = self.next_id();
 
-        debug!("gen_sym({:?}) -> {}", name, my_id);
+        trace!("gen_sym({:?}) -> {}", name, my_id);
 
         match name {
             None => {},

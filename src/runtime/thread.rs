@@ -170,13 +170,12 @@ impl MuStack {
         debug!("0x{:x} | UPPER_BOUND", self.upper_bound);
         while cursor >= self.lower_bound {
             let val = unsafe{cursor.load::<Word>()};
-            print!("0x{:x} | 0x{:x} ({})", cursor, val, val);
             
             if cursor == self.sp {
-                print!(" <- SP");
+                debug!("0x{:x} | 0x{:x} ({}) <- SP", cursor, val, val);
+            } else {
+                debug!("0x{:x} | 0x{:x} ({})", cursor, val, val);
             }
-            
-            debug!("");
             
             cursor = cursor.sub(WORD_SIZE);
             count += 1;

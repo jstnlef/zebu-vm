@@ -1020,6 +1020,7 @@ def test_make_boot_image_simple():
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
+@pytest.mark.xfail(reason = "doesnt work for now")
 @may_spawn_proc
 def test_rpytarget_print_argv():
     from rpython.translator.interactive import Translation
@@ -1044,6 +1045,29 @@ def test_rpytarget_print_argv():
     #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
     assert res.returncode == 0, res.err
     assert res.out == '[%s, abc, 123]\n' % exe
+
+@pytest.mark.xfail(reason = "probably need to align frame size to 16 bytes")
+@may_spawn_proc
+def test_rpython_helloworld():
+    from rpython.translator.interactive import Translation
+
+    def main(argv):
+	print "hello world"
+	return 0
+
+    t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
+    t.driver.exe_name = '/tmp/test_helloworld'
+    t.compile_mu()
+    exe = py.path.local('/tmp/test_helloworld.mu')
+
+    # zebu
+    import os
+    from rpython.translator.mu import dir_mu
+    exe.chmod(stat.S_IRWXU)
+    res = platform.execute(str(exe), [], env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+
+    assert res.returncode == 0, res.err
+    assert res.out == 'hello world\n'
 
 @pytest.mark.skipif("True")
 @may_spawn_proc

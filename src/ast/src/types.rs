@@ -79,6 +79,28 @@ impl MuType {
         }
     }
 
+    pub fn is_struct(&self) -> bool {
+        match self.v {
+            MuType_::Struct(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_hybrid(&self) -> bool {
+        match self.v {
+            MuType_::Hybrid(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn get_struct_hybrid_tag(&self) -> Option<MuName> {
+        match self.v {
+            MuType_::Hybrid(ref name)
+            | MuType_::Struct(ref name) => Some(name.clone()),
+            _ => None
+        }
+    }
+
     pub fn is_ref(&self) -> bool {
         match self.v {
             MuType_::Ref(_) => true,

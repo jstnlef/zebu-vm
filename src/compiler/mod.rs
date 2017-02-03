@@ -25,7 +25,10 @@ impl <'vm> Compiler<'vm> {
     }
 
     pub fn compile(&self, func: &mut MuFunctionVersion) {
-        trace!("{:?}", func);
+        info!("");
+        info!("Start compiling {}", func);
+        info!("");
+        debug!("{:?}", func);
         
         // FIXME: should use function name here (however hprof::enter only accept &'static str)
         let _p = hprof::enter("Function Compilation");

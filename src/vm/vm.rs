@@ -693,8 +693,20 @@ impl <'a> VM {
     fn declare_type_internal(&self, types: &mut RwLockWriteGuard<HashMap<MuID, P<MuType>>>, id: MuID, ty: P<MuType>) {
         debug_assert!(!types.contains_key(&id));
 
-        info!("declare type #{} = {}", id, ty);
         types.insert(id, ty.clone());
+
+        info!("declare type #{} = {}", id, ty);
+        if ty.is_struct() {
+            let tag = ty.get_struct_hybrid_tag().unwrap();
+            let struct_map_guard = STRUCT_TAG_MAP.read().unwrap();
+            let struct_inner = struct_map_guard.get(&tag).unwrap();
+            info!("  {}", struct_inner);
+        } else if ty.is_hybrid() {
+            let tag = ty.get_struct_hybrid_tag().unwrap();
+            let hybrid_map_guard = HYBRID_TAG_MAP.read().unwrap();
+            let hybrid_inner = hybrid_map_guard.get(&tag).unwrap();
+            info!("  {}", hybrid_inner);
+        }
     }
     
     pub fn get_type(&self, id: MuID) -> P<MuType> {
@@ -1016,8 +1028,29 @@ impl <'a> VM {
             // make primordial thread in vm
             self.make_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
 
+            // deal with relocation symbols
+            assert_eq!(sym_fields.len(), sym_strings.len());
+            let symbols = {
+                let mut ret = hashmap!{};
+                for i in 0..sym_fields.len() {
+                    let addr = sym_fields[i].v.as_address();
+                    ret.insert(addr, sym_strings[i].clone());
+                }
+                ret
+            };
+
+            assert_eq!(reloc_fields.len(), reloc_strings.len());
+            let fields = {
+                let mut ret = hashmap!{};
+                for i in 0..reloc_fields.len() {
+                    let addr = reloc_fields[i].v.as_address();
+                    ret.insert(addr, reloc_strings[i].clone());
+                }
+                ret
+            };
+
             // emit context (serialized vm, etc)
-            backend::emit_context(self);
+            backend::emit_context_with_reloc(self, symbols, fields);
 
             // link
             self.link_boot_image(whitelist_funcs, output_file);

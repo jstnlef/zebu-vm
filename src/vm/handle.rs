@@ -135,6 +135,16 @@ impl APIHandleValue {
         }
     }
 
+    pub fn as_address(&self) -> Address {
+        match self {
+            &APIHandleValue::IRef  (_, addr)
+            | &APIHandleValue::Ref (_, addr)
+            | &APIHandleValue::UPtr(_, addr)
+            | &APIHandleValue::UFP (_, addr) => addr,
+            _ => panic!("expected iref/ref/uptr/ufp which contains a pointer, found {}", self)
+        }
+    }
+
     pub fn as_int(&self) -> u64 {
         match self {
             &APIHandleValue::Int(val, _) => val,

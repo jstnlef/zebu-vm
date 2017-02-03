@@ -51,6 +51,8 @@ pub use compiler::backend::x86_64::emit_code;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::emit_context;
 #[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::emit_context_with_reloc;
+#[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::spill_rewrite;
 
 // ARM

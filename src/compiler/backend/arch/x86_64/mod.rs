@@ -10,6 +10,7 @@ mod asm_backend;
 pub use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 pub use compiler::backend::x86_64::asm_backend::emit_code;
 pub use compiler::backend::x86_64::asm_backend::emit_context;
+pub use compiler::backend::x86_64::asm_backend::emit_context_with_reloc;
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
 
