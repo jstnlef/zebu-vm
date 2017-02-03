@@ -95,7 +95,7 @@ impl RegisterAllocation {
             let size_to_patch = total_frame_size - size_for_callee_saved_regs;
 
             trace!("patching the code to grow/shrink size of {} bytes", size_to_patch);
-            coloring.cf.mc_mut().patch_frame_size(size_to_patch);
+            coloring.cf.mc_mut().patch_frame_size(size_to_patch, size_for_callee_saved_regs);
         }
 
         coloring.cf.mc().trace_mc();

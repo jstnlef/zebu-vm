@@ -192,7 +192,7 @@ pub trait MachineCode {
     /// returns what registers push/pop have been deleted
     fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID>;
     /// patch frame size
-    fn patch_frame_size(&mut self, size: usize);
+    fn patch_frame_size(&mut self, size: usize, size_used: usize);
 
     fn as_any(&self) -> &Any;
 }
