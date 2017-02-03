@@ -1007,9 +1007,13 @@ def test_make_boot_image_simple():
     t.driver.disable(['entrypoint_mu'])
     t.compile_mu()
     exe = py.path.local('/tmp/test_make_boot_image_mu.mu')
+
     # zebu
+    import os
+    from rpython.translator.mu import dir_mu
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), ['abc', '123'])
+    res = platform.execute(str(exe), ['abc', '123'],
+                           env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
     # holstein
     # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
     #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
@@ -1030,8 +1034,11 @@ def test_rpytarget_print_argv():
     exe = py.path.local('/tmp/test_printargv_mu.mu')
 
     # zebu
+    import os
+    from rpython.translator.mu import dir_mu
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), ['abc', '123'])
+    res = platform.execute(str(exe), ['abc', '123'],
+                           env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
     # holstein
     # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
     #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
@@ -1060,9 +1067,13 @@ The light shines in the darkness, and the darkness has not overcome it.
     test_file = py.path.local('/tmp/john1.txt')
     with test_file.open('w') as fp:
         fp.write(john1)
+
     # zebu
+    import os
+    from rpython.translator.mu import dir_mu
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), [str(test_file)])
+    res = platform.execute(str(exe), [str(test_file)],
+                           env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
     # holstein
     # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
     #                      ['--vmLog=ERROR', str(exe), str(test_file)])
