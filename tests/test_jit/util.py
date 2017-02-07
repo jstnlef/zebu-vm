@@ -118,9 +118,13 @@ def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctype
     # load libmu before rffi so to load it with RTLD_GLOBAL
     libmu = preload_libmu()
 
+    from rpython.translator.mu import dir_mu
+
     loglvl = os.environ.get('MU_LOG_LEVEL', 'none')
     emit_dir = kwargs.get('muemitdir', os.environ.get('MU_EMIT_DIR', 'emit'))
-    mu = rmu.MuVM("--log-level=%(loglvl)s --aot-emit-dir=%(emit_dir)s" % locals())
+    mu = rmu.MuVM("--log-level=%(loglvl)s --aot-emit-dir=%(emit_dir)s "
+                  "--bootimage-external-lib=rpyc "
+                  "--bootimage-external-libpath=%(dir_mu)s/rpyc" % locals())
     ctx = mu.new_context()
     bldr = ctx.new_ir_builder()
 
