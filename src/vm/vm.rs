@@ -1091,6 +1091,7 @@ impl <'a> VM {
 
     pub fn new_fixed(&self, tyid: MuID) -> APIHandleResult {
         let ty = self.get_type(tyid);
+        assert!(!ty.is_hybrid());
 
         let backend_ty = self.get_backend_type_info(tyid);
         let addr = gc::allocate_fixed(ty.clone(), backend_ty);
@@ -1104,6 +1105,8 @@ impl <'a> VM {
 
     pub fn new_hybrid(&self, tyid: MuID, length: APIHandleArg) -> APIHandleResult {
         let ty  = self.get_type(tyid);
+        assert!(ty.is_hybrid());
+
         let len = self.handle_to_uint64(length);
 
         let backend_ty = self.get_backend_type_info(tyid);
@@ -1152,14 +1155,12 @@ impl <'a> VM {
 
         /// FIXME: iref/ref share the same address - this actually depends on GC
         // iref has the same address as ref
-
-        trace!("API: get iref from {:?}", handle_ref);
-
         let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ty, addr)
         });
 
+        trace!("API: get iref from {:?}", handle_ref);
         trace!("API: result {:?}", ret);
 
         ret
@@ -1174,10 +1175,15 @@ impl <'a> VM {
             addr.plus(backend_ty.size * (offset as usize))
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ty, offset_addr)
-        })
+        });
+
+        trace!("API: shift iref from {:?}", handle_iref);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_get_elem_iref(&self, handle_iref: APIHandleArg, index: APIHandleArg) -> APIHandleResult {
@@ -1193,10 +1199,15 @@ impl <'a> VM {
             addr.plus(backend_ty.size * (index as usize))
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ele_ty, elem_addr)
-        })
+        });
+
+        trace!("API: get element iref from {:?} at index {:?}", handle_iref, index);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_get_var_part_iref(&self, handle_iref: APIHandleArg) -> APIHandleResult {
@@ -1212,10 +1223,15 @@ impl <'a> VM {
             None => panic!("cannot get varpart ty from {}", ty)
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(varpart_ty, varpart_addr)
-        })
+        });
+
+        trace!("API: get var part iref from {:?}", handle_iref);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_get_field_iref(&self, handle_iref: APIHandleArg, field: usize) -> APIHandleResult {
@@ -1234,10 +1250,15 @@ impl <'a> VM {
             addr.plus(field_offset)
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(field_ty, field_addr)
-        })
+        });
+
+        trace!("API: get field iref from {:?}, field: {}", handle_iref, field);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_load(&self, ord: MemoryOrder, loc: APIHandleArg) -> APIHandleResult {
@@ -1257,10 +1278,15 @@ impl <'a> VM {
             }
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: handle_id,
             v : handle_value
-        })
+        });
+
+        trace!("API: load from {:?}", loc);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_store(&self, ord: MemoryOrder, loc: APIHandleArg, val: APIHandleArg) {
@@ -1297,6 +1323,8 @@ impl <'a> VM {
                 _ => unimplemented!()
             }
         }
+
+        trace!("API: store value {:?} to location {:?}", val, loc);
     }
 
     // this function and the following two make assumption that GC will not move object

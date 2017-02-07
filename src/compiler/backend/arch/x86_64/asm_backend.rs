@@ -2917,16 +2917,37 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 }
 
 // min alignment as 16 byte (written as 4 (2^4) on macos)
+const MIN_ALIGN : ByteSize = 16;
+
+fn check_min_align(align: ByteSize) -> ByteSize {
+    if align > MIN_ALIGN {
+        MIN_ALIGN
+    } else {
+        align
+    }
+}
+
+fn write_const_min_align(f: &mut File) {
+    write_align(f, MIN_ALIGN);
+}
 
 #[cfg(target_os = "linux")]
-fn write_const_min_align(f: &mut File) {
+fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
-    f.write("\t.align 16\n".as_bytes()).unwrap();
+    f.write_fmt(format_args!("\t.align {}\n", check_min_align(align))).unwrap();
 }
 #[cfg(target_os = "macos")]
-fn write_const_min_align(f: &mut File) {
+fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
-    f.write("\t.align 4\n".as_bytes()).unwrap();
+
+    let align = check_min_align(align);
+    let mut n = 0;
+    while 2usize.pow(n) < align {
+        n += 1;
+    }
+    assert!(2usize.pow(n) == align, "alignment needs to be power of 2, alignment is {}", align);
+
+    f.write_fmt(format_args!("\t.align {}\n", n)).unwrap();
 }
 
 fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
@@ -3048,6 +3069,8 @@ pub fn emit_context_with_reloc(vm: &VM,
         }
 
         for obj_dump in objects.values() {
+            write_align(&mut file, 8);
+
             // .bytes xx,xx,xx,xx (between mem_start to reference_addr)
             write_data_bytes(&mut file, obj_dump.mem_start, obj_dump.reference_addr);
 

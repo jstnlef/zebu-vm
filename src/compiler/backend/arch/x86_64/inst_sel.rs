@@ -1613,8 +1613,10 @@ impl <'a> InstructionSelection {
 
                                 match is_power_of_two(var_ty_size) {
                                     Some(shift) => {
-                                        // a shift-left will get the total size of var part
-                                        self.backend.emit_shl_r_imm8(&tmp_var_len, shift);
+                                        if shift != 0 {
+                                            // a shift-left will get the total size of var part
+                                            self.backend.emit_shl_r_imm8(&tmp_var_len, shift);
+                                        }
 
                                         // add with fix-part size
                                         self.backend.emit_add_r_imm(&tmp_var_len, fix_part_size as i32);

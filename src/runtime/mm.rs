@@ -61,7 +61,7 @@ pub fn allocate_hybrid(ty: P<MuType>, len: u64, backendtype: Box<BackendTypeInfo
     let gctype = backendtype.gc_type.clone();
     let encode = get_gc_type_encode(gctype.id);
 
-    trace!("API: allocate fixed ty: {}", ty);
+    trace!("API: allocate hybrd ty: {}", ty);
     trace!("API:          gc ty   : {:?}", gctype);
     trace!("API:          encode  : {:b}", encode);
 
@@ -73,6 +73,8 @@ pub fn allocate_global(iref_global: P<Value>, backendtype: Box<BackendTypeInfo>)
         Some(ty) => ty,
         None => panic!("expected global to be an iref type, found {}", iref_global.ty)
     };
+
+    assert!(!referenced_type.is_hybrid(), "global cell cannot be hybrid type");
 
     let addr = allocate_fixed(referenced_type, backendtype);
     ValueLocation::Direct(RegGroup::GPR, addr)

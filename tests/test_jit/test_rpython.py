@@ -25,6 +25,21 @@ def test_add():
 
     assert fn(1, 2) == 3
 
+@may_spawn_proc
+def test_list_append():
+    def list_append(n):
+        l = []
+	for i in range(0, n):
+	    l.append(i)
+	
+	sum = 0
+	for i in l:
+	    sum += i
+	
+	return sum
+
+    fn, _ = fncptr_from_rpy_func(list_append, [rffi.LONGLONG], rffi.LONGLONG)
+    assert fn(10) == 45
 
 @may_spawn_proc
 def test_vec3prod():
@@ -1042,7 +1057,7 @@ def test_rpytarget_print_argv():
     assert res.returncode == 0, res.err
     assert res.out == '[%s, abc, 123]\n' % exe
 
-@pytest.mark.xfail(reason = "probably need to align frame size to 16 bytes")
+@pytest.mark.xfail(reason = "no idea")
 @may_spawn_proc
 def test_rpython_helloworld():
     from rpython.translator.interactive import Translation
@@ -1063,6 +1078,49 @@ def test_rpython_helloworld():
 
     assert res.returncode == 0, res.err
     assert res.out == 'hello world\n'
+
+@pytest.mark.xfail(reason = "new test")
+@may_spawn_proc
+def test_rpython_print_number():
+    from rpython.translator.interactive import Translation
+
+    def main(argv):
+        print 255
+	return 0
+
+    t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
+    t.driver.exe_name = '/tmp/test_print_number'
+    t.compile_mu()
+    exe = py.path.local('/tmp/test_print_number.mu')
+
+    # zebu
+    import os
+    from rpython.translator.mu import dir_mu
+    exe.chmod(stat.S_IRWXU)
+    res = platform.execute(str(exe), [], env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+
+    assert res.returncode == 0, res.err
+    assert res.out == '1\n'
+
+@may_spawn_proc
+def test_rpython_main():
+    from rpython.translator.interactive import Translation
+
+    def main(argv):
+        return 0
+
+    t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
+    t.driver.exe_name = '/tmp/test_main'
+    t.compile_mu()
+    exe = py.path.local('/tmp/test_main.mu')
+
+    # zebu
+    import os
+    from rpython.translator.mu import dir_mu
+    exe.chmod(stat.S_IRWXU)
+    res = platform.execute(str(exe), [], env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+
+    assert res.returncode == 0, res.err
 
 @pytest.mark.skipif("True")
 @may_spawn_proc
