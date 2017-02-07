@@ -768,20 +768,39 @@ impl Value {
     }
 }
 
+const DISPLAY_TYPE : bool = false;
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.v {
-            Value_::SSAVar(_) => {
-                write!(f, "+({} %{})", self.ty, self.hdr)
-            },
-            Value_::Constant(ref c) => {
-                write!(f, "+({} {} @{})", self.ty, c, self.hdr)
-            },
-            Value_::Global(ref ty) => {
-                write!(f, "+(GLOBAL {} @{})", ty, self.hdr)
-            },
-            Value_::Memory(ref mem) => {
-                write!(f, "+(MEM {} %{})", mem, self.hdr)
+        if DISPLAY_TYPE {
+            match self.v {
+                Value_::SSAVar(_) => {
+                    write!(f, "+({} %{})", self.ty, self.hdr)
+                },
+                Value_::Constant(ref c) => {
+                    write!(f, "+({} {} @{})", self.ty, c, self.hdr)
+                },
+                Value_::Global(ref ty) => {
+                    write!(f, "+(GLOBAL {} @{})", ty, self.hdr)
+                },
+                Value_::Memory(ref mem) => {
+                    write!(f, "+(MEM {} %{})", mem, self.hdr)
+                }
+            }
+        } else {
+            match self.v {
+                Value_::SSAVar(_) => {
+                    write!(f, "%{}", self.hdr)
+                },
+                Value_::Constant(ref c) => {
+                    write!(f, "{} @{}", c, self.hdr)
+                },
+                Value_::Global(_) => {
+                    write!(f, "GLOBAL @{}", self.hdr)
+                },
+                Value_::Memory(ref mem) => {
+                    write!(f, "MEM {} %{}", mem, self.hdr)
+                }
             }
         }
     }
