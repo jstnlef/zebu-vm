@@ -1009,11 +1009,9 @@ def test_make_boot_image_simple():
     exe = py.path.local('/tmp/test_make_boot_image_mu.mu')
 
     # zebu
-    import os
-    from rpython.translator.mu import dir_mu
+    """ NOTE: must specify (DY)LD_LIBRARY_PATH to point to directory of rpyc"""
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), ['abc', '123'],
-                           env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+    res = platform.execute(str(exe), ['abc', '123'])
     # holstein
     # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
     #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
@@ -1035,11 +1033,9 @@ def test_rpytarget_print_argv():
     exe = py.path.local('/tmp/test_printargv_mu.mu')
 
     # zebu
-    import os
-    from rpython.translator.mu import dir_mu
+    """ NOTE: must specify (DY)LD_LIBRARY_PATH to point to directory of rpyc"""
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), ['abc', '123'],
-                           env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+    res = platform.execute(str(exe), ['abc', '123'])
     # holstein
     # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
     #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
@@ -1052,8 +1048,8 @@ def test_rpython_helloworld():
     from rpython.translator.interactive import Translation
 
     def main(argv):
-	print "hello world"
-	return 0
+        print "hello world"
+        return 0
 
     t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
     t.driver.exe_name = '/tmp/test_helloworld'
@@ -1061,10 +1057,9 @@ def test_rpython_helloworld():
     exe = py.path.local('/tmp/test_helloworld.mu')
 
     # zebu
-    import os
-    from rpython.translator.mu import dir_mu
+    """ NOTE: must specify (DY)LD_LIBRARY_PATH to point to directory of rpyc"""
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), [], env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+    res = platform.execute(str(exe), [])
 
     assert res.returncode == 0, res.err
     assert res.out == 'hello world\n'
@@ -1093,11 +1088,9 @@ The light shines in the darkness, and the darkness has not overcome it.
         fp.write(john1)
 
     # zebu
-    import os
-    from rpython.translator.mu import dir_mu
+    """ NOTE: must specify (DY)LD_LIBRARY_PATH to point to directory of rpyc"""
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), [str(test_file)],
-                           env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+    res = platform.execute(str(exe), [str(test_file)])
     # holstein
     # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
     #                      ['--vmLog=ERROR', str(exe), str(test_file)])
