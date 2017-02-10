@@ -1075,31 +1075,6 @@ def test_rpython_main():
 
     assert res.returncode == 0, res.err
 
-@pytest.mark.xfail(reason = "new test")
-@may_spawn_proc
-def test_rpython_list_append():
-    from rpython.translator.interactive import Translation
-
-    def main(argv):
-        a = list_append(5)
-        return a
-
-    def list_append(n):
-        l = []
-        for i in range(0, n):
-            l.append(i)
-
-        sum = 0
-        for i in l:
-            sum += i
-
-        return sum
-
-    res = run_boot_image(main, '/tmp/test_list_append')
-
-    print res.returncode
-    assert res.returncode == 10, res.err
-
 @pytest.mark.skipif("True")
 @may_spawn_proc
 def test_rpytarget_sha1sum():
