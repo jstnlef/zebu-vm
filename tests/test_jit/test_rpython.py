@@ -26,22 +26,6 @@ def test_add():
     assert fn(1, 2) == 3
 
 @may_spawn_proc
-def test_list_append():
-    def list_append(n):
-        l = []
-	for i in range(0, n):
-	    l.append(i)
-	
-	sum = 0
-	for i in l:
-	    sum += i
-	
-	return sum
-
-    fn, _ = fncptr_from_rpy_func(list_append, [rffi.LONGLONG], rffi.LONGLONG)
-    assert fn(10) == 45
-
-@may_spawn_proc
 def test_vec3prod():
     def prod(v1, v2):
         a = v1[0] * v2[0]
@@ -1004,6 +988,30 @@ def test_exception_stack_unwind():
     assert fnp(100) == 10
 
 
+def run_boot_image(entry, output, has_c_main_sig = False, args = []):
+    from rpython.translator.interactive import Translation
+    
+    if has_c_main_sig:
+        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', muimpl='fast', mucodegen='api')
+        t.driver.disable(['entrypoint_mu'])
+    else:
+        t = Translation(entry, None, backend='mu', muimpl='fast', mucodegen='api')
+
+    t.driver.standalone = True  # force standalone
+    t.driver.exe_name = output
+    
+    t.compile_mu()
+    exe = py.path.local(output + '.mu')
+    
+    # zebu
+    import os
+    from rpython.translator.mu import dir_mu
+    exe.chmod(stat.S_IRWXU)
+    res = platform.execute(str(exe), args,
+                           env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+
+    return res
+
 @may_spawn_proc
 def test_make_boot_image_simple():
     c_printf = rffi.llexternal('printf', [rffi.CCHARP], rffi.INT, _nowrapper=True)
@@ -1014,67 +1022,33 @@ def test_make_boot_image_simple():
             c_putchar('\n')
         return 0
 
-    from rpython.translator.interactive import Translation
-    t = Translation(pypy_mu_entry, [rffi.INT, rffi.CCHARPP],
-                    backend='mu', muimpl='fast', mucodegen='api')
-    t.driver.standalone = True  # force standalone
-    t.driver.exe_name = '/tmp/test_make_boot_image_%(backend)s'
-    t.driver.disable(['entrypoint_mu'])
-    t.compile_mu()
-    exe = py.path.local('/tmp/test_make_boot_image_mu.mu')
-
-    # zebu
-    """ NOTE: must specify (DY)LD_LIBRARY_PATH to point to directory of rpyc"""
-    exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), ['abc', '123'])
-    # holstein
-    # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
-    #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
+    res = run_boot_image(pypy_mu_entry, '/tmp/test_make_boot_image_mu', True, ['abc', '123'])
+    exe = '/tmp/test_make_boot_image_mu.mu'
+    
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
-@pytest.mark.xfail(reason = "doesnt work for now")
+@pytest.mark.xfail(reason = "debugging on this")
 @may_spawn_proc
 def test_rpytarget_print_argv():
-    from rpython.translator.interactive import Translation
-
     def main(argv):
         print argv
         return 0
 
-    t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
-    t.driver.exe_name = '/tmp/test_printargv_%(backend)s'
-    t.compile_mu()
-    exe = py.path.local('/tmp/test_printargv_mu.mu')
+    res = run_boot_image(main, '/tmp/test_printargv_mu', args = ['abc', '123'])
+    exe = '/tmp/test_printargv_mu.mu'
 
-    # zebu
-    """ NOTE: must specify (DY)LD_LIBRARY_PATH to point to directory of rpyc"""
-    exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), ['abc', '123'])
-    # holstein
-    # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
-    #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
     assert res.returncode == 0, res.err
     assert res.out == '[%s, abc, 123]\n' % exe
 
-@pytest.mark.xfail(reason = "no idea")
+@pytest.mark.xfail(reason = "debugging on this")
 @may_spawn_proc
 def test_rpython_helloworld():
-    from rpython.translator.interactive import Translation
-
     def main(argv):
         print "hello world"
         return 0
 
-    t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
-    t.driver.exe_name = '/tmp/test_helloworld'
-    t.compile_mu()
-    exe = py.path.local('/tmp/test_helloworld.mu')
-
-    # zebu
-    """ NOTE: must specify (DY)LD_LIBRARY_PATH to point to directory of rpyc"""
-    exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), [])
+    res = run_boot_image(main, '/tmp/test_helloworld_mu')
 
     assert res.returncode == 0, res.err
     assert res.out == 'hello world\n'
@@ -1085,42 +1059,47 @@ def test_rpython_print_number():
     from rpython.translator.interactive import Translation
 
     def main(argv):
-        print 255
-	return 0
+        print 233
+        return 0
 
-    t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
-    t.driver.exe_name = '/tmp/test_print_number'
-    t.compile_mu()
-    exe = py.path.local('/tmp/test_print_number.mu')
-
-    # zebu
-    import os
-    from rpython.translator.mu import dir_mu
-    exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), [], env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+    res = run_boot_image(main, '/tmp/test_print_number_mu')
 
     assert res.returncode == 0, res.err
-    assert res.out == '1\n'
+    assert res.out == '233\n'
 
 @may_spawn_proc
 def test_rpython_main():
-    from rpython.translator.interactive import Translation
-
     def main(argv):
         return 0
 
-    t = Translation(main, None, backend='mu', muimpl='fast', mucodegen='api')
-    t.driver.exe_name = '/tmp/test_main'
-    t.compile_mu()
-    exe = py.path.local('/tmp/test_main.mu')
-
-    # zebu
-    import os
-    from rpython.translator.mu import dir_mu
-    exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), [], env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+    res = run_boot_image(main, '/tmp/test_main')
 
     assert res.returncode == 0, res.err
+
+@pytest.mark.xfail(reason = "new test")
+@may_spawn_proc
+def test_rpython_list_append():
+    from rpython.translator.interactive import Translation
+
+    def main(argv):
+        a = list_append(5)
+        return a
+
+    def list_append(n):
+        l = []
+        for i in range(0, n):
+            l.append(i)
+
+        sum = 0
+        for i in l:
+            sum += i
+
+        return sum
+
+    res = run_boot_image(main, '/tmp/test_list_append')
+
+    print res.returncode
+    assert res.returncode == 10, res.err
 
 @pytest.mark.skipif("True")
 @may_spawn_proc
@@ -1133,25 +1112,13 @@ All things were made through him, and without him was not any thing made that wa
 In him was life, and the life was the light of men.
 The light shines in the darkness, and the darkness has not overcome it.
 '''
-    from rpython.translator.goal.targetsha1sum import entry_point
-    from rpython.translator.interactive import Translation
-    t = Translation(entry_point, None,
-                    backend='mu', muimpl='fast', mucodegen='api')
-    t.driver.standalone = True  # force standalone
-    t.driver.exe_name = '/tmp/test_sha1sum_%(backend)s'
-    t.compile_mu()
-    exe = py.path.local('/tmp/test_sha1sum_mu.mu')
     test_file = py.path.local('/tmp/john1.txt')
     with test_file.open('w') as fp:
         fp.write(john1)
 
-    # zebu
-    """ NOTE: must specify (DY)LD_LIBRARY_PATH to point to directory of rpyc"""
-    exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), [str(test_file)])
-    # holstein
-    # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
-    #                      ['--vmLog=ERROR', str(exe), str(test_file)])
+    from rpython.translator.goal.targetsha1sum import entry_point
+    res = run_boot_image(entry_point, '/tmp/test_sha1sum_mu')
+
     assert res.returncode == 0, res.err
     assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'
 
