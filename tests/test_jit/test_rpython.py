@@ -1007,8 +1007,7 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = []):
     import os
     from rpython.translator.mu import dir_mu
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), args,
-                           env={'DYLD_LIBRARY_PATH': os.path.join(dir_mu, 'rpyc')})
+    res = platform.execute(str(exe), args)
 
     return res
 
