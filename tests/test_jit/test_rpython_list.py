@@ -63,10 +63,9 @@ def test_rpython_list_iter():
     
     assert res.returncode == 45, res.err
 
-@pytest.mark.xfail(reason = "bug")
 @may_spawn_proc
 def test_rpython_list_addr_check_length1():
-    Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG))
+    Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG, hints={'nolength': True}))
 
     def check(actual, expect):
         if actual != expect:
@@ -83,7 +82,7 @@ def test_rpython_list_addr_check_length1():
         mem  = rffi.cast(Int64Ptr, addr)
         # ignore mem[0]
         check(mem[1], 1)
-        keepalive_until_here(argv)
+        keepalive_until_here(a)
         
         return 0
         
@@ -91,10 +90,9 @@ def test_rpython_list_addr_check_length1():
     
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
 
-@pytest.mark.xfail(reason = "bug")
 @may_spawn_proc
 def test_rpython_list_addr_check_length2():
-    Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG))
+    Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG, hints={'nolength': True}))
 
     def check(actual, expect):
         if actual != expect:
@@ -112,7 +110,7 @@ def test_rpython_list_addr_check_length2():
         mem  = rffi.cast(Int64Ptr, addr)
         # ignore mem[0]
         check(mem[1], 2)
-        keepalive_until_here(argv)
+        keepalive_until_here(a)
         
         return 0
         
@@ -120,14 +118,13 @@ def test_rpython_list_addr_check_length2():
     
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
 
-@pytest.mark.xfail(reason = "mem[1] is not 10? but mem[0] is 10, need to look into this")
 @may_spawn_proc
 def test_rpython_list_addr_check_all():
-    Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG))
+    Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG, hints={'nolength': True}))
 
-    def check(a, b):
-        if a != b:
-            c_exit(rffi.cast(rffi.INT, 23))
+    def check(actual, expect):
+        if actual != expect:
+            c_exit(rffi.cast(rffi.INT, actual))
     
     def main(argv):
         a = []
@@ -141,7 +138,14 @@ def test_rpython_list_addr_check_all():
         mem  = rffi.cast(Int64Ptr, addr)
         # ignore mem[0]
         check(mem[1], 10)
-        keepalive_until_here(argv)
+
+        inner_addr = mem[2]
+        inner = rffi.cast(Int64Ptr, inner_addr)
+        # inner[0], inner[1] is ignored
+        for i in range(0, 10):
+            check(inner[2 + i], i)
+        
+        keepalive_until_here(a)
         
         return 0
         
