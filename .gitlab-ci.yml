@@ -32,22 +32,22 @@ before_script:
 test:cargo:api:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_api
+    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_api 2> /dev/null
 
 test:cargo:ir:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_ir
+    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_ir 2> /dev/null
 
 test:cargo:compiler:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_compiler
+    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_compiler 2> /dev/null
 
 test:cargo:runtime:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_runtime
+    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_runtime 2> /dev/null
 
 testjit:milestones:
   stage: test
@@ -103,7 +103,7 @@ testjit:rpython:
     - git checkout test-mu-impl-jit
     - cd rpython/translator/mu/rpyc; make
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - RUST_BACKTRACE=1 LD_LIBRARY_PATH=mu-client-pypy/rpython/translator/mu/rpyc PYTHONPATH=mu-client-pypy MU_RUST=$CI_PROJECT_DIR pytest test_rpython.py -v
+    - RUST_BACKTRACE=1 LD_LIBRARY_PATH=mu-client-pypy/rpython/translator/mu/rpyc PYTHONPATH=mu-client-pypy MU_RUST=$CI_PROJECT_DIR pytest test_rpython*.py -v
   cache:
     key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
     paths:
