@@ -63,9 +63,66 @@ def test_rpython_list_iter():
     
     assert res.returncode == 45, res.err
 
+@pytest.mark.xfail(reason = "bug")
+@may_spawn_proc
+def test_rpython_list_addr_check_length1():
+    Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG))
+
+    def check(actual, expect):
+        if actual != expect:
+            c_exit(rffi.cast(rffi.INT, actual))
+    
+    def main(argv):
+        a = []
+        a.append(42)
+        
+        from rpython.rtyper.lltypesystem.llmemory import cast_ptr_to_adr
+        from rpython.rlib.objectmodel import keepalive_until_here
+        
+        addr = cast_ptr_to_adr(a)
+        mem  = rffi.cast(Int64Ptr, addr)
+        # ignore mem[0]
+        check(mem[1], 1)
+        keepalive_until_here(argv)
+        
+        return 0
+        
+    res = run_boot_image(main, '/tmp/test_rpython_list_addr_check_length1')
+    
+    assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
+
+@pytest.mark.xfail(reason = "bug")
+@may_spawn_proc
+def test_rpython_list_addr_check_length2():
+    Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG))
+
+    def check(actual, expect):
+        if actual != expect:
+            c_exit(rffi.cast(rffi.INT, actual))
+    
+    def main(argv):
+        a = []
+        a.append(42)
+        a.append(43)
+        
+        from rpython.rtyper.lltypesystem.llmemory import cast_ptr_to_adr
+        from rpython.rlib.objectmodel import keepalive_until_here
+        
+        addr = cast_ptr_to_adr(a)
+        mem  = rffi.cast(Int64Ptr, addr)
+        # ignore mem[0]
+        check(mem[1], 2)
+        keepalive_until_here(argv)
+        
+        return 0
+        
+    res = run_boot_image(main, '/tmp/test_rpython_list_addr_check_length2')
+    
+    assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
+
 @pytest.mark.xfail(reason = "mem[1] is not 10? but mem[0] is 10, need to look into this")
 @may_spawn_proc
-def test_rpython_list_check_by_addr():
+def test_rpython_list_addr_check_all():
     Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG))
 
     def check(a, b):
@@ -88,6 +145,6 @@ def test_rpython_list_check_by_addr():
         
         return 0
         
-    res = run_boot_image(main, '/tmp/test_rpython_list_check_by_addr')
+    res = run_boot_image(main, '/tmp/test_rpython_list_addr_check_all')
     
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
