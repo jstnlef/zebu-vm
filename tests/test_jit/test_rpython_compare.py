@@ -7,6 +7,9 @@ import pytest
 
 from test_rpython import run_boot_image
 
+# disabled all tests on u64 MAX boundary
+# rpython int is i64
+
 @may_spawn_proc
 def test_rpython_int_cmp():
     def int_cmp(a, b):
@@ -33,9 +36,9 @@ def test_rpython_int_cmp():
 
     assert mu_int_cmp(9223372036854775807, -9223372036854775808) == 1
 
-    assert mu_int_cmp(18446744073709551615, 9223372036854775807) == -1
-    assert mu_int_cmp(18446744073709551615, -9223372036854775808) == 1
-    assert mu_int_cmp(18446744073709551615, -1) == 0
+#    assert mu_int_cmp(18446744073709551615, 9223372036854775807) == -1
+#    assert mu_int_cmp(18446744073709551615, -9223372036854775808) == 1
+#    assert mu_int_cmp(18446744073709551615, -1) == 0
 
 @may_spawn_proc
 def test_rpython_int_cmp_zero():
@@ -51,7 +54,7 @@ def test_rpython_int_cmp_zero():
     
     assert mu_int_cmp_zero(1) == 1
     assert mu_int_cmp_zero(9223372036854775807) == 1
-    assert mu_int_cmp_zero(18446744073709551615) == -1
+#    assert mu_int_cmp_zero(18446744073709551615) == -1
     assert mu_int_cmp_zero(0) == 0
     assert mu_int_cmp_zero(-1) == -1
     assert mu_int_cmp_zero(-9223372036854775808) == -1
@@ -113,9 +116,9 @@ def test_rpython_int_gt_value():
     assert mu_int_gt_value(9223372036854775807, -9223372036854775808) == 1
     assert mu_int_gt_value(-9223372036854775808, 9223372036854775807) == 0
     
-    assert mu_int_gt_value(18446744073709551615, 9223372036854775807) == 0
-    assert mu_int_gt_value(18446744073709551615, -9223372036854775808) == 1
-    assert mu_int_gt_value(18446744073709551615, -1) == 0
+#    assert mu_int_gt_value(18446744073709551615, 9223372036854775807) == 0
+#    assert mu_int_gt_value(18446744073709551615, -9223372036854775808) == 1
+#    assert mu_int_gt_value(18446744073709551615, -1) == 0
 
 @may_spawn_proc
 def test_rpython_int_ge_value():
@@ -136,9 +139,9 @@ def test_rpython_int_ge_value():
     assert mu_int_ge_value(9223372036854775807, -9223372036854775808) == 1
     assert mu_int_ge_value(-9223372036854775808, 9223372036854775807) == 0
     
-    assert mu_int_ge_value(18446744073709551615, 9223372036854775807) == 0
-    assert mu_int_ge_value(18446744073709551615, -9223372036854775808) == 1
-    assert mu_int_ge_value(18446744073709551615, -1) == 1
+#    assert mu_int_ge_value(18446744073709551615, 9223372036854775807) == 0
+#    assert mu_int_ge_value(18446744073709551615, -9223372036854775808) == 1
+#    assert mu_int_ge_value(18446744073709551615, -1) == 1
 
 @may_spawn_proc
 def test_rpython_int_lt_value():
@@ -159,9 +162,9 @@ def test_rpython_int_lt_value():
     assert mu_int_lt_value(9223372036854775807, -9223372036854775808) == 0
     assert mu_int_lt_value(-9223372036854775808, 9223372036854775807) == 1
     
-    assert mu_int_lt_value(18446744073709551615, 9223372036854775807) == 1
-    assert mu_int_lt_value(18446744073709551615, -9223372036854775808) == 0
-    assert mu_int_lt_value(18446744073709551615, -1) == 0
+#    assert mu_int_lt_value(18446744073709551615, 9223372036854775807) == 1
+#    assert mu_int_lt_value(18446744073709551615, -9223372036854775808) == 0
+#    assert mu_int_lt_value(18446744073709551615, -1) == 0
 
 @may_spawn_proc
 def test_rpython_int_le_value():
@@ -182,9 +185,9 @@ def test_rpython_int_le_value():
     assert mu_int_le_value(9223372036854775807, -9223372036854775808) == 0
     assert mu_int_le_value(-9223372036854775808, 9223372036854775807) == 1
     
-    assert mu_int_le_value(18446744073709551615, 9223372036854775807) == 1
-    assert mu_int_le_value(18446744073709551615, -9223372036854775808) == 0
-    assert mu_int_le_value(18446744073709551615, -1) == 1
+#    assert mu_int_le_value(18446744073709551615, 9223372036854775807) == 1
+#    assert mu_int_le_value(18446744073709551615, -9223372036854775808) == 0
+#    assert mu_int_le_value(18446744073709551615, -1) == 1
 
 @may_spawn_proc
 def test_rpython_int_eq_value():
@@ -205,9 +208,9 @@ def test_rpython_int_eq_value():
     assert mu_int_eq_value(9223372036854775807, -9223372036854775808) == 0
     assert mu_int_eq_value(-9223372036854775808, 9223372036854775807) == 0
     
-    assert mu_int_eq_value(18446744073709551615, 9223372036854775807) == 0
-    assert mu_int_eq_value(18446744073709551615, -9223372036854775808) == 0
-    assert mu_int_eq_value(18446744073709551615, -1) == 1
+#    assert mu_int_eq_value(18446744073709551615, 9223372036854775807) == 0
+#    assert mu_int_eq_value(18446744073709551615, -9223372036854775808) == 0
+#    assert mu_int_eq_value(18446744073709551615, -1) == 1
 
 @may_spawn_proc
 def test_rpython_int_ne_value():
@@ -228,6 +231,6 @@ def test_rpython_int_ne_value():
     assert mu_int_ne_value(9223372036854775807, -9223372036854775808) == 1
     assert mu_int_ne_value(-9223372036854775808, 9223372036854775807) == 1
     
-    assert mu_int_ne_value(18446744073709551615, 9223372036854775807) == 1
-    assert mu_int_ne_value(18446744073709551615, -9223372036854775808) == 1
-    assert mu_int_ne_value(18446744073709551615, -1) == 0
+#    assert mu_int_ne_value(18446744073709551615, 9223372036854775807) == 1
+#    assert mu_int_ne_value(18446744073709551615, -9223372036854775808) == 1
+#    assert mu_int_ne_value(18446744073709551615, -1) == 0
