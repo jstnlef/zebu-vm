@@ -1,5 +1,5 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
-from rpython.rlib import rmu_fast as rmu
+from rpython.rlib.rmu import zebu as rmu
 from rpython.translator.platform import platform
 from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
 import ctypes, py, stat
@@ -833,7 +833,6 @@ def test_throw():
             "@refi64": refi64
         }
 
-    from rpython.rlib import rmu_fast as rmu
     (fnp, _), (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, None, 'test_fnc', [ctypes.c_int64],
                                                       ctypes.c_int64, mode=ctypes.RTLD_GLOBAL)
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
@@ -843,7 +842,6 @@ def test_throw():
 
 @may_spawn_proc
 def test_exception_stack_unwind():
-    from rpython.rlib import rmu_fast as rmu
     def build_test_bundle(bldr, rmu):
         """
         Builds the following test bundle.
@@ -990,12 +988,12 @@ def test_exception_stack_unwind():
 
 def run_boot_image(entry, output, has_c_main_sig = False, args = []):
     from rpython.translator.interactive import Translation
-    
+
     if has_c_main_sig:
-        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', muimpl='fast', mucodegen='api')
+        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl='zebu', codegen='api')
         t.driver.disable(['entrypoint_mu'])
     else:
-        t = Translation(entry, None, backend='mu', muimpl='fast', mucodegen='api')
+        t = Translation(entry, None, backend='mu', impl='zebu', codegen='api')
 
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output
@@ -1004,8 +1002,6 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = []):
     exe = py.path.local(output + '.mu')
     
     # zebu
-    import os
-    from rpython.translator.mu import dir_mu
     exe.chmod(stat.S_IRWXU)
     res = platform.execute(str(exe), args)
 
@@ -1055,7 +1051,6 @@ def test_rpython_helloworld():
 @pytest.mark.xfail(reason = "new test")
 @may_spawn_proc
 def test_rpython_print_number():
-    from rpython.translator.interactive import Translation
 
     def main(argv):
         print 233

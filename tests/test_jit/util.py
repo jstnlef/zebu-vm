@@ -113,18 +113,14 @@ def is_ctypes(t):
 def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong, mode=ctypes.RTLD_LOCAL, **kwargs):
     import os
     # NOTE: requires mu-client-pypy
-    from rpython.rlib import rmu_fast as rmu
+    from rpython.rlib.rmu import zebu as rmu
 
     # load libmu before rffi so to load it with RTLD_GLOBAL
     libmu = preload_libmu()
 
-    from rpython.translator.mu import dir_mu
-
     loglvl = os.environ.get('MU_LOG_LEVEL', 'none')
     emit_dir = kwargs.get('muemitdir', os.environ.get('MU_EMIT_DIR', 'emit'))
-    mu = rmu.MuVM("--log-level=%(loglvl)s --aot-emit-dir=%(emit_dir)s "
-                  "--bootimage-external-lib=rpyc "
-                  "--bootimage-external-libpath=%(dir_mu)s/rpyc" % locals())
+    mu = rmu.MuVM("--log-level=%(loglvl)s --aot-emit-dir=%(emit_dir)s" % locals())
     ctx = mu.new_context()
     bldr = ctx.new_ir_builder()
 
@@ -166,18 +162,18 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, mode=ctypes.RTLD_LOCAL,
     from rpython.config.translationoption import set_opt_level
 
     preload_libmu()
-
+    emit_dir = os.environ.get('MU_EMIT_DIR', 'emit')
     kwargs.setdefault('backend', 'mu')
-    kwargs.setdefault('muimpl', 'fast')
-    kwargs.setdefault('mucodegen', 'api')
-    kwargs.setdefault('mutestjit', True)
-    kwargs.setdefault('muemitdir', os.environ.get('MU_EMIT_DIR', 'emit'))
+    kwargs.setdefault('impl', 'zebu')
+    kwargs.setdefault('codegen', 'api')
+    kwargs.setdefault('testjit', True)
+    kwargs.setdefault('vmargs', "--aot-emit-dir=" + emit_dir)
 
     t = Translation(rpy_fnc, llargtypes, **kwargs)
     set_opt_level(t.config, '3')
     if kwargs['backend'] == 'mu':
         db, bdlgen, fnc_name = t.compile_mu()
-        emit_dir = py.path.local(kwargs['muemitdir'])
+        emit_dir = py.path.local(emit_dir)
         libpath = emit_dir.join('lib%(fnc_name)s' % locals() + libext)
         bdlgen.mu.compile_to_sharedlib(libpath.strpath, [])
         extras = (db, bdlgen)
