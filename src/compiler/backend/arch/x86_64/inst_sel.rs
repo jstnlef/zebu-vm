@@ -433,6 +433,8 @@ impl <'a> InstructionSelection {
                         let tmp_res = self.get_result_value(node);
 
                         // cmov only take (16/32/64bits registers)
+                        // so we use 64bits registers here and truncate later
+
                         // make res64, and set to zero
                         let tmp_res64 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
                         self.backend.emit_xor_r_r(&tmp_res64, &tmp_res64);
@@ -465,7 +467,7 @@ impl <'a> InstructionSelection {
                         }
 
                         // truncate tmp_res64 to tmp_res (probably u8)
-                        self.backend.emit_mov_r_r(&tmp_res, &tmp_res64);
+                        self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_res64.as_type(UINT8_TYPE.clone())});
                     }
 
                     Instruction_::Branch1(ref dest) => {
@@ -648,10 +650,22 @@ impl <'a> InstructionSelection {
                             op::ConvOp::TRUNC => {
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
                                     let tmp_res = self.get_result_value(node);
+                                    let dst_length = match tmp_res.ty.get_int_length() {
+                                        Some(len) => len,
+                                        None => panic!("dst of TRUNC is not int: {}", tmp_res)
+                                    };
 
                                     // mov op -> result
-                                    self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
+                                    match dst_length {
+                                        1  => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT8_TYPE.clone())}),
+                                        8  => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT8_TYPE.clone())}),
+                                        16 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT16_TYPE.clone())}),
+                                        32 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT32_TYPE.clone())}),
+                                        64 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT64_TYPE.clone())}),
+                                        _  => panic!("unsupported int length: {}", dst_length)
+                                    }
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
                                 }
