@@ -168,6 +168,7 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, mode=ctypes.RTLD_LOCAL,
     kwargs.setdefault('codegen', 'api')
     kwargs.setdefault('testjit', True)
     kwargs.setdefault('vmargs', "--aot-emit-dir=" + emit_dir)
+    kwargs.setdefault('no_ovf', True)
 
     t = Translation(rpy_fnc, llargtypes, **kwargs)
     set_opt_level(t.config, '3')
