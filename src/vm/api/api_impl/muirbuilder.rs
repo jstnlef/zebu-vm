@@ -308,7 +308,11 @@ impl MuIRBuilder {
     }
 
     pub fn new_binop_with_status(&mut self, id: MuID, result_id: MuID, status_result_ids: Vec<MuID>, optr: CMuBinOptr, status_flags: CMuBinOpStatus, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
-        panic!("Not implemented")
+        self.add_inst(id, NodeInst::NodeBinOp {
+            id: id, result_id: result_id, status_result_ids: status_result_ids,
+            optr: optr, flags: status_flags, ty: ty, opnd1: opnd1, opnd2: opnd2,
+            exc_clause: exc_clause
+        })
     }
 
     pub fn new_cmp(&mut self, id: MuID, result_id: MuID, optr: CMuCmpOptr, ty: MuID, opnd1: MuID, opnd2: MuID) {

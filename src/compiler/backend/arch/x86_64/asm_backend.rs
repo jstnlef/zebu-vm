@@ -1891,6 +1891,75 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
+    // set byte
+    fn emit_sets_r8(&mut self, dest: Reg) {
+        trace!("emit: sets {}", dest);
+
+        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
+
+        let asm = format!("sets {}", reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id => vec![loc]
+            },
+            linked_hashmap!{},
+            false
+        )
+    }
+
+    fn emit_setz_r8(&mut self, dest: Reg) {
+        trace!("emit: setz {}", dest);
+
+        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
+
+        let asm = format!("setz {}", reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id => vec![loc]
+            },
+            linked_hashmap!{},
+            false
+        )
+    }
+
+    fn emit_seto_r8(&mut self, dest: Reg) {
+        trace!("emit: seto {}", dest);
+
+        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
+
+        let asm = format!("seto {}", reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id => vec![loc]
+            },
+            linked_hashmap!{},
+            false
+        )
+    }
+
+    fn emit_setb_r8(&mut self, dest: Reg) {
+        trace!("emit: setb {}", dest);
+
+        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
+
+        let asm = format!("setb {}", reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id => vec![loc]
+            },
+            linked_hashmap!{},
+            false
+        )
+    }
+
     // cmov src -> dest
     // binop op1, op2 (op2 is destination)
 

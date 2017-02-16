@@ -480,6 +480,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
     match inst.v {
         // simple
         BinOp(_, _, _)  => 1,
+        BinOpWithStatus(_, _, _, _) => 2,
         CmpOp(_, _, _)  => 1,
         ConvOp{..}      => 0,
 

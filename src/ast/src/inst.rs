@@ -92,6 +92,8 @@ pub enum Instruction_ {
     // expressions
 
     BinOp(BinOp, OpIndex, OpIndex),
+    BinOpWithStatus(BinOp, BinOpStatus, OpIndex, OpIndex),
+
     CmpOp(CmpOp, OpIndex, OpIndex),
     ConvOp{
         operation: ConvOp,
@@ -282,6 +284,9 @@ impl Instruction_ {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         match self {
             &Instruction_::BinOp(op, op1, op2) => format!("{:?} {} {}", op, ops[op1], ops[op2]),
+            &Instruction_::BinOpWithStatus(op, status, op1, op2) => {
+                format!("{:?} {:?} {} {}", op, status, ops[op1], ops[op2])
+            }
             &Instruction_::CmpOp(op, op1, op2) => format!("{:?} {} {}", op, ops[op1], ops[op2]),
             &Instruction_::ConvOp{operation, ref from_ty, ref to_ty, operand} => {
                 format!("{:?} {} {} {}", operation, from_ty, to_ty, ops[operand])
@@ -399,6 +404,50 @@ impl Instruction_ {
             // move
             &Instruction_::Move(from) => format!("MOVE {}", ops[from])
         }
+    }
+}
+
+#[derive(Copy, Clone, RustcEncodable, RustcDecodable)]
+pub struct BinOpStatus {
+    pub flag_n: bool,
+    pub flag_z: bool,
+    pub flag_c: bool,
+    pub flag_v: bool
+}
+
+impl BinOpStatus {
+    pub fn n() -> BinOpStatus {
+        BinOpStatus {flag_n: true, flag_z: false, flag_c: false, flag_v: false}
+    }
+
+    pub fn z() -> BinOpStatus {
+        BinOpStatus {flag_n: false, flag_z: true, flag_c: false, flag_v: false}
+    }
+
+    pub fn c() -> BinOpStatus {
+        BinOpStatus {flag_n: false, flag_z: false, flag_c: true, flag_v: false}
+    }
+
+    pub fn v() -> BinOpStatus {
+        BinOpStatus {flag_n: false, flag_z: false, flag_c: false, flag_v: true}
+    }
+}
+
+impl fmt::Debug for BinOpStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.flag_n {
+            write!(f, "#N").unwrap();
+        }
+        if self.flag_z {
+            write!(f, "#Z").unwrap();
+        }
+        if self.flag_c {
+            write!(f, "#C").unwrap();
+        }
+        if self.flag_v {
+            write!(f, "#V").unwrap();
+        }
+        Ok(())
     }
 }
 

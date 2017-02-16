@@ -247,6 +247,16 @@ macro_rules! inst {
         });
     };
 
+    // BINOP with status
+    (($vm: expr, $fv: ident) $name: ident: $value: ident, $($flag: ident), * = BINOP_STATUS ($op: expr) ($flags: expr) $op1: ident $op2: ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  Some(vec![$value.clone_value(), $($flag.clone_value()), *]),
+            ops:    RwLock::new(vec![$op1.clone(), $op2.clone()]),
+            v:      Instruction_::BinOpWithStatus($op, $flags, 0, 1)
+        });
+    };
+
     // CMPOP
     (($vm: expr, $fv: ident) $name: ident: $value: ident = CMPOP ($op: expr) $op1: ident $op2: ident) => {
         let $name = $fv.new_inst(Instruction{
