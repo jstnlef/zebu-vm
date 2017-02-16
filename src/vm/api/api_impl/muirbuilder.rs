@@ -1332,8 +1332,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_inst = match **inst {
             NodeInst::NodeBinOp {
-                id: _, result_id, status_result_ids: _,
-                optr, flags: _, ty, opnd1, opnd2,
+                id: _, result_id, ref status_result_ids,
+                optr, flags, ty, opnd1, opnd2,
                 exc_clause: _
             } => {
                 let impl_optr = match optr {
@@ -1361,12 +1361,67 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd1 = self.get_treenode(fcb, opnd1);
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_ty).clone_value();
+                
+                if flags == 0 {
+                    // binop
+                    Instruction {
+                        hdr: hdr,
+                        value: Some(vec![impl_rv]),
+                        ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                        v: Instruction_::BinOp(impl_optr, 0, 1),
+                    }
+                } else {
+                    let mut values = vec![];
 
-                Instruction {
-                    hdr: hdr,
-                    value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
-                    v: Instruction_::BinOp(impl_optr, 0, 1),
+                    // result
+                    values.push(impl_rv);
+
+                    // status flags
+                    let ty_i1 = self.ensure_i1();
+                    let mut flags_count = 0;
+                    let mut impl_flags = BinOpStatus::none();
+                    
+                    if flags & CMU_BOS_N != 0 {
+                        impl_flags.flag_n = true;
+
+                        let flag_n = self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone()).clone_value();
+                        flags_count += 1;
+
+                        values.push(flag_n);
+                    }
+                    
+                    if flags & CMU_BOS_Z != 0 {
+                        impl_flags.flag_z = true;
+                        
+                        let flag_z = self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone()).clone_value();
+                        flags_count += 1;
+                        
+                        values.push(flag_z);
+                    }
+
+                    if flags & CMU_BOS_C != 0 {
+                        impl_flags.flag_c = true;
+
+                        let flag_c = self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone()).clone_value();
+                        flags_count += 1;
+
+                        values.push(flag_c);
+                    }
+
+                    if flags & CMU_BOS_V != 0 {
+                        impl_flags.flag_v = true;
+
+                        let flag_v = self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone()).clone_value();
+
+                        values.push(flag_v);
+                    }
+
+                    Instruction {
+                        hdr: hdr,
+                        value: Some(values),
+                        ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                        v: Instruction_::BinOpWithStatus(impl_optr, impl_flags, 0, 1),
+                    }
                 }
             },
             NodeInst::NodeCmp {

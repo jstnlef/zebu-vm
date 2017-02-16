@@ -416,6 +416,10 @@ pub struct BinOpStatus {
 }
 
 impl BinOpStatus {
+    pub fn none() -> BinOpStatus {
+        BinOpStatus {flag_n: false, flag_z: false, flag_c: false, flag_v: false}
+    }
+
     pub fn n() -> BinOpStatus {
         BinOpStatus {flag_n: true, flag_z: false, flag_c: false, flag_v: false}
     }
