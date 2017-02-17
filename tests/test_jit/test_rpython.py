@@ -998,12 +998,13 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = []):
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output
     
-    t.compile_mu()
-    exe = py.path.local(output + '.mu')
+    db, mugen, epf_name = t.compile_mu()
+    exe = py.path.local(output)
     
     # zebu
     exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), args)
+    eci = rffi.ExternalCompilationInfo(library_dirs=[str(db.libsupport_path.dirpath())])
+    res = platform.execute(str(exe), args, compilation_info=eci)
 
     return res
 

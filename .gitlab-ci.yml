@@ -103,7 +103,7 @@ testjit:rpython:
     - git checkout mu-rewrite-zebu-no-binop-with-flag
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - RUST_BACKTRACE=1 LD_LIBRARY_PATH=. PYTHONPATH=mu-client-pypy MU_ZEBU=$CI_PROJECT_DIR pytest test_rpython*.py -v
+    - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy MU_ZEBU=$CI_PROJECT_DIR pytest test_rpython*.py -v
   cache:
     key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
     paths:
