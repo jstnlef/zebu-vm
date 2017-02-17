@@ -5,7 +5,7 @@ use utils::POINTER_SIZE;
 use utils::vec_utils;
 
 use std::fmt;
-use std::collections::HashMap;
+use utils::LinkedHashMap;
 use std::sync::RwLock;
 
 lazy_static! {
@@ -264,9 +264,9 @@ impl fmt::Display for MuType_ {
 
 lazy_static! {
     /// storing a map from MuName to StructType_
-    pub static ref STRUCT_TAG_MAP : RwLock<HashMap<StructTag, StructType_>> = RwLock::new(HashMap::new());
+    pub static ref STRUCT_TAG_MAP : RwLock<LinkedHashMap<StructTag, StructType_>> = RwLock::new(LinkedHashMap::new());
     /// storing a map from MuName to HybridType_
-    pub static ref HYBRID_TAG_MAP : RwLock<HashMap<HybridTag, HybridType_>> = RwLock::new(HashMap::new());
+    pub static ref HYBRID_TAG_MAP : RwLock<LinkedHashMap<HybridTag, HybridType_>> = RwLock::new(LinkedHashMap::new());
 }
 
 #[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]

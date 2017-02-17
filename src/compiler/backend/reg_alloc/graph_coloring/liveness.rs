@@ -4,8 +4,7 @@ use compiler::machine_code::CompiledFunction;
 use ast::ir::*;
 use compiler::backend;
 use utils::LinkedHashSet;
-
-use std::collections::{HashMap, HashSet};
+use utils::LinkedHashMap;
 
 use compiler::backend::reg_alloc::graph_coloring::petgraph;
 use compiler::backend::reg_alloc::graph_coloring::petgraph::Graph;
@@ -24,16 +23,16 @@ pub struct Move{pub from: NodeIndex, pub to: NodeIndex}
 
 pub struct InterferenceGraph {
     graph: Graph<GraphNode, (), petgraph::Undirected>,
-    nodes: HashMap<MuID, NodeIndex>,
-    moves: HashSet<Move>,
+    nodes: LinkedHashMap<MuID, NodeIndex>,
+    moves: LinkedHashSet<Move>,
 }
 
 impl InterferenceGraph {
     fn new() -> InterferenceGraph {
         InterferenceGraph {
             graph: Graph::new_undirected(),
-            nodes: HashMap::new(),
-            moves: HashSet::new()
+            nodes: LinkedHashMap::new(),
+            moves: LinkedHashSet::new()
         }
     }
     
@@ -85,7 +84,7 @@ impl InterferenceGraph {
         ret
     }
     
-    pub fn moves(&self) -> &HashSet<Move> {
+    pub fn moves(&self) -> &LinkedHashSet<Move> {
         &self.moves
     }
     
@@ -255,17 +254,17 @@ struct CFGBlockNode {
     defs: Vec<MuID>
 }
 
-fn local_liveness_analysis (cf: &mut CompiledFunction) -> HashMap<String, CFGBlockNode> {
+fn local_liveness_analysis (cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockNode> {
     info!("---local liveness analysis---");
     let mc = cf.mc();
 
-    let mut ret = hashmap!{};
+    let mut ret = LinkedHashMap::new();
 
     let all_blocks = mc.get_all_blocks();
 
     // create maps (start_inst -> name) and (end_inst -> name)
-    let mut start_inst_map : HashMap<usize, &str> = hashmap!{};
-    let mut end_inst_map   : HashMap<usize, &str> = hashmap!{};
+    let mut start_inst_map : LinkedHashMap<usize, &str> = LinkedHashMap::new();
+    let mut end_inst_map   : LinkedHashMap<usize, &str> = LinkedHashMap::new();
     for block in all_blocks.iter() {
         let range = match mc.get_block_range(block) {
             Some(range) => range,
@@ -286,7 +285,7 @@ fn local_liveness_analysis (cf: &mut CompiledFunction) -> HashMap<String, CFGBlo
         let end        = range.end;
 
         let mut livein = vec![];
-        let mut all_defined : HashSet<MuID> = HashSet::new();
+        let mut all_defined : LinkedHashSet<MuID> = LinkedHashSet::new();
 
         for i in start_inst..end {
             let reg_uses = mc.get_inst_reg_uses(i);
@@ -304,7 +303,7 @@ fn local_liveness_analysis (cf: &mut CompiledFunction) -> HashMap<String, CFGBlo
             }
         }
 
-        let defs : Vec<MuID> = all_defined.into_iter().collect();
+        let defs : Vec<MuID> = all_defined.iter().map(|x| *x).collect();
 
         let preds : Vec<String> = {
             let mut ret = vec![];
@@ -353,12 +352,12 @@ fn local_liveness_analysis (cf: &mut CompiledFunction) -> HashMap<String, CFGBlo
     ret
 }
 
-//fn topological_sort_cfg(entry: String, cfg: HashMap<String, CFGBlockNode>) -> Vec<CFGBlockNode> {
+//fn topological_sort_cfg(entry: String, cfg: LinkedHashMap<String, CFGBlockNode>) -> Vec<CFGBlockNode> {
 //    let mut ret = vec![];
 //    // for all nodes i
 //    //   mark[i] <- false
 //    let mut mark = {
-//        let mut ret = hashmap!{};
+//        let mut ret = LinkedHashMap::new();
 //        for str in cfg.keys() {
 //            ret.insert(str.clone(), false);
 //        }
@@ -374,7 +373,7 @@ fn local_liveness_analysis (cf: &mut CompiledFunction) -> HashMap<String, CFGBlo
 //    ret
 //}
 //
-//fn dfs(node: String, cfg: &HashMap<String, CFGBlockNode>, mark: &mut HashMap<String, bool>, sorted: &mut Vec<CFGBlockNode>) {
+//fn dfs(node: String, cfg: &LinkedHashMap<String, CFGBlockNode>, mark: &mut LinkedHashMap<String, bool>, sorted: &mut Vec<CFGBlockNode>) {
 //    // if mark[i] = false
 //    if !mark.get(&node).unwrap() {
 //        mark.insert(node.clone(), true);
@@ -388,20 +387,20 @@ fn local_liveness_analysis (cf: &mut CompiledFunction) -> HashMap<String, CFGBlo
 //    }
 //}
 
-fn global_liveness_analysis(blocks: HashMap<String, CFGBlockNode>, cf: &mut CompiledFunction, func: &MuFunctionVersion) {
+fn global_liveness_analysis(blocks: LinkedHashMap<String, CFGBlockNode>, cf: &mut CompiledFunction, func: &MuFunctionVersion) {
     info!("---global liveness analysis---");
     info!("{} blocks", blocks.len());
 
     // init live in and live out
-    let mut livein  : HashMap<String, LinkedHashSet<MuID>> = {
-        let mut ret = hashmap!{};
+    let mut livein  : LinkedHashMap<String, LinkedHashSet<MuID>> = {
+        let mut ret = LinkedHashMap::new();
         for name in blocks.keys() {
             ret.insert(name.clone(), LinkedHashSet::new());
         }
         ret
     };
-    let mut liveout  : HashMap<String, LinkedHashSet<MuID>> = {
-        let mut ret = hashmap!{};
+    let mut liveout  : LinkedHashMap<String, LinkedHashSet<MuID>> = {
+        let mut ret = LinkedHashMap::new();
         for name in blocks.keys() {
             ret.insert(name.clone(), LinkedHashSet::new());
         }

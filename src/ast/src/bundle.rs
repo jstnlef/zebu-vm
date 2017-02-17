@@ -2,20 +2,20 @@ use ir::*;
 use ptr::*;
 use types::*;
 
-use std::collections::HashMap;
+use utils::LinkedHashMap;
 
 pub struct MuBundle {
     pub id: MuID,
     
-    pub type_defs: HashMap<MuID, P<MuType>>,
-    pub func_sigs: HashMap<MuID, P<MuFuncSig>>,
-    pub constants: HashMap<MuID, P<Value>>,
-    pub globals  : HashMap<MuID, P<Value>>,
-    pub func_defs: HashMap<MuID, MuFunction>,
-    pub func_decls: HashMap<MuID, MuFunctionVersion>,
+    pub type_defs: LinkedHashMap<MuID, P<MuType>>,
+    pub func_sigs: LinkedHashMap<MuID, P<MuFuncSig>>,
+    pub constants: LinkedHashMap<MuID, P<Value>>,
+    pub globals  : LinkedHashMap<MuID, P<Value>>,
+    pub func_defs: LinkedHashMap<MuID, MuFunction>,
+    pub func_decls: LinkedHashMap<MuID, MuFunctionVersion>,
     
-//    id_name_map: HashMap<MuID, MuName>,
-//    name_id_map: HashMap<MuName, MuID>
+//    id_name_map: LinkedHashMap<MuID, MuName>,
+//    name_id_map: LinkedHashMap<MuName, MuID>
 }
 
 impl MuBundle {
@@ -23,15 +23,15 @@ impl MuBundle {
         MuBundle {
             id: id,
             
-            type_defs: HashMap::new(),
-            func_sigs: HashMap::new(),
-            constants: HashMap::new(),
-            globals: HashMap::new(),
-            func_defs: HashMap::new(),
-            func_decls: HashMap::new(),
+            type_defs: LinkedHashMap::new(),
+            func_sigs: LinkedHashMap::new(),
+            constants: LinkedHashMap::new(),
+            globals: LinkedHashMap::new(),
+            func_defs: LinkedHashMap::new(),
+            func_decls: LinkedHashMap::new(),
             
-//            id_name_map: HashMap::new(),
-//            name_id_map: HashMap::new()
+//            id_name_map: LinkedHashMap::new(),
+//            name_id_map: LinkedHashMap::new()
         }
     }
 }

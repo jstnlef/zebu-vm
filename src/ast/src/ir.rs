@@ -6,7 +6,6 @@ use op::*;
 use utils::vec_utils;
 use utils::LinkedHashMap;
 
-use std::collections::HashMap;
 use std::fmt;
 use std::default;
 use std::sync::RwLock;
@@ -231,8 +230,8 @@ impl MuFunctionVersion {
     }
 
     /// get Map(CallSiteID -> FuncID) that are called by this function
-    pub fn get_static_call_edges(&self) -> HashMap<MuID, MuID> {
-        let mut ret = HashMap::new();
+    pub fn get_static_call_edges(&self) -> LinkedHashMap<MuID, MuID> {
+        let mut ret = LinkedHashMap::new();
 
         let f_content = self.content.as_ref().unwrap();
 
@@ -366,13 +365,13 @@ impl FunctionContent {
 
 #[derive(Default, Debug, RustcEncodable, RustcDecodable)]
 pub struct FunctionContext {
-    pub values: HashMap<MuID, SSAVarEntry>
+    pub values: LinkedHashMap<MuID, SSAVarEntry>
 }
 
 impl FunctionContext {
     fn new() -> FunctionContext {
         FunctionContext {
-            values: HashMap::new()
+            values: LinkedHashMap::new()
         }
     }
     

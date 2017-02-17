@@ -10,7 +10,6 @@ use vm::VM;
 use utils::vec_utils;
 use utils::LinkedHashSet;
 use utils::LinkedHashMap;
-use std::collections::HashMap;
 
 use std::cell::RefCell;
 
@@ -189,7 +188,7 @@ impl <'a> GraphColoring<'a> {
             trace!("coalescing enabled, build move list");
             let ref ig = self.ig;
             let ref mut movelist = self.movelist;
-            for m in ig.moves() {
+            for m in ig.moves().iter() {
                 trace!("add to movelist: {:?}", m);
                 self.worklist_moves.push(m.clone());
                 GraphColoring::movelist_mut(movelist, m.from).borrow_mut().push(m.clone());
@@ -655,7 +654,7 @@ impl <'a> GraphColoring<'a> {
     fn rewrite_program(&mut self) {
         let spills = self.spills();
 
-        let mut spilled_mem = HashMap::new();
+        let mut spilled_mem = LinkedHashMap::new();
 
         // allocating frame slots for every spilled temp
         for reg_id in spills.iter() {

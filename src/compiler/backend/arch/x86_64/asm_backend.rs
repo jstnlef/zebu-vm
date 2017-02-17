@@ -21,7 +21,6 @@ use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
 
-use std::collections::HashMap;
 use std::str;
 use std::usize;
 use std::slice::Iter;
@@ -110,8 +109,8 @@ impl ASMCode {
 
     fn rewrite_insert(
         &self,
-        insert_before: HashMap<usize, Vec<Box<ASMCode>>>,
-        insert_after: HashMap<usize, Vec<Box<ASMCode>>>) -> Box<ASMCode>
+        insert_before: LinkedHashMap<usize, Vec<Box<ASMCode>>>,
+        insert_after: LinkedHashMap<usize, Vec<Box<ASMCode>>>) -> Box<ASMCode>
     {
         trace!("insert spilling code");
         let mut ret = ASMCode {
@@ -127,7 +126,7 @@ impl ASMCode {
 
         // inst N in old machine code is N' in new machine code
         // this map stores the relationship
-        let mut location_map : HashMap<usize, usize> = HashMap::new();
+        let mut location_map : LinkedHashMap<usize, usize> = LinkedHashMap::new();
 
         for i in 0..self.number_of_insts() {
             trace!("Inst{}", i);
@@ -3081,6 +3080,7 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
     }
 }
 
+use std::collections::HashMap;
 pub fn emit_context_with_reloc(vm: &VM,
                                symbols: HashMap<Address, String>,
                                fields : HashMap<Address, String>) {
@@ -3281,7 +3281,7 @@ pub fn pic_symbol(name: String) -> String {
 use compiler::machine_code::CompiledFunction;
 
 pub fn spill_rewrite(
-    spills: &HashMap<MuID, P<Value>>,
+    spills: &LinkedHashMap<MuID, P<Value>>,
     func: &mut MuFunctionVersion,
     cf: &mut CompiledFunction,
     vm: &VM) -> Vec<P<Value>>
@@ -3294,11 +3294,11 @@ pub fn spill_rewrite(
     let mut new_nodes = vec![];
 
     // record code and their insertion point, so we can do the copy/insertion all at once
-    let mut spill_code_before: HashMap<usize, Vec<Box<ASMCode>>> = HashMap::new();
-    let mut spill_code_after: HashMap<usize, Vec<Box<ASMCode>>> = HashMap::new();
+    let mut spill_code_before: LinkedHashMap<usize, Vec<Box<ASMCode>>> = LinkedHashMap::new();
+    let mut spill_code_after: LinkedHashMap<usize, Vec<Box<ASMCode>>> = LinkedHashMap::new();
 
     // map from old to new
-    let mut temp_for_cur_inst : HashMap<MuID, P<Value>> = HashMap::new();
+    let mut temp_for_cur_inst : LinkedHashMap<MuID, P<Value>> = LinkedHashMap::new();
 
     // iterate through all instructions
     for i in 0..cf.mc().number_of_insts() {
