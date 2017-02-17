@@ -146,11 +146,7 @@ pub extern fn drop_mutator(mutator: *mut ImmixMutatorLocal) {
     // rust will reclaim the boxed mutator
 }
 
-#[cfg(target_arch = "x86_64")]
-#[link(name = "gc_clib_x64")]
-extern "C" {
-    pub fn set_low_water_mark();
-}
+pub use heap::gc::set_low_water_mark;
 
 // explicitly control roots
 
