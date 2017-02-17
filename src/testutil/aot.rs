@@ -129,7 +129,10 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         };
 
         trace!("copying from {:?} to {:?}", source, dest);
-        fs::copy(source.as_path(), dest.as_path()).unwrap();
+        match fs::copy(source.as_path(), dest.as_path()) {
+            Ok(_)  => {},
+            Err(e) => panic!("failed to copy: {}", e)
+        }
 
         // include the primordial C main
         ret.push(dest);

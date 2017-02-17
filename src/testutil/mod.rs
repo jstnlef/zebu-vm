@@ -52,7 +52,7 @@ pub fn exec_nocheck (mut cmd: Command) -> Output {
 pub fn get_path_under_mu(str: &'static str) -> PathBuf {
     use std::env;
 
-    match env::var("MU_RUST") {
+    match env::var("MU_ZEBU") {
         Ok(v) => {
             let mut ret = PathBuf::from(v);
             ret.push(str);
