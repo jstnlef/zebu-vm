@@ -2,7 +2,7 @@ from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib.rmu import zebu as rmu
 from rpython.translator.platform import platform
 from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
-import ctypes, py, stat
+import ctypes, py, stat, os
 import pytest
 
 # -------------------
@@ -986,25 +986,32 @@ def test_exception_stack_unwind():
     assert fnp(100) == 10
 
 
-def run_boot_image(entry, output, has_c_main_sig = False, args = []):
+def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu')):
     from rpython.translator.interactive import Translation
 
     if has_c_main_sig:
-        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl='zebu', codegen='api')
+        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api')
         t.driver.disable(['entrypoint_mu'])
     else:
-        t = Translation(entry, None, backend='mu', impl='zebu', codegen='api')
+        t = Translation(entry, None, backend='mu', impl=impl, codegen='api')
 
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output
     
     db, mugen, epf_name = t.compile_mu()
     exe = py.path.local(output)
-    
-    # zebu
-    exe.chmod(stat.S_IRWXU)
-    eci = rffi.ExternalCompilationInfo(library_dirs=[str(db.libsupport_path.dirpath())])
-    res = platform.execute(str(exe), args, compilation_info=eci)
+
+    if impl == 'zebu':
+        # zebu
+        exe.chmod(stat.S_IRWXU)
+        eci = rffi.ExternalCompilationInfo(library_dirs=[str(db.libsupport_path.dirpath())])
+        res = platform.execute(str(exe), args, compilation_info=eci)
+    else:
+        from rpython.rlib.rmu import holstein
+        runmu = py.path.local(holstein.mu_dir).join('..', 'tools', 'runmu.sh')
+        flags = ['--vmLog=ERROR']
+        # log_platform.execute(' '.join([str(runmu)] + flags + [str(exe)] + cmdargs))
+        res = platform.execute(runmu, flags + [str(exe)] + args)
 
     return res
 
