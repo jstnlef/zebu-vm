@@ -54,6 +54,17 @@ pub trait CodeGenerator {
     fn emit_seto_r8    (&mut self, dest: Reg);
     fn emit_setb_r8    (&mut self, dest: Reg);
 
+    fn emit_seta_r  (&mut self, dest: Reg);
+    fn emit_setae_r  (&mut self, dest: Reg);
+    fn emit_setb_r  (&mut self, dest: Reg);
+    fn emit_setbe_r  (&mut self, dest: Reg);
+    fn emit_sete_r  (&mut self, dest: Reg);
+    fn emit_setg_r  (&mut self, dest: Reg);
+    fn emit_setge_r  (&mut self, dest: Reg);
+    fn emit_setl_r  (&mut self, dest: Reg);
+    fn emit_setle_r  (&mut self, dest: Reg);
+    fn emit_setne_r  (&mut self, dest: Reg);
+
     // gpr conditional move
 
     fn emit_cmova_r_r  (&mut self, dest: Reg, src: Reg);

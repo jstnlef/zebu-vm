@@ -431,43 +431,32 @@ impl <'a> InstructionSelection {
                         let ref op2 = ops[op2];
 
                         let tmp_res = self.get_result_value(node);
+                        
+                        debug_assert!(tmp_res.ty.get_int_length().is_some());
+                        debug_assert!(tmp_res.ty.get_int_length().unwrap() == 1);
 
-                        // cmov only take (16/32/64bits registers)
-                        // so we use 64bits registers here and truncate later
-
-                        // make res64, and set to zero
-                        let tmp_res64 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                        self.backend.emit_xor_r_r(&tmp_res64, &tmp_res64);
-
-                        // set tmp1 as 1 (cmov doesnt allow immediate or reg8 as operand)
-                        let tmp_1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                        self.backend.emit_mov_r_imm(&tmp_1, 1);
-
-                        // cmov 1 to result
+                        // set byte to result
                         match self.emit_cmp_res(node, f_content, f_context, vm) {
-                            EQ  => self.backend.emit_cmove_r_r (&tmp_res64, &tmp_1),
-                            NE  => self.backend.emit_cmovne_r_r(&tmp_res64, &tmp_1),
-                            SGE => self.backend.emit_cmovge_r_r(&tmp_res64, &tmp_1),
-                            SGT => self.backend.emit_cmovg_r_r (&tmp_res64, &tmp_1),
-                            SLE => self.backend.emit_cmovle_r_r(&tmp_res64, &tmp_1),
-                            SLT => self.backend.emit_cmovl_r_r (&tmp_res64, &tmp_1),
-                            UGE => self.backend.emit_cmovae_r_r(&tmp_res64, &tmp_1),
-                            UGT => self.backend.emit_cmova_r_r (&tmp_res64, &tmp_1),
-                            ULE => self.backend.emit_cmovbe_r_r(&tmp_res64, &tmp_1),
-                            ULT => self.backend.emit_cmovb_r_r (&tmp_res64, &tmp_1),
+                            EQ  => self.backend.emit_sete_r (&tmp_res),
+                            NE  => self.backend.emit_setne_r(&tmp_res),
+                            SGE => self.backend.emit_setge_r(&tmp_res),
+                            SGT => self.backend.emit_setg_r (&tmp_res),
+                            SLE => self.backend.emit_setle_r(&tmp_res),
+                            SLT => self.backend.emit_setl_r (&tmp_res),
+                            UGE => self.backend.emit_setae_r(&tmp_res),
+                            UGT => self.backend.emit_seta_r (&tmp_res),
+                            ULE => self.backend.emit_setbe_r(&tmp_res),
+                            ULT => self.backend.emit_setb_r (&tmp_res),
 
-                            FOEQ | FUEQ => self.backend.emit_cmove_r_r (&tmp_res64, &tmp_1),
-                            FONE | FUNE => self.backend.emit_cmovne_r_r(&tmp_res64, &tmp_1),
-                            FOGT | FUGT => self.backend.emit_cmova_r_r (&tmp_res64, &tmp_1),
-                            FOGE | FUGE => self.backend.emit_cmovae_r_r(&tmp_res64, &tmp_1),
-                            FOLT | FULT => self.backend.emit_cmovb_r_r (&tmp_res64, &tmp_1),
-                            FOLE | FULE => self.backend.emit_cmovbe_r_r(&tmp_res64, &tmp_1),
+                            FOEQ | FUEQ => self.backend.emit_sete_r (&tmp_res),
+                            FONE | FUNE => self.backend.emit_setne_r(&tmp_res),
+                            FOGT | FUGT => self.backend.emit_seta_r (&tmp_res),
+                            FOGE | FUGE => self.backend.emit_setae_r(&tmp_res),
+                            FOLT | FULT => self.backend.emit_setb_r (&tmp_res),
+                            FOLE | FULE => self.backend.emit_setbe_r(&tmp_res),
 
                             _ => unimplemented!()
                         }
-
-                        // truncate tmp_res64 to tmp_res (probably u8)
-                        self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_res64.as_type(UINT8_TYPE.clone())});
                     }
 
                     Instruction_::Branch1(ref dest) => {

@@ -49,6 +49,8 @@ pub use self::sidemap::MINIMAL_ALIGNMENT;
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::OBJECT_HEADER_SIZE;
 #[cfg(feature = "use-sidemap")]
+pub use self::sidemap::OBJECT_HEADER_OFFSET;
+#[cfg(feature = "use-sidemap")]
 pub use self::sidemap::REF_BITS_LEN;
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::OBJ_START_BIT;

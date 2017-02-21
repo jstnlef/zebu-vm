@@ -1175,6 +1175,23 @@ impl ASMCodeGen {
         self.cur.take().unwrap()
     }
 
+    fn internal_uniop_def_r(&mut self, inst: &str, op: &P<Value>) {
+        trace!("emit: {} {}", inst, op);
+
+        let (reg, id, loc) = self.prepare_reg(op, inst.len() + 1);
+
+        let asm = format!("{} {}", inst, reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id => vec![loc]
+            },
+            linked_hashmap!{},
+            false
+        )
+    }
+
     fn internal_binop_no_def_r_r(&mut self, inst: &str, op1: &P<Value>, op2: &P<Value>) {
         let len = check_op_len(op1);
 
@@ -1892,71 +1909,46 @@ impl CodeGenerator for ASMCodeGen {
 
     // set byte
     fn emit_sets_r8(&mut self, dest: Reg) {
-        trace!("emit: sets {}", dest);
-
-        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
-
-        let asm = format!("sets {}", reg);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id => vec![loc]
-            },
-            linked_hashmap!{},
-            false
-        )
+        self.internal_uniop_def_r("sets", dest)
     }
-
     fn emit_setz_r8(&mut self, dest: Reg) {
-        trace!("emit: setz {}", dest);
-
-        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
-
-        let asm = format!("setz {}", reg);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id => vec![loc]
-            },
-            linked_hashmap!{},
-            false
-        )
+        self.internal_uniop_def_r("setz", dest)
     }
-
     fn emit_seto_r8(&mut self, dest: Reg) {
-        trace!("emit: seto {}", dest);
-
-        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
-
-        let asm = format!("seto {}", reg);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id => vec![loc]
-            },
-            linked_hashmap!{},
-            false
-        )
+        self.internal_uniop_def_r("seto", dest)
     }
-
     fn emit_setb_r8(&mut self, dest: Reg) {
-        trace!("emit: setb {}", dest);
-
-        let (reg, id, loc) = self.prepare_reg(dest, 4 + 1);
-
-        let asm = format!("setb {}", reg);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id => vec![loc]
-            },
-            linked_hashmap!{},
-            false
-        )
+        self.internal_uniop_def_r("setb", dest)
+    }
+    fn emit_seta_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("seta", dest)
+    }
+    fn emit_setae_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("setae", dest)
+    }
+    fn emit_setb_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("setb", dest)
+    }
+    fn emit_setbe_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("setbe", dest)
+    }
+    fn emit_sete_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("sete", dest)
+    }
+    fn emit_setg_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("setg", dest)
+    }
+    fn emit_setge_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("setge", dest)
+    }
+    fn emit_setl_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("setl", dest)
+    }
+    fn emit_setle_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("setle", dest)
+    }
+    fn emit_setne_r  (&mut self, dest: Reg) {
+        self.internal_uniop_def_r("setne", dest)
     }
 
     // cmov src -> dest
