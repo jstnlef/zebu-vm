@@ -109,7 +109,7 @@ impl <'a> InstructionSelection {
             name: "Instruction Selection (x64)",
             backend: Box::new(ASMCodeGen::new()),
 
-            current_fv_id: INVALID_MUID,
+            current_fv_id: 0,
             current_callsite_id: 0,
             current_frame: None,
             current_block: None,

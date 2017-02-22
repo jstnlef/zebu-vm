@@ -7,56 +7,12 @@ use utils::vec_utils;
 use utils::LinkedHashMap;
 
 use std::fmt;
-use std::convert;
-use std::ops;
 use std::default;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, RustcDecodable, RustcEncodable, Hash)]
-pub struct MuID(pub usize);
-impl fmt::Display for MuID {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "#{}", self.0)
-    }
-}
-impl convert::From<usize> for MuID {
-    fn from(val: usize) -> Self { MuID(val) }
-}
-impl convert::From<u64> for MuID {
-    fn from(val: u64) -> Self { MuID(val as usize) }
-}
-impl convert::From<u32> for MuID {
-    fn from(val: u32) -> Self { MuID(val as usize) }
-}
-impl convert::Into<usize> for MuID {
-    fn into(self) -> usize { self.0 }
-}
-impl convert::Into<u64> for MuID {
-    fn into(self) -> u64 { self.0 as u64 }
-}
-impl convert::Into<u32> for MuID {
-    fn into(self) -> u32 { self.0 as u32 }
-}
-impl ops::Add<usize> for MuID {
-    type Output = MuID;
-
-    fn add(self, other: usize) -> MuID {
-        MuID(self.0 + other)
-    }
-}
-impl ops::AddAssign<usize> for MuID {
-    fn add_assign(&mut self, rhs: usize) {
-        self.0 = self.0 + rhs;
-    }
-}
-impl MuID {
-    #[inline(always)]
-    pub fn as_num(&self) -> usize { self.0 }
-}
-
-pub type WPID = MuID;
-
+pub type WPID  = usize;
+pub type MuID  = usize;
 pub type MuName = String;
 pub type CName  = MuName;
 
@@ -70,24 +26,21 @@ pub type OpIndex = usize;
 lazy_static! {
     pub static ref MACHINE_ID : AtomicUsize = {
         let a = ATOMIC_USIZE_INIT;
-        a.store(MACHINE_ID_START.as_num(), Ordering::SeqCst);
+        a.store(MACHINE_ID_START, Ordering::SeqCst);
         a
     };
     pub static ref INTERNAL_ID : AtomicUsize = {
         let a = ATOMIC_USIZE_INIT;
-        a.store(INTERNAL_ID_START.as_num(), Ordering::SeqCst);
+        a.store(INTERNAL_ID_START, Ordering::SeqCst);
         a
     };
-}
+} 
+pub const  MACHINE_ID_START : usize = 0;
+pub const  MACHINE_ID_END   : usize = 200;
 
-pub const  INVALID_MUID     : MuID = MuID(0);
-
-pub const  MACHINE_ID_START : MuID = MuID(1);
-pub const  MACHINE_ID_END   : MuID = MuID(200);
-
-pub const  INTERNAL_ID_START: MuID = MuID(201);
-pub const  INTERNAL_ID_END  : MuID = MuID(500);
-pub const  USER_ID_START    : MuID = MuID(1001);
+pub const  INTERNAL_ID_START: usize = 201;
+pub const  INTERNAL_ID_END  : usize = 500;
+pub const  USER_ID_START    : usize = 1001;
 
 #[deprecated]
 #[allow(dead_code)]
@@ -96,18 +49,18 @@ pub const  USER_ID_START    : MuID = MuID(1001);
 /// currently I hand-write fixed ID for each machine register
 pub fn new_machine_id() -> MuID {
     let ret = MACHINE_ID.fetch_add(1, Ordering::SeqCst);
-    if ret >= MACHINE_ID_END.as_num() {
+    if ret >= MACHINE_ID_END {
         panic!("machine id overflow")
     }
-    MuID(ret)
+    ret
 }
 
 pub fn new_internal_id() -> MuID {
     let ret = INTERNAL_ID.fetch_add(1, Ordering::SeqCst);
-    if ret >= INTERNAL_ID_END.as_num() {
+    if ret >= INTERNAL_ID_END {
         panic!("internal id overflow")
     }
-    MuID(ret)
+    ret
 }
 
 #[derive(Debug, RustcEncodable, RustcDecodable)]
@@ -1076,7 +1029,7 @@ impl Decodable for MuEntityHeader {
             let name = try!(d.read_struct_field("name", 1, |d| Decodable::decode(d)));
             
             Ok(MuEntityHeader{
-                    id: MuID(id),
+                    id: id,
                     name: RwLock::new(name)
                 })
         })

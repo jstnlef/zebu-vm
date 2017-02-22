@@ -88,7 +88,7 @@ fn from_MuCString_optional(cstring: CMuCString) -> Option<String> {
 #[inline(always)]
 fn from_MuID(cmuid: CMuID) -> MuID {
     debug_assert!(cmuid != 0);
-    MuID(cmuid as usize)   // just zero extend
+    cmuid as MuID   // just zero extend
 }
 
 #[inline(always)]
@@ -171,7 +171,7 @@ fn from_MuID_array<'a>(ptr: *const CMuID, len: usize) -> Vec<MuID> {
     let slc = from_array_direct(ptr, len);
     slc.iter().map(|&e| {
         debug_assert!(e != 0);
-        MuID(e as usize)
+        e as MuID
     }).collect::<Vec<_>>()
 }
 
@@ -185,8 +185,8 @@ fn from_MuCString_array<'a>(ptr: *const CMuCString, len: usize) -> Vec<String> {
 
 #[inline(always)]
 fn to_MuID(value: MuID) -> CMuID {
-    debug_assert!(value.as_num() <= 0xFFFFFFFFusize);
-    value.as_num() as CMuID
+    debug_assert!(value <= 0xFFFFFFFFusize);
+    value as CMuID
 }
 
 #[inline(always)]
@@ -1963,7 +1963,7 @@ extern fn _forwarder__MuIRBuilder__new_trap(b: *mut CMuIRBuilder, id: CMuID, res
 extern fn _forwarder__MuIRBuilder__new_watchpoint(b: *mut CMuIRBuilder, id: CMuID, wpid: CMuWPID, result_ids: *mut CMuID, rettys: *mut CMuTypeNode, nretvals: CMuArraySize, dis: CMuDestClause, ena: CMuDestClause, exc: CMuDestClause, keepalive_clause: CMuKeepaliveClause) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
-    let mut _arg_wpid = from_MuID(wpid);
+    let mut _arg_wpid = wpid;
     let mut _arg_result_ids = from_MuID_array(result_ids, nretvals);
     let mut _arg_rettys = from_MuID_array(rettys, nretvals);
     let mut _arg_dis = from_MuID(dis);
@@ -1978,7 +1978,7 @@ extern fn _forwarder__MuIRBuilder__new_watchpoint(b: *mut CMuIRBuilder, id: CMuI
 extern fn _forwarder__MuIRBuilder__new_wpbranch(b: *mut CMuIRBuilder, id: CMuID, wpid: CMuWPID, dis: CMuDestClause, ena: CMuDestClause) {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
-    let mut _arg_wpid = from_MuID(wpid);
+    let mut _arg_wpid = wpid;
     let mut _arg_dis = from_MuID(dis);
     let mut _arg_ena = from_MuID(ena);
     unsafe {

@@ -452,7 +452,7 @@ impl <'a> VM {
         //
         // If the client needs to create client-level threads, however, the client should properly
         // synchronise at the time of inter-thread communication, rather than creation of the VM.
-        ret.next_id.store(USER_ID_START.as_num(), Ordering::Relaxed);
+        ret.next_id.store(USER_ID_START, Ordering::Relaxed);
 
         // init types
         types::init_types();
@@ -550,7 +550,7 @@ impl <'a> VM {
         // This only needs to be atomic, and does not need to be a synchronisation operation. The
         // only requirement for IDs is that all IDs obtained from `next_id()` are different. So
         // `Ordering::Relaxed` is sufficient.
-        MuID(self.next_id.fetch_add(1, Ordering::Relaxed))
+        self.next_id.fetch_add(1, Ordering::Relaxed)
     }
     
     pub fn run_vm(&self) {

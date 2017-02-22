@@ -502,15 +502,15 @@ impl MuIRBuilder {
         });
     }
 
-    pub fn new_watchpoint(&mut self, id: MuID, wpid: WPID, result_ids: Vec<MuID>, rettys: Vec<MuID>, dis: MuID, ena: MuID, exc: Option<MuID>, keepalive_clause: Option<MuID>) {
+    pub fn new_watchpoint(&mut self, id: MuID, wpid: CMuWPID, result_ids: Vec<MuID>, rettys: Vec<MuID>, dis: MuID, ena: MuID, exc: Option<MuID>, keepalive_clause: Option<MuID>) {
         self.add_inst(id, NodeInst::NodeWatchPoint {
-            id: id, wpid: wpid, result_ids: result_ids, rettys: rettys, dis: dis, ena: ena, exc: exc, keepalive_clause: keepalive_clause
+            id: id, wpid: wpid as MuID, result_ids: result_ids, rettys: rettys, dis: dis, ena: ena, exc: exc, keepalive_clause: keepalive_clause
         });
     }
 
-    pub fn new_wpbranch(&mut self, id: MuID, wpid: WPID, dis: MuID, ena: MuID) {
+    pub fn new_wpbranch(&mut self, id: MuID, wpid: CMuWPID, dis: MuID, ena: MuID) {
         self.add_inst(id, NodeInst::NodeWPBranch {
-            id: id, wpid: wpid, dis: dis, ena: ena
+            id: id, wpid: wpid as MuID, dis: dis, ena: ena
         });
     }
 
