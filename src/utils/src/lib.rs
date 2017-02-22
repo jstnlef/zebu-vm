@@ -16,8 +16,11 @@ pub mod mem;
 
 mod linked_hashmap;
 mod linked_hashset;
+mod doubly;
+
 pub use linked_hashmap::LinkedHashMap;
 pub use linked_hashset::LinkedHashSet;
+pub use doubly::DoublyLinkedList;
 
 #[macro_export]
 macro_rules! linked_hashmap {
