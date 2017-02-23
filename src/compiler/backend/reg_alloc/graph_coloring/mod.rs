@@ -37,6 +37,10 @@ impl RegisterAllocation {
 
         let coloring = GraphColoring::start(func, &mut cf, vm);
 
+        if !vm.vm_options.flag_disable_regalloc_validate {
+
+        }
+
         // replace regs
         trace!("Replacing Registers...");
         for node in coloring.ig.nodes() {

@@ -16,6 +16,7 @@ VM:
 
 Compiler:
   --disable-inline                      disable compiler function inlining
+  --disable-regalloc-validate           disable register allocation validation
 
 AOT Compiler:
   --aot-emit-dir=<dir>                  the emit directory for ahead-of-time compiling [default: emit]
@@ -33,6 +34,7 @@ Garbage Collection:
 pub struct VMOptions {
     pub flag_log_level: MuLogLevel,
     pub flag_disable_inline: bool,
+    pub flag_disable_regalloc_validate: bool,
 
     pub flag_aot_emit_dir: String,
     pub flag_bootimage_external_lib: Vec<String>,
@@ -52,7 +54,7 @@ impl VMOptions {
     pub fn init(str: &str) -> VMOptions {
         info!("init vm options with: {:?}", str);
 
-        let ret : VMOptions = Docopt::new(USAGE)
+        let mut ret : VMOptions = Docopt::new(USAGE)
             .and_then(|d| d.argv(str.split_whitespace().into_iter()).parse())
             .unwrap_or_else(|e| e.exit()).decode().unwrap();
 

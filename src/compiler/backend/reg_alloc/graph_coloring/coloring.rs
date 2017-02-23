@@ -1,5 +1,6 @@
 extern crate hprof;
 
+use ast::ptr::*;
 use ast::ir::*;
 use compiler::backend;
 use compiler::backend::reg_alloc::graph_coloring;
@@ -43,6 +44,7 @@ pub struct GraphColoring<'a> {
     worklist_spill: Vec<NodeIndex>,
     spillable: LinkedHashMap<MuID, bool>,
     spilled_nodes: Vec<NodeIndex>,
+    spill_history: LinkedHashMap<MuID, P<Value>>,   // for validation, we need to log all registers get spilled
     
     worklist_freeze: LinkedHashSet<NodeIndex>,
     frozen_moves: LinkedHashSet<Move>,
@@ -53,6 +55,10 @@ pub struct GraphColoring<'a> {
 
 impl <'a> GraphColoring<'a> {
     pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
+        GraphColoring::start_with_spill_history(LinkedHashMap::new(), func, cf, vm)
+    }
+
+    fn start_with_spill_history(spill_history: LinkedHashMap<MuID, P<Value>>, func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
         trace!("Initializing coloring allocator...");
         cf.mc().trace_mc();
 
@@ -73,10 +79,10 @@ impl <'a> GraphColoring<'a> {
                 map
             },
             colored_nodes: Vec::new(),
-            
+
             initial: Vec::new(),
             degree: LinkedHashMap::new(),
-            
+
             worklist_moves: Vec::new(),
             movelist: LinkedHashMap::new(),
             active_moves: LinkedHashSet::new(),
@@ -84,18 +90,19 @@ impl <'a> GraphColoring<'a> {
             coalesced_moves: LinkedHashSet::new(),
             constrained_moves: LinkedHashSet::new(),
             alias: LinkedHashMap::new(),
-            
+
             worklist_spill: Vec::new(),
             spillable: LinkedHashMap::new(),
             spilled_nodes: Vec::new(),
-            
+            spill_history: spill_history,
+
             worklist_freeze: LinkedHashSet::new(),
             frozen_moves: LinkedHashSet::new(),
-            
+
             worklist_simplify: LinkedHashSet::new(),
-            select_stack: Vec::new()
+            select_stack: Vec::new(),
         };
-        
+
         coloring.regalloc()
     }
 
@@ -177,7 +184,7 @@ impl <'a> GraphColoring<'a> {
 
             self.rewrite_program();
 
-            return GraphColoring::start(self.func, self.cf, self.vm);
+            return GraphColoring::start_with_spill_history(self.spill_history.clone(), self.func, self.cf, self.vm);
         }
 
         self
@@ -664,7 +671,8 @@ impl <'a> GraphColoring<'a> {
             };
             let mem = self.cf.frame.alloc_slot_for_spilling(ssa_entry.value().clone(), self.vm);
 
-            spilled_mem.insert(*reg_id, mem);
+            spilled_mem.insert(*reg_id, mem.clone());
+            self.spill_history.insert(*reg_id, mem);
         }
 
         // though we are not using this right now
