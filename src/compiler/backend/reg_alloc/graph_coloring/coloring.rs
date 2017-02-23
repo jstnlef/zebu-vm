@@ -691,4 +691,33 @@ impl <'a> GraphColoring<'a> {
         
         spills
     }
+
+    pub fn get_assignments(&self) -> LinkedHashMap<MuID, MuID> {
+        let mut ret = LinkedHashMap::new();
+
+        for node in self.ig.nodes() {
+            let temp = self.ig.get_temp_of(node);
+
+            if temp < MACHINE_ID_END {
+                continue;
+            } else {
+                let alias = self.get_alias(node);
+                let machine_reg = match self.ig.get_color_of(alias) {
+                    Some(reg) => reg,
+                    None => panic!(
+                        "Reg{}/{:?} (aliased as Reg{}/{:?}) is not assigned with a color",
+                        self.ig.get_temp_of(node), node,
+                        self.ig.get_temp_of(alias), alias)
+                };
+
+                ret.insert(temp, machine_reg);
+            }
+        }
+        
+        ret
+    }
+
+    pub fn get_spill_history(&self) -> LinkedHashMap<MuID, P<Value>> {
+        self.spill_history.clone()
+    }
 }

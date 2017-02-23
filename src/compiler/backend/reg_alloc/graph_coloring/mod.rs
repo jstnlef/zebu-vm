@@ -13,6 +13,7 @@ use vm::VM;
 use compiler::CompilerPass;
 use compiler::backend::is_callee_saved;
 use compiler::backend::init_machine_regs_for_func;
+use compiler::backend::reg_alloc::validate;
 use utils::POINTER_SIZE;
 use std::any::Any;
 
@@ -38,32 +39,19 @@ impl RegisterAllocation {
         let coloring = GraphColoring::start(func, &mut cf, vm);
 
         if !vm.vm_options.flag_disable_regalloc_validate {
+            let reg_assignment = coloring.get_assignments();
+            let reg_spilled    = coloring.get_spill_history();
 
+            validate::validate_regalloc(&coloring.cf, &coloring.func, reg_assignment, reg_spilled)
         }
 
         // replace regs
         trace!("Replacing Registers...");
-        for node in coloring.ig.nodes() {
-            let temp = coloring.ig.get_temp_of(node);
+        for (temp, machine_reg) in coloring.get_assignments() {
+            trace!("replacing {} with {}", temp, machine_reg);
 
-            // skip machine registers
-            if temp < MACHINE_ID_END {
-                continue;
-            } else {
-                let alias = coloring.get_alias(node);
-                let machine_reg = match coloring.ig.get_color_of(alias) {
-                    Some(reg) => reg,
-                    None => panic!(
-                        "Reg{}/{:?} (aliased as Reg{}/{:?}) is not assigned with a color",
-                        coloring.ig.get_temp_of(node), node,
-                        coloring.ig.get_temp_of(alias), alias)
-                };
-
-                trace!("replacing {} with {}", temp, machine_reg);
-                coloring.cf.mc_mut().replace_reg(temp, machine_reg);
-
-                coloring.cf.temps.insert(temp, machine_reg);
-            }
+            coloring.cf.mc_mut().replace_reg(temp, machine_reg);
+            coloring.cf.temps.insert(temp, machine_reg);
         }
 
         // find out what callee saved registers are used

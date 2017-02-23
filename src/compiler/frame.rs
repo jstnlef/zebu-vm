@@ -21,6 +21,9 @@ use vm::VM;
 pub struct Frame {
     func_ver_id: MuID,
     cur_offset: isize, // offset to rbp
+
+    pub argument_by_reg: HashMap<MuID, P<Value>>,
+    pub argument_by_stack: HashMap<MuID, P<Value>>,
     
     pub allocated: HashMap<MuID, FrameSlot>,
     // (callsite, destination address)
@@ -47,6 +50,10 @@ impl Frame {
         Frame {
             func_ver_id: func_ver_id,
             cur_offset: - (POINTER_SIZE as isize * 1), // reserve for old RBP
+
+            argument_by_reg: HashMap::new(),
+            argument_by_stack: HashMap::new(),
+
             allocated: HashMap::new(),
             exception_callsites: vec![]
         }
@@ -58,6 +65,14 @@ impl Frame {
 
     pub fn cur_size(&self) -> usize {
         self.cur_offset.abs() as usize
+    }
+
+    pub fn add_argument_by_reg(&mut self, temp: MuID, reg: P<Value>) {
+        self.argument_by_reg.insert(temp, reg);
+    }
+
+    pub fn add_argument_by_stack(&mut self, temp: MuID, stack_slot: P<Value>) {
+        self.argument_by_stack.insert(temp, stack_slot);
     }
     
     pub fn alloc_slot_for_callee_saved_reg(&mut self, reg: P<Value>, vm: &VM) -> P<Value> {

@@ -355,6 +355,51 @@ fn lshr() -> VM {
 }
 
 #[test]
+fn test_add_simple() {
+    let lib = testutil::compile_fnc("add", &add);
+
+    unsafe {
+        let add : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"add").unwrap();
+
+        let res = add(1, 1);
+        println!("add(1, 1) = {}", res);
+        assert!(res == 2);
+    }
+}
+
+fn add() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int64));
+    funcdecl!   ((vm) <sig> add);
+    funcdef!    ((vm) <sig> add VERSION add_v1);
+
+    block!      ((vm, add_v1) blk_entry);
+    ssa!        ((vm, add_v1) <int64> a);
+    ssa!        ((vm, add_v1) <int64> b);
+
+    // sum = Add %a %b
+    ssa!        ((vm, add_v1) <int64> sum);
+    inst!       ((vm, add_v1) blk_entry_add:
+        sum = BINOP (BinOp::Add) a b
+    );
+
+    inst!       ((vm, add_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, add_v1) blk_entry(a, b) {
+        blk_entry_add, blk_entry_ret
+    });
+
+    define_func_ver!((vm) add_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
 fn test_add_int64_n() {
     let lib = testutil::compile_fnc("add_int64_n", &add_int64_n);
 

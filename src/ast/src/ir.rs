@@ -1081,12 +1081,24 @@ impl PartialEq for MuEntityHeader {
     }
 }
 
+const PRINT_ABBREVIATE_NAME: bool = false;
+
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.name().is_none() {
             write!(f, "UNNAMED #{}", self.id)
         } else {
-            write!(f, "{} #{}", self.name().unwrap(), self.id)
+            if PRINT_ABBREVIATE_NAME {
+                let name = self.name().unwrap().clone();
+                let abbr_name = name.split('.').map(
+                    |x| match x.chars().next() {
+                        Some(c) => c,
+                        None => '_'
+                    }).fold("".to_string(), |mut acc, x| {acc.push(x); acc});
+                write!(f, "{} #{}", abbr_name, self.id)
+            } else {
+                write!(f, "{} #{}", self.name().unwrap(), self.id)
+            }
         }
     }
 }

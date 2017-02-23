@@ -1957,7 +1957,7 @@ impl <'a> InstructionSelection {
         tmp_res
     }
 
-    fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
+    fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) -> P<Value> {
         let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
 
         if dest.is_int_reg() {
@@ -1967,6 +1967,8 @@ impl <'a> InstructionSelection {
         } else {
             unimplemented!();
         }
+
+        mem
     }
     
     fn emit_store_base_offset (&mut self, base: &P<Value>, offset: i32, src: &P<Value>, vm: &VM) {
@@ -2558,10 +2560,11 @@ impl <'a> InstructionSelection {
         self.backend.emit_push_r64(&x86_64::RBP);
         // mov rsp -> rbp
         self.backend.emit_mov_r_r(&x86_64::RBP, &x86_64::RSP);
-        
+
         // push all callee-saved registers
         {
             let frame = self.current_frame.as_mut().unwrap();
+
             let rbp = x86_64::RBP.extract_ssa_id().unwrap();
             for i in 0..x86_64::CALLEE_SAVED_GPRs.len() {
                 let ref reg = x86_64::CALLEE_SAVED_GPRs[i];
@@ -2596,23 +2599,32 @@ impl <'a> InstructionSelection {
                     };
 
                     self.backend.emit_mov_r_r(&arg, &arg_gpr);
+                    self.current_frame.as_mut().unwrap().add_argument_by_reg(arg.id(), arg_gpr.clone());
 
                     gpr_arg_count += 1;
                 } else {
                     // unload from stack
-                    self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-                    
+                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+
+                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
+
                     // move stack_arg_offset by the size of 'arg'
                     let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
                     stack_arg_offset += arg_size as i32;
                 }
             } else if arg.is_fp_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
-                    self.backend.emit_movsd_f64_f64(&arg, &x86_64::ARGUMENT_FPRs[fpr_arg_count]);
+                    let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
+
+                    self.backend.emit_movsd_f64_f64(&arg, &arg_fpr);
+                    self.current_frame.as_mut().unwrap().add_argument_by_reg(arg.id(), arg_fpr);
+
                     fpr_arg_count += 1;
                 } else {
                     // unload from stack
-                    self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+
+                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
 
                     // move stack_arg_offset by the size of 'arg'
                     let arg_size = vm.get_backend_type_info(arg.ty.id()).size;

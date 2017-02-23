@@ -54,7 +54,7 @@ impl VMOptions {
     pub fn init(str: &str) -> VMOptions {
         info!("init vm options with: {:?}", str);
 
-        let mut ret : VMOptions = Docopt::new(USAGE)
+        let ret : VMOptions = Docopt::new(USAGE)
             .and_then(|d| d.argv(str.split_whitespace().into_iter()).parse())
             .unwrap_or_else(|e| e.exit()).decode().unwrap();
 
