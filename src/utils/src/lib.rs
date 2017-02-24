@@ -40,6 +40,24 @@ macro_rules! linked_hashmap {
     };
 }
 
+#[macro_exprt]
+macro_rules! linked_hashset {
+    (@single $($x:tt)*) => (());
+    (@count $($rest:expr),*) => (<[()]>::len(&[$(linked_hashset!(@single $rest)),*]));
+
+    ($($value:expr,)+) => { linked_hashset!($($value),+) };
+    ($($value:expr),*) => {
+        {
+            let _cap = linked_hashset!(@count $($key),*);
+            let mut _map = LinkedHashSet::with_capacity(_cap);
+            $(
+                _map.insert($value);
+            )*
+            _map
+        }
+    };
+}
+
 mod address;
 pub use address::Address;
 pub use address::ObjectReference;
