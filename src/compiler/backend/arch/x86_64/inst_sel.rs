@@ -129,9 +129,7 @@ impl <'a> InstructionSelection {
     }
     
     // in this pass, we assume that
-    // 1. all temporaries will use 64bit registers
-    // 2. we do not need to backup/restore caller-saved registers
-    // 3. we need to backup/restore all the callee-saved registers
+    // * we do not need to backup/restore caller-saved registers
     // if any of these assumption breaks, we will need to re-emit the code
     #[allow(unused_variables)]
     fn instruction_select(&mut self, node: &'a TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
