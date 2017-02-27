@@ -41,8 +41,9 @@ impl RegisterAllocation {
         if !vm.vm_options.flag_disable_regalloc_validate {
             let reg_assignment = coloring.get_assignments();
             let reg_spilled    = coloring.get_spill_history();
+            let reg_coalesced  = coloring.get_coalesced();
 
-            validate::validate_regalloc(&coloring.cf, &coloring.func, reg_assignment, reg_spilled)
+            validate::validate_regalloc(&coloring.cf, &coloring.func, reg_assignment, reg_coalesced, reg_spilled)
         }
 
         // replace regs

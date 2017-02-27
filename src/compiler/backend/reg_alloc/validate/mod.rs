@@ -13,9 +13,15 @@ use compiler::backend::reg_alloc::validate::exact_liveness::*;
 pub fn validate_regalloc(cf: &CompiledFunction,
                          func: &MuFunctionVersion,
                          reg_assigned: LinkedHashMap<MuID, MuID>,
+                         reg_coalesced:LinkedHashMap<MuID, MuID>,
                          reg_spilled: LinkedHashMap<MuID, P<Value>>)
 {
     debug!("---Validating register allocation results---");
+
+    debug!("coalesced registers: ");
+    for (a, b) in reg_coalesced.iter() {
+        debug!("{} -> {}", a, b);
+    }
 
     debug!("liveness analysis...");
     let liveness = ExactLiveness::new(cf);
@@ -51,7 +57,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
     for i in 0..mc.number_of_insts() {
         mc.trace_inst(i);
 
-        if mc.is_jump(i) {
+        if mc.is_jmp(i).is_some() {
             // we need to flow-sensitive analysis
             unimplemented!();
         }
@@ -63,13 +69,20 @@ pub fn validate_regalloc(cf: &CompiledFunction,
         // remove kills in the inst from alive entries
         if let Some(kills) = liveness.get_kills(i) {
             for reg in kills.iter() {
-                remove_kill(*reg, &reg_assigned, &mut alive);
+                kill_reg(*reg, &reg_assigned, &mut alive);
             }
         }
 
         // add defines to alive entries
         for reg_def in mc.get_inst_reg_defines(i) {
-            add_def(reg_def, &reg_assigned, &mut alive);
+            let liveout = liveness.get_liveout(i).unwrap();
+
+            // if reg is in the liveout set, we add a define to it
+            if liveout.contains(&reg_def) {
+                add_def(reg_def, &reg_assigned, &reg_coalesced, &mut alive);
+            } else {
+                kill_reg(reg_def, &reg_assigned, &mut alive);
+            }
         }
 
         debug!("{}", alive);
@@ -115,7 +128,7 @@ fn validate_use(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &Ali
     }
 }
 
-fn remove_kill(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &mut AliveEntries) {
+fn kill_reg(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &mut AliveEntries) {
     if reg < MACHINE_ID_END {
         if alive.find_entry_for_reg(reg).is_some() {
             alive.remove_reg(reg);
@@ -127,17 +140,59 @@ fn remove_kill(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &mut 
     }
 }
 
-fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &mut AliveEntries) {
+fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, reg_coalesced: &LinkedHashMap<MuID, MuID>, alive: &mut AliveEntries) {
     if reg < MACHINE_ID_END {
+        // if it is a machine register
+        // we require either it doesn't have an entry,
+        // or its entry doesnt have a temp, so that we can safely overwrite it
+
         if alive.find_entry_for_reg(reg).is_none() {
             // add new machine register
             alive.new_alive_reg(reg);
+        } else if !alive.find_entry_for_reg(reg).unwrap().has_temp() {
+            // overwrite it
+        } else {
+            let old_temp = alive.find_entry_for_reg(reg).unwrap().get_temp().unwrap();
+
+            error!("Register{}/Temp{} is alive at this point, defining a new value to Register{} is incorrect", reg, old_temp, reg);
+
+            panic!("validation failed: define a register that is already alive (value overwritten)");
         }
     } else {
         let machine_reg = get_machine_reg(reg, reg_assigned);
         let temp = reg;
 
-        alive.add_temp_in_reg(temp, machine_reg);
+        if alive.find_entry_for_reg(machine_reg).is_none() {
+            // if this register is not alive, we add an entry for it
+            alive.add_temp_in_reg(temp, machine_reg);
+        } else {
+            // otherwise, this register contains some value
+            {
+                let entry = alive.find_entry_for_reg_mut(machine_reg).unwrap();
+
+                if !entry.has_temp() {
+                    debug!("adding temp {} to reg {}", temp, machine_reg);
+                    entry.set_temp(temp);
+                } else {
+                    // if the register is holding a temporary, it needs to be coalesced with new temp
+                    let old_temp: MuID = entry.get_temp().unwrap();
+
+                    if (reg_coalesced.contains_key(&old_temp) && *reg_coalesced.get(&old_temp).unwrap() == temp)
+                        || (reg_coalesced.contains_key(&temp) && *reg_coalesced.get(&temp).unwrap() == old_temp)
+                    {
+                        // coalesced, safe
+                    } else {
+                        // not coalesced, error
+                        error!("Temp{} and Temp{} are not coalesced, but they use the same Register{}", temp, old_temp, machine_reg);
+
+                        panic!("validation failed: define a register that is already alive, and their temps are not coalesced");
+                    }
+                }
+            }
+
+            // they are coalesced, it is valid
+            alive.add_temp_in_reg(temp, machine_reg);
+        }
     }
 }
 

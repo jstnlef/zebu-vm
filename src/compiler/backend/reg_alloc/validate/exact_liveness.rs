@@ -65,6 +65,13 @@ impl ExactLiveness {
             self.kill.insert(*i, kill);
         }
     }
+
+    pub fn get_liveout(&self, index: usize) -> Option<LinkedHashSet<MuID>> {
+        match self.liveout.get(&index) {
+            Some(s) => Some(s.clone()),
+            None => None
+        }
+    }
     
     pub fn get_kills(&self, index: usize) -> Option<LinkedHashSet<MuID>> {
         match self.kill.get(&index) {

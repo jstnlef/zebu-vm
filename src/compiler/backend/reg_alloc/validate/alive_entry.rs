@@ -168,6 +168,23 @@ pub struct RegisterEntry {
 }
 
 impl RegisterEntry {
+    pub fn has_temp(&self) -> bool {
+        self.temp.is_some()
+    }
+    pub fn has_real(&self) -> bool {
+        !self.real.is_empty()
+    }
+    pub fn has_stack_slots(&self) -> bool {
+        !self.stack.is_empty()
+    }
+
+    pub fn set_temp(&mut self, temp: MuID) {
+        self.temp = Some(temp);
+    }
+    pub fn get_temp(&self) -> Option<MuID> {
+        self.temp.clone()
+    }
+
     pub fn match_temp(&self, temp: MuID) -> bool {
         if self.temp.is_some() && self.temp.unwrap() == temp {
             true
