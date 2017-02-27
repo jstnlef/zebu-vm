@@ -16,6 +16,7 @@ use runtime::ValueLocation;
 use utils::vec_utils;
 use utils::string_utils;
 use utils::LinkedHashMap;
+use utils::LinkedHashSet;
 
 use ast::ptr::P;
 use ast::ir::*;
@@ -727,6 +728,12 @@ enum ASMBranchTarget {
 }
 
 #[derive(Clone, Debug)]
+enum SpillMemInfo {
+    Load(P<Value>),
+    Store(P<Value>)
+}
+
+#[derive(Clone, Debug)]
 struct ASMInst {
     code: String,
 
@@ -738,7 +745,9 @@ struct ASMInst {
 
     preds: Vec<usize>,
     succs: Vec<usize>,
-    branch: ASMBranchTarget
+    branch: ASMBranchTarget,
+
+    spill_info: Option<SpillMemInfo>
 }
 
 impl ASMInst {
@@ -751,7 +760,9 @@ impl ASMInst {
             is_symbol: true,
             preds: vec![],
             succs: vec![],
-            branch: ASMBranchTarget::None
+            branch: ASMBranchTarget::None,
+
+            spill_info: None
         }
     }
     
@@ -760,7 +771,8 @@ impl ASMInst {
         defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
         uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
         is_mem_op_used: bool,
-        target: ASMBranchTarget
+        target: ASMBranchTarget,
+        spill_info: Option<SpillMemInfo>
     ) -> ASMInst
     {
         ASMInst {
@@ -771,7 +783,9 @@ impl ASMInst {
             is_mem_op_used: is_mem_op_used,
             preds: vec![],
             succs: vec![],
-            branch: target
+            branch: target,
+
+            spill_info: spill_info
         }
     }
     
@@ -784,7 +798,9 @@ impl ASMInst {
             is_mem_op_used: false,
             preds: vec![],
             succs: vec![],
-            branch: ASMBranchTarget::None
+            branch: ASMBranchTarget::None,
+
+            spill_info: None
         }
     }
 }
@@ -925,15 +941,15 @@ impl ASMCodeGen {
         // otherwise it will keep RETURN REGS alive
         // and if there is no actual move into RETURN REGS, it will keep RETURN REGS for alive for very long
         // and prevents anything using those regsiters
-        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return);
+        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return, None);
     }
     
     fn add_asm_branch(&mut self, code: String, target: MuName) {
-        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Unconditional(target));
+        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Unconditional(target), None);
     }
     
     fn add_asm_branch2(&mut self, code: String, target: MuName) {
-        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Conditional(target));
+        self.add_asm_inst_internal(code, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Conditional(target), None);
     }
     
     fn add_asm_inst(
@@ -941,9 +957,20 @@ impl ASMCodeGen {
         code: String, 
         defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
         uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
-        is_using_mem_op: bool)
-    {
-        self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None)
+        is_using_mem_op: bool
+    ) {
+        self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None, None)
+    }
+
+    fn add_asm_inst_with_spill(
+        &mut self,
+        code: String,
+        defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        is_using_mem_op: bool,
+        spill_info: SpillMemInfo
+    ) {
+        self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None, Some(spill_info))
     }
 
     fn add_asm_inst_internal(
@@ -952,7 +979,8 @@ impl ASMCodeGen {
         defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
         uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
         is_using_mem_op: bool,
-        target: ASMBranchTarget)
+        target: ASMBranchTarget,
+        spill_info: Option<SpillMemInfo>)
     {
         let line = self.line();
         trace!("asm: {}", code);
@@ -961,7 +989,7 @@ impl ASMCodeGen {
         let mc = self.cur_mut();
 
         // put the instruction
-        mc.code.push(ASMInst::inst(code, defines, uses, is_using_mem_op, target));
+        mc.code.push(ASMInst::inst(code, defines, uses, is_using_mem_op, target, spill_info));
     }
     
     fn prepare_reg(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
@@ -1470,7 +1498,9 @@ impl ASMCodeGen {
         )
     }
 
-    fn internal_mov_r_mem(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+    fn internal_mov_r_mem(&mut self, inst: &str, dest: Reg, src: Mem,
+                          is_spill_related: bool
+    ) {
         let len = check_op_len(dest);
 
         let inst = inst.to_string() + &op_postfix(len);
@@ -1481,17 +1511,31 @@ impl ASMCodeGen {
 
         let asm = format!("{} {},{}", inst, mem, reg);
 
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
+        if is_spill_related {
+            self.add_asm_inst_with_spill(
+                asm,
+                linked_hashmap!{
+                    id2 => vec![loc2]
+                },
+                uses,
+                true,
+                SpillMemInfo::Load(src.clone())
+            )
+        } else {
+            self.add_asm_inst(
+                asm,
+                linked_hashmap! {
                 id2 => vec![loc2]
             },
-            uses,
-            true
-        )
+                uses,
+                true
+            )
+        }
     }
 
-    fn internal_mov_mem_r(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+    fn internal_mov_mem_r(&mut self, inst: &str, dest: Mem, src: Reg,
+                          is_spill_related: bool)
+    {
         let len = check_op_len(src);
 
         let inst = inst.to_string() + &op_postfix(len);
@@ -1511,12 +1555,22 @@ impl ASMCodeGen {
 
         let asm = format!("{} {},{}", inst, reg, mem);
 
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{},
-            uses,
-            true
-        )
+        if is_spill_related {
+            self.add_asm_inst_with_spill(
+                asm,
+                linked_hashmap!{},
+                uses,
+                true,
+                SpillMemInfo::Store(dest.clone())
+            )
+        } else {
+            self.add_asm_inst(
+                asm,
+                linked_hashmap! {},
+                uses,
+                true
+            )
+        }
     }
 
     fn internal_mov_mem_imm(&mut self, inst: &str, dest: &P<Value>, src: i32) {
@@ -1536,6 +1590,74 @@ impl ASMCodeGen {
             uses,
             true
         )
+    }
+
+    fn internal_fp_mov_f_mem(&mut self, inst: &str, dest: Reg, src: Mem,
+                             is_spill_related: bool
+    ) {
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (mem, uses) = self.prepare_mem(src, inst.len() + 1);
+        let (reg, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + mem.len() + 1);
+
+        let asm = format!("{} {},{}", inst, mem, reg);
+
+        if is_spill_related {
+            self.add_asm_inst_with_spill(
+                asm,
+                linked_hashmap!{
+                    id2 => vec![loc2]
+                },
+                uses,
+                true,
+                SpillMemInfo::Load(src.clone())
+            )
+        } else {
+            self.add_asm_inst(
+                asm,
+                linked_hashmap! {
+                id2 => vec![loc2]
+            },
+                uses,
+                true
+            )
+        }
+    }
+
+    fn internal_fp_mov_mem_f(&mut self, inst: &str, dest: Mem, src: Reg,
+                             is_spill_related: bool
+    ) {
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg, id1, loc1) = self.prepare_fpreg(src, inst.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg.len() + 1);
+
+        // the register we used for the memory location is counted as 'use'
+        // use the vec from mem as 'use' (push use reg from src to it)
+        if uses.contains_key(&id1) {
+            uses.get_mut(&id1).unwrap().push(loc1);
+        } else {
+            uses.insert(id1, vec![loc1]);
+        }
+
+        let asm = format!("{} {},{}", inst, reg, mem);
+
+        if is_spill_related {
+            self.add_asm_inst_with_spill(
+                asm,
+                linked_hashmap!{},
+                uses,
+                true,
+                SpillMemInfo::Store(dest.clone())
+            )
+        } else {
+            self.add_asm_inst(
+                asm,
+                linked_hashmap! {},
+                uses,
+                true
+            )
+        }
     }
 
     fn internal_fp_binop_no_def_r_r(&mut self, inst: &str, op1: &P<Value>, op2: &P<Value>) {
@@ -1595,6 +1717,22 @@ impl ASMCodeGen {
     fn internal_fp_binop_def_r_mem(&mut self, inst: &str, dest: Reg, src: Reg) {
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
         unimplemented!()
+    }
+
+    fn emit_spill_store_gpr(&mut self, dest: Mem, src: Reg) {
+        self.internal_mov_mem_r("mov", dest, src, true)
+    }
+
+    fn emit_spill_load_gpr(&mut self, dest: Reg, src: Mem) {
+        self.internal_mov_r_mem("mov", dest, src, true)
+    }
+
+    fn emit_spill_store_fpr(&mut self, dest: Mem, src: Reg) {
+        self.internal_fp_mov_mem_f("movsd", dest, src, true)
+    }
+
+    fn emit_spill_load_fpr(&mut self, dest: Reg, src: Mem) {
+        self.internal_fp_mov_f_mem("movsd", dest, src, true)
     }
 }
 
@@ -1845,13 +1983,13 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_mov_r_imm("mov", dest, src)
     }
     fn emit_mov_r_mem  (&mut self, dest: &P<Value>, src: &P<Value>) {
-        self.internal_mov_r_mem("mov", dest, src)
+        self.internal_mov_r_mem("mov", dest, src, false)
     }
     fn emit_mov_r_r    (&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_mov_r_r("mov", dest, src)
     }
     fn emit_mov_mem_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
-        self.internal_mov_mem_r("mov", dest, src)
+        self.internal_mov_mem_r("mov", dest, src, false)
     }
     fn emit_mov_mem_imm(&mut self, dest: &P<Value>, src: i32) {
         self.internal_mov_mem_imm("mov", dest, src)
@@ -2046,7 +2184,7 @@ impl CodeGenerator for ASMCodeGen {
 
     // lea
     fn emit_lea_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        self.internal_mov_r_mem("lea", dest, src)
+        self.internal_mov_r_mem("lea", dest, src, false)
     }
 
     // and
@@ -2659,46 +2797,12 @@ impl CodeGenerator for ASMCodeGen {
 
     // load
     fn emit_movsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: movsd {} -> {}", src, dest);
-
-        let (mem, uses) = self.prepare_mem(src, 5 + 1);
-        let (reg, id2, loc2) = self.prepare_fpreg(dest, 5 + 1 + mem.len() + 1);
-
-        let asm = format!("movsd {},{}", mem, reg);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id2 => vec![loc2]
-            },
-            uses,
-            true
-        )
+        self.internal_fp_mov_f_mem("movsd", dest, src, false)
     }
 
     // store
     fn emit_movsd_mem64_f64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: movsd {} -> {}", src, dest);
-
-        let (reg, id1, loc1) = self.prepare_fpreg(src, 5 + 1);
-        let (mem, mut uses) = self.prepare_mem(dest, 5 + 1 + reg.len() + 1);
-
-        // the register we used for the memory location is counted as 'use'
-        // use the vec from mem as 'use' (push use reg from src to it)
-        if uses.contains_key(&id1) {
-            uses.get_mut(&id1).unwrap().push(loc1);
-        } else {
-            uses.insert(id1, vec![loc1]);
-        }
-
-        let asm = format!("movsd {},{}", reg, mem);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{},
-            uses,
-            true
-        )
+        self.internal_fp_mov_mem_f("movsd", dest, src, false)
     }
 
     fn emit_comisd_f64_f64  (&mut self, op1: Reg, op2: Reg) {
@@ -3312,9 +3416,9 @@ pub fn spill_rewrite(
                         codegen.start_code_sequence();
 
                         if is_fp(&temp_ty) {
-                            codegen.emit_movsd_f64_mem64(&temp, spill_mem);
+                            codegen.emit_spill_load_fpr(&temp, spill_mem);
                         } else {
-                            codegen.emit_mov_r_mem(&temp, spill_mem);
+                            codegen.emit_spill_load_gpr(&temp, spill_mem);
                         }
 
                         codegen.finish_code_sequence_asm()
@@ -3360,9 +3464,9 @@ pub fn spill_rewrite(
                         codegen.start_code_sequence();
 
                         if is_fp(&temp.ty) {
-                            codegen.emit_movsd_mem64_f64(spill_mem, &temp);
+                            codegen.emit_spill_store_fpr(spill_mem, &temp);
                         } else {
-                            codegen.emit_mov_mem_r(spill_mem, &temp);
+                            codegen.emit_spill_store_gpr(spill_mem, &temp);
                         }
 
                         codegen.finish_code_sequence_asm()
