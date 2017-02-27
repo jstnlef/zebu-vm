@@ -177,7 +177,10 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, reg_coalesced: &
                     // if the register is holding a temporary, it needs to be coalesced with new temp
                     let old_temp: MuID = entry.get_temp().unwrap();
 
-                    if (reg_coalesced.contains_key(&old_temp) && *reg_coalesced.get(&old_temp).unwrap() == temp)
+                    if old_temp == temp {
+                        // the register that is used at this instruction, and also defined here
+                        // safe
+                    } else  if (reg_coalesced.contains_key(&old_temp) && *reg_coalesced.get(&old_temp).unwrap() == temp)
                         || (reg_coalesced.contains_key(&temp) && *reg_coalesced.get(&temp).unwrap() == old_temp)
                     {
                         // coalesced, safe

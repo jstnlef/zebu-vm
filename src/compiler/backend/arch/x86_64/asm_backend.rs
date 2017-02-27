@@ -2873,7 +2873,7 @@ impl CodeGenerator for ASMCodeGen {
             true
         )
     }
-    fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Mem) {
+    fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Reg) {
         trace!("emit movapd {} -> {}", src, dest);
 
         let (reg1, id1, loc1) = self.prepare_fpreg(src,  6 + 1);
@@ -2886,15 +2886,8 @@ impl CodeGenerator for ASMCodeGen {
             linked_hashmap!{
                 id2 => vec![loc2.clone()]
             },
-            {
-                if id1 == id2 {
-                    linked_hashmap!{id1 => vec![loc1, loc2]}
-                } else {
-                    linked_hashmap!{
-                        id1 => vec![loc1],
-                        id2 => vec![loc2]
-                    }
-                }
+            linked_hashmap!{
+                id1 => vec![loc1.clone()]
             },
             false
         )
