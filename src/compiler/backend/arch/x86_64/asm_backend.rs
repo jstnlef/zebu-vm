@@ -500,6 +500,28 @@ impl MachineCode for ASMCode {
             _ => None
         }
     }
+
+    fn is_spill_load(&self, index: usize) -> Option<P<Value>> {
+        if let Some(inst) = self.code.get(index) {
+            match inst.spill_info {
+                Some(SpillMemInfo::Load(ref p)) => Some(p.clone()),
+                _ => None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn is_spill_store(&self, index: usize) -> Option<P<Value>> {
+        if let Some(inst) = self.code.get(index) {
+            match inst.spill_info {
+                Some(SpillMemInfo::Store(ref p)) => Some(p.clone()),
+                _ => None
+            }
+        } else {
+            None
+        }
+    }
     
     fn get_succs(&self, index: usize) -> &Vec<usize> {
         &self.code[index].succs
@@ -3373,14 +3395,16 @@ pub fn spill_rewrite(
     spills: &LinkedHashMap<MuID, P<Value>>,
     func: &mut MuFunctionVersion,
     cf: &mut CompiledFunction,
-    vm: &VM) -> Vec<P<Value>>
+    vm: &VM) -> LinkedHashMap<MuID, MuID>
 {
     trace!("spill rewrite for x86_64 asm backend");
 
     trace!("code before spilling");
     cf.mc().trace_mc();
 
-    let mut new_nodes = vec![];
+    // if temp a gets spilled, all its uses and defines will become a use/def of a scratch temp
+    // we maintain this mapping for later use
+    let mut spilled_scratch_temps = LinkedHashMap::new();
 
     // record code and their insertion point, so we can do the copy/insertion all at once
     let mut spill_code_before: LinkedHashMap<usize, Vec<Box<ASMCode>>> = LinkedHashMap::new();
@@ -3407,8 +3431,10 @@ pub fn spill_rewrite(
                     // generate a random new temporary
                     let temp_ty = val_reg.ty.clone();
                     let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
-                    vec_utils::add_unique(&mut new_nodes, temp.clone());
+
+                    // maintain mapping
                     trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
+                    spilled_scratch_temps.insert(temp.id(), reg);
 
                     // generate a load
                     let code = {
@@ -3453,7 +3479,8 @@ pub fn spill_rewrite(
                     } else {
                         let temp_ty = val_reg.ty.clone();
                         let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
-                        vec_utils::add_unique(&mut new_nodes, temp.clone());
+
+                        spilled_scratch_temps.insert(temp.id(), reg);
 
                         temp
                     };
@@ -3499,5 +3526,5 @@ pub fn spill_rewrite(
     trace!("code after spilling");
     cf.mc().trace_mc();
 
-    new_nodes
+    spilled_scratch_temps
 }

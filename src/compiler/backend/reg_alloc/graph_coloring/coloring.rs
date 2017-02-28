@@ -44,7 +44,10 @@ pub struct GraphColoring<'a> {
     worklist_spill: Vec<NodeIndex>,
     spillable: LinkedHashMap<MuID, bool>,
     spilled_nodes: Vec<NodeIndex>,
-    spill_history: LinkedHashMap<MuID, P<Value>>,   // for validation, we need to log all registers get spilled
+
+    // for validation
+    spill_history: LinkedHashMap<MuID, P<Value>>,   // we need to log all registers get spilled with their spill location
+    spill_scratch_temps: LinkedHashMap<MuID, MuID>, // we need to know the mapping between scratch temp -> original temp
     
     worklist_freeze: LinkedHashSet<NodeIndex>,
     frozen_moves: LinkedHashSet<Move>,
@@ -55,10 +58,13 @@ pub struct GraphColoring<'a> {
 
 impl <'a> GraphColoring<'a> {
     pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
-        GraphColoring::start_with_spill_history(LinkedHashMap::new(), func, cf, vm)
+        GraphColoring::start_with_spill_history(LinkedHashMap::new(), LinkedHashMap::new(), func, cf, vm)
     }
 
-    fn start_with_spill_history(spill_history: LinkedHashMap<MuID, P<Value>>, func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
+    fn start_with_spill_history(spill_history: LinkedHashMap<MuID, P<Value>>,
+                                spill_scratch_temps: LinkedHashMap<MuID, MuID>,
+                                func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a>
+    {
         trace!("Initializing coloring allocator...");
         cf.mc().trace_mc();
 
@@ -94,7 +100,9 @@ impl <'a> GraphColoring<'a> {
             worklist_spill: Vec::new(),
             spillable: LinkedHashMap::new(),
             spilled_nodes: Vec::new(),
+
             spill_history: spill_history,
+            spill_scratch_temps: spill_scratch_temps,
 
             worklist_freeze: LinkedHashSet::new(),
             frozen_moves: LinkedHashSet::new(),
@@ -184,7 +192,7 @@ impl <'a> GraphColoring<'a> {
 
             self.rewrite_program();
 
-            return GraphColoring::start_with_spill_history(self.spill_history.clone(), self.func, self.cf, self.vm);
+            return GraphColoring::start_with_spill_history(self.spill_history.clone(), self.spill_scratch_temps.clone(), self.func, self.cf, self.vm);
         }
 
         self
@@ -657,7 +665,6 @@ impl <'a> GraphColoring<'a> {
         }
     }
 
-    #[allow(unused_variables)]
     fn rewrite_program(&mut self) {
         let spills = self.spills();
 
@@ -675,8 +682,10 @@ impl <'a> GraphColoring<'a> {
             self.spill_history.insert(*reg_id, mem);
         }
 
-        // though we are not using this right now
-        let new_temps = backend::spill_rewrite(&spilled_mem, self.func, self.cf, self.vm);
+        let scratch_temps = backend::spill_rewrite(&spilled_mem, self.func, self.cf, self.vm);
+        for (k, v) in scratch_temps {
+            self.spill_scratch_temps.insert(k, v);
+        }
     }
     
     pub fn spills(&self) -> Vec<MuID> {
@@ -719,6 +728,10 @@ impl <'a> GraphColoring<'a> {
 
     pub fn get_spill_history(&self) -> LinkedHashMap<MuID, P<Value>> {
         self.spill_history.clone()
+    }
+
+    pub fn get_spill_scratch_temps(&self) -> LinkedHashMap<MuID, MuID> {
+        self.spill_scratch_temps.clone()
     }
 
     pub fn get_coalesced(&self) -> LinkedHashMap<MuID, MuID> {

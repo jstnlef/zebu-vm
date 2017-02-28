@@ -41,45 +41,88 @@ impl AliveEntries {
         ret
     }
 
-    pub fn find_entry_for_temp(&self, temp: MuID) -> Option<&RegisterEntry> {
+    pub fn has_entries_for_temp(&self, temp: MuID) -> bool {
         for entry in self.inner.values() {
             if entry.match_temp(temp) {
-                return Some(entry);
+                return true;
             }
         }
 
-        None
+        false
     }
-
-    pub fn find_entry_for_temp_mut(&mut self, temp: MuID) -> Option<&mut RegisterEntry> {
+    pub fn find_entries_for_temp(&self, temp: MuID) -> Vec<&RegisterEntry> {
+        let mut ret = vec![];
+        for entry in self.inner.values() {
+            if entry.match_temp(temp) {
+                ret.push(entry);
+            }
+        }
+        ret
+    }
+    pub fn find_entries_for_temp_mut(&mut self, temp: MuID) -> Vec<&mut RegisterEntry> {
+        let mut ret = vec![];
         for entry in self.inner.values_mut() {
             if entry.match_temp(temp) {
-                return Some(entry)
+                ret.push(entry);
             }
         }
-
-        None
+        ret
     }
 
-    pub fn find_entry_for_reg(&self, reg: MuID) -> Option<&RegisterEntry> {
+    pub fn has_entries_for_reg(&self, reg: MuID) -> bool {
         for entry in self.inner.values() {
             if entry.match_reg(reg) {
-                return Some(entry);
+                return true;
             }
         }
-
-        None
+        false
     }
-
-    pub fn find_entry_for_reg_mut(&mut self, reg: MuID) -> Option<&mut RegisterEntry> {
+    pub fn find_entries_for_reg(&self, reg: MuID) -> Vec<&RegisterEntry> {
+        let mut ret = vec![];
+        for entry in self.inner.values() {
+            if entry.match_reg(reg) {
+                ret.push(entry);
+            }
+        }
+        ret
+    }
+    pub fn find_entries_for_reg_mut(&mut self, reg: MuID) -> Vec<&mut RegisterEntry> {
+        let mut ret = vec![];
         for entry in self.inner.values_mut() {
             if entry.match_reg(reg) {
-                return Some(entry);
+                ret.push(entry)
             }
         }
-
-        None
+        ret
     }
+
+    pub fn has_entries_for_mem(&self, mem: P<Value>) -> bool {
+        for entry in self.inner.values() {
+            if entry.match_stack_loc(mem.clone()) {
+                return true;
+            }
+        }
+        false
+    }
+    pub fn find_entries_for_mem(&self, mem: P<Value>) -> Vec<&RegisterEntry> {
+        let mut ret = vec![];
+        for entry in self.inner.values() {
+            if entry.match_stack_loc(mem.clone()) {
+                ret.push(entry)
+            }
+        }
+        ret
+    }
+    pub fn find_entries_for_mem_mut(&mut self, mem: P<Value>) -> Vec<&mut RegisterEntry> {
+        let mut ret = vec![];
+        for entry in self.inner.values_mut() {
+            if entry.match_stack_loc(mem.clone()) {
+                ret.push(entry)
+            }
+        }
+        ret
+    }
+
 
     pub fn new_alive_reg(&mut self, reg: MuID) {
         debug!("adding alive reg: {}", reg);
@@ -110,17 +153,41 @@ impl AliveEntries {
     pub fn add_temp_in_reg(&mut self, temp: MuID, reg: MuID) {
         debug!("adding alive temp in reg: {} in {}", temp, reg);
 
-        let entry_exists = self.find_entry_for_temp(temp).is_some();
+        let entry_exists = self.has_entries_for_temp(temp);
 
         if entry_exists {
-            let mut entry = self.find_entry_for_temp_mut(temp).unwrap();
-            entry.add_real_reg(reg);
+            let mut entries = self.find_entries_for_temp_mut(temp);
+            for entry in entries {
+                entry.add_real_reg(reg);
+            }
         } else {
             let id = self.new_index();
             let entry = RegisterEntry {
                 temp: Some(temp),
                 real: vec![reg],
                 stack: vec![]
+            };
+
+            self.inner.insert(id, entry);
+        }
+    }
+
+    pub fn add_temp_in_mem(&mut self, temp: MuID, mem: P<Value>) {
+        debug!("alive alive temp in mem: {} in {}", temp, mem);
+
+        let entry_exists = self.has_entries_for_temp(temp);
+
+        if entry_exists {
+            let mut entries = self.find_entries_for_temp_mut(temp);
+            for entry in entries {
+                entry.add_stack_loc(mem.clone());
+            }
+        } else {
+            let id = self.new_index();
+            let entry = RegisterEntry {
+                temp: Some(temp),
+                real: vec![],
+                stack: vec![mem]
             };
 
             self.inner.insert(id, entry);
@@ -185,6 +252,18 @@ impl RegisterEntry {
         self.temp.clone()
     }
 
+    pub fn remove_real(&mut self, reg: MuID) {
+        if let Some(index) = vec_utils::find_value(&self.real, reg) {
+            self.real.remove(index);
+        }
+    }
+
+    pub fn remove_stack_loc(&mut self, mem: P<Value>) {
+        if let Some(index) = vec_utils::find_value(&self.stack, mem) {
+            self.stack.remove(index);
+        }
+    }
+
     pub fn match_temp(&self, temp: MuID) -> bool {
         if self.temp.is_some() && self.temp.unwrap() == temp {
             true
@@ -197,9 +276,19 @@ impl RegisterEntry {
         vec_utils::find_value(&self.real, reg).is_some()
     }
 
+    pub fn match_stack_loc(&self, mem: P<Value>) -> bool {
+        vec_utils::find_value(&self.stack, mem).is_some()
+    }
+
     pub fn add_real_reg(&mut self, reg: MuID) {
         if vec_utils::find_value(&mut self.real, reg).is_none() {
             self.real.push(reg);
+        }
+    }
+
+    pub fn add_stack_loc(&mut self, mem: P<Value>) {
+        if vec_utils::find_value(&mut self.stack, mem.clone()).is_none() {
+            self.stack.push(mem)
         }
     }
 }
