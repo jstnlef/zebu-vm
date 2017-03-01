@@ -173,7 +173,7 @@ impl AliveEntries {
     }
 
     pub fn add_temp_in_mem(&mut self, temp: MuID, mem: P<Value>) {
-        debug!("alive alive temp in mem: {} in {}", temp, mem);
+        debug!("adding alive temp in mem: {} in {}", temp, mem);
 
         let entry_exists = self.has_entries_for_temp(temp);
 

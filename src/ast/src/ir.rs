@@ -684,7 +684,7 @@ pub enum TreeNode_ {
 }
 
 /// always use with P<Value>
-#[derive(Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(PartialEq, RustcEncodable, RustcDecodable)]
 pub struct Value {
     pub hdr: MuEntityHeader,
     pub ty: P<MuType>,
@@ -769,6 +769,12 @@ impl Value {
 
 const DISPLAY_TYPE : bool = false;
 
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_TYPE {
@@ -792,7 +798,7 @@ impl fmt::Display for Value {
                     write!(f, "%{}", self.hdr)
                 },
                 Value_::Constant(ref c) => {
-                    write!(f, "{} @{}", c, self.hdr)
+                    write!(f, "{}", c)
                 },
                 Value_::Global(_) => {
                     write!(f, "GLOBAL @{}", self.hdr)
@@ -921,7 +927,7 @@ pub enum Constant {
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Constant::Int(v) => write!(f, "{}", v),
+            &Constant::Int(v) => write!(f, "{}", v as i64),
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
 //            &Constant::IRef(v) => write!(f, "{}", v),

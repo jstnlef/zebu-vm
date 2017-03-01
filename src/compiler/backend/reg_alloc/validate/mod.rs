@@ -46,9 +46,10 @@ pub fn validate_regalloc(cf: &CompiledFunction,
     for (_, reg) in frame.argument_by_reg.iter() {
         alive.new_alive_reg(alias(reg.id()));
     }
-    for (_, stack) in frame.argument_by_stack.iter() {
-        alive.new_alive_mem(stack.clone());
-    }
+    // we do not consider mem loc for arguments - we do consider mem loc for spilling
+//    for (_, stack) in frame.argument_by_stack.iter() {
+//        alive.new_alive_mem(stack.clone());
+//    }
 
     debug!("alive entries in the beginning");
     debug!("{}", alive);
