@@ -198,9 +198,13 @@ impl AliveEntries {
         debug!("removing alive reg: {}", reg);
         let mut indices = vec![];
 
-        for (index, entry) in self.inner.iter() {
+        for (index, entry) in self.inner.iter_mut() {
             if entry.match_reg(reg) {
-                indices.push(*index);
+                entry.remove_real(reg);
+
+                if entry.is_empty() {
+                    indices.push(*index);
+                }
             }
         }
 
@@ -209,22 +213,24 @@ impl AliveEntries {
         }
     }
 
-    pub fn remove_temp(&mut self, reg: MuID) {
-        debug!("removing alive temp: {}", reg);
+    pub fn remove_temp(&mut self, temp: MuID) {
+        debug!("removing alive temp: {}", temp);
 
-        let index = {
-            let mut ret = 0;
+        let mut ret = vec![];
 
-            for (index, entry) in self.inner.iter() {
-                if entry.match_temp(reg) {
-                    ret = *index;
-                }
+        for (index, entry) in self.inner.iter() {
+            if entry.match_temp(temp) {
+                ret.push(*index);
             }
+        }
 
-            ret
-        };
-
-        self.inner.remove(&index);
+        if ret.len() == 0 {
+            return;
+        } else if ret.len() == 1 {
+            self.inner.remove(&ret[0]);
+        } else {
+            panic!("Temp{} has more than one entry in AliveEntries");
+        }
     }
 }
 
@@ -235,6 +241,10 @@ pub struct RegisterEntry {
 }
 
 impl RegisterEntry {
+    pub fn is_empty(&self) -> bool {
+        !self.has_real() && !self.has_stack_slots()
+    }
+
     pub fn has_temp(&self) -> bool {
         self.temp.is_some()
     }

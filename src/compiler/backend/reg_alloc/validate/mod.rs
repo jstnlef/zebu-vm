@@ -13,16 +13,10 @@ use compiler::backend::reg_alloc::validate::exact_liveness::*;
 pub fn validate_regalloc(cf: &CompiledFunction,
                          func: &MuFunctionVersion,
                          reg_assigned: LinkedHashMap<MuID, MuID>,
-                         reg_coalesced:LinkedHashMap<MuID, MuID>,
                          reg_spilled: LinkedHashMap<MuID, P<Value>>,
                          spill_scratch_regs: LinkedHashMap<MuID, MuID>)
 {
     debug!("---Validating register allocation results---");
-
-    debug!("coalesced registers: ");
-    for (a, b) in reg_coalesced.iter() {
-        debug!("{} -> {}", a, b);
-    }
 
     debug!("liveness analysis...");
     let liveness = ExactLiveness::new(cf);
@@ -46,10 +40,6 @@ pub fn validate_regalloc(cf: &CompiledFunction,
     for (_, reg) in frame.argument_by_reg.iter() {
         alive.new_alive_reg(alias(reg.id()));
     }
-    // we do not consider mem loc for arguments - we do consider mem loc for spilling
-//    for (_, stack) in frame.argument_by_stack.iter() {
-//        alive.new_alive_mem(stack.clone());
-//    }
 
     debug!("alive entries in the beginning");
     debug!("{}", alive);
@@ -67,13 +57,16 @@ pub fn validate_regalloc(cf: &CompiledFunction,
         // validate spill
         if let Some(spill_loc) = mc.is_spill_load(i) {
             // spill load is a move from spill location (mem) to temp
+
             // its define is the scratch temp
             let scratch_temp = mc.get_inst_reg_defines(i)[0];
             let source_temp  = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
-            add_spill_load(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
+            // we check if source_temp are alive, and if it is alive in the designated location
+            validate_spill_load(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
         } else if let Some(spill_loc) = mc.is_spill_store(i) {
             // spill store is a move from scratch temp to mem
+
             // it uses scratch temp as well as stack pointer (to refer to mem)
             // we try to find the scratch temp
             let scratch_temp = {
@@ -91,7 +84,8 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             };
             let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
-            add_spill_store(scratch_temp, source_temp, spill_loc, &reg_spilled, &reg_coalesced, &mut alive);
+            // we add both scratch_temp, and source_temp as alive
+            add_spill_store(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
         }
 
         // validate uses of registers
@@ -106,14 +100,17 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             }
         }
 
-        // add defines to alive entries
         for reg_def in mc.get_inst_reg_defines(i) {
             let liveout = liveness.get_liveout(i).unwrap();
 
             // if reg is in the liveout set, we add a define to it
             if liveout.contains(&reg_def) {
-                add_def(reg_def, &reg_assigned, &reg_coalesced, &mut alive);
+                // add a define
+                // modify existing alive entries (e.g. kill existing registers)
+                add_def(reg_def, &reg_assigned, mc.is_move(i), &mut alive);
             } else {
+                // we need to kill the reg, so that other temps cannot use it
+                // (its value has been defined)
                 kill_reg(reg_def, &reg_assigned, &mut alive);
             }
         }
@@ -154,14 +151,14 @@ fn validate_use(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &Ali
 
         // ensure temp is assigned to the same machine reg in alive entries
         if alive.has_entries_for_temp(temp) {
-            alive.find_entries_for_temp(temp).iter().inspect(|entry| {
+            for entry in alive.find_entries_for_temp(temp).iter() {
                 if !entry.match_reg(machine_reg) {
                     error!("Temp{}/MachineReg{} does not match at this point. ", temp, machine_reg);
                     error!("Temp{} is assigned as {}", temp, entry);
 
                     panic!("validation failed: temp-reg pair doesnt match")
                 }
-            });
+            }
         } else {
             error!("Temp{} is not alive at this point. ", temp);
 
@@ -182,18 +179,7 @@ fn kill_reg(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &mut Ali
     }
 }
 
-fn is_coalesced(reg1: MuID, reg2: MuID, reg_coalesced: &LinkedHashMap<MuID, MuID>) -> bool {
-    if reg1 == reg2 {
-        true
-    } else if (reg_coalesced.contains_key(&reg1) && *reg_coalesced.get(&reg2).unwrap() == reg1)
-        || (reg_coalesced.contains_key(&reg2) && *reg_coalesced.get(&reg1).unwrap() == reg2) {
-        true
-    } else {
-        false
-    }
-}
-
-fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, reg_coalesced: &LinkedHashMap<MuID, MuID>, alive: &mut AliveEntries) {
+fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, is_mov: bool, alive: &mut AliveEntries) {
     let machine_reg = get_machine_reg(reg, reg_assigned);
     let temp = reg;
 
@@ -208,10 +194,10 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, reg_coalesced: &
         } else if !alive.find_entries_for_reg(reg).iter().any(|entry| entry.has_temp()) {
             // overwrite the value that is not used
         } else {
-            alive.find_entries_for_reg(reg).iter().inspect(|entry| {
+            for entry in alive.find_entries_for_reg(reg).iter() {
                 let old_temp = entry.get_temp().unwrap();
                 error!("Register{}/Temp{} is alive at this point, defining a new value to Register{} is incorrect", reg, old_temp, reg);
-            });
+            }
 
             panic!("validation failed: define a register that is already alive (value overwritten)");
         }
@@ -230,13 +216,17 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, reg_coalesced: &
                         // if the register is holding a temporary, it needs to be coalesced with new temp
                         let old_temp: MuID = entry.get_temp().unwrap();
 
-                        if is_coalesced(old_temp, temp, reg_coalesced) {
-                            // safe
+                        if old_temp == temp {
+                            // overwrite value, safe
                         } else {
-                            // not coalesced, error
-                            error!("Temp{} and Temp{} are not coalesced, but they use the same Register{}", temp, old_temp, machine_reg);
+                            if is_mov {
+                                warn!("Temp{} and Temp{} is using the same Register{}, possibly coalesced", temp, old_temp, machine_reg);
+                            } else {
+                                // trying to overwrite another value, error
+                                error!("Temp{} and Temp{} try use the same Register{}", temp, old_temp, machine_reg);
 
-                            panic!("validation failed: define a register that is already alive, and their temps are not coalesced");
+                                panic!("validation failed: define a register that is already alive");
+                            }
                         }
                     }
                 }
@@ -246,46 +236,21 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, reg_coalesced: &
             alive.add_temp_in_reg(temp, machine_reg);
         }
     }
-
-    // if other temp use the same register, remove the register from their entry
-    for entry in alive.find_entries_for_reg_mut(machine_reg) {
-        if let Some(other_temp) = entry.get_temp() {
-            if is_coalesced(other_temp, temp, reg_coalesced) {
-                // do nothing
-            } else {
-                entry.remove_real(reg);
-            }
-        }
-    }
 }
 
 fn add_spill_store(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
                    reg_spilled: &LinkedHashMap<MuID, P<Value>>,
-                   reg_coalesced: &LinkedHashMap<MuID, MuID>,
                    alive: &mut AliveEntries) {
     // add source_temp with mem loc
     alive.add_temp_in_mem(source_temp, spill_loc.clone());
 
     // add scratch_temp
     alive.add_temp_in_mem(scratch_temp, spill_loc.clone());
-
-    // trying to store into a spill location, it is always valid
-    // but if other temp use the same mem location and it is not coalesced temp,
-    // we need to delete the mem location from their entry
-    for entry in alive.find_entries_for_mem_mut(spill_loc.clone()) {
-        if let Some(temp) = entry.get_temp() {
-            if is_coalesced(temp, source_temp, reg_coalesced) || is_coalesced(temp, scratch_temp, reg_coalesced) {
-                // its okay, coalesced temps can have one spill location
-            } else {
-                entry.remove_stack_loc(spill_loc.clone())
-            }
-        }
-    }
 }
 
-fn add_spill_load(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
-                  reg_spilled: &LinkedHashMap<MuID, P<Value>>,
-                  alive: &mut AliveEntries) {
+fn validate_spill_load(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
+                       reg_spilled: &LinkedHashMap<MuID, P<Value>>,
+                       alive: &mut AliveEntries) {
     // verify its correct: the source temp should be alive with the mem location
     if alive.has_entries_for_temp(source_temp) {
         alive.find_entries_for_temp(source_temp).iter().inspect(|entry| {

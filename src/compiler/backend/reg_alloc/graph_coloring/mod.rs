@@ -44,7 +44,7 @@ impl RegisterAllocation {
             let reg_coalesced  = coloring.get_coalesced();
             let spill_scratch_temps = coloring.get_spill_scratch_temps();
 
-            validate::validate_regalloc(&coloring.cf, &coloring.func, reg_assignment, reg_coalesced, reg_spilled, spill_scratch_temps);
+            validate::validate_regalloc(&coloring.cf, &coloring.func, reg_assignment, reg_spilled, spill_scratch_temps);
         }
 
         // replace regs
