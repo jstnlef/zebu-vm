@@ -3,6 +3,7 @@ use ast::ir::*;
 use ast::ptr::*;
 use compiler::machine_code::CompiledFunction;
 use compiler::backend::get_color_for_precolored as alias;
+use compiler::backend::PROLOGUE_BLOCK_NAME;
 
 mod alive_entry;
 use compiler::backend::reg_alloc::validate::alive_entry::*;
@@ -41,82 +42,143 @@ pub fn validate_regalloc(cf: &CompiledFunction,
         alive.new_alive_reg(alias(reg.id()));
     }
 
-    debug!("alive entries in the beginning");
+    debug!("---alive entries in the beginning---");
     debug!("{}", alive);
 
     let mc = cf.mc();
 
-    for i in 0..mc.number_of_insts() {
-        mc.trace_inst(i);
+    let mut work_queue : LinkedHashMap<MuName, AliveEntries> = LinkedHashMap::new();
+    let mut visited    : LinkedHashMap<MuName, AliveEntries> = LinkedHashMap::new();
+    // push entry block
+    work_queue.insert(PROLOGUE_BLOCK_NAME.to_string(), alive.clone());
 
-        if mc.is_jmp(i).is_some() {
-            // we need to do flow-sensitive analysis
-            unimplemented!();
-        }
+    while !work_queue.is_empty() {
+        // fetch next block
+        let (block, mut alive) = work_queue.pop_front().unwrap();
 
-        // validate spill
-        if let Some(spill_loc) = mc.is_spill_load(i) {
-            // spill load is a move from spill location (mem) to temp
-
-            // its define is the scratch temp
-            let scratch_temp = mc.get_inst_reg_defines(i)[0];
-            let source_temp  = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
-
-            // we check if source_temp are alive, and if it is alive in the designated location
-            validate_spill_load(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
-        } else if let Some(spill_loc) = mc.is_spill_store(i) {
-            // spill store is a move from scratch temp to mem
-
-            // it uses scratch temp as well as stack pointer (to refer to mem)
-            // we try to find the scratch temp
-            let scratch_temp = {
-                let uses = mc.get_inst_reg_uses(i);
-                let mut use_temps = vec![];
-                for reg in uses {
-                    if reg >= MACHINE_ID_END {
-                        use_temps.push(reg)
-                    }
-                };
-
-                assert!(use_temps.len() == 1);
-
-                use_temps[0]
-            };
-            let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
-
-            // we add both scratch_temp, and source_temp as alive
-            add_spill_store(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
-        }
-
-        // validate uses of registers
-        for reg_use in mc.get_inst_reg_uses(i) {
-            validate_use(reg_use, &reg_assigned, &alive);
-        }
-
-        // remove registers that die at this instruction from alive entries
-        if let Some(kills) = liveness.get_kills(i) {
-            for reg in kills.iter() {
-                kill_reg(*reg, &reg_assigned, &mut alive);
-            }
-        }
-
-        for reg_def in mc.get_inst_reg_defines(i) {
-            let liveout = liveness.get_liveout(i).unwrap();
-
-            // if reg is in the liveout set, we add a define to it
-            if liveout.contains(&reg_def) {
-                // add a define
-                // modify existing alive entries (e.g. kill existing registers)
-                add_def(reg_def, &reg_assigned, mc.is_move(i), &mut alive);
-            } else {
-                // we need to kill the reg, so that other temps cannot use it
-                // (its value has been defined)
-                kill_reg(reg_def, &reg_assigned, &mut alive);
-            }
-        }
-
+        debug!("---working on block {}---", block);
         debug!("{}", alive);
-        trace!("---");
+
+        // check inst sequentially
+        let range = match mc.get_block_range(&block) {
+            Some(range) => range,
+            None => panic!("cannot find range for block {}", block)
+        };
+        let last_inst = range.end - 1;
+        for i in range {
+            mc.trace_inst(i);
+
+            // validate spill
+            if let Some(spill_loc) = mc.is_spill_load(i) {
+                // spill load is a move from spill location (mem) to temp
+
+                // its define is the scratch temp
+                let scratch_temp = mc.get_inst_reg_defines(i)[0];
+                let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
+
+                // we check if source_temp are alive, and if it is alive in the designated location
+                validate_spill_load(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
+            } else if let Some(spill_loc) = mc.is_spill_store(i) {
+                // spill store is a move from scratch temp to mem
+
+                // it uses scratch temp as well as stack pointer (to refer to mem)
+                // we try to find the scratch temp
+                let scratch_temp = {
+                    let uses = mc.get_inst_reg_uses(i);
+                    let mut use_temps = vec![];
+                    for reg in uses {
+                        if reg >= MACHINE_ID_END {
+                            use_temps.push(reg)
+                        }
+                    };
+
+                    assert!(use_temps.len() == 1);
+
+                    use_temps[0]
+                };
+                let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
+
+                // we add both scratch_temp, and source_temp as alive
+                add_spill_store(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
+            }
+
+            // validate uses of registers
+            for reg_use in mc.get_inst_reg_uses(i) {
+                validate_use(reg_use, &reg_assigned, &alive);
+            }
+
+            // remove registers that die at this instruction from alive entries
+            if let Some(kills) = liveness.get_kills(i) {
+                for reg in kills.iter() {
+                    kill_reg(*reg, &reg_assigned, &mut alive);
+                }
+            }
+
+            for reg_def in mc.get_inst_reg_defines(i) {
+                let liveout = liveness.get_liveout(i).unwrap();
+
+                // if reg is in the liveout set, we add a define to it
+                if liveout.contains(&reg_def) {
+                    // add a define
+                    // modify existing alive entries (e.g. kill existing registers)
+                    add_def(reg_def, &reg_assigned, mc.is_move(i), &mut alive);
+                } else {
+                    // we need to kill the reg, so that other temps cannot use it
+                    // (its value has been defined)
+                    kill_reg(reg_def, &reg_assigned, &mut alive);
+                }
+            }
+
+            debug!("{}", alive);
+            trace!("---");
+        }
+
+        // find succeeding blocks
+        let succeeding_blocks : Vec<MuName> = mc.get_succs(last_inst).iter()
+                                              .map(|x| match mc.is_label(*x - 1) {
+                                                  Some(label) => label,
+                                                  None => panic!("cannot find label for inst {}", *x - 1)
+                                              }).collect();
+
+        // 1) if we have visited this block before, we need to merge (intersect alive entries)
+        // alive entries is changed, we need to push successors
+        // 2) if this is our first time visit the block, we push successors
+        let mut should_push_successors = false;
+
+        if visited.contains_key(&block) {
+            // if current block exists in visited, intersect with current
+            let mut old = visited.get_mut(&block).unwrap();
+            let changed = old.intersect(&alive);
+
+            if changed {
+                debug!("we have visted this block before, but intersection made changes. we need to push its sucessors again. ");
+                should_push_successors = true;
+            }
+        } else {
+            debug!("first time we visited this block, push its successors");
+            visited.insert(block.clone(), alive.clone());
+            should_push_successors = true;
+        }
+
+        // push successors to work list
+        if should_push_successors {
+            if succeeding_blocks.len() == 1 {
+                // nothing special, just push next block to work list
+                work_queue.insert(succeeding_blocks[0].clone(), alive.clone());
+                debug!("push block {} to work list", succeeding_blocks[0]);
+            } else if succeeding_blocks.len() == 2 {
+                // conditional branch
+                // FIXME: need to prune alive entries based on live in
+                // it is possible that a variable is alive at the end of a BB, and used
+                // only in one of its successors
+                work_queue.insert(succeeding_blocks[0].clone(), alive.clone());
+                work_queue.insert(succeeding_blocks[1].clone(), alive.clone());
+                debug!("push block {} to work list", succeeding_blocks[0]);
+                debug!("push block {} to work list", succeeding_blocks[1]);
+            }
+        }
+
+        //
     }
 }
 
@@ -253,7 +315,7 @@ fn validate_spill_load(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value
                        alive: &mut AliveEntries) {
     // verify its correct: the source temp should be alive with the mem location
     if alive.has_entries_for_temp(source_temp) {
-        alive.find_entries_for_temp(source_temp).iter().inspect(|entry| {
+        for entry in alive.find_entries_for_temp(source_temp).iter() {
             if entry.match_stack_loc(spill_loc.clone()) {
                 // valid
             } else {
@@ -262,7 +324,7 @@ fn validate_spill_load(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value
 
                 panic!("validation failed: load a register from a spilled location that is incorrect");
             }
-        });
+        }
     } else {
         error!("SourceTemp{} is not alive, loading it from {} as ScratchTemp{} is not valid", scratch_temp, spill_loc, scratch_temp);
 

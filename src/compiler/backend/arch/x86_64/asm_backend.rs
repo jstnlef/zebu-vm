@@ -31,6 +31,7 @@ struct ASMCode {
     name: MuName, 
     code: Vec<ASMInst>,
 
+    entry:  MuName,
     blocks: LinkedHashMap<MuName, ASMBlock>,
 
     frame_size_patchpoints: Vec<ASMLocation>
@@ -116,6 +117,7 @@ impl ASMCode {
         trace!("insert spilling code");
         let mut ret = ASMCode {
             name: self.name.clone(),
+            entry: self.entry.clone(),
             code: vec![],
             blocks: linked_hashmap!{},
             frame_size_patchpoints: vec![]
@@ -483,7 +485,7 @@ impl MachineCode for ASMCode {
             Some(inst) if inst.code.starts_with("jmp") => {
                 let split : Vec<&str> = inst.code.split(' ').collect();
 
-                Some(String::from(split[1]))
+                Some(ASMCodeGen::unmangle_block_label(self.name.clone(), String::from(split[1])))
             }
             _ => None
         }
@@ -495,7 +497,7 @@ impl MachineCode for ASMCode {
             Some(inst) if inst.code.ends_with(':') => {
                 let split : Vec<&str> = inst.code.split(':').collect();
 
-                Some(String::from(split[0]))
+                Some(ASMCodeGen::unmangle_block_label(self.name.clone(), String::from(split[0])))
             }
             _ => None
         }
@@ -731,6 +733,10 @@ impl MachineCode for ASMCode {
     
     fn get_all_blocks(&self) -> Vec<MuName> {
         self.blocks.keys().map(|x| x.clone()).collect()
+    }
+
+    fn get_entry_block(&self) -> MuName {
+        self.entry.clone()
     }
     
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>> {
@@ -1219,6 +1225,13 @@ impl ASMCodeGen {
     
     fn mangle_block_label(&self, label: MuName) -> String {
         format!("{}_{}", self.cur().name, label)
+    }
+
+    fn unmangle_block_label(fn_name: MuName, label: String) -> MuName {
+        // input: _fn_name_BLOCK_NAME
+        // return BLOCK_NAME
+        let split : Vec<&str> = label.splitn(2, &(fn_name + "_")).collect();
+        String::from(split[1])
     }
 
     fn finish_code_sequence_asm(&mut self) -> Box<ASMCode> {
@@ -1770,9 +1783,10 @@ fn op_postfix(op_len: usize) -> &'static str {
 }
 
 impl CodeGenerator for ASMCodeGen {
-    fn start_code(&mut self, func_name: MuName) -> ValueLocation {
+    fn start_code(&mut self, func_name: MuName, entry: MuName) -> ValueLocation {
         self.cur = Some(Box::new(ASMCode {
             name: func_name.clone(),
+            entry: entry,
             code: vec![],
             blocks: linked_hashmap! {},
             frame_size_patchpoints: vec![]
@@ -1806,6 +1820,7 @@ impl CodeGenerator for ASMCodeGen {
     fn start_code_sequence(&mut self) {
         self.cur = Some(Box::new(ASMCode {
             name: "snippet".to_string(),
+            entry: "none".to_string(),
             code: vec![],
             blocks: linked_hashmap! {},
             frame_size_patchpoints: vec![]

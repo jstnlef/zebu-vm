@@ -8,6 +8,7 @@ use std::fmt;
 
 type EntryID = usize;
 
+#[derive(Clone)]
 pub struct AliveEntries {
     index: EntryID,
 
@@ -232,8 +233,40 @@ impl AliveEntries {
             panic!("Temp{} has more than one entry in AliveEntries");
         }
     }
+
+    pub fn intersect(&mut self, another: &Self) -> bool {
+        let mut entries_to_delete : Vec<EntryID> = vec![];
+
+        let mut changed = false;
+
+        for (index, entry) in self.inner.iter_mut() {
+            if entry.has_temp() {
+                let temp = entry.get_temp().unwrap();
+
+                // find entry with the same temp in the other set, and do intersect
+                for another_entry in another.find_entries_for_temp(temp) {
+                    if entry.intersect(another_entry) {
+                        changed = true;
+                    }
+                }
+            } else {
+                // find entry without a temp in the other set and do intersect
+
+                for another_entry in another.inner.values() {
+                    if !another_entry.has_temp() {
+                        if entry.intersect(another_entry) {
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        changed
+    }
 }
 
+#[derive(Clone)]
 pub struct RegisterEntry {
     temp  : Option<MuID>,
     real  : Vec<MuID>,
@@ -300,6 +333,28 @@ impl RegisterEntry {
         if vec_utils::find_value(&mut self.stack, mem.clone()).is_none() {
             self.stack.push(mem)
         }
+    }
+
+    // two entries can intersect only when they have the same temp, or they do not have temps
+    pub fn intersect(&mut self, another: &Self) -> bool {
+        assert!(
+            (!self.has_temp() && !another.has_temp()
+            || (self.has_temp() && another.has_temp() && self.get_temp().unwrap() == another.get_temp().unwrap()))
+        );
+
+        let mut changed = false;
+
+        // intersect real registers
+        if vec_utils::intersect(&mut self.real, &another.real) {
+            changed = true;
+        }
+
+        // intersect memory
+        if vec_utils::intersect(&mut self.stack, &another.stack) {
+            changed = true;
+        }
+
+        changed
     }
 }
 

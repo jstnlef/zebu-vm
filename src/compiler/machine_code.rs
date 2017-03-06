@@ -178,6 +178,7 @@ pub trait MachineCode {
     fn set_ir_block_liveout(&mut self, block: &str, set: Vec<MuID>);
     
     fn get_all_blocks(&self) -> Vec<MuName>;
+    fn get_entry_block(&self) -> MuName;
     // returns [start_inst, end_inst) // end_inst not included
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
 

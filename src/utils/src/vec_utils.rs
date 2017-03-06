@@ -84,6 +84,22 @@ pub fn find_value<T: PartialEq> (vec: &Vec<T>, val: T) -> Option<usize> {
     None
 }
 
+pub fn intersect<T: PartialEq + Clone> (vec: &mut Vec<T>, vec2: &Vec<T>) -> bool {
+    let mut indices_to_delete = vec![];
+
+    for i in 0..vec.len() {
+        if find_value(vec2, vec[0].clone()).is_none() {
+            indices_to_delete.push(i);
+        }
+    }
+
+    for i in indices_to_delete.iter() {
+        vec.remove(*i);
+    }
+
+    indices_to_delete.len() != 0
+}
+
 pub fn remove_value<T: PartialEq> (vec: &mut Vec<T>, val: T) {
     match find_value(vec, val) {
         Some(index) => {vec.remove(index);},

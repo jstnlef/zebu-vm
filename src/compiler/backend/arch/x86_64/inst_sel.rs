@@ -3564,12 +3564,14 @@ impl CompilerPass for InstructionSelection {
     fn start_function(&mut self, vm: &VM, func_ver: &mut MuFunctionVersion) {
         debug!("{}", self.name());
 
+        let entry_block = func_ver.content.as_ref().unwrap().get_entry_block();
+
         self.current_fv_id = func_ver.id();
         self.current_frame = Some(Frame::new(func_ver.id()));
         self.current_func_start = Some({
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
-            self.backend.start_code(func.name().unwrap())        
+            self.backend.start_code(func.name().unwrap(), entry_block.name().unwrap())
         });
         self.current_callsite_id = 0;
         self.current_exn_callsites.clear();
@@ -3578,8 +3580,7 @@ impl CompilerPass for InstructionSelection {
         self.current_constants.clear();
         self.current_constants_locs.clear();
         
-        // prologue (get arguments from entry block first)        
-        let entry_block = func_ver.content.as_ref().unwrap().get_entry_block();
+        // prologue (get arguments from entry block first)
         let ref args = entry_block.content.as_ref().unwrap().args;
         self.emit_common_prologue(args, vm);
     }
