@@ -251,7 +251,6 @@ impl AliveEntries {
                 }
             } else {
                 // find entry without a temp in the other set and do intersect
-
                 for another_entry in another.inner.values() {
                     if !another_entry.has_temp() {
                         if entry.intersect(another_entry) {
@@ -263,6 +262,40 @@ impl AliveEntries {
         }
 
         changed
+    }
+
+    pub fn preserve_list(&mut self, list: &Vec<MuID>) {
+        let mut indices_to_delete : Vec<EntryID> = vec![];
+
+        for (index, entry) in self.inner.iter() {
+            if !entry.has_temp() {
+                if list.iter().any(|x| entry.match_reg(*x)) {
+
+                } else {
+                    indices_to_delete.push(*index);
+                }
+            } else {
+                let temp = entry.get_temp().unwrap();
+                if !vec_utils::find_value(list, temp).is_some() {
+                    indices_to_delete.push(*index);
+                }
+            }
+        }
+
+        // always preserve entries with spill location
+        let mut indices_to_really_delete : Vec<EntryID> = vec![];
+        for index in indices_to_delete {
+            let entry = self.inner.get(&index).unwrap();
+
+            if !entry.has_stack_slots() {
+                indices_to_really_delete.push(index);
+            }
+        }
+
+        // delete
+        for index in indices_to_really_delete {
+            self.inner.remove(&index);
+        }
     }
 }
 

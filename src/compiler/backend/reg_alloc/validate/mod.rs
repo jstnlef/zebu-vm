@@ -133,6 +133,16 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             trace!("---");
         }
 
+        // find liveout of the block, and only preserve what is in the liveout
+        let liveout = match mc.get_ir_block_liveout(&block) {
+            Some(liveout) => liveout,
+            None => panic!("cannot find liveout for block {}", block)
+        };
+        alive.preserve_list(liveout);
+        debug!("liveout is {:?}", liveout);
+        debug!("preserve only entries in liveout, we get:");
+        debug!("{}", alive);
+
         // find succeeding blocks
         let succeeding_blocks : Vec<MuName> = mc.get_succs(last_inst).iter()
                                               .map(|x| match mc.is_label(*x - 1) {
@@ -168,13 +178,37 @@ pub fn validate_regalloc(cf: &CompiledFunction,
                 debug!("push block {} to work list", succeeding_blocks[0]);
             } else if succeeding_blocks.len() == 2 {
                 // conditional branch
-                // FIXME: need to prune alive entries based on live in
+
                 // it is possible that a variable is alive at the end of a BB, and used
                 // only in one of its successors
-                work_queue.insert(succeeding_blocks[0].clone(), alive.clone());
-                work_queue.insert(succeeding_blocks[1].clone(), alive.clone());
-                debug!("push block {} to work list", succeeding_blocks[0]);
-                debug!("push block {} to work list", succeeding_blocks[1]);
+
+                // 1st branch
+                {
+                    let block1 = succeeding_blocks[0].clone();
+                    let block1_livein = match mc.get_ir_block_livein(&block1) {
+                        Some(livein) => livein,
+                        None => panic!("cannot find livein for block {}", block1)
+                    };
+                    let mut block1_alive = alive.clone();
+                    block1_alive.preserve_list(block1_livein);
+
+                    work_queue.insert(block1, block1_alive);
+                    debug!("push block {} to work list", succeeding_blocks[0]);
+                }
+
+                // 2nd branch
+                {
+                    let block2 = succeeding_blocks[1].clone();
+                    let block2_livein = match mc.get_ir_block_livein(&block2) {
+                        Some(livein) => livein,
+                        None => panic!("cannot find livein for block {}", block2)
+                    };
+                    let mut block2_alive = alive.clone();
+                    block2_alive.preserve_list(block2_livein);
+
+                    work_queue.insert(block2, block2_alive);
+                    debug!("push block {} to work list", succeeding_blocks[1]);
+                }
             }
         }
 

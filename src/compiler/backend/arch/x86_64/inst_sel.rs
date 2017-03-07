@@ -2870,7 +2870,12 @@ impl <'a> InstructionSelection {
                                 unimplemented!()
                             },
                             &Constant::NullRef => {
-                                self.backend.emit_xor_r_r(&tmp, &tmp);
+                                // xor a, a -> a will mess up register allocation validation
+                                // since it uses a regsiter with arbitrary value
+                                // self.backend.emit_xor_r_r(&tmp, &tmp);
+
+                                // for now, use mov -> a
+                                self.backend.emit_mov_r_imm(&tmp, 0);
                             },
                             _ => panic!("expected ireg")
                         }
