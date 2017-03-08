@@ -436,4 +436,24 @@ macro_rules! inst {
             v:      Instruction_::Return(vec![])
         });
     };
+
+    // THREADEXIT
+    (($vm: expr, $fv: ident) $name: ident: THREADEXIT) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: None,
+            ops: RwLock::new(vec![]),
+            v: Instruction_::ThreadExit
+        });
+    };
+
+    // PRINTHEX
+    (($vm: expr, $fv: ident) $name: ident: PRINTHEX $val: ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: None,
+            ops: RwLock::new(vec![$val.clone()]),
+            v: Instruction_::PrintHex(0)
+        });
+    }
 }

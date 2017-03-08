@@ -997,7 +997,12 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.get
 
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output
-    
+   
+    #t.backendopt(inline=True, mallocs=True)
+    #t.view()
+    #t.mutype()
+    #t.view()
+
     db, mugen, epf_name = t.compile_mu()
     exe = py.path.local(output)
 

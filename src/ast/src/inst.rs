@@ -277,7 +277,9 @@ pub enum Instruction_ {
     CommonInst_Unpin(OpIndex),
 
     // internal use: mov from ops[0] to value
-    Move(OpIndex)
+    Move(OpIndex),
+    // internal use: print op as hex value
+    PrintHex(OpIndex)
 }
 
 impl Instruction_ {
@@ -402,7 +404,9 @@ impl Instruction_ {
             &Instruction_::CommonInst_Unpin(op) => format!("COMMONINST Unpin {}", ops[op]),
 
             // move
-            &Instruction_::Move(from) => format!("MOVE {}", ops[from])
+            &Instruction_::Move(from) => format!("MOVE {}", ops[from]),
+            // print hex
+            &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i])
         }
     }
 }

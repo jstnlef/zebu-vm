@@ -7,6 +7,8 @@ use ast::types;
 use ast::types::*;
 use vm::VM;
 use runtime::mm;
+use runtime::mm::objectmodel::OBJECT_HEADER_SIZE;
+use runtime::mm::objectmodel::OBJECT_HEADER_OFFSET;
 use runtime::ValueLocation;
 use runtime::thread;
 use runtime::entrypoints;
@@ -1153,6 +1155,20 @@ impl <'a> InstructionSelection {
                             None,
                             Some(node), f_content, f_context, vm);
                     }
+
+                    Instruction_::PrintHex(index) => {
+                        trace!("instsel on PRINTHEX");
+
+                        let ops = inst.ops.read().unwrap();
+                        let ref op = ops[index];
+
+                        self.emit_runtime_entry(
+                            &entrypoints::PRINT_HEX,
+                            vec![op.clone_value()],
+                            None,
+                            Some(node), f_content, f_context, vm
+                        );
+                    }
     
                     _ => unimplemented!()
                 } // main switch
@@ -1859,6 +1875,8 @@ impl <'a> InstructionSelection {
         tmp_res
     }
 
+    // this function needs to generate exact same code as alloc() in immix_mutator.rs in GC
+    // FIXME: currently it is slightly different
     fn emit_alloc_sequence_small (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         // emit immix allocation fast path
 
@@ -1883,10 +1901,19 @@ impl <'a> InstructionSelection {
         // or lea size(%start) -> %end
         let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
         if size.is_int_const() {
-            let offset = size.extract_int_const() as i32;
+            let mut offset = size.extract_int_const() as i32;
+
+            if OBJECT_HEADER_SIZE != 0 {
+                offset += OBJECT_HEADER_SIZE as i32;
+            }
+
             self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
         } else {
             self.backend.emit_mov_r_r(&tmp_end, &tmp_start);
+            if OBJECT_HEADER_SIZE != 0 {
+                // ASM: add %size, HEADER_SIZE -> %size
+                self.backend.emit_add_r_imm(&size, OBJECT_HEADER_SIZE as i32);
+            }
             self.backend.emit_add_r_r(&tmp_end, &size);
         }
 
@@ -1910,9 +1937,14 @@ impl <'a> InstructionSelection {
         self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
 
         // put start as result
-        // ASM: mov %start -> %result
         let tmp_res = self.get_result_value(node);
-        self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
+        if OBJECT_HEADER_OFFSET != 0 {
+            // ASM: lea -HEADER_OFFSET(%start) -> %result
+            self.emit_lea_base_immoffset(&tmp_res, &tmp_start, - OBJECT_HEADER_OFFSET as i32, vm);
+        } else {
+            // ASM: mov %start -> %result
+            self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
+        }
 
         // ASM jmp alloc_end
         let allocend = format!("{}_alloc_small_end", node.id());

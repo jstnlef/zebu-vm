@@ -23,6 +23,8 @@ lazy_static! {
     pub static ref N_MUTATORS : RwLock<usize> = RwLock::new(0);
 }
 
+const TRACE_ALLOC_FASTPATH : bool = true;
+
 #[repr(C)]
 // do not change the layout (unless change the offset of fields correspondingly)
 pub struct ImmixMutatorLocal {
@@ -52,7 +54,7 @@ pub struct ImmixMutatorLocal {
 
 lazy_static! {
     pub static ref CURSOR_OFFSET : usize = mem::size_of::<usize>()
-                + mem::size_of::<*mut u8>()
+                + mem::size_of::<*mut u8>() * 2
                 + mem::size_of::<Address>();
                 
     pub static ref LIMIT_OFFSET : usize = *CURSOR_OFFSET
@@ -145,11 +147,22 @@ impl ImmixMutatorLocal {
         let size = size + objectmodel::OBJECT_HEADER_SIZE;
         // end
 
+        if TRACE_ALLOC_FASTPATH {
+            trace!("Mutator{}: fastpath alloc: size={}, align={}", self.id, size, align);
+        }
+
         let start = self.cursor.align_up(align);
         let end = start.plus(size);
 
+        if TRACE_ALLOC_FASTPATH {
+            trace!("Mutator{}: fastpath alloc: start=0x{:x}, end=0x{:x}", self.id, start, end);
+        }
+
         if end > self.limit {
             let ret = self.try_alloc_from_local(size, align);
+            if TRACE_ALLOC_FASTPATH {
+                trace!("Mutator{}: fastpath alloc: try_alloc_from_local()=0x{:x}", self.id, ret);
+            }
             
             if cfg!(debug_assertions) {
                 if !ret.is_aligned_to(align) {
@@ -229,8 +242,13 @@ impl ImmixMutatorLocal {
                     for line in next_available_line..end_line {
                         self.block().line_mark_table_mut().set(line, immix::LineMark::FreshAlloc);
                     }
-                    
-                    self.alloc(size, align)
+
+                    // allocate fast path
+                    let start = self.cursor.align_up(align);
+                    let end = start.plus(size);
+
+                    self.cursor = end;
+                    start
                 },
                 None => {
                     self.alloc_from_global(size, align)
@@ -263,6 +281,8 @@ impl ImmixMutatorLocal {
                     self.cursor   = self.block().start();
                     self.limit    = self.block().start();
                     self.line     = 0;
+
+                    trace!("Mutator{}: slowpath: new block starting from 0x{:x}", self.id, self.cursor);
                     
                     return self.alloc(size, align);
                 },
