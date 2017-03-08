@@ -100,7 +100,7 @@ testjit:rpython:
   script:
     - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git tests/test_jit/mu-client-pypy
     - cd tests/test_jit/mu-client-pypy
-    - git checkout mu-rewrite-zebu-no-binop-with-flag
+    - git checkout mu-rewrite
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
     - RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy MU_ZEBU=$CI_PROJECT_DIR pytest test_rpython*.py -v
