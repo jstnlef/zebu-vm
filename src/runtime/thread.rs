@@ -15,7 +15,6 @@ use utils::mem::memmap;
 use utils::mem::memsec;
 
 use std::ptr;
-use std::mem;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::Arc;

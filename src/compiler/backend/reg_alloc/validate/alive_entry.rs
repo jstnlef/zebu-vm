@@ -157,7 +157,7 @@ impl AliveEntries {
         let entry_exists = self.has_entries_for_temp(temp);
 
         if entry_exists {
-            let mut entries = self.find_entries_for_temp_mut(temp);
+            let entries = self.find_entries_for_temp_mut(temp);
             for entry in entries {
                 entry.add_real_reg(reg);
             }
@@ -179,7 +179,7 @@ impl AliveEntries {
         let entry_exists = self.has_entries_for_temp(temp);
 
         if entry_exists {
-            let mut entries = self.find_entries_for_temp_mut(temp);
+            let entries = self.find_entries_for_temp_mut(temp);
             for entry in entries {
                 entry.add_stack_loc(mem.clone());
             }
@@ -235,11 +235,9 @@ impl AliveEntries {
     }
 
     pub fn intersect(&mut self, another: &Self) -> bool {
-        let mut entries_to_delete : Vec<EntryID> = vec![];
-
         let mut changed = false;
 
-        for (index, entry) in self.inner.iter_mut() {
+        for (_, entry) in self.inner.iter_mut() {
             if entry.has_temp() {
                 let temp = entry.get_temp().unwrap();
 

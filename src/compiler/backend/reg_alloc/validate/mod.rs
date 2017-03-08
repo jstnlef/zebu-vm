@@ -12,9 +12,7 @@ mod exact_liveness;
 use compiler::backend::reg_alloc::validate::exact_liveness::*;
 
 pub fn validate_regalloc(cf: &CompiledFunction,
-                         func: &MuFunctionVersion,
                          reg_assigned: LinkedHashMap<MuID, MuID>,
-                         reg_spilled: LinkedHashMap<MuID, P<Value>>,
                          spill_scratch_regs: LinkedHashMap<MuID, MuID>)
 {
     debug!("---Validating register allocation results---");
@@ -77,7 +75,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
                 let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
                 // we check if source_temp are alive, and if it is alive in the designated location
-                validate_spill_load(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
+                validate_spill_load(scratch_temp, source_temp, spill_loc, &mut alive);
             } else if let Some(spill_loc) = mc.is_spill_store(i) {
                 // spill store is a move from scratch temp to mem
 
@@ -99,7 +97,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
                 let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
                 // we add both scratch_temp, and source_temp as alive
-                add_spill_store(scratch_temp, source_temp, spill_loc, &reg_spilled, &mut alive);
+                add_spill_store(scratch_temp, source_temp, spill_loc, &mut alive);
             }
 
             // validate uses of registers
@@ -110,7 +108,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             // remove registers that die at this instruction from alive entries
             if let Some(kills) = liveness.get_kills(i) {
                 for reg in kills.iter() {
-                    kill_reg(*reg, &reg_assigned, &mut alive);
+                    kill_reg(*reg, &mut alive);
                 }
             }
 
@@ -125,7 +123,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
                 } else {
                     // we need to kill the reg, so that other temps cannot use it
                     // (its value has been defined)
-                    kill_reg(reg_def, &reg_assigned, &mut alive);
+                    kill_reg(reg_def, &mut alive);
                 }
             }
 
@@ -263,7 +261,7 @@ fn validate_use(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &Ali
     }
 }
 
-fn kill_reg(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &mut AliveEntries) {
+fn kill_reg(reg: MuID, alive: &mut AliveEntries) {
     if reg < MACHINE_ID_END {
         if alive.has_entries_for_reg(reg) {
             alive.remove_reg(reg);
@@ -335,7 +333,6 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, is_mov: bool, al
 }
 
 fn add_spill_store(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
-                   reg_spilled: &LinkedHashMap<MuID, P<Value>>,
                    alive: &mut AliveEntries) {
     // add source_temp with mem loc
     alive.add_temp_in_mem(source_temp, spill_loc.clone());
@@ -345,7 +342,6 @@ fn add_spill_store(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
 }
 
 fn validate_spill_load(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
-                       reg_spilled: &LinkedHashMap<MuID, P<Value>>,
                        alive: &mut AliveEntries) {
     // verify its correct: the source temp should be alive with the mem location
     if alive.has_entries_for_temp(source_temp) {

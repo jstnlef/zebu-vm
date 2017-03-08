@@ -6,7 +6,6 @@ use mu::ast::inst::*;
 use mu::ast::op::*;
 use mu::vm::*;
 use mu::compiler::*;
-use mu::runtime::mm::objectmodel::OBJECT_HEADER_OFFSET;
 use mu::utils::LinkedHashMap;
 
 use std::sync::Arc;

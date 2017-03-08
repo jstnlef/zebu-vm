@@ -16,7 +16,6 @@ use runtime::ValueLocation;
 use utils::vec_utils;
 use utils::string_utils;
 use utils::LinkedHashMap;
-use utils::LinkedHashSet;
 
 use ast::ptr::P;
 use ast::ir::*;
