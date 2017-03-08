@@ -1024,14 +1024,17 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.get
 def test_make_boot_image_simple():
     c_printf = rffi.llexternal('printf', [rffi.CCHARP], rffi.INT, _nowrapper=True)
     c_putchar = rffi.llexternal('putchar', [rffi.CHAR], rffi.INT, _nowrapper=True)
+    c_exit = rffi.llexternal('exit', [rffi.INT], lltype.Void, _nowrapper=True)
+
     def pypy_mu_entry(argc, argv):
         for i in range(argc):
             c_printf(argv[i])
             c_putchar('\n')
-        return 0
+        c_exit(rffi.cast(rffi.INT, 0))
+	return 0
 
     res = run_boot_image(pypy_mu_entry, '/tmp/test_make_boot_image_mu', True, ['abc', '123'])
-    exe = '/tmp/test_make_boot_image_mu.mu'
+    exe = '/tmp/test_make_boot_image_mu'
     
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
@@ -1044,7 +1047,7 @@ def test_rpytarget_print_argv():
         return 0
 
     res = run_boot_image(main, '/tmp/test_printargv_mu', args = ['abc', '123'])
-    exe = '/tmp/test_printargv_mu.mu'
+    exe = '/tmp/test_printargv_mu'
 
     assert res.returncode == 0, res.err
     assert res.out == '[%s, abc, 123]\n' % exe
