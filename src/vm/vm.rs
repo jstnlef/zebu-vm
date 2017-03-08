@@ -469,7 +469,7 @@ impl <'a> VM {
         // init gc
         {
             let ref options = self.vm_options;
-            gc::gc_init(options.flag_gc_immixspace_size, options.flag_gc_lospace_size, options.flag_gc_nthreads);
+            gc::gc_init(options.flag_gc_immixspace_size, options.flag_gc_lospace_size, options.flag_gc_nthreads, !options.flag_gc_disable_collection);
         }
     }
 

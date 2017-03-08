@@ -25,6 +25,7 @@ AOT Compiler:
   --bootimage-external-libpath=<path> ...      path for the libraries during bootimage generation [default: ]
 
 Garbage Collection:
+  --gc-disable-collection               disable collection
   --gc-immixspace-size=<kb>             immix space size (default 65536kb = 64mb) [default: 67108864]
   --gc-lospace-size=<kb>                large object space size (default 65536kb = 64mb) [default: 67108864]
   --gc-nthreads=<n>                     number of threads for parallel gc [default: 8]
@@ -40,6 +41,7 @@ pub struct VMOptions {
     pub flag_bootimage_external_lib: Vec<String>,
     pub flag_bootimage_external_libpath: Vec<String>,
 
+    pub flag_gc_disable_collection: bool,
     pub flag_gc_immixspace_size: usize,
     pub flag_gc_lospace_size: usize,
     pub flag_gc_nthreads: usize
@@ -66,6 +68,11 @@ impl VMOptions {
 
 impl Default for VMOptions {
     fn default() -> VMOptions {
-        VMOptions::init("")
+        let mut options = VMOptions::init("");
+
+        // by default, disable colleciton for easier debugging
+        options.flag_gc_disable_collection = true;
+
+        options
     }
 }

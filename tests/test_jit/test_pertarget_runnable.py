@@ -1,5 +1,5 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
-from rpython.rlib import rmu_fast as rmu
+from rpython.rlib.rmu import zebu as rmu
 from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
 import ctypes
 

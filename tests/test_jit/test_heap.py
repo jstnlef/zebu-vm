@@ -1,6 +1,5 @@
 from util import fncptr_from_py_script, may_spawn_proc
-from rpython.rlib import rmu_fast as rmu    # NOTE: depends on RPython
-
+from rpython.rlib.rmu import zebu as rmu
 
 @may_spawn_proc
 def test_load_int_from_gcell():

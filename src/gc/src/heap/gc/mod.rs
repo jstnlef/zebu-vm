@@ -11,7 +11,7 @@ use MY_GC;
 use utils::{Address, ObjectReference};
 use utils::POINTER_SIZE;
 
-use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicIsize, AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Condvar, RwLock};
 
 use crossbeam::sync::chase_lev::*;
@@ -28,6 +28,8 @@ lazy_static! {
     
     static ref ROOTS : RwLock<Vec<ObjectReference>> = RwLock::new(vec![]);
 }
+
+pub static ENABLE_GC : AtomicBool = atomic::ATOMIC_BOOL_INIT;
 
 static CONTROLLER : AtomicIsize = atomic::ATOMIC_ISIZE_INIT;
 const  NO_CONTROLLER : isize    = -1;
@@ -216,6 +218,10 @@ fn block_current_thread(mutator: &mut ImmixMutatorLocal) {
 pub static GC_COUNT : atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 
 fn gc() {
+    if ! ENABLE_GC.load(Ordering::SeqCst) {
+        panic!("Triggering GC when GC is disabled");
+    }
+
     GC_COUNT.store(GC_COUNT.load(atomic::Ordering::SeqCst) + 1, atomic::Ordering::SeqCst);
     
     trace!("GC starts");
