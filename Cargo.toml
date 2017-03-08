@@ -21,6 +21,7 @@ ast = {path = "src/ast"}
 utils = {path = "src/utils"}
 gc = {path = "src/gc"}
 
+field-offset = "0.1.1"
 libloading = "0.3"
 lazy_static = "0.1.15"
 log = "0.3.5"

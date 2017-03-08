@@ -26,7 +26,6 @@ lazy_static! {
 const TRACE_ALLOC_FASTPATH : bool = true;
 
 #[repr(C)]
-// do not change the layout (unless change the offset of fields correspondingly)
 pub struct ImmixMutatorLocal {
     id        : usize,
     
@@ -53,12 +52,8 @@ pub struct ImmixMutatorLocal {
 }
 
 lazy_static! {
-    pub static ref CURSOR_OFFSET : usize = mem::size_of::<usize>()
-                + mem::size_of::<*mut u8>() * 2
-                + mem::size_of::<Address>();
-                
-    pub static ref LIMIT_OFFSET : usize = *CURSOR_OFFSET
-                + mem::size_of::<Address>();
+    pub static ref CURSOR_OFFSET : usize = offset_of!(ImmixMutatorLocal=>cursor).get_byte_offset();
+    pub static ref LIMIT_OFFSET  : usize = offset_of!(ImmixMutatorLocal=>limit).get_byte_offset();
 }
 
 pub struct ImmixMutatorGlobal {

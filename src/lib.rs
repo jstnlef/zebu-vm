@@ -6,6 +6,8 @@ extern crate rustc_serialize;
 extern crate stderrlog;
 #[macro_use]
 extern crate maplit;
+#[macro_use]
+extern crate field_offset;
 
 #[macro_use]
 pub extern crate ast;

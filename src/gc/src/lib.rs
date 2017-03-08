@@ -7,6 +7,8 @@ extern crate simple_logger;
 extern crate aligned_alloc;
 extern crate crossbeam;
 extern crate rustc_serialize;
+#[macro_use]
+extern crate field_offset;
 
 use std::sync::atomic::Ordering;
 

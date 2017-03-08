@@ -197,8 +197,6 @@ pub enum MuStackState {
 }
 
 #[repr(C)]
-#[allow(improper_ctypes)]
-// do not change the layout (unless change the offset of fields correspondingly)
 pub struct MuThread {
     pub hdr: MuEntityHeader,
     pub allocator: mm::Mutator,
@@ -213,15 +211,10 @@ pub struct MuThread {
 
 // this depends on the layout of MuThread
 lazy_static! {
-    pub static ref ALLOCATOR_OFFSET : usize = mem::size_of::<MuEntityHeader>();
-
-    pub static ref NATIVE_SP_LOC_OFFSET : usize = *ALLOCATOR_OFFSET
-                + mem::size_of::<mm::Mutator>()
-                + mem::size_of::<Option<Box<MuStack>>>();
-
-    pub static ref USER_TLS_OFFSET : usize = *NATIVE_SP_LOC_OFFSET + mem::size_of::<Address>();
-
-    pub static ref EXCEPTION_OBJ_OFFSET : usize = *USER_TLS_OFFSET + mem::size_of::<Address>();
+    pub static ref ALLOCATOR_OFFSET     : usize = offset_of!(MuThread=>allocator).get_byte_offset();
+    pub static ref NATIVE_SP_LOC_OFFSET : usize = offset_of!(MuThread=>native_sp_loc).get_byte_offset();
+    pub static ref USER_TLS_OFFSET      : usize = offset_of!(MuThread=>user_tls).get_byte_offset();
+    pub static ref EXCEPTION_OBJ_OFFSET : usize = offset_of!(MuThread=>exception_obj).get_byte_offset();
 }
 
 impl fmt::Display for MuThread {
