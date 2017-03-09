@@ -30,7 +30,7 @@ mod tests {
     pub fn test_u8_bits() {
         let value : u8 = 0b1100_0011;
         
-        assert_eq!(test_nth_bit_u8(value, 6), true);
+        assert_eq!(test_nth_bit_u8(value, 6, 1), true);
         
         assert_eq!(lower_bits_u8(value, 6), 0b00_0011);
     }

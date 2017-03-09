@@ -7,6 +7,8 @@ extern crate simple_logger;
 extern crate aligned_alloc;
 extern crate crossbeam;
 extern crate rustc_serialize;
+#[macro_use]
+extern crate field_offset;
 
 use std::sync::atomic::Ordering;
 
@@ -101,7 +103,7 @@ pub extern fn get_gc_type_encode(id: u32) -> u64 {
 }
 
 #[no_mangle]
-pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
+pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize, enable_gc: bool) {
     // set this line to turn on certain level of debugging info
 //    simple_logger::init_with_level(log::LogLevel::Trace).ok();
 
@@ -129,8 +131,17 @@ pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize) {
         roots   : LinkedHashSet::new()
     });
 
+    if enable_gc {
+        heap::gc::ENABLE_GC.store(true, Ordering::Relaxed);
+    } else {
+        heap::gc::ENABLE_GC.store(false, Ordering::Relaxed);
+    }
+
     info!("heap is {} bytes (immix: {} bytes, lo: {} bytes) . ", immix_size + lo_size, immix_size, lo_size);
     info!("{} gc threads", n_gcthreads);
+    if !enable_gc {
+        warn!("GC disabled (panic when a collection is triggered)");
+    }
 }
 
 #[no_mangle]
@@ -146,11 +157,7 @@ pub extern fn drop_mutator(mutator: *mut ImmixMutatorLocal) {
     // rust will reclaim the boxed mutator
 }
 
-#[cfg(target_arch = "x86_64")]
-#[link(name = "gc_clib_x64")]
-extern "C" {
-    pub fn set_low_water_mark();
-}
+pub use heap::gc::set_low_water_mark;
 
 // explicitly control roots
 

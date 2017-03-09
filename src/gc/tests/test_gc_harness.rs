@@ -52,7 +52,7 @@ const FIXSIZE_REFx1_ENCODE : u64 = 0xb000000000000001u64;
 
 #[test]
 fn test_exhaust_alloc() {
-    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
     let mut mutator = gc::new_mutator();
 
     println!("Trying to allocate {} objects of (size {}, align {}). ", WORK_LOAD, OBJECT_SIZE, OBJECT_ALIGN);
@@ -75,7 +75,7 @@ const LARGE_OBJECT_SIZE : usize = 256;
 #[test]
 #[allow(unused_variables)]
 fn test_exhaust_alloc_large() {
-    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
     let mut mutator = gc::new_mutator();
 
     start_logging();
@@ -96,7 +96,7 @@ fn test_alloc_large_lo_trigger_gc() {
     const KEEP_N_ROOTS : usize = 1;
     let mut roots : usize = 0;
 
-    gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8);
+    gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8, true);
     let mut mutator = gc::new_mutator();
 
     start_logging();
@@ -119,7 +119,7 @@ fn test_alloc_large_lo_trigger_gc() {
 #[test]
 #[allow(unused_variables)]
 fn test_alloc_large_both_trigger_gc() {
-    gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8);
+    gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8, true);
     let mut mutator = gc::new_mutator();
 
     start_logging();
@@ -150,7 +150,7 @@ fn test_alloc_large_both_trigger_gc() {
 #[test]
 #[cfg(feature = "use-sidemap")]
 fn test_alloc_mark() {
-    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
     let mut mutator = gc::new_mutator();
 
     println!("Trying to allocate 1 object of (size {}, align {}). ", OBJECT_SIZE, OBJECT_ALIGN);
@@ -194,7 +194,7 @@ fn test_alloc_mark() {
 #[test]
 #[cfg(not(feature = "use-sidemap"))]
 fn test_alloc_mark() {
-    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
     let mut mutator = gc::new_mutator();
 
     println!("Trying to allocate 1 object of (size {}, align {}). ", OBJECT_SIZE, OBJECT_ALIGN);
@@ -246,7 +246,7 @@ struct Node<'a> {
 
 #[test]
 fn test_alloc_trace() {
-    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8);
+    gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
     let mut mutator = gc::new_mutator();
     let (shared_space, lo_space) = gc::get_spaces();
 

@@ -162,6 +162,9 @@ pub trait MachineCode {
     fn is_using_mem_op(&self, index: usize) -> bool;
     fn is_jmp(&self, index: usize) -> Option<MuName>;
     fn is_label(&self, index: usize) -> Option<MuName>;
+
+    fn is_spill_load(&self, index: usize) -> Option<P<Value>>;
+    fn is_spill_store(&self, index: usize) -> Option<P<Value>>;
     
     fn get_succs(&self, index: usize) -> &Vec<usize>;
     fn get_preds(&self, index: usize) -> &Vec<usize>;
@@ -175,7 +178,8 @@ pub trait MachineCode {
     fn set_ir_block_liveout(&mut self, block: &str, set: Vec<MuID>);
     
     fn get_all_blocks(&self) -> Vec<MuName>;
-    // returns [start_inst, end_inst), inclusive at both end
+    fn get_entry_block(&self) -> MuName;
+    // returns [start_inst, end_inst) // end_inst not included
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
 
     // functions for rewrite
@@ -192,7 +196,7 @@ pub trait MachineCode {
     /// returns what registers push/pop have been deleted
     fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID>;
     /// patch frame size
-    fn patch_frame_size(&mut self, size: usize);
+    fn patch_frame_size(&mut self, size: usize, size_used: usize);
 
     fn as_any(&self) -> &Any;
 }

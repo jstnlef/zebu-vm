@@ -247,6 +247,16 @@ macro_rules! inst {
         });
     };
 
+    // BINOP with status
+    (($vm: expr, $fv: ident) $name: ident: $value: ident, $($flag: ident), * = BINOP_STATUS ($op: expr) ($flags: expr) $op1: ident $op2: ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  Some(vec![$value.clone_value(), $($flag.clone_value()), *]),
+            ops:    RwLock::new(vec![$op1.clone(), $op2.clone()]),
+            v:      Instruction_::BinOpWithStatus($op, $flags, 0, 1)
+        });
+    };
+
     // CMPOP
     (($vm: expr, $fv: ident) $name: ident: $value: ident = CMPOP ($op: expr) $op1: ident $op2: ident) => {
         let $name = $fv.new_inst(Instruction{
@@ -341,7 +351,7 @@ macro_rules! inst {
         });
     };
 
-    // CALL
+    // EXPRCALL
     (($vm: expr, $fv: ident) $name: ident: $res: ident = EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), +)) => {
         let ops = vec![$func.clone(), $($val.clone()), *];
         let ops_len = ops.len();
@@ -359,7 +369,7 @@ macro_rules! inst {
                     }
         });
     };
-        (($vm: expr, $fv: ident) $name: ident: EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), +)) => {
+    (($vm: expr, $fv: ident) $name: ident: EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), +)) => {
         let ops = vec![$func.clone(), $($val.clone()), *];
         let ops_len = ops.len();
         let $name = $fv.new_inst(Instruction{
@@ -376,7 +386,34 @@ macro_rules! inst {
                     }
         });
     };
-
+    // CALL
+    (($vm: expr, $fv: ident) $name: ident:
+        $res: ident = CALL ($($op: ident), *) FUNC($func: expr) ($args: expr) $cc: expr,
+                      normal: $norm_dest: ident ($norm_args: expr),
+                      exc: $exc_dest: ident ($exc_args: expr)) => {
+        let $name = $fv.new_inst(Instruction {
+            hdr  : MuEntityHeader::unnamed($vm.next_id()),
+            value: Some(vec![$res.clone_value()]),
+            ops  : RwLock::new(vec![$($op.clone()),*]),
+            v    : Instruction_::Call {
+                data: CallData {
+                    func: $func,
+                    args: $args,
+                    convention: $cc
+                },
+                resume: ResumptionData {
+                    normal_dest: Destination {
+                        target: $norm_dest.id(),
+                        args  : $norm_args
+                    },
+                    exn_dest: Destination {
+                        target: $exc_dest.id(),
+                        args  : $exc_args
+                    }
+                }
+            }
+        });
+    };
 
     // RET
     (($vm: expr, $fv: ident) $name: ident: RET ($($val: ident), +)) => {
@@ -399,4 +436,24 @@ macro_rules! inst {
             v:      Instruction_::Return(vec![])
         });
     };
+
+    // THREADEXIT
+    (($vm: expr, $fv: ident) $name: ident: THREADEXIT) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: None,
+            ops: RwLock::new(vec![]),
+            v: Instruction_::ThreadExit
+        });
+    };
+
+    // PRINTHEX
+    (($vm: expr, $fv: ident) $name: ident: PRINTHEX $val: ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: None,
+            ops: RwLock::new(vec![$val.clone()]),
+            v: Instruction_::PrintHex(0)
+        });
+    }
 }

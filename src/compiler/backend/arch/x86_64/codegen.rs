@@ -6,7 +6,7 @@ use compiler::machine_code::MachineCode;
 use compiler::backend::{Reg, Mem};
 
 pub trait CodeGenerator {
-    fn start_code(&mut self, func_name: MuName) -> ValueLocation;
+    fn start_code(&mut self, func_name: MuName, entry: MuName) -> ValueLocation;
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
 
     // generate unnamed sequence of linear code (no branch)
@@ -47,6 +47,23 @@ pub trait CodeGenerator {
     // zero/sign extend mov
     fn emit_movs_r_r   (&mut self, dest: Reg, src: Reg);
     fn emit_movz_r_r   (&mut self, dest: Reg, src: Reg);
+
+    // set byte
+    fn emit_sets_r8    (&mut self, dest: Reg);
+    fn emit_setz_r8    (&mut self, dest: Reg);
+    fn emit_seto_r8    (&mut self, dest: Reg);
+    fn emit_setb_r8    (&mut self, dest: Reg);
+
+    fn emit_seta_r  (&mut self, dest: Reg);
+    fn emit_setae_r  (&mut self, dest: Reg);
+    fn emit_setb_r  (&mut self, dest: Reg);
+    fn emit_setbe_r  (&mut self, dest: Reg);
+    fn emit_sete_r  (&mut self, dest: Reg);
+    fn emit_setg_r  (&mut self, dest: Reg);
+    fn emit_setge_r  (&mut self, dest: Reg);
+    fn emit_setl_r  (&mut self, dest: Reg);
+    fn emit_setle_r  (&mut self, dest: Reg);
+    fn emit_setne_r  (&mut self, dest: Reg);
 
     // gpr conditional move
 

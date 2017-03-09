@@ -47,7 +47,7 @@ impl Address {
     pub fn align_up(&self, align: usize) -> Address {
         Address((self.0 + align - 1) & !(align - 1))
     }
-    
+
     pub fn is_aligned_to(&self, align: usize) -> bool {
         self.0 % align == 0
     }
@@ -136,6 +136,28 @@ impl fmt::Display for Address {
 impl fmt::Debug for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "0x{:X}", self.0)
+    }
+}
+
+#[cfg(test)]
+mod addr_tests {
+    use super::*;
+
+    #[test]
+    fn test_align_up() {
+        let addr = Address(0);
+        let aligned = addr.align_up(8);
+
+        assert!(addr == aligned);
+    }
+
+    #[test]
+    fn test_is_aligned() {
+        let addr = Address(0);
+        assert!(addr.is_aligned_to(8));
+
+        let addr = Address(8);
+        assert!(addr.is_aligned_to(8));
     }
 }
 

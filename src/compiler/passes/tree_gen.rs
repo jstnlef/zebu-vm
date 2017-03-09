@@ -129,7 +129,7 @@ impl CompilerPass for TreeGen {
         debug!("check depth tree for {}", func);
         
         for entry in func.content.as_ref().unwrap().blocks.iter() {
-            debug!("block {}", entry.0);
+            debug!("block {}", entry.1.name().unwrap());
             
             for inst in entry.1.content.as_ref().unwrap().body.iter() {
                 debug!("{}", inst);

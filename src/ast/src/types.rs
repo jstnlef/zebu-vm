@@ -5,7 +5,7 @@ use utils::POINTER_SIZE;
 use utils::vec_utils;
 
 use std::fmt;
-use std::collections::HashMap;
+use utils::LinkedHashMap;
 use std::sync::RwLock;
 
 lazy_static! {
@@ -76,6 +76,42 @@ impl MuType {
         MuType {
             hdr: MuEntityHeader::unnamed(id),
             v: v
+        }
+    }
+
+    pub fn is_struct(&self) -> bool {
+        match self.v {
+            MuType_::Struct(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_hybrid(&self) -> bool {
+        match self.v {
+            MuType_::Hybrid(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn get_struct_hybrid_tag(&self) -> Option<MuName> {
+        match self.v {
+            MuType_::Hybrid(ref name)
+            | MuType_::Struct(ref name) => Some(name.clone()),
+            _ => None
+        }
+    }
+
+    pub fn is_ref(&self) -> bool {
+        match self.v {
+            MuType_::Ref(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_iref(&self) -> bool {
+        match self.v {
+            MuType_::IRef(_) => true,
+            _ => false
         }
     }
 
@@ -228,9 +264,9 @@ impl fmt::Display for MuType_ {
 
 lazy_static! {
     /// storing a map from MuName to StructType_
-    pub static ref STRUCT_TAG_MAP : RwLock<HashMap<StructTag, StructType_>> = RwLock::new(HashMap::new());
+    pub static ref STRUCT_TAG_MAP : RwLock<LinkedHashMap<StructTag, StructType_>> = RwLock::new(LinkedHashMap::new());
     /// storing a map from MuName to HybridType_
-    pub static ref HYBRID_TAG_MAP : RwLock<HashMap<HybridTag, HybridType_>> = RwLock::new(HashMap::new());
+    pub static ref HYBRID_TAG_MAP : RwLock<LinkedHashMap<HybridTag, HybridType_>> = RwLock::new(LinkedHashMap::new());
 }
 
 #[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]

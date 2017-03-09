@@ -19,7 +19,7 @@ fn test_exception_simple_throw_catch() {
     VM::start_logging_trace();
     let vm = Arc::new(simple_throw_catch());
     
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     
     let func_throw = vm.id_of("throw_exception");
     let func_catch = vm.id_of("catch_exception");    
@@ -41,7 +41,7 @@ fn test_exception_simple_throw_catch() {
         }
     }
     
-    vm.make_primordial_thread(func_catch, vec![]);
+    vm.make_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "simple_throw_catch_test", &vm);

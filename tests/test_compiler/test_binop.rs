@@ -353,3 +353,359 @@ fn lshr() -> VM {
 
     vm
 }
+
+#[test]
+fn test_add_simple() {
+    let lib = testutil::compile_fnc("add", &add);
+
+    unsafe {
+        let add : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"add").unwrap();
+
+        let res = add(1, 1);
+        println!("add(1, 1) = {}", res);
+        assert!(res == 2);
+    }
+}
+
+fn add() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int64));
+    funcdecl!   ((vm) <sig> add);
+    funcdef!    ((vm) <sig> add VERSION add_v1);
+
+    block!      ((vm, add_v1) blk_entry);
+    ssa!        ((vm, add_v1) <int64> a);
+    ssa!        ((vm, add_v1) <int64> b);
+
+    // sum = Add %a %b
+    ssa!        ((vm, add_v1) <int64> sum);
+    inst!       ((vm, add_v1) blk_entry_add:
+        sum = BINOP (BinOp::Add) a b
+    );
+
+    inst!       ((vm, add_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, add_v1) blk_entry(a, b) {
+        blk_entry_add, blk_entry_ret
+    });
+
+    define_func_ver!((vm) add_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_add_int64_n() {
+    let lib = testutil::compile_fnc("add_int64_n", &add_int64_n);
+
+    unsafe {
+        let add_int64_n : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_n").unwrap();
+
+        let flag = add_int64_n(1, 1);
+        println!("add_int64_n(1, 1), #N = {}", flag);
+        assert!(flag == 0);
+
+        let flag = add_int64_n(1, -2);
+        println!("add_int64_n(1, -2), #N = {}", flag);
+        assert!(flag == 1);
+
+        let flag = add_int64_n(1, -1);
+        println!("add_int64_n(1, -1), #N = {}", flag);
+        assert!(flag == 0);
+
+        let flag = add_int64_n(-1, -1);
+        println!("add_int64_n(-1, -1), #N = {}", flag);
+        assert!(flag == 1);
+    }
+}
+
+fn add_int64_n() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1  = mu_int(1));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int1));
+    funcdecl!   ((vm) <sig> add_int64_n);
+    funcdef!    ((vm) <sig> add_int64_n VERSION add_int64_n_v1);
+
+    block!      ((vm, add_int64_n_v1) blk_entry);
+    ssa!        ((vm, add_int64_n_v1) <int64> a);
+    ssa!        ((vm, add_int64_n_v1) <int64> b);
+
+    // (sum, flag_n) = Add #N %a %b
+    ssa!        ((vm, add_int64_n_v1) <int64> sum);
+    ssa!        ((vm, add_int64_n_v1) <int1> flag_n);
+    inst!       ((vm, add_int64_n_v1) blk_entry_add:
+        sum, flag_n = BINOP_STATUS (BinOp::Add) (BinOpStatus::n()) a b
+    );
+
+    inst!       ((vm, add_int64_n_v1) blk_entry_ret:
+        RET (flag_n)
+    );
+
+    define_block!   ((vm, add_int64_n_v1) blk_entry(a, b) {
+        blk_entry_add, blk_entry_ret
+    });
+
+    define_func_ver!((vm) add_int64_n_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_add_int64_z() {
+    let lib = testutil::compile_fnc("add_int64_z", &add_int64_z);
+
+    unsafe {
+        let add_int64_z : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_z").unwrap();
+
+        let flag = add_int64_z(1, 1);
+        println!("add_int64_z(1, 1), #Z = {}", flag);
+        assert!(flag == 0);
+
+        let flag = add_int64_z(1, -2);
+        println!("add_int64_z(1, -2), #Z = {}", flag);
+        assert!(flag == 0);
+
+        let flag = add_int64_z(1, -1);
+        println!("add_int64_z(1, -1), #Z = {}", flag);
+        assert!(flag == 1);
+    }
+}
+
+fn add_int64_z() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1  = mu_int(1));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int1));
+    funcdecl!   ((vm) <sig> add_int64_z);
+    funcdef!    ((vm) <sig> add_int64_z VERSION add_int64_z_v1);
+
+    block!      ((vm, add_int64_z_v1) blk_entry);
+    ssa!        ((vm, add_int64_z_v1) <int64> a);
+    ssa!        ((vm, add_int64_z_v1) <int64> b);
+
+    // (sum, flag_n) = Add #N %a %b
+    ssa!        ((vm, add_int64_z_v1) <int64> sum);
+    ssa!        ((vm, add_int64_z_v1) <int1> flag_z);
+    inst!       ((vm, add_int64_z_v1) blk_entry_add:
+        sum, flag_z = BINOP_STATUS (BinOp::Add) (BinOpStatus::z()) a b
+    );
+
+    inst!       ((vm, add_int64_z_v1) blk_entry_ret:
+        RET (flag_z)
+    );
+
+    define_block!   ((vm, add_int64_z_v1) blk_entry(a, b) {
+        blk_entry_add, blk_entry_ret
+    });
+
+    define_func_ver!((vm) add_int64_z_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_add_int64_c() {
+    use std::u64;
+
+    let lib = testutil::compile_fnc("add_int64_c", &add_int64_c);
+
+    unsafe {
+        let add_int64_c : libloading::Symbol<unsafe extern fn(u64, u64) -> u8> = lib.get(b"add_int64_c").unwrap();
+
+        let flag = add_int64_c(u64::MAX, 1);
+        println!("add_int64_c(u64::MAX, 1), #C = {}", flag);
+        assert!(flag == 1);
+
+        let flag = add_int64_c(u64::MAX, 0);
+        println!("add_int64_c(i64::MAX, 0), #C = {}", flag);
+        assert!(flag == 0);
+    }
+}
+
+fn add_int64_c() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1  = mu_int(1));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int1));
+    funcdecl!   ((vm) <sig> add_int64_c);
+    funcdef!    ((vm) <sig> add_int64_c VERSION add_int64_c_v1);
+
+    block!      ((vm, add_int64_c_v1) blk_entry);
+    ssa!        ((vm, add_int64_c_v1) <int64> a);
+    ssa!        ((vm, add_int64_c_v1) <int64> b);
+
+    // (sum, flag_n) = Add #N %a %b
+    ssa!        ((vm, add_int64_c_v1) <int64> sum);
+    ssa!        ((vm, add_int64_c_v1) <int1> flag_c);
+    inst!       ((vm, add_int64_c_v1) blk_entry_add:
+        sum, flag_c = BINOP_STATUS (BinOp::Add) (BinOpStatus::c()) a b
+    );
+
+    inst!       ((vm, add_int64_c_v1) blk_entry_ret:
+        RET (flag_c)
+    );
+
+    define_block!   ((vm, add_int64_c_v1) blk_entry(a, b) {
+        blk_entry_add, blk_entry_ret
+    });
+
+    define_func_ver!((vm) add_int64_c_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_add_int64_v() {
+    use std::i64;
+
+    let lib = testutil::compile_fnc("add_int64_v", &add_int64_v);
+
+    unsafe {
+        let add_int64_v : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_v").unwrap();
+
+        let flag = add_int64_v(i64::MAX, 1);
+        println!("add_int64_v(i64::MAX, 1), #V = {}", flag);
+        assert!(flag == 1);
+
+        let flag = add_int64_v(i64::MAX, 0);
+        println!("add_int64_v(i64::MAX, 0), #V = {}", flag);
+        assert!(flag == 0);
+
+        let flag = add_int64_v(i64::MIN, 0);
+        println!("add_int64_v(i64::MIN, 0), #V = {}", flag);
+        assert!(flag == 0);
+
+        let flag = add_int64_v(i64::MIN, -1);
+        println!("add_int64_v(i64::MIN, -1), #V = {}", flag);
+        assert!(flag == 1);
+    }
+}
+
+fn add_int64_v() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1  = mu_int(1));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int1));
+    funcdecl!   ((vm) <sig> add_int64_v);
+    funcdef!    ((vm) <sig> add_int64_v VERSION add_int64_v_v1);
+
+    block!      ((vm, add_int64_v_v1) blk_entry);
+    ssa!        ((vm, add_int64_v_v1) <int64> a);
+    ssa!        ((vm, add_int64_v_v1) <int64> b);
+
+    // (sum, flag_n) = Add #N %a %b
+    ssa!        ((vm, add_int64_v_v1) <int64> sum);
+    ssa!        ((vm, add_int64_v_v1) <int1> flag_v);
+    inst!       ((vm, add_int64_v_v1) blk_entry_add:
+        sum, flag_v = BINOP_STATUS (BinOp::Add) (BinOpStatus::v()) a b
+    );
+
+    inst!       ((vm, add_int64_v_v1) blk_entry_ret:
+        RET (flag_v)
+    );
+
+    define_block!   ((vm, add_int64_v_v1) blk_entry(a, b) {
+        blk_entry_add, blk_entry_ret
+    });
+
+    define_func_ver!((vm) add_int64_v_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_add_int64_nzc() {
+    use std::u64;
+
+    let lib = testutil::compile_fnc("add_int64_nzc", &add_int64_nzc);
+
+    unsafe {
+        let add_int64_nzc : libloading::Symbol<unsafe extern fn(u64, u64) -> u8> = lib.get(b"add_int64_nzc").unwrap();
+
+        let flag = add_int64_nzc(u64::MAX, 1);
+        println!("add_int64_nzc(u64::MAX, 1), #C = {:b}", flag);
+        assert!(flag == 0b110);
+
+        let flag = add_int64_nzc(u64::MAX, 0);
+        println!("add_int64_nzc(u64::MAX, 0), #C = {:b}", flag);
+        assert!(flag == 0b001);
+    }
+}
+
+fn add_int64_nzc() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int8  = mu_int(8));
+    typedef!    ((vm) int1  = mu_int(1));
+
+    constdef!   ((vm) <int8> int8_1 = Constant::Int(1));
+    constdef!   ((vm) <int8> int8_2 = Constant::Int(2));
+    constdef!   ((vm) <int8> int8_3 = Constant::Int(3));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int1));
+    funcdecl!   ((vm) <sig> add_int64_nzc);
+    funcdef!    ((vm) <sig> add_int64_nzc VERSION add_int64_nzc_v1);
+
+    block!      ((vm, add_int64_nzc_v1) blk_entry);
+    ssa!        ((vm, add_int64_nzc_v1) <int64> a);
+    ssa!        ((vm, add_int64_nzc_v1) <int64> b);
+
+    // (sum, flag_n) = Add #N %a %b
+    ssa!        ((vm, add_int64_nzc_v1) <int64> sum);
+    ssa!        ((vm, add_int64_nzc_v1) <int1> flag_n);
+    ssa!        ((vm, add_int64_nzc_v1) <int1> flag_z);
+    ssa!        ((vm, add_int64_nzc_v1) <int1> flag_c);
+
+    inst!       ((vm, add_int64_nzc_v1) blk_entry_add:
+        sum, flag_n, flag_z, flag_c = BINOP_STATUS (BinOp::Add) (BinOpStatus{flag_n: true, flag_z: true, flag_c: true, flag_v: false}) a b
+    );
+
+    ssa!        ((vm, add_int64_nzc_v1) <int8> shift_z);
+    consta!     ((vm, add_int64_nzc_v1) int8_1_local = int8_1);
+    inst!       ((vm, add_int64_nzc_v1) blk_entry_shift_z:
+        shift_z = BINOP (BinOp::Shl) flag_z int8_1_local
+    );
+
+    ssa!        ((vm, add_int64_nzc_v1) <int8> ret);
+    inst!       ((vm, add_int64_nzc_v1) blk_entry_add_ret1:
+        ret = BINOP (BinOp::Add) flag_n shift_z
+    );
+
+    ssa!        ((vm, add_int64_nzc_v1) <int8> shift_c);
+    consta!     ((vm, add_int64_nzc_v1) int8_2_local = int8_2);
+    inst!       ((vm, add_int64_nzc_v1) blk_entry_shift_c:
+        shift_c = BINOP (BinOp::Shl) flag_c int8_2_local
+    );
+
+    ssa!        ((vm, add_int64_nzc_v1) <int8> ret2);
+    inst!       ((vm, add_int64_nzc_v1) blk_entry_add_ret2:
+        ret2 = BINOP (BinOp::Add) ret shift_c
+    );
+
+    inst!       ((vm, add_int64_nzc_v1) blk_entry_ret:
+        RET (ret2)
+    );
+
+    define_block!   ((vm, add_int64_nzc_v1) blk_entry(a, b) {
+        blk_entry_add, blk_entry_shift_z, blk_entry_add_ret1, blk_entry_shift_c, blk_entry_add_ret2, blk_entry_ret
+    });
+
+    define_func_ver!((vm) add_int64_nzc_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}

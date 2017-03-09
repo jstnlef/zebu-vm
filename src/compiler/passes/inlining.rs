@@ -142,8 +142,8 @@ impl Inlining {
                         let inlined_fv_lock   = inlined_fvs_guard.get(&inlined_fvid).unwrap();
                         let inlined_fv_guard  = inlined_fv_lock.read().unwrap();
 
-                        trace!("QINSOON_DEBUG: orig_content: {:?}", inlined_fv_guard.get_orig_ir().unwrap());
-                        trace!("QINSOON_DEBUG: content     : {:?}", inlined_fv_guard.content.as_ref().unwrap());
+                        trace!("orig_content: {:?}", inlined_fv_guard.get_orig_ir().unwrap());
+                        trace!("content     : {:?}", inlined_fv_guard.content.as_ref().unwrap());
 
                         let new_inlined_entry_id = vm.next_id();
 
@@ -218,15 +218,49 @@ impl Inlining {
                                 // add branch to current block
                                 cur_block.content.as_mut().unwrap().body.push(TreeNode::new_boxed_inst(branch));
 
+                                // next block
+                                let mut next_block = resume.normal_dest.target;
+
                                 // if normal_dest expects different number of arguments
                                 // other than the inlined function returns, we need an intermediate block to pass extra arguments
                                 if resume.normal_dest.args.len() != inlined_fv_guard.sig.ret_tys.len() {
-                                    unimplemented!()
+                                    debug!("need an extra block for passing normal dest arguments");
+                                    let mut intermediate_block = Block::new(vm.next_id());
+                                    vm.set_name(intermediate_block.as_entity(), format!("inline_{}_arg_pass", inst_id));
+
+                                    // branch to normal_dest with normal_dest arguments
+                                    let normal_dest_args = resume.normal_dest.get_arguments_as_node(&ops);
+                                    let normal_dest_args_len = normal_dest_args.len();
+
+                                    let branch = Instruction {
+                                        hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                        value: None,
+                                        ops: RwLock::new(normal_dest_args),
+                                        v: Instruction_::Branch1(Destination {
+                                            target: resume.normal_dest.target,
+                                            args: (0..normal_dest_args_len).map(|x| DestArg::Normal(x)).collect()
+                                        })
+                                    };
+
+                                    intermediate_block.content = Some(BlockContent {
+                                        args: {
+                                            match inst.value {
+                                                Some(ref vec) => vec.clone(),
+                                                None => vec![]
+                                            }
+                                        },
+                                        exn_arg: None,
+                                        body: vec![TreeNode::new_boxed_inst(branch)],
+                                        keepalives: None
+                                    });
+
+                                    trace!("extra block: {:?}", intermediate_block);
+
+                                    next_block = intermediate_block.id();
+                                    new_blocks.push(intermediate_block);
                                 }
 
                                 // deal with inlined function
-                                let next_block = resume.normal_dest.target;
-
                                 copy_inline_blocks(&mut new_blocks, next_block,
                                                    inlined_fv_guard.get_orig_ir().unwrap(), new_inlined_entry_id,
                                                    vm);

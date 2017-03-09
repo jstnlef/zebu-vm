@@ -92,6 +92,8 @@ pub enum Instruction_ {
     // expressions
 
     BinOp(BinOp, OpIndex, OpIndex),
+    BinOpWithStatus(BinOp, BinOpStatus, OpIndex, OpIndex),
+
     CmpOp(CmpOp, OpIndex, OpIndex),
     ConvOp{
         operation: ConvOp,
@@ -275,13 +277,18 @@ pub enum Instruction_ {
     CommonInst_Unpin(OpIndex),
 
     // internal use: mov from ops[0] to value
-    Move(OpIndex)
+    Move(OpIndex),
+    // internal use: print op as hex value
+    PrintHex(OpIndex)
 }
 
 impl Instruction_ {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         match self {
             &Instruction_::BinOp(op, op1, op2) => format!("{:?} {} {}", op, ops[op1], ops[op2]),
+            &Instruction_::BinOpWithStatus(op, status, op1, op2) => {
+                format!("{:?} {:?} {} {}", op, status, ops[op1], ops[op2])
+            }
             &Instruction_::CmpOp(op, op1, op2) => format!("{:?} {} {}", op, ops[op1], ops[op2]),
             &Instruction_::ConvOp{operation, ref from_ty, ref to_ty, operand} => {
                 format!("{:?} {} {} {}", operation, from_ty, to_ty, ops[operand])
@@ -397,8 +404,58 @@ impl Instruction_ {
             &Instruction_::CommonInst_Unpin(op) => format!("COMMONINST Unpin {}", ops[op]),
 
             // move
-            &Instruction_::Move(from) => format!("MOVE {}", ops[from])
+            &Instruction_::Move(from) => format!("MOVE {}", ops[from]),
+            // print hex
+            &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i])
         }
+    }
+}
+
+#[derive(Copy, Clone, RustcEncodable, RustcDecodable)]
+pub struct BinOpStatus {
+    pub flag_n: bool,
+    pub flag_z: bool,
+    pub flag_c: bool,
+    pub flag_v: bool
+}
+
+impl BinOpStatus {
+    pub fn none() -> BinOpStatus {
+        BinOpStatus {flag_n: false, flag_z: false, flag_c: false, flag_v: false}
+    }
+
+    pub fn n() -> BinOpStatus {
+        BinOpStatus {flag_n: true, flag_z: false, flag_c: false, flag_v: false}
+    }
+
+    pub fn z() -> BinOpStatus {
+        BinOpStatus {flag_n: false, flag_z: true, flag_c: false, flag_v: false}
+    }
+
+    pub fn c() -> BinOpStatus {
+        BinOpStatus {flag_n: false, flag_z: false, flag_c: true, flag_v: false}
+    }
+
+    pub fn v() -> BinOpStatus {
+        BinOpStatus {flag_n: false, flag_z: false, flag_c: false, flag_v: true}
+    }
+}
+
+impl fmt::Debug for BinOpStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.flag_n {
+            write!(f, "#N").unwrap();
+        }
+        if self.flag_z {
+            write!(f, "#Z").unwrap();
+        }
+        if self.flag_c {
+            write!(f, "#C").unwrap();
+        }
+        if self.flag_v {
+            write!(f, "#V").unwrap();
+        }
+        Ok(())
     }
 }
 
@@ -470,7 +527,17 @@ impl Destination {
 
         ret
     }
-    
+
+    pub fn get_arguments_as_node(&self, ops: &Vec<P<TreeNode>>) -> Vec<P<TreeNode>> {
+       vec_utils::map(&self.args,
+           |x| {
+               match x {
+                   &DestArg::Normal(i) => ops[i].clone(),
+                   &DestArg::Freshbound(_) => unimplemented!()
+               }
+       })
+    }
+
     pub fn get_arguments(&self, ops: &Vec<P<TreeNode>>) -> Vec<P<Value>> {
         vec_utils::map(&self.args, 
             |x| {

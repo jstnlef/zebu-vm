@@ -5,6 +5,7 @@ use ast::ir::*;
 use ast::inst::*;
 use ast::types;
 use ast::types::*;
+use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use compiler::machine_code::CompiledFunction;
@@ -21,7 +22,6 @@ use vm::vm_options::MuLogLevel;
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use log::LogLevel;
 use std::sync::Arc;
-use std::path;
 use std::sync::RwLock;
 use std::sync::RwLockWriteGuard;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
@@ -469,7 +469,7 @@ impl <'a> VM {
         // init gc
         {
             let ref options = self.vm_options;
-            gc::gc_init(options.flag_gc_immixspace_size, options.flag_gc_lospace_size, options.flag_gc_nthreads);
+            gc::gc_init(options.flag_gc_immixspace_size, options.flag_gc_lospace_size, options.flag_gc_nthreads, !options.flag_gc_disable_collection);
         }
     }
 
@@ -489,11 +489,19 @@ impl <'a> VM {
     }
 
     fn start_logging_internal(level: LogLevel) {
-        use simple_logger;
+        use stderrlog;
 
-        match simple_logger::init_with_level(level) {
-            Ok(_) => {},
-            Err(_) => {}
+        let verbose = match level {
+            LogLevel::Error => 0,
+            LogLevel::Warn  => 1,
+            LogLevel::Info  => 2,
+            LogLevel::Debug => 3,
+            LogLevel::Trace => 4,
+        };
+
+        match stderrlog::new().verbosity(verbose).init() {
+            Ok(()) => info!("logger initialized"),
+            Err(e) => error!("failed to init logger, probably already initialized: {:?}", e)
         }
     }
     
@@ -566,7 +574,10 @@ impl <'a> VM {
     
     pub fn id_of_by_refstring(&self, name: &String) -> MuID {
         let map = self.name_id_map.read().unwrap();
-        *map.get(name).unwrap()
+        match map.get(name) {
+            Some(id) => *id,
+            None => panic!("cannot find id for name: {}", name)
+        }
     }
     
     pub fn id_of(&self, name: &str) -> MuID {
@@ -682,8 +693,20 @@ impl <'a> VM {
     fn declare_type_internal(&self, types: &mut RwLockWriteGuard<HashMap<MuID, P<MuType>>>, id: MuID, ty: P<MuType>) {
         debug_assert!(!types.contains_key(&id));
 
-        info!("declare type #{} = {}", id, ty);
         types.insert(id, ty.clone());
+
+        info!("declare type #{} = {}", id, ty);
+        if ty.is_struct() {
+            let tag = ty.get_struct_hybrid_tag().unwrap();
+            let struct_map_guard = STRUCT_TAG_MAP.read().unwrap();
+            let struct_inner = struct_map_guard.get(&tag).unwrap();
+            info!("  {}", struct_inner);
+        } else if ty.is_hybrid() {
+            let tag = ty.get_struct_hybrid_tag().unwrap();
+            let hybrid_map_guard = HYBRID_TAG_MAP.read().unwrap();
+            let hybrid_inner = hybrid_map_guard.get(&tag).unwrap();
+            info!("  {}", hybrid_inner);
+        }
     }
     
     pub fn get_type(&self, id: MuID) -> P<MuType> {
@@ -937,18 +960,126 @@ impl <'a> VM {
         Box::new(MuStack::new(self.next_id(), self.resolve_function_address(func_id), func))
     }
     
-    pub fn make_primordial_thread(&self, func_id: MuID, args: Vec<Constant>) {
+    pub fn make_primordial_thread(&self, func_id: MuID, has_const_args: bool, args: Vec<Constant>) {
         let mut guard = self.primordial.write().unwrap();
-        *guard = Some(MuPrimordialThread{func_id: func_id, args: args});
+        *guard = Some(MuPrimordialThread{func_id: func_id, has_const_args: has_const_args, args: args});
     }
     
     #[allow(unused_variables)]
-    pub fn make_boot_image(self, output: &path::Path) {
-        use rustc_serialize::json;
-        
-        let serialized = json::encode(&self).unwrap();
-        
-        unimplemented!() 
+    pub fn make_boot_image(&self,
+                           whitelist: Vec<MuID>,
+                           primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>,
+                           primordial_threadlocal: Option<&APIHandle>,
+                           sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>,
+                           reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>,
+                           output_file: String) {
+        trace!("Making boot image...");
+
+        let whitelist_funcs = {
+            let compiler = Compiler::new(CompilerPolicy::default(), self);
+            let funcs = self.funcs().read().unwrap();
+            let func_vers = self.func_vers().read().unwrap();
+
+            // make sure all functions in whitelist are compiled
+            let mut whitelist_funcs: Vec<MuID> = vec![];
+            for &id in whitelist.iter() {
+                if let Some(f) = funcs.get(&id) {
+                    whitelist_funcs.push(id);
+
+                    let f: &MuFunction = &f.read().unwrap();
+                    match f.cur_ver {
+                        Some(fv_id) => {
+                            let mut func_ver = func_vers.get(&fv_id).unwrap().write().unwrap();
+
+                            if !func_ver.is_compiled() {
+                                compiler.compile(&mut func_ver);
+                            }
+                        }
+                        None => panic!("whitelist function {} has no version defined", f)
+                    }
+                }
+            }
+
+            whitelist_funcs
+        };
+
+        if primordial_threadlocal.is_some() {
+            // we are going to need to persist this threadlocal
+            unimplemented!()
+        }
+
+        // make sure only one of primordial_func or primoridial_stack is set
+        let has_primordial_func  = primordial_func.is_some();
+        let has_primordial_stack = primordial_stack.is_some();
+        assert!(
+            // do not have promordial stack/func
+            (!has_primordial_func && !has_primordial_stack)
+            // have either stack or func
+            || ((has_primordial_func && !has_primordial_stack) || (!has_primordial_func && has_primordial_stack))
+        );
+
+        // we assume client will start with a function (instead of a stack)
+        if has_primordial_stack {
+            panic!("Zebu doesnt support creating primordial thread through a stack, name a entry function instead")
+        } else {
+            // extract func id
+            let func_id = primordial_func.unwrap().v.as_func();
+
+            // make primordial thread in vm
+            self.make_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
+
+            // deal with relocation symbols
+            assert_eq!(sym_fields.len(), sym_strings.len());
+            let symbols = {
+                let mut ret = hashmap!{};
+                for i in 0..sym_fields.len() {
+                    let addr = sym_fields[i].v.as_address();
+                    ret.insert(addr, sym_strings[i].clone());
+                }
+                ret
+            };
+
+            assert_eq!(reloc_fields.len(), reloc_strings.len());
+            let fields = {
+                let mut ret = hashmap!{};
+                for i in 0..reloc_fields.len() {
+                    let addr = reloc_fields[i].v.as_address();
+                    ret.insert(addr, reloc_strings[i].clone());
+                }
+                ret
+            };
+
+            // emit context (serialized vm, etc)
+            backend::emit_context_with_reloc(self, symbols, fields);
+
+            // link
+            self.link_boot_image(whitelist_funcs, output_file);
+        }
+    }
+
+    #[cfg(feature = "aot")]
+    fn link_boot_image(&self, funcs: Vec<MuID>, output_file: String) {
+        use testutil;
+
+        trace!("Linking boot image...");
+
+        let func_names = {
+            let funcs_guard = self.funcs().read().unwrap();
+            funcs.iter().map(|x| funcs_guard.get(x).unwrap().read().unwrap().name().unwrap()).collect()
+        };
+
+        trace!("functions: {:?}", func_names);
+        trace!("output   : {}", output_file);
+
+        if output_file.ends_with("dylib") || output_file.ends_with("so") {
+            // compile as dynamic library
+            testutil::aot::link_dylib(func_names, &output_file, self);
+        } else {
+            // compile as executable
+            testutil::aot::link_primordial(func_names, &output_file, self);
+        }
+
+        trace!("Done!");
     }
 
     // -- API ---
@@ -960,6 +1091,7 @@ impl <'a> VM {
 
     pub fn new_fixed(&self, tyid: MuID) -> APIHandleResult {
         let ty = self.get_type(tyid);
+        assert!(!ty.is_hybrid());
 
         let backend_ty = self.get_backend_type_info(tyid);
         let addr = gc::allocate_fixed(ty.clone(), backend_ty);
@@ -973,6 +1105,8 @@ impl <'a> VM {
 
     pub fn new_hybrid(&self, tyid: MuID, length: APIHandleArg) -> APIHandleResult {
         let ty  = self.get_type(tyid);
+        assert!(ty.is_hybrid());
+
         let len = self.handle_to_uint64(length);
 
         let backend_ty = self.get_backend_type_info(tyid);
@@ -985,19 +1119,51 @@ impl <'a> VM {
         })
     }
 
+    pub fn handle_refcast(&self, from_op: APIHandleArg, to_ty: MuID) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let to_ty = self.get_type(to_ty);
+
+        trace!("API: refcast {} into type {}", from_op, to_ty);
+
+        match from_op.v {
+            APIHandleValue::Ref(_, addr) => {
+                assert!(to_ty.is_ref());
+                let inner_ty = to_ty.get_referenced_ty().unwrap();
+
+                self.new_handle(APIHandle {
+                    id: handle_id,
+                    v: APIHandleValue::Ref(inner_ty, addr)
+                })
+            },
+            APIHandleValue::IRef(_, addr) => {
+                assert!(to_ty.is_iref());
+                let inner_ty = to_ty.get_referenced_ty().unwrap();
+
+                self.new_handle(APIHandle {
+                    id: handle_id,
+                    v : APIHandleValue::IRef(inner_ty, addr)
+                })
+            },
+            APIHandleValue::FuncRef => unimplemented!(),
+
+            _ => panic!("unexpected operand for refcast: {:?}", from_op)
+        }
+    }
+
     pub fn handle_get_iref(&self, handle_ref: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = handle_ref.v.as_ref();
 
         /// FIXME: iref/ref share the same address - this actually depends on GC
         // iref has the same address as ref
-
-        trace!("API: get iref from {:?}", handle_ref);
-        trace!("API: result {} {:?}", ty, addr);
-
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ty, addr)
-        })
+        });
+
+        trace!("API: get iref from {:?}", handle_ref);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_shift_iref(&self, handle_iref: APIHandleArg, offset: APIHandleArg) -> APIHandleResult {
@@ -1009,10 +1175,15 @@ impl <'a> VM {
             addr.plus(backend_ty.size * (offset as usize))
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ty, offset_addr)
-        })
+        });
+
+        trace!("API: shift iref from {:?}", handle_iref);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_get_elem_iref(&self, handle_iref: APIHandleArg, index: APIHandleArg) -> APIHandleResult {
@@ -1028,10 +1199,15 @@ impl <'a> VM {
             addr.plus(backend_ty.size * (index as usize))
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ele_ty, elem_addr)
-        })
+        });
+
+        trace!("API: get element iref from {:?} at index {:?}", handle_iref, index);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_get_var_part_iref(&self, handle_iref: APIHandleArg) -> APIHandleResult {
@@ -1047,13 +1223,20 @@ impl <'a> VM {
             None => panic!("cannot get varpart ty from {}", ty)
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(varpart_ty, varpart_addr)
-        })
+        });
+
+        trace!("API: get var part iref from {:?}", handle_iref);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_get_field_iref(&self, handle_iref: APIHandleArg, field: usize) -> APIHandleResult {
+        trace!("API: get field iref from {:?}", handle_iref);
+
         let (ty, addr) = handle_iref.v.as_iref();
 
         let field_ty = match ty.get_field_ty(field) {
@@ -1067,10 +1250,15 @@ impl <'a> VM {
             addr.plus(field_offset)
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(field_ty, field_addr)
-        })
+        });
+
+        trace!("API: get field iref from {:?}, field: {}", handle_iref, field);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_load(&self, ord: MemoryOrder, loc: APIHandleArg) -> APIHandleResult {
@@ -1090,10 +1278,15 @@ impl <'a> VM {
             }
         };
 
-        self.new_handle(APIHandle {
+        let ret = self.new_handle(APIHandle {
             id: handle_id,
             v : handle_value
-        })
+        });
+
+        trace!("API: load from {:?}", loc);
+        trace!("API: result {:?}", ret);
+
+        ret
     }
 
     pub fn handle_store(&self, ord: MemoryOrder, loc: APIHandleArg, val: APIHandleArg) {
@@ -1130,6 +1323,8 @@ impl <'a> VM {
                 _ => unimplemented!()
             }
         }
+
+        trace!("API: store value {:?} to location {:?}", val, loc);
     }
 
     // this function and the following two make assumption that GC will not move object
@@ -1160,6 +1355,15 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::UPtr(ty, addr)
+        })
+    }
+
+    pub fn handle_from_func(&self, id: MuID) -> APIHandleResult {
+        let handle_id = self.next_id();
+
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Func(id)
         })
     }
 

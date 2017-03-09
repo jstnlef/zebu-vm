@@ -15,7 +15,6 @@ use utils::mem::memmap;
 use utils::mem::memsec;
 
 use std::ptr;
-use std::mem;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::Arc;
@@ -170,13 +169,12 @@ impl MuStack {
         debug!("0x{:x} | UPPER_BOUND", self.upper_bound);
         while cursor >= self.lower_bound {
             let val = unsafe{cursor.load::<Word>()};
-            print!("0x{:x} | 0x{:x} ({})", cursor, val, val);
             
             if cursor == self.sp {
-                print!(" <- SP");
+                debug!("0x{:x} | 0x{:x} ({}) <- SP", cursor, val, val);
+            } else {
+                debug!("0x{:x} | 0x{:x} ({})", cursor, val, val);
             }
-            
-            debug!("");
             
             cursor = cursor.sub(WORD_SIZE);
             count += 1;
@@ -198,8 +196,6 @@ pub enum MuStackState {
 }
 
 #[repr(C)]
-#[allow(improper_ctypes)]
-// do not change the layout (unless change the offset of fields correspondingly)
 pub struct MuThread {
     pub hdr: MuEntityHeader,
     pub allocator: mm::Mutator,
@@ -214,15 +210,10 @@ pub struct MuThread {
 
 // this depends on the layout of MuThread
 lazy_static! {
-    pub static ref ALLOCATOR_OFFSET : usize = mem::size_of::<MuEntityHeader>();
-
-    pub static ref NATIVE_SP_LOC_OFFSET : usize = *ALLOCATOR_OFFSET
-                + mem::size_of::<mm::Mutator>()
-                + mem::size_of::<Option<Box<MuStack>>>();
-
-    pub static ref USER_TLS_OFFSET : usize = *NATIVE_SP_LOC_OFFSET + mem::size_of::<Address>();
-
-    pub static ref EXCEPTION_OBJ_OFFSET : usize = *USER_TLS_OFFSET + mem::size_of::<Address>();
+    pub static ref ALLOCATOR_OFFSET     : usize = offset_of!(MuThread=>allocator).get_byte_offset();
+    pub static ref NATIVE_SP_LOC_OFFSET : usize = offset_of!(MuThread=>native_sp_loc).get_byte_offset();
+    pub static ref USER_TLS_OFFSET      : usize = offset_of!(MuThread=>user_tls).get_byte_offset();
+    pub static ref EXCEPTION_OBJ_OFFSET : usize = offset_of!(MuThread=>exception_obj).get_byte_offset();
 }
 
 impl fmt::Display for MuThread {
@@ -417,5 +408,7 @@ impl MuThread {
 #[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct MuPrimordialThread {
     pub func_id: MuID,
+
+    pub has_const_args: bool,
     pub args: Vec<Constant>
 }

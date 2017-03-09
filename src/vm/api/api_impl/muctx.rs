@@ -56,122 +56,151 @@ impl MuCtx {
     }
 
     pub fn handle_from_sint8(&mut self, num: i8, len: c_int) -> *const APIHandle {
+        trace!("handle_from_sint8");
         prepare_handle((self.get_mvm().vm.handle_from_sint8(num, len as usize)))
     }
 
     pub fn handle_from_uint8(&mut self, num: u8, len: c_int) -> *const APIHandle {
+        trace!("handle_from_uint8");
         prepare_handle((self.get_mvm().vm.handle_from_uint8(num, len as usize)))
     }
 
     pub fn handle_from_sint16(&mut self, num: i16, len: c_int) -> *const APIHandle {
+        trace!("handle_from_sint16");
         prepare_handle((self.get_mvm().vm.handle_from_sint16(num, len as usize)))
     }
 
     pub fn handle_from_uint16(&mut self, num: u16, len: c_int) -> *const APIHandle {
+        trace!("handle_from_uint16");
         prepare_handle((self.get_mvm().vm.handle_from_uint16(num, len as usize)))
     }
 
     pub fn handle_from_sint32(&mut self, num: i32, len: c_int) -> *const APIHandle {
+        trace!("handle_from_sint32");
         prepare_handle((self.get_mvm().vm.handle_from_sint32(num, len as usize)))
     }
 
     pub fn handle_from_uint32(&mut self, num: u32, len: c_int) -> *const APIHandle {
+        trace!("handle_from_uint32");
         prepare_handle((self.get_mvm().vm.handle_from_uint32(num, len as usize)))
     }
 
     pub fn handle_from_sint64(&mut self, num: i64, len: c_int) -> *const APIHandle {
+        trace!("handle_from_sint64");
         prepare_handle((self.get_mvm().vm.handle_from_sint64(num, len as usize)))
     }
 
     pub fn handle_from_uint64(&mut self, num: u64, len: c_int) -> *const APIHandle {
+        trace!("handle_from_uint64");
         prepare_handle((self.get_mvm().vm.handle_from_uint64(num, len as usize)))
     }
 
     pub fn handle_from_uint64s(&mut self, nums: &[u64], len: c_int) -> *const APIHandle {
+        trace!("handle_from_uint64s");
         panic!("Zebu doesnt implement int with length larger than 64bits")
     }
 
     pub fn handle_from_float(&mut self, num: f32) -> *const APIHandle {
+        trace!("handle_from_float");
         prepare_handle((self.get_mvm().vm.handle_from_float(num)))
     }
 
     pub fn handle_from_double(&mut self, num: f64) -> *const APIHandle {
+        trace!("handle_from_double");
         prepare_handle((self.get_mvm().vm.handle_from_double(num)))
     }
 
     pub fn handle_from_ptr(&mut self, mu_type: MuID, ptr: CMuCPtr) -> *const APIHandle {
+        trace!("handle_from_ptr: ty#{}, {:?}", mu_type, ptr);
         let addr = Address::from_mut_ptr(ptr);
 
         prepare_handle((self.get_mvm().vm.handle_from_uptr(mu_type, addr)))
     }
 
     pub fn handle_from_fp(&mut self, mu_type: MuID, fp: CMuCFP) -> *const APIHandle {
+        trace!("handle_from_fp: ty#{}, {:?}", mu_type, fp);
         let addr = Address::from_mut_ptr(fp);
 
         prepare_handle((self.get_mvm().vm.handle_from_ufp(mu_type, addr)))
     }
 
     pub fn handle_to_sint8(&mut self, opnd: &APIHandle) -> i8 {
+        trace!("handle_to_sint8: {}", opnd);
         self.get_mvm().vm.handle_to_sint8(opnd)
     }
 
     pub fn handle_to_uint8(&mut self, opnd: &APIHandle) -> u8 {
+        trace!("handle_to_uint8: {}", opnd);
         self.get_mvm().vm.handle_to_uint8(opnd)
     }
 
     pub fn handle_to_sint16(&mut self, opnd: &APIHandle) -> i16 {
+        trace!("handle_to_sint16: {}", opnd);
         self.get_mvm().vm.handle_to_sint16(opnd)
     }
 
     pub fn handle_to_uint16(&mut self, opnd: &APIHandle) -> u16 {
+        trace!("handle_to_uint16: {}", opnd);
         self.get_mvm().vm.handle_to_uint16(opnd)
     }
 
     pub fn handle_to_sint32(&mut self, opnd: &APIHandle) -> i32 {
+        trace!("handle_to_sint32: {}", opnd);
         self.get_mvm().vm.handle_to_sint32(opnd)
     }
 
     pub fn handle_to_uint32(&mut self, opnd: &APIHandle) -> u32 {
+        trace!("handle_to_uint32: {}", opnd);
         self.get_mvm().vm.handle_to_uint32(opnd)
     }
 
     pub fn handle_to_sint64(&mut self, opnd: &APIHandle) -> i64 {
+        trace!("handle_to_sint64: {}", opnd);
         self.get_mvm().vm.handle_to_sint64(opnd)
     }
 
     pub fn handle_to_uint64(&mut self, opnd: &APIHandle) -> u64 {
+        trace!("handle_to_uint64: {}", opnd);
         self.get_mvm().vm.handle_to_uint64(opnd)
     }
 
     pub fn handle_to_float(&mut self, opnd: &APIHandle) -> f32 {
+        trace!("handle_to_float: {}", opnd);
         self.get_mvm().vm.handle_to_float(opnd)
     }
 
     pub fn handle_to_double(&mut self, opnd: &APIHandle) -> f64 {
+        trace!("handle_to_double: {}", opnd);
         self.get_mvm().vm.handle_to_double(opnd)
     }
 
     pub fn handle_to_ptr(&mut self, opnd: &APIHandle) -> CMuCPtr {
+        trace!("handle_to_ptr: {}", opnd);
         self.get_mvm().vm.handle_to_uptr(opnd).to_ptr_mut()
     }
 
     pub fn handle_to_fp(&mut self, opnd: &APIHandle) -> CMuCFP {
+        trace!("handle_to_fp: {}", opnd);
         self.get_mvm().vm.handle_to_ufp(opnd).to_ptr_mut()
     }
 
     pub fn handle_from_const(&mut self, id: MuID) -> *const APIHandle {
+        trace!("handle_from_const");
         prepare_handle(self.get_mvm().vm.handle_from_const(id))
     }
 
     pub fn handle_from_global(&mut self, id: MuID) -> *const APIHandle {
+        trace!("handle_from_global");
         prepare_handle(self.get_mvm().vm.handle_from_global(id))
     }
 
     pub fn handle_from_func(&mut self, id: MuID) -> *const APIHandle {
-        panic!("Not implemented")
+        trace!("handle_from_func");
+        prepare_handle(self.get_mvm().vm.handle_from_func(id))
     }
 
     pub fn handle_from_expose(&mut self, id: MuID) -> *const APIHandle {
+        trace!("handle_from_Expose");
         panic!("Not implemented")
     }
 
@@ -204,42 +233,52 @@ impl MuCtx {
     }
 
     pub fn new_fixed(&mut self, mu_type: MuID) -> *const APIHandle {
+        trace!("new_fixed: ty#{}", mu_type);
         prepare_handle(self.get_mvm().vm.new_fixed(mu_type))
     }
 
     pub fn new_hybrid(&mut self, mu_type: MuID, length: &APIHandle) -> *const APIHandle {
+        trace!("new_hybrid: ty#{}, len {}", mu_type, length);
         prepare_handle(self.get_mvm().vm.new_hybrid(mu_type, length))
     }
 
     pub fn refcast(&mut self, opnd: &APIHandle, new_type: MuID) -> *const APIHandle {
-        panic!("Not implemented")
+        trace!("refcast: {} to ty#{}", opnd, new_type);
+        prepare_handle(self.get_mvm().vm.handle_refcast(opnd, new_type))
     }
 
     pub fn get_iref(&mut self, opnd: &APIHandle) -> *const APIHandle {
+        trace!("get_iref: {}", opnd);
         prepare_handle(self.get_mvm().vm.handle_get_iref(opnd))
     }
 
     pub fn get_field_iref(&mut self, opnd: &APIHandle, field: c_int) -> *const APIHandle {
+        trace!("get_field_iref: {}, field {}", opnd, field);
         prepare_handle(self.get_mvm().vm.handle_get_field_iref(opnd, field as usize))
     }
 
     pub fn get_elem_iref(&mut self, opnd: &APIHandle, index: &APIHandle) -> *const APIHandle {
+        trace!("get_elem_iref: {}, index {}", opnd, index);
         prepare_handle(self.get_mvm().vm.handle_get_elem_iref(opnd, index))
     }
 
     pub fn shift_iref(&mut self, opnd: &APIHandle, offset: &APIHandle) -> *const APIHandle {
+        trace!("shift_iref: {}, offset {}", opnd, offset);
         prepare_handle(self.get_mvm().vm.handle_shift_iref(opnd, offset))
     }
 
     pub fn get_var_part_iref(&mut self, opnd: &APIHandle) -> *const APIHandle {
+        trace!("get_var_part_iref: {}", opnd);
         prepare_handle(self.get_mvm().vm.handle_get_var_part_iref(opnd))
     }
 
     pub fn load(&mut self, ord: CMuMemOrd, loc: &APIHandle) -> *const APIHandle {
+        trace!("load: {}", loc);
         prepare_handle(self.get_mvm().vm.handle_load(impl_memorder(ord), loc))
     }
 
     pub fn store(&mut self, ord: CMuMemOrd, loc: &APIHandle, newval: &APIHandle) {
+        trace!("store: {} val {}", loc, newval);
         self.get_mvm().vm.handle_store(impl_memorder(ord), loc, newval);
     }
 
@@ -406,12 +445,14 @@ impl MuCtx {
     }
 
     pub fn make_boot_image(&mut self, whitelist: Vec<MuID>, primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>, primordial_threadlocal: Option<&APIHandle>, sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>, reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>, output_file: String) {
-        panic!("Not implemented")
+        self.get_mvm().vm.make_boot_image(whitelist, primordial_func, primordial_stack, primordial_threadlocal, sym_fields, sym_strings, reloc_fields, reloc_strings, output_file);
     }
 
 }
 
 fn prepare_handle(handle: APIHandleResult) -> *const APIHandle {
+    trace!("got handle: {:?}", handle);
+
     Box::into_raw(handle)
 }
 

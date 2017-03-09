@@ -10,6 +10,7 @@ mod asm_backend;
 pub use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 pub use compiler::backend::x86_64::asm_backend::emit_code;
 pub use compiler::backend::x86_64::asm_backend::emit_context;
+pub use compiler::backend::x86_64::asm_backend::emit_context_with_reloc;
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
 
@@ -479,6 +480,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
     match inst.v {
         // simple
         BinOp(_, _, _)  => 1,
+        BinOpWithStatus(_, _, _, _) => 2,
         CmpOp(_, _, _)  => 1,
         ConvOp{..}      => 0,
 
@@ -517,6 +519,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
         // others
         Move(_) => 0,
+        PrintHex(_) => 10,
         ExnInstruction{ref inner, ..} => estimate_insts_for_ir(&inner)
     }
 }

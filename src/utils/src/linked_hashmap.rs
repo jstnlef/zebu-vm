@@ -34,10 +34,6 @@
 
 #![cfg_attr(all(feature = "nightly", test), feature(test))]
 
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
-#![cfg_attr(feature = "clippy", deny(clippy))]
-
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::hash_map::{self, HashMap};
@@ -79,7 +75,6 @@ impl<K, V> Decodable for LinkedHashMap<K, V>
             for i in 0..len {
                 let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
                 let val = try!(d.read_map_elt_val(i, |d| Decodable::decode(d)));
-                println!("insert {}", i);
                 map.insert(key, val);
             }
             Ok(map)

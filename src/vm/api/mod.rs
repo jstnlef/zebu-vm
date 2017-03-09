@@ -13,17 +13,3 @@ mod deps {
     pub use vm::handle::APIHandle;
     extern crate ast;
 }
-
-use runtime::thread;
-use utils::Address;
-
-#[no_mangle]
-pub fn current_thread_as_mu_thread(threadlocal: Address, api_vm: *const api_c::CMuVM) {
-    unsafe {
-        let hdr = ((*api_vm).header) as *const api_impl::MuVM;
-        let vm = ((*hdr).vm).clone();
-
-        thread::MuThread::current_thread_as_mu_thread(threadlocal, vm);
-    }
-}
-

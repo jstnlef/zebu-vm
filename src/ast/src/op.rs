@@ -36,6 +36,7 @@ pub enum OpCode {
 
     // expression
     Binary(BinOp),
+    BinaryWithStatus(BinOp),
     Comparison(CmpOp),
     Conversion(ConvOp),
     AtomicRMW(AtomicRMWOp),
@@ -64,7 +65,8 @@ pub enum OpCode {
     CommonInst_Pin,
     CommonInst_Unpin,
 
-    Move
+    Move,
+    PrintHex
 }
 
 pub fn pick_op_code_for_ssa(ty: &P<MuType>) -> OpCode {
@@ -253,6 +255,7 @@ pub fn is_int_cmp(op: CmpOp) -> bool {
 pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
     match inst.v {
         Instruction_::BinOp(op, _, _)               => OpCode::Binary(op),
+        Instruction_::BinOpWithStatus(op, _, _, _)  => OpCode::BinaryWithStatus(op),
         Instruction_::CmpOp(op, _, _)               => OpCode::Comparison(op),
         Instruction_::ConvOp{operation, ..}         => OpCode::Conversion(operation),
         Instruction_::AtomicRMW{op, ..}             => OpCode::AtomicRMW(op),
@@ -294,5 +297,6 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
         Instruction_::CommonInst_Pin(_)             => OpCode::CommonInst_Pin,
         Instruction_::CommonInst_Unpin(_)           => OpCode::CommonInst_Unpin,
         Instruction_::Move(_)                    => OpCode::Move,
+        Instruction_::PrintHex(_)                => OpCode::PrintHex,
     }
 }

@@ -185,15 +185,18 @@ impl CompilerPass for GenMovPhi {
                 vm.set_name(ret.as_entity(), name);
 
 
-                let target_block = f_content.get_block(target_id);
+                let mut target_block = f_content.get_block_mut(target_id);
 
                 assert!(target_block.content.is_some());
 
+                // if target_block is an exception block,
+                // set its exn argument to None, and set this new block as an exception block
+                let exn_arg = target_block.content.as_mut().unwrap().exn_arg.take();
                 let ref target_args = target_block.content.as_ref().unwrap().args;
 
                 ret.content = Some(BlockContent{
                     args: vec![],
-                    exn_arg: None,
+                    exn_arg: exn_arg,
                     body: {
                         let mut vec = vec![];
 

@@ -3,7 +3,8 @@ use inst::Instruction_::*;
 
 pub fn is_terminal_inst(inst: &Instruction_) -> bool {
     match inst {
-        &BinOp(_, _, _) 
+        &BinOp(_, _, _)
+        | &BinOpWithStatus(_, _, _, _)
         | &CmpOp(_, _, _)
         | &ConvOp{..}
         | &ExprCall{..}
@@ -31,7 +32,8 @@ pub fn is_terminal_inst(inst: &Instruction_) -> bool {
         | &CommonInst_SetThreadLocal(_)
         | &CommonInst_Pin(_)
         | &CommonInst_Unpin(_)
-        | &Move(_) => false,
+        | &Move(_)
+        | &PrintHex(_) => false,
         &Return(_)
         | &ThreadExit
         | &Throw(_)
@@ -56,6 +58,7 @@ pub fn is_non_terminal_inst(inst: &Instruction_) -> bool {
 pub fn has_side_effect(inst: &Instruction_) -> bool {
     match inst {
         &BinOp(_, _, _) => false,
+        &BinOpWithStatus(_, _, _, _) => false,
         &CmpOp(_, _, _) => false,
         &ConvOp{..} => false,
         &ExprCall{..} => true,
@@ -97,5 +100,6 @@ pub fn has_side_effect(inst: &Instruction_) -> bool {
         &CommonInst_Pin(_) => true,
         &CommonInst_Unpin(_) => true,
         &Move(_) => false,
+        &PrintHex(_) => true
     }
 }

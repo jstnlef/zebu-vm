@@ -1,8 +1,8 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
-from rpython.rlib import rmu_fast as rmu
+from rpython.rlib.rmu import zebu as rmu
 from rpython.translator.platform import platform
 from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
-import ctypes, py, stat
+import ctypes, py, stat, os
 import pytest
 
 # -------------------
@@ -24,7 +24,6 @@ def test_add():
     fn, _ = fncptr_from_rpy_func(add, [rffi.LONGLONG, rffi.LONGLONG], rffi.LONGLONG)
 
     assert fn(1, 2) == 3
-
 
 @may_spawn_proc
 def test_vec3prod():
@@ -834,7 +833,6 @@ def test_throw():
             "@refi64": refi64
         }
 
-    from rpython.rlib import rmu_fast as rmu
     (fnp, _), (mu, ctx, bldr) = fncptr_from_py_script(build_test_bundle, None, 'test_fnc', [ctypes.c_int64],
                                                       ctypes.c_int64, mode=ctypes.RTLD_GLOBAL)
     mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
@@ -844,7 +842,6 @@ def test_throw():
 
 @may_spawn_proc
 def test_exception_stack_unwind():
-    from rpython.rlib import rmu_fast as rmu
     def build_test_bundle(bldr, rmu):
         """
         Builds the following test bundle.
@@ -989,36 +986,107 @@ def test_exception_stack_unwind():
     assert fnp(100) == 10
 
 
-@pytest.mark.xfail(reason='not implemented yet')
+def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu')):
+    from rpython.translator.interactive import Translation
+
+    if has_c_main_sig:
+        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api')
+        t.driver.disable(['entrypoint_mu'])
+    else:
+        t = Translation(entry, None, backend='mu', impl=impl, codegen='api')
+
+    t.driver.standalone = True  # force standalone
+    t.driver.exe_name = output
+   
+    #t.backendopt(inline=True, mallocs=True)
+    #t.view()
+    #t.mutype()
+    #t.view()
+
+    db, mugen, epf_name = t.compile_mu()
+    exe = py.path.local(output)
+
+    if impl == 'zebu':
+        # zebu
+        exe.chmod(stat.S_IRWXU)
+        eci = rffi.ExternalCompilationInfo(library_dirs=[str(db.libsupport_path.dirpath())])
+        res = platform.execute(str(exe), args, compilation_info=eci)
+    else:
+        from rpython.rlib.rmu import holstein
+        runmu = py.path.local(holstein.mu_dir).join('..', 'tools', 'runmu.sh')
+        flags = ['--vmLog=ERROR']
+        # log_platform.execute(' '.join([str(runmu)] + flags + [str(exe)] + cmdargs))
+        res = platform.execute(runmu, flags + [str(exe)] + args)
+
+    return res
+
 @may_spawn_proc
 def test_make_boot_image_simple():
     c_printf = rffi.llexternal('printf', [rffi.CCHARP], rffi.INT, _nowrapper=True)
     c_putchar = rffi.llexternal('putchar', [rffi.CHAR], rffi.INT, _nowrapper=True)
+    c_exit = rffi.llexternal('exit', [rffi.INT], lltype.Void, _nowrapper=True)
+
     def pypy_mu_entry(argc, argv):
         for i in range(argc):
             c_printf(argv[i])
             c_putchar('\n')
-        return 0
+        c_exit(rffi.cast(rffi.INT, 0))
+	return 0
 
-    from rpython.translator.interactive import Translation
-    t = Translation(pypy_mu_entry, [rffi.INT, rffi.CCHARPP],
-                    backend='mu', muimpl='fast', mucodegen='api')
-    t.driver.standalone = True  # force standalone
-    t.driver.exe_name = '/tmp/test_make_boot_image_%(backend)s'
-    t.driver.disable(['entrypoint_mu'])
-    t.compile_mu()
-    exe = py.path.local('/tmp/test_make_boot_image_mu.mu')
-    # zebu
-    exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), 'abc', '123')
-    # holstein
-    # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
-    #                      ['--vmLog=ERROR', str(exe), 'abc', '123'])
+    res = run_boot_image(pypy_mu_entry, '/tmp/test_make_boot_image_mu', True, ['abc', '123'])
+    exe = '/tmp/test_make_boot_image_mu'
+    
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
+@pytest.mark.xfail(reason = "debugging on this")
+@may_spawn_proc
+def test_rpytarget_print_argv():
+    def main(argv):
+        print argv
+        return 0
 
-@pytest.mark.xfail(reason='not implemented yet')
+    res = run_boot_image(main, '/tmp/test_printargv_mu', args = ['abc', '123'])
+    exe = '/tmp/test_printargv_mu'
+
+    assert res.returncode == 0, res.err
+    assert res.out == '[%s, abc, 123]\n' % exe
+
+@pytest.mark.xfail(reason = "debugging on this")
+@may_spawn_proc
+def test_rpython_helloworld():
+    def main(argv):
+        print "hello world"
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_helloworld_mu')
+
+    assert res.returncode == 0, res.err
+    assert res.out == 'hello world\n'
+
+@pytest.mark.xfail(reason = "new test")
+@may_spawn_proc
+def test_rpython_print_number():
+
+    def main(argv):
+        print 233
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_print_number_mu')
+
+    assert res.returncode == 0, res.err
+    assert res.out == '233\n'
+
+@may_spawn_proc
+def test_rpython_main():
+    def main(argv):
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_main')
+
+    assert res.returncode == 0, res.err
+
+@pytest.mark.skipif("True")
 @may_spawn_proc
 def test_rpytarget_sha1sum():
     john1 = \
@@ -1029,23 +1097,13 @@ All things were made through him, and without him was not any thing made that wa
 In him was life, and the life was the light of men.
 The light shines in the darkness, and the darkness has not overcome it.
 '''
-    from rpython.translator.goal.targetsha1sum import entry_point
-    from rpython.translator.interactive import Translation
-    t = Translation(entry_point, None,
-                    backend='mu', muimpl='fast', mucodegen='api')
-    t.driver.standalone = True  # force standalone
-    t.driver.exe_name = '/tmp/test_sha1sum_%(backend)s'
-    t.compile_mu()
-    exe = py.path.local('/tmp/test_sha1sum_mu.mu')
     test_file = py.path.local('/tmp/john1.txt')
     with test_file.open('w') as fp:
         fp.write(john1)
-    # zebu
-    exe.chmod(stat.S_IRWXU)
-    res = platform.execute(str(exe), 'abc', '123')
-    # holstein
-    # res = platform.execute('/Users/johnz/Documents/Work/mu-impl-ref2/tools/runmu.sh',
-    #                      ['--vmLog=ERROR', str(exe), str(test_file)])
+
+    from rpython.translator.goal.targetsha1sum import entry_point
+    res = run_boot_image(entry_point, '/tmp/test_sha1sum_mu')
+
     assert res.returncode == 0, res.err
     assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'
 

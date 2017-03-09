@@ -17,12 +17,86 @@ use self::mu::testutil;
 use self::mu::testutil::aot;
 
 #[test]
+fn test_allocation_fastpath() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(allocation_fastpath());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_id = vm.id_of("allocation_fastpath");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+    }
+
+    vm.make_primordial_thread(func_id, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec!["allocation_fastpath".to_string()], "allocation_fastpath_test", &vm);
+    aot::execute(executable);
+}
+
+fn allocation_fastpath() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int1         = mu_int(1));
+    typedef!    ((vm) int64        = mu_int(64));
+    typedef!    ((vm) ref_int64    = mu_ref(int64));
+    typedef!    ((vm) struct_t     = mu_struct(int64, int64, ref_int64));
+    typedef!    ((vm) ref_struct_t = mu_ref(struct_t));
+
+    funcsig!    ((vm) sig = () -> ());
+    funcdecl!   ((vm) <sig> allocation_fastpath);
+    funcdef!    ((vm) <sig> allocation_fastpath VERSION allocation_fastpath_v1);
+
+    block!      ((vm, allocation_fastpath_v1) blk_entry);
+
+    // a = NEW <struct_t>
+    ssa!        ((vm, allocation_fastpath_v1) <ref_struct_t> a);
+    inst!       ((vm, allocation_fastpath_v1) blk_entry_new1:
+        a = NEW <struct_t>
+    );
+
+    inst!       ((vm, allocation_fastpath_v1) blk_entry_print1:
+        PRINTHEX a
+    );
+
+    ssa!        ((vm, allocation_fastpath_v1) <ref_struct_t> b);
+    inst!       ((vm, allocation_fastpath_v1) blk_entry_new2:
+        b = NEW <struct_t>
+    );
+
+    inst!       ((vm, allocation_fastpath_v1) blk_entry_print2:
+        PRINTHEX b
+    );
+
+    inst!       ((vm, allocation_fastpath_v1) blk_entry_threadexit:
+        THREADEXIT
+    );
+
+    define_block!   ((vm, allocation_fastpath_v1) blk_entry() {
+        blk_entry_new1, blk_entry_print1,
+        blk_entry_new2, blk_entry_print2,
+        blk_entry_threadexit
+    });
+
+    define_func_ver!((vm) allocation_fastpath_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
 fn test_instruction_new() {
     VM::start_logging_trace();
     
     let vm = Arc::new(alloc_new());
     
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     
     let func_id = vm.id_of("alloc_new");
     {
@@ -34,7 +108,7 @@ fn test_instruction_new() {
         compiler.compile(&mut func_ver);
     }
     
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test", &vm);
@@ -52,7 +126,7 @@ fn test_instruction_new_on_cur_thread() {
 
     // compile
     let vm = Arc::new(alloc_new());
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     let func_id = vm.id_of("alloc_new");
     {
         let funcs = vm.funcs().read().unwrap();

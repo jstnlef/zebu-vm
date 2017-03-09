@@ -34,7 +34,7 @@ pub trait CompilerPass {
 
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         for (label, ref mut block) in func.content.as_mut().unwrap().blocks.iter_mut() {
-            debug!("block: {}", label);
+            trace!("block: {}", label);
 
             self.start_block(vm, &mut func.context, block);
             self.visit_block(vm, &mut func.context, block);
@@ -44,7 +44,7 @@ pub trait CompilerPass {
 
     fn visit_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {
         for inst in block.content.as_mut().unwrap().body.iter_mut() {
-            debug!("{}", inst);
+            trace!("{}", inst);
 
             self.visit_inst(vm, func_context, inst);
         }

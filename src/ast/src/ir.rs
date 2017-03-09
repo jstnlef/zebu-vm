@@ -6,7 +6,6 @@ use op::*;
 use utils::vec_utils;
 use utils::LinkedHashMap;
 
-use std::collections::HashMap;
 use std::fmt;
 use std::default;
 use std::sync::RwLock;
@@ -109,6 +108,7 @@ pub struct MuFunctionVersion {
     orig_content: Option<FunctionContent>,
     pub content: Option<FunctionContent>,
     is_defined: bool,
+    is_compiled: bool,
 
     pub context: FunctionContext,
 
@@ -150,6 +150,7 @@ impl MuFunctionVersion {
             orig_content: None,
             content: None,
             is_defined: false,
+            is_compiled: false,
             context: FunctionContext::new(),
             block_trace: None,
             force_inline: false
@@ -164,6 +165,7 @@ impl MuFunctionVersion {
             orig_content: Some(content.clone()),
             content: Some(content),
             is_defined: true,
+            is_compiled: false,
             context: context,
             block_trace: None,
             force_inline: false
@@ -182,6 +184,13 @@ impl MuFunctionVersion {
         self.is_defined = true;
         self.orig_content = Some(content.clone());
         self.content = Some(content);
+    }
+
+    pub fn is_compiled(&self) -> bool {
+        self.is_compiled
+    }
+    pub fn set_compiled(&mut self) {
+        self.is_compiled = true;
     }
 
     pub fn new_ssa(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
@@ -221,8 +230,8 @@ impl MuFunctionVersion {
     }
 
     /// get Map(CallSiteID -> FuncID) that are called by this function
-    pub fn get_static_call_edges(&self) -> HashMap<MuID, MuID> {
-        let mut ret = HashMap::new();
+    pub fn get_static_call_edges(&self) -> LinkedHashMap<MuID, MuID> {
+        let mut ret = LinkedHashMap::new();
 
         let f_content = self.content.as_ref().unwrap();
 
@@ -356,13 +365,13 @@ impl FunctionContent {
 
 #[derive(Default, Debug, RustcEncodable, RustcDecodable)]
 pub struct FunctionContext {
-    pub values: HashMap<MuID, SSAVarEntry>
+    pub values: LinkedHashMap<MuID, SSAVarEntry>
 }
 
 impl FunctionContext {
     fn new() -> FunctionContext {
         FunctionContext {
-            values: HashMap::new()
+            values: LinkedHashMap::new()
         }
     }
     
@@ -675,7 +684,7 @@ pub enum TreeNode_ {
 }
 
 /// always use with P<Value>
-#[derive(Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(PartialEq, RustcEncodable, RustcDecodable)]
 pub struct Value {
     pub hdr: MuEntityHeader,
     pub ty: P<MuType>,
@@ -758,20 +767,45 @@ impl Value {
     }
 }
 
+const DISPLAY_TYPE : bool = false;
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.v {
-            Value_::SSAVar(_) => {
-                write!(f, "+({} %{})", self.ty, self.hdr)
-            },
-            Value_::Constant(ref c) => {
-                write!(f, "+({} {} @{})", self.ty, c, self.hdr)
-            },
-            Value_::Global(ref ty) => {
-                write!(f, "+(GLOBAL {} @{})", ty, self.hdr)
-            },
-            Value_::Memory(ref mem) => {
-                write!(f, "+(MEM {} %{})", mem, self.hdr)
+        if DISPLAY_TYPE {
+            match self.v {
+                Value_::SSAVar(_) => {
+                    write!(f, "+({} %{})", self.ty, self.hdr)
+                },
+                Value_::Constant(ref c) => {
+                    write!(f, "+({} {} @{})", self.ty, c, self.hdr)
+                },
+                Value_::Global(ref ty) => {
+                    write!(f, "+(GLOBAL {} @{})", ty, self.hdr)
+                },
+                Value_::Memory(ref mem) => {
+                    write!(f, "+(MEM {} %{})", mem, self.hdr)
+                }
+            }
+        } else {
+            match self.v {
+                Value_::SSAVar(_) => {
+                    write!(f, "%{}", self.hdr)
+                },
+                Value_::Constant(ref c) => {
+                    write!(f, "{}", c)
+                },
+                Value_::Global(_) => {
+                    write!(f, "GLOBAL @{}", self.hdr)
+                },
+                Value_::Memory(ref mem) => {
+                    write!(f, "MEM {} %{}", mem, self.hdr)
+                }
             }
         }
     }
@@ -893,7 +927,7 @@ pub enum Constant {
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Constant::Int(v) => write!(f, "{}", v),
+            &Constant::Int(v) => write!(f, "{}", v as i64),
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
 //            &Constant::IRef(v) => write!(f, "{}", v),
@@ -1036,7 +1070,7 @@ impl MuEntityHeader {
         *name_guard = Some(MuEntityHeader::name_check(name));
     }
 
-    fn name_check(name: MuName) -> MuName {
+    pub fn name_check(name: MuName) -> MuName {
         if name.starts_with("@") || name.starts_with("%") {
             let (_, name) = name.split_at(1);
 
@@ -1053,12 +1087,24 @@ impl PartialEq for MuEntityHeader {
     }
 }
 
+const PRINT_ABBREVIATE_NAME: bool = false;
+
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.name().is_none() {
             write!(f, "UNNAMED #{}", self.id)
         } else {
-            write!(f, "{} #{}", self.name().unwrap(), self.id)
+            if PRINT_ABBREVIATE_NAME {
+                let name = self.name().unwrap().clone();
+                let abbr_name = name.split('.').map(
+                    |x| match x.chars().next() {
+                        Some(c) => c,
+                        None => '_'
+                    }).fold("".to_string(), |mut acc, x| {acc.push(x); acc});
+                write!(f, "{} #{}", abbr_name, self.id)
+            } else {
+                write!(f, "{} #{}", self.name().unwrap(), self.id)
+            }
         }
     }
 }

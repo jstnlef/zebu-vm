@@ -6,6 +6,7 @@ use compiler::backend::RegGroup;
 use utils::Address;
 
 use std::fmt;
+use std::os::raw::c_int;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::ffi::CString;
@@ -33,6 +34,8 @@ extern "C" {
 
 pub fn resolve_symbol(symbol: String) -> Address {
     use std::ptr;
+
+    let symbol = MuEntityHeader::name_check(symbol);
     
     let rtld_default = unsafe {dlopen(ptr::null(), 0)};
     let ret = unsafe {dlsym(rtld_default, CString::new(symbol.clone()).unwrap().as_ptr())};
@@ -192,7 +195,7 @@ pub extern fn mu_trace_level_log() {
 }
 
 #[no_mangle]
-pub extern fn mu_main(serialized_vm : *const c_char) {      
+pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *const c_char) {
     debug!("mu_main() started...");
     
     let str_vm = unsafe{CStr::from_ptr(serialized_vm)}.to_str().unwrap();
@@ -207,8 +210,22 @@ pub extern fn mu_main(serialized_vm : *const c_char) {
         
         // create mu stack
         let stack = vm.new_stack(primordial.func_id);
-        
-        let args : Vec<ValueLocation> = primordial.args.iter().map(|arg| ValueLocation::from_constant(arg.clone())).collect();
+
+        // if the primordial named some const arguments, we use the const args
+        // otherwise we push 'argc' and 'argv' to new stack
+        let args : Vec<ValueLocation> = if primordial.has_const_args {
+            primordial.args.iter().map(|arg| ValueLocation::from_constant(arg.clone())).collect()
+        } else {
+            let mut args = vec![];
+
+            // 1st arg: argc
+            args.push(ValueLocation::from_constant(Constant::Int(argc as u64)));
+
+            // 2nd arg: argv
+            args.push(ValueLocation::from_constant(Constant::Int(argv as u64)));
+
+            args
+        };
         
         // FIXME: currently assumes no user defined thread local
         // will need to fix this after we can serialize heap object
@@ -216,4 +233,10 @@ pub extern fn mu_main(serialized_vm : *const c_char) {
         
         thread.join().unwrap();
     }
+}
+
+#[no_mangle]
+#[allow(unreachable_code)]
+pub extern fn muentry_print_hex(x: u64) {
+    println!("0x{:x}", x);
 }

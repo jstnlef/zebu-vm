@@ -30,7 +30,7 @@ fn test_global_access() {
     }
     global_access(&vm);
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     {
         let func_id = vm.id_of("global_access");
@@ -54,7 +54,7 @@ fn test_set_global_by_api() {
     }
     set_global_by_api(&vm);
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     let func_id = vm.id_of("set_global_by_api");
 
     {
@@ -78,7 +78,7 @@ fn test_set_global_by_api() {
     }
 
     // then emit context (global will be put into context.s
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     // link
@@ -136,7 +136,7 @@ fn test_get_global_in_dylib() {
     }
     get_global_in_dylib(&vm);
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     let func_id = vm.id_of("get_global_in_dylib");
 
     {
@@ -218,7 +218,7 @@ fn test_persist_linked_list() {
     }
     persist_linked_list(&vm);
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     let func_id = vm.id_of("persist_linked_list");
 
     {
@@ -267,7 +267,7 @@ fn test_persist_linked_list() {
     }
 
     // then emit context (global will be put into context.s
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     // link
@@ -429,7 +429,7 @@ fn test_persist_hybrid() {
     }
     persist_hybrid(&vm);
 
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     let func_id = vm.id_of("persist_hybrid");
 
     {
@@ -476,7 +476,7 @@ fn test_persist_hybrid() {
     }
 
     // then emit context (global will be put into context.s
-    vm.make_primordial_thread(func_id, vec![Constant::Int(HYBRID_LENGTH as u64)]);
+    vm.make_primordial_thread(func_id, true, vec![Constant::Int(HYBRID_LENGTH as u64)]);
     backend::emit_context(&vm);
 
     // link

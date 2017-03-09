@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-extern crate doubly;
-
+use utils::DoublyLinkedList;
 use utils::Address;
 use utils::mem::memmap;
 use common::AddressMap;
@@ -11,8 +10,6 @@ use objectmodel;
 use std::sync::Arc;
 use std::fmt;
 use std::sync::Mutex;
-
-use self::doubly::DoublyLinkedList;
 
 const SPACE_ALIGN : usize = 1 << 19;
 const BLOCK_SIZE  : usize = 1 << 12;    // 4kb

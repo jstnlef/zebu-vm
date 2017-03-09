@@ -5,6 +5,7 @@ use ast::ir::*;
 use vm::*;
 use std::sync::Arc;
 
+use std::path::PathBuf;
 use std::process::Command;
 use std::process::Output;
 use std::os::unix::process::ExitStatusExt;
@@ -30,22 +31,36 @@ pub fn exec (cmd: Command) -> Output {
 }
 
 pub fn exec_nocheck (mut cmd: Command) -> Output {
-    println!("executing: {:?}", cmd);
+    trace!("executing: {:?}", cmd);
     let output = match cmd.output() {
         Ok(res) => res,
         Err(e) => panic!("failed to execute: {}", e)
     };
 
-    println!("---out---");
-    println!("{}", String::from_utf8_lossy(&output.stdout));
-    println!("---err---");
-    println!("{}", String::from_utf8_lossy(&output.stderr));
+    trace!("---out---");
+    trace!("{}", String::from_utf8_lossy(&output.stdout));
+    trace!("---err---");
+    trace!("{}", String::from_utf8_lossy(&output.stderr));
 
     if output.status.signal().is_some() {
-        println!("terminated by a signal: {}", output.status.signal().unwrap());
+        trace!("terminated by a signal: {}", output.status.signal().unwrap());
     }
 
     output
+}
+
+pub fn get_path_under_mu(str: &'static str) -> PathBuf {
+    use std::env;
+
+    match env::var("MU_ZEBU") {
+        Ok(v) => {
+            let mut ret = PathBuf::from(v);
+            ret.push(str);
+
+            ret
+        }
+        Err(_) => PathBuf::from(str)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -62,7 +77,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
     VM::start_logging_trace();
 
     let vm = Arc::new(build_fnc());
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     let func_id = vm.id_of(fnc_name);
     {
         let funcs = vm.funcs().read().unwrap();
@@ -81,7 +96,7 @@ pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build
     VM::start_logging_trace();
 
     let vm = Arc::new(build_fnc());
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     for func in fnc_names.iter() {
         let func_id = vm.id_of(func);

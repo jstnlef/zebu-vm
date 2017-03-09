@@ -20,7 +20,7 @@ fn test_thread_create() {
     
     let vm = Arc::new(primordial_main());
     
-    let compiler = Compiler::new(CompilerPolicy::default(), vm.clone());
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     
     let func_id = vm.id_of("primordial_main");    
     {
@@ -32,7 +32,7 @@ fn test_thread_create() {
         compiler.compile(&mut func_ver);
     }
     
-    vm.make_primordial_thread(func_id, vec![]);
+    vm.make_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec!["primordial_main".to_string()], "primordial_main_test", &vm);

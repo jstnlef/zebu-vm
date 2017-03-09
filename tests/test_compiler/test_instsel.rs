@@ -18,7 +18,7 @@ fn test_instsel_fac() {
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new()),
             Box::new(backend::inst_sel::InstructionSelection::new())
-    ]), vm.clone());
+    ]), &vm);
     
     let func_id = vm.id_of("fac");
     let funcs = vm.funcs().read().unwrap();

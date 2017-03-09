@@ -16,8 +16,11 @@ pub mod mem;
 
 mod linked_hashmap;
 mod linked_hashset;
+mod doubly;
+
 pub use linked_hashmap::LinkedHashMap;
 pub use linked_hashset::LinkedHashSet;
+pub use doubly::DoublyLinkedList;
 
 #[macro_export]
 macro_rules! linked_hashmap {
@@ -31,6 +34,24 @@ macro_rules! linked_hashmap {
             let mut _map = LinkedHashMap::with_capacity(_cap);
             $(
                 _map.insert($key, $value);
+            )*
+            _map
+        }
+    };
+}
+
+#[macro_exprt]
+macro_rules! linked_hashset {
+    (@single $($x:tt)*) => (());
+    (@count $($rest:expr),*) => (<[()]>::len(&[$(linked_hashset!(@single $rest)),*]));
+
+    ($($value:expr,)+) => { linked_hashset!($($value),+) };
+    ($($value:expr),*) => {
+        {
+            let _cap = linked_hashset!(@count $($key),*);
+            let mut _map = LinkedHashSet::with_capacity(_cap);
+            $(
+                _map.insert($value);
             )*
             _map
         }

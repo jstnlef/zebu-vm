@@ -8,9 +8,6 @@ void* malloc_zero(size_t size) {
     return ret;
 }
 
-
-
-uintptr_t immmix_get_stack_ptr();
 uintptr_t immmix_get_stack_ptr() {
     uintptr_t rsp;
     // get current rsp, rbp (this C func frame)
