@@ -1098,16 +1098,16 @@ impl <'a> InstructionSelection {
 
                                 match is_power_of_two(var_ty_size) {
                                     Some(shift) => {
+                                        // use tmp_actual_size as result - we do not want to change tmp_var_len
+                                        self.backend.emit_mov_r_r(&tmp_actual_size, &tmp_var_len);
+
                                         if shift != 0 {
                                             // a shift-left will get the total size of var part
-                                            self.backend.emit_shl_r_imm8(&tmp_var_len, shift);
+                                            self.backend.emit_shl_r_imm8(&tmp_actual_size, shift);
                                         }
 
                                         // add with fix-part size
-                                        self.backend.emit_add_r_imm(&tmp_var_len, fix_part_size as i32);
-
-                                        // mov result to tmp_actual_size
-                                        self.backend.emit_mov_r_r(&tmp_actual_size, &tmp_var_len);
+                                        self.backend.emit_add_r_imm(&tmp_actual_size, fix_part_size as i32);
                                     }
                                     None => {
                                         // we need to do a multiply

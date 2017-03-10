@@ -989,11 +989,13 @@ def test_exception_stack_unwind():
 def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu')):
     from rpython.translator.interactive import Translation
 
+    vmargs = ""
+
     if has_c_main_sig:
-        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api')
+        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api', vmargs=vmargs)
         t.driver.disable(['entrypoint_mu'])
     else:
-        t = Translation(entry, None, backend='mu', impl=impl, codegen='api')
+        t = Translation(entry, None, backend='mu', impl=impl, codegen='api', vmargs=vmargs)
 
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output

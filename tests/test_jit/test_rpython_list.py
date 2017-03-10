@@ -43,7 +43,7 @@ def test_rpython_list_append():
     
     res = run_boot_image(main, '/tmp/test_rpython_list_append')
     
-    assert res.returncode == 10, res.err
+    assert res.returncode == 10, 'returncode = %d\n%s' % (res.returncode, res.err)
 
 @may_spawn_proc
 def test_rpython_list_iter():
@@ -61,7 +61,7 @@ def test_rpython_list_iter():
     
     res = run_boot_image(main, '/tmp/test_rpython_list_iter')
     
-    assert res.returncode == 45, res.err
+    assert res.returncode == 45, 'returncode = %d\n%s' % (res.returncode, res.err)
 
 @may_spawn_proc
 def test_rpython_list_addr_check_length1():
@@ -183,7 +183,6 @@ def test_rpython_list_addr_check_all10():
     
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
 
-@pytest.mark.xfail(reason='unknown')
 @may_spawn_proc
 def test_rpython_list_addr_check_all100():
     Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG, hints={'nolength': True}))
