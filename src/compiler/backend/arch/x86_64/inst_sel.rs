@@ -1793,7 +1793,9 @@ impl <'a> InstructionSelection {
     fn emit_alloc_sequence (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
-            if size.extract_int_const() > mm::LARGE_OBJECT_THRESHOLD as u64 {
+            let size_i = size.extract_int_const();
+
+            if size_i + OBJECT_HEADER_SIZE as u64 > mm::LARGE_OBJECT_THRESHOLD as u64 {
                 self.emit_alloc_sequence_large(tmp_allocator, size, align, node, f_content, f_context, vm)
             } else {
                 self.emit_alloc_sequence_small(tmp_allocator, size, align, node, f_content, f_context, vm)
@@ -1813,7 +1815,15 @@ impl <'a> InstructionSelection {
             let blk_alloc_large = format!("{}_alloc_large", node.id());
             let blk_alloc_large_end = format!("{}_alloc_large_end", node.id());
 
-            self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
+            if OBJECT_HEADER_SIZE != 0 {
+                let size_with_hdr = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                self.backend.emit_mov_r_r(&size_with_hdr, &size);
+                self.backend.emit_add_r_imm(&size_with_hdr, OBJECT_HEADER_SIZE as i32);
+
+                self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size_with_hdr);
+            } else {
+                self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
+            }
             self.backend.emit_jg(blk_alloc_large.clone());
 
             self.finish_block();
@@ -1900,7 +1910,7 @@ impl <'a> InstructionSelection {
         // ASM: add %size, %start -> %end
         // or lea size(%start) -> %end
         let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        if size.is_int_const() {
+        let size = if size.is_int_const() {
             let mut offset = size.extract_int_const() as i32;
 
             if OBJECT_HEADER_SIZE != 0 {
@@ -1908,6 +1918,8 @@ impl <'a> InstructionSelection {
             }
 
             self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
+
+            self.make_value_int_const(offset as u64, vm)
         } else {
             self.backend.emit_mov_r_r(&tmp_end, &tmp_start);
             if OBJECT_HEADER_SIZE != 0 {
@@ -1915,7 +1927,9 @@ impl <'a> InstructionSelection {
                 self.backend.emit_add_r_imm(&size, OBJECT_HEADER_SIZE as i32);
             }
             self.backend.emit_add_r_r(&tmp_end, &size);
-        }
+
+            size
+        };
 
         // check with limit
         // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
@@ -1975,6 +1989,11 @@ impl <'a> InstructionSelection {
             ]),
             Some(node), f_content, f_context, vm
         );
+
+        if OBJECT_HEADER_OFFSET != 0 {
+            // ASM: lea -HEADER_OFFSET(%res) -> %result
+            self.emit_lea_base_immoffset(&tmp_res, &tmp_res, - OBJECT_HEADER_OFFSET as i32, vm);
+        }
 
         // end block (no liveout other than result)
         self.backend.end_block(slowpath.clone());

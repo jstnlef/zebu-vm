@@ -278,8 +278,8 @@ impl ImmixMutatorLocal {
                     self.line     = 0;
 
                     trace!("Mutator{}: slowpath: new block starting from 0x{:x}", self.id, self.cursor);
-                    
-                    return self.alloc(size, align);
+
+                    return self.try_alloc_from_local(size, align);
                 },
                 None => {continue; }
             }
