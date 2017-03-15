@@ -26,7 +26,7 @@ def test_rpython_list_new_5():
         a = [1, 2, 3, 4, 5]
         return len(a)
 
-    fn, (db, bdlgen) = fncptr_from_rpy_func(new_5, [], rffi.INT)
+    fn, (db, bdlgen) = fncptr_from_rpy_func(new_5, [], rffi.LONGLONG)
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
     assert fn() == 5
@@ -45,6 +45,19 @@ def test_rpython_list_append():
     assert fn(5) == 5
     assert fn(10) == 10
     assert fn(100) == 100
+
+@may_spawn_proc
+def test_rpython_image_list_append():
+    def main(argv):
+        a = []
+        for i in range(0, 10):
+            a.append(i)
+        c_exit(rffi.cast(rffi.INT, len(a)))
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_rpython_image_list_append')
+
+    assert res.returncode == 10, 'returncode = %d\n%s' % (res.returncode, res.err)
 
 @may_spawn_proc
 def test_rpython_list_iter():
