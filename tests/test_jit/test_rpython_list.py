@@ -1,5 +1,5 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
-from rpython.rlib.rmu import zebu
+from rpython.rlib.rmu import zebu as rmu
 from rpython.translator.platform import platform
 from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
 import ctypes, py, stat
@@ -11,25 +11,25 @@ c_exit = rffi.llexternal('exit', [rffi.INT], lltype.Void, _nowrapper=True)
 
 @may_spawn_proc
 def test_rpython_list_new_empty():
-    def main(argv):
+    def new_empty():
         a = []
-        c_exit(rffi.cast(rffi.INT, len(a)))
-        return 0
-    
-    res = run_boot_image(main, '/tmp/test_rpython_list_new_empty')
-    
-    assert res.returncode == 0, res.err
+        return a
+
+    fn, (db, bdlgen) = fncptr_from_rpy_func(new_empty, [], lltype.Void)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+
+    fn()
 
 @may_spawn_proc
 def test_rpython_list_new_5():
-    def main(argv):
+    def new_5():
         a = [1, 2, 3, 4, 5]
-        c_exit(rffi.cast(rffi.INT, len(a)))
-        return 0
-    
-    res = run_boot_image(main, '/tmp/test_rpython_list_new_5')
-    
-    assert res.returncode == 5, res.err
+        return len(a)
+
+    fn, (db, bdlgen) = fncptr_from_rpy_func(new_5, [], rffi.INT)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
+
+    assert fn() == 5
 
 @may_spawn_proc
 def test_rpython_list_append():
@@ -37,12 +37,12 @@ def test_rpython_list_append():
         a = []
         for i in range(0, 10):
             a.append(i)
-        
+
         c_exit(rffi.cast(rffi.INT, len(a)))
         return 0
-    
+
     res = run_boot_image(main, '/tmp/test_rpython_list_append')
-    
+
     assert res.returncode == 10, 'returncode = %d\n%s' % (res.returncode, res.err)
 
 @may_spawn_proc
