@@ -82,7 +82,8 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
             x86_64::R15.id() => last_frame_callee_saved.plus(POINTER_SIZE * 5),
         }
     };
-    trace!("cursor at first Mu frame: {}", cursor);
+
+    print_backtrace(throw_frame_callsite, cursor.clone());
     
     let mut callsite = rust_frame_return_addr;
     
@@ -174,6 +175,43 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
     }
 }
 
+fn print_backtrace(callsite: Address, mut cursor: FrameCursor) {
+    info!("Mu backtrace:");
+
+    let cur_thread = thread::MuThread::current();
+
+    let cf_lock   = cur_thread.vm.compiled_funcs().read().unwrap();
+    let func_lock = cur_thread.vm.funcs().read().unwrap();
+
+    let mut frame_count = 0;
+    let mut callsite = callsite;
+
+    loop {
+        let func_start = {
+            match cf_lock.get(&cursor.func_ver_id) {
+                Some(rwlock_cf) => {
+                    rwlock_cf.read().unwrap().start.to_address()
+                },
+                None => unsafe {Address::zero()}
+            }
+        };
+        let func_name = cur_thread.vm.name_of(cursor.func_ver_id);
+
+        info!("frame {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}", frame_count, func_start, func_name, cursor.func_id, cursor.func_ver_id, callsite);
+
+        if cursor.has_previous_frame() {
+            frame_count += 1;
+            callsite = cursor.return_addr;
+
+            cursor.to_previous_frame(&cf_lock, &func_lock);
+        } else {
+            break;
+        }
+    }
+
+    info!("backtrace done.");
+}
+
 fn inspect_nearby_address(base: Address, n: isize) {
     let mut i = n;
     while i >= -n {
@@ -186,6 +224,7 @@ fn inspect_nearby_address(base: Address, n: isize) {
     }
 }
 
+#[derive(Clone)]
 struct FrameCursor {
     rbp: Address,
     return_addr: Address,
@@ -207,6 +246,10 @@ impl fmt::Display for FrameCursor {
 }
 
 impl FrameCursor {
+    fn has_previous_frame(&self) -> bool {
+        !self.return_addr.is_zero()
+    }
+
     fn to_previous_frame(&mut self, cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>) {
         // check if return_addr is valid
         // FIXME: should use a sentinel value here
@@ -226,9 +269,9 @@ impl FrameCursor {
 }
 
 fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>, pc_addr: Address) -> (MuID, MuID) {
-    use std::ops::Deref;
+//    use std::ops::Deref;
 
-    trace!("trying to find FuncVersion for address 0x{:x}", pc_addr);
+//    trace!("trying to find FuncVersion for address 0x{:x}", pc_addr);
     for (_, func) in cf.iter() {
         let func = func.read().unwrap();
 
@@ -236,15 +279,15 @@ fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunc
             Some(f) => f,
             None => panic!("failed to find func #{}", func.func_id)
         };
-        let f_lock = f.read().unwrap();
+//        let f_lock = f.read().unwrap();
         
         let start = func.start.to_address();
         let end = func.end.to_address();
-        trace!("CompiledFunction: func={}, fv_id={}, start=0x{:x}, end=0x{:x}", f_lock.deref(), func.func_ver_id, start, end);
+//        trace!("CompiledFunction: func={}, fv_id={}, start=0x{:x}, end=0x{:x}", f_lock.deref(), func.func_ver_id, start, end);
         
         // pc won't be the start of a function, but could be the end
         if pc_addr > start && pc_addr <= end {
-            trace!("Found CompiledFunction: func_id={}, fv_id={}", func.func_id, func.func_ver_id);
+//            trace!("Found CompiledFunction: func_id={}, fv_id={}", func.func_id, func.func_ver_id);
             return (func.func_id, func.func_ver_id);
         }
     }
