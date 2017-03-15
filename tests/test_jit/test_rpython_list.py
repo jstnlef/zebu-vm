@@ -33,17 +33,18 @@ def test_rpython_list_new_5():
 
 @may_spawn_proc
 def test_rpython_list_append():
-    def main(argv):
+    def list_append(n):
         a = []
-        for i in range(0, 10):
+        for i in range(0, n):
             a.append(i)
+        return len(a)
 
-        c_exit(rffi.cast(rffi.INT, len(a)))
-        return 0
+    fn, (db, bdlgen) = fncptr_from_rpy_func(list_append, [rffi.LONGLONG], rffi.LONGLONG)
+    bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
-    res = run_boot_image(main, '/tmp/test_rpython_list_append')
-
-    assert res.returncode == 10, 'returncode = %d\n%s' % (res.returncode, res.err)
+    assert fn(5) == 5
+    assert fn(10) == 10
+    assert fn(100) == 100
 
 @may_spawn_proc
 def test_rpython_list_iter():
