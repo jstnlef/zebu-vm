@@ -56,11 +56,14 @@ impl VMOptions {
     pub fn init(str: &str) -> VMOptions {
         info!("init vm options with: {:?}", str);
 
-        let ret : VMOptions = Docopt::new(USAGE)
+        let mut ret : VMOptions = Docopt::new(USAGE)
             .and_then(|d| d.argv(str.split_whitespace().into_iter()).parse())
             .unwrap_or_else(|e| e.exit()).decode().unwrap();
 
         info!("parsed as {:?}", ret);
+
+        // at the moment disable collection for debugging
+        ret.flag_gc_disable_collection = true;
 
         ret
     }
@@ -68,11 +71,6 @@ impl VMOptions {
 
 impl Default for VMOptions {
     fn default() -> VMOptions {
-        let mut options = VMOptions::init("");
-
-        // by default, disable colleciton for easier debugging
-        options.flag_gc_disable_collection = true;
-
-        options
+        VMOptions::init("")
     }
 }

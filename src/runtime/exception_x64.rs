@@ -268,26 +268,35 @@ impl FrameCursor {
     }
 }
 
-fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>, pc_addr: Address) -> (MuID, MuID) {
-//    use std::ops::Deref;
+const TRACE_FIND_FUNC : bool = false;
 
-//    trace!("trying to find FuncVersion for address 0x{:x}", pc_addr);
+#[allow(unused_imports)]
+fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>, pc_addr: Address) -> (MuID, MuID) {
+    use std::ops::Deref;
+
+    if TRACE_FIND_FUNC {
+        trace!("trying to find FuncVersion for address 0x{:x}", pc_addr);
+    }
     for (_, func) in cf.iter() {
         let func = func.read().unwrap();
-
-        let f = match funcs.get(&func.func_id) {
-            Some(f) => f,
-            None => panic!("failed to find func #{}", func.func_id)
-        };
-//        let f_lock = f.read().unwrap();
         
         let start = func.start.to_address();
         let end = func.end.to_address();
-//        trace!("CompiledFunction: func={}, fv_id={}, start=0x{:x}, end=0x{:x}", f_lock.deref(), func.func_ver_id, start, end);
+
+        if TRACE_FIND_FUNC {
+            let f = match funcs.get(&func.func_id) {
+                Some(f) => f,
+                None => panic!("failed to find func #{}", func.func_id)
+            };
+            let f_lock = f.read().unwrap();
+            trace!("CompiledFunction: func={}, fv_id={}, start=0x{:x}, end=0x{:x}", f_lock.deref(), func.func_ver_id, start, end);
+        }
         
         // pc won't be the start of a function, but could be the end
         if pc_addr > start && pc_addr <= end {
-//            trace!("Found CompiledFunction: func_id={}, fv_id={}", func.func_id, func.func_ver_id);
+            if TRACE_FIND_FUNC {
+                trace!("Found CompiledFunction: func_id={}, fv_id={}", func.func_id, func.func_ver_id);
+            }
             return (func.func_id, func.func_ver_id);
         }
     }

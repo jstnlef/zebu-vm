@@ -490,7 +490,11 @@ pub struct CallData {
 
 impl CallData {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        format!("{:?} {} [{}]", self.convention, ops[self.func], op_vector_str(&self.args, ops))
+        let func_name = match ops[self.func].name() {
+            Some(name) => name,
+            None => "Anonymous Function".to_string()
+        };
+        format!("{:?} {} [{}]", self.convention, func_name, op_vector_str(&self.args, ops))
     }
 }
 

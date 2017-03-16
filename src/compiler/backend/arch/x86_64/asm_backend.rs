@@ -3057,14 +3057,7 @@ impl CodeGenerator for ASMCodeGen {
     }
 }
 
-fn create_emit_directory(vm: &VM) {
-    use std::fs;    
-    match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
-        Ok(_) => {},
-        Err(_) => {}
-    }    
-}
-
+use compiler::backend::code_emission::create_emit_directory;
 use std::fs::File;
 
 pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
