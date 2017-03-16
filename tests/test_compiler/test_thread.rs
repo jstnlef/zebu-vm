@@ -67,14 +67,14 @@ fn primordial_main() -> VM {
     };
     blk_entry.content = Some(blk_entry_content);
     
-    func_ver.define(FunctionContent {
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut blocks = LinkedHashMap::new();
             blocks.insert(blk_entry.id(), blk_entry);
             blocks
         }
-    });
+    ));
     
     vm.define_func_version(func_ver);
     

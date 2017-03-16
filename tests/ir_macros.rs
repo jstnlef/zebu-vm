@@ -96,14 +96,11 @@ macro_rules! funcdef {
 
 macro_rules! define_func_ver {
     (($vm: expr) $fv: ident (entry: $entry: ident){$($blk: ident), *}) => {
-        $fv.define(FunctionContent{
-            entry: $entry.id(),
-            blocks: {
-                let mut ret = LinkedHashMap::new();
-                $ (ret.insert($blk.id(), $blk); )*
-                ret
-            }
-        });
+        $fv.define(FunctionContent::new($entry.id(), {
+            let mut ret = LinkedHashMap::new();
+            $ (ret.insert($blk.id(), $blk); )*
+            ret
+        }));
 
         $vm.define_func_version($fv);
     }

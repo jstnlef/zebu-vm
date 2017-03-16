@@ -5,6 +5,7 @@ use op::*;
 
 use utils::vec_utils;
 use utils::LinkedHashMap;
+use utils::LinkedHashSet;
 
 use std::fmt;
 use std::default;
@@ -300,10 +301,13 @@ impl MuFunctionVersion {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(Clone, RustcEncodable, RustcDecodable)]
 pub struct FunctionContent {
     pub entry: MuID,
-    pub blocks: LinkedHashMap<MuID, Block>
+    pub blocks: LinkedHashMap<MuID, Block>,
+
+    // this field only valid after control flow analysis
+    pub exception_blocks: LinkedHashSet<MuID>
 }
 
 impl fmt::Debug for FunctionContent {
@@ -321,22 +325,15 @@ impl fmt::Debug for FunctionContent {
     }
 }
 
-impl Clone for FunctionContent {
-    fn clone(&self) -> Self {
-        let mut new_blocks = LinkedHashMap::new();
-
-        for (id, block) in self.blocks.iter() {
-            new_blocks.insert(*id, block.clone());
-        }
-
+impl FunctionContent {
+    pub fn new(entry: MuID, blocks: LinkedHashMap<MuID, Block>) -> FunctionContent {
         FunctionContent {
-            entry: self.entry,
-            blocks: new_blocks
+            entry: entry,
+            blocks: blocks,
+            exception_blocks: LinkedHashSet::new()
         }
     }
-}
 
-impl FunctionContent {
     pub fn get_entry_block(&self) -> &Block {
         self.get_block(self.entry)
     } 
@@ -432,7 +429,7 @@ impl Block {
         Block{hdr: MuEntityHeader::unnamed(id), content: None, control_flow: ControlFlow::default()}
     }
     
-    pub fn is_exception_block(&self) -> bool {
+    pub fn is_receiving_exception_arg(&self) -> bool {
         return self.content.as_ref().unwrap().exn_arg.is_some()
     }
 

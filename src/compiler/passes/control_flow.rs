@@ -4,6 +4,7 @@ use utils::vec_utils::as_str as vector_as_str;
 use vm::VM;
 use compiler::CompilerPass;
 use utils::LinkedHashMap;
+use utils::LinkedHashSet;
 use std::any::Any;
 
 pub struct ControlFlowAnalysis {
@@ -253,6 +254,22 @@ impl CompilerPass for ControlFlowAnalysis {
 
     #[allow(unused_variables)]
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        {
+            let mut exception_blocks = LinkedHashSet::new();
+
+            for block in func.content.as_ref().unwrap().blocks.iter() {
+                let ref control_flow = block.1.control_flow;
+
+                for edge in control_flow.succs.iter() {
+                    if edge.is_exception {
+                        exception_blocks.insert(edge.target);
+                    }
+                }
+            }
+
+            func.content.as_mut().unwrap().exception_blocks.add_all(exception_blocks);
+        }
+
         debug!("check control flow for {}", func);
 
         for entry in func.content.as_ref().unwrap().blocks.iter() {

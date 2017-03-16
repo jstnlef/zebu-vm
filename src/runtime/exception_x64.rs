@@ -195,7 +195,7 @@ fn print_backtrace(callsite: Address, mut cursor: FrameCursor) {
                 None => unsafe {Address::zero()}
             }
         };
-        let func_name = cur_thread.vm.name_of(cursor.func_ver_id);
+        let func_name = cur_thread.vm.name_of(cursor.func_id);
 
         info!("frame {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}", frame_count, func_start, func_name, cursor.func_id, cursor.func_ver_id, callsite);
 

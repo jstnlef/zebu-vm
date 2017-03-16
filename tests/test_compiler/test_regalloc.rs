@@ -278,14 +278,14 @@ fn create_spill1() -> VM {
         keepalives: None
     });
     
-    func_ver.define(FunctionContent {
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut blocks = LinkedHashMap::new();
             blocks.insert(blk_entry.id(), blk_entry);
             blocks
         }
-    });
+    ));
     
     vm.define_func_version(func_ver);
     
@@ -568,16 +568,16 @@ fn create_simple_spill() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent {
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut blocks = LinkedHashMap::new();
             blocks.insert(blk_entry.id(), blk_entry);
             blocks.insert(blk_start.id(), blk_start);
             blocks.insert(blk_ret.id(), blk_ret);
             blocks
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 

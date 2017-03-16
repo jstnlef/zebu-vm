@@ -83,14 +83,14 @@ fn add_u8() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut map = LinkedHashMap::new();
             map.insert(blk_entry.id(), blk_entry);
             map
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 
@@ -222,14 +222,14 @@ fn sext() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut map = LinkedHashMap::new();
             map.insert(blk_entry.id(), blk_entry);
             map
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 
@@ -308,14 +308,14 @@ fn add_9f() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut map = LinkedHashMap::new();
             map.insert(blk_entry.id(), blk_entry);
             map
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 

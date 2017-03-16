@@ -32,6 +32,14 @@ impl CodeEmission {
         use std::io::prelude::*;
         use std::fs::File;
 
+        let func_name = match func.name() {
+            Some(name) => name,
+            None => {
+                // use func name
+                vm.name_of(func.func_id)
+            }
+        };
+
         // create emit directory
         create_emit_directory(vm);
 
@@ -39,7 +47,7 @@ impl CodeEmission {
         {
             let mut file_path = path::PathBuf::new();
             file_path.push(&vm.vm_options.flag_aot_emit_dir);
-            file_path.push(func.name().unwrap().to_string() + ".muir");
+            file_path.push(func_name.clone() + ".muir");
             let mut file = match File::create(file_path.as_path()) {
                 Err(why) => panic!("couldn't create muir file {}: {}", file_path.to_str().unwrap(), why),
                 Ok(file) => file
@@ -52,7 +60,7 @@ impl CodeEmission {
         {
             let mut file_path = path::PathBuf::new();
             file_path.push(&vm.vm_options.flag_aot_emit_dir);
-            file_path.push(func.name().unwrap().to_string() + "_orig.muir");
+            file_path.push(func_name.clone() + "_orig.muir");
             let mut file = match File::create(file_path.as_path()) {
                 Err(why) => panic!("couldn't create muir file {}: {}", file_path.to_str().unwrap(), why),
                 Ok(file) => file

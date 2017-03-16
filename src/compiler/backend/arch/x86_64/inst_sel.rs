@@ -3646,16 +3646,30 @@ impl CompilerPass for InstructionSelection {
         let f_content = func.content.as_ref().unwrap();
         
         for block_id in func.block_trace.as_ref().unwrap() {
+            // is this block an exception block?
+            let is_exception_block = f_content.exception_blocks.contains(&block_id);
+
             let block = f_content.get_block(*block_id);
             let block_label = block.name().unwrap();
             self.current_block = Some(block_label.clone());            
             
             let block_content = block.content.as_ref().unwrap();
-            
-            if block.is_exception_block() {
+
+            if is_exception_block {
+                // exception block
+                // we need to be aware of exception blocks so that we can emit information to catch exceptions
+
                 let loc = self.backend.start_exception_block(block_label.clone());
                 self.current_exn_blocks.insert(block.id(), loc);
-                
+            } else {
+                // normal block
+                self.backend.start_block(block_label.clone());
+            }
+
+            if block.is_receiving_exception_arg() {
+                // this block uses exception arguments
+                // we need to add it to livein, and also emit landingpad for it
+
                 let exception_arg = block_content.exn_arg.as_ref().unwrap();
                 
                 // live in is args of the block + exception arg
@@ -3666,8 +3680,6 @@ impl CompilerPass for InstructionSelection {
                 // need to insert a landing pad
                 self.emit_landingpad(&exception_arg, f_content, &mut func.context, vm);
             } else {
-                self.backend.start_block(block_label.clone());
-                
                 // live in is args of the block
                 self.backend.set_block_livein(block_label.clone(), &block_content.args);                    
             }
@@ -3675,6 +3687,7 @@ impl CompilerPass for InstructionSelection {
             // live out is the union of all branch args of this block
             let live_out = block_content.get_out_arguments();
 
+            // doing the actual instruction selection
             for inst in block_content.body.iter() {
                 self.instruction_select(&inst, f_content, &mut func.context, vm);
             }

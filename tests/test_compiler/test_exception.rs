@@ -15,9 +15,9 @@ use std::sync::Arc;
 use std::sync::RwLock;
 
 #[test]
-fn test_exception_simple_throw_catch() {
+fn test_exception_throw_catch_simple() {
     VM::start_logging_trace();
-    let vm = Arc::new(simple_throw_catch());
+    let vm = Arc::new(throw_catch_simple());
     
     let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     
@@ -44,11 +44,11 @@ fn test_exception_simple_throw_catch() {
     vm.make_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
     
-    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "simple_throw_catch_test", &vm);
+    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
     aot::execute(executable);
 }
 
-fn simple_throw_catch() -> VM {
+fn throw_catch_simple() -> VM {
     let vm = VM::new();
     
     // .typedef @int64 = int<64>
@@ -69,12 +69,12 @@ fn simple_throw_catch() -> VM {
     vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());    
     
     create_throw_exception_func(&vm);
-    create_catch_exception_func(&vm);
+    create_catch_exception_func(&vm, true);
     
     vm
 }
 
-fn create_catch_exception_func (vm: &VM) {
+fn create_catch_exception_func (vm: &VM, use_exception_arg: bool) {
     // .typedef @funcref_throw_exception <@throw_exception_sig>
     let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
     let throw_exception_id = vm.id_of("throw_exception");
@@ -164,21 +164,25 @@ fn create_catch_exception_func (vm: &VM) {
     });
     blk_exn_cont.content = Some(BlockContent {
         args: vec![],
-        exn_arg: Some(blk_exn_cont_exception_arg.clone_value()),
+        exn_arg: if use_exception_arg {
+            Some(blk_exn_cont_exception_arg.clone_value())
+        } else {
+            None
+        },
         body: vec![blk_exn_cont_thread_exit],
         keepalives: None
     });    
     
-    func_ver.define(FunctionContent{
-        entry: blk_0.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_0.id(),
+        {
             let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret.insert(blk_normal_cont.id(), blk_normal_cont);
             ret.insert(blk_exn_cont.id(), blk_exn_cont);
             ret
         }
-    });
+    ));
     
     vm.define_func_version(func_ver);
 }
@@ -254,14 +258,74 @@ fn create_throw_exception_func (vm: &VM) {
     };
     blk_0.content = Some(blk_0_content);
     
-    func_ver.define(FunctionContent {
-        entry: blk_0.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_0.id(),
+        {
             let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret
         }
-    });
+    ));
     
     vm.define_func_version(func_ver);
+}
+
+#[test]
+fn test_exception_throw_catch_dont_use_exception_arg() {
+    VM::start_logging_trace();
+    let vm = Arc::new(throw_catch_dont_use_exception_arg());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_throw = vm.id_of("throw_exception");
+    let func_catch = vm.id_of("catch_exception");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_throw).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_catch).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_catch, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
+    aot::execute(executable);
+}
+
+fn throw_catch_dont_use_exception_arg() -> VM {
+    let vm = VM::new();
+
+    // .typedef @int64 = int<64>
+    // .typedef @ref_int64 = ref<int<64>>
+    // .typedef @iref_int64 = iref<int<64>>
+    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
+    vm.set_name(type_def_int64.as_entity(), "int64".to_string());
+    let type_def_ref_int64 = vm.declare_type(vm.next_id(), MuType_::muref(type_def_int64.clone()));
+    vm.set_name(type_def_ref_int64.as_entity(), "ref_int64".to_string());
+    let type_def_iref_int64 = vm.declare_type(vm.next_id(), MuType_::iref(type_def_int64.clone()));
+    vm.set_name(type_def_iref_int64.as_entity(), "iref_int64".to_string());
+
+    // .const @int_64_0 <@int_64> = 0
+    // .const @int_64_1 <@int_64> = 1
+    let const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
+    vm.set_name(const_def_int64_0.as_entity(), "int64_0".to_string());
+    let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
+    vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());
+
+    create_throw_exception_func(&vm);
+    create_catch_exception_func(&vm, false);
+
+    vm
 }

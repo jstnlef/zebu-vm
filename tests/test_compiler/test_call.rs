@@ -130,14 +130,14 @@ fn ccall_exit() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut map = LinkedHashMap::new();
             map.insert(blk_entry.id(), blk_entry);
             map
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 
