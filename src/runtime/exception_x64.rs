@@ -58,7 +58,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
     
     // the return address is within throwing frame
     let throw_frame_callsite = rust_frame_return_addr;
-    let (throw_func, throw_fv) = find_func_for_address(&cf_lock, &func_lock, throw_frame_callsite);
+    let (throw_func, throw_fv) = find_func_for_address(&cf_lock, &func_lock, throw_frame_callsite).unwrap();
     trace!("throwing fucntion: {}", throw_func);
     
     // skip to previous frame
@@ -199,7 +199,7 @@ fn print_backtrace(callsite: Address, mut cursor: FrameCursor) {
 
         info!("frame {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}", frame_count, func_start, func_name, cursor.func_id, cursor.func_ver_id, callsite);
 
-        if cursor.has_previous_frame() {
+        if cursor.has_previous_frame(&cf_lock, &func_lock) {
             frame_count += 1;
             callsite = cursor.return_addr;
 
@@ -246,8 +246,9 @@ impl fmt::Display for FrameCursor {
 }
 
 impl FrameCursor {
-    fn has_previous_frame(&self) -> bool {
-        !self.return_addr.is_zero()
+    fn has_previous_frame(&self, cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>,
+                          funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>) -> bool {
+        !self.return_addr.is_zero() && find_func_for_address(cf, funcs, self.return_addr).is_some()
     }
 
     fn to_previous_frame(&mut self, cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>) {
@@ -259,7 +260,7 @@ impl FrameCursor {
         
         let previous_rbp = unsafe {self.rbp.load::<Address>()};
         let previous_return_addr = unsafe {previous_rbp.plus(POINTER_SIZE).load::<Address>()};
-        let (previous_func, previous_fv_id) = find_func_for_address(cf, funcs, self.return_addr);
+        let (previous_func, previous_fv_id) = find_func_for_address(cf, funcs, self.return_addr).unwrap();
         
         self.rbp = previous_rbp;
         self.return_addr = previous_return_addr;
@@ -271,7 +272,9 @@ impl FrameCursor {
 const TRACE_FIND_FUNC : bool = false;
 
 #[allow(unused_imports)]
-fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>, pc_addr: Address) -> (MuID, MuID) {
+fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>,
+                          funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>,
+                          pc_addr: Address) -> Option<(MuID, MuID)> {
     use std::ops::Deref;
 
     if TRACE_FIND_FUNC {
@@ -297,9 +300,9 @@ fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunc
             if TRACE_FIND_FUNC {
                 trace!("Found CompiledFunction: func_id={}, fv_id={}", func.func_id, func.func_ver_id);
             }
-            return (func.func_id, func.func_ver_id);
+            return Some((func.func_id, func.func_ver_id));
         }
     }
     
-    panic!("cannot find compiled function for pc 0x{:x}", pc_addr);
+    None
 }
