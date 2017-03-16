@@ -134,7 +134,7 @@ impl fmt::Debug for MuFunctionVersion {
             write!(f, "Empty\n").unwrap();
         }
         if self.block_trace.is_some() {
-            write!(f, "{:?}\n", self.block_trace.as_ref().unwrap())
+            write!(f, "Block Trace: {:?}\n", self.block_trace.as_ref().unwrap())
         } else {
             write!(f, "Trace not available\n")
         }

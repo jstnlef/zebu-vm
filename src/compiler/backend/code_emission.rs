@@ -35,15 +35,38 @@ impl CodeEmission {
         // create emit directory
         create_emit_directory(vm);
 
-        let mut file_path = path::PathBuf::new();
-        file_path.push(&vm.vm_options.flag_aot_emit_dir);
-        file_path.push(func.name().unwrap().to_string() + ".muir");
-        let mut file = match File::create(file_path.as_path()) {
-            Err(why) => panic!("couldn't create muir file {}: {}", file_path.to_str().unwrap(), why),
-            Ok(file) => file
-        };
+        // final IR
+        {
+            let mut file_path = path::PathBuf::new();
+            file_path.push(&vm.vm_options.flag_aot_emit_dir);
+            file_path.push(func.name().unwrap().to_string() + ".muir");
+            let mut file = match File::create(file_path.as_path()) {
+                Err(why) => panic!("couldn't create muir file {}: {}", file_path.to_str().unwrap(), why),
+                Ok(file) => file
+            };
 
-        file.write_fmt(format_args!("{:?}", func)).unwrap();
+            file.write_fmt(format_args!("{:?}", func)).unwrap();
+        }
+
+        // original IR (source/input)
+        {
+            let mut file_path = path::PathBuf::new();
+            file_path.push(&vm.vm_options.flag_aot_emit_dir);
+            file_path.push(func.name().unwrap().to_string() + "_orig.muir");
+            let mut file = match File::create(file_path.as_path()) {
+                Err(why) => panic!("couldn't create muir file {}: {}", file_path.to_str().unwrap(), why),
+                Ok(file) => file
+            };
+
+            file.write_fmt(format_args!("FuncVer {} of Func #{}\n", func.hdr, func.func_id)).unwrap();
+            file.write_fmt(format_args!("Signature: {}\n", func.sig)).unwrap();
+            file.write_fmt(format_args!("IR:\n")).unwrap();
+            if func.get_orig_ir().is_some() {
+                file.write_fmt(format_args!("{:?}\n", func.get_orig_ir().as_ref().unwrap())).unwrap();
+            } else {
+                file.write_fmt(format_args!("Empty\n")).unwrap();
+            }
+        }
     }
 }
 
