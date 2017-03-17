@@ -121,6 +121,15 @@ macro_rules! define_block {
             body: vec![$($inst), *],
             keepalives: None
         });
+    };
+
+    (($vm: expr, $fv: ident) $name: ident ($($arg: ident), *) [$exn_arg: ident] {$($inst: ident), *}) => {
+        $name.content = Some(BlockContent{
+            args: vec![$($arg.clone_value()), *],
+            exn_arg: Some($exn_arg.clone_value()),
+            body: vec![$($inst), *],
+            keepalives: None
+        });
     }
 }
 
@@ -383,7 +392,7 @@ macro_rules! inst {
                     }
         });
     };
-    // CALL
+    // CALL (1 return result)
     (($vm: expr, $fv: ident) $name: ident:
         $res: ident = CALL ($($op: ident), *) FUNC($func: expr) ($args: expr) $cc: expr,
                       normal: $norm_dest: ident ($norm_args: expr),
@@ -411,6 +420,35 @@ macro_rules! inst {
             }
         });
     };
+    // CALL (no return value)
+    (($vm: expr, $fv: ident) $name: ident:
+        CALL ($($op: ident), *) FUNC($func: expr) ($args: expr) $cc: expr,
+                      normal: $norm_dest: ident ($norm_args: expr),
+                      exc: $exc_dest: ident ($exc_args: expr)) => {
+        let $name = $fv.new_inst(Instruction {
+            hdr  : MuEntityHeader::unnamed($vm.next_id()),
+            value: None,
+            ops  : RwLock::new(vec![$($op.clone()),*]),
+            v    : Instruction_::Call {
+                data: CallData {
+                    func: $func,
+                    args: $args,
+                    convention: $cc
+                },
+                resume: ResumptionData {
+                    normal_dest: Destination {
+                        target: $norm_dest.id(),
+                        args  : $norm_args
+                    },
+                    exn_dest: Destination {
+                        target: $exc_dest.id(),
+                        args  : $exc_args
+                    }
+                }
+            }
+        });
+    };
+
 
     // RET
     (($vm: expr, $fv: ident) $name: ident: RET ($($val: ident), +)) => {

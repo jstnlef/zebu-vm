@@ -159,6 +159,9 @@ pub trait MachineCode {
     
     fn get_succs(&self, index: usize) -> &Vec<usize>;
     fn get_preds(&self, index: usize) -> &Vec<usize>;
+
+    fn get_next_inst(&self, index: usize) -> Option<usize>;
+    fn get_last_inst(&self, index: usize) -> Option<usize>;
     
     fn get_inst_reg_uses(&self, index: usize) -> Vec<MuID>;
     fn get_inst_reg_defines(&self, index: usize) -> Vec<MuID>;

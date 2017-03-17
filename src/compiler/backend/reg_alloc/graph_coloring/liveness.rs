@@ -271,9 +271,15 @@ fn local_liveness_analysis (cf: &mut CompiledFunction) -> LinkedHashMap<String, 
             None => panic!("cannot find range for block {}", block)
         };
 
-        trace!("Block {}: start_inst={}, end_inst(inclusive)={}", block, range.start, range.end-1);
-        start_inst_map.insert(range.start, block);
-        end_inst_map.insert(range.end - 1, block);
+        let first_inst = range.start;
+        let last_inst = match mc.get_last_inst(range.end) {
+            Some(last) => last,
+            None => panic!("cannot find last instruction in block {}, this block contains no instruction?", block)
+        };
+        trace!("Block {}: start_inst={}, end_inst(inclusive)={}", block, first_inst, last_inst);
+
+        start_inst_map.insert(first_inst, block);
+        end_inst_map.insert(last_inst, block);
     }
 
     // local liveness analysis
@@ -324,7 +330,7 @@ fn local_liveness_analysis (cf: &mut CompiledFunction) -> LinkedHashMap<String, 
         let succs : Vec<String> = {
             let mut ret = vec![];
 
-            for succ in mc.get_succs(end - 1).into_iter() {
+            for succ in mc.get_succs(mc.get_last_inst(end).unwrap()).into_iter() {
                 match start_inst_map.get(succ) {
                     Some(str) => ret.push(String::from(*str)),
                     None => {}

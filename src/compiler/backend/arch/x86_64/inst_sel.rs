@@ -2384,7 +2384,7 @@ impl <'a> InstructionSelection {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
-            self.backend.emit_call_near_rel32(callsite, func_name);
+            self.backend.emit_call_near_rel32(callsite, func_name, None); // assume ccall wont throw exception
             
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -2512,6 +2512,16 @@ impl <'a> InstructionSelection {
             }
         }
         let stack_arg_size = self.emit_precall_convention(&arg_values, vm);
+
+        // check if this call has exception clause - need to tell backend about this
+        let potentially_excepting = {
+            if resumption.is_some() {
+                let target_id = resumption.unwrap().exn_dest.target;
+                Some(f_content.get_block(target_id).name().unwrap())
+            } else {
+                None
+            }
+        };
         
         trace!("generating call inst");
         // check direct call or indirect
@@ -2525,18 +2535,18 @@ impl <'a> InstructionSelection {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend.emit_call_near_rel32(callsite, target.name().unwrap())
+                    self.backend.emit_call_near_rel32(callsite, target.name().unwrap(), potentially_excepting)
                 }
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
                 
                 let callsite = self.new_callsite_label(Some(cur_node));
-                self.backend.emit_call_near_r64(callsite, &target)
+                self.backend.emit_call_near_r64(callsite, &target, potentially_excepting)
             } else if self.match_mem(func) {
                 let target = self.emit_mem(func, vm);
                 
                 let callsite = self.new_callsite_label(Some(cur_node));
-                self.backend.emit_call_near_mem64(callsite, &target)
+                self.backend.emit_call_near_mem64(callsite, &target, potentially_excepting)
             } else {
                 unimplemented!()
             }
