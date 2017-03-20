@@ -470,7 +470,7 @@ impl ASMCode {
             None
         } else {
             let mut cur = i;
-            while cur >= 0 {
+            loop {
                 if !asm[cur].is_symbol {
                     return Some(cur);
                 }
@@ -481,8 +481,6 @@ impl ASMCode {
                     cur -= 1;
                 }
             }
-
-            None
         }
     }
 

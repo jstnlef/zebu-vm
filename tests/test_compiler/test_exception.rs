@@ -312,7 +312,6 @@ fn throw_catch_dont_use_exception_arg() -> VM {
 }
 
 #[test]
-#[ignore]
 // issue: didn't restore callee-saved register correctly, temporarily ignore this test
 // FIXME: fix the bug
 fn test_exception_throw_catch_and_add() {
@@ -455,13 +454,23 @@ fn create_catch_exception_and_add(vm: &VM) {
     inst!       ((vm, catch_and_add_v1) blk_exception_px4:
         PRINTHEX ev4
     );
+    // load and print exc_arg
+    let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
+    ssa!        ((vm, catch_and_add_v1) <iref_int64> exc_iref);
+    inst!       ((vm, catch_and_add_v1) blk_exception_getiref:
+        exc_iref = GETIREF exc_arg
+    );
+    ssa!        ((vm, catch_and_add_v1) <int64> exc_val);
+    inst!       ((vm, catch_and_add_v1) blk_exception_load_exc:
+        exc_val = LOAD exc_iref (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
     inst!       ((vm, catch_and_add_v1) blk_exception_px5:
-        PRINTHEX exc_arg
+        PRINTHEX exc_val
     );
 
     ssa!        ((vm, catch_and_add_v1) <int64> res0);
     inst!       ((vm, catch_and_add_v1) blk_exception_add0:
-        res0 = BINOP (BinOp::Add) exc_arg ev0
+        res0 = BINOP (BinOp::Add) exc_val ev0
     );
 
     ssa!        ((vm, catch_and_add_v1) <int64> res1);
@@ -496,6 +505,9 @@ fn create_catch_exception_and_add(vm: &VM) {
         blk_exception_px2,
         blk_exception_px3,
         blk_exception_px4,
+
+        blk_exception_getiref,
+        blk_exception_load_exc,
         blk_exception_px5,
 
         blk_exception_add0,

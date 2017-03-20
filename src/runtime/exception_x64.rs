@@ -102,41 +102,21 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
             rwlock_cf.frame.clone()
         };
         trace!("frame info: {}", frame);
-        
-        // update callee saved register location
-        for reg in x86_64::CALLEE_SAVED_GPRs.iter() {
-            let reg_id = reg.id();
-            trace!("update callee saved register {}", reg_id);
-            if frame.allocated.contains_key(&reg_id) {
-                let offset_from_rbp = frame.allocated.get(&reg_id).unwrap().offset;
-                let reg_restore_addr = cursor.rbp.offset(offset_from_rbp);
-                
-                trace!("update callee saved register {} with loc 0x{:x}", reg_id, reg_restore_addr);
-                cursor.callee_saved_locs.insert(reg_id, reg_restore_addr);
-            } else {
-                // rbp won't find a location
-                if reg_id == x86_64::RBP.id() {
-                    
-                } else {
-                    info!("failed to find an entry for {} in current frame", reg_id);
-                }
-            }
-        }
-        
+
         // find exception block - comparing callsite with frame info
         trace!("checking catch block: looking for callsite 0x{:x}", callsite);
         let exception_callsites = frame.get_exception_callsites();
         for &(ref possible_callsite, ref dest) in exception_callsites.iter() {
             let possible_callsite_addr = possible_callsite.to_address();
             trace!("..check {} at 0x{:x}", possible_callsite, possible_callsite_addr);
-            
+
             if callsite == possible_callsite_addr {
                 trace!("found catch block at {}", dest);
                 // found an exception block
                 let dest_addr = dest.to_address();
-                
+
                 // restore callee saved register and jump to dest_addr
-                
+
                 // prepare a plain array [rbx, rbp, r12, r13, r14, r15]
                 macro_rules! unpack_callee_saved_from_cursor {
                     ($reg: expr) => {
@@ -149,7 +129,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
                         }
                     }
                 };
-                
+
                 let rbx = unpack_callee_saved_from_cursor!(x86_64::RBX);
                 let r12 = unpack_callee_saved_from_cursor!(x86_64::R12);
                 let r13 = unpack_callee_saved_from_cursor!(x86_64::R13);
@@ -157,16 +137,36 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
                 let r15 = unpack_callee_saved_from_cursor!(x86_64::R15);
                 let rbp = cursor.rbp.as_usize() as Word;
                 let array = vec![rbx, rbp, r12, r13, r14, r15];
-                
+
                 let rsp = cursor.rbp.offset(frame.cur_offset());
 
                 info!("going to restore thread to {} with RSP {}", dest_addr, rsp);
                 unsafe {thread::exception_restore(dest_addr, array.as_ptr(), rsp)};
-                
+
                 unreachable!()
             }
         }
         trace!("didnt find a catch block");
+
+        // update callee saved register location
+        for reg in x86_64::CALLEE_SAVED_GPRs.iter() {
+            let reg_id = reg.id();
+            trace!("update callee saved register {}", reg.name().unwrap());
+            if frame.allocated.contains_key(&reg_id) {
+                let offset_from_rbp = frame.allocated.get(&reg_id).unwrap().offset;
+                let reg_restore_addr = cursor.rbp.offset(offset_from_rbp);
+                
+                trace!("update callee saved register {} with loc 0x{:x}", reg.name().unwrap(), reg_restore_addr);
+                cursor.callee_saved_locs.insert(reg_id, reg_restore_addr);
+            } else {
+                // rbp won't find a location
+                if reg_id == x86_64::RBP.id() {
+                    info!("skip RBP");
+                } else {
+                    info!("failed to find an entry for {} in current frame", reg.name().unwrap());
+                }
+            }
+        }
         
         // keep unwinding
         callsite = cursor.return_addr;
@@ -239,7 +239,8 @@ impl fmt::Display for FrameCursor {
         writeln!(f, "  rbp=0x{:x}, return_addr=0x{:x}, func_id={}, func_version_id={}", self.rbp, self.return_addr, self.func_id, self.func_ver_id).unwrap();
         writeln!(f, "  callee_saved:").unwrap();
         for (reg, addr) in self.callee_saved_locs.iter() {
-            writeln!(f, "    #{} at 0x{:x}", reg, addr).unwrap()
+            let val = unsafe {addr.load::<u64>()};
+            writeln!(f, "    #{} at 0x{:x} (value=0x{:x}", reg, addr, val).unwrap()
         }
         writeln!(f, "}}")
     }
