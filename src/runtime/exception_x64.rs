@@ -240,7 +240,7 @@ impl fmt::Display for FrameCursor {
         writeln!(f, "  callee_saved:").unwrap();
         for (reg, addr) in self.callee_saved_locs.iter() {
             let val = unsafe {addr.load::<u64>()};
-            writeln!(f, "    #{} at 0x{:x} (value=0x{:x}", reg, addr, val).unwrap()
+            writeln!(f, "    #{} at 0x{:x} (value=0x{:x})", reg, addr, val).unwrap()
         }
         writeln!(f, "}}")
     }

@@ -312,8 +312,6 @@ fn throw_catch_dont_use_exception_arg() -> VM {
 }
 
 #[test]
-// issue: didn't restore callee-saved register correctly, temporarily ignore this test
-// FIXME: fix the bug
 fn test_exception_throw_catch_and_add() {
     VM::start_logging_trace();
     let vm = Arc::new(throw_catch_and_add());
@@ -437,7 +435,9 @@ fn create_catch_exception_and_add(vm: &VM) {
     ssa!        ((vm, catch_and_add_v1) <int64> ev2);
     ssa!        ((vm, catch_and_add_v1) <int64> ev3);
     ssa!        ((vm, catch_and_add_v1) <int64> ev4);
-    ssa!        ((vm, catch_and_add_v1) <int64> exc_arg);
+    let ref_int64  = vm.get_type(vm.id_of("ref_int64"));
+    let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
+    ssa!        ((vm, catch_and_add_v1) <ref_int64> exc_arg);
 
     inst!       ((vm, catch_and_add_v1) blk_exception_px0:
         PRINTHEX ev0
@@ -455,7 +455,6 @@ fn create_catch_exception_and_add(vm: &VM) {
         PRINTHEX ev4
     );
     // load and print exc_arg
-    let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
     ssa!        ((vm, catch_and_add_v1) <iref_int64> exc_iref);
     inst!       ((vm, catch_and_add_v1) blk_exception_getiref:
         exc_iref = GETIREF exc_arg
@@ -522,5 +521,156 @@ fn create_catch_exception_and_add(vm: &VM) {
 
     define_func_ver!((vm) catch_and_add_v1 (entry: blk_entry) {
         blk_entry, blk_main, blk_normal, blk_exception
+    });
+}
+
+#[test]
+fn test_exception_throw_catch_twice() {
+    VM::start_logging_trace();
+    let vm = Arc::new(throw_catch_twice());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_throw = vm.id_of("throw_exception");
+    let func_catch = vm.id_of("catch_twice");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_throw).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_catch).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_catch, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_twice")], "throw_catch_twice", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    // throw 1 twice, add 1 and 1 (equals 2)
+    assert!(output.status.code().is_some());
+    assert_eq!(output.status.code().unwrap(), 2);
+}
+
+fn throw_catch_twice() -> VM {
+    let vm = VM::new();
+
+    declare_commons(&vm);
+
+    create_throw_exception_func(&vm);
+    create_catch_twice(&vm);
+
+    vm
+}
+
+fn create_catch_twice(vm: &VM) {
+    let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
+    let throw_exception_id  = vm.id_of("throw_exception");
+
+    let ref_int64  = vm.get_type(vm.id_of("ref_int64"));
+    let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
+    let int64      = vm.get_type(vm.id_of("int64"));
+
+    typedef!    ((vm) type_funcref_throw_exception = mu_funcref(throw_exception_sig));
+    constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception = Constant::FuncRef(throw_exception_id));
+
+    funcsig!    ((vm) catch_exception_sig = () -> ());
+    funcdecl!   ((vm) <catch_exception_sig> catch_twice);
+    funcdef!    ((vm) <catch_exception_sig> catch_twice VERSION catch_twice_v1);
+
+    // blk_entry
+    block!      ((vm, catch_twice_v1) blk_entry);
+    block!      ((vm, catch_twice_v1) blk_normal);
+    block!      ((vm, catch_twice_v1) blk_exception1);
+    consta!     ((vm, catch_twice_v1) funcref_throw_local = const_funcref_throw_exception);
+    inst!       ((vm, catch_twice_v1) blk_entry_call:
+        CALL (funcref_throw_local) FUNC(0) (vec![]) CallConvention::Mu,
+            normal: blk_normal (vec![]),
+            exc   : blk_exception1 (vec![])
+    );
+
+    define_block!((vm, catch_twice_v1) blk_entry() {
+        blk_entry_call
+    });
+
+    // blk_normal
+    inst!       ((vm, catch_twice_v1) blk_normal_threadexit:
+        THREADEXIT
+    );
+    define_block!((vm, catch_twice_v1) blk_normal() {
+        blk_normal_threadexit
+    });
+
+    // blk_exception1
+    block!      ((vm, catch_twice_v1) blk_exception2);
+    ssa!        ((vm, catch_twice_v1) <ref_int64> exc_arg1);
+    inst!       ((vm, catch_twice_v1) blk_exception1_call:
+        CALL (funcref_throw_local, exc_arg1) FUNC(0) (vec![]) CallConvention::Mu,
+            normal: blk_normal (vec![]),
+            exc   : blk_exception2 (vec![DestArg::Normal(1)])
+    );
+    define_block!((vm, catch_twice_v1) blk_exception1() [exc_arg1] {
+        blk_exception1_call
+    });
+
+    // blk_exception2
+    ssa!        ((vm, catch_twice_v1) <ref_int64> blk_exception2_exc_arg1);
+    ssa!        ((vm, catch_twice_v1) <ref_int64> exc_arg2);
+
+    ssa!        ((vm, catch_twice_v1) <iref_int64> blk_exception2_iref_exc1);
+    inst!       ((vm, catch_twice_v1) blk_exception2_getiref1:
+        blk_exception2_iref_exc1 = GETIREF blk_exception2_exc_arg1
+    );
+    ssa!        ((vm, catch_twice_v1) <int64> exc_arg1_val);
+    inst!       ((vm, catch_twice_v1) blk_exception2_load1:
+        exc_arg1_val = LOAD blk_exception2_iref_exc1 (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    ssa!        ((vm, catch_twice_v1) <iref_int64> blk_exception2_iref_exc2);
+    inst!       ((vm, catch_twice_v1) blk_exception2_getiref2:
+        blk_exception2_iref_exc2 = GETIREF exc_arg2
+    );
+    ssa!        ((vm, catch_twice_v1) <int64> exc_arg2_val);
+    inst!       ((vm, catch_twice_v1) blk_exception2_load2:
+        exc_arg2_val = LOAD blk_exception2_iref_exc2 (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    ssa!        ((vm, catch_twice_v1) <int64> res);
+    inst!       ((vm, catch_twice_v1) blk_exception2_add:
+        res = BINOP (BinOp::Add) exc_arg1_val exc_arg2_val
+    );
+
+    let blk_exception2_exit = gen_ccall_exit(res.clone(), &mut catch_twice_v1, &vm);
+
+    inst!       ((vm, catch_twice_v1) blk_exception2_ret:
+        RET (res)
+    );
+
+    define_block!   ((vm, catch_twice_v1) blk_exception2(blk_exception2_exc_arg1) [exc_arg2] {
+        blk_exception2_getiref1,
+        blk_exception2_load1,
+        blk_exception2_getiref2,
+        blk_exception2_load2,
+
+        blk_exception2_add,
+        blk_exception2_exit,
+        blk_exception2_ret
+    });
+
+    define_func_ver!((vm) catch_twice_v1 (entry: blk_entry) {
+        blk_entry,
+        blk_normal,
+        blk_exception1,
+        blk_exception2
     });
 }
