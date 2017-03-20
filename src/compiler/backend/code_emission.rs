@@ -101,7 +101,7 @@ fn emit_muir_dot(func: &MuFunctionVersion, vm: &VM) {
             Ok(file) => file
         };
 
-        emit_muir_dot_inner(&mut file, func_name.clone(), func.get_orig_ir().unwrap(), vm);
+        emit_muir_dot_inner(&mut file, func_name.clone(), func.get_orig_ir().unwrap());
     }
 
     // final
@@ -115,14 +115,13 @@ fn emit_muir_dot(func: &MuFunctionVersion, vm: &VM) {
             Ok(file) => file
         };
 
-        emit_muir_dot_inner(&mut file, func_name.clone(), func.content.as_ref().unwrap(), vm);
+        emit_muir_dot_inner(&mut file, func_name.clone(), func.content.as_ref().unwrap());
     }
 }
 
 fn emit_muir_dot_inner(file: &mut File,
                        f_name: String,
-                       f_content: &FunctionContent,
-                       vm: &VM) {
+                       f_content: &FunctionContent) {
     use utils::vec_utils;
 
     // digraph func {

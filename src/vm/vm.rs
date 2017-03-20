@@ -601,7 +601,7 @@ impl <'a> VM {
     fn declare_const_internal(&self, map: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>, id: MuID, val: P<Value>) {
         debug_assert!(!map.contains_key(&id));
 
-        info!("declare const #{} = {}", id, val);
+        trace!("declare const #{} = {}", id, val);
         map.insert(id, val);
     }
     
@@ -695,17 +695,17 @@ impl <'a> VM {
 
         types.insert(id, ty.clone());
 
-        info!("declare type #{} = {}", id, ty);
+        trace!("declare type #{} = {}", id, ty);
         if ty.is_struct() {
             let tag = ty.get_struct_hybrid_tag().unwrap();
             let struct_map_guard = STRUCT_TAG_MAP.read().unwrap();
             let struct_inner = struct_map_guard.get(&tag).unwrap();
-            info!("  {}", struct_inner);
+            trace!("  {}", struct_inner);
         } else if ty.is_hybrid() {
             let tag = ty.get_struct_hybrid_tag().unwrap();
             let hybrid_map_guard = HYBRID_TAG_MAP.read().unwrap();
             let hybrid_inner = hybrid_map_guard.get(&tag).unwrap();
-            info!("  {}", hybrid_inner);
+            trace!("  {}", hybrid_inner);
         }
     }
     

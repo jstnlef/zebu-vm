@@ -1974,7 +1974,9 @@ impl <'a> InstructionSelection {
         // new block (no livein)
         self.current_block = Some(slowpath.clone());
         self.backend.start_block(slowpath.clone());
-        self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
+        if size.is_int_reg() {
+            self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
+        }
 
         // arg1: allocator address
         // arg2: size

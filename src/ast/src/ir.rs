@@ -637,7 +637,6 @@ impl TreeNode {
         match self.v {
             TreeNode_::Value(ref val) => val.clone(),
             TreeNode_::Instruction(ref inst) => {
-                warn!("expecting a value, but we found an inst. Instead we use its first value");
                 let vals = inst.value.as_ref().unwrap();
                 if vals.len() != 1 {
                     panic!("we expect an inst with 1 value, but found multiple or zero (it should not be here - folded as a child)");
@@ -929,7 +928,7 @@ impl fmt::Display for Constant {
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
 //            &Constant::IRef(v) => write!(f, "{}", v),
-            &Constant::FuncRef(v) => write!(f, "{}", v),
+            &Constant::FuncRef(v) => write!(f, "FuncRef {}", v),
             &Constant::Vector(ref v) => {
                 write!(f, "[").unwrap();
                 for i in 0..v.len() {
