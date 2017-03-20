@@ -765,6 +765,7 @@ impl Value {
 }
 
 const DISPLAY_TYPE : bool = false;
+const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1084,8 +1085,6 @@ impl PartialEq for MuEntityHeader {
     }
 }
 
-const PRINT_ABBREVIATE_NAME: bool = false;
-
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.name().is_none() {
@@ -1093,11 +1092,23 @@ impl fmt::Display for MuEntityHeader {
         } else {
             if PRINT_ABBREVIATE_NAME {
                 let name = self.name().unwrap().clone();
-                let abbr_name = name.split('.').map(
-                    |x| match x.chars().next() {
-                        Some(c) => c,
-                        None => '_'
-                    }).fold("".to_string(), |mut acc, x| {acc.push(x); acc});
+                let abbr_name = {
+                    let split : Vec<&str> = name.split('.').collect();
+
+                    let mut ret = "".to_string();
+
+                    for i in 0..split.len()-1 {
+                        ret.push(match split[i].chars().next() {
+                            Some(c) => c,
+                            None => '_'
+                        });
+                        ret.push('.');
+                    }
+
+                    ret.push_str(split.last().unwrap());
+
+                    ret
+                };
                 write!(f, "{} #{}", abbr_name, self.id)
             } else {
                 write!(f, "{} #{}", self.name().unwrap(), self.id)
