@@ -17,6 +17,7 @@ VM:
 Compiler:
   --disable-inline                      disable compiler function inlining
   --disable-regalloc-validate           disable register allocation validation
+  --emit-debug-info                     emit debugging information
 
 AOT Compiler:
   --aot-emit-dir=<dir>                  the emit directory for ahead-of-time compiling [default: emit]
@@ -33,14 +34,20 @@ Garbage Collection:
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct VMOptions {
+    // VM
     pub flag_log_level: MuLogLevel,
+
+    // Compiler
     pub flag_disable_inline: bool,
     pub flag_disable_regalloc_validate: bool,
+    pub flag_emit_debug_info: bool,
 
+    // AOT compiler
     pub flag_aot_emit_dir: String,
     pub flag_bootimage_external_lib: Vec<String>,
     pub flag_bootimage_external_libpath: Vec<String>,
 
+    // GC
     pub flag_gc_disable_collection: bool,
     pub flag_gc_immixspace_size: usize,
     pub flag_gc_lospace_size: usize,
@@ -64,6 +71,8 @@ impl VMOptions {
 
         // at the moment disable collection for debugging
         ret.flag_gc_disable_collection = true;
+        // at the moment always emit debug info
+        ret.flag_emit_debug_info = true;
 
         ret
     }

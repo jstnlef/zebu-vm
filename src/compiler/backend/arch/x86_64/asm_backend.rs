@@ -1997,6 +1997,25 @@ impl CodeGenerator for ASMCodeGen {
         }
     }
 
+    fn add_cfi_startproc(&mut self) {
+        self.add_asm_symbolic(".cfi_startproc".to_string());
+    }
+    fn add_cfi_endproc(&mut self) {
+        self.add_asm_symbolic(".cfi_endproc".to_string());
+    }
+
+    fn add_cfi_def_cfa_register(&mut self, reg: Reg) {
+        let reg = self.asm_reg_op(reg);
+        self.add_asm_symbolic(format!(".cfi_def_cfa_register {}", reg));
+    }
+    fn add_cfi_def_cfa_offset(&mut self, offset: i32) {
+        self.add_asm_symbolic(format!(".cfi_def_cfa_offset {}", offset));
+    }
+    fn add_cfi_offset(&mut self, reg: Reg, offset: i32) {
+        let reg = self.asm_reg_op(reg);
+        self.add_asm_symbolic(format!(".cfi_offset {}, {}", reg, offset));
+    }
+
     fn emit_frame_grow(&mut self) {
         trace!("emit frame grow");
 
