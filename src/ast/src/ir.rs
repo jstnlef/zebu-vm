@@ -1068,6 +1068,8 @@ impl MuEntityHeader {
     }
 
     pub fn name_check(name: MuName) -> MuName {
+        let name = name.replace('.', "$");
+
         if name.starts_with("@") || name.starts_with("%") {
             let (_, name) = name.split_at(1);
 
@@ -1075,6 +1077,29 @@ impl MuEntityHeader {
         }
 
         name
+    }
+
+    fn abbreviate_name(&self) -> Option<MuName> {
+        match self.name() {
+            Some(name) => {
+                let split: Vec<&str> = name.split('$').collect();
+
+                let mut ret = "".to_string();
+
+                for i in 0..split.len() - 1 {
+                    ret.push(match split[i].chars().next() {
+                        Some(c) => c,
+                        None => '_'
+                    });
+                    ret.push('.');
+                }
+
+                ret.push_str(split.last().unwrap());
+
+                Some(ret)
+            }
+            None => None
+        }
     }
 }
 
@@ -1090,25 +1115,7 @@ impl fmt::Display for MuEntityHeader {
             write!(f, "UNNAMED #{}", self.id)
         } else {
             if PRINT_ABBREVIATE_NAME {
-                let name = self.name().unwrap().clone();
-                let abbr_name = {
-                    let split : Vec<&str> = name.split('.').collect();
-
-                    let mut ret = "".to_string();
-
-                    for i in 0..split.len()-1 {
-                        ret.push(match split[i].chars().next() {
-                            Some(c) => c,
-                            None => '_'
-                        });
-                        ret.push('.');
-                    }
-
-                    ret.push_str(split.last().unwrap());
-
-                    ret
-                };
-                write!(f, "{} #{}", abbr_name, self.id)
+                write!(f, "{} #{}", self.abbreviate_name().unwrap(), self.id)
             } else {
                 write!(f, "{} #{}", self.name().unwrap(), self.id)
             }
