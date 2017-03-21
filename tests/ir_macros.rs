@@ -358,7 +358,7 @@ macro_rules! inst {
     };
 
     // EXPRCALL
-    (($vm: expr, $fv: ident) $name: ident: $res: ident = EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), +)) => {
+    (($vm: expr, $fv: ident) $name: ident: $res: ident = EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), *)) => {
         let ops = vec![$func.clone(), $($val.clone()), *];
         let ops_len = ops.len();
         let $name = $fv.new_inst(Instruction{
@@ -375,7 +375,7 @@ macro_rules! inst {
                     }
         });
     };
-    (($vm: expr, $fv: ident) $name: ident: EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), +)) => {
+    (($vm: expr, $fv: ident) $name: ident: EXPRCALL ($cc: expr, is_abort: $is_abort: expr) $func: ident ($($val: ident), *)) => {
         let ops = vec![$func.clone(), $($val.clone()), *];
         let ops_len = ops.len();
         let $name = $fv.new_inst(Instruction{
