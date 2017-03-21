@@ -146,6 +146,7 @@ pub trait MachineCode {
     fn trace_inst(&self, index: usize);
     
     fn emit(&self) -> Vec<u8>;
+    fn emit_inst(&self, index: usize) -> Vec<u8>;
     
     fn number_of_insts(&self) -> usize;
     
@@ -175,6 +176,7 @@ pub trait MachineCode {
     fn get_entry_block(&self) -> MuName;
     // returns [start_inst, end_inst) // end_inst not included
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
+    fn get_block_for_inst(&self, index: usize) -> Option<MuName>;
 
     // functions for rewrite
 

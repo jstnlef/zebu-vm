@@ -650,8 +650,9 @@ impl MachineCode for ASMCode {
     }
     
     fn set_inst_nop(&mut self, index: usize) {
-        self.code.remove(index);
-        self.code.insert(index, ASMInst::nop());
+        self.code[index].code.clear();
+//        self.code.remove(index);
+//        self.code.insert(index, ASMInst::nop());
     }
 
     fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID> {
@@ -738,6 +739,20 @@ impl MachineCode for ASMCode {
         
         ret
     }
+
+    fn emit_inst(&self, index: usize) -> Vec<u8> {
+        let mut ret = vec![];
+
+        let ref inst = self.code[index];
+
+        if !inst.is_symbol {
+            ret.append(&mut "\t".to_string().into_bytes());
+        }
+
+        ret.append(&mut inst.code.clone().into_bytes());
+
+        ret
+    }
     
     fn trace_mc(&self) {
         trace!("");
@@ -795,6 +810,16 @@ impl MachineCode for ASMCode {
             Some(ref block) => Some(block.start_inst..block.end_inst),
             None => None
         }
+    }
+
+    fn get_block_for_inst(&self, index: usize) -> Option<MuName> {
+        for (name, block) in self.blocks.iter() {
+            if index >= block.start_inst && index < block.end_inst {
+                return Some(name.clone());
+            }
+        }
+
+        None
     }
 
     fn get_next_inst(&self, index: usize) -> Option<usize> {

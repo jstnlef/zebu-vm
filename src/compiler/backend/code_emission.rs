@@ -9,14 +9,27 @@ use std::any::Any;
 use std::path;
 use std::io::prelude::*;
 use std::fs::File;
+use std::collections::HashMap;
 
 const EMIT_MUIR : bool = true;
+const EMIT_MC_DOT : bool = true;
 
 pub fn create_emit_directory(vm: &VM) {
     use std::fs;
     match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
         Ok(_) => {},
         Err(_) => {}
+    }
+}
+
+fn create_emit_file(name: String, vm: &VM) -> File {
+    let mut file_path = path::PathBuf::new();
+    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(name);
+
+    match File::create(file_path.as_path()) {
+        Err(why) => panic!("couldn't create emit file {}: {}", file_path.to_str().unwrap(), why),
+        Ok(file) => file
     }
 }
 
@@ -128,12 +141,12 @@ fn emit_muir_dot_inner(file: &mut File,
     file.write_fmt(format_args!("digraph {} {{\n", f_name)).unwrap();
 
     // node shape: rect
-    file.write("node [shape=rect];".as_bytes()).unwrap();
+    file.write("node [shape=rect];\n".as_bytes()).unwrap();
 
     // every graph node (basic block)
     for (id, block) in f_content.blocks.iter() {
         let block_name = block.name().unwrap();
-        // BBid: [label = "name
+        // BBid [label = "name
         file.write_fmt(format_args!("BB{} [label = \"{} ", *id, &block_name)).unwrap();
 
         let block_content = block.content.as_ref().unwrap();
@@ -257,6 +270,77 @@ fn emit_muir_dot_inner(file: &mut File,
     file.write("}".as_bytes()).unwrap();
 }
 
+fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
+    let func_name = match func.name() {
+        Some(name) => name,
+        None => {
+            // use func name
+            vm.name_of(func.func_id)
+        }
+    };
+
+    // create emit directory/file
+    create_emit_directory(vm);
+    let mut file = create_emit_file(func_name.clone() + "_mc.dot", &vm);
+
+    // diagraph func {
+    file.write_fmt(format_args!("digraph {} {{\n", func_name)).unwrap();
+    // node shape: rect
+    file.write("node [shape=rect];\n".as_bytes()).unwrap();
+
+    let compiled_funcs = vm.compiled_funcs().read().unwrap();
+    let cf = compiled_funcs.get(&func.id()).unwrap().read().unwrap();
+    let mc = cf.mc();
+
+    let blocks = mc.get_all_blocks();
+
+    type DotID = usize;
+    let name_id_map : HashMap<MuName, DotID> = {
+        let mut ret = HashMap::new();
+        let mut index = 0;
+
+        for block_name in blocks.iter() {
+            ret.insert(block_name.clone(), index);
+            index += 1;
+        }
+
+        ret
+    };
+    let id = |x: MuName| name_id_map.get(&x).unwrap();
+
+    for block_name in blocks.iter() {
+        // BB [label = "
+        file.write_fmt(format_args!("{} [label = \"{}:\\n\\n", id(block_name.clone()), block_name)).unwrap();
+
+        for inst in mc.get_block_range(&block_name).unwrap() {
+            file.write(&mc.emit_inst(inst)).unwrap();
+            file.write("\\l".as_bytes()).unwrap();
+        }
+
+        // "];
+        file.write("\"];\n".as_bytes()).unwrap();
+    }
+
+    for block_name in blocks.iter() {
+        let end_inst = mc.get_block_range(block_name).unwrap().end;
+
+        for succ in mc.get_succs(mc.get_last_inst(end_inst).unwrap()).into_iter() {
+            match mc.get_block_for_inst(*succ) {
+                Some(target) => {
+                    let source_id = id(block_name.clone());
+                    let target_id = id(target.clone());
+                    file.write_fmt(format_args!("{} -> {};\n", source_id, target_id)).unwrap();
+                }
+                None => {
+                    panic!("cannot find block for inst {}", succ);
+                }
+            }
+        }
+    }
+
+    file.write("}".as_bytes()).unwrap();
+}
+
 impl CompilerPass for CodeEmission {
     fn name(&self) -> &'static str {
         self.name
@@ -271,6 +355,10 @@ impl CompilerPass for CodeEmission {
 
         if EMIT_MUIR {
             emit_muir_dot(func, vm);
+        }
+
+        if EMIT_MC_DOT {
+            emit_mc_dot(func, vm);
         }
     }
 }
