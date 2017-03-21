@@ -850,14 +850,14 @@ fn coalesce_branch2_moves() -> VM {
 }
 
 #[test]
-fn test_preserve_caller_saved() {
+fn test_preserve_caller_saved_simple() {
     VM::start_logging_trace();
-    let vm = Arc::new(preserve_caller_saved());
+    let vm = Arc::new(preserve_caller_saved_simple());
 
     let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
     let func_foo = vm.id_of("foo");
-    let func_preserve_caller_saved = vm.id_of("preserve_caller_saved");
+    let func_preserve_caller_saved_simple = vm.id_of("preserve_caller_saved_simple");
     {
         let funcs = vm.funcs().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
@@ -869,17 +869,17 @@ fn test_preserve_caller_saved() {
             compiler.compile(&mut func_ver);
         }
         {
-            let func = funcs.get(&func_preserve_caller_saved).unwrap().read().unwrap();
+            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
             let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
 
             compiler.compile(&mut func_ver);
         }
     }
 
-    vm.make_primordial_thread(func_preserve_caller_saved, true, vec![]);
+    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("foo"), Mu("preserve_caller_saved")], "test_preserve_caller_saved", &vm);
+    let executable = aot::link_primordial(vec![Mu("foo"), Mu("preserve_caller_saved_simple")], "test_preserve_caller_saved_simple", &vm);
     let output = aot::execute_nocheck(executable);
 
     // add from 0 to 9
@@ -887,7 +887,7 @@ fn test_preserve_caller_saved() {
     assert_eq!(output.status.code().unwrap(), 45);
 }
 
-fn preserve_caller_saved() -> VM {
+fn preserve_caller_saved_simple() -> VM {
     let vm = VM::new_with_opts("init_mu --disable-inline");
 
     create_empty_func_foo(&vm);
@@ -906,24 +906,24 @@ fn preserve_caller_saved() -> VM {
     constdef!   ((vm) <int64> int64_9 = Constant::Int(9));
 
     funcsig!    ((vm) sig = () -> ());
-    funcdecl!   ((vm) <sig> preserve_caller_saved);
-    funcdef!    ((vm) <sig> preserve_caller_saved VERSION preserve_caller_saved_v1);
+    funcdecl!   ((vm) <sig> preserve_caller_saved_simple);
+    funcdef!    ((vm) <sig> preserve_caller_saved_simple VERSION preserve_caller_saved_simple_v1);
 
     // blk entry
-    block!      ((vm, preserve_caller_saved_v1) blk_entry);
-    block!      ((vm, preserve_caller_saved_v1) blk_main);
+    block!      ((vm, preserve_caller_saved_simple_v1) blk_entry);
+    block!      ((vm, preserve_caller_saved_simple_v1) blk_main);
 
-    consta!   ((vm, preserve_caller_saved_v1)  int64_0_local = int64_0);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_1_local = int64_1);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_2_local = int64_2);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_3_local = int64_3);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_4_local = int64_4);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_5_local = int64_5);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_6_local = int64_6);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_7_local = int64_7);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_8_local = int64_8);
-    consta!   ((vm, preserve_caller_saved_v1)  int64_9_local = int64_9);
-    inst!       ((vm, preserve_caller_saved_v1) blk_entry_branch:
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_0_local = int64_0);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_1_local = int64_1);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_2_local = int64_2);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_3_local = int64_3);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_4_local = int64_4);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_5_local = int64_5);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_6_local = int64_6);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_7_local = int64_7);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_8_local = int64_8);
+    consta!   ((vm, preserve_caller_saved_simple_v1)  int64_9_local = int64_9);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_entry_branch:
         BRANCH blk_main (
              int64_0_local,
              int64_1_local,
@@ -938,84 +938,84 @@ fn preserve_caller_saved() -> VM {
         )
     );
 
-    define_block!   ((vm, preserve_caller_saved_v1) blk_entry() {
+    define_block!   ((vm, preserve_caller_saved_simple_v1) blk_entry() {
         blk_entry_branch
     });
 
     // blk main
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v0);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v1);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v2);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v3);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v4);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v5);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v6);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v7);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v8);
-    ssa!    ((vm, preserve_caller_saved_v1) <int64> v9);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v0);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v1);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v2);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v3);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v4);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v5);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v6);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v7);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v8);
+    ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v9);
 
     let foo_sig = vm.get_func_sig(vm.id_of("foo_sig"));
     let foo_id  = vm.id_of("foo");
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
     constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
 
-    consta!     ((vm, preserve_caller_saved_v1) const_funcref_foo_local = const_funcref_foo);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_call:
+    consta!     ((vm, preserve_caller_saved_simple_v1) const_funcref_foo_local = const_funcref_foo);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_call:
         EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo_local ()
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res1);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add1:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res1);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add1:
         res1 = BINOP (BinOp::Add) v0 v1
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res2);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add2:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res2);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add2:
         res2 = BINOP (BinOp::Add) res1 v2
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res3);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add3:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res3);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add3:
         res3 = BINOP (BinOp::Add) res2 v3
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res4);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add4:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res4);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add4:
         res4 = BINOP (BinOp::Add) res3 v4
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res5);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add5:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res5);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add5:
         res5 = BINOP (BinOp::Add) res4 v5
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res6);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add6:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res6);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add6:
         res6 = BINOP (BinOp::Add) res5 v6
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res7);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add7:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res7);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add7:
         res7 = BINOP (BinOp::Add) res6 v7
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res8);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add8:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res8);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add8:
         res8 = BINOP (BinOp::Add) res7 v8
     );
 
-    ssa!        ((vm, preserve_caller_saved_v1) <int64> res9);
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_add9:
+    ssa!        ((vm, preserve_caller_saved_simple_v1) <int64> res9);
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_add9:
         res9 = BINOP (BinOp::Add) res8 v9
     );
 
-    let blk_main_exit = gen_ccall_exit(res9.clone(), &mut preserve_caller_saved_v1, &vm);
+    let blk_main_exit = gen_ccall_exit(res9.clone(), &mut preserve_caller_saved_simple_v1, &vm);
 
-    inst!       ((vm, preserve_caller_saved_v1) blk_main_ret:
+    inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_ret:
         RET
     );
 
-    define_block!   ((vm, preserve_caller_saved_v1) blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
+    define_block!   ((vm, preserve_caller_saved_simple_v1) blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
         blk_main_call,
 
         blk_main_add1,
@@ -1032,7 +1032,7 @@ fn preserve_caller_saved() -> VM {
         blk_main_ret
     });
 
-    define_func_ver!((vm) preserve_caller_saved_v1 (entry: blk_entry) {
+    define_func_ver!((vm) preserve_caller_saved_simple_v1 (entry: blk_entry) {
         blk_entry,
         blk_main
     });
@@ -1055,4 +1055,214 @@ fn create_empty_func_foo(vm: &VM) {
     });
 
     define_func_ver!((vm) foo_v1 (entry: blk_entry) {blk_entry});
+}
+
+#[test]
+fn test_preserve_caller_saved_call_args() {
+    VM::start_logging_trace();
+    let vm = Arc::new(preserve_caller_saved_call_args());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_foo = vm.id_of("foo6");
+    let func_preserve_caller_saved_simple = vm.id_of("preserve_caller_saved_call_args");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_foo).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("foo6"), Mu("preserve_caller_saved_call_args")], "test_preserve_caller_saved_call_args", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    // add from 0 to 9
+    assert!(output.status.code().is_some());
+    assert_eq!(output.status.code().unwrap(), 45);
+}
+
+fn preserve_caller_saved_call_args() -> VM {
+    let vm = VM::new_with_opts("init_mu --disable-inline");
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    create_empty_func_foo6(&vm);
+
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+    constdef!   ((vm) <int64> int64_2 = Constant::Int(2));
+    constdef!   ((vm) <int64> int64_3 = Constant::Int(3));
+    constdef!   ((vm) <int64> int64_4 = Constant::Int(4));
+    constdef!   ((vm) <int64> int64_5 = Constant::Int(5));
+    constdef!   ((vm) <int64> int64_6 = Constant::Int(6));
+    constdef!   ((vm) <int64> int64_7 = Constant::Int(7));
+    constdef!   ((vm) <int64> int64_8 = Constant::Int(8));
+    constdef!   ((vm) <int64> int64_9 = Constant::Int(9));
+
+    funcsig!    ((vm) sig = () -> ());
+    funcdecl!   ((vm) <sig> preserve_caller_saved_call_args);
+    funcdef!    ((vm) <sig> preserve_caller_saved_call_args VERSION preserve_caller_saved_call_args_v1);
+
+    // blk entry
+    block!      ((vm, preserve_caller_saved_call_args_v1) blk_entry);
+    block!      ((vm, preserve_caller_saved_call_args_v1) blk_main);
+
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_0_local = int64_0);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_1_local = int64_1);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_2_local = int64_2);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_3_local = int64_3);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_4_local = int64_4);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_5_local = int64_5);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_6_local = int64_6);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_7_local = int64_7);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_8_local = int64_8);
+    consta!   ((vm, preserve_caller_saved_call_args_v1)  int64_9_local = int64_9);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_entry_branch:
+        BRANCH blk_main (
+             int64_0_local,
+             int64_1_local,
+             int64_2_local,
+             int64_3_local,
+             int64_4_local,
+             int64_5_local,
+             int64_6_local,
+             int64_7_local,
+             int64_8_local,
+             int64_9_local
+        )
+    );
+
+    define_block!   ((vm, preserve_caller_saved_call_args_v1) blk_entry() {
+        blk_entry_branch
+    });
+
+    // blk main
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v0);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v1);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v2);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v3);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v4);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v5);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v6);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v7);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v8);
+    ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v9);
+
+    let foo_sig = vm.get_func_sig(vm.id_of("foo6_sig"));
+    let foo_id  = vm.id_of("foo6");
+    typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
+
+    consta!     ((vm, preserve_caller_saved_call_args_v1) const_funcref_foo_local = const_funcref_foo);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_call:
+        EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo_local (v0, v1, v2, v3, v4, v5)
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res1);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add1:
+        res1 = BINOP (BinOp::Add) v0 v1
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res2);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add2:
+        res2 = BINOP (BinOp::Add) res1 v2
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res3);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add3:
+        res3 = BINOP (BinOp::Add) res2 v3
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res4);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add4:
+        res4 = BINOP (BinOp::Add) res3 v4
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res5);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add5:
+        res5 = BINOP (BinOp::Add) res4 v5
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res6);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add6:
+        res6 = BINOP (BinOp::Add) res5 v6
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res7);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add7:
+        res7 = BINOP (BinOp::Add) res6 v7
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res8);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add8:
+        res8 = BINOP (BinOp::Add) res7 v8
+    );
+
+    ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res9);
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_add9:
+        res9 = BINOP (BinOp::Add) res8 v9
+    );
+
+    let blk_main_exit = gen_ccall_exit(res9.clone(), &mut preserve_caller_saved_call_args_v1, &vm);
+
+    inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_ret:
+        RET
+    );
+
+    define_block!   ((vm, preserve_caller_saved_call_args_v1) blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
+        blk_main_call,
+
+        blk_main_add1,
+        blk_main_add2,
+        blk_main_add3,
+        blk_main_add4,
+        blk_main_add5,
+        blk_main_add6,
+        blk_main_add7,
+        blk_main_add8,
+        blk_main_add9,
+
+        blk_main_exit,
+        blk_main_ret
+    });
+
+    define_func_ver!((vm) preserve_caller_saved_call_args_v1 (entry: blk_entry) {
+        blk_entry,
+        blk_main
+    });
+
+    vm
+}
+
+fn create_empty_func_foo6(vm: &VM) {
+    let int64 = vm.get_type(vm.id_of("int64"));
+
+    funcsig!    ((vm) foo6_sig = (int64, int64, int64, int64, int64, int64) -> ());
+    funcdecl!   ((vm) <foo6_sig> foo6);
+    funcdef!    ((vm) <foo6_sig> foo6 VERSION foo6_v1);
+
+    block!      ((vm, foo6_v1) blk_entry);
+    inst!       ((vm, foo6_v1) blk_entry_ret:
+        RET
+    );
+
+    define_block!   ((vm, foo6_v1) blk_entry() {
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) foo6_v1 (entry: blk_entry) {blk_entry});
 }
