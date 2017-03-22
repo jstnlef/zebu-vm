@@ -2034,6 +2034,19 @@ impl <'a> InstructionSelection {
         self.backend.emit_lea_r64(dest, &mem);
     }
 
+    fn emit_push(&mut self, op: &P<Value>) {
+        if op.is_int_const() {
+            if x86_64::is_valid_x86_imm(op) {
+                let int = op.extract_int_const();
+                self.backend.emit_push_imm32(int as i32);
+            } else {
+                unimplemented!();
+            }
+        } else {
+            self.backend.emit_push_r64(op);
+        }
+    }
+
     fn emit_udiv (
         &mut self,
         op1: &TreeNode, op2: &TreeNode,
@@ -2282,11 +2295,9 @@ impl <'a> InstructionSelection {
             {
                 let mut index = 0;
                 for arg in stack_args {
-                    self.emit_store_base_offset(&x86_64::RSP, - (stack_arg_offsets[index] as i32), &arg, vm);
+                    self.emit_push(&arg);
                     index += 1;
                 }
-
-                self.backend.emit_add_r_imm(&x86_64::RSP, (- (stack_arg_size as i32)) as i32);
             }
 
             stack_arg_size_with_padding
