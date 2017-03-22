@@ -2206,9 +2206,6 @@ impl <'a> InstructionSelection {
         &mut self,
         args: &Vec<P<Value>>, 
         vm: &VM) -> usize {
-        // if we need to save caller saved regs
-        // put it here (since this is fastpath compile, we wont have them)
-        
         // put args into registers if we can
         // in the meantime record args that do not fit in registers
         let mut stack_args : Vec<P<Value>> = vec![];        

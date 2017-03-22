@@ -705,15 +705,8 @@ impl MachineCode for ASMCode {
         regs_to_remove
     }
 
+    #[allow(unused_variables)]
     fn patch_frame_size(&mut self, size: usize, size_used: usize) {
-        // calling convention requires stack pointer to be 16 bytes aligned before a call
-        // we make frame size a multipl of 16 bytes
-        let size = if (size + size_used) % 16 == 0 {
-            size
-        } else {
-            ( (size + size_used) / 16 + 1) * 16 - size_used
-        };
-
         let size = size.to_string();
 
         debug_assert!(size.len() <= FRAME_SIZE_PLACEHOLDER_LEN);

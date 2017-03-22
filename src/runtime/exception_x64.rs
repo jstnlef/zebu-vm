@@ -138,7 +138,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
                 let rbp = cursor.rbp.as_usize() as Word;
                 let array = vec![rbx, rbp, r12, r13, r14, r15];
 
-                let rsp = cursor.rbp.offset(frame.cur_offset());
+                let rsp = cursor.rbp.offset(- (frame.cur_size() as isize));
 
                 info!("going to restore thread to {} with RSP {}", dest_addr, rsp);
                 unsafe {thread::exception_restore(dest_addr, array.as_ptr(), rsp)};
