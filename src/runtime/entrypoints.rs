@@ -40,6 +40,17 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_swap_back_to_native_stack")),
         jit: RwLock::new(None),
     };
+
+    // impl/decl: gc/lib.rs
+    pub static ref ALLOC_FAST : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![ADDRESS_TYPE.clone()],
+            arg_tys: vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_alloc_fast")),
+        jit: RwLock::new(None)
+    };
     
     // impl/decl: gc/lib.rs
     pub static ref ALLOC_SLOW : RuntimeEntrypoint = RuntimeEntrypoint {

@@ -86,6 +86,8 @@ lazy_static! {
     });
 }
 
+const INLINE_FASTPATH : bool = false;
+
 pub struct InstructionSelection {
     name: &'static str,
     backend: Box<CodeGenerator>,
@@ -1888,124 +1890,140 @@ impl <'a> InstructionSelection {
     // this function needs to generate exact same code as alloc() in immix_mutator.rs in GC
     // FIXME: currently it is slightly different
     fn emit_alloc_sequence_small (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
-        // emit immix allocation fast path
+        if INLINE_FASTPATH {
+            // emit immix allocation fast path
 
-        // ASM: %tl = get_thread_local()
-        let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+            // ASM: %tl = get_thread_local()
+            let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
 
-        // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
-        let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
-        let tmp_cursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
+            // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
+            let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
+            let tmp_cursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
 
-        // alignup cursor (cursor + align - 1 & !(align - 1))
-        // ASM: lea align-1(%cursor) -> %start
-        let align = align as i32;
-        let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        self.emit_lea_base_immoffset(&tmp_start, &tmp_cursor, align - 1, vm);
-        // ASM: and %start, !(align-1) -> %start
-        self.backend.emit_and_r_imm(&tmp_start, !(align - 1) as i32);
+            // alignup cursor (cursor + align - 1 & !(align - 1))
+            // ASM: lea align-1(%cursor) -> %start
+            let align = align as i32;
+            let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            self.emit_lea_base_immoffset(&tmp_start, &tmp_cursor, align - 1, vm);
+            // ASM: and %start, !(align-1) -> %start
+            self.backend.emit_and_r_imm(&tmp_start, !(align - 1) as i32);
 
-        // bump cursor
-        // ASM: add %size, %start -> %end
-        // or lea size(%start) -> %end
-        let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        let size = if size.is_int_const() {
-            let mut offset = size.extract_int_const() as i32;
+            // bump cursor
+            // ASM: add %size, %start -> %end
+            // or lea size(%start) -> %end
+            let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            let size = if size.is_int_const() {
+                let mut offset = size.extract_int_const() as i32;
 
-            if OBJECT_HEADER_SIZE != 0 {
-                offset += OBJECT_HEADER_SIZE as i32;
+                if OBJECT_HEADER_SIZE != 0 {
+                    offset += OBJECT_HEADER_SIZE as i32;
+                }
+
+                self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
+
+                self.make_value_int_const(offset as u64, vm)
+            } else {
+                self.backend.emit_mov_r_r(&tmp_end, &tmp_start);
+                if OBJECT_HEADER_SIZE != 0 {
+                    // ASM: add %size, HEADER_SIZE -> %size
+                    self.backend.emit_add_r_imm(&size, OBJECT_HEADER_SIZE as i32);
+                }
+                self.backend.emit_add_r_r(&tmp_end, &size);
+
+                size
+            };
+
+            // check with limit
+            // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
+            let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
+            let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
+            self.backend.emit_cmp_mem_r(&mem_limit, &tmp_end);
+
+            // branch to slow path if end > limit (end - limit > 0)
+            // ASM: jg alloc_slow
+            let slowpath = format!("{}_allocslow", node.id());
+            self.backend.emit_jg(slowpath.clone());
+
+            // finish current block
+            self.finish_block();
+            self.start_block(format!("{}_updatecursor", node.id()));
+
+            // update cursor
+            // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
+            self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
+
+            // put start as result
+            let tmp_res = self.get_result_value(node);
+            if OBJECT_HEADER_OFFSET != 0 {
+                // ASM: lea -HEADER_OFFSET(%start) -> %result
+                self.emit_lea_base_immoffset(&tmp_res, &tmp_start, -OBJECT_HEADER_OFFSET as i32, vm);
+            } else {
+                // ASM: mov %start -> %result
+                self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
             }
 
-            self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
+            // ASM jmp alloc_end
+            let allocend = format!("{}_alloc_small_end", node.id());
+            self.backend.emit_jmp(allocend.clone());
 
-            self.make_value_int_const(offset as u64, vm)
-        } else {
-            self.backend.emit_mov_r_r(&tmp_end, &tmp_start);
-            if OBJECT_HEADER_SIZE != 0 {
-                // ASM: add %size, HEADER_SIZE -> %size
-                self.backend.emit_add_r_imm(&size, OBJECT_HEADER_SIZE as i32);
+            // finishing current block
+            let cur_block = self.current_block.as_ref().unwrap().clone();
+            self.backend.end_block(cur_block.clone());
+            self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
+
+            // alloc_slow:
+            // call alloc_slow(size, align) -> %ret
+            // new block (no livein)
+            self.current_block = Some(slowpath.clone());
+            self.backend.start_block(slowpath.clone());
+            if size.is_int_reg() {
+                self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
             }
-            self.backend.emit_add_r_r(&tmp_end, &size);
 
-            size
-        };
+            // arg1: allocator address
+            // arg2: size
+            // arg3: align
+            let const_align = self.make_value_int_const(align as u64, vm);
 
-        // check with limit
-        // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
-        let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
-        let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
-        self.backend.emit_cmp_mem_r(&mem_limit, &tmp_end);
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_SLOW,
+                vec![tmp_allocator.clone(), size.clone(), const_align],
+                Some(vec![
+                    tmp_res.clone()
+                ]),
+                Some(node), f_content, f_context, vm
+            );
 
-        // branch to slow path if end > limit (end - limit > 0)
-        // ASM: jg alloc_slow
-        let slowpath = format!("{}_allocslow", node.id());
-        self.backend.emit_jg(slowpath.clone());
+            if OBJECT_HEADER_OFFSET != 0 {
+                // ASM: lea -HEADER_OFFSET(%res) -> %result
+                self.emit_lea_base_immoffset(&tmp_res, &tmp_res, -OBJECT_HEADER_OFFSET as i32, vm);
+            }
 
-        // finish current block
-        self.finish_block();
-        self.start_block(format!("{}_updatecursor", node.id()));
+            // end block (no liveout other than result)
+            self.backend.end_block(slowpath.clone());
+            self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
 
-        // update cursor
-        // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
-        self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
+            // block: alloc_end
+            self.backend.start_block(allocend.clone());
+            self.current_block = Some(allocend.clone());
 
-        // put start as result
-        let tmp_res = self.get_result_value(node);
-        if OBJECT_HEADER_OFFSET != 0 {
-            // ASM: lea -HEADER_OFFSET(%start) -> %result
-            self.emit_lea_base_immoffset(&tmp_res, &tmp_start, - OBJECT_HEADER_OFFSET as i32, vm);
+            tmp_res
         } else {
-            // ASM: mov %start -> %result
-            self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
+            // directly call 'alloc'
+            let tmp_res = self.get_result_value(node);
+
+            let const_align = self.make_value_int_const(align as u64, vm);
+
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_FAST,
+                vec![tmp_allocator.clone(), size.clone(), const_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node), f_content, f_context, vm
+            );
+
+            tmp_res
         }
-
-        // ASM jmp alloc_end
-        let allocend = format!("{}_alloc_small_end", node.id());
-        self.backend.emit_jmp(allocend.clone());
-
-        // finishing current block
-        let cur_block = self.current_block.as_ref().unwrap().clone();
-        self.backend.end_block(cur_block.clone());
-        self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
-
-        // alloc_slow:
-        // call alloc_slow(size, align) -> %ret
-        // new block (no livein)
-        self.current_block = Some(slowpath.clone());
-        self.backend.start_block(slowpath.clone());
-        if size.is_int_reg() {
-            self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
-        }
-
-        // arg1: allocator address
-        // arg2: size
-        // arg3: align
-        let const_align= self.make_value_int_const(align as u64, vm);
-
-        self.emit_runtime_entry(
-            &entrypoints::ALLOC_SLOW,
-            vec![tmp_allocator.clone(), size.clone(), const_align],
-            Some(vec![
-            tmp_res.clone()
-            ]),
-            Some(node), f_content, f_context, vm
-        );
-
-        if OBJECT_HEADER_OFFSET != 0 {
-            // ASM: lea -HEADER_OFFSET(%res) -> %result
-            self.emit_lea_base_immoffset(&tmp_res, &tmp_res, - OBJECT_HEADER_OFFSET as i32, vm);
-        }
-
-        // end block (no liveout other than result)
-        self.backend.end_block(slowpath.clone());
-        self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
-
-        // block: alloc_end
-        self.backend.start_block(allocend.clone());
-        self.current_block = Some(allocend.clone());
-
-        tmp_res
     }
 
     fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) -> P<Value> {

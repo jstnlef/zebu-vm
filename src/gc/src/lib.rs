@@ -189,12 +189,17 @@ pub extern fn yieldpoint_slow(mutator: *mut ImmixMutatorLocal) {
 
 // allocation
 
-#[no_mangle]
 #[inline(always)]
-/// size doesn't include HEADER_SIZE, return value is offset by HEADER_OFFSET
-pub extern fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
+pub fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
     let addr = unsafe {&mut *mutator}.alloc(size, align);
     unsafe {addr.to_object_reference()}
+}
+
+#[no_mangle]
+#[inline(never)]
+/// size doesn't include HEADER_SIZE, return value is offset by HEADER_OFFSET
+pub extern fn muentry_alloc_fast(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
+    alloc(mutator, size, align)
 }
 
 #[no_mangle]
