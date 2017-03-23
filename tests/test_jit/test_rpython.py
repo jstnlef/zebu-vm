@@ -1033,7 +1033,7 @@ def test_make_boot_image_simple():
             c_printf(argv[i])
             c_putchar('\n')
         c_exit(rffi.cast(rffi.INT, 0))
-	return 0
+    return 0
 
     res = run_boot_image(pypy_mu_entry, '/tmp/test_make_boot_image_mu', True, ['abc', '123'])
     exe = '/tmp/test_make_boot_image_mu'
@@ -1041,7 +1041,7 @@ def test_make_boot_image_simple():
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
-@pytest.mark.xfail(reason = "debugging on this")
+@pytest.mark.xfail(reason = "going to debugg on this")
 @may_spawn_proc
 def test_rpytarget_print_argv():
     def main(argv):
@@ -1054,7 +1054,6 @@ def test_rpytarget_print_argv():
     assert res.returncode == 0, res.err
     assert res.out == '[%s, abc, 123]\n' % exe
 
-@pytest.mark.xfail(reason = "debugging on this")
 @may_spawn_proc
 def test_rpython_helloworld():
     def main(argv):
@@ -1066,7 +1065,6 @@ def test_rpython_helloworld():
     assert res.returncode == 0, res.err
     assert res.out == 'hello world\n'
 
-@pytest.mark.xfail(reason = "new test")
 @may_spawn_proc
 def test_rpython_print_number():
 
