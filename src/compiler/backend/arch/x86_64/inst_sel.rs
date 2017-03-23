@@ -325,7 +325,7 @@ impl <'a> InstructionSelection {
                                 panic!("expected ireg, found {}", cond)
                             };
 
-                            // use cmov for 16/32/64bit integeer
+                            // use cmov for 16/32/64bit integer
                             // use jcc  for 8 bit
                             match tmp_res.ty.get_int_length() {
                                 // cmov
@@ -1270,7 +1270,7 @@ impl <'a> InstructionSelection {
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
-                    // add op2, res
+                    // sub op2, res
                     self.backend.emit_sub_r_imm(&res_tmp, imm_op2);
                 } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
                     trace!("emit sub-ireg-mem");
@@ -1575,22 +1575,22 @@ impl <'a> InstructionSelection {
                     if self.match_iimm(op2) {
                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
-                        // shl op1, op2 -> op1
-                        self.backend.emit_shl_r_imm8(&tmp_op1, imm_op2);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // shl result, op2 -> result
+                        self.backend.emit_shl_r_imm8(&res_tmp, imm_op2);
                     } else if self.match_ireg(op2) {
                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                         // mov op2 -> cl
                         self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
-                        // shl op1, cl -> op1
-                        self.backend.emit_shl_r_cl(&tmp_op1);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // shl result, cl -> result
+                        self.backend.emit_shl_r_cl(&res_tmp);
                     } else {
                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                     }
@@ -1610,22 +1610,22 @@ impl <'a> InstructionSelection {
                     if self.match_iimm(op2) {
                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
-                        // shr op1, op2 -> op1
-                        self.backend.emit_shr_r_imm8(&tmp_op1, imm_op2);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // shr result, op2 -> result
+                        self.backend.emit_shr_r_imm8(&res_tmp, imm_op2);
                     } else if self.match_ireg(op2) {
                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                         // mov op2 -> cl
                         self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
-                        // shr op1, cl -> op1
-                        self.backend.emit_shr_r_cl(&tmp_op1);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // shr result, cl -> result
+                        self.backend.emit_shr_r_cl(&res_tmp);
                     } else {
                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                     }
@@ -1645,22 +1645,22 @@ impl <'a> InstructionSelection {
                     if self.match_iimm(op2) {
                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
-                        // sar op1, op2 -> op1
-                        self.backend.emit_sar_r_imm8(&tmp_op1, imm_op2);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // sar result, op2 -> result
+                        self.backend.emit_sar_r_imm8(&res_tmp, imm_op2);
                     } else if self.match_ireg(op2) {
                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                         // mov op2 -> cl
                         self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
-                        // sar op1, cl -> op1
-                        self.backend.emit_sar_r_cl(&tmp_op1);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // sar result, cl -> result
+                        self.backend.emit_sar_r_cl(&res_tmp);
                     } else  {
                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                     }
@@ -1680,7 +1680,7 @@ impl <'a> InstructionSelection {
 
                     // mov op1, res
                     self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // sub op2 res
+                    // add op2 res
                     self.backend.emit_addsd_f64_mem64(&res_tmp, &mem_op2);
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit add-fpreg-fpreg");

@@ -199,7 +199,10 @@ pub fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> Obje
 #[inline(never)]
 /// size doesn't include HEADER_SIZE, return value is offset by HEADER_OFFSET
 pub extern fn muentry_alloc_fast(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
-    alloc(mutator, size, align)
+    let ret = alloc(mutator, size, align);
+    trace!("muentry_alloc_fast(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
+
+    ret
 }
 
 #[no_mangle]
