@@ -1041,7 +1041,6 @@ def test_make_boot_image_simple():
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
-@pytest.mark.xfail(reason = "going to debugg on this")
 @may_spawn_proc
 def test_rpytarget_print_argv():
     def main(argv):
