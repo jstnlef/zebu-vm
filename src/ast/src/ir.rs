@@ -887,6 +887,9 @@ impl SSAVarEntry {
     pub fn increase_use_count(&self) {
         self.use_count.fetch_add(1, Ordering::SeqCst);
     }
+    pub fn reset_use_count(&self) {
+        self.use_count.store(0, Ordering::SeqCst);
+    }
 
     pub fn has_expr(&self) -> bool {
         self.expr.is_some()
