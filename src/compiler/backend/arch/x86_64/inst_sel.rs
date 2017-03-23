@@ -292,7 +292,11 @@ impl <'a> InstructionSelection {
                             // emit: cmp cond_reg 1
                             self.backend.emit_cmp_imm_r(1, &cond_reg);
                             // emit: je #branch_dest
-                            self.backend.emit_je(branch_target);
+                            if branch_if_true {
+                                self.backend.emit_je(branch_target);
+                            } else {
+                                self.backend.emit_jne(branch_target);
+                            }
                         } else {
                             unimplemented!();
                         }
