@@ -65,14 +65,12 @@ impl Frame {
         // frame size is a multiple of 16 bytes
         let size = self.cur_offset.abs() as usize;
 
-        // frame size is at least 8 byte aligned
-        assert!(size % 8 == 0);
+        // align size to a multiple of 16 bytes
+        let size = (size + 16 - 1) & !(16 - 1);
 
-        if size % 16 == 0 {
-            size
-        } else {
-            size + 8
-        }
+        debug_assert!(size % 16 == 0);
+
+        size
     }
 
     pub fn add_argument_by_reg(&mut self, temp: MuID, reg: P<Value>) {
