@@ -1085,7 +1085,6 @@ def test_rpython_main():
 
     assert res.returncode == 0, res.err
 
-@pytest.mark.skipif("True")
 @may_spawn_proc
 def test_rpytarget_sha1sum():
     john1 = \
@@ -1101,7 +1100,7 @@ The light shines in the darkness, and the darkness has not overcome it.
         fp.write(john1)
 
     from rpython.translator.goal.targetsha1sum import entry_point
-    res = run_boot_image(entry_point, '/tmp/test_sha1sum_mu')
+    res = run_boot_image(entry_point, '/tmp/test_sha1sum_mu', args=['/tmp/john1.txt'])
 
     assert res.returncode == 0, res.err
     assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'
