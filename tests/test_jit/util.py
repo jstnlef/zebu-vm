@@ -72,7 +72,7 @@ def compile_c_script(c_src_name):
     return py.path.local('emit').join('lib%(testname)s' % locals() + libext)
 
 
-def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_longlong, mode=ctypes.RTLD_LOCAL):
+def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_longlong, mode=ctypes.RTLD_GLOBAL):
     lib = ctypes.CDLL(libpath.strpath, mode)
     fnp = getattr(lib, fnc_name)
     fnp.argtypes = argtypes
@@ -80,7 +80,7 @@ def ctypes_fncptr_from_lib(libpath, fnc_name, argtypes=[], restype=ctypes.c_long
     return fnp, lib
 
 
-def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype, mode=ctypes.RTLD_LOCAL):
+def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype, mode=ctypes.RTLD_GLOBAL):
     from rpython.rtyper.lltypesystem import rffi
     from rpython.translator.platform import platform
     if platform.name.startswith('linux'):
@@ -101,7 +101,7 @@ def rffi_fncptr_from_lib(libpath, fnc_name, llargtypes, restype, mode=ctypes.RTL
                            _nowrapper=True)
 
 
-def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglong, mode=ctypes.RTLD_LOCAL):
+def fncptr_from_c_script(c_src_name, name, argtypes=[], restype=ctypes.c_ulonglong, mode=ctypes.RTLD_GLOBAL):
     libpath = compile_c_script(c_src_name)
     return ctypes_fncptr_from_lib(libpath, name, argtypes, restype, mode)
 
@@ -110,7 +110,7 @@ def is_ctypes(t):
     return isinstance(t, type(ctypes.c_longlong))
 
 
-def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong, mode=ctypes.RTLD_LOCAL, **kwargs):
+def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctypes.c_longlong, mode=ctypes.RTLD_GLOBAL, **kwargs):
     import os
     # NOTE: requires mu-client-pypy
     from rpython.rlib.rmu import zebu as rmu
@@ -155,7 +155,7 @@ def may_spawn_proc(test_fnc):
     return wrapper
 
 
-def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, mode=ctypes.RTLD_LOCAL, **kwargs):
+def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, mode=ctypes.RTLD_GLOBAL, **kwargs):
     # NOTE: requires mu-client-pypy
     from rpython.rtyper.lltypesystem import rffi
     from rpython.translator.interactive import Translation
