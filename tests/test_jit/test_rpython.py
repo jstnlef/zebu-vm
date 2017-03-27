@@ -1129,7 +1129,7 @@ def test_linked_list():
     assert res.returncode == 0, res.err
     assert res.out == '1\n'
 
-
+@pytest.mark.xfail(reason='unimplemented memory order in API store')
 @may_spawn_proc
 def test_rpytarget_richards():
     from rpython.translator.goal.richards import entry_point
@@ -1140,6 +1140,7 @@ def test_rpytarget_richards():
     res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
     assert res.returncode == 0, res.err
 
+@pytest.mark.xfail(reason='triggering GC')
 @may_spawn_proc
 def test_rpytarget_testdicts():
     from rpython.translator.goal.targettestdicts import entry_point
