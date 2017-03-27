@@ -55,7 +55,7 @@ def test_rpython_int_cmp_zero():
     assert mu_int_cmp_zero(-9223372036854775808) == -1
 
 @may_spawn_proc
-def test_rpython_int_cmp_const():
+def test_rpython_int_cmp_const_zero_eq_zero():
     # these may get optimized away by Rpython compiler
 
     def int_cmp_zero_eq_zero():
@@ -64,32 +64,50 @@ def test_rpython_int_cmp_const():
         else:
             return 0
     
+    mu_int_cmp_zero_eq_zero, _ = fncptr_from_rpy_func(int_cmp_zero_eq_zero, [], rffi.LONGLONG)
+    
+    assert mu_int_cmp_zero_eq_zero() == 1
+
+@may_spawn_proc
+def test_rpython_int_cmp_const_zero_ne_zero():
+    # these may get optimized away by Rpython compiler
+
     def int_cmp_zero_ne_zero():
         if 0 != 0:
             return 0
         else:
             return 1
-    
+
+    mu_int_cmp_zero_ne_zero, _ = fncptr_from_rpy_func(int_cmp_zero_ne_zero, [], rffi.LONGLONG)
+
+    assert mu_int_cmp_zero_ne_zero() == 1
+
+@may_spawn_proc
+def test_rpython_int_cmp_const_zero_eq_one():
+    # these may get optimized away by Rpython compiler
+
     def int_cmp_zero_eq_one():
         if 0 == 1:
             return 0
         else:
             return 1
-    
+
+    mu_int_cmp_zero_eq_one , _ = fncptr_from_rpy_func(int_cmp_zero_eq_one , [], rffi.LONGLONG)
+
+    assert mu_int_cmp_zero_eq_one () == 1
+
+@may_spawn_proc
+def test_rpython_int_cmp_const_zero_ne_one():
+    # these may get optimized away by Rpython compiler
+
     def int_cmp_zero_ne_one():
         if 0 != 1:
             return 1
         else:
             return 0
-    
-    mu_int_cmp_zero_eq_zero, _ = fncptr_from_rpy_func(int_cmp_zero_eq_zero, [], rffi.LONGLONG)
-    mu_int_cmp_zero_ne_zero, _ = fncptr_from_rpy_func(int_cmp_zero_ne_zero, [], rffi.LONGLONG)
-    mu_int_cmp_zero_eq_one , _ = fncptr_from_rpy_func(int_cmp_zero_eq_one , [], rffi.LONGLONG)
+
     mu_int_cmp_zero_ne_one , _ = fncptr_from_rpy_func(int_cmp_zero_ne_one , [], rffi.LONGLONG)
-    
-    assert mu_int_cmp_zero_eq_zero() == 1
-    assert mu_int_cmp_zero_ne_zero() == 1
-    assert mu_int_cmp_zero_eq_one () == 1
+
     assert mu_int_cmp_zero_ne_one () == 1
 
 @may_spawn_proc

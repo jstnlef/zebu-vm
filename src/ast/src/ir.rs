@@ -5,6 +5,7 @@ use op::*;
 
 use utils::vec_utils;
 use utils::LinkedHashMap;
+use utils::LinkedHashSet;
 
 use std::fmt;
 use std::default;
@@ -134,7 +135,7 @@ impl fmt::Debug for MuFunctionVersion {
             write!(f, "Empty\n").unwrap();
         }
         if self.block_trace.is_some() {
-            write!(f, "{:?}\n", self.block_trace.as_ref().unwrap())
+            write!(f, "Block Trace: {:?}\n", self.block_trace.as_ref().unwrap())
         } else {
             write!(f, "Trace not available\n")
         }
@@ -300,10 +301,13 @@ impl MuFunctionVersion {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(Clone, RustcEncodable, RustcDecodable)]
 pub struct FunctionContent {
     pub entry: MuID,
-    pub blocks: LinkedHashMap<MuID, Block>
+    pub blocks: LinkedHashMap<MuID, Block>,
+
+    // this field only valid after control flow analysis
+    pub exception_blocks: LinkedHashSet<MuID>
 }
 
 impl fmt::Debug for FunctionContent {
@@ -321,22 +325,15 @@ impl fmt::Debug for FunctionContent {
     }
 }
 
-impl Clone for FunctionContent {
-    fn clone(&self) -> Self {
-        let mut new_blocks = LinkedHashMap::new();
-
-        for (id, block) in self.blocks.iter() {
-            new_blocks.insert(*id, block.clone());
-        }
-
+impl FunctionContent {
+    pub fn new(entry: MuID, blocks: LinkedHashMap<MuID, Block>) -> FunctionContent {
         FunctionContent {
-            entry: self.entry,
-            blocks: new_blocks
+            entry: entry,
+            blocks: blocks,
+            exception_blocks: LinkedHashSet::new()
         }
     }
-}
 
-impl FunctionContent {
     pub fn get_entry_block(&self) -> &Block {
         self.get_block(self.entry)
     } 
@@ -432,7 +429,7 @@ impl Block {
         Block{hdr: MuEntityHeader::unnamed(id), content: None, control_flow: ControlFlow::default()}
     }
     
-    pub fn is_exception_block(&self) -> bool {
+    pub fn is_receiving_exception_arg(&self) -> bool {
         return self.content.as_ref().unwrap().exn_arg.is_some()
     }
 
@@ -640,7 +637,6 @@ impl TreeNode {
         match self.v {
             TreeNode_::Value(ref val) => val.clone(),
             TreeNode_::Instruction(ref inst) => {
-                warn!("expecting a value, but we found an inst. Instead we use its first value");
                 let vals = inst.value.as_ref().unwrap();
                 if vals.len() != 1 {
                     panic!("we expect an inst with 1 value, but found multiple or zero (it should not be here - folded as a child)");
@@ -768,6 +764,7 @@ impl Value {
 }
 
 const DISPLAY_TYPE : bool = false;
+const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -890,6 +887,9 @@ impl SSAVarEntry {
     pub fn increase_use_count(&self) {
         self.use_count.fetch_add(1, Ordering::SeqCst);
     }
+    pub fn reset_use_count(&self) {
+        self.use_count.store(0, Ordering::SeqCst);
+    }
 
     pub fn has_expr(&self) -> bool {
         self.expr.is_some()
@@ -931,7 +931,7 @@ impl fmt::Display for Constant {
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
 //            &Constant::IRef(v) => write!(f, "{}", v),
-            &Constant::FuncRef(v) => write!(f, "{}", v),
+            &Constant::FuncRef(v) => write!(f, "FuncRef {}", v),
             &Constant::Vector(ref v) => {
                 write!(f, "[").unwrap();
                 for i in 0..v.len() {
@@ -1071,6 +1071,8 @@ impl MuEntityHeader {
     }
 
     pub fn name_check(name: MuName) -> MuName {
+        let name = name.replace('.', "$");
+
         if name.starts_with("@") || name.starts_with("%") {
             let (_, name) = name.split_at(1);
 
@@ -1078,6 +1080,29 @@ impl MuEntityHeader {
         }
 
         name
+    }
+
+    fn abbreviate_name(&self) -> Option<MuName> {
+        match self.name() {
+            Some(name) => {
+                let split: Vec<&str> = name.split('$').collect();
+
+                let mut ret = "".to_string();
+
+                for i in 0..split.len() - 1 {
+                    ret.push(match split[i].chars().next() {
+                        Some(c) => c,
+                        None => '_'
+                    });
+                    ret.push('.');
+                }
+
+                ret.push_str(split.last().unwrap());
+
+                Some(ret)
+            }
+            None => None
+        }
     }
 }
 
@@ -1087,21 +1112,13 @@ impl PartialEq for MuEntityHeader {
     }
 }
 
-const PRINT_ABBREVIATE_NAME: bool = false;
-
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.name().is_none() {
             write!(f, "UNNAMED #{}", self.id)
         } else {
             if PRINT_ABBREVIATE_NAME {
-                let name = self.name().unwrap().clone();
-                let abbr_name = name.split('.').map(
-                    |x| match x.chars().next() {
-                        Some(c) => c,
-                        None => '_'
-                    }).fold("".to_string(), |mut acc, x| {acc.push(x); acc});
-                write!(f, "{} #{}", abbr_name, self.id)
+                write!(f, "{} #{}", self.abbreviate_name().unwrap(), self.id)
             } else {
                 write!(f, "{} #{}", self.name().unwrap(), self.id)
             }

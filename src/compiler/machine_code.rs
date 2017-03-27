@@ -33,36 +33,27 @@ impl Encodable for CompiledFunction {
         s.emit_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |s| {
             let mut i = 0;
 
-            trace!("......serializing func_id");    
             try!(s.emit_struct_field("func_id",     i, |s| self.func_id.encode(s)));
             i += 1;
 
-            trace!("......serializing func_ver_id");
             try!(s.emit_struct_field("func_ver_id", i, |s| self.func_ver_id.encode(s)));
             i += 1;
 
-            trace!("......serializing temps");
             try!(s.emit_struct_field("temps",       i, |s| self.temps.encode(s)));
             i += 1;
 
-            trace!("......serializing consts");
             try!(s.emit_struct_field("consts",      i, |s| self.consts.encode(s)));
             i += 1;
 
-            trace!("......serializing const_mem");
             try!(s.emit_struct_field("const_mem",   i, |s| self.const_mem.encode(s)));
             i += 1;
 
-            trace!("......serializing frame");
-            trace!("{}", self.frame);
             try!(s.emit_struct_field("frame",       i, |s| self.frame.encode(s)));
             i += 1;
 
-            trace!("......serializing start");
             try!(s.emit_struct_field("start",       i, |s| self.start.encode(s)));
             i += 1;
 
-            trace!("......serializing end");
             try!(s.emit_struct_field("end",         i, |s| self.end.encode(s)));
             
             Ok(())
@@ -155,6 +146,7 @@ pub trait MachineCode {
     fn trace_inst(&self, index: usize);
     
     fn emit(&self) -> Vec<u8>;
+    fn emit_inst(&self, index: usize) -> Vec<u8>;
     
     fn number_of_insts(&self) -> usize;
     
@@ -168,6 +160,9 @@ pub trait MachineCode {
     
     fn get_succs(&self, index: usize) -> &Vec<usize>;
     fn get_preds(&self, index: usize) -> &Vec<usize>;
+
+    fn get_next_inst(&self, index: usize) -> Option<usize>;
+    fn get_last_inst(&self, index: usize) -> Option<usize>;
     
     fn get_inst_reg_uses(&self, index: usize) -> Vec<MuID>;
     fn get_inst_reg_defines(&self, index: usize) -> Vec<MuID>;
@@ -181,6 +176,7 @@ pub trait MachineCode {
     fn get_entry_block(&self) -> MuName;
     // returns [start_inst, end_inst) // end_inst not included
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
+    fn get_block_for_inst(&self, index: usize) -> Option<MuName>;
 
     // functions for rewrite
 

@@ -128,7 +128,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             }
 
             debug!("{}", alive);
-            trace!("---");
+            debug!("---");
         }
 
         // find liveout of the block, and only preserve what is in the liveout
@@ -314,7 +314,7 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, is_mov: bool, al
                             // overwrite value, safe
                         } else {
                             if is_mov {
-                                warn!("Temp{} and Temp{} is using the same Register{}, possibly coalesced", temp, old_temp, machine_reg);
+                                debug!("Temp{} and Temp{} is using the same Register{}, possibly coalesced", temp, old_temp, machine_reg);
                             } else {
                                 // trying to overwrite another value, error
                                 error!("Temp{} and Temp{} try use the same Register{}", temp, old_temp, machine_reg);

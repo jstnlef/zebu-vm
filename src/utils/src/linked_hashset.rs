@@ -7,6 +7,28 @@ use linked_hashmap::Keys;
 
 pub struct LinkedHashSet<K, S = RandomState>(LinkedHashMap<K, (), S>);
 
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+
+impl<K, S> Encodable for LinkedHashSet<K, S>
+    where K: Encodable + Eq + Hash,
+          S: BuildHasher
+{
+    fn encode<E: Encoder> (&self, s: &mut E) -> Result<(), E::Error> {
+        self.0.encode(s)
+    }
+}
+
+impl<K> Decodable for LinkedHashSet<K>
+    where K: Decodable + Eq + Hash
+{
+    fn decode<D: Decoder> (d: &mut D) -> Result<LinkedHashSet<K>, D::Error> {
+        match Decodable::decode(d) {
+            Ok(map) => Ok(LinkedHashSet(map)),
+            Err(e) => Err(e)
+        }
+    }
+}
+
 impl<K: Hash + Eq> LinkedHashSet<K> {
     pub fn new() -> Self {
         LinkedHashSet(LinkedHashMap::new())

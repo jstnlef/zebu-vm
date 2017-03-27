@@ -189,11 +189,20 @@ pub extern fn yieldpoint_slow(mutator: *mut ImmixMutatorLocal) {
 
 // allocation
 
-#[no_mangle]
 #[inline(always)]
-pub extern fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
+pub fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
     let addr = unsafe {&mut *mutator}.alloc(size, align);
     unsafe {addr.to_object_reference()}
+}
+
+#[no_mangle]
+#[inline(never)]
+/// size doesn't include HEADER_SIZE, return value is offset by HEADER_OFFSET
+pub extern fn muentry_alloc_fast(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
+    let ret = alloc(mutator, size, align);
+    trace!("muentry_alloc_fast(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
+
+    ret
 }
 
 #[no_mangle]
@@ -210,6 +219,8 @@ pub extern fn muentry_init_hybrid(mutator: *mut ImmixMutatorLocal, obj: ObjectRe
 
 #[no_mangle]
 #[inline(never)]
+/// this function is supposed to be called by an inlined fastpath
+/// size _includes_ HEADER_SIZE, return value is _NOT_ offset by HEADER_OFFSET
 pub extern fn muentry_alloc_slow(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
     let ret = unsafe {&mut *mutator}.try_alloc_from_local(size, align);
     trace!("muentry_alloc_slow(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
@@ -218,6 +229,7 @@ pub extern fn muentry_alloc_slow(mutator: *mut ImmixMutatorLocal, size: usize, a
 }
 
 #[no_mangle]
+/// size doesn't include HEADER_SIZE, return value is offset by HEADER_OFFSET
 pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
     let ret = freelist::alloc_large(size, align, unsafe {mutator.as_mut().unwrap()}, MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone());
     trace!("muentry_alloc_large(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);

@@ -989,11 +989,13 @@ def test_exception_stack_unwind():
 def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu')):
     from rpython.translator.interactive import Translation
 
+    vmargs = ""
+
     if has_c_main_sig:
-        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api')
+        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api', vmargs=vmargs)
         t.driver.disable(['entrypoint_mu'])
     else:
-        t = Translation(entry, None, backend='mu', impl=impl, codegen='api')
+        t = Translation(entry, None, backend='mu', impl=impl, codegen='api', vmargs=vmargs)
 
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output
@@ -1031,7 +1033,7 @@ def test_make_boot_image_simple():
             c_printf(argv[i])
             c_putchar('\n')
         c_exit(rffi.cast(rffi.INT, 0))
-	return 0
+    return 0
 
     res = run_boot_image(pypy_mu_entry, '/tmp/test_make_boot_image_mu', True, ['abc', '123'])
     exe = '/tmp/test_make_boot_image_mu'
@@ -1039,7 +1041,6 @@ def test_make_boot_image_simple():
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
-@pytest.mark.xfail(reason = "debugging on this")
 @may_spawn_proc
 def test_rpytarget_print_argv():
     def main(argv):
@@ -1052,7 +1053,6 @@ def test_rpytarget_print_argv():
     assert res.returncode == 0, res.err
     assert res.out == '[%s, abc, 123]\n' % exe
 
-@pytest.mark.xfail(reason = "debugging on this")
 @may_spawn_proc
 def test_rpython_helloworld():
     def main(argv):
@@ -1064,7 +1064,6 @@ def test_rpython_helloworld():
     assert res.returncode == 0, res.err
     assert res.out == 'hello world\n'
 
-@pytest.mark.xfail(reason = "new test")
 @may_spawn_proc
 def test_rpython_print_number():
 
@@ -1086,7 +1085,6 @@ def test_rpython_main():
 
     assert res.returncode == 0, res.err
 
-@pytest.mark.skipif("True")
 @may_spawn_proc
 def test_rpytarget_sha1sum():
     john1 = \
@@ -1102,7 +1100,7 @@ The light shines in the darkness, and the darkness has not overcome it.
         fp.write(john1)
 
     from rpython.translator.goal.targetsha1sum import entry_point
-    res = run_boot_image(entry_point, '/tmp/test_sha1sum_mu')
+    res = run_boot_image(entry_point, '/tmp/test_sha1sum_mu', args=['/tmp/john1.txt'])
 
     assert res.returncode == 0, res.err
     assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'

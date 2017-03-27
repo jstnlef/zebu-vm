@@ -20,7 +20,7 @@ use vm::VM;
 #[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct Frame {
     func_ver_id: MuID,
-    cur_offset: isize, // offset to rbp
+    cur_offset: isize, // offset to frame base pointer
 
     pub argument_by_reg: HashMap<MuID, P<Value>>,
     pub argument_by_stack: HashMap<MuID, P<Value>>,
@@ -41,6 +41,7 @@ impl fmt::Display for Frame {
         for &(ref callsite, ref dest) in self.exception_callsites.iter() {
             writeln!(f, "    callsite: {} -> {}", callsite, dest).unwrap()
         }
+        writeln!(f, "  cur offset: {}", self.cur_offset).unwrap();
         writeln!(f, "}}")
     }
 }
@@ -58,13 +59,18 @@ impl Frame {
             exception_callsites: vec![]
         }
     }
-    
-    pub fn cur_offset(&self) -> isize {
-        self.cur_offset
-    }
 
+    #[cfg(target_arch = "x86_64")]
     pub fn cur_size(&self) -> usize {
-        self.cur_offset.abs() as usize
+        // frame size is a multiple of 16 bytes
+        let size = self.cur_offset.abs() as usize;
+
+        // align size to a multiple of 16 bytes
+        let size = (size + 16 - 1) & !(16 - 1);
+
+        debug_assert!(size % 16 == 0);
+
+        size
     }
 
     pub fn add_argument_by_reg(&mut self, temp: MuID, reg: P<Value>) {

@@ -86,6 +86,8 @@ lazy_static! {
     });
 }
 
+const INLINE_FASTPATH : bool = false;
+
 pub struct InstructionSelection {
     name: &'static str,
     backend: Box<CodeGenerator>,
@@ -290,7 +292,11 @@ impl <'a> InstructionSelection {
                             // emit: cmp cond_reg 1
                             self.backend.emit_cmp_imm_r(1, &cond_reg);
                             // emit: je #branch_dest
-                            self.backend.emit_je(branch_target);
+                            if branch_if_true {
+                                self.backend.emit_je(branch_target);
+                            } else {
+                                self.backend.emit_jne(branch_target);
+                            }
                         } else {
                             unimplemented!();
                         }
@@ -323,7 +329,7 @@ impl <'a> InstructionSelection {
                                 panic!("expected ireg, found {}", cond)
                             };
 
-                            // use cmov for 16/32/64bit integeer
+                            // use cmov for 16/32/64bit integer
                             // use jcc  for 8 bit
                             match tmp_res.ty.get_int_length() {
                                 // cmov
@@ -1098,16 +1104,16 @@ impl <'a> InstructionSelection {
 
                                 match is_power_of_two(var_ty_size) {
                                     Some(shift) => {
+                                        // use tmp_actual_size as result - we do not want to change tmp_var_len
+                                        self.backend.emit_mov_r_r(&tmp_actual_size, &tmp_var_len);
+
                                         if shift != 0 {
                                             // a shift-left will get the total size of var part
-                                            self.backend.emit_shl_r_imm8(&tmp_var_len, shift);
+                                            self.backend.emit_shl_r_imm8(&tmp_actual_size, shift);
                                         }
 
                                         // add with fix-part size
-                                        self.backend.emit_add_r_imm(&tmp_var_len, fix_part_size as i32);
-
-                                        // mov result to tmp_actual_size
-                                        self.backend.emit_mov_r_r(&tmp_actual_size, &tmp_var_len);
+                                        self.backend.emit_add_r_imm(&tmp_actual_size, fix_part_size as i32);
                                     }
                                     None => {
                                         // we need to do a multiply
@@ -1268,7 +1274,7 @@ impl <'a> InstructionSelection {
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
-                    // add op2, res
+                    // sub op2, res
                     self.backend.emit_sub_r_imm(&res_tmp, imm_op2);
                 } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
                     trace!("emit sub-ireg-mem");
@@ -1573,22 +1579,22 @@ impl <'a> InstructionSelection {
                     if self.match_iimm(op2) {
                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
-                        // shl op1, op2 -> op1
-                        self.backend.emit_shl_r_imm8(&tmp_op1, imm_op2);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // shl result, op2 -> result
+                        self.backend.emit_shl_r_imm8(&res_tmp, imm_op2);
                     } else if self.match_ireg(op2) {
                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                         // mov op2 -> cl
                         self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
-                        // shl op1, cl -> op1
-                        self.backend.emit_shl_r_cl(&tmp_op1);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // shl result, cl -> result
+                        self.backend.emit_shl_r_cl(&res_tmp);
                     } else {
                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                     }
@@ -1608,22 +1614,22 @@ impl <'a> InstructionSelection {
                     if self.match_iimm(op2) {
                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
-                        // shr op1, op2 -> op1
-                        self.backend.emit_shr_r_imm8(&tmp_op1, imm_op2);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // shr result, op2 -> result
+                        self.backend.emit_shr_r_imm8(&res_tmp, imm_op2);
                     } else if self.match_ireg(op2) {
                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                         // mov op2 -> cl
                         self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
-                        // shr op1, cl -> op1
-                        self.backend.emit_shr_r_cl(&tmp_op1);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // shr result, cl -> result
+                        self.backend.emit_shr_r_cl(&res_tmp);
                     } else {
                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                     }
@@ -1643,22 +1649,22 @@ impl <'a> InstructionSelection {
                     if self.match_iimm(op2) {
                         let imm_op2 = self.node_iimm_to_i32(op2) as i8;
 
-                        // sar op1, op2 -> op1
-                        self.backend.emit_sar_r_imm8(&tmp_op1, imm_op2);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // sar result, op2 -> result
+                        self.backend.emit_sar_r_imm8(&res_tmp, imm_op2);
                     } else if self.match_ireg(op2) {
                         let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                         // mov op2 -> cl
                         self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
 
-                        // sar op1, cl -> op1
-                        self.backend.emit_sar_r_cl(&tmp_op1);
-
                         // mov op1 -> result
                         self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+
+                        // sar result, cl -> result
+                        self.backend.emit_sar_r_cl(&res_tmp);
                     } else  {
                         panic!("unexpected op2 (not ireg not iimm): {}", op2);
                     }
@@ -1678,7 +1684,7 @@ impl <'a> InstructionSelection {
 
                     // mov op1, res
                     self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // sub op2 res
+                    // add op2 res
                     self.backend.emit_addsd_f64_mem64(&res_tmp, &mem_op2);
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit add-fpreg-fpreg");
@@ -1793,7 +1799,9 @@ impl <'a> InstructionSelection {
     fn emit_alloc_sequence (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
-            if size.extract_int_const() > mm::LARGE_OBJECT_THRESHOLD as u64 {
+            let size_i = size.extract_int_const();
+
+            if size_i + OBJECT_HEADER_SIZE as u64 > mm::LARGE_OBJECT_THRESHOLD as u64 {
                 self.emit_alloc_sequence_large(tmp_allocator, size, align, node, f_content, f_context, vm)
             } else {
                 self.emit_alloc_sequence_small(tmp_allocator, size, align, node, f_content, f_context, vm)
@@ -1813,7 +1821,15 @@ impl <'a> InstructionSelection {
             let blk_alloc_large = format!("{}_alloc_large", node.id());
             let blk_alloc_large_end = format!("{}_alloc_large_end", node.id());
 
-            self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
+            if OBJECT_HEADER_SIZE != 0 {
+                let size_with_hdr = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                self.backend.emit_mov_r_r(&size_with_hdr, &size);
+                self.backend.emit_add_r_imm(&size_with_hdr, OBJECT_HEADER_SIZE as i32);
+
+                self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size_with_hdr);
+            } else {
+                self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
+            }
             self.backend.emit_jg(blk_alloc_large.clone());
 
             self.finish_block();
@@ -1878,113 +1894,140 @@ impl <'a> InstructionSelection {
     // this function needs to generate exact same code as alloc() in immix_mutator.rs in GC
     // FIXME: currently it is slightly different
     fn emit_alloc_sequence_small (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
-        // emit immix allocation fast path
+        if INLINE_FASTPATH {
+            // emit immix allocation fast path
 
-        // ASM: %tl = get_thread_local()
-        let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+            // ASM: %tl = get_thread_local()
+            let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
 
-        // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
-        let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
-        let tmp_cursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
+            // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
+            let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
+            let tmp_cursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
 
-        // alignup cursor (cursor + align - 1 & !(align - 1))
-        // ASM: lea align-1(%cursor) -> %start
-        let align = align as i32;
-        let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        self.emit_lea_base_immoffset(&tmp_start, &tmp_cursor, align - 1, vm);
-        // ASM: and %start, !(align-1) -> %start
-        self.backend.emit_and_r_imm(&tmp_start, !(align - 1) as i32);
+            // alignup cursor (cursor + align - 1 & !(align - 1))
+            // ASM: lea align-1(%cursor) -> %start
+            let align = align as i32;
+            let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            self.emit_lea_base_immoffset(&tmp_start, &tmp_cursor, align - 1, vm);
+            // ASM: and %start, !(align-1) -> %start
+            self.backend.emit_and_r_imm(&tmp_start, !(align - 1) as i32);
 
-        // bump cursor
-        // ASM: add %size, %start -> %end
-        // or lea size(%start) -> %end
-        let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        if size.is_int_const() {
-            let mut offset = size.extract_int_const() as i32;
+            // bump cursor
+            // ASM: add %size, %start -> %end
+            // or lea size(%start) -> %end
+            let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            let size = if size.is_int_const() {
+                let mut offset = size.extract_int_const() as i32;
 
-            if OBJECT_HEADER_SIZE != 0 {
-                offset += OBJECT_HEADER_SIZE as i32;
+                if OBJECT_HEADER_SIZE != 0 {
+                    offset += OBJECT_HEADER_SIZE as i32;
+                }
+
+                self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
+
+                self.make_value_int_const(offset as u64, vm)
+            } else {
+                self.backend.emit_mov_r_r(&tmp_end, &tmp_start);
+                if OBJECT_HEADER_SIZE != 0 {
+                    // ASM: add %size, HEADER_SIZE -> %size
+                    self.backend.emit_add_r_imm(&size, OBJECT_HEADER_SIZE as i32);
+                }
+                self.backend.emit_add_r_r(&tmp_end, &size);
+
+                size
+            };
+
+            // check with limit
+            // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
+            let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
+            let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
+            self.backend.emit_cmp_mem_r(&mem_limit, &tmp_end);
+
+            // branch to slow path if end > limit (end - limit > 0)
+            // ASM: jg alloc_slow
+            let slowpath = format!("{}_allocslow", node.id());
+            self.backend.emit_jg(slowpath.clone());
+
+            // finish current block
+            self.finish_block();
+            self.start_block(format!("{}_updatecursor", node.id()));
+
+            // update cursor
+            // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
+            self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
+
+            // put start as result
+            let tmp_res = self.get_result_value(node);
+            if OBJECT_HEADER_OFFSET != 0 {
+                // ASM: lea -HEADER_OFFSET(%start) -> %result
+                self.emit_lea_base_immoffset(&tmp_res, &tmp_start, -OBJECT_HEADER_OFFSET as i32, vm);
+            } else {
+                // ASM: mov %start -> %result
+                self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
             }
 
-            self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
-        } else {
-            self.backend.emit_mov_r_r(&tmp_end, &tmp_start);
-            if OBJECT_HEADER_SIZE != 0 {
-                // ASM: add %size, HEADER_SIZE -> %size
-                self.backend.emit_add_r_imm(&size, OBJECT_HEADER_SIZE as i32);
+            // ASM jmp alloc_end
+            let allocend = format!("{}_alloc_small_end", node.id());
+            self.backend.emit_jmp(allocend.clone());
+
+            // finishing current block
+            let cur_block = self.current_block.as_ref().unwrap().clone();
+            self.backend.end_block(cur_block.clone());
+            self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
+
+            // alloc_slow:
+            // call alloc_slow(size, align) -> %ret
+            // new block (no livein)
+            self.current_block = Some(slowpath.clone());
+            self.backend.start_block(slowpath.clone());
+            if size.is_int_reg() {
+                self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
             }
-            self.backend.emit_add_r_r(&tmp_end, &size);
-        }
 
-        // check with limit
-        // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
-        let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
-        let mem_limit = self.make_memory_op_base_offset(&tmp_tl, limit_offset as i32, ADDRESS_TYPE.clone(), vm);
-        self.backend.emit_cmp_mem_r(&mem_limit, &tmp_end);
+            // arg1: allocator address
+            // arg2: size
+            // arg3: align
+            let const_align = self.make_value_int_const(align as u64, vm);
 
-        // branch to slow path if end > limit (end - limit > 0)
-        // ASM: jg alloc_slow
-        let slowpath = format!("{}_allocslow", node.id());
-        self.backend.emit_jg(slowpath.clone());
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_SLOW,
+                vec![tmp_allocator.clone(), size.clone(), const_align],
+                Some(vec![
+                    tmp_res.clone()
+                ]),
+                Some(node), f_content, f_context, vm
+            );
 
-        // finish current block
-        self.finish_block();
-        self.start_block(format!("{}_updatecursor", node.id()));
+            if OBJECT_HEADER_OFFSET != 0 {
+                // ASM: lea -HEADER_OFFSET(%res) -> %result
+                self.emit_lea_base_immoffset(&tmp_res, &tmp_res, -OBJECT_HEADER_OFFSET as i32, vm);
+            }
 
-        // update cursor
-        // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
-        self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
+            // end block (no liveout other than result)
+            self.backend.end_block(slowpath.clone());
+            self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
 
-        // put start as result
-        let tmp_res = self.get_result_value(node);
-        if OBJECT_HEADER_OFFSET != 0 {
-            // ASM: lea -HEADER_OFFSET(%start) -> %result
-            self.emit_lea_base_immoffset(&tmp_res, &tmp_start, - OBJECT_HEADER_OFFSET as i32, vm);
+            // block: alloc_end
+            self.backend.start_block(allocend.clone());
+            self.current_block = Some(allocend.clone());
+
+            tmp_res
         } else {
-            // ASM: mov %start -> %result
-            self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
+            // directly call 'alloc'
+            let tmp_res = self.get_result_value(node);
+
+            let const_align = self.make_value_int_const(align as u64, vm);
+
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_FAST,
+                vec![tmp_allocator.clone(), size.clone(), const_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node), f_content, f_context, vm
+            );
+
+            tmp_res
         }
-
-        // ASM jmp alloc_end
-        let allocend = format!("{}_alloc_small_end", node.id());
-        self.backend.emit_jmp(allocend.clone());
-
-        // finishing current block
-        let cur_block = self.current_block.as_ref().unwrap().clone();
-        self.backend.end_block(cur_block.clone());
-        self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
-
-        // alloc_slow:
-        // call alloc_slow(size, align) -> %ret
-        // new block (no livein)
-        self.current_block = Some(slowpath.clone());
-        self.backend.start_block(slowpath.clone());
-        self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
-
-        // arg1: allocator address
-        // arg2: size
-        // arg3: align
-        let const_align= self.make_value_int_const(align as u64, vm);
-
-        self.emit_runtime_entry(
-            &entrypoints::ALLOC_SLOW,
-            vec![tmp_allocator.clone(), size.clone(), const_align],
-            Some(vec![
-            tmp_res.clone()
-            ]),
-            Some(node), f_content, f_context, vm
-        );
-
-        // end block (no liveout other than result)
-        self.backend.end_block(slowpath.clone());
-        self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
-
-        // block: alloc_end
-        self.backend.start_block(allocend.clone());
-        self.current_block = Some(allocend.clone());
-
-        tmp_res
     }
 
     fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) -> P<Value> {
@@ -2011,6 +2054,19 @@ impl <'a> InstructionSelection {
         let mem = self.make_memory_op_base_offset(base, offset, ADDRESS_TYPE.clone(), vm);
         
         self.backend.emit_lea_r64(dest, &mem);
+    }
+
+    fn emit_push(&mut self, op: &P<Value>) {
+        if op.is_int_const() {
+            if x86_64::is_valid_x86_imm(op) {
+                let int = op.extract_int_const();
+                self.backend.emit_push_imm32(int as i32);
+            } else {
+                unimplemented!();
+            }
+        } else {
+            self.backend.emit_push_r64(op);
+        }
     }
 
     fn emit_udiv (
@@ -2185,9 +2241,6 @@ impl <'a> InstructionSelection {
         &mut self,
         args: &Vec<P<Value>>, 
         vm: &VM) -> usize {
-        // if we need to save caller saved regs
-        // put it here (since this is fastpath compile, we wont have them)
-        
         // put args into registers if we can
         // in the meantime record args that do not fit in registers
         let mut stack_args : Vec<P<Value>> = vec![];        
@@ -2264,11 +2317,9 @@ impl <'a> InstructionSelection {
             {
                 let mut index = 0;
                 for arg in stack_args {
-                    self.emit_store_base_offset(&x86_64::RSP, - (stack_arg_offsets[index] as i32), &arg, vm);
+                    self.emit_push(&arg);
                     index += 1;
                 }
-
-                self.backend.emit_add_r_imm(&x86_64::RSP, (- (stack_arg_size as i32)) as i32);
             }
 
             stack_arg_size_with_padding
@@ -2365,7 +2416,7 @@ impl <'a> InstructionSelection {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
-            self.backend.emit_call_near_rel32(callsite, func_name);
+            self.backend.emit_call_near_rel32(callsite, func_name, None); // assume ccall wont throw exception
             
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -2493,6 +2544,16 @@ impl <'a> InstructionSelection {
             }
         }
         let stack_arg_size = self.emit_precall_convention(&arg_values, vm);
+
+        // check if this call has exception clause - need to tell backend about this
+        let potentially_excepting = {
+            if resumption.is_some() {
+                let target_id = resumption.unwrap().exn_dest.target;
+                Some(f_content.get_block(target_id).name().unwrap())
+            } else {
+                None
+            }
+        };
         
         trace!("generating call inst");
         // check direct call or indirect
@@ -2506,18 +2567,18 @@ impl <'a> InstructionSelection {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend.emit_call_near_rel32(callsite, target.name().unwrap())
+                    self.backend.emit_call_near_rel32(callsite, target.name().unwrap(), potentially_excepting)
                 }
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
                 
                 let callsite = self.new_callsite_label(Some(cur_node));
-                self.backend.emit_call_near_r64(callsite, &target)
+                self.backend.emit_call_near_r64(callsite, &target, potentially_excepting)
             } else if self.match_mem(func) {
                 let target = self.emit_mem(func, vm);
                 
                 let callsite = self.new_callsite_label(Some(cur_node));
-                self.backend.emit_call_near_mem64(callsite, &target)
+                self.backend.emit_call_near_mem64(callsite, &target, potentially_excepting)
             } else {
                 unimplemented!()
             }
@@ -2588,8 +2649,16 @@ impl <'a> InstructionSelection {
         
         // push rbp
         self.backend.emit_push_r64(&x86_64::RBP);
+        if vm.vm_options.flag_emit_debug_info {
+            self.backend.add_cfi_def_cfa_offset(16i32);
+            self.backend.add_cfi_offset(&x86_64::RBP, -16i32);
+        }
+
         // mov rsp -> rbp
         self.backend.emit_mov_r_r(&x86_64::RBP, &x86_64::RSP);
+        if vm.vm_options.flag_emit_debug_info {
+            self.backend.add_cfi_def_cfa_register(&x86_64::RBP);
+        }
 
         // push all callee-saved registers
         {
@@ -3608,7 +3677,12 @@ impl CompilerPass for InstructionSelection {
         self.current_func_start = Some({
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
-            self.backend.start_code(func.name().unwrap(), entry_block.name().unwrap())
+            let start_loc = self.backend.start_code(func.name().unwrap(), entry_block.name().unwrap());
+            if vm.vm_options.flag_emit_debug_info {
+                self.backend.add_cfi_startproc();
+            }
+
+            start_loc
         });
         self.current_callsite_id = 0;
         self.current_exn_callsites.clear();
@@ -3627,16 +3701,30 @@ impl CompilerPass for InstructionSelection {
         let f_content = func.content.as_ref().unwrap();
         
         for block_id in func.block_trace.as_ref().unwrap() {
+            // is this block an exception block?
+            let is_exception_block = f_content.exception_blocks.contains(&block_id);
+
             let block = f_content.get_block(*block_id);
             let block_label = block.name().unwrap();
             self.current_block = Some(block_label.clone());            
             
             let block_content = block.content.as_ref().unwrap();
-            
-            if block.is_exception_block() {
+
+            if is_exception_block {
+                // exception block
+                // we need to be aware of exception blocks so that we can emit information to catch exceptions
+
                 let loc = self.backend.start_exception_block(block_label.clone());
                 self.current_exn_blocks.insert(block.id(), loc);
-                
+            } else {
+                // normal block
+                self.backend.start_block(block_label.clone());
+            }
+
+            if block.is_receiving_exception_arg() {
+                // this block uses exception arguments
+                // we need to add it to livein, and also emit landingpad for it
+
                 let exception_arg = block_content.exn_arg.as_ref().unwrap();
                 
                 // live in is args of the block + exception arg
@@ -3647,8 +3735,6 @@ impl CompilerPass for InstructionSelection {
                 // need to insert a landing pad
                 self.emit_landingpad(&exception_arg, f_content, &mut func.context, vm);
             } else {
-                self.backend.start_block(block_label.clone());
-                
                 // live in is args of the block
                 self.backend.set_block_livein(block_label.clone(), &block_content.args);                    
             }
@@ -3656,6 +3742,7 @@ impl CompilerPass for InstructionSelection {
             // live out is the union of all branch args of this block
             let live_out = block_content.get_out_arguments();
 
+            // doing the actual instruction selection
             for inst in block_content.body.iter() {
                 self.instruction_select(&inst, f_content, &mut func.context, vm);
             }
@@ -3680,7 +3767,11 @@ impl CompilerPass for InstructionSelection {
             let func = funcs.get(&func.func_id).unwrap().read().unwrap();
             func.name().unwrap()
         };
-        
+
+        // have to do this before 'finish_code()'
+        if vm.vm_options.flag_emit_debug_info {
+            self.backend.add_cfi_endproc();
+        }
         let (mc, func_end) = self.backend.finish_code(func_name.clone());
         
         // insert exception branch info

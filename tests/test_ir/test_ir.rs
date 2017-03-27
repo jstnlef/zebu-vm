@@ -165,16 +165,15 @@ pub fn sum() -> VM {
     blk_ret.content = Some(blk_ret_content);
 
     // wrap into a function
-    func_ver.define(FunctionContent{
-            entry: blk_entry.id(),
-            blocks: {
+    func_ver.define(FunctionContent::new(blk_entry.id(),
+            {
                 let mut blocks = LinkedHashMap::new();
                 blocks.insert(blk_entry.id(), blk_entry);
                 blocks.insert(blk_head.id(), blk_head);
                 blocks.insert(blk_ret.id(), blk_ret);
                 blocks
             }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 
@@ -363,16 +362,16 @@ pub fn factorial() -> VM {
     blk_1.content = Some(blk_1_content);
 
     // wrap into a function
-    func_ver.define(FunctionContent{
-            entry: blk_0.id(),
-            blocks: {
+    func_ver.define(FunctionContent::new(
+            blk_0.id(),
+            {
                 let mut blocks = LinkedHashMap::new();
                 blocks.insert(blk_0.id(), blk_0);
                 blocks.insert(blk_1.id(), blk_1);
                 blocks.insert(blk_2.id(), blk_2);
                 blocks
             }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 
@@ -475,14 +474,14 @@ pub fn global_access(vm: &VM) {
     };
     blk_0.content = Some(blk_0_content);
     
-    func_ver.define(FunctionContent{
-        entry: blk_0.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_0.id(),
+        {
             let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret
         }
-    });
+    ));
     
     vm.define_func_version(func_ver);
 }

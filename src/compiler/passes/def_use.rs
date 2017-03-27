@@ -66,6 +66,13 @@ impl CompilerPass for DefUse {
             _ => panic!("expected instruction node in visit_inst()")
         }
     }
+
+    #[allow(unused_variables)]
+    fn start_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        for entry in func.context.values.values() {
+            entry.reset_use_count();
+        }
+    }
     
     #[allow(unused_variables)]
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {

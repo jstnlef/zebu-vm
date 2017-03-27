@@ -251,14 +251,14 @@ pub fn alloc_new() -> VM {
     };
     blk_0.content = Some(blk_0_content);
     
-    func_ver.define(FunctionContent{
-        entry: blk_0.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_0.id(),
+        {
             let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret
         }
-    });
+    ));
     
     vm.define_func_version(func_ver);
     

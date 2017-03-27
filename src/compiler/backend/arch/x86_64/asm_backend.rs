@@ -376,6 +376,35 @@ impl ASMCode {
                         panic!("conditional branch does not have a fallthrough target");
                     }
                 },
+                ASMBranchTarget::PotentiallyExcepting(ref target) => {
+                    // may trigger exception and jump to target - similar as conditional branch
+                    let target_n = self.blocks.get(target).unwrap().start_inst;
+
+                    // cur inst's succ is target
+                    asm[i].succs.push(target_n);
+
+                    if TRACE_CFA {
+                        trace!("inst {}: is potentially excepting to {}", i, target);
+                        trace!("inst {}: excepting target index is {}", i, target_n);
+                        trace!("inst {}: set SUCCS as excepting target {}", i, target_n);
+                    }
+
+                    asm[target_n].preds.push(i);
+
+                    if let Some(next_inst) = ASMCode::find_next_inst(i, asm) {
+                        // cur succ is next inst
+                        asm[i].succs.push(next_inst);
+
+                        // next inst's pred is cur
+                        asm[next_inst].preds.push(i);
+
+                        if TRACE_CFA {
+                            trace!("inst {}: SET SUCCS as PEI fallthrough target {}", i, next_inst);
+                        }
+                    } else {
+                        panic!("PEI does not have a fallthrough target");
+                    }
+                },
                 ASMBranchTarget::Return => {
                     if TRACE_CFA {
                         trace!("inst {}: is a return", i);
@@ -433,6 +462,25 @@ impl ASMCode {
             }
 
             None
+        }
+    }
+
+    fn find_last_inst(i: usize, asm: &Vec<ASMInst>) -> Option<usize> {
+        if i == 0 {
+            None
+        } else {
+            let mut cur = i;
+            loop {
+                if !asm[cur].is_symbol {
+                    return Some(cur);
+                }
+
+                if cur == 0 {
+                    return None;
+                } else {
+                    cur -= 1;
+                }
+            }
         }
     }
 
@@ -602,8 +650,9 @@ impl MachineCode for ASMCode {
     }
     
     fn set_inst_nop(&mut self, index: usize) {
-        self.code.remove(index);
-        self.code.insert(index, ASMInst::nop());
+        self.code[index].code.clear();
+//        self.code.remove(index);
+//        self.code.insert(index, ASMInst::nop());
     }
 
     fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID> {
@@ -656,15 +705,8 @@ impl MachineCode for ASMCode {
         regs_to_remove
     }
 
+    #[allow(unused_variables)]
     fn patch_frame_size(&mut self, size: usize, size_used: usize) {
-        // calling convention requires stack pointer to be 16 bytes aligned before a call
-        // we make frame size a multipl of 16 bytes
-        let size = if (size + size_used) % 16 == 0 {
-            size
-        } else {
-            ( (size + size_used) / 16 + 1) * 16 - size_used
-        };
-
         let size = size.to_string();
 
         debug_assert!(size.len() <= FRAME_SIZE_PLACEHOLDER_LEN);
@@ -680,10 +722,28 @@ impl MachineCode for ASMCode {
         let mut ret = vec![];
         
         for inst in self.code.iter() {
+            if !inst.is_symbol {
+                ret.append(&mut "\t".to_string().into_bytes());
+            }
+
             ret.append(&mut inst.code.clone().into_bytes());
             ret.append(&mut "\n".to_string().into_bytes());
         }
         
+        ret
+    }
+
+    fn emit_inst(&self, index: usize) -> Vec<u8> {
+        let mut ret = vec![];
+
+        let ref inst = self.code[index];
+
+        if !inst.is_symbol {
+            ret.append(&mut "\t".to_string().into_bytes());
+        }
+
+        ret.append(&mut inst.code.clone().into_bytes());
+
         ret
     }
     
@@ -744,6 +804,24 @@ impl MachineCode for ASMCode {
             None => None
         }
     }
+
+    fn get_block_for_inst(&self, index: usize) -> Option<MuName> {
+        for (name, block) in self.blocks.iter() {
+            if index >= block.start_inst && index < block.end_inst {
+                return Some(name.clone());
+            }
+        }
+
+        None
+    }
+
+    fn get_next_inst(&self, index: usize) -> Option<usize> {
+        ASMCode::find_next_inst(index, &self.code)
+    }
+
+    fn get_last_inst(&self, index: usize) -> Option<usize> {
+        ASMCode::find_last_inst(index, &self.code)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -751,6 +829,7 @@ enum ASMBranchTarget {
     None,
     Conditional(MuName),
     Unconditional(MuName),
+    PotentiallyExcepting(MuName),
     Return
 }
 
@@ -930,7 +1009,7 @@ impl ASMCodeGen {
         regs.map(|x| self.prepare_machine_reg(x)).collect()
     }
     
-    fn add_asm_call(&mut self, code: String) {
+    fn add_asm_call(&mut self, code: String, potentially_excepting: Option<MuName>) {
         // a call instruction will use all the argument registers
         // do not need
         let uses : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
@@ -960,7 +1039,13 @@ impl ASMCodeGen {
             }
         }
           
-        self.add_asm_inst(code, defines, uses, false);
+        self.add_asm_inst_internal(code, defines, uses, false, {
+            if potentially_excepting.is_some() {
+                ASMBranchTarget::PotentiallyExcepting(potentially_excepting.unwrap())
+            } else {
+                ASMBranchTarget::None
+            }
+        }, None)
     }
     
     fn add_asm_ret(&mut self, code: String) {
@@ -1930,6 +2015,25 @@ impl CodeGenerator for ASMCodeGen {
         }
     }
 
+    fn add_cfi_startproc(&mut self) {
+        self.add_asm_symbolic(".cfi_startproc".to_string());
+    }
+    fn add_cfi_endproc(&mut self) {
+        self.add_asm_symbolic(".cfi_endproc".to_string());
+    }
+
+    fn add_cfi_def_cfa_register(&mut self, reg: Reg) {
+        let reg = self.asm_reg_op(reg);
+        self.add_asm_symbolic(format!(".cfi_def_cfa_register {}", reg));
+    }
+    fn add_cfi_def_cfa_offset(&mut self, offset: i32) {
+        self.add_asm_symbolic(format!(".cfi_def_cfa_offset {}", offset));
+    }
+    fn add_cfi_offset(&mut self, reg: Reg, offset: i32) {
+        let reg = self.asm_reg_op(reg);
+        self.add_asm_symbolic(format!(".cfi_offset {}, {}", reg, offset));
+    }
+
     fn emit_frame_grow(&mut self) {
         trace!("emit frame grow");
 
@@ -2703,11 +2807,11 @@ impl CodeGenerator for ASMCodeGen {
     }    
 
     #[cfg(target_os = "macos")]
-    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation {
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
         
         let asm = format!("call {}", symbol(func));
-        self.add_asm_call(asm);
+        self.add_asm_call(asm, pe);
         
         let callsite_symbol = symbol(callsite.clone());
         self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
@@ -2718,13 +2822,13 @@ impl CodeGenerator for ASMCodeGen {
 
     #[cfg(target_os = "linux")]
     // generating Position-Independent Code using PLT
-    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation {
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
 
         let func = func + "@PLT";
 
         let asm = format!("call {}", symbol(func));
-        self.add_asm_call(asm);
+        self.add_asm_call(asm, pe);
 
         let callsite_symbol = symbol(callsite.clone());
         self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
@@ -2733,12 +2837,12 @@ impl CodeGenerator for ASMCodeGen {
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
     
-    fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation {
+    fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
         unimplemented!()
     }
     
-    fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation {
+    fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
         unimplemented!()
     }
@@ -3057,14 +3161,7 @@ impl CodeGenerator for ASMCodeGen {
     }
 }
 
-fn create_emit_directory(vm: &VM) {
-    use std::fs;    
-    match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
-        Ok(_) => {},
-        Err(_) => {}
-    }    
-}
-
+use compiler::backend::code_emission::create_emit_directory;
 use std::fs::File;
 
 pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {

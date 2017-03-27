@@ -479,15 +479,15 @@ pub fn struct_insts() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut map = LinkedHashMap::new();
             map.insert(blk_entry.id(), blk_entry);
             map.insert(blk_check_id, blk_check);
             map
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 
@@ -759,15 +759,15 @@ pub fn hybrid_fix_part_insts() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut map = LinkedHashMap::new();
             map.insert(blk_entry.id(), blk_entry);
             map.insert(blk_check_id, blk_check);
             map
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 
@@ -1203,9 +1203,9 @@ pub fn hybrid_var_part_insts() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut map = LinkedHashMap::new();
             map.insert(blk_entry.id(), blk_entry);
             map.insert(blk_check.id(), blk_check);
@@ -1214,7 +1214,7 @@ pub fn hybrid_var_part_insts() -> VM {
             map.insert(blk_exit.id(),  blk_exit);
             map
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 

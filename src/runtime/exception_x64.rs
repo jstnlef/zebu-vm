@@ -58,7 +58,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
     
     // the return address is within throwing frame
     let throw_frame_callsite = rust_frame_return_addr;
-    let (throw_func, throw_fv) = find_func_for_address(&cf_lock, &func_lock, throw_frame_callsite);
+    let (throw_func, throw_fv) = find_func_for_address(&cf_lock, &func_lock, throw_frame_callsite).unwrap();
     trace!("throwing fucntion: {}", throw_func);
     
     // skip to previous frame
@@ -82,7 +82,8 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
             x86_64::R15.id() => last_frame_callee_saved.plus(POINTER_SIZE * 5),
         }
     };
-    trace!("cursor at first Mu frame: {}", cursor);
+
+    print_backtrace(throw_frame_callsite, cursor.clone());
     
     let mut callsite = rust_frame_return_addr;
     
@@ -101,41 +102,21 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
             rwlock_cf.frame.clone()
         };
         trace!("frame info: {}", frame);
-        
-        // update callee saved register location
-        for reg in x86_64::CALLEE_SAVED_GPRs.iter() {
-            let reg_id = reg.id();
-            trace!("update callee saved register {}", reg_id);
-            if frame.allocated.contains_key(&reg_id) {
-                let offset_from_rbp = frame.allocated.get(&reg_id).unwrap().offset;
-                let reg_restore_addr = cursor.rbp.offset(offset_from_rbp);
-                
-                trace!("update callee saved register {} with loc 0x{:x}", reg_id, reg_restore_addr);
-                cursor.callee_saved_locs.insert(reg_id, reg_restore_addr);
-            } else {
-                // rbp won't find a location
-                if reg_id == x86_64::RBP.id() {
-                    
-                } else {
-                    info!("failed to find an entry for {} in current frame", reg_id);
-                }
-            }
-        }
-        
+
         // find exception block - comparing callsite with frame info
         trace!("checking catch block: looking for callsite 0x{:x}", callsite);
         let exception_callsites = frame.get_exception_callsites();
         for &(ref possible_callsite, ref dest) in exception_callsites.iter() {
             let possible_callsite_addr = possible_callsite.to_address();
             trace!("..check {} at 0x{:x}", possible_callsite, possible_callsite_addr);
-            
+
             if callsite == possible_callsite_addr {
                 trace!("found catch block at {}", dest);
                 // found an exception block
                 let dest_addr = dest.to_address();
-                
+
                 // restore callee saved register and jump to dest_addr
-                
+
                 // prepare a plain array [rbx, rbp, r12, r13, r14, r15]
                 macro_rules! unpack_callee_saved_from_cursor {
                     ($reg: expr) => {
@@ -148,7 +129,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
                         }
                     }
                 };
-                
+
                 let rbx = unpack_callee_saved_from_cursor!(x86_64::RBX);
                 let r12 = unpack_callee_saved_from_cursor!(x86_64::R12);
                 let r13 = unpack_callee_saved_from_cursor!(x86_64::R13);
@@ -156,22 +137,79 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
                 let r15 = unpack_callee_saved_from_cursor!(x86_64::R15);
                 let rbp = cursor.rbp.as_usize() as Word;
                 let array = vec![rbx, rbp, r12, r13, r14, r15];
-                
-                let rsp = cursor.rbp.offset(frame.cur_offset());
+
+                let rsp = cursor.rbp.offset(- (frame.cur_size() as isize));
 
                 info!("going to restore thread to {} with RSP {}", dest_addr, rsp);
                 unsafe {thread::exception_restore(dest_addr, array.as_ptr(), rsp)};
-                
+
                 unreachable!()
             }
         }
         trace!("didnt find a catch block");
+
+        // update callee saved register location
+        for reg in x86_64::CALLEE_SAVED_GPRs.iter() {
+            let reg_id = reg.id();
+            trace!("update callee saved register {}", reg.name().unwrap());
+            if frame.allocated.contains_key(&reg_id) {
+                let offset_from_rbp = frame.allocated.get(&reg_id).unwrap().offset;
+                let reg_restore_addr = cursor.rbp.offset(offset_from_rbp);
+                
+                trace!("update callee saved register {} with loc 0x{:x}", reg.name().unwrap(), reg_restore_addr);
+                cursor.callee_saved_locs.insert(reg_id, reg_restore_addr);
+            } else {
+                // rbp won't find a location
+                if reg_id == x86_64::RBP.id() {
+                    info!("skip RBP");
+                } else {
+                    info!("failed to find an entry for {} in current frame", reg.name().unwrap());
+                }
+            }
+        }
         
         // keep unwinding
         callsite = cursor.return_addr;
         cursor.to_previous_frame(&cf_lock, &func_lock);
         trace!("cursor unwinds to previous frame: {}", cursor);        
     }
+}
+
+fn print_backtrace(callsite: Address, mut cursor: FrameCursor) {
+    info!("Mu backtrace:");
+
+    let cur_thread = thread::MuThread::current();
+
+    let cf_lock   = cur_thread.vm.compiled_funcs().read().unwrap();
+    let func_lock = cur_thread.vm.funcs().read().unwrap();
+
+    let mut frame_count = 0;
+    let mut callsite = callsite;
+
+    loop {
+        let func_start = {
+            match cf_lock.get(&cursor.func_ver_id) {
+                Some(rwlock_cf) => {
+                    rwlock_cf.read().unwrap().start.to_address()
+                },
+                None => unsafe {Address::zero()}
+            }
+        };
+        let func_name = cur_thread.vm.name_of(cursor.func_id);
+
+        info!("frame {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}", frame_count, func_start, func_name, cursor.func_id, cursor.func_ver_id, callsite);
+
+        if cursor.has_previous_frame(&cf_lock, &func_lock) {
+            frame_count += 1;
+            callsite = cursor.return_addr;
+
+            cursor.to_previous_frame(&cf_lock, &func_lock);
+        } else {
+            break;
+        }
+    }
+
+    info!("backtrace done.");
 }
 
 fn inspect_nearby_address(base: Address, n: isize) {
@@ -186,6 +224,7 @@ fn inspect_nearby_address(base: Address, n: isize) {
     }
 }
 
+#[derive(Clone)]
 struct FrameCursor {
     rbp: Address,
     return_addr: Address,
@@ -200,13 +239,19 @@ impl fmt::Display for FrameCursor {
         writeln!(f, "  rbp=0x{:x}, return_addr=0x{:x}, func_id={}, func_version_id={}", self.rbp, self.return_addr, self.func_id, self.func_ver_id).unwrap();
         writeln!(f, "  callee_saved:").unwrap();
         for (reg, addr) in self.callee_saved_locs.iter() {
-            writeln!(f, "    #{} at 0x{:x}", reg, addr).unwrap()
+            let val = unsafe {addr.load::<u64>()};
+            writeln!(f, "    #{} at 0x{:x} (value=0x{:x})", reg, addr, val).unwrap()
         }
         writeln!(f, "}}")
     }
 }
 
 impl FrameCursor {
+    fn has_previous_frame(&self, cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>,
+                          funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>) -> bool {
+        !self.return_addr.is_zero() && find_func_for_address(cf, funcs, self.return_addr).is_some()
+    }
+
     fn to_previous_frame(&mut self, cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>) {
         // check if return_addr is valid
         // FIXME: should use a sentinel value here
@@ -216,7 +261,7 @@ impl FrameCursor {
         
         let previous_rbp = unsafe {self.rbp.load::<Address>()};
         let previous_return_addr = unsafe {previous_rbp.plus(POINTER_SIZE).load::<Address>()};
-        let (previous_func, previous_fv_id) = find_func_for_address(cf, funcs, self.return_addr);
+        let (previous_func, previous_fv_id) = find_func_for_address(cf, funcs, self.return_addr).unwrap();
         
         self.rbp = previous_rbp;
         self.return_addr = previous_return_addr;
@@ -225,29 +270,40 @@ impl FrameCursor {
     }
 }
 
-fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>, funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>, pc_addr: Address) -> (MuID, MuID) {
+const TRACE_FIND_FUNC : bool = false;
+
+#[allow(unused_imports)]
+fn find_func_for_address (cf: &RwLockReadGuard<HashMap<MuID, RwLock<CompiledFunction>>>,
+                          funcs: &RwLockReadGuard<HashMap<MuID, RwLock<MuFunction>>>,
+                          pc_addr: Address) -> Option<(MuID, MuID)> {
     use std::ops::Deref;
 
-    trace!("trying to find FuncVersion for address 0x{:x}", pc_addr);
+    if TRACE_FIND_FUNC {
+        trace!("trying to find FuncVersion for address 0x{:x}", pc_addr);
+    }
     for (_, func) in cf.iter() {
         let func = func.read().unwrap();
-
-        let f = match funcs.get(&func.func_id) {
-            Some(f) => f,
-            None => panic!("failed to find func #{}", func.func_id)
-        };
-        let f_lock = f.read().unwrap();
         
         let start = func.start.to_address();
         let end = func.end.to_address();
-        trace!("CompiledFunction: func={}, fv_id={}, start=0x{:x}, end=0x{:x}", f_lock.deref(), func.func_ver_id, start, end);
+
+        if TRACE_FIND_FUNC {
+            let f = match funcs.get(&func.func_id) {
+                Some(f) => f,
+                None => panic!("failed to find func #{}", func.func_id)
+            };
+            let f_lock = f.read().unwrap();
+            trace!("CompiledFunction: func={}, fv_id={}, start=0x{:x}, end=0x{:x}", f_lock.deref(), func.func_ver_id, start, end);
+        }
         
         // pc won't be the start of a function, but could be the end
         if pc_addr > start && pc_addr <= end {
-            trace!("Found CompiledFunction: func_id={}, fv_id={}", func.func_id, func.func_ver_id);
-            return (func.func_id, func.func_ver_id);
+            if TRACE_FIND_FUNC {
+                trace!("Found CompiledFunction: func_id={}, fv_id={}", func.func_id, func.func_ver_id);
+            }
+            return Some((func.func_id, func.func_ver_id));
         }
     }
     
-    panic!("cannot find compiled function for pc 0x{:x}", pc_addr);
+    None
 }

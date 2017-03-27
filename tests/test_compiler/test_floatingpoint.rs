@@ -80,14 +80,14 @@ fn fp_add() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut ret = LinkedHashMap::new();
             ret.insert(blk_entry.id(), blk_entry);
             ret
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 

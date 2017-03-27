@@ -1,23 +1,25 @@
 extern crate log;
 extern crate libloading;
-extern crate mu;
 
-use self::mu::ast::types::*;
-use self::mu::ast::ir::*;
-use self::mu::ast::inst::*;
-use self::mu::vm::*;
-use self::mu::compiler::*;
-use self::mu::utils::LinkedHashMap;
+use mu::ast::types::*;
+use mu::ast::ir::*;
+use mu::ast::inst::*;
+use mu::ast::op::*;
+use mu::vm::*;
+use mu::compiler::*;
+use mu::utils::LinkedHashMap;
 
-use self::mu::testutil::aot;
+use mu::testutil::aot;
+
+use test_compiler::test_call::gen_ccall_exit;
 
 use std::sync::Arc;
 use std::sync::RwLock;
 
 #[test]
-fn test_exception_simple_throw_catch() {
+fn test_exception_throw_catch_simple() {
     VM::start_logging_trace();
-    let vm = Arc::new(simple_throw_catch());
+    let vm = Arc::new(throw_catch_simple());
     
     let compiler = Compiler::new(CompilerPolicy::default(), &vm);
     
@@ -44,37 +46,31 @@ fn test_exception_simple_throw_catch() {
     vm.make_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
     
-    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "simple_throw_catch_test", &vm);
+    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
     aot::execute(executable);
 }
 
-fn simple_throw_catch() -> VM {
+fn declare_commons(vm: &VM) {
+    typedef!    ((vm) int64      = mu_int(64));
+    typedef!    ((vm) ref_int64  = mu_ref(int64));
+    typedef!    ((vm) iref_int64 = mu_iref(int64));
+
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+}
+
+fn throw_catch_simple() -> VM {
     let vm = VM::new();
     
-    // .typedef @int64 = int<64>
-    // .typedef @ref_int64 = ref<int<64>>
-    // .typedef @iref_int64 = iref<int<64>>
-    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), "int64".to_string());
-    let type_def_ref_int64 = vm.declare_type(vm.next_id(), MuType_::muref(type_def_int64.clone()));
-    vm.set_name(type_def_ref_int64.as_entity(), "ref_int64".to_string());
-    let type_def_iref_int64 = vm.declare_type(vm.next_id(), MuType_::iref(type_def_int64.clone()));
-    vm.set_name(type_def_iref_int64.as_entity(), "iref_int64".to_string());    
-    
-    // .const @int_64_0 <@int_64> = 0
-    // .const @int_64_1 <@int_64> = 1
-    let const_def_int64_0 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(0));
-    vm.set_name(const_def_int64_0.as_entity(), "int64_0".to_string());
-    let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
-    vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());    
+    declare_commons(&vm);
     
     create_throw_exception_func(&vm);
-    create_catch_exception_func(&vm);
+    create_catch_exception_func(&vm, true);
     
     vm
 }
 
-fn create_catch_exception_func (vm: &VM) {
+fn create_catch_exception_func (vm: &VM, use_exception_arg: bool) {
     // .typedef @funcref_throw_exception <@throw_exception_sig>
     let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
     let throw_exception_id = vm.id_of("throw_exception");
@@ -164,21 +160,25 @@ fn create_catch_exception_func (vm: &VM) {
     });
     blk_exn_cont.content = Some(BlockContent {
         args: vec![],
-        exn_arg: Some(blk_exn_cont_exception_arg.clone_value()),
+        exn_arg: if use_exception_arg {
+            Some(blk_exn_cont_exception_arg.clone_value())
+        } else {
+            None
+        },
         body: vec![blk_exn_cont_thread_exit],
         keepalives: None
     });    
     
-    func_ver.define(FunctionContent{
-        entry: blk_0.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_0.id(),
+        {
             let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret.insert(blk_normal_cont.id(), blk_normal_cont);
             ret.insert(blk_exn_cont.id(), blk_exn_cont);
             ret
         }
-    });
+    ));
     
     vm.define_func_version(func_ver);
 }
@@ -254,14 +254,423 @@ fn create_throw_exception_func (vm: &VM) {
     };
     blk_0.content = Some(blk_0_content);
     
-    func_ver.define(FunctionContent {
-        entry: blk_0.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_0.id(),
+        {
             let mut ret = LinkedHashMap::new();
             ret.insert(blk_0.id(), blk_0);
             ret
         }
-    });
+    ));
     
     vm.define_func_version(func_ver);
+}
+
+#[test]
+fn test_exception_throw_catch_dont_use_exception_arg() {
+    VM::start_logging_trace();
+    let vm = Arc::new(throw_catch_dont_use_exception_arg());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_throw = vm.id_of("throw_exception");
+    let func_catch = vm.id_of("catch_exception");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_throw).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_catch).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_catch, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
+    aot::execute(executable);
+}
+
+fn throw_catch_dont_use_exception_arg() -> VM {
+    let vm = VM::new();
+
+    declare_commons(&vm);
+
+    create_throw_exception_func(&vm);
+    create_catch_exception_func(&vm, false);
+
+    vm
+}
+
+#[test]
+fn test_exception_throw_catch_and_add() {
+    VM::start_logging_trace();
+    let vm = Arc::new(throw_catch_and_add());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_throw = vm.id_of("throw_exception");
+    let func_catch = vm.id_of("catch_and_add");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_throw).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_catch).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_catch, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_and_add")], "throw_catch_and_add", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    // throw 1, add 0, 1, 2, 3, 4
+    assert!(output.status.code().is_some());
+    assert_eq!(output.status.code().unwrap(), 11);
+}
+
+fn throw_catch_and_add() -> VM {
+    let vm = VM::new();
+
+    declare_commons(&vm);
+
+    create_throw_exception_func(&vm);
+    create_catch_exception_and_add(&vm);
+
+    vm
+}
+
+fn create_catch_exception_and_add(vm: &VM) {
+    let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
+    let throw_exception_id = vm.id_of("throw_exception");
+
+    let int64 = vm.get_type(vm.id_of("int64"));
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+    constdef!   ((vm) <int64> int64_2 = Constant::Int(2));
+    constdef!   ((vm) <int64> int64_3 = Constant::Int(3));
+    constdef!   ((vm) <int64> int64_4 = Constant::Int(4));
+    constdef!   ((vm) <int64> int64_5 = Constant::Int(5));
+
+    typedef!    ((vm) type_funcref_throw_exception  = mu_funcref(throw_exception_sig));
+    constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception = Constant::FuncRef(throw_exception_id));
+
+    funcsig!    ((vm) catch_exception_sig = () -> ());
+    funcdecl!   ((vm) <catch_exception_sig> catch_and_add);
+    funcdef!    ((vm) <catch_exception_sig> catch_and_add VERSION catch_and_add_v1);
+
+    // blk_entry
+    consta!     ((vm, catch_and_add_v1) int0_local = int64_0);
+    consta!     ((vm, catch_and_add_v1) int1_local = int64_1);
+    consta!     ((vm, catch_and_add_v1) int2_local = int64_2);
+    consta!     ((vm, catch_and_add_v1) int3_local = int64_3);
+    consta!     ((vm, catch_and_add_v1) int4_local = int64_4);
+
+    block!      ((vm, catch_and_add_v1) blk_entry);
+    block!      ((vm, catch_and_add_v1) blk_main);
+    inst!       ((vm, catch_and_add_v1) blk_entry_branch:
+        BRANCH blk_main (int0_local, int1_local, int2_local, int3_local, int4_local)
+    );
+
+    define_block!   ((vm, catch_and_add_v1) blk_entry () {
+        blk_entry_branch
+    });
+
+    ssa!        ((vm, catch_and_add_v1) <int64> v0);
+    ssa!        ((vm, catch_and_add_v1) <int64> v1);
+    ssa!        ((vm, catch_and_add_v1) <int64> v2);
+    ssa!        ((vm, catch_and_add_v1) <int64> v3);
+    ssa!        ((vm, catch_and_add_v1) <int64> v4);
+
+    // blk_main
+    consta!     ((vm, catch_and_add_v1) funcref_throw_local = const_funcref_throw_exception);
+    block!      ((vm, catch_and_add_v1) blk_normal);
+    block!      ((vm, catch_and_add_v1) blk_exception);
+    inst!       ((vm, catch_and_add_v1) blk_main_call:
+        CALL (funcref_throw_local, v0, v1, v2, v3, v4) FUNC(0) (vec![]) CallConvention::Mu,
+            normal: blk_normal (vec![]),
+            exc   : blk_exception (vec![
+                DestArg::Normal(1),
+                DestArg::Normal(2),
+                DestArg::Normal(3),
+                DestArg::Normal(4),
+                DestArg::Normal(5),
+            ])
+    );
+    define_block!   ((vm, catch_and_add_v1) blk_main(v0, v1, v2, v3, v4) {
+        blk_main_call
+    });
+
+    // blk_normal
+    inst!       ((vm, catch_and_add_v1) blk_normal_threadexit:
+        THREADEXIT
+    );
+    define_block!   ((vm, catch_and_add_v1) blk_normal() {
+        blk_normal_threadexit
+    });
+
+    // blk_exception
+    ssa!        ((vm, catch_and_add_v1) <int64> ev0);
+    ssa!        ((vm, catch_and_add_v1) <int64> ev1);
+    ssa!        ((vm, catch_and_add_v1) <int64> ev2);
+    ssa!        ((vm, catch_and_add_v1) <int64> ev3);
+    ssa!        ((vm, catch_and_add_v1) <int64> ev4);
+    let ref_int64  = vm.get_type(vm.id_of("ref_int64"));
+    let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
+    ssa!        ((vm, catch_and_add_v1) <ref_int64> exc_arg);
+
+    inst!       ((vm, catch_and_add_v1) blk_exception_px0:
+        PRINTHEX ev0
+    );
+    inst!       ((vm, catch_and_add_v1) blk_exception_px1:
+        PRINTHEX ev1
+    );
+    inst!       ((vm, catch_and_add_v1) blk_exception_px2:
+        PRINTHEX ev2
+    );
+    inst!       ((vm, catch_and_add_v1) blk_exception_px3:
+        PRINTHEX ev3
+    );
+    inst!       ((vm, catch_and_add_v1) blk_exception_px4:
+        PRINTHEX ev4
+    );
+    // load and print exc_arg
+    ssa!        ((vm, catch_and_add_v1) <iref_int64> exc_iref);
+    inst!       ((vm, catch_and_add_v1) blk_exception_getiref:
+        exc_iref = GETIREF exc_arg
+    );
+    ssa!        ((vm, catch_and_add_v1) <int64> exc_val);
+    inst!       ((vm, catch_and_add_v1) blk_exception_load_exc:
+        exc_val = LOAD exc_iref (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+    inst!       ((vm, catch_and_add_v1) blk_exception_px5:
+        PRINTHEX exc_val
+    );
+
+    ssa!        ((vm, catch_and_add_v1) <int64> res0);
+    inst!       ((vm, catch_and_add_v1) blk_exception_add0:
+        res0 = BINOP (BinOp::Add) exc_val ev0
+    );
+
+    ssa!        ((vm, catch_and_add_v1) <int64> res1);
+    inst!       ((vm, catch_and_add_v1) blk_exception_add1:
+        res1 = BINOP (BinOp::Add) res0 ev1
+    );
+
+    ssa!        ((vm, catch_and_add_v1) <int64> res2);
+    inst!       ((vm, catch_and_add_v1) blk_exception_add2:
+        res2 = BINOP (BinOp::Add) res1 ev2
+    );
+
+    ssa!        ((vm, catch_and_add_v1) <int64> res3);
+    inst!       ((vm, catch_and_add_v1) blk_exception_add3:
+        res3 = BINOP (BinOp::Add) res2 ev3
+    );
+
+    ssa!        ((vm, catch_and_add_v1) <int64> res4);
+    inst!       ((vm, catch_and_add_v1) blk_exception_add4:
+        res4 = BINOP (BinOp::Add) res3 ev4
+    );
+
+    let blk_exception_exit = gen_ccall_exit(res4.clone(), &mut catch_and_add_v1, &vm);
+
+    inst!       ((vm, catch_and_add_v1) blk_exception_ret:
+        RET (res4)
+    );
+
+    define_block!   ((vm, catch_and_add_v1) blk_exception(ev0, ev1, ev2, ev3, ev4) [exc_arg] {
+        blk_exception_px0,
+        blk_exception_px1,
+        blk_exception_px2,
+        blk_exception_px3,
+        blk_exception_px4,
+
+        blk_exception_getiref,
+        blk_exception_load_exc,
+        blk_exception_px5,
+
+        blk_exception_add0,
+        blk_exception_add1,
+        blk_exception_add2,
+        blk_exception_add3,
+        blk_exception_add4,
+
+        blk_exception_exit,
+        blk_exception_ret
+    });
+
+    define_func_ver!((vm) catch_and_add_v1 (entry: blk_entry) {
+        blk_entry, blk_main, blk_normal, blk_exception
+    });
+}
+
+#[test]
+fn test_exception_throw_catch_twice() {
+    VM::start_logging_trace();
+    let vm = Arc::new(throw_catch_twice());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_throw = vm.id_of("throw_exception");
+    let func_catch = vm.id_of("catch_twice");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_throw).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_catch).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_catch, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_twice")], "throw_catch_twice", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    // throw 1 twice, add 1 and 1 (equals 2)
+    assert!(output.status.code().is_some());
+    assert_eq!(output.status.code().unwrap(), 2);
+}
+
+fn throw_catch_twice() -> VM {
+    let vm = VM::new();
+
+    declare_commons(&vm);
+
+    create_throw_exception_func(&vm);
+    create_catch_twice(&vm);
+
+    vm
+}
+
+fn create_catch_twice(vm: &VM) {
+    let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
+    let throw_exception_id  = vm.id_of("throw_exception");
+
+    let ref_int64  = vm.get_type(vm.id_of("ref_int64"));
+    let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
+    let int64      = vm.get_type(vm.id_of("int64"));
+
+    typedef!    ((vm) type_funcref_throw_exception = mu_funcref(throw_exception_sig));
+    constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception = Constant::FuncRef(throw_exception_id));
+
+    funcsig!    ((vm) catch_exception_sig = () -> ());
+    funcdecl!   ((vm) <catch_exception_sig> catch_twice);
+    funcdef!    ((vm) <catch_exception_sig> catch_twice VERSION catch_twice_v1);
+
+    // blk_entry
+    block!      ((vm, catch_twice_v1) blk_entry);
+    block!      ((vm, catch_twice_v1) blk_normal);
+    block!      ((vm, catch_twice_v1) blk_exception1);
+    consta!     ((vm, catch_twice_v1) funcref_throw_local = const_funcref_throw_exception);
+    inst!       ((vm, catch_twice_v1) blk_entry_call:
+        CALL (funcref_throw_local) FUNC(0) (vec![]) CallConvention::Mu,
+            normal: blk_normal (vec![]),
+            exc   : blk_exception1 (vec![])
+    );
+
+    define_block!((vm, catch_twice_v1) blk_entry() {
+        blk_entry_call
+    });
+
+    // blk_normal
+    inst!       ((vm, catch_twice_v1) blk_normal_threadexit:
+        THREADEXIT
+    );
+    define_block!((vm, catch_twice_v1) blk_normal() {
+        blk_normal_threadexit
+    });
+
+    // blk_exception1
+    block!      ((vm, catch_twice_v1) blk_exception2);
+    ssa!        ((vm, catch_twice_v1) <ref_int64> exc_arg1);
+    inst!       ((vm, catch_twice_v1) blk_exception1_call:
+        CALL (funcref_throw_local, exc_arg1) FUNC(0) (vec![]) CallConvention::Mu,
+            normal: blk_normal (vec![]),
+            exc   : blk_exception2 (vec![DestArg::Normal(1)])
+    );
+    define_block!((vm, catch_twice_v1) blk_exception1() [exc_arg1] {
+        blk_exception1_call
+    });
+
+    // blk_exception2
+    ssa!        ((vm, catch_twice_v1) <ref_int64> blk_exception2_exc_arg1);
+    ssa!        ((vm, catch_twice_v1) <ref_int64> exc_arg2);
+
+    ssa!        ((vm, catch_twice_v1) <iref_int64> blk_exception2_iref_exc1);
+    inst!       ((vm, catch_twice_v1) blk_exception2_getiref1:
+        blk_exception2_iref_exc1 = GETIREF blk_exception2_exc_arg1
+    );
+    ssa!        ((vm, catch_twice_v1) <int64> exc_arg1_val);
+    inst!       ((vm, catch_twice_v1) blk_exception2_load1:
+        exc_arg1_val = LOAD blk_exception2_iref_exc1 (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    ssa!        ((vm, catch_twice_v1) <iref_int64> blk_exception2_iref_exc2);
+    inst!       ((vm, catch_twice_v1) blk_exception2_getiref2:
+        blk_exception2_iref_exc2 = GETIREF exc_arg2
+    );
+    ssa!        ((vm, catch_twice_v1) <int64> exc_arg2_val);
+    inst!       ((vm, catch_twice_v1) blk_exception2_load2:
+        exc_arg2_val = LOAD blk_exception2_iref_exc2 (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    ssa!        ((vm, catch_twice_v1) <int64> res);
+    inst!       ((vm, catch_twice_v1) blk_exception2_add:
+        res = BINOP (BinOp::Add) exc_arg1_val exc_arg2_val
+    );
+
+    let blk_exception2_exit = gen_ccall_exit(res.clone(), &mut catch_twice_v1, &vm);
+
+    inst!       ((vm, catch_twice_v1) blk_exception2_ret:
+        RET (res)
+    );
+
+    define_block!   ((vm, catch_twice_v1) blk_exception2(blk_exception2_exc_arg1) [exc_arg2] {
+        blk_exception2_getiref1,
+        blk_exception2_load1,
+        blk_exception2_getiref2,
+        blk_exception2_load2,
+
+        blk_exception2_add,
+        blk_exception2_exit,
+        blk_exception2_ret
+    });
+
+    define_func_ver!((vm) catch_twice_v1 (entry: blk_entry) {
+        blk_entry,
+        blk_normal,
+        blk_exception1,
+        blk_exception2
+    });
 }

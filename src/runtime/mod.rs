@@ -43,8 +43,8 @@ pub fn resolve_symbol(symbol: String) -> Address {
     let error = unsafe {dlerror()};
     if !error.is_null() {
         let cstr = unsafe {CStr::from_ptr(error)};
-        println!("cannot find symbol: {}", symbol);
-        println!("{}", cstr.to_str().unwrap());
+        error!("cannot find symbol: {}", symbol);
+        error!("{}", cstr.to_str().unwrap());
 
         panic!("failed to resolve symbol");
     }

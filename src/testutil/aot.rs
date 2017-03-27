@@ -12,7 +12,7 @@ fn link_executable_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &V
     let mut cc = Command::new(get_test_clang_path());
 
     for file in files {
-        trace!("link with {:?}", file.as_path());
+        info!("link with {:?}", file.as_path());
         cc.arg(file.as_path());
     }
 
@@ -24,7 +24,7 @@ fn link_executable_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &V
         cc.arg(format!("-l{}", l));
     }
 
-    println!("output as {:?}", out.as_path());
+    info!("output as {:?}", out.as_path());
     if cfg!(target_os = "linux") {
         cc.arg("-ldl");
         cc.arg("-lrt");

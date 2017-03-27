@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use utils::DoublyLinkedList;
 use utils::Address;
 use utils::mem::memmap;
 use common::AddressMap;
@@ -71,21 +70,19 @@ impl FreeListSpace {
         };
 
         if TRACE_TREADMILL {
-            trace!("before allocation, space: {}", self);
+            trace!("---before allocation---");
+            trace!("{}", self);
         }
 
         trace!("requiring {} bytes ({} blocks)", size, blocks_needed);
         let res = {
-            if blocks_needed > 1 {
-                unimplemented!()
-            }
-
             let mut treadmill = self.treadmill.lock().unwrap();
             treadmill.alloc_blocks(blocks_needed)
         };
 
         if TRACE_TREADMILL {
-            trace!("after allocation, space: {}", self);
+            trace!("---after allocation---");
+            trace!("{}", self);
         }
 
         if res.is_zero() {
@@ -141,7 +138,7 @@ impl FreeListSpace {
 
                     // move to tospace
                     let node = treadmill.spaces[from].remove(i);
-                    treadmill.spaces[to].push_front(node);
+                    treadmill.spaces[to].push(node);
 
                     trace!("is alive");
 
@@ -169,6 +166,28 @@ impl FreeListSpace {
         } else {
             treadmill.from = 0;
             treadmill.to   = 1;
+        }
+
+        // sort from_space from from_space_next so contiguous blocks are together (easier to allocate)
+        let from = treadmill.from;
+        let ref mut from_space = treadmill.spaces[from];
+
+        // we do not care about alive nodes in from space
+        for start in alive_nodes_scanned..from_space.len() {
+            let first = {
+                let mut ret = start;
+                for i in start..from_space.len() {
+                    if from_space[i].payload < from_space[ret].payload {
+                        ret = i;
+                    }
+                }
+                ret
+            };
+
+            if first != start {
+                let block = from_space.remove(first);
+                from_space.insert(start, block);
+            }
         }
 
         if cfg!(debug_assertions) {
@@ -221,25 +240,25 @@ struct Treadmill{
     from_space_next : usize, // next available node in from_space
     from: usize,
     to  : usize,
-    spaces      : [DoublyLinkedList<TreadmillNode>; 2]
+    spaces      : [Vec<TreadmillNode>; 2]
 }
 
 impl Treadmill {
     fn new(start: Address, end: Address) -> Treadmill {
         let half_space = start.plus(end.diff(start) / 2);
 
-        let mut from_space = DoublyLinkedList::new();
-        let mut to_space   = DoublyLinkedList::new();
+        let mut from_space = vec![];
+        let mut to_space   = vec![];
 
         let mut addr = start;
 
         while addr < half_space {
-            from_space.push_back(TreadmillNode::new(addr));
+            from_space.push(TreadmillNode::new(addr));
             addr = addr.plus(BLOCK_SIZE);
         }
 
         while addr < end {
-            to_space.push_back(TreadmillNode::new(addr));
+            to_space.push(TreadmillNode::new(addr));
             addr = addr.plus(BLOCK_SIZE);
         }
 
@@ -252,32 +271,129 @@ impl Treadmill {
     }
 
     fn alloc_blocks(&mut self, n_blocks: usize) -> Address {
-        let ref from_space = self.spaces[self.from];
-        if self.from_space_next + n_blocks <= from_space.len() {
-            // zero blocks
-            for i in 0..n_blocks {
-                let block_i = self.from_space_next + i;
-                let block_start = from_space[block_i].payload;
+        match self.find_contiguous_blocks(n_blocks) {
+            Some(start) => {
+                if TRACE_TREADMILL {
+                    trace!("found contiguous {} blocks, starting from {}", n_blocks, start);
+                }
 
-                Treadmill::zeroing_block(block_start);
+                let ref mut from_space = self.spaces[self.from];
+
+                // zero blocks
+                let return_address = from_space[start].payload;
+                Treadmill::zeroing_blocks(return_address, n_blocks);
+
+                if start != self.from_space_next {
+                    // contiguous blocks are not next few ones
+                    // we need to move the blocks
+
+                    // take the allocated blocks out
+                    let new_allocated = {
+                        let mut ret = vec![];
+
+                        for _ in 0..n_blocks {
+                            let block = from_space.remove(start);
+
+                            if TRACE_TREADMILL {
+                                trace!("remove allocated block from from_space: {}", block);
+                                trace!("from space: ");
+                                for i in 0..from_space.len() {
+                                    trace!("{}", from_space[i]);
+                                }
+                            }
+
+                            ret.push(block);
+                        }
+
+                        ret
+                    };
+
+                    // insert back and mov cursor
+                    let mut cursor = self.from_space_next;
+                    for block in new_allocated {
+                        if TRACE_TREADMILL {
+                            trace!("insert block {} to from_space at {}", block, cursor);
+                        }
+
+                        from_space.insert(cursor, block);
+
+                        if TRACE_TREADMILL {
+                            trace!("from space: ");
+                            for i in 0..from_space.len() {
+                                trace!("{}", from_space[i]);
+                            }
+                        }
+
+                        cursor += 1;
+                    }
+                    self.from_space_next = cursor;
+                } else {
+                    // just move cursor
+                    self.from_space_next += n_blocks;
+                }
+
+                return_address
             }
-
-            // return first block
-            // FIXME: the blocks may not be contiguous!!! we cannot allocate multiple blocks
-            let ret = from_space[self.from_space_next].payload;
-            self.from_space_next += n_blocks;
-
-            ret
-        } else {
-            unsafe {Address::zero()}
+            None => {
+                if TRACE_TREADMILL {
+                    trace!("cannot find {} contiguous blocks", n_blocks);
+                }
+                unsafe {Address::zero()}
+            }
         }
     }
 
-    fn zeroing_block(start: Address) {
+    fn find_contiguous_blocks(&mut self, n_blocks: usize) -> Option<usize> {
+        // e.g. we have 10 blocks, and we require 3 blocks,
+        // we wont be able to find contiguous blocks if starting block is more than 7 (only 8, 9 might be available)
+        // 7 = 10 (total) - 3 (required)
+        // Rust range is exclusive of the end, so we use (total - required + 1)
+
+        // we can always assume contiguous blocks are arrange next to each other
+        // since we will do a sort after GC
+
+        // we do not have enough blocks (no need to check if they are contiguous
+        if self.from_space_next + n_blocks > self.spaces[self.from].len() {
+            return None;
+        }
+
+        for i in self.from_space_next..(self.spaces[self.from].len() - n_blocks + 1) {
+            if self.has_contiguous_blocks_starting_at(n_blocks, i) {
+                return Some(i);
+            }
+        }
+
+        None
+    }
+
+    fn has_contiguous_blocks_starting_at(&mut self, n_blocks: usize, start: usize) -> bool {
+        let ref from_space = self.spaces[self.from];
+
+        if start + n_blocks > from_space.len() {
+            // if we have fewer blocks than required, it is impossible to find required blocks
+            false
+        } else {
+            // we need to check if next n_blocks are contiguous
+            // e.g. we have 10 blocks, and we want to check if we have 3 contiguous blocks from #7
+            // we need to check if 7&8, 8&9 (cursor is 7, and 8)
+            let mut cursor = start;
+            while cursor < start + n_blocks - 1 {
+                if from_space[cursor].payload.plus(BLOCK_SIZE) != from_space[cursor + 1].payload {
+                    return false;
+                }
+
+                cursor += 1;
+            }
+
+            true
+        }
+    }
+
+    fn zeroing_blocks(start: Address, n_blocks: usize) {
         use utils::mem::memsec;
 
         unsafe {
-            memsec::memzero(start.to_ptr_mut::<u8>(), BLOCK_SIZE);
+            memsec::memzero(start.to_ptr_mut::<u8>(), BLOCK_SIZE * n_blocks);
         }
     }
 }
@@ -294,7 +410,7 @@ impl fmt::Display for Treadmill {
         for i in 0..self.spaces[self.to].len() {
             write!(f, "{}->", self.spaces[self.to][i]).unwrap();
         }
-        write!(f, "\n")
+        Ok(())
     }
 }
 
@@ -331,32 +447,40 @@ mod tests {
 
     #[test]
     fn test_treadmill_alloc() {
-        let space = FreeListSpace::new(BLOCK_SIZE * 10);
+        let space = FreeListSpace::new(BLOCK_SIZE * 20);
 
         for i in 0..10 {
             let ret = space.alloc(BLOCK_SIZE / 2, 8);
             println!("Allocation{}: {}", i, ret);
+            assert!(!ret.is_zero());
         }
     }
 
     #[test]
-    #[ignore]
     fn test_treadmill_alloc_spanblock() {
-        let space = FreeListSpace::new(BLOCK_SIZE * 10);
+        use simple_logger;
+        simple_logger::init().unwrap();
+
+        let space = FreeListSpace::new(BLOCK_SIZE * 20);
 
         for i in 0..5 {
-            let ret = space.alloc(BLOCK_SIZE * 2, 8);
+            let ret = space.alloc(BLOCK_SIZE + BLOCK_SIZE / 2, 8);
             println!("Allocation{}: {}", i, ret);
+            assert!(!ret.is_zero());
         }
     }
 
     #[test]
-    fn test_treadmill_alloc_exhaust() {
-        let space = FreeListSpace::new(BLOCK_SIZE * 10);
+    fn test_treadmill_sweep() {
+        use simple_logger;
+        simple_logger::init().unwrap();
 
-        for i in 0..20 {
-            let ret = space.alloc(BLOCK_SIZE / 2, 8);
+        let space = FreeListSpace::new(BLOCK_SIZE * 20);
+
+        for i in 0..5 {
+            let ret = space.alloc(BLOCK_SIZE + BLOCK_SIZE / 2, 8);
             println!("Allocation{}: {}", i, ret);
+            assert!(!ret.is_zero());
         }
     }
 }

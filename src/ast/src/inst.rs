@@ -2,6 +2,7 @@ use ir::*;
 use ptr::*;
 use types::*;
 use op::*;
+use ir_semantics;
 
 use utils::vec_utils;
 
@@ -68,6 +69,63 @@ impl Clone for Instruction {
 }
 
 impl Instruction {
+    pub fn has_exception_clause(&self) -> bool {
+        ir_semantics::is_potentially_excepting_instruction(&self.v)
+    }
+
+    pub fn get_exception_target(&self) -> Option<MuID> {
+        use inst::Instruction_::*;
+        match self.v {
+            Watchpoint {ref resume, ..}
+            | Call {ref resume, ..}
+            | CCall {ref resume, ..}
+            | SwapStack {ref resume, ..}
+            | ExnInstruction {ref resume, ..} => {
+                Some(resume.exn_dest.target)
+            },
+
+            BinOp(_, _, _)
+            | BinOpWithStatus(_, _, _, _)
+            | CmpOp(_, _, _)
+            | ConvOp{..}
+            | ExprCall{..}
+            | ExprCCall{..}
+            | Load{..}
+            | Store{..}
+            | CmpXchg{..}
+            | AtomicRMW{..}
+            | New(_)
+            | AllocA(_)
+            | NewHybrid(_, _)
+            | AllocAHybrid(_, _)
+            | NewStack(_)
+            | NewThread(_, _)
+            | NewThreadExn(_, _)
+            | NewFrameCursor(_)
+            | GetIRef(_)
+            | GetFieldIRef{..}
+            | GetElementIRef{..}
+            | ShiftIRef{..}
+            | GetVarPartIRef{..}
+            | Fence(_)
+            | Return(_)
+            | ThreadExit
+            | Throw(_)
+            | TailCall(_)
+            | Branch1(_)
+            | Branch2{..}
+            | Select{..}
+            | WPBranch{..}
+            | Switch{..}
+            | CommonInst_GetThreadLocal
+            | CommonInst_SetThreadLocal(_)
+            | CommonInst_Pin(_)
+            | CommonInst_Unpin(_)
+            | Move(_)
+            | PrintHex(_) => None
+        }
+    }
+
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         self.v.debug_str(ops)
     }
@@ -490,7 +548,11 @@ pub struct CallData {
 
 impl CallData {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        format!("{:?} {} [{}]", self.convention, ops[self.func], op_vector_str(&self.args, ops))
+        let func_name = match ops[self.func].name() {
+            Some(name) => name,
+            None => "Anonymous Function".to_string()
+        };
+        format!("{:?} {} [{}]", self.convention, func_name, op_vector_str(&self.args, ops))
     }
 }
 

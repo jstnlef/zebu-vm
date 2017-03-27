@@ -2,6 +2,7 @@ use super::common::*;
 use ast::op::*;
 use ast::inst::*;
 use utils::LinkedHashMap;
+use utils::LinkedHashSet;
 use std;
 
 pub struct MuIRBuilder {
@@ -1225,6 +1226,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let ctn = FunctionContent {
             entry: entry_id,
             blocks: blocks,
+            exception_blocks: LinkedHashSet::new()
         };
 
         let impl_fv = MuFunctionVersion::new_(hdr, func_id, impl_sig, ctn, fcb.ctx);

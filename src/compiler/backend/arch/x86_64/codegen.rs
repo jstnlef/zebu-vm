@@ -21,6 +21,14 @@ pub trait CodeGenerator {
     fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
     fn end_block(&mut self, block_name: MuName);
 
+    // add CFI info
+    fn add_cfi_startproc(&mut self);
+    fn add_cfi_endproc(&mut self);
+    fn add_cfi_def_cfa_register(&mut self, reg: Reg);
+    fn add_cfi_def_cfa_offset(&mut self, offset: i32);
+    fn add_cfi_offset(&mut self, reg: Reg, offset: i32);
+
+    // emit code to adjust frame
     fn emit_frame_grow(&mut self);
     fn emit_frame_shrink(&mut self);
     
@@ -163,9 +171,9 @@ pub trait CodeGenerator {
     fn emit_jl(&mut self, dest: MuName);
     fn emit_jle(&mut self, dest: MuName);
     
-    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName) -> ValueLocation;
-    fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation;
-    fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>) -> ValueLocation;
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName,    pe: Option<MuName>) -> ValueLocation;
+    fn emit_call_near_r64  (&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation;
+    fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation;
     
     fn emit_ret(&mut self);
 

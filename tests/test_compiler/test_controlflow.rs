@@ -190,9 +190,9 @@ fn switch() -> VM {
         keepalives: None
     });
 
-    func_ver.define(FunctionContent{
-        entry: blk_entry.id(),
-        blocks: {
+    func_ver.define(FunctionContent::new(
+        blk_entry.id(),
+        {
             let mut map = LinkedHashMap::new();
             map.insert(blk_entry.id(), blk_entry);
             map.insert(blk_default_id, blk_default);
@@ -201,7 +201,7 @@ fn switch() -> VM {
             map.insert(blk_ret2_id, blk_ret2);
             map
         }
-    });
+    ));
 
     vm.define_func_version(func_ver);
 

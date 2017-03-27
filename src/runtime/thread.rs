@@ -187,6 +187,10 @@ impl MuStack {
         
         debug!("0x{:x} | LOWER_BOUND", self.lower_bound);
     }
+
+    pub fn print_backtrace(&self) {
+
+    }
 }
 
 pub enum MuStackState {

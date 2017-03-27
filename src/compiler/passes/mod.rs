@@ -23,13 +23,13 @@ pub trait CompilerPass {
     fn as_any(&self) -> &Any;
 
     fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        debug!("---CompilerPass {} for {}---", self.name(), func);
+        info!("---CompilerPass {} for {}---", self.name(), func);
 
         self.start_function(vm, func);
         self.visit_function(vm, func);
         self.finish_function(vm, func);
 
-        debug!("---finish---");
+        info!("---finish---");
     }
 
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
