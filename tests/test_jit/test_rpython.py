@@ -1105,6 +1105,25 @@ The light shines in the darkness, and the darkness has not overcome it.
     assert res.returncode == 0, res.err
     assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'
 
+@may_spawn_proc
+def test_rpytarget_richards():
+    from rpython.translator.goal.richards import entry_point
+    def main(argv):
+        res, t0, t1 = entry_point(int(argv[1]))
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
+    assert res.resturncode == 0, res.err
+
+@may_spawn_proc
+def test_rpytarget_testdicts():
+    from rpython.translator.goal.targettestdicts import entry_point
+
+    res = run_boot_image(entry_point, '/tmp/test_testdicts-mu',
+                         args=['d', '1534'])
+    assert res.returncode == 0, res.err
+    assert res.out == '0x5fe\n'
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
