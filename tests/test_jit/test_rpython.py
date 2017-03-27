@@ -1138,7 +1138,7 @@ def test_rpytarget_richards():
         return 0
 
     res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
-    assert res.resturncode == 0, res.err
+    assert res.returncode == 0, res.err
 
 @may_spawn_proc
 def test_rpytarget_testdicts():
