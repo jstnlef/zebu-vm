@@ -1106,6 +1106,31 @@ The light shines in the darkness, and the darkness has not overcome it.
     assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'
 
 @may_spawn_proc
+def test_linked_list():
+    class Node:
+        def __init__(self, data, nxt):
+            self.data = data
+            self.nxt = nxt
+
+    l = Node(3, Node(2, Node(1, Node(0, None))))
+
+    def main(argv):
+        idx = int(argv[1])
+        if idx >= 4:
+            raise IndexError
+        nd = l
+        while idx > 0:
+            nd = nd.nxt
+            idx -= 1
+        print nd.data
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_linked_list-mu', args=['2'])
+    assert res.returncode == 0, res.err
+    assert res.out == '1\n'
+
+
+@may_spawn_proc
 def test_rpytarget_richards():
     from rpython.translator.goal.richards import entry_point
     def main(argv):
