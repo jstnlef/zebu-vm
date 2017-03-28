@@ -3303,12 +3303,16 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
 }
 
 use std::collections::HashMap;
+use compiler::backend::code_emission::emit_mu_types;
+
 pub fn emit_context_with_reloc(vm: &VM,
                                symbols: HashMap<Address, String>,
                                fields : HashMap<Address, String>) {
     use std::path;
     use std::io::prelude::*;
     use rustc_serialize::json;
+
+    emit_mu_types(vm);
 
     debug!("---Emit VM Context---");
     create_emit_directory(vm);

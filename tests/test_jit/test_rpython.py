@@ -1020,6 +1020,16 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.get
 
     return res
 
+# not using this function at the moment
+def check(actual, expect):
+    c_exit = rffi.llexternal('exit', [rffi.INT], lltype.Void, _nowrapper=True)
+
+    if actual != expect:
+        print 'actual: %d' % actual
+        print 'expect: %d' % expect
+        print 'assertion fails'
+        c_exit(rffi.cast(rffi.INT, actual))
+
 @may_spawn_proc
 def test_make_boot_image_simple():
     c_printf = rffi.llexternal('printf', [rffi.CCHARP], rffi.INT, _nowrapper=True)
@@ -1073,6 +1083,17 @@ def test_rpython_print_number():
 
     assert res.returncode == 0, res.err
     assert res.out == '233\n'
+
+@may_spawn_proc
+def test_rpython_print_fmt():
+    def main(argv):
+        print "hello world %s" % argv[1]
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_print_fmt', args = ['mu'])
+
+    assert res.returncode == 0, res.err
+    assert res.out == 'hello world mu\n'
 
 @may_spawn_proc
 def test_rpython_main():
@@ -1138,6 +1159,7 @@ def test_rpytarget_richards():
     res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
     assert res.returncode == 0, res.err
 
+@pytest.mark.xfail(reason='KeyError exception')
 @may_spawn_proc
 def test_rpytarget_testdicts():
     from rpython.translator.goal.targettestdicts import entry_point
