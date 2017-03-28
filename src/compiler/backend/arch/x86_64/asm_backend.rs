@@ -1008,26 +1008,23 @@ impl ASMCodeGen {
     fn prepare_machine_regs(&self, regs: Iter<P<Value>>) -> Vec<MuID> {
         regs.map(|x| self.prepare_machine_reg(x)).collect()
     }
-    
-    fn add_asm_call(&mut self, code: String, potentially_excepting: Option<MuName>) {
-        // a call instruction will use all the argument registers
-        // do not need
-        let uses : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-//        for reg in x86_64::ARGUMENT_GPRs.iter() {
-//            uses.insert(reg.id(), vec![]);
-//        }
-//        for reg in x86_64::ARGUMENT_FPRs.iter() {
-//            uses.insert(reg.id(), vec![]);
-//        }
 
-        // defines: return registers
+    fn add_asm_call_with_extra_uses(&mut self,
+                              code: String,
+                              extra_uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
+                              potentially_excepting: Option<MuName>) {
+        let uses = extra_uses;
+
+        // defines
         let mut defines : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
+        // return registers get defined
         for reg in x86_64::RETURN_GPRs.iter() {
             defines.insert(reg.id(), vec![]);
         }
         for reg in x86_64::RETURN_FPRs.iter() {
             defines.insert(reg.id(), vec![]);
         }
+        // caller saved register will be destroyed
         for reg in x86_64::CALLER_SAVED_GPRs.iter() {
             if !defines.contains_key(&reg.id()) {
                 defines.insert(reg.id(), vec![]);
@@ -1038,7 +1035,7 @@ impl ASMCodeGen {
                 defines.insert(reg.id(), vec![]);
             }
         }
-          
+
         self.add_asm_inst_internal(code, defines, uses, false, {
             if potentially_excepting.is_some() {
                 ASMBranchTarget::PotentiallyExcepting(potentially_excepting.unwrap())
@@ -1046,6 +1043,10 @@ impl ASMCodeGen {
                 ASMBranchTarget::None
             }
         }, None)
+    }
+    
+    fn add_asm_call(&mut self, code: String, potentially_excepting: Option<MuName>) {
+        self.add_asm_call_with_extra_uses(code, LinkedHashMap::new(), potentially_excepting);
     }
     
     fn add_asm_ret(&mut self, code: String) {
@@ -2839,7 +2840,18 @@ impl CodeGenerator for ASMCodeGen {
     
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
-        unimplemented!()
+
+        let (reg, id, loc) = self.prepare_reg(func, 6);
+
+        let asm = format!("call *{}", reg);
+
+        self.add_asm_call_with_extra_uses(asm, linked_hashmap!{id => vec![loc]}, pe);
+
+        let callsite_symbol = symbol(callsite.clone());
+        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
+
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
     
     fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {

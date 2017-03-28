@@ -1148,8 +1148,8 @@ def test_linked_list():
     assert res.returncode == 0, res.err
     assert res.out == '1\n'
 
-@pytest.mark.xfail(reason='unimplemented memory order in API store')
 @may_spawn_proc
+@pytest.mark.xfail(reason='segment fault')
 def test_rpytarget_richards():
     from rpython.translator.goal.richards import entry_point
     def main(argv):

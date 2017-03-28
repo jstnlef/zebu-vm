@@ -45,7 +45,7 @@ pub enum APIHandleValue {
     Ref (P<MuType>, Address),   // referenced type
     IRef(P<MuType>, Address),
     TagRef64(u64),
-    FuncRef,
+    FuncRef(MuID),
     ThreadRef,
     StackRef,
     FCRef, // frame cursor ref
@@ -62,7 +62,6 @@ pub enum APIHandleValue {
 
     // GenRef->IR->Child->Var->Global
     Global(MuID),
-    Func(MuID),
     ExpFunc,
 
     // GenRef->IR->Child->Var->Local
@@ -92,7 +91,7 @@ impl fmt::Debug for APIHandleValue {
             &Ref(ref ty, addr)        => write!(f, "ref<{}> to {}", ty, addr),
             &IRef(ref ty, addr)       => write!(f, "iref<{}> to {}", ty, addr),
             &TagRef64(val)            => write!(f, "tagref64 0x{:x}", val),
-            &FuncRef                  => write!(f, "funcref"),
+            &FuncRef(id)              => write!(f, "funcref to #{}", id),
             &ThreadRef                => write!(f, "threadref"),
             &StackRef                 => write!(f, "stackref"),
             &FCRef                    => write!(f, "framecursorref"),
@@ -103,7 +102,6 @@ impl fmt::Debug for APIHandleValue {
             &BB                       => write!(f, "IR.BB"),
             &Inst                     => write!(f, "IR.inst"),
             &Global(id)               => write!(f, "IR.global to #{}", id),
-            &Func(id)                 => write!(f, "IR.func to #{}", id),
             &ExpFunc                  => write!(f, "IR.expfunc"),
             &NorParam                 => write!(f, "IR.norparam"),
             &ExcParam                 => write!(f, "IR.excparam"),
@@ -180,9 +178,9 @@ impl APIHandleValue {
         }
     }
 
-    pub fn as_func(&self) -> MuID {
+    pub fn as_funcref(&self) -> MuID {
         match self {
-            &APIHandleValue::Func(id) => id,
+            &APIHandleValue::FuncRef(id) => id,
             _ => panic!("expected FuncRef")
         }
     }

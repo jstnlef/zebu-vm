@@ -1042,6 +1042,18 @@ impl Decodable for MuEntityHeader {
     }
 }
 
+pub fn name_check(name: MuName) -> MuName {
+    let name = name.replace('.', "$");
+
+    if name.starts_with("@") || name.starts_with("%") {
+        let (_, name) = name.split_at(1);
+
+        return name.to_string();
+    }
+
+    name
+}
+
 impl MuEntityHeader {
     pub fn unnamed(id: MuID) -> MuEntityHeader {
         MuEntityHeader {
@@ -1053,7 +1065,7 @@ impl MuEntityHeader {
     pub fn named(id: MuID, name: MuName) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: RwLock::new(Some(MuEntityHeader::name_check(name)))
+            name: RwLock::new(Some(name_check(name)))
         }
     }
     
@@ -1067,19 +1079,7 @@ impl MuEntityHeader {
 
     pub fn set_name(&self, name: MuName) {
         let mut name_guard = self.name.write().unwrap();
-        *name_guard = Some(MuEntityHeader::name_check(name));
-    }
-
-    pub fn name_check(name: MuName) -> MuName {
-        let name = name.replace('.', "$");
-
-        if name.starts_with("@") || name.starts_with("%") {
-            let (_, name) = name.split_at(1);
-
-            return name.to_string();
-        }
-
-        name
+        *name_guard = Some(name_check(name));
     }
 
     fn abbreviate_name(&self) -> Option<MuName> {
