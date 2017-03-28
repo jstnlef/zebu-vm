@@ -23,6 +23,8 @@ use compiler::backend::x86_64::ASMCodeGen;
 use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
+use utils::math;
+
 use std::collections::HashMap;
 use std::any::Any;
 
@@ -1085,31 +1087,14 @@ impl <'a> InstructionSelection {
                                 let tmp_actual_size = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
                                 let tmp_var_len = self.emit_ireg(var_len, f_content, f_context, vm);
 
-                                let is_power_of_two = |x: usize| {
-                                    use std::i8;
-
-                                    let mut power_of_two = 1;
-                                    let mut i: i8 = 0;
-                                    while power_of_two < x && i < i8::MAX {
-                                        power_of_two *= 2;
-                                        i += 1;
-                                    }
-
-                                    if power_of_two == x {
-                                        Some(i)
-                                    } else {
-                                        None
-                                    }
-                                };
-
-                                match is_power_of_two(var_ty_size) {
+                                match math::is_power_of_two(var_ty_size) {
                                     Some(shift) => {
                                         // use tmp_actual_size as result - we do not want to change tmp_var_len
                                         self.backend.emit_mov_r_r(&tmp_actual_size, &tmp_var_len);
 
                                         if shift != 0 {
                                             // a shift-left will get the total size of var part
-                                            self.backend.emit_shl_r_imm8(&tmp_actual_size, shift);
+                                            self.backend.emit_shl_r_imm8(&tmp_actual_size, shift as i8);
                                         }
 
                                         // add with fix-part size
@@ -3310,7 +3295,15 @@ impl <'a> InstructionSelection {
 
                             let scale : u8 = match ele_ty_size {
                                 8 | 4 | 2 | 1 => ele_ty_size as u8,
-                                _  => unimplemented!()
+                                16| 32| 64    => {
+                                    let shift = math::is_power_of_two(ele_ty_size).unwrap();
+
+                                    // scale is 8, but index = index << shift
+                                    self.backend.emit_shl_r_imm8(&tmp_index, shift as i8);
+
+                                    8
+                                }
+                                _  => panic!("unexpected var ty size: {}", ele_ty_size)
                             };
 
                             let mem = match base.v {

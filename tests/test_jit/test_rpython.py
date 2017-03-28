@@ -986,10 +986,8 @@ def test_exception_stack_unwind():
     assert fnp(100) == 10
 
 
-def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu')):
+def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu'), vmargs = ""):
     from rpython.translator.interactive import Translation
-
-    vmargs = ""
 
     if has_c_main_sig:
         t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api', vmargs=vmargs)
@@ -1140,13 +1138,12 @@ def test_rpytarget_richards():
     res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
     assert res.returncode == 0, res.err
 
-@pytest.mark.xfail(reason='triggering GC')
 @may_spawn_proc
 def test_rpytarget_testdicts():
     from rpython.translator.goal.targettestdicts import entry_point
 
     res = run_boot_image(entry_point, '/tmp/test_testdicts-mu',
-                         args=['d', '1534'])
+                         args=['d', '1534'], vmargs="--gc-immixspace-size=536870912 --gc-lospace-size=536870912")
     assert res.returncode == 0, res.err
     assert res.out == '0x5fe\n'
 
