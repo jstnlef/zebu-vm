@@ -289,6 +289,21 @@ impl BackendTypeInfo {
     }
 }
 
+use std::fmt;
+impl fmt::Display for BackendTypeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} bytes ({} bytes aligned), ", self.size, self.alignment).unwrap();
+        if self.struct_layout.is_some() {
+            use utils::vec_utils;
+
+            let layout = self.struct_layout.as_ref().unwrap();
+            write!(f, "field offsets: ({})", vec_utils::as_str(layout)).unwrap();
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
 pub enum RegGroup {GPR, FPR}
 

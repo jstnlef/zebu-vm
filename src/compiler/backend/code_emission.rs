@@ -66,22 +66,19 @@ pub fn emit_mu_types(vm: &VM) {
             let hybrid_map = HYBRID_TAG_MAP.read().unwrap();
 
             for ty in ty_guard.values() {
-                match ty.name() {
-                    Some(name) => file.write_fmt(format_args!("{} = ", name)).unwrap(),
-                    None => {}
-                }
-
                 if ty.is_struct() {
                     file.write_fmt(format_args!("{}", ty)).unwrap();
 
                     let struct_ty = struct_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
                     file.write_fmt(format_args!(" -> {}\n", struct_ty)).unwrap();
+                    file.write_fmt(format_args!("  {}\n", vm.get_backend_type_info(ty.id()))).unwrap();
                 } else if ty.is_hybrid() {
                     file.write_fmt(format_args!("{}", ty)).unwrap();
                     let hybrid_ty = hybrid_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
                     file.write_fmt(format_args!(" -> {}\n", hybrid_ty)).unwrap();
+                    file.write_fmt(format_args!("  {}\n", vm.get_backend_type_info(ty.id()))).unwrap();
                 } else {
-                    file.write_fmt(format_args!("{}\n", ty)).unwrap();
+                    // we only care about struct
                 }
             }
         }
