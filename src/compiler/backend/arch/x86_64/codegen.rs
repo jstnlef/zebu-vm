@@ -50,7 +50,9 @@ pub trait CodeGenerator {
     fn emit_mov_r_mem  (&mut self, dest: Reg, src: Mem); // load
     fn emit_mov_r_r    (&mut self, dest: Reg, src: Reg);
     fn emit_mov_mem_r  (&mut self, dest: Mem, src: Reg); // store
-    fn emit_mov_mem_imm(&mut self, dest: Mem, src: i32); // store
+    // we can infer imm length from Reg, but cannot from Mem
+    // because mem may only have type as ADDRESS_TYPE
+    fn emit_mov_mem_imm(&mut self, dest: Mem, src: i32, oplen: usize); // store
 
     // zero/sign extend mov
     fn emit_movs_r_r   (&mut self, dest: Reg, src: Reg);

@@ -908,9 +908,9 @@ impl <'a> InstructionSelection {
                         let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
 
                         if self.match_iimm(val_op) {
-                            let val = self.node_iimm_to_i32(val_op);
+                            let (val, len) = self.node_iimm_to_i32_with_len(val_op);
                             if generate_plain_mov {
-                                self.backend.emit_mov_mem_imm(&resolved_loc, val);
+                                self.backend.emit_mov_mem_imm(&resolved_loc, val, len);
                             } else {
                                 unimplemented!()
                             }
@@ -3023,6 +3023,13 @@ impl <'a> InstructionSelection {
         }
     }
 
+    fn node_iimm_to_i32_with_len(&mut self, op: &TreeNode) -> (i32, usize) {
+        match op.v {
+            TreeNode_::Value(ref pv) => self.value_iimm_to_i32_with_len(pv),
+            _ => panic!("expected iimm")
+        }
+    }
+
     fn node_iimm_to_value(&mut self, op: &TreeNode) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
@@ -3033,11 +3040,21 @@ impl <'a> InstructionSelection {
     }
 
     fn value_iimm_to_i32(&mut self, op: &P<Value>) -> i32 {
+        self.value_iimm_to_i32_with_len(op).0
+    }
+
+    /// also returns the length of the int
+    fn value_iimm_to_i32_with_len(&mut self, op: &P<Value>) -> (i32, usize) {
+        let op_length = match op.ty.get_int_length() {
+            Some(l) => l,
+            None => panic!("expected an int")
+        };
+
         match op.v {
             Value_::Constant(Constant::Int(val)) => {
                 debug_assert!(x86_64::is_valid_x86_imm(op));
 
-                val as i32
+                (val as i32, op_length)
             },
             _ => panic!("expected iimm")
         }
@@ -3518,11 +3535,11 @@ impl <'a> InstructionSelection {
         
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
             if self.match_iimm(src) {
-                let src_imm = self.node_iimm_to_i32(src);
+                let (src_imm, src_len) = self.node_iimm_to_i32_with_len(src);
                 if dest.is_int_reg() {
                     self.backend.emit_mov_r_imm(dest, src_imm);
                 } else if dest.is_mem() {
-                    self.backend.emit_mov_mem_imm(dest, src_imm);
+                    self.backend.emit_mov_mem_imm(dest, src_imm, src_len);
                 } else {
                     panic!("unexpected dest: {}", dest);
                 }
@@ -3559,8 +3576,8 @@ impl <'a> InstructionSelection {
             } else if dest.is_mem() && src.is_int_reg() {
                 self.backend.emit_mov_mem_r(dest, src);
             } else if dest.is_mem() && src.is_int_const() {
-                let imm = self.value_iimm_to_i32(src);
-                self.backend.emit_mov_mem_imm(dest, imm);
+                let (imm, len) = self.value_iimm_to_i32_with_len(src);
+                self.backend.emit_mov_mem_imm(dest, imm, len);
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }

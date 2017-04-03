@@ -1693,9 +1693,7 @@ impl ASMCodeGen {
         }
     }
 
-    fn internal_mov_mem_imm(&mut self, inst: &str, dest: &P<Value>, src: i32) {
-        let len = check_op_len(dest);
-
+    fn internal_mov_mem_imm(&mut self, inst: &str, dest: &P<Value>, src: i32, len: usize) {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} -> {}", inst, src, dest);
 
@@ -2132,8 +2130,8 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_mem_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_mov_mem_r("mov", dest, src, false)
     }
-    fn emit_mov_mem_imm(&mut self, dest: &P<Value>, src: i32) {
-        self.internal_mov_mem_imm("mov", dest, src)
+    fn emit_mov_mem_imm(&mut self, dest: &P<Value>, src: i32, oplen: usize) {
+        self.internal_mov_mem_imm("mov", dest, src, oplen)
     }
 
     // zero/sign extend mov

@@ -588,7 +588,7 @@ impl BlockContent {
                         vec_utils::append_unique(&mut ret, &mut live_outs);
                     }
                     
-                    _ => panic!("didn't expect last inst as {:?}", inst) 
+                    _ => panic!("didn't expect last inst as {}", inst)
                 }
             },
             _ => panic!("expect last treenode of block is a inst")

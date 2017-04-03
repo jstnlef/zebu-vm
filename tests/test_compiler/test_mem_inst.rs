@@ -15,6 +15,153 @@ use mu::testutil;
 
 use test_compiler::test_call::gen_ccall_exit;
 
+#[repr(C)]
+struct Foo (i8, i8, i8);
+
+#[test]
+fn test_write_int8_val() {
+    let lib = testutil::compile_fnc("write_int8", &write_int8);
+
+    unsafe {
+        let ptr : *mut Foo = Box::into_raw(Box::new(Foo(1, 2, 3)));
+        let a = (*ptr).0;
+        let b = (*ptr).1;
+        let c = (*ptr).2;
+        println!("foo.0 = {}", (*ptr).0);
+        println!("foo.1 = {}", (*ptr).1);
+        println!("foo.2 = {}", (*ptr).2);
+
+        let write_int8 : libloading::Symbol<unsafe extern fn(*mut Foo, i8)> = lib.get(b"write_int8").unwrap();
+
+        write_int8(ptr, 42);
+
+        println!("foo.0 = {}", (*ptr).0);
+        println!("foo.1 = {}", (*ptr).1);
+        println!("foo.2 = {}", (*ptr).2);
+
+        assert_eq!((*ptr).0, a);
+        assert_eq!((*ptr).1, 42);
+        assert_eq!((*ptr).2, c);
+    }
+}
+
+fn write_int8() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int8 = mu_int(8));
+    typedef!    ((vm) foo  = mu_struct(int8, int8, int8));
+    typedef!    ((vm) ref_foo   = mu_ref(foo));
+    typedef!    ((vm) iref_foo  = mu_iref(foo));
+    typedef!    ((vm) iref_int8 = mu_iref(int8));
+
+    funcsig!    ((vm) write_int8_sig = (ref_foo, int8) -> ());
+    funcdecl!   ((vm) <write_int8_sig> write_int8);
+    funcdef!    ((vm) <write_int8_sig> write_int8 VERSION write_int8_v1);
+
+    block!      ((vm, write_int8_v1) blk_entry);
+    ssa!        ((vm, write_int8_v1) <ref_foo> refx);
+    ssa!        ((vm, write_int8_v1) <int8> val);
+
+    ssa!        ((vm, write_int8_v1) <iref_foo> irefx);
+    inst!       ((vm, write_int8_v1) blk_entry_getiref:
+        irefx = GETIREF refx
+    );
+
+    ssa!        ((vm, write_int8_v1) <iref_int8> iref_field1);
+    inst!       ((vm, write_int8_v1) blk_entry_getfieldiref:
+        iref_field1 = GETFIELDIREF irefx (is_ptr: false, index: 1)
+    );
+
+    inst!       ((vm, write_int8_v1) blk_entry_write:
+        STORE iref_field1 val (is_ptr: false, order: MemoryOrder::Relaxed)
+    );
+
+    inst!       ((vm, write_int8_v1) blk_entry_ret:
+        RET
+    );
+
+    define_block!((vm, write_int8_v1) blk_entry(refx, val) {
+        blk_entry_getiref, blk_entry_getfieldiref, blk_entry_write, blk_entry_ret
+    });
+
+    define_func_ver!((vm) write_int8_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_write_int8_const() {
+    let lib = testutil::compile_fnc("write_int8_const", &write_int8_const);
+
+    unsafe {
+        let ptr : *mut Foo = Box::into_raw(Box::new(Foo(1, 2, 3)));
+        let a = (*ptr).0;
+        let b = (*ptr).1;
+        let c = (*ptr).2;
+        println!("foo.0 = {}", (*ptr).0);
+        println!("foo.1 = {}", (*ptr).1);
+        println!("foo.2 = {}", (*ptr).2);
+
+        let write_int8 : libloading::Symbol<unsafe extern fn(*mut Foo)> = lib.get(b"write_int8_const").unwrap();
+
+        write_int8(ptr);
+
+        println!("foo.0 = {}", (*ptr).0);
+        println!("foo.1 = {}", (*ptr).1);
+        println!("foo.2 = {}", (*ptr).2);
+
+        assert_eq!((*ptr).0, a);
+        assert_eq!((*ptr).1, 42);
+        assert_eq!((*ptr).2, c);
+    }
+}
+
+fn write_int8_const() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int8 = mu_int(8));
+    typedef!    ((vm) foo  = mu_struct(int8, int8, int8));
+    typedef!    ((vm) ref_foo   = mu_ref(foo));
+    typedef!    ((vm) iref_foo  = mu_iref(foo));
+    typedef!    ((vm) iref_int8 = mu_iref(int8));
+
+    constdef!   ((vm) <int8> int8_42 = Constant::Int(42));
+
+    funcsig!    ((vm) write_int8_const_sig = (ref_foo) -> ());
+    funcdecl!   ((vm) <write_int8_const_sig> write_int8_const);
+    funcdef!    ((vm) <write_int8_const_sig> write_int8_const VERSION write_int8_const_v1);
+
+    block!      ((vm, write_int8_const_v1) blk_entry);
+    ssa!        ((vm, write_int8_const_v1) <ref_foo> refx);
+
+    ssa!        ((vm, write_int8_const_v1) <iref_foo> irefx);
+    inst!       ((vm, write_int8_const_v1) blk_entry_getiref:
+        irefx = GETIREF refx
+    );
+
+    ssa!        ((vm, write_int8_const_v1) <iref_int8> iref_field1);
+    inst!       ((vm, write_int8_const_v1) blk_entry_getfieldiref:
+        iref_field1 = GETFIELDIREF irefx (is_ptr: false, index: 1)
+    );
+
+    consta!     ((vm, write_int8_const_v1) int8_42_local = int8_42);
+    inst!       ((vm, write_int8_const_v1) blk_entry_write:
+        STORE iref_field1 int8_42_local (is_ptr: false, order: MemoryOrder::Relaxed)
+    );
+
+    inst!       ((vm, write_int8_const_v1) blk_entry_ret:
+        RET
+    );
+
+    define_block!((vm, write_int8_const_v1) blk_entry(refx) {
+        blk_entry_getiref, blk_entry_getfieldiref, blk_entry_write, blk_entry_ret
+    });
+
+    define_func_ver!((vm) write_int8_const_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
 #[test]
 fn test_get_field_iref1() {
     let lib = testutil::compile_fnc("get_field_iref1", &get_field_iref1);
