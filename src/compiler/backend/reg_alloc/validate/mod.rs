@@ -108,6 +108,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             // remove registers that die at this instruction from alive entries
             if let Some(kills) = liveness.get_kills(i) {
                 for reg in kills.iter() {
+                    debug!("Temp/Reg{} is killed", reg);
                     kill_reg(*reg, &mut alive);
                 }
             }
@@ -123,6 +124,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
                 } else {
                     // we need to kill the reg, so that other temps cannot use it
                     // (its value has been defined)
+                    debug!("Temp/Reg{} is not liveout, will be killed", reg_def);
                     kill_reg(reg_def, &mut alive);
                 }
             }

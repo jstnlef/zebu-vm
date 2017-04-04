@@ -42,6 +42,17 @@ def test_rpython_dict_new_100():
 
     fn()
 
+@may_spawn_proc
+def test_rpython_image_dict_new_100():
+    def main(argv):
+        a = {}
+        for i in range(0, 100):
+            a[i] = i
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_image_dict_new_100', vmargs="--disable-inline")
+    assert res.returncode == 0, res.err
+
 
 @may_spawn_proc
 def test_rpython_dict_lookup():
