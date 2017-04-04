@@ -124,8 +124,10 @@ pub fn validate_regalloc(cf: &CompiledFunction,
                 } else {
                     // we need to kill the reg, so that other temps cannot use it
                     // (its value has been defined)
-                    debug!("Temp/Reg{} is not liveout, will be killed", reg_def);
-                    kill_reg(reg_def, &mut alive);
+                    if !mc.is_move(i) {
+                        debug!("Temp/Reg{} is not liveout, will be killed", reg_def);
+                        kill_reg(reg_def, &mut alive);
+                    }
                 }
             }
 
