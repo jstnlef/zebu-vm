@@ -2230,6 +2230,8 @@ impl <'a> InstructionSelection {
         // in the meantime record args that do not fit in registers
         let mut stack_args : Vec<P<Value>> = vec![];        
         let mut gpr_arg_count = 0;
+        let mut fpr_arg_count = 0;
+
         for arg in args.iter() {
             if arg.is_int_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
@@ -2246,32 +2248,39 @@ impl <'a> InstructionSelection {
                     stack_args.push(arg.clone());
                 }
             } else if arg.is_int_const() {
-                let arg_gpr = {
-                    let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
-                    let expected_len = arg.ty.get_int_length().unwrap();
-                    x86_64::get_alias_for_length(reg64.id(), expected_len)
-                };
+                let int_const = arg.extract_int_const();
 
-                if x86_64::is_valid_x86_imm(arg) {                
-                    let int_const = arg.extract_int_const() as i32;
-                    
-                    if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                        self.backend.emit_mov_r_imm(&arg_gpr, int_const);
-                        gpr_arg_count += 1;
+                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                    let arg_gpr = {
+                        let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
+                        let expected_len = arg.ty.get_int_length().unwrap();
+                        x86_64::get_alias_for_length(reg64.id(), expected_len)
+                    };
+
+                    if x86_64::is_valid_x86_imm(arg) {
+                        self.backend.emit_mov_r_imm(&arg_gpr, int_const as i32);
                     } else {
-                        // use stack to pass argument
-                        stack_args.push(arg.clone());
+                        // FIXME: put the constant to memory
+                        self.backend.emit_mov_r64_imm64(&arg_gpr, int_const as i64);
                     }
-                } else {
-                    // FIXME: put the constant to memory
-                    let int_const = arg.extract_int_const() as i64;
-                    self.backend.emit_mov_r64_imm64(&arg_gpr, int_const);
                     gpr_arg_count += 1;
+                } else {
+                    // use stack to pass argument
+                    stack_args.push(arg.clone());
                 }
             } else if arg.is_mem() {
                 unimplemented!()
+            } else if arg.is_fp_reg() {
+                if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
+                    let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
+
+                    self.emit_move_value_to_value(&arg_fpr, &arg);
+                    fpr_arg_count += 1;
+                } else {
+                    stack_args.push(arg.clone());
+                }
             } else {
-                // floating point
+                // struct, etc
                 unimplemented!()
             }
         }
@@ -2433,11 +2442,14 @@ impl <'a> InstructionSelection {
         for arg_index in calldata.args.iter() {
             let ref arg = ops[*arg_index];
 
-            if self.match_ireg(arg) {
+            if self.match_iimm(arg) {
+                let arg = self.node_iimm_to_value(arg);
+                arg_values.push(arg);
+            } else if self.match_ireg(arg) {
                 let arg = self.emit_ireg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
-            } else if self.match_iimm(arg) {
-                let arg = self.node_iimm_to_value(arg);
+            } else if self.match_fpreg(arg) {
+                let arg = self.emit_fpreg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
             } else {
                 unimplemented!();
@@ -2518,11 +2530,14 @@ impl <'a> InstructionSelection {
         for arg_index in calldata.args.iter() {
             let ref arg = ops[*arg_index];
 
-            if self.match_ireg(arg) {
+            if self.match_iimm(arg) {
+                let arg = self.node_iimm_to_value(arg);
+                arg_values.push(arg);
+            } else if self.match_ireg(arg) {
                 let arg = self.emit_ireg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
-            } else if self.match_iimm(arg) {
-                let arg = self.node_iimm_to_value(arg);
+            } else if self.match_fpreg(arg) {
+                let arg = self.emit_fpreg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
             } else {
                 unimplemented!();
@@ -2565,7 +2580,7 @@ impl <'a> InstructionSelection {
                 let callsite = self.new_callsite_label(Some(cur_node));
                 self.backend.emit_call_near_mem64(callsite, &target, potentially_excepting)
             } else {
-                unimplemented!()
+                panic!("unexpected callee as {}", func);
             }
         };
         

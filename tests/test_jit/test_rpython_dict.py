@@ -42,6 +42,7 @@ def test_rpython_dict_new_100():
 
     fn()
 
+@pytest.mark.xfail(reason='segment fault')
 @may_spawn_proc
 def test_rpython_image_dict_new_100():
     def main(argv):

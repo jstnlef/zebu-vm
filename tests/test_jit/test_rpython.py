@@ -1158,7 +1158,6 @@ def test_rpytarget_richards():
     res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
     assert res.returncode == 0, res.err
 
-@pytest.mark.xfail(reason='expecting fix')
 @may_spawn_proc
 def test_dtoa():
     from rpython.rlib.rdtoa import dtoa

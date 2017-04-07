@@ -1,3 +1,5 @@
+extern crate libloading;
+
 use mu::ast::types::*;
 use mu::ast::ir::*;
 use mu::ast::ptr::*;
@@ -7,6 +9,7 @@ use mu::compiler::*;
 
 use std::sync::RwLock;
 use std::sync::Arc;
+use mu::testutil;
 use mu::testutil::aot;
 use mu::utils::LinkedHashMap;
 
@@ -415,6 +418,83 @@ fn pass_2args_by_stack() -> VM {
     define_func_ver!((vm) pass_2args_by_stack_v1 (entry: blk_entry) {
         blk_entry,
         blk_main
+    });
+
+    vm
+}
+
+#[test]
+fn test_pass_fp_arg() {
+    let lib = testutil::compile_fncs("pass_fp_arg", vec!["pass_fp_arg", "foo"], &pass_fp_arg);
+
+    unsafe {
+        let pass_fp_arg : libloading::Symbol<unsafe extern fn (f64) -> f64> = lib.get(b"pass_fp_arg").unwrap();
+
+        let res1 = pass_fp_arg(0f64);
+        println!("pass_fp_arg(0.0) = {}", res1);
+        assert!(res1 == 0f64);
+
+        let res2 = pass_fp_arg(3.14f64);
+        println!("pass_fp_arg(3.14) = {}", res2);
+        assert!(res2 == 3.14f64);
+    }
+}
+
+fn pass_fp_arg() -> VM {
+    let vm = VM::new_with_opts("init_mu --disable-inline");
+
+    typedef!    ((vm) double = mu_double);
+
+    // foo
+    funcsig!    ((vm) foo_sig = (double) -> (double));
+    funcdecl!   ((vm) <foo_sig> foo);
+    funcdef!    ((vm) <foo_sig> foo VERSION foo_v1);
+
+    // blk_entry
+    ssa!        ((vm, foo_v1) <double> x);
+    block!      ((vm, foo_v1) blk_entry);
+
+    inst!       ((vm, foo_v1) blk_entry_ret:
+        RET (x)
+    );
+
+    define_block!   ((vm, foo_v1) blk_entry(x) {
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) foo_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    // pass_fp_arg
+    funcsig!    ((vm) sig = (double) -> (double));
+    funcdecl!   ((vm) <sig> pass_fp_arg);
+    funcdef!    ((vm) <sig> pass_fp_arg VERSION pass_fp_arg_v1);
+
+    typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(vm.id_of("foo")));
+
+    // blk_entry
+    ssa!        ((vm, pass_fp_arg_v1) <double> x);
+    block!      ((vm, pass_fp_arg_v1) blk_entry);
+
+    ssa!        ((vm, pass_fp_arg_v1) <double> res);
+    consta!     ((vm, pass_fp_arg_v1) const_funcref_foo_local = const_funcref_foo);
+    inst!       ((vm, pass_fp_arg_v1) blk_entry_call:
+        res = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo_local (x)
+    );
+
+    inst!       ((vm, pass_fp_arg_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, pass_fp_arg_v1) blk_entry(x) {
+        blk_entry_call,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) pass_fp_arg_v1 (entry: blk_entry) {
+        blk_entry
     });
 
     vm
