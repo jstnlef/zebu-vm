@@ -1158,6 +1158,19 @@ def test_rpytarget_richards():
     res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
     assert res.returncode == 0, res.err
 
+@may_spawn_proc
+def test_dtoa():
+    from rpython.rlib.rdtoa import dtoa
+    from rpython.translator.mu.tool.debug_print import print_
+    def main(argv):
+        print_(dtoa(3.14))
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_print_float-mu', args=['2'])
+    assert res.returncode == 0, res.err
+    assert res.out == '3.14\n'
+
+
 @pytest.mark.xfail(reason='KeyError exception')
 @may_spawn_proc
 def test_rpytarget_testdicts():
