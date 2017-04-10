@@ -2309,17 +2309,15 @@ impl <'a> InstructionSelection {
             let (stack_arg_size, _, stack_arg_offsets) = backend::sequetial_layout(&stack_arg_tys, vm);
 
             let mut stack_arg_size_with_padding = stack_arg_size;
-            let mut stack_arg_padding = 0;
 
             if stack_arg_size % 16 == 0 {
                 // do not need to adjust rsp
             } else if stack_arg_size % 8 == 0 {
                 // adjust rsp by -8
-                stack_arg_padding = 8;
                 stack_arg_size_with_padding += 8;
             } else {
                 let rem = stack_arg_size % 16;
-                stack_arg_padding = 16 - rem;
+                let stack_arg_padding = 16 - rem;
                 stack_arg_size_with_padding += stack_arg_padding;
             }
 
@@ -2328,7 +2326,7 @@ impl <'a> InstructionSelection {
                 if stack_arg_size_with_padding != 0 {
                     let mut index = 0;
 
-                    let mut rsp_offset_before_call = - (stack_arg_size_with_padding as i32);
+                    let rsp_offset_before_call = - (stack_arg_size_with_padding as i32);
 
                     for arg in stack_args {
                         self.emit_store_base_offset(&x86_64::RSP, rsp_offset_before_call + (stack_arg_offsets[index]) as i32, &arg, vm);
@@ -2763,7 +2761,7 @@ impl <'a> InstructionSelection {
         //   arg           <- RBP + 16
         //   return addr
         //   old RBP       <- RBP
-        let mut stack_arg_base_offset : i32 = 16;
+        let stack_arg_base_offset : i32 = 16;
         let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
         let (_, _, stack_arg_offsets) = backend::sequetial_layout(&arg_by_stack_tys, vm);
 

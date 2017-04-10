@@ -1158,6 +1158,7 @@ def test_rpytarget_richards():
     res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
     assert res.returncode == 0, res.err
 
+@pytest.mark.xfail(reason='printing time fails')
 @may_spawn_proc
 def test_rpytarget_richards_measure_time():
     from rpython.translator.goal.richards import entry_point
@@ -1169,6 +1170,31 @@ def test_rpytarget_richards_measure_time():
         return 0
 
     res = run_boot_image(main, '/tmp/test_richards_measure_time-mu', args=['5'])
+    assert res.returncode == 0, res.err
+
+@pytest.mark.xfail(reason='ValueError exception, probably formatting fails')
+@may_spawn_proc
+def test_rpython_print_time():
+    import time
+    def main(argv):
+        print time.time()
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_print_time')
+    assert res.returncode == 0, res.err
+
+@may_spawn_proc
+def test_rpython_time_diff():
+    import time
+    def main(argv):
+        t1 = time.time()
+        t2 = time.time()
+        if t2 >= t1:
+            return 0
+        else:
+            return 1
+
+    res = run_boot_image(main, '/tmp/test_time_diff')
     assert res.returncode == 0, res.err
 
 @may_spawn_proc

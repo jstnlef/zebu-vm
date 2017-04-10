@@ -19,6 +19,7 @@ use test_compiler::test_call::gen_ccall_exit;
 struct Foo (i8, i8, i8);
 
 #[test]
+#[allow(unused_variables)]
 fn test_write_int8_val() {
     let lib = testutil::compile_fnc("write_int8", &write_int8);
 

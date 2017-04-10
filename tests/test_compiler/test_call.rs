@@ -661,10 +661,8 @@ fn pass_mixed_args_by_stack() -> VM {
 
     // blk_entry
     consta!     ((vm, pass_mixed_args_by_stack_v1) int64_0_local = int64_0);
-    consta!     ((vm, pass_mixed_args_by_stack_v1) int64_1_local = int64_1);
     consta!     ((vm, pass_mixed_args_by_stack_v1) int64_2_local = int64_2);
     consta!     ((vm, pass_mixed_args_by_stack_v1) int8_1_local  = int8_1);
-    consta!     ((vm, pass_mixed_args_by_stack_v1) int8_2_local  = int8_2);
 
     block!      ((vm, pass_mixed_args_by_stack_v1) blk_entry);
     block!      ((vm, pass_mixed_args_by_stack_v1) blk_main);
