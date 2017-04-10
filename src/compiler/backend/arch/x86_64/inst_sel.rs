@@ -2304,7 +2304,7 @@ impl <'a> InstructionSelection {
 
             // so we need to layout args in reverse order
             stack_args.reverse();
-            
+
             let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
             let (stack_arg_size, _, stack_arg_offsets) = backend::sequetial_layout(&stack_arg_tys, vm);
 
@@ -2703,14 +2703,12 @@ impl <'a> InstructionSelection {
         // add x, rbp -> rbp (x is negative, however we do not know x now)
         self.backend.emit_frame_grow();
         
-        // unload arguments
+        // unload arguments by registers
         let mut gpr_arg_count = 0;
         let mut fpr_arg_count = 0;
-        // initial stack arg is at RBP+16
-        //   arg           <- RBP + 16
-        //   return addr
-        //   old RBP       <- RBP
-        let mut stack_arg_offset : i32 = 16;
+
+        let mut arg_by_stack = vec![];
+
         for arg in args {
             if arg.is_int_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
@@ -2725,14 +2723,15 @@ impl <'a> InstructionSelection {
 
                     gpr_arg_count += 1;
                 } else {
-                    // unload from stack
-                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-
-                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
-
-                    // move stack_arg_offset by the size of 'arg'
-                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
-                    stack_arg_offset += arg_size as i32;
+                    arg_by_stack.push(arg.clone());
+//                    // unload from stack
+//                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+//
+//                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
+//
+//                    // move stack_arg_offset by the size of 'arg'
+//                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
+//                    stack_arg_offset += arg_size as i32;
                 }
             } else if arg.is_fp_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
@@ -2743,19 +2742,38 @@ impl <'a> InstructionSelection {
 
                     fpr_arg_count += 1;
                 } else {
-                    // unload from stack
-                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-
-                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
-
-                    // move stack_arg_offset by the size of 'arg'
-                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
-                    stack_arg_offset += arg_size as i32;
+                    arg_by_stack.push(arg.clone());
+//                    // unload from stack
+//                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+//
+//                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
+//
+//                    // move stack_arg_offset by the size of 'arg'
+//                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
+//                    stack_arg_offset += arg_size as i32;
                 }
             } else {
                 // args that are not fp or int (possibly struct/array/etc)
                 unimplemented!();
             }
+        }
+
+        // deal with arguments passed by stack
+        // initial stack arg is at RBP+16
+        //   arg           <- RBP + 16
+        //   return addr
+        //   old RBP       <- RBP
+        let mut stack_arg_base_offset : i32 = 16;
+        let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
+        let (_, _, stack_arg_offsets) = backend::sequetial_layout(&arg_by_stack_tys, vm);
+
+        // unload the args
+        let mut i = 0;
+        for arg in arg_by_stack {
+            let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP, (stack_arg_base_offset + stack_arg_offsets[i] as i32), vm);
+            self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
+
+            i += 1;
         }
         
         self.backend.end_block(block_name);
