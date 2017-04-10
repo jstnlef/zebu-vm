@@ -1159,6 +1159,19 @@ def test_rpytarget_richards():
     assert res.returncode == 0, res.err
 
 @may_spawn_proc
+def test_rpytarget_richards_measure_time():
+    from rpython.translator.goal.richards import entry_point
+    def main(argv):
+        iterations = int(argv[1])
+        res, t0, t1 = entry_point(iterations)
+        print 'result =', res
+        print 'avg time =', (t1 - t0) / iterations
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_richards_measure_time-mu', args=['5'])
+    assert res.returncode == 0, res.err
+
+@may_spawn_proc
 def test_dtoa():
     from rpython.rlib.rdtoa import dtoa
     from rpython.translator.mu.tool.debug_print import print_
