@@ -2294,25 +2294,48 @@ impl <'a> InstructionSelection {
             // (32, if __m256 is passed on stack) byte boundary." - x86 ABI
             // if we need to special align the args, we do it now
             // (then the args will be put to stack following their regular alignment)
+
+            // reserve stack args - we want to layout stack args as below
+
+            // RSP -> .............
+            //        (padding)
+            //        (padding)
+            // RSP -> argN, argN-1, ...
+
+            // so we need to layout args in reverse order
+            stack_args.reverse();
+            
             let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
             let (stack_arg_size, _, stack_arg_offsets) = backend::sequetial_layout(&stack_arg_tys, vm);
+
             let mut stack_arg_size_with_padding = stack_arg_size;
+            let mut stack_arg_padding = 0;
+
             if stack_arg_size % 16 == 0 {
                 // do not need to adjust rsp
             } else if stack_arg_size % 8 == 0 {
-                // adjust rsp by -8 (push a random padding value)
-                self.backend.emit_push_imm32(0x7777);
+                // adjust rsp by -8
+                stack_arg_padding = 8;
                 stack_arg_size_with_padding += 8;
             } else {
-                panic!("expecting stack arguments to be at least 8-byte aligned, but it has size of {}", stack_arg_size);
+                let rem = stack_arg_size % 16;
+                stack_arg_padding = 16 - rem;
+                stack_arg_size_with_padding += stack_arg_padding;
             }
 
             // now, we just put all the args on the stack
             {
-                let mut index = 0;
-                for arg in stack_args {
-                    self.emit_push(&arg);
-                    index += 1;
+                if stack_arg_size_with_padding != 0 {
+                    let mut index = 0;
+
+                    let mut rsp_offset_before_call = - (stack_arg_size_with_padding as i32);
+
+                    for arg in stack_args {
+                        self.emit_store_base_offset(&x86_64::RSP, rsp_offset_before_call + (stack_arg_offsets[index]) as i32, &arg, vm);
+                        index += 1;
+                    }
+
+                    self.backend.emit_sub_r_imm(&x86_64::RSP, stack_arg_size_with_padding as i32);
                 }
             }
 
