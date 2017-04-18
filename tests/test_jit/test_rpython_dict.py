@@ -29,7 +29,6 @@ def test_rpython_dict_new_1():
 
     fn()
 
-@pytest.mark.xfail(reason='segment fault')
 @may_spawn_proc
 def test_rpython_dict_new_100():
     def new_100():
@@ -41,18 +40,6 @@ def test_rpython_dict_new_100():
     bdlgen.mu.current_thread_as_mu_thread(rmu.null(rmu.MuCPtr))
 
     fn()
-
-@pytest.mark.xfail(reason='segment fault')
-@may_spawn_proc
-def test_rpython_image_dict_new_100():
-    def main(argv):
-        a = {}
-        for i in range(0, 100):
-            a[i] = i
-        return 0
-
-    res = run_boot_image(main, '/tmp/test_image_dict_new_100', vmargs="--disable-inline")
-    assert res.returncode == 0, res.err
 
 
 @may_spawn_proc

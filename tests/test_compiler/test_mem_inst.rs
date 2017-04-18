@@ -1368,3 +1368,181 @@ pub fn hybrid_var_part_insts() -> VM {
 
     vm
 }
+
+#[test]
+fn test_shift_iref_ele_4bytes() {
+    let lib = testutil::compile_fnc("shift_iref_ele_4bytes", &shift_iref_ele_4bytes);
+
+    unsafe {
+        let shift_iref_ele_4bytes : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"shift_iref_ele_4bytes").unwrap();
+
+        let res = shift_iref_ele_4bytes(0, 0);
+        println!("shift_iref_ele_4bytes(0, 0) = {}", res);
+        assert_eq!(res, 0);
+
+        let res = shift_iref_ele_4bytes(0, 1);
+        println!("shift_iref_ele_4bytes(0, 1) = {}", res);
+        assert_eq!(res, 4);
+
+        let res = shift_iref_ele_4bytes(0, 2);
+        println!("shift_iref_ele_4bytes(0, 2) = {}", res);
+        assert_eq!(res, 8);
+    }
+}
+
+fn shift_iref_ele_4bytes() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int32  = mu_int(32));
+    typedef!    ((vm) int64  = mu_int(64));
+    typedef!    ((vm) elem   = mu_struct(int32));
+    typedef!    ((vm) iref_elem  = mu_iref(elem));
+
+    funcsig!    ((vm) sig = (iref_elem, int64) -> (iref_elem));
+    funcdecl!   ((vm) <sig> shift_iref_ele_4bytes);
+
+    funcdef!    ((vm) <sig> shift_iref_ele_4bytes VERSION shift_iref_ele_4bytes_v1);
+
+    // blk entry
+    block!      ((vm, shift_iref_ele_4bytes_v1) blk_entry);
+
+    ssa!        ((vm, shift_iref_ele_4bytes_v1) <iref_elem> base);
+    ssa!        ((vm, shift_iref_ele_4bytes_v1) <int64> index);
+    ssa!        ((vm, shift_iref_ele_4bytes_v1) <iref_elem> res);
+
+    inst!       ((vm, shift_iref_ele_4bytes_v1) blk_entry_shiftiref:
+        res = SHIFTIREF base index (is_ptr: false)
+    );
+
+    inst!       ((vm, shift_iref_ele_4bytes_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!   ((vm, shift_iref_ele_4bytes_v1) blk_entry(base, index) {
+        blk_entry_shiftiref, blk_entry_ret
+    });
+
+    define_func_ver!((vm) shift_iref_ele_4bytes_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
+fn test_shift_iref_ele_8bytes() {
+    let lib = testutil::compile_fnc("shift_iref_ele_8bytes", &shift_iref_ele_8bytes);
+
+    unsafe {
+        let shift_iref_ele_8bytes : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"shift_iref_ele_8bytes").unwrap();
+
+        let res = shift_iref_ele_8bytes(0, 0);
+        println!("shift_iref_ele_8bytes(0, 0) = {}", res);
+        assert_eq!(res, 0);
+
+        let res = shift_iref_ele_8bytes(0, 1);
+        println!("shift_iref_ele_8bytes(0, 1) = {}", res);
+        assert_eq!(res, 8);
+
+        let res = shift_iref_ele_8bytes(0, 2);
+        println!("shift_iref_ele_8bytes(0, 2) = {}", res);
+        assert_eq!(res, 16);
+    }
+}
+
+fn shift_iref_ele_8bytes() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64  = mu_int(64));
+    typedef!    ((vm) elem   = mu_struct(int64));
+    typedef!    ((vm) iref_elem  = mu_iref(elem));
+
+    funcsig!    ((vm) sig = (iref_elem, int64) -> (iref_elem));
+    funcdecl!   ((vm) <sig> shift_iref_ele_8bytes);
+
+    funcdef!    ((vm) <sig> shift_iref_ele_8bytes VERSION shift_iref_ele_8bytes_v1);
+
+    // blk entry
+    block!      ((vm, shift_iref_ele_8bytes_v1) blk_entry);
+
+    ssa!        ((vm, shift_iref_ele_8bytes_v1) <iref_elem> base);
+    ssa!        ((vm, shift_iref_ele_8bytes_v1) <int64> index);
+    ssa!        ((vm, shift_iref_ele_8bytes_v1) <iref_elem> res);
+
+    inst!       ((vm, shift_iref_ele_8bytes_v1) blk_entry_shiftiref:
+        res = SHIFTIREF base index (is_ptr: false)
+    );
+
+    inst!       ((vm, shift_iref_ele_8bytes_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!   ((vm, shift_iref_ele_8bytes_v1) blk_entry(base, index) {
+        blk_entry_shiftiref, blk_entry_ret
+    });
+
+    define_func_ver!((vm) shift_iref_ele_8bytes_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
+fn test_shift_iref_ele_16bytes() {
+    let lib = testutil::compile_fnc("shift_iref_ele_16bytes", &shift_iref_ele_16bytes);
+
+    unsafe {
+        let shift_iref_ele_16bytes : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"shift_iref_ele_16bytes").unwrap();
+
+        let res = shift_iref_ele_16bytes(0, 0);
+        println!("shift_iref_ele_16bytes(0, 0) = {}", res);
+        assert_eq!(res, 0);
+
+        let res = shift_iref_ele_16bytes(0, 1);
+        println!("shift_iref_ele_16bytes(0, 1) = {}", res);
+        assert_eq!(res, 16);
+
+        let res = shift_iref_ele_16bytes(0, 2);
+        println!("shift_iref_ele_16bytes(0, 2) = {}", res);
+        assert_eq!(res, 32);
+    }
+}
+
+fn shift_iref_ele_16bytes() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64  = mu_int(64));
+    typedef!    ((vm) elem   = mu_struct(int64, int64));
+    typedef!    ((vm) iref_elem  = mu_iref(elem));
+
+    funcsig!    ((vm) sig = (iref_elem, int64) -> (iref_elem));
+    funcdecl!   ((vm) <sig> shift_iref_ele_16bytes);
+
+    funcdef!    ((vm) <sig> shift_iref_ele_16bytes VERSION shift_iref_ele_16bytes_v1);
+
+    // blk entry
+    block!      ((vm, shift_iref_ele_16bytes_v1) blk_entry);
+
+    ssa!        ((vm, shift_iref_ele_16bytes_v1) <iref_elem> base);
+    ssa!        ((vm, shift_iref_ele_16bytes_v1) <int64> index);
+    ssa!        ((vm, shift_iref_ele_16bytes_v1) <iref_elem> res);
+
+    inst!       ((vm, shift_iref_ele_16bytes_v1) blk_entry_shiftiref:
+        res = SHIFTIREF base index (is_ptr: false)
+    );
+
+    inst!       ((vm, shift_iref_ele_16bytes_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!   ((vm, shift_iref_ele_16bytes_v1) blk_entry(base, index) {
+        blk_entry_shiftiref, blk_entry_ret
+    });
+
+    define_func_ver!((vm) shift_iref_ele_16bytes_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}

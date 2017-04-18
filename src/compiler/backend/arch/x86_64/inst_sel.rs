@@ -3363,15 +3363,20 @@ impl <'a> InstructionSelection {
                         } else {
                             let tmp_index = self.emit_ireg(offset, f_content, f_context, vm);
 
+                            // make a copy of it
+                            // (because we may need to alter index, and we dont want to chagne the original value)
+                            let tmp_index_copy = self.make_temporary(f_context, tmp_index.ty.clone(), vm);
+                            self.emit_move_value_to_value(&tmp_index_copy, &tmp_index);
+
                             let scale : u8 = match ele_ty_size {
                                 8 | 4 | 2 | 1 => ele_ty_size as u8,
                                 16| 32| 64    => {
                                     let shift = math::is_power_of_two(ele_ty_size).unwrap();
 
-                                    // scale is 8, but index = index << shift
-                                    self.backend.emit_shl_r_imm8(&tmp_index, shift as i8);
+                                    // tmp_index_copy = tmp_index_copy << index
+                                    self.backend.emit_shl_r_imm8(&tmp_index_copy, shift as i8);
 
-                                    8
+                                    1
                                 }
                                 _  => panic!("unexpected var ty size: {}", ele_ty_size)
                             };
@@ -3381,7 +3386,7 @@ impl <'a> InstructionSelection {
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetVarPartIRef{..}, ..}) => {
                                     let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
 
-                                    let ret = self.addr_append_index_scale(mem, tmp_index, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from SHIFTIREF(GETVARPARTIREF(_), ireg): {}", ret);
                                     ret
@@ -3393,7 +3398,7 @@ impl <'a> InstructionSelection {
                                     let ret = MemoryLocation::Address {
                                         base: tmp,
                                         offset: None,
-                                        index: Some(tmp_index),
+                                        index: Some(tmp_index_copy),
                                         scale: Some(scale)
                                     };
 
