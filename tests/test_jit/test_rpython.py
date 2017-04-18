@@ -1209,8 +1209,6 @@ def test_dtoa():
     assert res.returncode == 0, res.err
     assert res.out == '3.14\n'
 
-
-@pytest.mark.xfail(reason='KeyError exception')
 @may_spawn_proc
 def test_rpytarget_testdicts():
     from rpython.translator.goal.targettestdicts import entry_point
