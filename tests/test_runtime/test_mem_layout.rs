@@ -8,7 +8,6 @@ use utils::Address;
 use mu::runtime::mm;
 use mu::runtime::thread;
 use mu::runtime::thread::MuThread;
-use mu::vm::VM;
 
 use std::sync::Arc;
 

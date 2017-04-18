@@ -50,6 +50,12 @@ macro_rules! typedef {
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
     };
 
+    // array
+    (($vm: expr) $name: ident = mu_array($ty: ident, $len: expr) => {
+        let $name = $vm.declare_type($vm.next_id(), MuType_::array($ty.clone(), $len));
+        $vm.set_name($name.as_entity(), Mu(stringify!($name)));
+    });
+
     // funcref
     (($vm: expr) $name: ident = mu_funcref($sig: ident)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::funcref($sig.clone()));
