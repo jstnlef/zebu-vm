@@ -2031,8 +2031,7 @@ impl <'a> InstructionSelection {
     
     fn emit_store_base_offset (&mut self, base: &P<Value>, offset: i32, src: &P<Value>, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, src.ty.clone(), vm);
-        
-        self.backend.emit_mov_mem_r(&mem, src);
+        self.emit_move_value_to_value(&mem, src);
     }
     
     fn emit_lea_base_immoffset(&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
