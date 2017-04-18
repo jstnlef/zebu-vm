@@ -51,10 +51,10 @@ macro_rules! typedef {
     };
 
     // array
-    (($vm: expr) $name: ident = mu_array($ty: ident, $len: expr) => {
+    (($vm: expr) $name: ident = mu_array($ty: ident, $len: expr)) => {
         let $name = $vm.declare_type($vm.next_id(), MuType_::array($ty.clone(), $len));
         $vm.set_name($name.as_entity(), Mu(stringify!($name)));
-    });
+    };
 
     // funcref
     (($vm: expr) $name: ident = mu_funcref($sig: ident)) => {
@@ -189,6 +189,20 @@ macro_rules! inst {
                         is_ptr: $is_ptr,
                         base: 0,
                         index: $index
+            }
+        });
+    };
+
+    // GETELEMIREF
+    (($vm: expr, $fv: ident) $name: ident: $value: ident = GETELEMIREF $op: ident $index: ident (is_ptr: $is_ptr: expr)) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr:    MuEntityHeader::unnamed($vm.next_id()),
+            value:  Some(vec![$value.clone_value()]),
+            ops:    RwLock::new(vec![$op.clone(), $index.clone()]),
+            v:      Instruction_::GetElementIRef {
+                        is_ptr: $is_ptr,
+                        base: 0,
+                        index: 1
             }
         });
     };

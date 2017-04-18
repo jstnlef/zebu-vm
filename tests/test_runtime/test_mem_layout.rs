@@ -1,13 +1,6 @@
 use mu::ast::types::*;
 use mu::ast::ir::*;
-use mu::ast::inst::*;
-use mu::ast::op::*;
 use mu::vm::*;
-
-use utils::Address;
-use mu::runtime::mm;
-use mu::runtime::thread;
-use mu::runtime::thread::MuThread;
 
 use std::sync::Arc;
 

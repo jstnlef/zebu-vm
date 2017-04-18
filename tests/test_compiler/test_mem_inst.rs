@@ -90,6 +90,7 @@ fn write_int8() -> VM {
     vm
 }
 
+#[allow(unused_variables)]
 #[test]
 fn test_write_int8_const() {
     let lib = testutil::compile_fnc("write_int8_const", &write_int8_const);
@@ -1541,6 +1542,69 @@ fn shift_iref_ele_16bytes() -> VM {
     });
 
     define_func_ver!((vm) shift_iref_ele_16bytes_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
+#[ignore]
+fn test_get_elem_iref_array_ele_9bytes() {
+    let lib = testutil::compile_fnc("get_elem_iref_array_ele_9bytes", &get_elem_iref_array_ele_9bytes);
+
+    unsafe {
+        let get_elem_iref_array_ele_9bytes : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"get_elem_iref_array_ele_9bytes").unwrap();
+
+        let res = get_elem_iref_array_ele_9bytes(0, 0);
+        println!("get_elem_iref_array_ele_9bytes(0, 0) = {}", res);
+        assert_eq!(res, 0);
+
+        let res = get_elem_iref_array_ele_9bytes(0, 1);
+        println!("get_elem_iref_array_ele_9bytes(0, 1) = {}", res);
+        assert_eq!(res, 16);
+
+        let res = get_elem_iref_array_ele_9bytes(0, 2);
+        println!("get_elem_iref_array_ele_9bytes(0, 2) = {}", res);
+        assert_eq!(res, 32);
+    }
+}
+
+fn get_elem_iref_array_ele_9bytes() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int8  = mu_int(8));
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) elem  = mu_struct(int64, int8));
+    typedef!    ((vm) array_9bytes = mu_array(elem, 5));
+    typedef!    ((vm) iref_elem  = mu_iref(elem));
+    typedef!    ((vm) iref_array = mu_iref(array_9bytes));
+
+    funcsig!    ((vm) sig = (iref_array, int64) -> (iref_elem));
+    funcdecl!   ((vm) <sig> get_elem_iref_array_ele_9bytes);
+
+    funcdef!    ((vm) <sig> get_elem_iref_array_ele_9bytes VERSION get_elem_iref_array_ele_9bytes_v1);
+
+    // blk entry
+    block!      ((vm, get_elem_iref_array_ele_9bytes_v1) blk_entry);
+
+    ssa!        ((vm, get_elem_iref_array_ele_9bytes_v1) <iref_array> base);
+    ssa!        ((vm, get_elem_iref_array_ele_9bytes_v1) <int64> index);
+    ssa!        ((vm, get_elem_iref_array_ele_9bytes_v1) <iref_elem> res);
+
+    inst!       ((vm, get_elem_iref_array_ele_9bytes_v1) blk_entry_get_elem_iref:
+        res = GETELEMIREF base index (is_ptr: false)
+    );
+
+    inst!       ((vm, get_elem_iref_array_ele_9bytes_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, get_elem_iref_array_ele_9bytes_v1) blk_entry(base, index) {
+        blk_entry_get_elem_iref, blk_entry_ret
+    });
+
+    define_func_ver!((vm) get_elem_iref_array_ele_9bytes_v1 (entry: blk_entry) {
         blk_entry
     });
 
