@@ -14,3 +14,11 @@ pub fn is_power_of_two(x: usize) -> Option<u8> {
         None
     }
 }
+
+pub fn align_up(x: usize, align: usize) -> usize {
+    if x % align == 0 {
+        x
+    } else {
+        (x / align + 1) * align
+    }
+}

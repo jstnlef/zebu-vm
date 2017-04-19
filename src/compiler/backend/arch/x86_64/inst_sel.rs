@@ -933,8 +933,9 @@ impl <'a> InstructionSelection {
                     Instruction_::GetIRef(_)
                     | Instruction_::GetFieldIRef{..}
                     | Instruction_::GetVarPartIRef{..}
-                    | Instruction_::ShiftIRef{..} => {
-                        trace!("instsel on GET/FIELD/VARPARTIREF, SHIFTIREF");
+                    | Instruction_::ShiftIRef{..}
+                    | Instruction_::GetElementIRef{..} => {
+                        trace!("instsel on GET/FIELD/VARPART/SHIFT/ELEM IREF");
 
                         let mem_addr = self.emit_get_mem_from_inst(node, f_content, f_context, vm);
                         let tmp_res  = self.get_result_value(node);
@@ -1059,15 +1060,9 @@ impl <'a> InstructionSelection {
                         let ty_info = vm.get_backend_type_info(ty.id());
                         let ty_align = ty_info.alignment;
                         let fix_part_size = ty_info.size;
-                        let var_ty_size = match ty.v {
-                            MuType_::Hybrid(ref name) => {
-                                let map_lock = HYBRID_TAG_MAP.read().unwrap();
-                                let hybrid_ty_ = map_lock.get(name).unwrap();
-                                let var_ty = hybrid_ty_.get_var_ty();
-
-                                vm.get_backend_type_info(var_ty.id()).size
-                            },
-                            _ => panic!("only expect HYBRID type here")
+                        let var_ty_size = match ty_info.elem_padded_size {
+                            Some(sz) => sz,
+                            None => panic!("expect HYBRID type here with elem_padded_size, found {}", ty_info)
                         };
 
                         // actual size = fix_part_size + var_ty_size * len
@@ -3327,7 +3322,8 @@ impl <'a> InstructionSelection {
                             Some(ty) => ty,
                             None => panic!("expected op in ShiftIRef of type IRef, found type: {}", base_ty)
                         };
-                        let ele_ty_size = vm.get_backend_type_info(ele_ty.id()).size;
+                        let ele_backend_ty = vm.get_backend_type_info(ele_ty.id());
+                        let ele_ty_size = math::align_up(ele_backend_ty.size, ele_backend_ty.alignment);
 
                         if self.match_iimm(offset) {
                             let index = self.node_iimm_to_i32(offset);
@@ -3419,11 +3415,10 @@ impl <'a> InstructionSelection {
                             Some(ty) => ty,
                             None => panic!("expected base in GetElemIRef to be type IRef, found {}", iref_array_ty)
                         };
-                        let ele_ty = match array_ty.get_elem_ty() {
-                            Some(ty) => ty,
-                            None => panic!("expected base in GetElemIRef to be type Array, found {}", array_ty)
+                        let ele_ty_size = match vm.get_backend_type_info(array_ty.id()).elem_padded_size {
+                            Some(sz) => sz,
+                            None => panic!("array backend type should have a elem_padded_size, found {}", array_ty)
                         };
-                        let ele_ty_size = vm.get_backend_type_info(ele_ty.id()).size;
 
                         if self.match_iimm(index) {
                             let index = self.node_iimm_to_i32(index);
@@ -3463,16 +3458,30 @@ impl <'a> InstructionSelection {
                             }
                         } else {
                             let tmp_index = self.emit_ireg(index, f_content, f_context, vm);
+
+                            // make a copy of it
+                            // (because we may need to alter index, and we dont want to chagne the original value)
+                            let tmp_index_copy = self.make_temporary(f_context, tmp_index.ty.clone(), vm);
+                            self.emit_move_value_to_value(&tmp_index_copy, &tmp_index);
+
                             let scale : u8 = match ele_ty_size {
                                 8 | 4 | 2 | 1 => ele_ty_size as u8,
-                                _  => unimplemented!()
+                                16| 32| 64    => {
+                                    let shift = math::is_power_of_two(ele_ty_size).unwrap();
+
+                                    // tmp_index_copy = tmp_index_copy << index
+                                    self.backend.emit_shl_r_imm8(&tmp_index_copy, shift as i8);
+
+                                    1
+                                }
+                                _  => panic!("unexpected var ty size: {}", ele_ty_size)
                             };
 
                             match base.v {
                                 // GETELEMIREF(IREF, ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
                                     let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
-                                    let ret = self.addr_append_index_scale(mem, tmp_index, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from GETELEMIREF(GETIREF, ireg): {}", ret);
                                     ret
@@ -3480,7 +3489,7 @@ impl <'a> InstructionSelection {
                                 // GETELEMIREF(GETFIELDIREF, ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetFieldIRef{..}, ..}) => {
                                     let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
-                                    let ret = self.addr_append_index_scale(mem, tmp_index, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from GETELEMIREF(GETFIELDIREF, ireg): {}", ret);
                                     ret
@@ -3492,7 +3501,7 @@ impl <'a> InstructionSelection {
                                     let ret = MemoryLocation::Address {
                                         base: tmp,
                                         offset: None,
-                                        index: Some(tmp_index),
+                                        index: Some(tmp_index_copy),
                                         scale: Some(scale)
                                     };
 

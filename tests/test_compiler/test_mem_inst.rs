@@ -1490,6 +1490,66 @@ fn shift_iref_ele_8bytes() -> VM {
 }
 
 #[test]
+fn test_shift_iref_ele_9bytes() {
+    let lib = testutil::compile_fnc("shift_iref_ele_9bytes", &shift_iref_ele_9bytes);
+
+    unsafe {
+        let shift_iref_ele_9bytes : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"shift_iref_ele_9bytes").unwrap();
+
+        let res = shift_iref_ele_9bytes(0, 0);
+        println!("shift_iref_ele_9bytes(0, 0) = {}", res);
+        assert_eq!(res, 0);
+
+        let res = shift_iref_ele_9bytes(0, 1);
+        println!("shift_iref_ele_9bytes(0, 1) = {}", res);
+        assert_eq!(res, 16);
+
+        let res = shift_iref_ele_9bytes(0, 2);
+        println!("shift_iref_ele_9bytes(0, 2) = {}", res);
+        assert_eq!(res, 32);
+    }
+}
+
+fn shift_iref_ele_9bytes() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int8   = mu_int(8));
+    typedef!    ((vm) int64  = mu_int(64));
+    typedef!    ((vm) elem   = mu_struct(int64, int8));
+    typedef!    ((vm) iref_elem  = mu_iref(elem));
+
+    funcsig!    ((vm) sig = (iref_elem, int64) -> (iref_elem));
+    funcdecl!   ((vm) <sig> shift_iref_ele_9bytes);
+
+    funcdef!    ((vm) <sig> shift_iref_ele_9bytes VERSION shift_iref_ele_9bytes_v1);
+
+    // blk entry
+    block!      ((vm, shift_iref_ele_9bytes_v1) blk_entry);
+
+    ssa!        ((vm, shift_iref_ele_9bytes_v1) <iref_elem> base);
+    ssa!        ((vm, shift_iref_ele_9bytes_v1) <int64> index);
+    ssa!        ((vm, shift_iref_ele_9bytes_v1) <iref_elem> res);
+
+    inst!       ((vm, shift_iref_ele_9bytes_v1) blk_entry_shiftiref:
+        res = SHIFTIREF base index (is_ptr: false)
+    );
+
+    inst!       ((vm, shift_iref_ele_9bytes_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!   ((vm, shift_iref_ele_9bytes_v1) blk_entry(base, index) {
+        blk_entry_shiftiref, blk_entry_ret
+    });
+
+    define_func_ver!((vm) shift_iref_ele_9bytes_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
 fn test_shift_iref_ele_16bytes() {
     let lib = testutil::compile_fnc("shift_iref_ele_16bytes", &shift_iref_ele_16bytes);
 
@@ -1549,7 +1609,6 @@ fn shift_iref_ele_16bytes() -> VM {
 }
 
 #[test]
-#[ignore]
 fn test_get_elem_iref_array_ele_9bytes() {
     let lib = testutil::compile_fnc("get_elem_iref_array_ele_9bytes", &get_elem_iref_array_ele_9bytes);
 
