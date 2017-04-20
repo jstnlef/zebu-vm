@@ -5,6 +5,21 @@ use mu::vm::*;
 use std::sync::Arc;
 
 #[test]
+fn test_array_layout() {
+    let vm = Arc::new(VM::new());
+
+    typedef!    ((vm) int8  = mu_int(8));
+    typedef!    ((vm) int64 = mu_int(64));
+
+    typedef!    ((vm) struct1 = mu_struct(int64, int8));
+
+    typedef!    ((vm) array1  = mu_array(struct1, 5));
+
+    let array1_backend_ty = vm.get_backend_type_info(array1.id());
+    assert_eq!(array1_backend_ty.size, 16 * 5);
+}
+
+#[test]
 fn test_struct_layout() {
     let vm = Arc::new(VM::new());
 
