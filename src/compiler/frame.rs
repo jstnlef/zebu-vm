@@ -103,15 +103,36 @@ impl Frame {
         trace!("add exception callsite: {} to dest {}", callsite, dest);
         self.exception_callsites.push((callsite, dest));
     }
-    
+
+    #[cfg(target_arch = "x86_64")]
     fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {
+        // RBP is 16 bytes aligned, we are offsetting from RBP
+        // every value should be properly aligned
+
+        let backendty = vm.get_backend_type_info(val.ty.id());
+
+        if backendty.alignment > 16 {
+            unimplemented!()
+        }
+
+        self.cur_offset -= backendty.size as isize;
+
+        {
+            // if alignment doesnt satisfy, make adjustment
+            let abs_offset = self.cur_offset.abs() as usize;
+            if abs_offset % backendty.alignment != 0 {
+                use utils::math;
+                let abs_offset = math::align_up(abs_offset, backendty.alignment);
+
+                self.cur_offset = -(abs_offset as isize);
+            }
+        }
+
         let id = val.id();
         let ret = FrameSlot {
             offset: self.cur_offset,
             value: val.clone()
         };
-        
-        self.cur_offset -= vm.get_type_size(val.ty.id()) as isize;
         
         self.allocated.insert(id, ret);
         self.allocated.get(&id).unwrap()
