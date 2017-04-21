@@ -5,7 +5,6 @@ use runtime::ValueLocation;
 
 use std::fmt;
 use std::collections::HashMap;
-use utils::POINTER_SIZE;
 use vm::VM;
 
 // | previous frame ...
@@ -50,7 +49,7 @@ impl Frame {
     pub fn new(func_ver_id: MuID) -> Frame {
         Frame {
             func_ver_id: func_ver_id,
-            cur_offset: - (POINTER_SIZE as isize * 1), // reserve for old RBP
+            cur_offset: 0,
 
             argument_by_reg: HashMap::new(),
             argument_by_stack: HashMap::new(),

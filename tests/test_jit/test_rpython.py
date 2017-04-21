@@ -1149,7 +1149,7 @@ def test_linked_list():
     assert res.out == '1\n'
 
 @may_spawn_proc
-def test_rpytarget_richards():
+def test_rpytarget_richards0():
     from rpython.translator.goal.richards import entry_point
     def main(argv):
         res, t0, t1 = entry_point(int(argv[1]))
@@ -1158,7 +1158,6 @@ def test_rpytarget_richards():
     res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
     assert res.returncode == 0, res.err
 
-@pytest.mark.xfail(reason='Segment Fault')
 @may_spawn_proc
 def test_rpytarget_richards_measure_time():
     from rpython.translator.goal.richards import entry_point

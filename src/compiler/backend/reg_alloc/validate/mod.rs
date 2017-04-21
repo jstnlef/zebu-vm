@@ -62,7 +62,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             Some(range) => range,
             None => panic!("cannot find range for block {}", block)
         };
-        let last_inst = range.end - 1;
+        let last_inst = mc.get_last_inst(range.end - 1).unwrap();
         for i in range {
             mc.trace_inst(i);
 
