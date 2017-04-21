@@ -2598,9 +2598,9 @@ impl <'a> InstructionSelection {
                 panic!("unexpected callee as {}", func);
             }
         };
-        
-        // record exception branch
+
         if resumption.is_some() {
+            // record exception branch
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
             
@@ -2611,7 +2611,17 @@ impl <'a> InstructionSelection {
                 let mut callsites = vec![];
                 callsites.push(callsite);
                 self.current_exn_callsites.insert(target_block, callsites);
-            } 
+            }
+
+            // insert an intermediate block to branch to normal
+            self.finish_block();
+            let fv_id = self.current_fv_id;
+            self.start_block(format!("normal_cont_for_call_{}_{}", fv_id, cur_node.id()));
+
+            let ref normal_dest = resumption.as_ref().unwrap().normal_dest;
+            let normal_target_name = f_content.get_block(normal_dest.target).name().unwrap();
+
+            self.backend.emit_jmp(normal_target_name);
         }
         
         // deal with ret vals
