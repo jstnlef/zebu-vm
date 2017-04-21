@@ -31,68 +31,36 @@ fn test_add_u8() {
 fn add_u8() -> VM {
     let vm = VM::new();
 
-    // .typedef @u8 = int<8>
-    let type_def_u8 = vm.declare_type(vm.next_id(), MuType_::int(8));
-    vm.set_name(type_def_u8.as_entity(), Mu("u8"));
+    typedef!        ((vm) u8 = mu_int(8));
 
-    // .funcsig @add_u8_sig = (@u8 @u8) -> (@u8)
-    let add_u8_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_u8.clone()], vec![type_def_u8.clone(), type_def_u8.clone()]);
-    vm.set_name(add_u8_sig.as_entity(), Mu("add_u8_sig"));
-
-    // .funcdecl @add_u8 <@add_u8_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, add_u8_sig.clone());
-    vm.set_name(func.as_entity(), Mu("add_u8"));
-    vm.declare_func(func);
-
-    // .funcdef @add_u8 VERSION @add_u8_v1 <@add_u8_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, add_u8_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("add_u8_v1"));
+    funcsig!        ((vm) add_u8_sig = (u8, u8) -> (u8));
+    funcdecl!       ((vm) <add_u8_sig> add_u8);
+    funcdef!        ((vm) <add_u8_sig> add_u8 VERSION add_u8_v1);
 
     // %entry(<@u8> %a, <@u8> %b):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
-
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_u8.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
-    let blk_entry_b = func_ver.new_ssa(vm.next_id(), type_def_u8.clone());
-    vm.set_name(blk_entry_b.as_entity(), Mu("blk_entry_b"));
+    block!          ((vm, add_u8_v1) blk_entry);
+    ssa!            ((vm, add_u8_v1) <u8> a);
+    ssa!            ((vm, add_u8_v1) <u8> b);
 
     // %r = ADD %a %b
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_u8.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-    let blk_entry_add = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone(), blk_entry_b.clone()]),
-        v: Instruction_::BinOp(BinOp::Add, 0, 1)
-    });
+    ssa!            ((vm, add_u8_v1) <u8> r);
+    inst!           ((vm, add_u8_v1) blk_entry_add:
+        r = BINOP (BinOp::Add) a b
+    );
 
     // RET %r
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::Return(vec![0])
+    inst!           ((vm, add_u8_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!   ((vm, add_u8_v1) blk_entry(a, b) {
+        blk_entry_add,
+        blk_entry_ret
     });
 
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value(), blk_entry_b.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_add, blk_entry_term],
-        keepalives: None
+    define_func_ver!((vm) add_u8_v1 (entry: blk_entry) {
+        blk_entry
     });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut map = LinkedHashMap::new();
-            map.insert(blk_entry.id(), blk_entry);
-            map
-        }
-    ));
-
-    vm.define_func_version(func_ver);
 
     vm
 }
@@ -164,74 +132,35 @@ fn test_sext() {
 fn sext() -> VM {
     let vm = VM::new();
 
-    // .typedef @i8 = int<8>
-    let type_def_i8 = vm.declare_type(vm.next_id(), MuType_::int(8));
-    vm.set_name(type_def_i8.as_entity(), Mu("i8"));
-    // .typedef @i64 = int<64>
-    let type_def_i64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_i64.as_entity(), Mu("i64"));
+    typedef!        ((vm) i8  = mu_int(8));
+    typedef!        ((vm) i64 = mu_int(64));
 
-    // .funcsig @sext_sig = (@i8) -> (@i64)
-    let sext_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_i64.clone()], vec![type_def_i8.clone()]);
-    vm.set_name(sext_sig.as_entity(), Mu("sext_sig"));
-
-    // .funcdecl @sext <@sext_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, sext_sig.clone());
-    vm.set_name(func.as_entity(), Mu("sext"));
-    vm.declare_func(func);
-
-    // .funcdef @sext VERSION @sext_v1 <@sext_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, sext_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("sext_v1"));
+    funcsig!        ((vm) sext_sig = (i8) -> (i64));
+    funcdecl!       ((vm) <sext_sig> sext);
+    funcdef!        ((vm) <sext_sig> sext VERSION sext_v1);
 
     // %entry(<@i8> %a):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
-
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_i8.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
+    block!          ((vm, sext_v1) blk_entry);
+    ssa!            ((vm, sext_v1) <i8> a);
 
     // %r = SEXT @i8->@i64 %a
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_i64.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-    let blk_entry_add = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone()]),
-        v: Instruction_::ConvOp{
-            operation: ConvOp::SEXT,
-            from_ty: type_def_i8.clone(),
-            to_ty: type_def_i64.clone(),
-            operand: 0
-        }
-    });
+    ssa!            ((vm, sext_v1) <i64> r);
+    inst!           ((vm, sext_v1) blk_entry_sext:
+        r = CONVOP (ConvOp::SEXT) <i8 i64> a
+    );
 
     // RET %r
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::Return(vec![0])
+    inst!           ((vm, sext_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!   ((vm, sext_v1) blk_entry(a) {
+        blk_entry_sext, blk_entry_ret
     });
 
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_add, blk_entry_term],
-        keepalives: None
+    define_func_ver!((vm) sext_v1 (entry: blk_entry) {
+        blk_entry
     });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut map = LinkedHashMap::new();
-            map.insert(blk_entry.id(), blk_entry);
-            map
-        }
-    ));
-
-    vm.define_func_version(func_ver);
 
     vm
 }
@@ -252,72 +181,38 @@ fn test_add_9f() {
 fn add_9f() -> VM {
     let vm = VM::new();
 
-    // .typedef @u64 = int<64>
-    let type_def_u64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_u64.as_entity(), Mu("u64"));
+    typedef!        ((vm) u64 = mu_int(64));
 
-    // .const @int_9f <@u64> = 0xfffffffff
-    let const_def_int_9f = vm.declare_const(vm.next_id(), type_def_u64.clone(), Constant::Int(0xfffffffff));
-    vm.set_name(const_def_int_9f.as_entity(), "int_9f".to_string());
+    constdef!       ((vm) <u64> int64_9f = Constant::Int(0xfffffffff));
 
-    // .funcsig @add_9f_sig = (@u64) -> (@u64)
-    let add_9f_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_u64.clone()], vec![type_def_u64.clone()]);
-    vm.set_name(add_9f_sig.as_entity(), Mu("add_9f_sig"));
-
-    // .funcdecl @add_9f <@add_9f_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, add_9f_sig.clone());
-    vm.set_name(func.as_entity(), Mu("add_9f"));
-    vm.declare_func(func);
-
-    // .funcdef @add_9f VERSION @add_9f_v1 <@add_9f_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, add_9f_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("add_9f_v1"));
+    funcsig!        ((vm) add_9f_sig = (u64) -> (u64));
+    funcdecl!       ((vm) <add_9f_sig> add_9f);
+    funcdef!        ((vm) <add_9f_sig> add_9f VERSION add_9f_v1);
 
     // %entry(<@u64> %a):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
-
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
-
-    let const_int_9f_local = func_ver.new_constant(const_def_int_9f.clone());
+    block!          ((vm, add_9f_v1) blk_entry);
+    ssa!            ((vm, add_9f_v1) <u64> a);
 
     // %r = ADD %a %b
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_u64.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-    let blk_entry_add = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone(), const_int_9f_local.clone()]),
-        v: Instruction_::BinOp(BinOp::Add, 0, 1)
-    });
+    ssa!            ((vm, add_9f_v1) <u64> r);
+    consta!         ((vm, add_9f_v1) int64_9f_local = int64_9f);
+    inst!           ((vm, add_9f_v1) blk_entry_add:
+        r = BINOP (BinOp::Add) a int64_9f_local
+    );
 
     // RET %r
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::Return(vec![0])
+    inst!           ((vm, add_9f_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!   ((vm, add_9f_v1) blk_entry(a) {
+        blk_entry_add,
+        blk_entry_ret
     });
 
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_add, blk_entry_term],
-        keepalives: None
+    define_func_ver!((vm) add_9f_v1(entry: blk_entry) {
+        blk_entry
     });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut map = LinkedHashMap::new();
-            map.insert(blk_entry.id(), blk_entry);
-            map
-        }
-    ));
-
-    vm.define_func_version(func_ver);
 
     vm
 }

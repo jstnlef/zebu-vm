@@ -3555,7 +3555,7 @@ pub fn spill_rewrite(
 
                     // generate a random new temporary
                     let temp_ty = val_reg.ty.clone();
-                    let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
+                    let temp = func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), temp_ty.clone()).clone_value();
 
                     // maintain mapping
                     trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
@@ -3603,7 +3603,7 @@ pub fn spill_rewrite(
                         temp_for_cur_inst.get(&reg).unwrap().clone()
                     } else {
                         let temp_ty = val_reg.ty.clone();
-                        let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
+                        let temp = func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), temp_ty.clone()).clone_value();
 
                         spilled_scratch_temps.insert(temp.id(), reg);
 

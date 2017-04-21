@@ -178,11 +178,11 @@ impl CompilerPass for GenMovPhi {
         // insert new blocks here
         for block_info in new_blocks_to_insert {
             let block = {
-                let mut ret = Block::new(block_info.blk_id);
                 let target_id = block_info.target;
-
                 let name = format!("intermediate_block_{}_to_{}", block_info.blk_id, target_id);
-                vm.set_name(ret.as_entity(), name);
+
+                let mut ret = Block::new(MuEntityHeader::named(block_info.blk_id, name));
+                vm.set_name(ret.as_entity());
 
 
                 let mut target_block = f_content.get_block_mut(target_id);

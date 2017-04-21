@@ -177,7 +177,10 @@ impl Inlining {
                                 let old_name = cur_block.name().unwrap();
 
                                 // start a new block
-                                cur_block = Block::new(vm.next_id());
+                                let new_name = format!("{}_cont_after_inline_{}", old_name, inst_id);
+                                trace!("create continue block for EXPRCALL/CCALL: {}", &new_name);
+
+                                cur_block = Block::new(MuEntityHeader::named(vm.next_id(), new_name));
                                 cur_block.content = Some(BlockContent{
                                     args: {
                                         if inst.value.is_none() {
@@ -190,9 +193,7 @@ impl Inlining {
                                     body: vec![],
                                     keepalives: None
                                 });
-                                let new_name = format!("{}_cont_after_inline_{}", old_name, inst_id);
-                                trace!("create continue block for EXPRCALL/CCALL: {}", &new_name);
-                                vm.set_name(cur_block.as_entity(), new_name);
+                                vm.set_name(cur_block.as_entity());
 
                                 // deal with the inlined function
                                 copy_inline_blocks(&mut new_blocks, cur_block.id(),
@@ -225,8 +226,9 @@ impl Inlining {
                                 // other than the inlined function returns, we need an intermediate block to pass extra arguments
                                 if resume.normal_dest.args.len() != inlined_fv_guard.sig.ret_tys.len() {
                                     debug!("need an extra block for passing normal dest arguments");
-                                    let mut intermediate_block = Block::new(vm.next_id());
-                                    vm.set_name(intermediate_block.as_entity(), format!("inline_{}_arg_pass", inst_id));
+                                    let int_block_name = format!("inline_{}_arg_pass", inst_id);
+                                    let mut intermediate_block = Block::new(MuEntityHeader::named(vm.next_id(), int_block_name));
+                                    vm.set_name(intermediate_block.as_entity());
 
                                     // branch to normal_dest with normal_dest arguments
                                     let normal_dest_args = resume.normal_dest.get_arguments_as_node(&ops);

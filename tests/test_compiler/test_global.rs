@@ -495,7 +495,7 @@ fn persist_hybrid(vm: &VM) {
     typedef!    ((vm) int64           = mu_int(64));
     typedef!    ((vm) ref_int64       = mu_ref(int64));
     typedef!    ((vm) iref_int64      = mu_iref(int64));
-    typedef!    ((vm) hybrid          = mu_hybrid(none; ref_int64));
+    typedef!    ((vm) hybrid          = mu_hybrid()(ref_int64));
     typedef!    ((vm) ref_hybrid      = mu_ref(hybrid));
     typedef!    ((vm) iref_ref_hybrid = mu_iref(ref_hybrid));
     typedef!    ((vm) iref_ref_int64  = mu_iref(ref_int64));

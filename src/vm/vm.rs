@@ -573,9 +573,9 @@ impl <'a> VM {
         self.is_running.load(Ordering::Relaxed)
     }
     
-    pub fn set_name(&self, entity: &MuEntity, name: MuName) {
+    pub fn set_name(&self, entity: &MuEntity) {
         let id = entity.id();
-        entity.set_name(name.clone());
+        let name = entity.name().unwrap();
         
         let mut map = self.id_name_map.write().unwrap();
         map.insert(id, name.clone());
@@ -601,11 +601,11 @@ impl <'a> VM {
         map.get(&id).unwrap().clone()
     }
     
-    pub fn declare_const(&self, id: MuID, ty: P<MuType>, val: Constant) -> P<Value> {
+    pub fn declare_const(&self, entity: MuEntityHeader, ty: P<MuType>, val: Constant) -> P<Value> {
         let mut constants = self.constants.write().unwrap();
-        let ret = P(Value{hdr: MuEntityHeader::unnamed(id), ty: ty, v: Value_::Constant(val)});
+        let ret = P(Value{hdr: entity, ty: ty, v: Value_::Constant(val)});
 
-        self.declare_const_internal(&mut constants, id, ret.clone());
+        self.declare_const_internal(&mut constants, ret.id(), ret.clone());
         
         ret
     }
@@ -644,17 +644,17 @@ impl <'a> VM {
         ValueLocation::Relocatable(backend::RegGroup::GPR, name)
     }
     
-    pub fn declare_global(&self, id: MuID, ty: P<MuType>) -> P<Value> {
+    pub fn declare_global(&self, entity: MuEntityHeader, ty: P<MuType>) -> P<Value> {
         let global = P(Value{
-            hdr: MuEntityHeader::unnamed(id),
-            ty: self.declare_type(self.next_id(), MuType_::iref(ty.clone())),
+            hdr: entity,
+            ty: self.declare_type(MuEntityHeader::unnamed(self.next_id()), MuType_::iref(ty.clone())),
             v: Value_::Global(ty)
         });
         
         let mut globals = self.globals.write().unwrap();
         let mut global_locs = self.global_locations.write().unwrap();
 
-        self.declare_global_internal(&mut globals, &mut global_locs, id, global.clone());
+        self.declare_global_internal(&mut globals, &mut global_locs, global.id(), global.clone());
         
         global
     }
@@ -692,12 +692,12 @@ impl <'a> VM {
         global_locs.insert(id, loc);
     }
     
-    pub fn declare_type(&self, id: MuID, ty: MuType_) -> P<MuType> {
-        let ty = P(MuType{hdr: MuEntityHeader::unnamed(id), v: ty});
+    pub fn declare_type(&self, entity: MuEntityHeader, ty: MuType_) -> P<MuType> {
+        let ty = P(MuType{hdr: entity, v: ty});
         
         let mut types = self.types.write().unwrap();
 
-        self.declare_type_internal(&mut types, id, ty.clone());
+        self.declare_type_internal(&mut types, ty.id(), ty.clone());
         
         ty
     }
@@ -729,11 +729,11 @@ impl <'a> VM {
         }
     }    
     
-    pub fn declare_func_sig(&self, id: MuID, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
-        let ret = P(MuFuncSig{hdr: MuEntityHeader::unnamed(id), ret_tys: ret_tys, arg_tys: arg_tys});
+    pub fn declare_func_sig(&self, entity: MuEntityHeader, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
+        let ret = P(MuFuncSig{hdr: entity, ret_tys: ret_tys, arg_tys: arg_tys});
 
         let mut func_sigs = self.func_sigs.write().unwrap();
-        self.declare_func_sig_internal(&mut func_sigs, id, ret.clone());
+        self.declare_func_sig_internal(&mut func_sigs, ret.id(), ret.clone());
         
         ret
     }

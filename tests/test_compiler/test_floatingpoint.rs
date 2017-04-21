@@ -28,68 +28,36 @@ fn test_fp_add() {
 fn fp_add() -> VM {
     let vm = VM::new();
 
-    // .typedef @double = double
-    let type_def_double = vm.declare_type(vm.next_id(), MuType_::double());
-    vm.set_name(type_def_double.as_entity(), Mu("double"));
+    typedef!        ((vm) double = mu_double);
 
-    // .funcsig @fp_add_sig = (@double @double) -> (@double)
-    let fp_add_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_double.clone()], vec![type_def_double.clone(), type_def_double.clone()]);
-    vm.set_name(fp_add_sig.as_entity(), Mu("fp_add_sig"));
-
-    // .funcdecl @fp_add <@fp_add_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, fp_add_sig.clone());
-    vm.set_name(func.as_entity(), Mu("fp_add"));
-    vm.declare_func(func);
-
-    // .funcdef @fp_add VERSION @fp_add_v1 <@fp_add_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, fp_add_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("fp_add_v1"));
+    funcsig!        ((vm) fp_add_sig = (double, double) -> (double));
+    funcdecl!       ((vm) <fp_add_sig> fp_add);
+    funcdef!        ((vm) <fp_add_sig> fp_add VERSION fp_add_v1);
 
     // %entry(<@double> %a, <@double> %b):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
-
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_double.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
-    let blk_entry_b = func_ver.new_ssa(vm.next_id(), type_def_double.clone());
-    vm.set_name(blk_entry_b.as_entity(), Mu("blk_entry_b"));
+    block!          ((vm, fp_add_v1) blk_entry);
+    ssa!            ((vm, fp_add_v1) <double> a);
+    ssa!            ((vm, fp_add_v1) <double> b);
 
     // %r = FADD %a %b
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_double.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-    let blk_entry_add = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone(), blk_entry_b.clone()]),
-        v: Instruction_::BinOp(BinOp::FAdd, 0, 1)
-    });
+    ssa!            ((vm, fp_add_v1) <double> r);
+    inst!           ((vm, fp_add_v1) blk_entry_fadd:
+        r = BINOP (BinOp::FAdd) a b
+    );
 
     // RET %r
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::Return(vec![0])
+    inst!           ((vm, fp_add_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!   ((vm, fp_add_v1) blk_entry(a, b) {
+        blk_entry_fadd,
+        blk_entry_ret
     });
 
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value(), blk_entry_b.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_add, blk_entry_term],
-        keepalives: None
+    define_func_ver!((vm) fp_add_v1(entry: blk_entry) {
+        blk_entry
     });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut ret = LinkedHashMap::new();
-            ret.insert(blk_entry.id(), blk_entry);
-            ret
-        }
-    ));
-
-    vm.define_func_version(func_ver);
 
     vm
 }
@@ -667,7 +635,7 @@ fn fp_arraysum() -> VM {
     typedef!    ((vm) int64  = mu_int(64));
     typedef!    ((vm) int1   = mu_int(1));
     typedef!    ((vm) double = mu_double);
-    typedef!    ((vm) hybrid = mu_hybrid(none; double));
+    typedef!    ((vm) hybrid = mu_hybrid()(double));
     typedef!    ((vm) uptr_hybrid = mu_uptr(hybrid));
     typedef!    ((vm) uptr_double = mu_uptr(double));
 

@@ -28,68 +28,36 @@ fn test_udiv() {
 fn udiv() -> VM {
     let vm = VM::new();
 
-    // .typedef @int64 = int<64>
-    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), Mu("int64"));
+    typedef!    ((vm) int64 = mu_int(64));
 
-    // .funcsig @udiv_sig = (@int64 @int64) -> (@int64)
-    let udiv_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone(), type_def_int64.clone()]);
-    vm.set_name(udiv_sig.as_entity(), Mu("udiv_sig"));
-
-    // .funcdecl @udiv <@udiv_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, udiv_sig.clone());
-    vm.set_name(func.as_entity(), Mu("udiv"));
-    vm.declare_func(func);
-
-    // .funcdef @udiv VERSION @udiv_v1 <@udiv_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, udiv_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("udiv_v1"));
+    funcsig!    ((vm) udiv_sig = (int64, int64) -> (int64));
+    funcdecl!   ((vm) <udiv_sig> udiv);
+    funcdef!    ((vm) <udiv_sig> udiv VERSION udiv_v1);
 
     // %entry(<@int64> %a, <@int64> %b):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
-
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
-    let blk_entry_b = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_b.as_entity(), Mu("blk_entry_b"));
+    block!      ((vm, udiv_v1) blk_entry);
+    ssa!        ((vm, udiv_v1) <int64> a);
+    ssa!        ((vm, udiv_v1) <int64> b);
 
     // %r = UDIV %a %b
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-    let blk_entry_add = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone(), blk_entry_b.clone()]),
-        v: Instruction_::BinOp(BinOp::Udiv, 0, 1)
-    });
+    ssa!        ((vm, udiv_v1) <int64> r);
+    inst!       ((vm, udiv_v1) blk_entry_udiv:
+        r = BINOP (BinOp::Udiv) a b
+    );
 
     // RET %r
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::Return(vec![0])
+    inst!       ((vm, udiv_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!((vm, udiv_v1) blk_entry(a, b) {
+        blk_entry_udiv,
+        blk_entry_ret
     });
 
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value(), blk_entry_b.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_add, blk_entry_term],
-        keepalives: None
+    define_func_ver!((vm) udiv_v1(entry: blk_entry) {
+        blk_entry
     });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut map = LinkedHashMap::new();
-            map.insert(blk_entry.id(), blk_entry);
-            map
-        }
-    ));
-
-    vm.define_func_version(func_ver);
 
     vm
 }
@@ -114,68 +82,36 @@ fn test_sdiv() {
 fn sdiv() -> VM {
     let vm = VM::new();
 
-    // .typedef @int64 = int<64>
-    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), Mu("int64"));
+    typedef!    ((vm) int64 = mu_int(64));
 
-    // .funcsig @sdiv_sig = (@int64 @int64) -> (@int64)
-    let sdiv_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone(), type_def_int64.clone()]);
-    vm.set_name(sdiv_sig.as_entity(), Mu("sdiv_sig"));
-
-    // .funcdecl @sdiv <@sdiv_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, sdiv_sig.clone());
-    vm.set_name(func.as_entity(), Mu("sdiv"));
-    vm.declare_func(func);
-
-    // .funcdef @sdiv VERSION @sdiv_v1 <@sdiv_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, sdiv_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("sdiv_v1"));
+    funcsig!    ((vm) sdiv_sig = (int64, int64) -> (int64));
+    funcdecl!   ((vm) <sdiv_sig> sdiv);
+    funcdef!    ((vm) <sdiv_sig> sdiv VERSION sdiv_v1);
 
     // %entry(<@int64> %a, <@int64> %b):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
+    block!      ((vm, sdiv_v1) blk_entry);
+    ssa!        ((vm, sdiv_v1) <int64> a);
+    ssa!        ((vm, sdiv_v1) <int64> b);
 
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
-    let blk_entry_b = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_b.as_entity(), Mu("blk_entry_b"));
-
-    // %r = SDIV %a %b
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-    let blk_entry_add = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone(), blk_entry_b.clone()]),
-        v: Instruction_::BinOp(BinOp::Sdiv, 0, 1)
-    });
+    // %r = sdiv %a %b
+    ssa!        ((vm, sdiv_v1) <int64> r);
+    inst!       ((vm, sdiv_v1) blk_entry_sdiv:
+        r = BINOP (BinOp::Sdiv) a b
+    );
 
     // RET %r
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::Return(vec![0])
+    inst!       ((vm, sdiv_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!((vm, sdiv_v1) blk_entry(a, b) {
+        blk_entry_sdiv,
+        blk_entry_ret
     });
 
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value(), blk_entry_b.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_add, blk_entry_term],
-        keepalives: None
+    define_func_ver!((vm) sdiv_v1(entry: blk_entry) {
+        blk_entry
     });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut map = LinkedHashMap::new();
-            map.insert(blk_entry.id(), blk_entry);
-            map
-        }
-    ));
-
-    vm.define_func_version(func_ver);
 
     vm
 }
@@ -200,71 +136,36 @@ fn test_shl() {
 fn shl() -> VM {
     let vm = VM::new();
 
-    // .typedef @int64 = int<64>
-    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), Mu("int64"));
-    // .typedef @int8 = int<8>
-    let type_def_int8 = vm.declare_type(vm.next_id(), MuType_::int(8));
-    vm.set_name(type_def_int8.as_entity(), Mu("int8"));
+    typedef!    ((vm) int64 = mu_int(64));
 
-    // .funcsig @shl_sig = (@int64 @int8) -> (@int64)
-    let shl_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone(), type_def_int8.clone()]);
-    vm.set_name(shl_sig.as_entity(), Mu("shl_sig"));
+    funcsig!    ((vm) shl_sig = (int64, int64) -> (int64));
+    funcdecl!   ((vm) <shl_sig> shl);
+    funcdef!    ((vm) <shl_sig> shl VERSION shl_v1);
 
-    // .funcdecl @shl <@shl_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, shl_sig.clone());
-    vm.set_name(func.as_entity(), Mu("shl"));
-    vm.declare_func(func);
+    // %entry(<@int64> %a, <@int64> %b):
+    block!      ((vm, shl_v1) blk_entry);
+    ssa!        ((vm, shl_v1) <int64> a);
+    ssa!        ((vm, shl_v1) <int64> b);
 
-    // .funcdef @shl VERSION @shl_v1 <@shl_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, shl_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("shl_v1"));
-
-    // %entry(<@int64> %a, <@int8> %b):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
-
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
-    let blk_entry_b = func_ver.new_ssa(vm.next_id(), type_def_int8.clone());
-    vm.set_name(blk_entry_b.as_entity(), Mu("blk_entry_b"));
-
-    // %r = SHL %a %b
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-    let blk_entry_add = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone(), blk_entry_b.clone()]),
-        v: Instruction_::BinOp(BinOp::Shl, 0, 1)
-    });
+    // %r = shl %a %b
+    ssa!        ((vm, shl_v1) <int64> r);
+    inst!       ((vm, shl_v1) blk_entry_shl:
+        r = BINOP (BinOp::Shl) a b
+    );
 
     // RET %r
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::Return(vec![0])
+    inst!       ((vm, shl_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!((vm, shl_v1) blk_entry(a, b) {
+        blk_entry_shl,
+        blk_entry_ret
     });
 
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value(), blk_entry_b.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_add, blk_entry_term],
-        keepalives: None
+    define_func_ver!((vm) shl_v1(entry: blk_entry) {
+        blk_entry
     });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut map = LinkedHashMap::new();
-            map.insert(blk_entry.id(), blk_entry);
-            map
-        }
-    ));
-
-    vm.define_func_version(func_ver);
 
     vm
 }
@@ -285,71 +186,36 @@ fn test_lshr() {
 fn lshr() -> VM {
     let vm = VM::new();
 
-    // .typedef @int64 = int<64>
-    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), Mu("int64"));
-    // .typedef @int8 = int<8>
-    let type_def_int8 = vm.declare_type(vm.next_id(), MuType_::int(8));
-    vm.set_name(type_def_int8.as_entity(), Mu("int8"));
+    typedef!    ((vm) int64 = mu_int(64));
 
-    // .funcsig @lshr_sig = (@int64 @int8) -> (@int64)
-    let lshr_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone(), type_def_int8.clone()]);
-    vm.set_name(lshr_sig.as_entity(), Mu("lshr_sig"));
+    funcsig!    ((vm) lshr_sig = (int64, int64) -> (int64));
+    funcdecl!   ((vm) <lshr_sig> lshr);
+    funcdef!    ((vm) <lshr_sig> lshr VERSION lshr_v1);
 
-    // .funcdecl @lshr <@lshr_sig>
-    let func_id = vm.next_id();
-    let func = MuFunction::new(func_id, lshr_sig.clone());
-    vm.set_name(func.as_entity(), Mu("lshr"));
-    vm.declare_func(func);
+    // %entry(<@int64> %a, <@int64> %b):
+    block!      ((vm, lshr_v1) blk_entry);
+    ssa!        ((vm, lshr_v1) <int64> a);
+    ssa!        ((vm, lshr_v1) <int64> b);
 
-    // .funcdef @lshr VERSION @lshr_v1 <@lshr_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, lshr_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("lshr_v1"));
-
-    // %entry(<@int64> %a, <@int8> %b):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
-
-    let blk_entry_a = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_a.as_entity(), Mu("blk_entry_a"));
-    let blk_entry_b = func_ver.new_ssa(vm.next_id(), type_def_int8.clone());
-    vm.set_name(blk_entry_b.as_entity(), Mu("blk_entry_b"));
-
-    // %r = LSHR %a %b
-    let blk_entry_r = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_r.as_entity(), Mu("blk_entry_r"));
-    let blk_entry_add = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_r.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_a.clone(), blk_entry_b.clone()]),
-        v: Instruction_::BinOp(BinOp::Lshr, 0, 1)
-    });
+    // %r = lshr %a %b
+    ssa!        ((vm, lshr_v1) <int64> r);
+    inst!       ((vm, lshr_v1) blk_entry_lshr:
+        r = BINOP (BinOp::Lshr) a b
+    );
 
     // RET %r
-    let blk_entry_term = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_r.clone()]),
-        v: Instruction_::Return(vec![0])
+    inst!       ((vm, lshr_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!((vm, lshr_v1) blk_entry(a, b) {
+        blk_entry_lshr,
+        blk_entry_ret
     });
 
-    blk_entry.content = Some(BlockContent{
-        args: vec![blk_entry_a.clone_value(), blk_entry_b.clone_value()],
-        exn_arg: None,
-        body: vec![blk_entry_add, blk_entry_term],
-        keepalives: None
+    define_func_ver!((vm) lshr_v1(entry: blk_entry) {
+        blk_entry
     });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut map = LinkedHashMap::new();
-            map.insert(blk_entry.id(), blk_entry);
-            map
-        }
-    ));
-
-    vm.define_func_version(func_ver);
 
     vm
 }

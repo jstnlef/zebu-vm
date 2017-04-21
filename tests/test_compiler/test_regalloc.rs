@@ -126,169 +126,81 @@ fn test_spill1() {
 
 fn create_spill1() -> VM {
     let vm = VM::new();
-    
-    // .typedef @int_64 = int<64>
-    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), "int_64".to_string());
-    
-    // .funcsig @spill1_sig = (@int_64 x 10) -> (@int_64)
-    let spill1_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![type_def_int64.clone(); 10]);
-    vm.set_name(spill1_sig.as_entity(), Mu("spill1_sig"));
-    
-    // .typedef @funcref_spill1 = funcref<@spill1_sig>
-    let type_def_funcref_spill1 = vm.declare_type(vm.next_id(), MuType_::funcref(spill1_sig.clone()));
-    vm.set_name(type_def_funcref_spill1.as_entity(), Mu("funcref_spill1"));
-    
-    // .funcdecl @spill1 <@spill1_sig>
-    let func = MuFunction::new(vm.next_id(), spill1_sig.clone());
-    vm.set_name(func.as_entity(), Mu("spill1"));
-    let func_id = func.id();
-    vm.declare_func(func);
-    
-    // .funcdef @spill1 VERSION @spill1_v1 <@spill1_sig>
-    let const_func_spill1 = vm.declare_const(vm.next_id(), type_def_funcref_spill1, Constant::FuncRef(func_id));    
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, spill1_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("spill1_v1"));
+
+    typedef!        ((vm) int64 = mu_int(64));
+
+    funcsig!        ((vm) spill1_sig = (int64, int64, int64, int64, int64,
+                                        int64, int64, int64, int64, int64) -> (int64));
+    funcdecl!       ((vm) <spill1_sig> spill1);
+    funcdef!        ((vm) <spill1_sig> spill1 VERSION spill1_v1);
+
+    typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
+    constdef!       ((vm) <funcref_spill1> const_funcref_spill1 = Constant::FuncRef(vm.id_of("spill1")));
     
     // %entry(<@int_64> %t1, t2, ... t10):
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
-    
-    // callee
-    let blk_entry_spill1_funcref = func_ver.new_constant(const_func_spill1.clone());
-    // args
-    let blk_entry_t1 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t1.as_entity(), Mu("blk_entry_t1"));
-    let blk_entry_t2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t2.as_entity(), Mu("blk_entry_t2"));
-    let blk_entry_t3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t3.as_entity(), Mu("blk_entry_t3"));
-    let blk_entry_t4 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t4.as_entity(), Mu("blk_entry_t4"));
-    let blk_entry_t5 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t5.as_entity(), Mu("blk_entry_t5"));
-    let blk_entry_t6 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t6.as_entity(), Mu("blk_entry_t6"));
-    let blk_entry_t7 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t7.as_entity(), Mu("blk_entry_t7"));
-    let blk_entry_t8 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t8.as_entity(), Mu("blk_entry_t8"));
-    let blk_entry_t9 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t9.as_entity(), Mu("blk_entry_t9"));
-    let blk_entry_t10= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_t10.as_entity(), Mu("blk_entry_t10"));
+    block!          ((vm, spill1_v1) blk_entry);
+    ssa!            ((vm, spill1_v1) <int64> t1);
+    ssa!            ((vm, spill1_v1) <int64> t2);
+    ssa!            ((vm, spill1_v1) <int64> t3);
+    ssa!            ((vm, spill1_v1) <int64> t4);
+    ssa!            ((vm, spill1_v1) <int64> t5);
+    ssa!            ((vm, spill1_v1) <int64> t6);
+    ssa!            ((vm, spill1_v1) <int64> t7);
+    ssa!            ((vm, spill1_v1) <int64> t8);
+    ssa!            ((vm, spill1_v1) <int64> t9);
+    ssa!            ((vm, spill1_v1) <int64> t10);
     
     // %x = CALL spill1(%t1, %t2, ... t10)
-    let blk_entry_x = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    let blk_entry_call = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_x.clone_value()]),
-        ops: RwLock::new(vec![
-                blk_entry_spill1_funcref,
-                blk_entry_t1.clone(),
-                blk_entry_t2.clone(),
-                blk_entry_t3.clone(),
-                blk_entry_t4.clone(),
-                blk_entry_t5.clone(),
-                blk_entry_t6.clone(),
-                blk_entry_t7.clone(),
-                blk_entry_t8.clone(),
-                blk_entry_t9.clone(),
-                blk_entry_t10.clone()
-            ]),
-        v: Instruction_::ExprCall {
-            data: CallData {
-                func: 0,
-                args: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                convention: CallConvention::Mu
-            },
-            is_abort: false
-        }
-    });
+    ssa!            ((vm, spill1_v1) <int64> x);
+    consta!         ((vm, spill1_v1) const_funcref_spill1_local = const_funcref_spill1);
+    inst!           ((vm, spill1_v1) blk_entry_call:
+        x = EXPRCALL (CallConvention::Mu, is_abort: false)
+                     const_funcref_spill1_local(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10)
+    );
     
     // %res0 = ADD %t1 %t2
-    let blk_entry_res0 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_res0.as_entity(), Mu("blk_entry_res0"));
-    let blk_entry_add0 = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_res0.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_t1.clone(), blk_entry_t2.clone()]),
-        v: Instruction_::BinOp(BinOp::Add, 0, 1)
-    });
+    ssa!            ((vm, spill1_v1) <int64> res0);
+    inst!           ((vm, spill1_v1) blk_entry_add0:
+        res0 = BINOP (BinOp::Add) t1 t2
+    );
     
     // %res1 = ADD %res0 %t3
-    let blk_entry_res1 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_res1.as_entity(), Mu("blk_entry_res1"));
-    let blk_entry_add1 = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_res1.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_res0.clone(), blk_entry_t3.clone()]),
-        v: Instruction_::BinOp(BinOp::Add, 0, 1)
-    });
+    ssa!            ((vm, spill1_v1) <int64> res1);
+    inst!           ((vm, spill1_v1) blk_entry_add1:
+        res1 = BINOP (BinOp::Add) res0 t3
+    );
     
     // %res2 = ADD %res1 %t4
-    let blk_entry_res2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_res2.as_entity(), Mu("blk_entry_res2"));
-    let blk_entry_add2 = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_res2.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_res1.clone(), blk_entry_t4.clone()]),
-        v: Instruction_::BinOp(BinOp::Add, 0, 1)
-    });
+    ssa!            ((vm, spill1_v1) <int64> res2);
+    inst!           ((vm, spill1_v1) blk_entry_add2:
+        res2 = BINOP (BinOp::Add) res1 t4
+    );
     
     // %res3 = ADD %res2 %t5
-    let blk_entry_res3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_entry_res3.as_entity(), Mu("blk_entry_res3"));
-    let blk_entry_add3 = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_entry_res3.clone_value()]),
-        ops: RwLock::new(vec![blk_entry_res2.clone(), blk_entry_t5.clone()]),
-        v: Instruction_::BinOp(BinOp::Add, 0, 1)
-    });
+    ssa!            ((vm, spill1_v1) <int64> res3);
+    inst!           ((vm, spill1_v1) blk_entry_add3:
+        res3 = BINOP (BinOp::Add) res2 t5
+    );
     
     // RET %res3
-    let blk_entry_ret = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_entry_res3.clone()]),
-        v: Instruction_::Return(vec![0])
-    });
-    
-    blk_entry.content = Some(BlockContent{
-        args: vec![
-            blk_entry_t1.clone_value(),
-            blk_entry_t2.clone_value(),
-            blk_entry_t3.clone_value(),
-            blk_entry_t4.clone_value(),
-            blk_entry_t5.clone_value(),
-            blk_entry_t6.clone_value(),
-            blk_entry_t7.clone_value(),
-            blk_entry_t8.clone_value(),
-            blk_entry_t9.clone_value(),
-            blk_entry_t10.clone_value()
-        ],
-        exn_arg: None,
-        body: vec![
+    inst!           ((vm, spill1_v1) blk_entry_ret:
+        RET (res3)
+    );
+
+    define_block!   ((vm, spill1_v1) blk_entry
+        (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) {
             blk_entry_call,
             blk_entry_add0,
             blk_entry_add1,
             blk_entry_add2,
             blk_entry_add3,
             blk_entry_ret
-        ],
-        keepalives: None
-    });
-    
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut blocks = LinkedHashMap::new();
-            blocks.insert(blk_entry.id(), blk_entry);
-            blocks
         }
-    ));
-    
-    vm.define_func_version(func_ver);
+    );
+
+    define_func_ver!((vm) spill1_v1(entry: blk_entry) {
+        blk_entry
+    });
     
     vm
 }
@@ -331,256 +243,144 @@ fn test_simple_spill() {
 fn create_simple_spill() -> VM {
     let vm = VM::new();
 
-    // .typedef @int_64 = int<64>
-    let type_def_int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
-    vm.set_name(type_def_int64.as_entity(), Mu("int_64"));
+    typedef!        ((vm) int64 = mu_int(64));
+    constdef!       ((vm) <int64> int64_1 = Constant::Int(1));
 
-    // .const @int_64_1 <@int_64> = 1
-    let const_def_int64_1 = vm.declare_const(vm.next_id(), type_def_int64.clone(), Constant::Int(1));
-    vm.set_name(const_def_int64_1.as_entity(), "int64_1".to_string());
-
-    // .funcsig @simple_spill_sig = () -> (@int_64)
-    let simple_spill_sig = vm.declare_func_sig(vm.next_id(), vec![type_def_int64.clone()], vec![]);
-    vm.set_name(simple_spill_sig.as_entity(), Mu("simple_spill_sig"));
-
-    // .funcdecl @simple_spill <@simple_spill_sig>
-    let func = MuFunction::new(vm.next_id(), simple_spill_sig.clone());
-    vm.set_name(func.as_entity(), Mu("simple_spill"));
-    let func_id = func.id();
-    vm.declare_func(func);
-
-    // .funcdef @simple_spill VERSION @simple_spill_v1 <@simple_spill_sig>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, simple_spill_sig.clone());
-    vm.set_name(func_ver.as_entity(), Mu("simple_spill_v1"));
+    funcsig!        ((vm) simple_spill_sig = () -> (int64));
+    funcdecl!       ((vm) <simple_spill_sig> simple_spill);
+    funcdef!        ((vm) <simple_spill_sig> simple_spill VERSION simple_spill_v1);
 
     // %entry():
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), Mu("entry"));
+    block!          ((vm, simple_spill_v1) blk_entry);
 
     // BRANCH %start(1, 1, 1, 1, ..., 1) // 14 constant ONE
-    let const_int64_1 = func_ver.new_constant(const_def_int64_1.clone());
-    let blk_start_id = vm.next_id();
-    let blk_entry_branch = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![const_int64_1.clone(); 14]),
-        v: Instruction_::Branch1(Destination{
-            target: blk_start_id,
-            args: vec![
-                DestArg::Normal(0),
-                DestArg::Normal(1),
-                DestArg::Normal(2),
-                DestArg::Normal(3),
-                DestArg::Normal(4),
-                DestArg::Normal(5),
-                DestArg::Normal(6),
-                DestArg::Normal(7),
-                DestArg::Normal(8),
-                DestArg::Normal(9),
-                DestArg::Normal(10),
-                DestArg::Normal(11),
-                DestArg::Normal(12),
-                DestArg::Normal(13),
-            ]
-        })
-    });
+    consta!         ((vm, simple_spill_v1) int64_1_local = int64_1);
+    block!          ((vm, simple_spill_v1) blk_start);
+    inst!           ((vm, simple_spill_v1) blk_entry_branch:
+        BRANCH blk_start (int64_1_local, int64_1_local, int64_1_local,
+                          int64_1_local, int64_1_local, int64_1_local,
+                          int64_1_local, int64_1_local, int64_1_local,
+                          int64_1_local, int64_1_local, int64_1_local,
+                          int64_1_local, int64_1_local
+        )
+    );
 
-    blk_entry.content = Some(BlockContent {
-        args: vec![],
-        exn_arg: None,
-        body: vec![blk_entry_branch],
-        keepalives: None
+    define_block!   ((vm, simple_spill_v1) blk_entry() {
+        blk_entry_branch
     });
 
     // %start(%t1, %t2, ..., %t14):
-    let mut blk_start = Block::new(blk_start_id);
-    vm.set_name(blk_start.as_entity(), Mu("start"));
-
-    // args
-    let blk_start_t1 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t1.as_entity(), Mu("blk_start_t1"));
-    let blk_start_t2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t2.as_entity(), Mu("blk_start_t2"));
-    let blk_start_t3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t3.as_entity(), Mu("blk_start_t3"));
-    let blk_start_t4 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t4.as_entity(), Mu("blk_start_t4"));
-    let blk_start_t5 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t5.as_entity(), Mu("blk_start_t5"));
-    let blk_start_t6 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t6.as_entity(), Mu("blk_start_t6"));
-    let blk_start_t7 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t7.as_entity(), Mu("blk_start_t7"));
-    let blk_start_t8 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t8.as_entity(), Mu("blk_start_t8"));
-    let blk_start_t9 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t9.as_entity(), Mu("blk_start_t9"));
-    let blk_start_t10= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t10.as_entity(), Mu("blk_start_t10"));
-    let blk_start_t11= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t11.as_entity(), Mu("blk_start_t11"));
-    let blk_start_t12= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t12.as_entity(), Mu("blk_start_t12"));
-    let blk_start_t13= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t13.as_entity(), Mu("blk_start_t13"));
-    let blk_start_t14= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_t14.as_entity(), Mu("blk_start_t14"));
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t1);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t2);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t3);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t4);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t5);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t6);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t7);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t8);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t9);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t10);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t11);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t12);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t13);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_t14);
 
     // %res = ADD %t1 %t2
-    let blk_start_res = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_start_res.as_entity(), Mu("blk_start_res"));
-    let blk_start_add = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_start_res.clone_value()]),
-        ops: RwLock::new(vec![blk_start_t1.clone(), blk_start_t2.clone()]),
-        v: Instruction_::BinOp(BinOp::Add, 0, 1)
-    });
+    ssa!            ((vm, simple_spill_v1) <int64> blk_start_res);
+    inst!           ((vm, simple_spill_v1) blk_start_add:
+        blk_start_res = BINOP (BinOp::Add) blk_start_t1 blk_start_t2
+    );
 
     // BRANCH %ret (%res, %t1, %t2, ..., %t14)
-    let blk_ret_id = vm.next_id();
-    let blk_start_branch = func_ver.new_inst(Instruction{
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![
-            blk_start_res.clone(),
-            blk_start_t1.clone(),
-            blk_start_t2.clone(),
-            blk_start_t3.clone(),
-            blk_start_t4.clone(),
-            blk_start_t5.clone(),
-            blk_start_t6.clone(),
-            blk_start_t7.clone(),
-            blk_start_t8.clone(),
-            blk_start_t9.clone(),
-            blk_start_t10.clone(),
-            blk_start_t11.clone(),
-            blk_start_t12.clone(),
-            blk_start_t13.clone(),
-            blk_start_t14.clone(),
-        ]),
-        v: Instruction_::Branch1(Destination{
-            target: blk_ret_id,
-            args: vec![
-                DestArg::Normal(0),
-                DestArg::Normal(1),
-                DestArg::Normal(2),
-                DestArg::Normal(3),
-                DestArg::Normal(4),
-                DestArg::Normal(5),
-                DestArg::Normal(6),
-                DestArg::Normal(7),
-                DestArg::Normal(8),
-                DestArg::Normal(9),
-                DestArg::Normal(10),
-                DestArg::Normal(11),
-                DestArg::Normal(12),
-                DestArg::Normal(13),
-                DestArg::Normal(14),
-            ]
-        })
-    });
+    block!          ((vm, simple_spill_v1) blk_ret);
+    inst!           ((vm, simple_spill_v1) blk_start_branch:
+        BRANCH blk_ret (
+            blk_start_res,
+            blk_start_t1,
+            blk_start_t2,
+            blk_start_t3,
+            blk_start_t4,
+            blk_start_t5,
+            blk_start_t6,
+            blk_start_t7,
+            blk_start_t8,
+            blk_start_t9,
+            blk_start_t10,
+            blk_start_t11,
+            blk_start_t12,
+            blk_start_t13,
+            blk_start_t14
+        )
+    );
 
-    blk_start.content = Some(BlockContent {
-        args: vec![
-            blk_start_t1.clone_value(),
-            blk_start_t2.clone_value(),
-            blk_start_t3.clone_value(),
-            blk_start_t4.clone_value(),
-            blk_start_t5.clone_value(),
-            blk_start_t6.clone_value(),
-            blk_start_t7.clone_value(),
-            blk_start_t8.clone_value(),
-            blk_start_t9.clone_value(),
-            blk_start_t10.clone_value(),
-            blk_start_t11.clone_value(),
-            blk_start_t12.clone_value(),
-            blk_start_t13.clone_value(),
-            blk_start_t14.clone_value(),
-        ],
-        exn_arg: None,
-        body: vec![blk_start_add, blk_start_branch],
-        keepalives: None
-    });
+    define_block!   ((vm, simple_spill_v1) blk_start(
+        blk_start_t1,
+        blk_start_t2,
+        blk_start_t3,
+        blk_start_t4,
+        blk_start_t5,
+        blk_start_t6,
+        blk_start_t7,
+        blk_start_t8,
+        blk_start_t9,
+        blk_start_t10,
+        blk_start_t11,
+        blk_start_t12,
+        blk_start_t13,
+        blk_start_t14) {
+            blk_start_add,
+            blk_start_branch
+        }
+     );
 
     // %ret(%res, %t1, %t2, ... %t14):
-    let mut blk_ret = Block::new(blk_ret_id);
-    vm.set_name(blk_ret.as_entity(), Mu("ret"));
-    
-    // args
-    let blk_ret_res = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_res.as_entity(), Mu("blk_ret_res"));
-    let blk_ret_t1 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t1.as_entity(), Mu("blk_ret_t1"));
-    let blk_ret_t2 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t2.as_entity(), Mu("blk_ret_t2"));
-    let blk_ret_t3 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t3.as_entity(), Mu("blk_ret_t3"));
-    let blk_ret_t4 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t4.as_entity(), Mu("blk_ret_t4"));
-    let blk_ret_t5 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t5.as_entity(), Mu("blk_ret_t5"));
-    let blk_ret_t6 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t6.as_entity(), Mu("blk_ret_t6"));
-    let blk_ret_t7 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t7.as_entity(), Mu("blk_ret_t7"));
-    let blk_ret_t8 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t8.as_entity(), Mu("blk_ret_t8"));
-    let blk_ret_t9 = func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t9.as_entity(), Mu("blk_ret_t9"));
-    let blk_ret_t10= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t10.as_entity(), Mu("blk_ret_t10"));
-    let blk_ret_t11= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t11.as_entity(), Mu("blk_ret_t11"));
-    let blk_ret_t12= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t12.as_entity(), Mu("blk_ret_t12"));
-    let blk_ret_t13= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t13.as_entity(), Mu("blk_ret_t13"));
-    let blk_ret_t14= func_ver.new_ssa(vm.next_id(), type_def_int64.clone());
-    vm.set_name(blk_ret_t14.as_entity(), Mu("blk_ret_t14"));
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_res);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t1);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t2);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t3);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t4);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t5);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t6);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t7);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t8);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t9);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t10);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t11);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t12);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t13);
+    ssa!            ((vm, simple_spill_v1) <int64> blk_ret_t14);
 
     // RET %res
-    let blk_ret_ret = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_ret_res.clone()]),
-        v: Instruction_::Return(vec![0])
-    });
+    inst!           ((vm, simple_spill_v1) blk_ret_ret:
+        RET (blk_ret_res)
+    );
 
-    blk_ret.content = Some(BlockContent {
-        args: vec![
-            blk_ret_res.clone_value(),
-            blk_ret_t1.clone_value(),
-            blk_ret_t2.clone_value(),
-            blk_ret_t3.clone_value(),
-            blk_ret_t4.clone_value(),
-            blk_ret_t5.clone_value(),
-            blk_ret_t6.clone_value(),
-            blk_ret_t7.clone_value(),
-            blk_ret_t8.clone_value(),
-            blk_ret_t9.clone_value(),
-            blk_ret_t10.clone_value(),
-            blk_ret_t11.clone_value(),
-            blk_ret_t12.clone_value(),
-            blk_ret_t13.clone_value(),
-            blk_ret_t14.clone_value(),
-        ],
-        exn_arg: None,
-        body: vec![blk_ret_ret],
-        keepalives: None
-    });
-
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut blocks = LinkedHashMap::new();
-            blocks.insert(blk_entry.id(), blk_entry);
-            blocks.insert(blk_start.id(), blk_start);
-            blocks.insert(blk_ret.id(), blk_ret);
-            blocks
+    define_block!   ((vm, simple_spill_v1) blk_ret
+        (blk_ret_res,
+         blk_ret_t1,
+         blk_ret_t2,
+         blk_ret_t3,
+         blk_ret_t4,
+         blk_ret_t5,
+         blk_ret_t6,
+         blk_ret_t7,
+         blk_ret_t8,
+         blk_ret_t9,
+         blk_ret_t10,
+         blk_ret_t11,
+         blk_ret_t12,
+         blk_ret_t13,
+         blk_ret_t14
+        ) {
+            blk_ret_ret
         }
-    ));
+     );
 
-    vm.define_func_version(func_ver);
+    define_func_ver!((vm) simple_spill_v1 (entry: blk_entry) {
+        blk_entry,
+        blk_start,
+        blk_ret
+    });
 
     vm
 }

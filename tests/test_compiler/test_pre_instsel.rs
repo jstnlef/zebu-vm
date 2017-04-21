@@ -175,9 +175,9 @@ fn test_cfa_sum() {
     // assert cfa
     let content = func_ver.content.as_ref().unwrap();
     
-    let entry = vm.id_of("entry");
-    let head  = vm.id_of("head");
-    let ret   = vm.id_of("ret");
+    let entry = vm.id_of("blk_entry");
+    let head  = vm.id_of("blk_head");
+    let ret   = vm.id_of("blk_ret");
     
     // entry: preds=[], succs=[head]
     assert!(!has_predecessor(entry, content));
@@ -267,6 +267,6 @@ fn test_trace_sum() {
 
     assert!(match_trace(
         func_ver.block_trace.as_ref().unwrap(),
-        &vec![vm.id_of("entry"), vm.id_of("head"), vm.id_of("ret")]
+        &vec![vm.id_of("blk_entry"), vm.id_of("blk_head"), vm.id_of("blk_ret")]
     ));
 }
