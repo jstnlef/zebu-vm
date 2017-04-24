@@ -495,7 +495,7 @@ fn persist_hybrid(vm: &VM) {
     typedef!    ((vm) int64           = mu_int(64));
     typedef!    ((vm) ref_int64       = mu_ref(int64));
     typedef!    ((vm) iref_int64      = mu_iref(int64));
-    typedef!    ((vm) hybrid          = mu_hybrid(none; ref_int64));
+    typedef!    ((vm) hybrid          = mu_hybrid()(ref_int64));
     typedef!    ((vm) ref_hybrid      = mu_ref(hybrid));
     typedef!    ((vm) iref_ref_hybrid = mu_iref(ref_hybrid));
     typedef!    ((vm) iref_ref_int64  = mu_iref(ref_int64));
@@ -637,4 +637,141 @@ fn persist_hybrid(vm: &VM) {
     define_func_ver! ((vm) persist_hybrid_v1 (entry: blk_entry) {
         blk_entry, blk_loop_head, blk_loop_body, blk_exit
     });
+}
+
+#[test]
+fn test_persist_funcref() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(VM::new_with_opts("init_mu --disable-inline"));
+    unsafe {
+        MuThread::current_thread_as_mu_thread(Address::zero(), vm.clone());
+    }
+    persist_funcref(&vm);
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_ret42_id = vm.id_of("ret42");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_ret42_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+    }
+
+    let func_my_main_id = vm.id_of("my_main");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_my_main_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+        compiler.compile(&mut func_ver);
+    }
+
+    // store funcref to ret42 in the global
+    {
+        let global_id = vm.id_of("my_global");
+        let global_handle = vm.handle_from_global(global_id);
+
+        let func_ret42_handle = vm.handle_from_func(func_ret42_id);
+
+        debug!("write {:?} to location {:?}", func_ret42_handle, global_handle);
+        vm.handle_store(MemoryOrder::Relaxed, &global_handle, &func_ret42_handle);
+    }
+
+    let my_main_handle = vm.handle_from_func(func_my_main_id);
+
+    // make boot image
+    vm.make_boot_image(
+        vec![func_ret42_id, func_my_main_id],   // whitelist
+        Some(&my_main_handle), None,             // primoridal func, stack
+        None,                                   // threadlocal
+        vec![], vec![],                         // sym fields/strings
+        vec![], vec![],                         // reloc fields/strings
+        "test_persist_funcref".to_string()
+    );
+
+    // link
+    let executable = {
+        use std::path;
+        let mut path = path::PathBuf::new();
+        path.push(&vm.vm_options.flag_aot_emit_dir);
+        path.push("test_persist_funcref");
+        path
+    };
+    let output = aot::execute_nocheck(executable);
+
+    assert!(output.status.code().is_some());
+
+    let ret_code = output.status.code().unwrap();
+    println!("return code: {}", ret_code);
+    assert!(ret_code == 42);
+}
+
+fn persist_funcref(vm: &VM) {
+    typedef!    ((vm) int64 = mu_int(64));
+    constdef!   ((vm) <int64> int64_42 = Constant::Int(42));
+
+    funcsig!    ((vm) ret42_sig = () -> (int64));
+    funcdecl!   ((vm) <ret42_sig> ret42);
+    funcdef!    ((vm) <ret42_sig> ret42 VERSION ret42_v1);
+
+    typedef!    ((vm) funcref_to_ret42 = mu_funcref(ret42_sig));
+    globaldef!  ((vm) <funcref_to_ret42> my_global);
+
+    // ---ret42---
+    {
+        // blk entry
+        block!      ((vm, ret42_v1) blk_entry);
+        consta!     ((vm, ret42_v1) int64_42_local = int64_42);
+        inst!       ((vm, ret42_v1) blk_entry_ret:
+            RET (int64_42_local)
+        );
+        define_block!((vm, ret42_v1) blk_entry() {
+            blk_entry_ret
+        });
+
+        define_func_ver!((vm) ret42_v1 (entry: blk_entry) {blk_entry});
+    }
+
+    // ---my_main---
+    {
+        funcsig!    ((vm) my_main_sig = () -> ());
+        funcdecl!   ((vm) <my_main_sig> my_main);
+        funcdef!    ((vm) <my_main_sig> my_main VERSION my_main_v1);
+
+        // blk entry
+        block!      ((vm, my_main_v1) blk_entry);
+        global!     ((vm, my_main_v1) blk_entry_global = my_global);
+        ssa!        ((vm, my_main_v1) <funcref_to_ret42> func);
+
+        inst!       ((vm, my_main_v1) blk_entry_load:
+            func = LOAD blk_entry_global (is_ptr: false, order: MemoryOrder::SeqCst)
+        );
+
+        ssa!        ((vm, my_main_v1) <int64> blk_entry_res);
+        inst!       ((vm, my_main_v1) blk_entry_call:
+            blk_entry_res = EXPRCALL (CallConvention::Mu, is_abort: false) func ()
+        );
+
+        let blk_entry_exit = gen_ccall_exit(blk_entry_res.clone(), &mut my_main_v1, &vm);
+
+        inst!       ((vm, my_main_v1) blk_entry_ret:
+            RET
+        );
+
+        define_block!   ((vm, my_main_v1) blk_entry() {
+            blk_entry_load,
+            blk_entry_call,
+            blk_entry_exit,
+            blk_entry_ret
+        });
+
+        define_func_ver!((vm) my_main_v1 (entry: blk_entry) {
+            blk_entry
+        });
+    }
 }

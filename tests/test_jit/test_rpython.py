@@ -986,10 +986,8 @@ def test_exception_stack_unwind():
     assert fnp(100) == 10
 
 
-def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu')):
+def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu'), vmargs = ""):
     from rpython.translator.interactive import Translation
-
-    vmargs = ""
 
     if has_c_main_sig:
         t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api', vmargs=vmargs)
@@ -1021,6 +1019,16 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.get
         res = platform.execute(runmu, flags + [str(exe)] + args)
 
     return res
+
+# not using this function at the moment
+def check(actual, expect):
+    c_exit = rffi.llexternal('exit', [rffi.INT], lltype.Void, _nowrapper=True)
+
+    if actual != expect:
+        print 'actual: %d' % actual
+        print 'expect: %d' % expect
+        print 'assertion fails'
+        c_exit(rffi.cast(rffi.INT, actual))
 
 @may_spawn_proc
 def test_make_boot_image_simple():
@@ -1077,6 +1085,17 @@ def test_rpython_print_number():
     assert res.out == '233\n'
 
 @may_spawn_proc
+def test_rpython_print_fmt():
+    def main(argv):
+        print "hello world %s" % argv[1]
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_print_fmt', args = ['mu'])
+
+    assert res.returncode == 0, res.err
+    assert res.out == 'hello world mu\n'
+
+@may_spawn_proc
 def test_rpython_main():
     def main(argv):
         return 0
@@ -1104,6 +1123,288 @@ The light shines in the darkness, and the darkness has not overcome it.
 
     assert res.returncode == 0, res.err
     assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'
+
+@may_spawn_proc
+def test_linked_list():
+    class Node:
+        def __init__(self, data, nxt):
+            self.data = data
+            self.nxt = nxt
+
+    l = Node(3, Node(2, Node(1, Node(0, None))))
+
+    def main(argv):
+        idx = int(argv[1])
+        if idx >= 4:
+            raise IndexError
+        nd = l
+        while idx > 0:
+            nd = nd.nxt
+            idx -= 1
+        print nd.data
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_linked_list-mu', args=['2'])
+    assert res.returncode == 0, res.err
+    assert res.out == '1\n'
+
+@may_spawn_proc
+def test_rpytarget_richards0():
+    from rpython.translator.goal.richards import entry_point
+    def main(argv):
+        res, t0, t1 = entry_point(int(argv[1]))
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
+    assert res.returncode == 0, res.err
+
+@may_spawn_proc
+def test_rpytarget_richards_measure_time():
+    from rpython.translator.goal.richards import entry_point
+    def main(argv):
+        iterations = int(argv[1])
+        res, t0, t1 = entry_point(iterations)
+        print 'result =', res
+        print 'avg time =', (t1 - t0) / iterations
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_richards_measure_time-mu', args=['5'])
+    assert res.returncode == 0, res.err
+
+@may_spawn_proc
+def test_rpython_print_time():
+    import time
+    def main(argv):
+        print time.time()
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_print_time')
+    assert res.returncode == 0, res.err
+
+@may_spawn_proc
+def test_rpython_time_diff():
+    import time
+    def main(argv):
+        t1 = time.time()
+        t2 = time.time()
+        if t2 >= t1:
+            return 0
+        else:
+            return 1
+
+    res = run_boot_image(main, '/tmp/test_time_diff')
+    assert res.returncode == 0, res.err
+
+@may_spawn_proc
+def test_dtoa():
+    from rpython.rlib.rdtoa import dtoa
+    from rpython.translator.mu.tool.debug_print import print_
+    def main(argv):
+        print_(dtoa(3.14))
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_print_float-mu', args=['2'])
+    assert res.returncode == 0, res.err
+    assert res.out == '3.14\n'
+
+@may_spawn_proc
+def test_rpytarget_testdicts():
+    from rpython.translator.goal.targettestdicts import entry_point
+
+    res = run_boot_image(entry_point, '/tmp/test_testdicts-mu',
+                         args=['d', '1534'], vmargs="--gc-immixspace-size=536870912 --gc-lospace-size=536870912")
+    assert res.returncode == 0, res.err
+    assert res.out == '0x5fe\n'
+
+@may_spawn_proc
+def test_nbody():
+    """N-body benchmark from the Computer Language Benchmarks Game.
+
+    This is intended to support Unladen Swallow's perf.py. Accordingly, it has been
+    modified from the Shootout version:
+    - Accept standard Unladen Swallow benchmark options.
+    - Run report_energy()/advance() in a loop.
+    - Reimplement itertools.combinations() to work with older Python versions.
+    """
+
+    # Pulled from http://shootout.alioth.debian.org/u64q/benchmark.php?test=nbody&lang=python&id=4
+    # Contributed by Kevin Carson.
+    # Modified by Tupteq, Fredrik Johansson, and Daniel Nanz.
+
+    import math
+
+    def combinations(l):
+        """Pure-Python implementation of itertools.combinations(l, 2)."""
+        result = []
+        for x in xrange(len(l) - 1):
+            ls = l[x+1:]
+            for y in ls:
+                result.append((l[x],y))
+        return result
+
+
+    PI = 3.14159265358979323
+    SOLAR_MASS = 4 * PI * PI
+    DAYS_PER_YEAR = 365.24
+
+    BODIES = {
+        'sun': ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], SOLAR_MASS),
+
+        'jupiter': ([4.84143144246472090e+00,
+                     -1.16032004402742839e+00,
+                     -1.03622044471123109e-01],
+                    [1.66007664274403694e-03 * DAYS_PER_YEAR,
+                     7.69901118419740425e-03 * DAYS_PER_YEAR,
+                     -6.90460016972063023e-05 * DAYS_PER_YEAR],
+                    9.54791938424326609e-04 * SOLAR_MASS),
+
+        'saturn': ([8.34336671824457987e+00,
+                    4.12479856412430479e+00,
+                    -4.03523417114321381e-01],
+                   [-2.76742510726862411e-03 * DAYS_PER_YEAR,
+                    4.99852801234917238e-03 * DAYS_PER_YEAR,
+                    2.30417297573763929e-05 * DAYS_PER_YEAR],
+                   2.85885980666130812e-04 * SOLAR_MASS),
+
+        'uranus': ([1.28943695621391310e+01,
+                    -1.51111514016986312e+01,
+                    -2.23307578892655734e-01],
+                   [2.96460137564761618e-03 * DAYS_PER_YEAR,
+                    2.37847173959480950e-03 * DAYS_PER_YEAR,
+                    -2.96589568540237556e-05 * DAYS_PER_YEAR],
+                   4.36624404335156298e-05 * SOLAR_MASS),
+
+        'neptune': ([1.53796971148509165e+01,
+                     -2.59193146099879641e+01,
+                     1.79258772950371181e-01],
+                    [2.68067772490389322e-03 * DAYS_PER_YEAR,
+                     1.62824170038242295e-03 * DAYS_PER_YEAR,
+                     -9.51592254519715870e-05 * DAYS_PER_YEAR],
+                    5.15138902046611451e-05 * SOLAR_MASS) }
+
+
+    SYSTEM = list(BODIES.values())
+    PAIRS = combinations(SYSTEM)
+
+    def advance(dt, n, bodies=SYSTEM, pairs=PAIRS):
+        for i in xrange(n):
+            for (([x1, y1, z1], v1, m1),
+                 ([x2, y2, z2], v2, m2)) in pairs:
+                dx = x1 - x2
+                dy = y1 - y2
+                dz = z1 - z2
+                mag = dt * math.pow((dx * dx + dy * dy + dz * dz), (-1.5))
+                b1m = m1 * mag
+                b2m = m2 * mag
+                v1[0] -= dx * b2m
+                v1[1] -= dy * b2m
+                v1[2] -= dz * b2m
+                v2[0] += dx * b1m
+                v2[1] += dy * b1m
+                v2[2] += dz * b1m
+            for (r, [vx, vy, vz], m) in bodies:
+                r[0] += dt * vx
+                r[1] += dt * vy
+                r[2] += dt * vz
+
+    def report_energy(bodies=SYSTEM, pairs=PAIRS, e=0.0):
+        for (((x1, y1, z1), v1, m1),
+             ((x2, y2, z2), v2, m2)) in pairs:
+            dx = x1 - x2
+            dy = y1 - y2
+            dz = z1 - z2
+            e -= (m1 * m2) / math.pow((dx * dx + dy * dy + dz * dz), 0.5)
+        for (r, [vx, vy, vz], m) in bodies:
+            e += m * (vx * vx + vy * vy + vz * vz) / 2.
+        return e
+
+    def offset_momentum(ref, bodies=SYSTEM, px=0.0, py=0.0, pz=0.0):
+        for (r, [vx, vy, vz], m) in bodies:
+            px -= vx * m
+            py -= vy * m
+            pz -= vz * m
+        (r, v, m) = ref
+        v[0] = px / m
+        v[1] = py / m
+        v[2] = pz / m
+
+    def test_nbody(iterations):
+        offset_momentum(BODIES['sun'])
+        e = report_energy()
+        for i in xrange(iterations):
+            advance(0.01, 20000)
+            e = report_energy()
+        return e
+
+    def main(argv):
+        print test_nbody(int(argv[1]))
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_nbody-mu', args=['5'])
+    assert res.returncode == 0, res.err
+    assert res.out == '-0.169080\n'
+
+
+@may_spawn_proc
+def test_float():
+    from math import sin, cos, sqrt
+
+    class Point(object):
+
+        def __init__(self, i):
+            self.x = x = sin(i)
+            self.y = cos(i) * 3
+            self.z = (x * x) / 2
+
+        def __repr__(self):
+            return "<Point: x=%s, y=%s, z=%s>" % (self.x, self.y, self.z)
+
+        def normalize(self):
+            x = self.x
+            y = self.y
+            z = self.z
+            norm = sqrt(x * x + y * y + z * z)
+            self.x /= norm
+            self.y /= norm
+            self.z /= norm
+
+        def maximize(self, other):
+            self.x = self.x if self.x > other.x else other.x
+            self.y = self.y if self.y > other.y else other.y
+            self.z = self.z if self.z > other.z else other.z
+            return self
+
+
+    def maximize(points):
+        next = points[0]
+        for p in points[1:]:
+            next = next.maximize(p)
+        return next
+
+    def benchmark(n):
+        points = [None] * n
+        for i in xrange(n):
+            points[i] = Point(i)
+        for p in points:
+            p.normalize()
+        return maximize(points)
+
+    POINTS = 100
+
+    def main(argv):
+        o = None
+        for i in xrange(int(argv[1])):
+            o = benchmark(POINTS)
+        if o:
+            print (o.x, o.y, o.z)
+        else:
+            print 'NULL'
+        return 0
+
+    res = run_boot_image(main, '/tmp/test_float-mu', args=['5'])
+    assert res.returncode == 0, res.err
+    assert res.out == '(0.893876, 1.000000, 0.447179)\n'
+
 
 if __name__ == '__main__':
     import argparse

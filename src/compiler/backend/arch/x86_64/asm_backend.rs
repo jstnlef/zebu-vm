@@ -1008,26 +1008,23 @@ impl ASMCodeGen {
     fn prepare_machine_regs(&self, regs: Iter<P<Value>>) -> Vec<MuID> {
         regs.map(|x| self.prepare_machine_reg(x)).collect()
     }
-    
-    fn add_asm_call(&mut self, code: String, potentially_excepting: Option<MuName>) {
-        // a call instruction will use all the argument registers
-        // do not need
-        let uses : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-//        for reg in x86_64::ARGUMENT_GPRs.iter() {
-//            uses.insert(reg.id(), vec![]);
-//        }
-//        for reg in x86_64::ARGUMENT_FPRs.iter() {
-//            uses.insert(reg.id(), vec![]);
-//        }
 
-        // defines: return registers
+    fn add_asm_call_with_extra_uses(&mut self,
+                              code: String,
+                              extra_uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
+                              potentially_excepting: Option<MuName>) {
+        let uses = extra_uses;
+
+        // defines
         let mut defines : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
+        // return registers get defined
         for reg in x86_64::RETURN_GPRs.iter() {
             defines.insert(reg.id(), vec![]);
         }
         for reg in x86_64::RETURN_FPRs.iter() {
             defines.insert(reg.id(), vec![]);
         }
+        // caller saved register will be destroyed
         for reg in x86_64::CALLER_SAVED_GPRs.iter() {
             if !defines.contains_key(&reg.id()) {
                 defines.insert(reg.id(), vec![]);
@@ -1038,7 +1035,7 @@ impl ASMCodeGen {
                 defines.insert(reg.id(), vec![]);
             }
         }
-          
+
         self.add_asm_inst_internal(code, defines, uses, false, {
             if potentially_excepting.is_some() {
                 ASMBranchTarget::PotentiallyExcepting(potentially_excepting.unwrap())
@@ -1046,6 +1043,10 @@ impl ASMCodeGen {
                 ASMBranchTarget::None
             }
         }, None)
+    }
+    
+    fn add_asm_call(&mut self, code: String, potentially_excepting: Option<MuName>) {
+        self.add_asm_call_with_extra_uses(code, LinkedHashMap::new(), potentially_excepting);
     }
     
     fn add_asm_ret(&mut self, code: String) {
@@ -1692,9 +1693,7 @@ impl ASMCodeGen {
         }
     }
 
-    fn internal_mov_mem_imm(&mut self, inst: &str, dest: &P<Value>, src: i32) {
-        let len = check_op_len(dest);
-
+    fn internal_mov_mem_imm(&mut self, inst: &str, dest: &P<Value>, src: i32, len: usize) {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} -> {}", inst, src, dest);
 
@@ -2131,8 +2130,8 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_mov_mem_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_mov_mem_r("mov", dest, src, false)
     }
-    fn emit_mov_mem_imm(&mut self, dest: &P<Value>, src: i32) {
-        self.internal_mov_mem_imm("mov", dest, src)
+    fn emit_mov_mem_imm(&mut self, dest: &P<Value>, src: i32, oplen: usize) {
+        self.internal_mov_mem_imm("mov", dest, src, oplen)
     }
 
     // zero/sign extend mov
@@ -2839,7 +2838,18 @@ impl CodeGenerator for ASMCodeGen {
     
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
-        unimplemented!()
+
+        let (reg, id, loc) = self.prepare_reg(func, 6);
+
+        let asm = format!("call *{}", reg);
+
+        self.add_asm_call_with_extra_uses(asm, linked_hashmap!{id => vec![loc]}, pe);
+
+        let callsite_symbol = symbol(callsite.clone());
+        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
+
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
     
     fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
@@ -3303,12 +3313,16 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
 }
 
 use std::collections::HashMap;
+use compiler::backend::code_emission::emit_mu_types;
+
 pub fn emit_context_with_reloc(vm: &VM,
                                symbols: HashMap<Address, String>,
                                fields : HashMap<Address, String>) {
     use std::path;
     use std::io::prelude::*;
     use rustc_serialize::json;
+
+    emit_mu_types(vm);
 
     debug!("---Emit VM Context---");
     create_emit_directory(vm);
@@ -3541,7 +3555,7 @@ pub fn spill_rewrite(
 
                     // generate a random new temporary
                     let temp_ty = val_reg.ty.clone();
-                    let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
+                    let temp = func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), temp_ty.clone()).clone_value();
 
                     // maintain mapping
                     trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
@@ -3589,7 +3603,7 @@ pub fn spill_rewrite(
                         temp_for_cur_inst.get(&reg).unwrap().clone()
                     } else {
                         let temp_ty = val_reg.ty.clone();
-                        let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
+                        let temp = func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), temp_ty.clone()).clone_value();
 
                         spilled_scratch_temps.insert(temp.id(), reg);
 

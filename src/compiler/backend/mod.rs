@@ -5,6 +5,7 @@ pub mod code_emission;
 
 use ast::types;
 use utils::ByteSize;
+use utils::math::align_up;
 use runtime::mm;
 use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern};
 
@@ -73,23 +74,23 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         MuType_::Int(size_in_bit) => {
             match size_in_bit {
                 1  => BackendTypeInfo{
-                    size: 1, alignment: 1, struct_layout: None,
+                    size: 1, alignment: 1, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
                 },
                 8  => BackendTypeInfo{
-                    size: 1, alignment: 1, struct_layout: None,
+                    size: 1, alignment: 1, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
                 },
                 16 => BackendTypeInfo{
-                    size: 2, alignment: 2, struct_layout: None,
+                    size: 2, alignment: 2, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
                 },
                 32 => BackendTypeInfo{
-                    size: 4, alignment: 4, struct_layout: None,
+                    size: 4, alignment: 4, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
                 },
                 64 => BackendTypeInfo{
-                    size: 8, alignment: 8, struct_layout: None,
+                    size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
                 },
                 _ => unimplemented!()
@@ -99,7 +100,7 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         MuType_::Ref(_)
         | MuType_::IRef(_)
         | MuType_::WeakRef(_) => BackendTypeInfo{
-            size: 8, alignment: 8, struct_layout: None,
+            size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
             gc_type: mm::add_gc_type(GCType::new_reftype())
         },
         // pointer
@@ -108,30 +109,32 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         | MuType_::FuncRef(_)
         | MuType_::ThreadRef
         | MuType_::StackRef => BackendTypeInfo{
-            size: 8, alignment: 8, struct_layout: None,
+            size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
             gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
         },
         // tagref
         MuType_::Tagref64 => unimplemented!(),
         // floating point
         MuType_::Float => BackendTypeInfo{
-            size: 4, alignment: 4, struct_layout: None,
+            size: 4, alignment: 4, struct_layout: None, elem_padded_size: None,
             gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
         },
         MuType_::Double => BackendTypeInfo {
-            size: 8, alignment: 8, struct_layout: None,
+            size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
             gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
         },
         // array
         MuType_::Array(ref ty, len) => {
             let ele_ty = vm.get_backend_type_info(ty.id());
+            let ele_padded_size = align_up(ele_ty.size, ele_ty.alignment);
             
             BackendTypeInfo{
-                size         : ele_ty.size * len,
+                size         : ele_padded_size * len,
                 alignment    : ele_ty.alignment,
                 struct_layout: None,
+                elem_padded_size : Some(ele_padded_size),
                 gc_type      : mm::add_gc_type(GCType::new_fix(GCTYPE_INIT_ID,
-                                                           ele_ty.size * len,
+                                                           ele_padded_size * len,
                                                            ele_ty.alignment,
                                                            Some(RefPattern::Repeat{
                                                                 pattern: Box::new(RefPattern::NestedType(vec![ele_ty.gc_type])),
@@ -166,6 +169,8 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             // treat var_ty as array (getting its alignment)
             let var_ele_ty = vm.get_backend_type_info(var_ty.id());
             let var_align = var_ele_ty.alignment;
+            let var_padded_size = align_up(var_ele_ty.size, var_ele_ty.alignment);
+            ret.elem_padded_size = Some(var_padded_size);
 
             // fix type info as hybrid
             // 1. check alignment
@@ -175,14 +180,14 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             // 2. fix gc type
             let mut gctype = ret.gc_type.as_ref().clone();
             gctype.var_refs = Some(RefPattern::NestedType(vec![var_ele_ty.gc_type.clone()]));
-            gctype.var_size = Some(var_ele_ty.size);
+            gctype.var_size = Some(var_padded_size);
             ret.gc_type = mm::add_gc_type(gctype);
             
             ret
         }
         // void
         MuType_::Void => BackendTypeInfo{
-            size: 0, alignment: 8, struct_layout: None,
+            size: 0, alignment: 8, struct_layout: None, elem_padded_size: None,
             gc_type: mm::add_gc_type(GCType::new_noreftype(0, 8))
         },
         // vector
@@ -245,6 +250,7 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
         size         : size,
         alignment    : struct_align,
         struct_layout: Some(offsets),
+        elem_padded_size: None,
         gc_type      : mm::add_gc_type(GCType::new_fix(GCTYPE_INIT_ID,
                                                    size,
                                                    struct_align,
@@ -269,7 +275,11 @@ pub fn sequetial_layout(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, ByteSize, V
 pub struct BackendTypeInfo {
     pub size: ByteSize,
     pub alignment: ByteSize,
+
     pub struct_layout: Option<Vec<ByteSize>>,
+    // for hybrid/array, every element needs to be properly aligned
+    // thus it may take more space than it actually needs
+    pub elem_padded_size: Option<ByteSize>,
 
     pub gc_type: P<GCType>
 }
@@ -286,6 +296,21 @@ impl BackendTypeInfo {
         } else {
             panic!("trying to get field offset on a non-struct type")
         }
+    }
+}
+
+use std::fmt;
+impl fmt::Display for BackendTypeInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} bytes ({} bytes aligned), ", self.size, self.alignment).unwrap();
+        if self.struct_layout.is_some() {
+            use utils::vec_utils;
+
+            let layout = self.struct_layout.as_ref().unwrap();
+            write!(f, "field offsets: ({})", vec_utils::as_str(layout)).unwrap();
+        }
+
+        Ok(())
     }
 }
 

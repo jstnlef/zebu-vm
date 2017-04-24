@@ -81,9 +81,21 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
     let func_id = vm.id_of(fnc_name);
     {
         let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func = match funcs.get(&func_id) {
+            Some(func) => func.read().unwrap(),
+            None => panic!("cannot find function {}", fnc_name)
+        };
+
+        let cur_ver = match func.cur_ver {
+            Some(v) => v,
+            None => panic!("function {} does not have a defined current version", fnc_name)
+        };
+
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = match func_vers.get(&cur_ver) {
+            Some(fv) => fv.write().unwrap(),
+            None => panic!("cannot find function version {}", cur_ver)
+        };
         compiler.compile(&mut func_ver);
     }
     backend::emit_context(&vm);

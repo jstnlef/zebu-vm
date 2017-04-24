@@ -41,42 +41,23 @@ fn test_thread_create() {
 
 fn primordial_main() -> VM {
     let vm = VM::new();
+
+    funcsig!    ((vm) sig = () -> ());
+    funcdecl!   ((vm) <sig> primordial_main);
+    funcdef!    ((vm) <sig> primordial_main VERSION primordial_main_v1);
     
-    let sig = vm.declare_func_sig(vm.next_id(), vec![], vec![]);
-    let func = MuFunction::new(vm.next_id(), sig.clone());
-    vm.set_name(func.as_entity(), "primordial_main".to_string());
-    let func_id = func.id();
-    vm.declare_func(func);
-    
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, sig.clone());
-    
-    let mut blk_entry = Block::new(vm.next_id());
-    vm.set_name(blk_entry.as_entity(), "entry".to_string());
-    let thread_exit = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![]),
-        v: Instruction_::ThreadExit
+    block!      ((vm, primordial_main_v1) blk_entry);
+    inst!       ((vm, primordial_main_v1) blk_entry_threadexit:
+        THREADEXIT
+    );
+
+    define_block!((vm, primordial_main_v1) blk_entry() {
+        blk_entry_threadexit
     });
-    
-    let blk_entry_content = BlockContent {
-        args: vec![],
-        exn_arg: None,
-        body: vec![thread_exit],
-        keepalives: None
-    };
-    blk_entry.content = Some(blk_entry_content);
-    
-    func_ver.define(FunctionContent::new(
-        blk_entry.id(),
-        {
-            let mut blocks = LinkedHashMap::new();
-            blocks.insert(blk_entry.id(), blk_entry);
-            blocks
-        }
-    ));
-    
-    vm.define_func_version(func_ver);
+
+    define_func_ver!((vm) primordial_main_v1(entry: blk_entry) {
+        blk_entry
+    });
     
     vm
 }

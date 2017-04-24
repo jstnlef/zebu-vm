@@ -74,196 +74,108 @@ fn create_catch_exception_func (vm: &VM, use_exception_arg: bool) {
     // .typedef @funcref_throw_exception <@throw_exception_sig>
     let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
     let throw_exception_id = vm.id_of("throw_exception");
-    let type_funcref_throw_exception = vm.declare_type(vm.next_id(), MuType_::funcref(throw_exception_sig));
-    // .const @throw_exception_func
-    let const_funcref_throw_exception = vm.declare_const(vm.next_id(), type_funcref_throw_exception, Constant::FuncRef(throw_exception_id)); 
-    
-    // .funcsig @catch_exception_sig = () -> ()
-    let func_sig = vm.declare_func_sig(vm.next_id(), vec![], vec![]);
-    vm.set_name(func_sig.as_entity(), Mu("catch_exception_sig"));
-    
-    // .funcdecl @catch_exception <@catch_exception_sig>
-    let func = MuFunction::new(vm.next_id(), func_sig.clone());
-    vm.set_name(func.as_entity(), Mu("catch_exception"));
-    let func_id = func.id();
-    vm.declare_func(func);
-    
-    // .funcdef @catch_exception VERSION @v1 <@catch_exception_sig);
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, func_sig.clone());
+
+    typedef!        ((vm) funcref_throw_exception = mu_funcref(throw_exception_sig));
+    constdef!       ((vm) <funcref_throw_exception> const_funcref_throw_exception = Constant::FuncRef(throw_exception_id));
+
+    funcsig!        ((vm) catch_exception_sig = () -> ());
+    funcdecl!       ((vm) <catch_exception_sig> catch_exception);
+    funcdef!        ((vm) <catch_exception_sig> catch_exception VERSION catch_exception_v1);
     
     // %blk_0():
-    let mut blk_0 = Block::new(vm.next_id());
-    vm.set_name(blk_0.as_entity(), Mu("blk_0"));
-    
-    let blk_normal_cont_id = vm.next_id();
-    let blk_exn_cont_id = vm.next_id();
-    
-    let blk_0_throw = func_ver.new_constant(const_funcref_throw_exception.clone());
-    let blk_0_term = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_0_throw]),
-        v: Instruction_::Call {
-            data: CallData {
-                func: 0,
-                args: vec![],
-                convention: CallConvention::Mu
-            },
-            resume: ResumptionData {
-                normal_dest: Destination {
-                    target: blk_normal_cont_id,
-                    args: vec![]
-                },
-                exn_dest: Destination {
-                    target: blk_exn_cont_id,
-                    args: vec![]
-                }
-            }
-        }
+    block!          ((vm, catch_exception_v1) blk_0);
+
+    block!          ((vm, catch_exception_v1) blk_normal_cont);
+    block!          ((vm, catch_exception_v1) blk_exn_cont);
+
+    consta!         ((vm, catch_exception_v1) const_funcref_throw_exception_local = const_funcref_throw_exception);
+    inst!           ((vm, catch_exception_v1) blk_0_term:
+        CALL (const_funcref_throw_exception_local) FUNC(0) (vec![]) CallConvention::Mu,
+            normal: blk_normal_cont (vec![]),
+            exc   : blk_exn_cont    (vec![])
+    );
+
+    define_block!   ((vm, catch_exception_v1) blk_0() {
+        blk_0_term
     });
-    
-    let blk_0_content = BlockContent {
-        args: vec![],
-        exn_arg: None,
-        body: vec![blk_0_term],
-        keepalives: None
-    };
-    blk_0.content = Some(blk_0_content);
     
     // %blk_normal_cont():
-    let mut blk_normal_cont = Block::new(blk_normal_cont_id);
-    vm.set_name(blk_normal_cont.as_entity(), Mu("blk_normal_cont"));
-    let blk_normal_cont_thread_exit = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![]),
-        v: Instruction_::ThreadExit
-    });
-    blk_normal_cont.content = Some(BlockContent {
-        args: vec![],
-        exn_arg: None,
-        body: vec![blk_normal_cont_thread_exit],
-        keepalives: None
+    inst!           ((vm, catch_exception_v1) blk_normal_cont_threadexit:
+        THREADEXIT
+    );
+
+    define_block!   ((vm, catch_exception_v1) blk_normal_cont() {
+        blk_normal_cont_threadexit
     });
     
     // %blk_exn_cont() %EXN:
-    let mut blk_exn_cont = Block::new(blk_exn_cont_id);
-    vm.set_name(blk_exn_cont.as_entity(), Mu("blk_exn_cont"));
-    let type_ref_int64 = vm.get_type(vm.id_of("ref_int64"));    
-    let blk_exn_cont_exception_arg = func_ver.new_ssa(vm.next_id(), type_ref_int64.clone());
-    vm.set_name(blk_exn_cont_exception_arg.as_entity(), Mu("blk_0_exception_arg"));
-    let blk_exn_cont_thread_exit = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![]),
-        v: Instruction_::ThreadExit
+    let ref_int64 = vm.get_type(vm.id_of("ref_int64"));
+    ssa!            ((vm, catch_exception_v1) <ref_int64> exn_arg);
+    inst!           ((vm, catch_exception_v1) blk_exn_cont_threadexit:
+        THREADEXIT
+    );
+
+    if use_exception_arg {
+        define_block!((vm, catcH_exception_v1) blk_exn_cont() [exn_arg] {
+            blk_exn_cont_threadexit
+        });
+    } else {
+        define_block!((vm, catch_exception_v1) blk_exn_cont() {
+            blk_exn_cont_threadexit
+        });
+    }
+
+    define_func_ver!((vm) catch_exception_v1 (entry: blk_0) {
+        blk_0, blk_normal_cont, blk_exn_cont
     });
-    blk_exn_cont.content = Some(BlockContent {
-        args: vec![],
-        exn_arg: if use_exception_arg {
-            Some(blk_exn_cont_exception_arg.clone_value())
-        } else {
-            None
-        },
-        body: vec![blk_exn_cont_thread_exit],
-        keepalives: None
-    });    
-    
-    func_ver.define(FunctionContent::new(
-        blk_0.id(),
-        {
-            let mut ret = LinkedHashMap::new();
-            ret.insert(blk_0.id(), blk_0);
-            ret.insert(blk_normal_cont.id(), blk_normal_cont);
-            ret.insert(blk_exn_cont.id(), blk_exn_cont);
-            ret
-        }
-    ));
-    
-    vm.define_func_version(func_ver);
 }
 
 fn create_throw_exception_func (vm: &VM) {
-    let type_ref_int64 = vm.get_type(vm.id_of("ref_int64"));
-    let type_iref_int64 = vm.get_type(vm.id_of("iref_int64"));
-    
-    // .funcsig @throw_exception = () -> ()
-    let func_sig = vm.declare_func_sig(vm.next_id(), vec![], vec![]);
-    vm.set_name(func_sig.as_entity(), Mu("throw_exception_sig"));
-    
-    // .funcdecl @catch_exception <@throw_exception>
-    let func = MuFunction::new(vm.next_id(), func_sig.clone());
-    vm.set_name(func.as_entity(), Mu("throw_exception"));
-    let func_id = func.id();
-    vm.declare_func(func);
-    
-    // .funcdef @catch_exception VERSION @v1 <@throw_exception>
-    let mut func_ver = MuFunctionVersion::new(vm.next_id(), func_id, func_sig.clone());
+    let int64 = vm.get_type(vm.id_of("int64"));
+    let ref_int64 = vm.get_type(vm.id_of("ref_int64"));
+    let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
+
+    funcsig!    ((vm) throw_exception_sig = () -> ());
+    funcdecl!   ((vm) <throw_exception_sig> throw_exception);
+    funcdef!    ((vm) <throw_exception_sig> throw_exception VERSION throw_exception_v1);
     
     // %blk_0():
-    let mut blk_0 = Block::new(vm.next_id());
-    vm.set_name(blk_0.as_entity(), Mu("blk_0"));
+    block!      ((vm, throw_exception_v1) blk_0);
     
     // %exception_obj = NEW <@int64>
-    let blk_0_exception_obj = func_ver.new_ssa(vm.next_id(), type_ref_int64.clone());
-    vm.set_name(blk_0_exception_obj.as_entity(), Mu("blk_0_exception_obj"));
-    let blk_0_inst0 = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_0_exception_obj.clone_value()]),
-        ops: RwLock::new(vec![]),
-        v: Instruction_::New(type_ref_int64.clone())
-    });
-    
+    ssa!        ((vm, throw_exception_v1) <ref_int64> exception_obj);
+    inst!       ((vm, throw_exception_v1) blk_0_new:
+        exception_obj = NEW <int64>
+    );
+
     // %exception_obj_iref = GETIREF <@int64> %exception_obj
-    let blk_0_exception_obj_iref = func_ver.new_ssa(vm.next_id(), type_iref_int64.clone());
-    vm.set_name(blk_0_exception_obj_iref.as_entity(), Mu("blk_0_exception_obj_iref"));
-    let blk_0_inst1 = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: Some(vec![blk_0_exception_obj_iref.clone_value()]),
-        ops: RwLock::new(vec![blk_0_exception_obj.clone()]),
-        v: Instruction_::GetIRef(0)
-     });
+    ssa!        ((vm, throw_exception_v1) <iref_int64> exception_obj_iref);
+    inst!       ((vm, throw_exception_v1) blk_0_getiref:
+        exception_obj_iref = GETIREF exception_obj
+    );
     
     // STORE <@int64> %exception_obj_iref @int64_1
     let const_int64_1 = vm.get_const(vm.id_of("int64_1"));
-    let blk_0_const_int64_1 = func_ver.new_constant(const_int64_1);
-    let blk_0_inst2 = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_0_exception_obj_iref.clone(), blk_0_const_int64_1.clone()]),
-        v: Instruction_::Store {
-            is_ptr: false,
-            order: MemoryOrder::Relaxed,
-            mem_loc: 0,
-            value: 1
-        }
+    consta!     ((vm, throw_exception_v1) int64_1_local = const_int64_1);
+    inst!       ((vm, throw_exception_v1) blk_0_store:
+        STORE exception_obj_iref int64_1_local (is_ptr: false, order: MemoryOrder::Relaxed)
+    );
+
+    // THROW exception_obj
+    inst!       ((vm, throw_exception_v1) blk_0_throw:
+        THROW exception_obj
+    );
+
+    define_block!((vm, throw_exception_v1) blk_0() {
+        blk_0_new,
+        blk_0_getiref,
+        blk_0_store,
+        blk_0_throw
     });
-    
-    let blk_0_term = func_ver.new_inst(Instruction {
-        hdr: MuEntityHeader::unnamed(vm.next_id()),
-        value: None,
-        ops: RwLock::new(vec![blk_0_exception_obj.clone()]),
-        v: Instruction_::Throw(0)
+
+    define_func_ver!((vm) throw_exception_v1(entry: blk_0) {
+        blk_0
     });
-    
-    let blk_0_content = BlockContent {
-        args: vec![],
-        exn_arg: None,
-        body: vec![blk_0_inst0, blk_0_inst1, blk_0_inst2, blk_0_term],
-        keepalives: None
-    };
-    blk_0.content = Some(blk_0_content);
-    
-    func_ver.define(FunctionContent::new(
-        blk_0.id(),
-        {
-            let mut ret = LinkedHashMap::new();
-            ret.insert(blk_0.id(), blk_0);
-            ret
-        }
-    ));
-    
-    vm.define_func_version(func_ver);
 }
 
 #[test]
