@@ -2614,20 +2614,23 @@ impl <'a> InstructionSelection {
             }
 
             // insert an intermediate block to branch to normal
+            // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
             let fv_id = self.current_fv_id;
             self.start_block(format!("normal_cont_for_call_{}_{}", fv_id, cur_node.id()));
+        }
+        
+        // deal with ret vals, collapse stack etc.
+        self.emit_postcall_convention(
+            &func_sig, &inst.value,
+            stack_arg_size, f_context, vm);
 
+        if resumption.is_some() {
             let ref normal_dest = resumption.as_ref().unwrap().normal_dest;
             let normal_target_name = f_content.get_block(normal_dest.target).name().unwrap();
 
             self.backend.emit_jmp(normal_target_name);
         }
-        
-        // deal with ret vals
-        self.emit_postcall_convention(
-            &func_sig, &inst.value,
-            stack_arg_size, f_context, vm);
     }
     
     #[allow(unused_variables)]
