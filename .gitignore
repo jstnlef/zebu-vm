@@ -11,4 +11,5 @@ Cargo.lock
 *.pyc
 *.o
 *.dylib
-mu-client-pypy
+**mu-client-pypy**
+**RPySOM**
