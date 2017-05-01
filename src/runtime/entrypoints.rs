@@ -108,13 +108,23 @@ lazy_static! {
     };
 
     // impl/decl: math.rs
-    pub static ref FREM : RuntimeEntrypoint = RuntimeEntrypoint {
+    pub static ref FREM_DOUBLE : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{
             hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
             ret_tys: vec![DOUBLE_TYPE.clone()],
             arg_tys: vec![DOUBLE_TYPE.clone(), DOUBLE_TYPE.clone()]
         }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_frem")),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_frem_double")),
+        jit: RwLock::new(None)
+    };
+
+    pub static ref FREM_FLOAT : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig{
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![FLOAT_TYPE.clone()],
+            arg_tys: vec![FLOAT_TYPE.clone(), FLOAT_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_frem_float")),
         jit: RwLock::new(None)
     };
 

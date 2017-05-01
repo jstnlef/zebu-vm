@@ -8,6 +8,10 @@ macro_rules! typedef {
         let $name = $vm.declare_type(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))), MuType_::double());
         $vm.set_name($name.as_entity());
     };
+    (($vm: expr) $name: ident = mu_float) => {
+        let $name = $vm.declare_type(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))), MuType_::float());
+        $vm.set_name($name.as_entity());
+    };
 
     // ref, iref, ptr
     (($vm: expr) $name: ident = mu_ref($ty: ident)) => {

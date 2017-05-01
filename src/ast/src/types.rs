@@ -37,6 +37,10 @@ lazy_static! {
         MuType::new(new_internal_id(), MuType_::double())
     );
 
+    pub static ref FLOAT_TYPE  : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::float())
+    );
+
     pub static ref VOID_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::void())
     );
@@ -49,6 +53,7 @@ lazy_static! {
         UINT32_TYPE.clone(),
         UINT64_TYPE.clone(),
         DOUBLE_TYPE.clone(),
+        FLOAT_TYPE.clone(),
         VOID_TYPE.clone()
     ];    
 }
@@ -177,6 +182,20 @@ impl MuType {
             | FuncRef(_)
             | UFuncPtr(_) => Some(64),
             _ => None
+        }
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self.v {
+            MuType_::Float => true,
+            _ => false
+        }
+    }
+
+    pub fn is_double(&self) -> bool {
+        match self.v {
+            MuType_::Double => true,
+            _ => false
         }
     }
 }

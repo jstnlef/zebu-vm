@@ -594,44 +594,47 @@ impl <'a> InstructionSelection {
                         let values = inst.value.as_ref().unwrap();
                         let mut status_value_index = 1;
 
-                        // negative flag
-                        if status.flag_n {
-                            let tmp_status = values[status_value_index].clone();
-                            status_value_index += 1;
+                        // status flags only works with int operations
+                        if values[0].is_int_reg() {
+                            // negative flag
+                            if status.flag_n {
+                                let tmp_status = values[status_value_index].clone();
+                                status_value_index += 1;
 
-                            self.backend.emit_sets_r8(&tmp_status);
-                        }
-
-                        // zero flag
-                        if status.flag_z {
-                            let tmp_status = values[status_value_index].clone();
-                            status_value_index += 1;
-
-                            self.backend.emit_setz_r8(&tmp_status);
-                        }
-
-                        // unsigned overflow
-                        if status.flag_c {
-                            let tmp_status = values[status_value_index].clone();
-                            status_value_index += 1;
-
-                            match op {
-                                BinOp::Add | BinOp::Sub | BinOp::Mul => {
-                                    self.backend.emit_setb_r8(&tmp_status);
-                                }
-                                _ => panic!("Only Add/Sub/Mul has #C flag")
+                                self.backend.emit_sets_r8(&tmp_status);
                             }
-                        }
 
-                        // signed overflow
-                        if status.flag_v {
-                            let tmp_status = values[status_value_index].clone();
+                            // zero flag
+                            if status.flag_z {
+                                let tmp_status = values[status_value_index].clone();
+                                status_value_index += 1;
 
-                            match op {
-                                BinOp::Add | BinOp::Sub | BinOp::Mul => {
-                                    self.backend.emit_seto_r8(&tmp_status);
+                                self.backend.emit_setz_r8(&tmp_status);
+                            }
+
+                            // unsigned overflow
+                            if status.flag_c {
+                                let tmp_status = values[status_value_index].clone();
+                                status_value_index += 1;
+
+                                match op {
+                                    BinOp::Add | BinOp::Sub | BinOp::Mul => {
+                                        self.backend.emit_setb_r8(&tmp_status);
+                                    }
+                                    _ => panic!("Only Add/Sub/Mul has #C flag")
                                 }
-                                _ => panic!("Only Add/Sub/Mul has #V flag")
+                            }
+
+                            // signed overflow
+                            if status.flag_v {
+                                let tmp_status = values[status_value_index].clone();
+
+                                match op {
+                                    BinOp::Add | BinOp::Sub | BinOp::Mul => {
+                                        self.backend.emit_seto_r8(&tmp_status);
+                                    }
+                                    _ => panic!("Only Add/Sub/Mul has #V flag")
+                                }
                             }
                         }
                     }
@@ -729,129 +732,135 @@ impl <'a> InstructionSelection {
                             op::ConvOp::SITOFP => {
                                 let tmp_res = self.get_result_value(node);
 
-                                if self.match_ireg(op) {
-                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                                    self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op);
-                                } else {
-                                    panic!("unexpected op (expected ireg): {}", op)
+                                assert!(self.match_ireg(op), "unexpected op (expected ireg): {}", op);
+                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                                match to_ty.v {
+                                    MuType_::Double => self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op),
+                                    MuType_::Float  => self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op),
+                                    _ => panic!("expecing fp type as to type in SITOFP, found {}", to_ty)
                                 }
                             }
                             op::ConvOp::FPTOSI => {
                                 let tmp_res = self.get_result_value(node);
 
-                                if self.match_fpreg(op) {
-                                    let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+
+                                if from_ty.is_double() {
                                     self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op);
+                                } else if from_ty.is_float() {
+                                    self.backend.emit_cvtss2si_r_f32(&tmp_res, &tmp_op);
                                 } else {
-                                    panic!("unexpected op (expected fpreg): {}", op)
+                                    panic!("expected fp type as from type in FPTOSI, found {}", to_ty)
                                 }
                             }
                             op::ConvOp::UITOFP => {
                                 let tmp_res = self.get_result_value(node);
 
-                                if self.match_ireg(op) {
-                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                // FIXME:
+                                assert!(to_ty.is_double(), "only support uitofp (double)");
 
-                                    let op_ty_size = vm.get_backend_type_info(tmp_op.ty.id()).size;
+                                assert!(self.match_ireg(op), "unexpected op (expected ireg): {}", op);
+                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                                    match op_ty_size {
-                                        8 => {
-                                            // movd/movq op -> res
-                                            self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
+                                let op_ty_size = vm.get_backend_type_info(tmp_op.ty.id()).size;
 
-                                            // punpckldq UITOFP_C0, tmp_res -> tmp_res
-                                            // (interleaving low bytes: xmm = xmm[0] mem[0] xmm[1] mem[1]
-                                            let mem_c0 = self.get_mem_for_const(UITOFP_C0.clone(), vm);
-                                            self.backend.emit_punpckldq_f64_mem128(&tmp_res, &mem_c0);
+                                match op_ty_size {
+                                    8 => {
+                                        // movd/movq op -> res
+                                        self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
 
-                                            // subpd UITOFP_C1, tmp_res -> tmp_res
-                                            let mem_c1 = self.get_mem_for_const(UITOFP_C1.clone(), vm);
-                                            self.backend.emit_subpd_f64_mem128(&tmp_res, &mem_c1);
+                                        // punpckldq UITOFP_C0, tmp_res -> tmp_res
+                                        // (interleaving low bytes: xmm = xmm[0] mem[0] xmm[1] mem[1]
+                                        let mem_c0 = self.get_mem_for_const(UITOFP_C0.clone(), vm);
+                                        self.backend.emit_punpckldq_f64_mem128(&tmp_res, &mem_c0);
 
-                                            // haddpd tmp_res, tmp_res -> tmp_res
-                                            self.backend.emit_haddpd_f64_f64(&tmp_res, &tmp_res);
-                                        }
-                                        4 => {
-                                            let tmp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        // subpd UITOFP_C1, tmp_res -> tmp_res
+                                        let mem_c1 = self.get_mem_for_const(UITOFP_C1.clone(), vm);
+                                        self.backend.emit_subpd_f64_mem128(&tmp_res, &mem_c1);
 
-                                            // movl op -> tmp(32)
-                                            let tmp32 = unsafe {tmp.as_type(UINT32_TYPE.clone())};
-                                            self.backend.emit_mov_r_r(&tmp32, &tmp_op);
-
-                                            // cvtsi2sd %tmp(64) -> %tmp_res
-                                            self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp);
-                                        }
-                                        2 | 1 => {
-                                            let tmp_op32 = unsafe {tmp_op.as_type(UINT32_TYPE.clone())};
-                                            self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
-                                        }
-                                        _ => panic!("not implemented int length {}", op_ty_size)
+                                        // haddpd tmp_res, tmp_res -> tmp_res
+                                        self.backend.emit_haddpd_f64_f64(&tmp_res, &tmp_res);
                                     }
-                                } else {
-                                    panic!("unexpected op (expected ireg): {}", op)
+                                    4 => {
+                                        let tmp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                                        // movl op -> tmp(32)
+                                        let tmp32 = unsafe {tmp.as_type(UINT32_TYPE.clone())};
+                                        self.backend.emit_mov_r_r(&tmp32, &tmp_op);
+
+                                        // cvtsi2sd %tmp(64) -> %tmp_res
+                                        self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp);
+                                    }
+                                    2 | 1 => {
+                                        let tmp_op32 = unsafe {tmp_op.as_type(UINT32_TYPE.clone())};
+                                        self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
+                                    }
+                                    _ => panic!("not implemented int length {}", op_ty_size)
                                 }
                             }
                             op::ConvOp::FPTOUI => {
                                 let tmp_res = self.get_result_value(node);
 
+                                // FIXME:
+                                assert!(from_ty.is_double(), "only support fptoui (double)");
+
+                                assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
+                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
                                 let res_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
 
-                                if self.match_fpreg(op) {
-                                    let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                match res_ty_size {
+                                    8 => {
+                                        let tmp1 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
+                                        let tmp2 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
 
-                                    match res_ty_size {
-                                        8 => {
-                                            let tmp1 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
-                                            let tmp2 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
+                                        // movsd FPTOUI_C -> %tmp1
+                                        let mem_c = self.get_mem_for_const(FPTOUI_C.clone(), vm);
+                                        self.backend.emit_movsd_f64_mem64(&tmp1, &mem_c);
 
-                                            // movsd FPTOUI_C -> %tmp1
-                                            let mem_c = self.get_mem_for_const(FPTOUI_C.clone(), vm);
-                                            self.backend.emit_movsd_f64_mem64(&tmp1, &mem_c);
+                                        // movapd %tmp_op -> %tmp2
+                                        self.backend.emit_movapd_f64_f64(&tmp2, &tmp_op);
 
-                                            // movapd %tmp_op -> %tmp2
-                                            self.backend.emit_movapd_f64_f64(&tmp2, &tmp_op);
+                                        // subsd %tmp1, %tmp2 -> %tmp2
+                                        self.backend.emit_subsd_f64_f64(&tmp2, &tmp1);
 
-                                            // subsd %tmp1, %tmp2 -> %tmp2
-                                            self.backend.emit_subsd_f64_f64(&tmp2, &tmp1);
+                                        // cvttsd2si %tmp2 -> %tmp_res
+                                        self.backend.emit_cvttsd2si_r_f64(&tmp_res, &tmp2);
 
-                                            // cvttsd2si %tmp2 -> %tmp_res
-                                            self.backend.emit_cvttsd2si_r_f64(&tmp_res, &tmp2);
+                                        let tmp_const = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        // mov 0x8000000000000000 -> %tmp_const
+                                        self.backend.emit_mov_r64_imm64(&tmp_const, -9223372036854775808i64);
 
-                                            let tmp_const = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                                            // mov 0x8000000000000000 -> %tmp_const
-                                            self.backend.emit_mov_r64_imm64(&tmp_const, -9223372036854775808i64);
+                                        // xor %tmp_res, %tmp_const -> %tmp_const
+                                        self.backend.emit_xor_r_r(&tmp_const, &tmp_res);
 
-                                            // xor %tmp_res, %tmp_const -> %tmp_const
-                                            self.backend.emit_xor_r_r(&tmp_const, &tmp_res);
+                                        // cvttsd2si %tmp_op -> %tmp_res
+                                        self.backend.emit_cvttsd2si_r_f64(&tmp_res, &tmp_op);
 
-                                            // cvttsd2si %tmp_op -> %tmp_res
-                                            self.backend.emit_cvttsd2si_r_f64(&tmp_res, &tmp_op);
+                                        // ucomisd %tmp_op %tmp1
+                                        self.backend.emit_ucomisd_f64_f64(&tmp1, &tmp_op);
 
-                                            // ucomisd %tmp_op %tmp1
-                                            self.backend.emit_ucomisd_f64_f64(&tmp1, &tmp_op);
-
-                                            // cmovaeq %tmp_const -> %tmp_res
-                                            self.backend.emit_cmovae_r_r(&tmp_res, &tmp_const);
-                                        }
-                                        4 => {
-                                            let tmp_res64 = unsafe {tmp_res.as_type(UINT64_TYPE.clone())};
-
-                                            // cvttsd2si %tmp_op -> %tmp_res(64)
-                                            self.backend.emit_cvttsd2si_r_f64(&tmp_res64, &tmp_op);
-                                        }
-                                        2 | 1 => {
-                                            let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
-
-                                            // cvttsd2si %tmp_op -> %tmp_res(32)
-                                            self.backend.emit_cvttsd2si_r_f64(&tmp_res32, &tmp_op);
-
-                                            // movz %tmp_res -> %tmp_res(32)
-                                            self.backend.emit_movz_r_r(&tmp_res32, &tmp_res);
-                                        }
-                                        _ => panic!("not implemented int length {}", res_ty_size)
+                                        // cmovaeq %tmp_const -> %tmp_res
+                                        self.backend.emit_cmovae_r_r(&tmp_res, &tmp_const);
                                     }
-                                } else {
-                                    panic!("unexpected op (expected ireg): {}", op)
+                                    4 => {
+                                        let tmp_res64 = unsafe {tmp_res.as_type(UINT64_TYPE.clone())};
+
+                                        // cvttsd2si %tmp_op -> %tmp_res(64)
+                                        self.backend.emit_cvttsd2si_r_f64(&tmp_res64, &tmp_op);
+                                    }
+                                    2 | 1 => {
+                                        let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
+
+                                        // cvttsd2si %tmp_op -> %tmp_res(32)
+                                        self.backend.emit_cvttsd2si_r_f64(&tmp_res32, &tmp_op);
+
+                                        // movz %tmp_res -> %tmp_res(32)
+                                        self.backend.emit_movz_r_r(&tmp_res32, &tmp_res);
+                                    }
+                                    _ => panic!("not implemented int length {}", res_ty_size)
                                 }
                             }
                             _ => unimplemented!()
@@ -878,14 +887,8 @@ impl <'a> InstructionSelection {
 
                         let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
                         let res_temp = self.get_result_value(node);
-                        
-                        if self.match_ireg(node) {
-                            // emit mov(GPR)
-                            self.backend.emit_mov_r_mem(&res_temp, &resolved_loc);
-                        } else {
-                            // emit mov(FPR)
-                            self.backend.emit_movsd_f64_mem64(&res_temp, &resolved_loc);
-                        }
+
+                        self.emit_move_value_to_value(&res_temp, &resolved_loc);
                     }
                     
                     Instruction_::Store{is_ptr, order, mem_loc, value} => {
@@ -921,11 +924,16 @@ impl <'a> InstructionSelection {
                             } else {
                                 unimplemented!()
                             }
-                        } else {
+                        } else if self.match_fpreg(val_op) {
                             let val = self.emit_fpreg(val_op, f_content, f_context, vm);
 
-                            // emit mov(FPR)
-                            self.backend.emit_movsd_mem64_f64(&resolved_loc, &val);
+                            match val.ty.v {
+                                MuType_::Double => self.backend.emit_movsd_mem64_f64(&resolved_loc, &val),
+                                MuType_::Float  => self.backend.emit_movss_mem32_f32(&resolved_loc, &val),
+                                _ => panic!("unexpected fp type: {}", val.ty)
+                            }
+                        } else {
+                            unimplemented!()
                         }
                     }
 
@@ -1662,20 +1670,43 @@ impl <'a> InstructionSelection {
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let mem_op2 = self.emit_mem(&ops[op2], vm);
 
-                    // mov op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // add op2 res
-                    self.backend.emit_addsd_f64_mem64(&res_tmp, &mem_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // mov op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // add op2 res
+                            self.backend.emit_addsd_f64_mem64(&res_tmp, &mem_op2);
+                        }
+                        MuType_::Float => {
+                            // mov op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // add op2 res
+                            self.backend.emit_addss_f32_mem32(&res_tmp, &mem_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
+
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit add-fpreg-fpreg");
 
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
 
-                    // movsd op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // add op2 res
-                    self.backend.emit_addsd_f64_f64(&res_tmp, &reg_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // movsd op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // add op2 res
+                            self.backend.emit_addsd_f64_f64(&res_tmp, &reg_op2);
+                        }
+                        MuType_::Float => {
+                            // movsd op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // add op2 res
+                            self.backend.emit_addss_f32_f32(&res_tmp, &reg_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fadd: {}", node)
                 }
@@ -1688,20 +1719,42 @@ impl <'a> InstructionSelection {
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let mem_op2 = self.emit_mem(&ops[op2], vm);
 
-                    // mov op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // sub op2 res
-                    self.backend.emit_subsd_f64_mem64(&res_tmp, &mem_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // mov op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // sub op2 res
+                            self.backend.emit_subsd_f64_mem64(&res_tmp, &mem_op2);
+                        }
+                        MuType_::Float => {
+                            // mov op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // sub op2 res
+                            self.backend.emit_subss_f32_mem32(&res_tmp, &mem_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit sub-fpreg-fpreg");
 
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
 
-                    // movsd op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // sub op2 res
-                    self.backend.emit_subsd_f64_f64(&res_tmp, &reg_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // movsd op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // sub op2 res
+                            self.backend.emit_subsd_f64_f64(&res_tmp, &reg_op2);
+                        }
+                        MuType_::Float => {
+                            // movss op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // sub op2 res
+                            self.backend.emit_subss_f32_f32(&res_tmp, &reg_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fsub: {}", node)
                 }
@@ -1714,20 +1767,42 @@ impl <'a> InstructionSelection {
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let mem_op2 = self.emit_mem(&ops[op2], vm);
 
-                    // mov op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // mul op2 res
-                    self.backend.emit_mulsd_f64_mem64(&res_tmp, &mem_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // mov op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // mul op2 res
+                            self.backend.emit_mulsd_f64_mem64(&res_tmp, &mem_op2);
+                        }
+                        MuType_::Float => {
+                            // mov op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // mul op2 res
+                            self.backend.emit_mulss_f32_mem32(&res_tmp, &mem_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit mul-fpreg-fpreg");
 
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
 
-                    // movsd op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // mul op2 res
-                    self.backend.emit_mulsd_f64_f64(&res_tmp, &reg_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // movsd op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // mul op2 res
+                            self.backend.emit_mulsd_f64_f64(&res_tmp, &reg_op2);
+                        }
+                        MuType_::Float  => {
+                            // movss op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // mul op2 res
+                            self.backend.emit_mulss_f32_f32(&res_tmp, &reg_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fmul: {}", node)
                 }
@@ -1740,20 +1815,42 @@ impl <'a> InstructionSelection {
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let mem_op2 = self.emit_mem(&ops[op2], vm);
 
-                    // mov op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // div op2 res
-                    self.backend.emit_divsd_f64_mem64(&res_tmp, &mem_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // mov op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // div op2 res
+                            self.backend.emit_divsd_f64_mem64(&res_tmp, &mem_op2);
+                        }
+                        MuType_::Float => {
+                            // mov op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // div op2 res
+                            self.backend.emit_divss_f32_mem32(&res_tmp, &mem_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit div-fpreg-fpreg");
 
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
 
-                    // movsd op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // div op2 res
-                    self.backend.emit_divsd_f64_f64(&res_tmp, &reg_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // movsd op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // div op2 res
+                            self.backend.emit_divsd_f64_f64(&res_tmp, &reg_op2);
+                        }
+                        MuType_::Float => {
+                            // movss op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // div op2 res
+                            self.backend.emit_divss_f32_f32(&res_tmp, &reg_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fdiv: {}", node)
                 }
@@ -1768,7 +1865,21 @@ impl <'a> InstructionSelection {
 
                     let reg_tmp = self.get_result_value(node);
 
-                    self.emit_runtime_entry(&entrypoints::FREM, vec![reg_op1.clone(), reg_op2.clone()], Some(vec![reg_tmp.clone()]), Some(node), f_content, f_context, vm);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            self.emit_runtime_entry(&entrypoints::FREM_DOUBLE,
+                                                    vec![reg_op1.clone(), reg_op2.clone()],
+                                                    Some(vec![reg_tmp.clone()]),
+                                                    Some(node), f_content, f_context, vm);
+                        }
+                        MuType_::Float  => {
+                            self.emit_runtime_entry(&entrypoints::FREM_FLOAT,
+                                                    vec![reg_op1.clone(), reg_op2.clone()],
+                                                    Some(vec![reg_tmp.clone()]),
+                                                    Some(node), f_content, f_context, vm);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fdiv: {}", node)
                 }
@@ -2013,13 +2124,7 @@ impl <'a> InstructionSelection {
     fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) -> P<Value> {
         let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
 
-        if dest.is_int_reg() {
-            self.backend.emit_mov_r_mem(dest, &mem);
-        } else if dest.is_fp_reg() {
-            self.backend.emit_movsd_f64_mem64(dest, &mem);
-        } else {
-            unimplemented!();
-        }
+        self.emit_move_value_to_value(dest, &mem);
 
         mem
     }
@@ -2381,7 +2486,12 @@ impl <'a> InstructionSelection {
                 if fpr_ret_count < x86_64::RETURN_FPRs.len() {
                     let ref ret_fpr = x86_64::RETURN_FPRs[fpr_ret_count];
 
-                    self.backend.emit_movsd_f64_f64(&ret_val, &ret_fpr);
+                    match ret_val.ty.v {
+                        MuType_::Double => self.backend.emit_movsd_f64_f64(&ret_val, &ret_fpr),
+                        MuType_::Float  => self.backend.emit_movss_f32_f32(&ret_val, &ret_fpr),
+                        _ => panic!("expect double or float")
+                    }
+
                     fpr_ret_count += 1;
                 } else {
                     // get return value by stack
@@ -2742,7 +2852,12 @@ impl <'a> InstructionSelection {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
                     let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
 
-                    self.backend.emit_movsd_f64_f64(&arg, &arg_fpr);
+                    match arg.ty.v {
+                        MuType_::Double => self.backend.emit_movsd_f64_f64(&arg, &arg_fpr),
+                        MuType_::Float  => self.backend.emit_movss_f32_f32(&arg, &arg_fpr),
+                        _ => panic!("expect double or float")
+                    }
+
                     self.current_frame.as_mut().unwrap().add_argument_by_reg(arg.id(), arg_fpr);
 
                     fpr_arg_count += 1;
@@ -2799,7 +2914,12 @@ impl <'a> InstructionSelection {
         let mut fpr_ret_count = 0;
         for i in ret_val_indices {
             let ref ret_val = ops[*i];
-            if self.match_ireg(ret_val) {
+            if self.match_iimm(ret_val) {
+                let imm_ret_val = self.node_iimm_to_i32(ret_val);
+
+                self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
+                gpr_ret_count += 1;
+            } else if self.match_ireg(ret_val) {
                 let reg_ret_val = self.emit_ireg(ret_val, f_content, f_context, vm);
 
                 let ret_gpr = {
@@ -2810,15 +2930,15 @@ impl <'a> InstructionSelection {
                 
                 self.backend.emit_mov_r_r(&ret_gpr, &reg_ret_val);
                 gpr_ret_count += 1;
-            } else if self.match_iimm(ret_val) {
-                let imm_ret_val = self.node_iimm_to_i32(ret_val);
-                
-                self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
-                gpr_ret_count += 1;
             } else if self.match_fpreg(ret_val) {
                 let reg_ret_val = self.emit_fpreg(ret_val, f_content, f_context, vm);
 
-                self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val);
+                match reg_ret_val.ty.v {
+                    MuType_::Double => self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
+                    MuType_::Float  => self.backend.emit_movss_f32_f32(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
+                    _ => panic!("expect double or float")
+                }
+
                 fpr_ret_count += 1;
             } else {
                 unimplemented!();
@@ -2912,7 +3032,11 @@ impl <'a> InstructionSelection {
                                 | op::CmpOp::FOLT
                                 | op::CmpOp::FOLE
                                 | op::CmpOp::FONE => {
-                                    self.backend.emit_comisd_f64_f64(&reg_op2, &reg_op1);
+                                    match reg_op1.ty.v {
+                                        MuType_::Double => self.backend.emit_comisd_f64_f64(&reg_op2, &reg_op1),
+                                        MuType_::Float  => self.backend.emit_comiss_f32_f32(&reg_op2, &reg_op1),
+                                        _ => panic!("expect double or float")
+                                    }
 
                                     op
                                 },
@@ -2922,7 +3046,11 @@ impl <'a> InstructionSelection {
                                 | op::CmpOp::FULT
                                 | op::CmpOp::FULE
                                 | op::CmpOp::FUNE => {
-                                    self.backend.emit_ucomisd_f64_f64(&reg_op2, &reg_op1);
+                                    match reg_op1.ty.v {
+                                        MuType_::Double => self.backend.emit_ucomisd_f64_f64(&reg_op2, &reg_op1),
+                                        MuType_::Float  => self.backend.emit_ucomiss_f32_f32(&reg_op2, &reg_op1),
+                                        _ => panic!("expect double or float")
+                                    }
 
                                     op
                                 },
@@ -3663,14 +3791,30 @@ impl <'a> InstructionSelection {
             }
         } else if types::is_scalar(src_ty) && types::is_fp(src_ty) {
             // fpr mov
-            if dest.is_fp_reg() && src.is_fp_reg() {
-                self.backend.emit_movsd_f64_f64(dest, src);
-            } else if dest.is_fp_reg() && src.is_mem() {
-                self.backend.emit_movsd_f64_mem64(dest, src);
-            } else if dest.is_mem() && src.is_fp_reg() {
-                self.backend.emit_movsd_mem64_f64(dest, src);
-            } else {
-                panic!("unexpected fpr mov between {} -> {}", src, dest);
+            match src_ty.v {
+                MuType_::Double => {
+                    if dest.is_fp_reg() && src.is_fp_reg() {
+                        self.backend.emit_movsd_f64_f64(dest, src);
+                    } else if dest.is_fp_reg() && src.is_mem() {
+                        self.backend.emit_movsd_f64_mem64(dest, src);
+                    } else if dest.is_mem() && src.is_fp_reg() {
+                        self.backend.emit_movsd_mem64_f64(dest, src);
+                    } else {
+                        panic!("unexpected fpr mov between {} -> {}", src, dest);
+                    }
+                }
+                MuType_::Float => {
+                    if dest.is_fp_reg() && src.is_fp_reg() {
+                        self.backend.emit_movss_f32_f32(dest, src);
+                    } else if dest.is_fp_reg() && src.is_mem() {
+                        self.backend.emit_movss_f32_mem32(dest, src);
+                    } else if dest.is_mem() && src.is_fp_reg() {
+                        self.backend.emit_movss_mem32_f32(dest, src);
+                    } else {
+                        panic!("unexpected fpr mov between {} -> {}", src, dest);
+                    }
+                }
+                _ => panic!("expect double or float")
             }
         } else {
             panic!("unexpected mov of type {}", src_ty)

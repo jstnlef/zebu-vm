@@ -188,32 +188,55 @@ pub trait CodeGenerator {
     fn emit_movsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>); // load
     fn emit_movsd_mem64_f64(&mut self, dest: &P<Value>, src: &P<Value>); // store
 
+    fn emit_movss_f32_f32  (&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_movss_f32_mem32(&mut self, dest: &P<Value>, src: &P<Value>); // load
+    fn emit_movss_mem32_f32(&mut self, dest: &P<Value>, src: &P<Value>); // store
+
     // fp add
     fn emit_addsd_f64_f64  (&mut self, dest: Reg, src: Reg);
     fn emit_addsd_f64_mem64(&mut self, dest: Reg, src: Mem);
+
+    fn emit_addss_f32_f32  (&mut self, dest: Reg, src: Reg);
+    fn emit_addss_f32_mem32(&mut self, dest: Reg, src: Mem);
 
     // fp sub
     fn emit_subsd_f64_f64  (&mut self, dest: Reg, src: Reg);
     fn emit_subsd_f64_mem64(&mut self, dest: Reg, src: Mem);
 
+    fn emit_subss_f32_f32  (&mut self, dest: Reg, src: Reg);
+    fn emit_subss_f32_mem32(&mut self, dest: Reg, src: Mem);
+
     // fp div
     fn emit_divsd_f64_f64  (&mut self, dest: Reg, src: Reg);
     fn emit_divsd_f64_mem64(&mut self, dest: Reg, src: Mem);
+
+    fn emit_divss_f32_f32  (&mut self, dest: Reg, src: Reg);
+    fn emit_divss_f32_mem32(&mut self, dest: Reg, src: Mem);
 
     // fp mul
     fn emit_mulsd_f64_f64  (&mut self, dest: Reg, src: Reg);
     fn emit_mulsd_f64_mem64(&mut self, dest: Reg, src: Mem);
 
+    fn emit_mulss_f32_f32  (&mut self, dest: Reg, src: Reg);
+    fn emit_mulss_f32_mem32(&mut self, dest: Reg, src: Mem);
+
     // fp comparison
     fn emit_comisd_f64_f64  (&mut self, op1: Reg, op2: Reg);
     fn emit_ucomisd_f64_f64 (&mut self, op1: Reg, op2: Reg);
 
+    fn emit_comiss_f32_f32  (&mut self, op1: Reg, op2: Reg);
+    fn emit_ucomiss_f32_f32 (&mut self, op1: Reg, op2: Reg);
+
     // fp conversion
     fn emit_cvtsi2sd_f64_r  (&mut self, dest: Reg, src: Reg);
     fn emit_cvtsd2si_r_f64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg);
+
+    fn emit_cvtsi2ss_f32_r  (&mut self, dest: Reg, src: Reg);
+    fn emit_cvtss2si_r_f32  (&mut self, dest: Reg, src: Reg);
 
     // used for unsigned int to fp conversion
+
+    fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg);
 
     // unpack low data - interleave low byte
     fn emit_punpckldq_f64_mem128(&mut self, dest: Reg, src: Mem);

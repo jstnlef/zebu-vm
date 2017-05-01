@@ -13,6 +13,7 @@ use compiler::backend::reg_alloc::validate::exact_liveness::*;
 
 const VERIFY_SPILLING : bool = false;
 
+#[allow(unused_variables)]
 pub fn validate_regalloc(cf: &CompiledFunction,
                          reg_assigned: LinkedHashMap<MuID, MuID>,
                          spill_scratch_regs: LinkedHashMap<MuID, MuID>)

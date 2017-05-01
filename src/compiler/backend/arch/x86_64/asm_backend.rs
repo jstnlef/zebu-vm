@@ -1710,6 +1710,26 @@ impl ASMCodeGen {
         )
     }
 
+    fn internal_fp_mov_f_f(&mut self, inst: &str, dest: Reg, src: Reg) {
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            linked_hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
     fn internal_fp_mov_f_mem(&mut self, inst: &str, dest: Reg, src: Mem,
                              is_spill_related: bool
     ) {
@@ -1835,6 +1855,52 @@ impl ASMCodeGen {
     fn internal_fp_binop_def_r_mem(&mut self, inst: &str, dest: Reg, src: Reg) {
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
         unimplemented!()
+    }
+
+    fn internal_gpr_to_fpr(&mut self, inst: &str, dest: Reg, src: Reg) {
+        let len = check_op_len(src);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {}, {}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            linked_hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    fn internal_fpr_to_gpr(&mut self, inst: &str, dest: Reg, src: Reg) {
+        let len = check_op_len(dest);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src,  inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg  (dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            linked_hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
     }
 
     fn emit_spill_store_gpr(&mut self, dest: Mem, src: Reg) {
@@ -2925,35 +2991,35 @@ impl CodeGenerator for ASMCodeGen {
         )        
     }
 
+    // mov - double
+
     fn emit_movsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
-        trace!("emit: movsd {} -> {}", src, dest);
-
-        let (reg1, id1, loc1) = self.prepare_fpreg(src, 5 + 1);
-        let (reg2, id2, loc2) = self.prepare_fpreg(dest, 5 + 1 + reg1.len() + 1);
-
-        let asm = format!("movsd {},{}", reg1, reg2);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id2 => vec![loc2]
-            },
-            linked_hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
+        self.internal_fp_mov_f_f("movsd", dest, src)
     }
-
     // load
     fn emit_movsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_fp_mov_f_mem("movsd", dest, src, false)
     }
-
     // store
     fn emit_movsd_mem64_f64(&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_fp_mov_mem_f("movsd", dest, src, false)
     }
+
+    // mov - float
+
+    fn emit_movss_f32_f32  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_fp_mov_f_f("movss", dest, src)
+    }
+    // load
+    fn emit_movss_f32_mem32(&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_fp_mov_f_mem("movss", dest, src, false)
+    }
+    // store
+    fn emit_movss_mem32_f32(&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_fp_mov_mem_f("movss", dest, src, false)
+    }
+
+    // compare - double
 
     fn emit_comisd_f64_f64  (&mut self, op1: Reg, op2: Reg) {
         self.internal_fp_binop_no_def_r_r("comisd", op1, op2);
@@ -2962,13 +3028,34 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_fp_binop_no_def_r_r("ucomisd", op1, op2);
     }
 
+    // compare - float
+
+    fn emit_comiss_f32_f32  (&mut self, op1: Reg, op2: Reg) {
+        self.internal_fp_binop_no_def_r_r("comiss", op1, op2);
+    }
+    fn emit_ucomiss_f32_f32 (&mut self, op1: Reg, op2: Reg) {
+        self.internal_fp_binop_no_def_r_r("ucomiss", op1, op2);
+    }
+
+    // add - double
+
     fn emit_addsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_fp_binop_def_r_r("addsd", dest, src);
     }
-
     fn emit_addsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_fp_binop_def_r_mem("addsd", dest, src);
     }
+
+    // add - float
+
+    fn emit_addss_f32_f32  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_fp_binop_def_r_r("addss", dest, src);
+    }
+    fn emit_addss_f32_mem32(&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_fp_binop_def_r_mem("addss", dest, src);
+    }
+
+    // sub - double
 
     fn emit_subsd_f64_f64  (&mut self, dest: Reg, src: Reg) {
         self.internal_fp_binop_def_r_r("subsd", dest, src);
@@ -2977,12 +3064,34 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_fp_binop_def_r_mem("subsd", dest, src);
     }
 
+    // sub - float
+
+    fn emit_subss_f32_f32  (&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_binop_def_r_r("subss", dest, src);
+    }
+    fn emit_subss_f32_mem32(&mut self, dest: Reg, src: Mem) {
+        self.internal_fp_binop_def_r_mem("subss", dest, src);
+    }
+
+    // div - double
+
     fn emit_divsd_f64_f64  (&mut self, dest: Reg, src: Reg) {
         self.internal_fp_binop_def_r_r("divsd", dest, src);
     }
     fn emit_divsd_f64_mem64(&mut self, dest: Reg, src: Mem) {
         self.internal_fp_binop_def_r_mem("divsd", dest, src);
     }
+
+    // div - float
+
+    fn emit_divss_f32_f32  (&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_binop_def_r_r("divss", dest, src);
+    }
+    fn emit_divss_f32_mem32(&mut self, dest: Reg, src: Mem) {
+        self.internal_fp_binop_def_r_mem("divss", dest, src);
+    }
+
+    // mul - double
 
     fn emit_mulsd_f64_f64  (&mut self, dest: Reg, src: Reg) {
         self.internal_fp_binop_def_r_r("mulsd", dest, src);
@@ -2991,50 +3100,31 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_fp_binop_def_r_mem("mulsd", dest, src);
     }
 
-    fn emit_cvtsi2sd_f64_r  (&mut self, dest: Reg, src: Reg) {
-        let len = check_op_len(src);
+    // mul - float
 
-        let inst = "cvtsi2sd".to_string() + &op_postfix(len);
-        trace!("emit: {} {} -> {}", inst, src, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg  (src,  inst.len() + 1);
-        let (reg2, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + reg1.len() + 1);
-
-        let asm = format!("{} {},{}", inst, reg1, reg2);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id2 => vec![loc2]
-            },
-            linked_hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
+    fn emit_mulss_f32_f32  (&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_binop_def_r_r("mulss", dest, src);
+    }
+    fn emit_mulss_f32_mem32(&mut self, dest: Reg, src: Mem) {
+        self.internal_fp_binop_def_r_mem("mulss", dest, src);
     }
 
+    // convert - double
+
+    fn emit_cvtsi2sd_f64_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_gpr_to_fpr("cvtsi2sd", dest, src);
+    }
     fn emit_cvtsd2si_r_f64  (&mut self, dest: Reg, src: Reg) {
-        let len = check_op_len(dest);
+        self.internal_fpr_to_gpr("cvtsd2si", dest, src);
+    }
 
-        let inst = "cvtsd2si".to_string() + &op_postfix(len);
-        trace!("emit: {} {} -> {}", inst, src, dest);
+    // convert - single
 
-        let (reg1, id1, loc1) = self.prepare_fpreg(src,  inst.len() + 1);
-        let (reg2, id2, loc2) = self.prepare_reg  (dest, inst.len() + 1 + reg1.len() + 1);
-
-        let asm = format!("{} {},{}", inst, reg1, reg2);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id2 => vec![loc2]
-            },
-            linked_hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
+    fn emit_cvtsi2ss_f32_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_gpr_to_fpr("cvtsi2ss", dest, src);
+    }
+    fn emit_cvtss2si_r_f32  (&mut self, dest: Reg, src: Reg) {
+        self.internal_fpr_to_gpr("cvtss2si", dest, src);
     }
 
     // unpack low data - interleave low byte
