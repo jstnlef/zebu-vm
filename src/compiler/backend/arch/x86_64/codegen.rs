@@ -39,6 +39,8 @@ pub trait CodeGenerator {
     fn emit_cmp_imm_r(&mut self, op1: i32, op2: Reg);
     fn emit_cmp_mem_r(&mut self, op1: Reg, op2: Reg);
 
+    fn emit_test_r_r (&mut self, op1: Reg, op2: Reg);
+
     // gpr move
 
     // mov imm64 to r64
@@ -172,6 +174,8 @@ pub trait CodeGenerator {
     fn emit_jge(&mut self, dest: MuName);
     fn emit_jl(&mut self, dest: MuName);
     fn emit_jle(&mut self, dest: MuName);
+
+    fn emit_js(&mut self, dest: MuName);
     
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName,    pe: Option<MuName>) -> ValueLocation;
     fn emit_call_near_r64  (&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation;
@@ -237,6 +241,7 @@ pub trait CodeGenerator {
     // used for unsigned int to fp conversion
 
     fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg);
+    fn emit_cvttss2si_r_f32 (&mut self, dest: Reg, src: Reg);
 
     // unpack low data - interleave low byte
     fn emit_punpckldq_f64_mem128(&mut self, dest: Reg, src: Mem);
@@ -248,4 +253,6 @@ pub trait CodeGenerator {
     // move aligned packed double-precision fp values
     fn emit_movapd_f64_mem128(&mut self, dest: Reg, src: Mem);
     fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Mem);
+
+    fn emit_movaps_f32_f32   (&mut self, dest: Reg, src: Reg);
 }

@@ -2158,6 +2158,10 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_binop_no_def_mem_r("cmp", op1, op2)
     }
 
+    fn emit_test_r_r(&mut self, op1: &P<Value>, op2: &P<Value>) {
+        self.internal_binop_no_def_r_r("test", op1, op2)
+    }
+
     // mov
 
     fn emit_mov_r64_imm64  (&mut self, dest: &P<Value>, src: i64) {
@@ -2869,7 +2873,14 @@ impl CodeGenerator for ASMCodeGen {
         
         let asm = format!("jle {}", symbol(self.mangle_block_label(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
-    }    
+    }
+
+    fn emit_js(&mut self, dest_name: MuName) {
+        trace!("emit: js {}", dest_name);
+
+        let asm = format!("js {}", symbol(self.mangle_block_label(dest_name.clone())));
+        self.add_asm_branch2(asm, dest_name);
+    }
 
     #[cfg(target_os = "macos")]
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
@@ -2996,6 +3007,9 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_movsd_f64_f64  (&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_fp_mov_f_f("movsd", dest, src)
     }
+    fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_mov_f_f("movapd", dest, src);
+    }
     // load
     fn emit_movsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_fp_mov_f_mem("movsd", dest, src, false)
@@ -3009,6 +3023,9 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_movss_f32_f32  (&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_fp_mov_f_f("movss", dest, src)
+    }
+    fn emit_movaps_f32_f32   (&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_mov_f_f("movaps", dest, src);
     }
     // load
     fn emit_movss_f32_mem32(&mut self, dest: &P<Value>, src: &P<Value>) {
@@ -3117,6 +3134,9 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_cvtsd2si_r_f64  (&mut self, dest: Reg, src: Reg) {
         self.internal_fpr_to_gpr("cvtsd2si", dest, src);
     }
+    fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg) {
+        self.internal_fpr_to_gpr("cvttsd2si", dest, src);
+    }
 
     // convert - single
 
@@ -3125,6 +3145,9 @@ impl CodeGenerator for ASMCodeGen {
     }
     fn emit_cvtss2si_r_f32  (&mut self, dest: Reg, src: Reg) {
         self.internal_fpr_to_gpr("cvtss2si", dest, src);
+    }
+    fn emit_cvttss2si_r_f32 (&mut self, dest: Reg, src: Reg) {
+        self.internal_fpr_to_gpr("cvttss2si", dest, src);
     }
 
     // unpack low data - interleave low byte
@@ -3215,48 +3238,6 @@ impl CodeGenerator for ASMCodeGen {
             },
             uses,
             true
-        )
-    }
-    fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Reg) {
-        trace!("emit movapd {} -> {}", src, dest);
-
-        let (reg1, id1, loc1) = self.prepare_fpreg(src,  6 + 1);
-        let (reg2, id2, loc2) = self.prepare_fpreg(dest, 6 + 1 + reg1.len() + 1);
-
-        let asm = format!("movapd {},{}", reg1, reg2);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id2 => vec![loc2.clone()]
-            },
-            linked_hashmap!{
-                id1 => vec![loc1.clone()]
-            },
-            false
-        )
-    }
-
-    fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg) {
-        let len = check_op_len(dest);
-
-        let inst = "cvttsd2si".to_string() + &op_postfix(len);
-        trace!("emit: {} {} -> {}", inst, src, dest);
-
-        let (reg1, id1, loc1) = self.prepare_fpreg(src,  inst.len() + 1);
-        let (reg2, id2, loc2) = self.prepare_reg  (dest, inst.len() + 1 + reg1.len() + 1);
-
-        let asm = format!("{} {},{}", inst, reg1, reg2);
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id2 => vec![loc2]
-            },
-            linked_hashmap!{
-                id1 => vec![loc1]
-            },
-            false
         )
     }
 }
