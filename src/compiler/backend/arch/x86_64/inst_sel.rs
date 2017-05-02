@@ -876,7 +876,7 @@ impl <'a> InstructionSelection {
                                 let tmp_res = self.get_result_value(node);
 
                                 assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
-                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
                                 let res_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
 
                                 if from_ty.is_double() {
