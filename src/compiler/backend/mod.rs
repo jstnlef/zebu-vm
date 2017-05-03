@@ -92,6 +92,10 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
                     size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
                 },
+                128 => BackendTypeInfo {
+                    size: 16, alignment: 16, struct_layout: None, elem_padded_size: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(16, 16))
+                },
                 _ => unimplemented!()
             }
         },

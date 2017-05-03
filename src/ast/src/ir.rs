@@ -811,7 +811,10 @@ pub struct SSAVarEntry {
     use_count: AtomicUsize,
 
     // this field is only used during TreeGeneration pass
-    expr: Option<Instruction>
+    expr: Option<Instruction>,
+
+    // some ssa vars (such as int128) needs to be split into smaller vars
+    split: Option<Vec<P<Value>>>
 }
 
 impl Encodable for SSAVarEntry {
@@ -821,6 +824,7 @@ impl Encodable for SSAVarEntry {
             let count = self.use_count.load(Ordering::SeqCst);
             try!(s.emit_struct_field("use_count", 1, |s| s.emit_usize(count)));
             try!(s.emit_struct_field("expr", 2, |s| self.expr.encode(s)));
+            try!(s.emit_struct_field("split", 3, |s| self.split.encode(s)));
             Ok(())
         })
     }
@@ -829,14 +833,16 @@ impl Encodable for SSAVarEntry {
 impl Decodable for SSAVarEntry {
     fn decode<D: Decoder>(d: &mut D) -> Result<SSAVarEntry, D::Error> {
         d.read_struct("SSAVarEntry", 3, |d| {
-            let val = try!(d.read_struct_field("val", 0, |d| Decodable::decode(d)));
+            let val   = try!(d.read_struct_field("val", 0, |d| Decodable::decode(d)));
             let count = try!(d.read_struct_field("use_count", 1, |d| d.read_usize()));
-            let expr = try!(d.read_struct_field("expr", 2, |d| Decodable::decode(d)));
+            let expr  = try!(d.read_struct_field("expr", 2, |d| Decodable::decode(d)));
+            let split = try!(d.read_struct_field("split", 3, |d| Decodable::decode(d)));
             
             let ret = SSAVarEntry {
                 val: val,
                 use_count: ATOMIC_USIZE_INIT,
-                expr: expr
+                expr: expr,
+                split: Some(split)
             };
             
             ret.use_count.store(count, Ordering::SeqCst);
@@ -851,7 +857,8 @@ impl SSAVarEntry {
         let ret = SSAVarEntry {
             val: val,
             use_count: ATOMIC_USIZE_INIT,
-            expr: None
+            expr: None,
+            split: None
         };
         
         ret.use_count.store(0, Ordering::SeqCst);
@@ -886,6 +893,16 @@ impl SSAVarEntry {
     pub fn take_expr(&mut self) -> Instruction {
         debug_assert!(self.has_expr());
         self.expr.take().unwrap()
+    }
+
+    pub fn has_split(&self) -> bool {
+        self.split.is_some()
+    }
+    pub fn set_split(&mut self, vec: Vec<P<Value>>) {
+        self.split = Some(vec);
+    }
+    pub fn get_split(&self) -> &Option<Vec<P<Value>>> {
+        &self.split
     }
 }
 

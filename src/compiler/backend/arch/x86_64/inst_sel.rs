@@ -2911,7 +2911,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, vm: &VM) {
+    fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, f_context: &mut FunctionContext, vm: &VM) {
         let block_name = PROLOGUE_BLOCK_NAME.to_string();
         self.backend.start_block(block_name.clone());
         
@@ -2974,14 +2974,23 @@ impl <'a> InstructionSelection {
                     gpr_arg_count += 1;
                 } else {
                     arg_by_stack.push(arg.clone());
-//                    // unload from stack
-//                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-//
-//                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
-//
-//                    // move stack_arg_offset by the size of 'arg'
-//                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
-//                    stack_arg_offset += arg_size as i32;
+                }
+            } else if RegGroup::get_from_value(&arg) == RegGroup::GPREX && arg.is_reg() {
+                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRs.len() {
+                    // we need two registers
+                    let gpr1 = x86_64::ARGUMENT_GPRs[gpr_arg_count].clone();
+                    let gpr2 = x86_64::ARGUMENT_GPRs[gpr_arg_count + 1].clone();
+
+                    let (arg_l, arg_h) = self.split_int128(&arg, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&arg_l, &gpr1);
+                    self.current_frame.as_mut().unwrap().add_argument_by_reg(arg_l.id(), gpr1);
+                    self.backend.emit_mov_r_r(&arg_h, &gpr2);
+                    self.current_frame.as_mut().unwrap().add_argument_by_reg(arg_h.id(), gpr2);
+
+                    gpr_arg_count += 2;
+                } else {
+                    arg_by_stack.push(arg.clone())
                 }
             } else if RegGroup::get_from_value(&arg) == RegGroup::FPR && arg.is_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
@@ -2998,14 +3007,6 @@ impl <'a> InstructionSelection {
                     fpr_arg_count += 1;
                 } else {
                     arg_by_stack.push(arg.clone());
-//                    // unload from stack
-//                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-//
-//                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
-//
-//                    // move stack_arg_offset by the size of 'arg'
-//                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
-//                    stack_arg_offset += arg_size as i32;
                 }
             } else {
                 // args that are not fp or int (possibly struct/array/etc)
@@ -3044,37 +3045,68 @@ impl <'a> InstructionSelection {
             Instruction_::Return(ref vals) => vals,
             _ => panic!("expected ret inst")
         };
-        
+
         let mut gpr_ret_count = 0;
         let mut fpr_ret_count = 0;
         for i in ret_val_indices {
             let ref ret_val = ops[*i];
+
             if self.match_iimm(ret_val) {
                 let imm_ret_val = self.node_iimm_to_i32(ret_val);
 
-                self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
-                gpr_ret_count += 1;
+                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                    self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
+                    gpr_ret_count += 1;
+                } else {
+                    // pass by stack
+                    unimplemented!()
+                }
             } else if self.match_ireg(ret_val) {
                 let reg_ret_val = self.emit_ireg(ret_val, f_content, f_context, vm);
 
-                let ret_gpr = {
-                    let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
-                    let expected_len = reg_ret_val.ty.get_int_length().unwrap();
-                    x86_64::get_alias_for_length(reg64.id(), expected_len)
-                };
-                
-                self.backend.emit_mov_r_r(&ret_gpr, &reg_ret_val);
-                gpr_ret_count += 1;
+                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                    let ret_gpr = {
+                        let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
+                        let expected_len = reg_ret_val.ty.get_int_length().unwrap();
+                        x86_64::get_alias_for_length(reg64.id(), expected_len)
+                    };
+
+                    self.backend.emit_mov_r_r(&ret_gpr, &reg_ret_val);
+                    gpr_ret_count += 1;
+                } else {
+                    // pass by stack
+                    unimplemented!()
+                }
+            } else if self.match_ireg_ex(ret_val) {
+                let (ret_val1, ret_val2) = self.emit_ireg_ex(ret_val, f_content, f_context, vm);
+
+                if gpr_ret_count + 1 < x86_64::RETURN_GPRs.len() {
+                    let ret_gpr1 = x86_64::RETURN_GPRs[gpr_ret_count].clone();
+                    let ret_gpr2 = x86_64::RETURN_GPRs[gpr_ret_count].clone();
+
+                    self.backend.emit_mov_r_r(&ret_gpr1, &ret_val1);
+                    self.backend.emit_mov_r_r(&ret_gpr2, &ret_val2);
+
+                    gpr_ret_count += 2;
+                } else {
+                    // pass by stack
+                    unimplemented!()
+                }
             } else if self.match_fpreg(ret_val) {
                 let reg_ret_val = self.emit_fpreg(ret_val, f_content, f_context, vm);
 
-                match reg_ret_val.ty.v {
-                    MuType_::Double => self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
-                    MuType_::Float  => self.backend.emit_movss_f32_f32(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
-                    _ => panic!("expect double or float")
-                }
+                if fpr_ret_count < x86_64::RETURN_FPRs.len() {
+                    match reg_ret_val.ty.v {
+                        MuType_::Double => self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
+                        MuType_::Float  => self.backend.emit_movss_f32_f32(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
+                        _ => panic!("expect double or float")
+                    }
 
-                fpr_ret_count += 1;
+                    fpr_ret_count += 1;
+                } else {
+                    // pass by stack
+                    unimplemented!()
+                }
             } else {
                 unimplemented!();
             }
@@ -3227,6 +3259,32 @@ impl <'a> InstructionSelection {
         }
     }
 
+    fn match_ireg_ex(&mut self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        return false;
+                    }
+
+                    let ref value = inst.value.as_ref().unwrap()[0];
+
+                    if RegGroup::get_from_value(&value) == RegGroup::GPREX && value.is_reg() {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+
+            TreeNode_::Value(ref pv) => {
+                RegGroup::get_from_value(&pv) == RegGroup::GPREX
+            }
+        }
+    }
+
     fn match_fpreg(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
@@ -3293,6 +3351,30 @@ impl <'a> InstructionSelection {
                         tmp
                     },
                     _ => panic!("expected ireg")
+                }
+            }
+        }
+    }
+
+    fn emit_ireg_ex(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>) {
+        match op.v {
+            TreeNode_::Instruction(_) => {
+                self.instruction_select(op, f_content, f_context, vm);
+
+                let res = self.get_result_value(op);
+
+                // find split for res
+                self.split_int128(&res, f_context, vm)
+            },
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::SSAVar(_) => {
+                        self.split_int128(pv, f_context, vm)
+                    },
+                    Value_::Constant(ref c) => {
+                        unimplemented!()
+                    }
+                    _ => panic!("expected ireg_ex")
                 }
             }
         }
@@ -4022,6 +4104,20 @@ impl <'a> InstructionSelection {
         }
     }
 
+    fn split_int128(&mut self, int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>){
+        if f_context.get_value(int128.id()).unwrap().has_split() {
+            let vec = f_context.get_value(int128.id()).unwrap().get_split().as_ref().unwrap();
+            (vec[0].clone(), vec[1].clone())
+        } else {
+            let arg_l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+            let arg_h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+            f_context.get_value_mut(int128.id()).unwrap().set_split(vec![arg_l.clone(), arg_h.clone()]);
+
+            (arg_l, arg_h)
+        }
+    }
+
     fn finish_block(&mut self) {
         let cur_block = self.current_block.as_ref().unwrap().clone();
         self.backend.end_block(cur_block.clone());
@@ -4069,7 +4165,9 @@ impl CompilerPass for InstructionSelection {
         
         // prologue (get arguments from entry block first)
         let ref args = entry_block.content.as_ref().unwrap().args;
-        self.emit_common_prologue(args, vm);
+        {
+            self.emit_common_prologue(args, &mut func_ver.context, vm);
+        }
     }
 
     #[allow(unused_variables)]
