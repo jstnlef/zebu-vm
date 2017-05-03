@@ -98,14 +98,6 @@ impl MuType {
         }
     }
 
-    pub fn get_struct_hybrid_tag(&self) -> Option<MuName> {
-        match self.v {
-            MuType_::Hybrid(ref name)
-            | MuType_::Struct(ref name) => Some(name.clone()),
-            _ => None
-        }
-    }
-
     pub fn is_ref(&self) -> bool {
         match self.v {
             MuType_::Ref(_) => true,
@@ -117,6 +109,152 @@ impl MuType {
         match self.v {
             MuType_::IRef(_) => true,
             _ => false
+        }
+    }
+
+    pub fn is_fp(&self) -> bool {
+        match self.v {
+            MuType_::Float | MuType_::Double => true,
+            _ => false
+        }
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self.v {
+            MuType_::Float => true,
+            _ => false
+        }
+    }
+
+    pub fn is_double(&self) -> bool {
+        match self.v {
+            MuType_::Double => true,
+            _ => false
+        }
+    }
+
+    /// is a type raw pointer?
+    pub fn is_ptr(&self) -> bool {
+        match self.v {
+            MuType_::UPtr(_) | MuType_::UFuncPtr(_) => true,
+            _ => false
+        }
+    }
+
+    /// this a type reference type (located in heap)?
+    pub fn is_reference(&self) -> bool {
+        match self.v {
+            MuType_::Ref(_)
+            | MuType_::IRef(_)
+            | MuType_::WeakRef(_) => true,
+            _ => false
+        }
+    }
+
+    /// this is a aggregated type (consited of other types)
+    pub fn is_aggregate(&self) -> bool {
+        match self.v {
+            MuType_::Struct(_)
+            | MuType_::Hybrid(_)
+            | MuType_::Array(_, _) => true,
+            _ => false
+        }
+    }
+
+    /// is a type scalar type?
+    pub fn is_scalar(&self) -> bool {
+        match self.v {
+            MuType_::Int(_)
+            | MuType_::Float
+            | MuType_::Double
+            | MuType_::Ref(_)
+            | MuType_::IRef(_)
+            | MuType_::WeakRef(_)
+            | MuType_::FuncRef(_)
+            | MuType_::UFuncPtr(_)
+            | MuType_::ThreadRef
+            | MuType_::StackRef
+            | MuType_::Tagref64
+            | MuType_::UPtr(_) => true,
+            _ => false
+        }
+    }
+
+    /// is a type traced by the garbage collector?
+    /// Note: An aggregated type is traced if any of its part is traced.
+    pub fn is_traced(&self) -> bool {
+        match self.v {
+            MuType_::Ref(_) => true,
+            MuType_::IRef(_) => true,
+            MuType_::WeakRef(_) => true,
+            MuType_::Array(ref elem_ty, _)
+            | MuType_::Vector(ref elem_ty, _) => elem_ty.is_traced(),
+            MuType_::ThreadRef
+            | MuType_::StackRef
+            | MuType_::Tagref64 => true,
+            MuType_::Hybrid(ref tag) => {
+                let map = HYBRID_TAG_MAP.read().unwrap();
+                let hybrid_ty = map.get(tag).unwrap();
+
+                let ref fix_tys = hybrid_ty.fix_tys;
+                let ref var_ty  = hybrid_ty.var_ty;
+
+                var_ty.is_traced() ||
+                    fix_tys.into_iter().map(|ty| ty.is_traced())
+                        .fold(false, |ret, this| ret || this)
+            },
+            MuType_::Struct(ref tag) => {
+                let map = STRUCT_TAG_MAP.read().unwrap();
+                let struct_ty = map.get(tag).unwrap();
+                let ref field_tys = struct_ty.tys;
+
+                field_tys.into_iter().map(|ty| ty.is_traced())
+                    .fold(false, |ret, this| ret || this)
+            },
+            _ => false
+        }
+    }
+
+    /// is a type native safe?
+    /// Note: An aggregated type is native safe if all of its parts are native safe.
+    pub fn is_native_safe(&self) -> bool {
+        match self.v {
+            MuType_::Int(_) => true,
+            MuType_::Float => true,
+            MuType_::Double => true,
+            MuType_::Void => true,
+            MuType_::Array(ref elem_ty, _)
+            | MuType_::Vector(ref elem_ty, _) => elem_ty.is_native_safe(),
+            MuType_::UPtr(_) => true,
+            MuType_::UFuncPtr(_) => true,
+            MuType_::Hybrid(ref tag) => {
+                let map = HYBRID_TAG_MAP.read().unwrap();
+                let hybrid_ty = map.get(tag).unwrap();
+
+                let ref fix_tys = hybrid_ty.fix_tys;
+                let ref var_ty  = hybrid_ty.var_ty;
+
+                var_ty.is_native_safe() &&
+                    fix_tys.into_iter().map(|ty| ty.is_native_safe())
+                        .fold(true, |ret, this| ret && this)
+            },
+            MuType_::Struct(ref tag) => {
+                let map = STRUCT_TAG_MAP.read().unwrap();
+                let struct_ty = map.get(tag).unwrap();
+                let ref field_tys = struct_ty.tys;
+
+                field_tys.into_iter().map(|ty| ty.is_native_safe())
+                    .fold(true, |ret, this| ret && this)
+            },
+            _ => false
+        }
+    }
+
+    pub fn get_struct_hybrid_tag(&self) -> Option<MuName> {
+        match self.v {
+            MuType_::Hybrid(ref name)
+            | MuType_::Struct(ref name) => Some(name.clone()),
+            _ => None
         }
     }
 
@@ -182,20 +320,6 @@ impl MuType {
             | FuncRef(_)
             | UFuncPtr(_) => Some(64),
             _ => None
-        }
-    }
-
-    pub fn is_float(&self) -> bool {
-        match self.v {
-            MuType_::Float => true,
-            _ => false
-        }
-    }
-
-    pub fn is_double(&self) -> bool {
-        match self.v {
-            MuType_::Double => true,
-            _ => false
         }
     }
 }
@@ -481,131 +605,6 @@ impl MuType_ {
     }
     pub fn ufuncptr(sig: P<MuFuncSig>) -> MuType_ {
         MuType_::UFuncPtr(sig)
-    }
-}
-
-/// is a type floating-point type?
-pub fn is_fp(ty: &MuType) -> bool {
-    match ty.v {
-        MuType_::Float | MuType_::Double => true,
-        _ => false
-    }
-}
-
-/// is a type raw pointer?
-pub fn is_ptr(ty: &MuType) -> bool {
-    match ty.v {
-        MuType_::UPtr(_) | MuType_::UFuncPtr(_) => true,
-        _ => false
-    }
-}
-
-/// this a type reference type (located in heap)?
-pub fn is_reference(ty: &MuType) -> bool {
-    match ty.v {
-        MuType_::Ref(_)
-        | MuType_::IRef(_)
-        | MuType_::WeakRef(_) => true,
-        _ => false
-    }
-}
-
-/// this is a aggregated type (consited of other types)
-pub fn is_aggregate(ty: &MuType) -> bool {
-    match ty.v {
-        MuType_::Struct(_)
-        | MuType_::Hybrid(_)
-        | MuType_::Array(_, _) => true,
-        _ => false
-    }
-}
-
-/// is a type scalar type?
-pub fn is_scalar(ty: &MuType) -> bool {
-    match ty.v {
-        MuType_::Int(_)
-        | MuType_::Float
-        | MuType_::Double
-        | MuType_::Ref(_)
-        | MuType_::IRef(_)
-        | MuType_::WeakRef(_)
-        | MuType_::FuncRef(_)
-        | MuType_::UFuncPtr(_)
-        | MuType_::ThreadRef
-        | MuType_::StackRef
-        | MuType_::Tagref64
-        | MuType_::UPtr(_) => true,
-        _ => false
-    }
-}
-
-/// is a type traced by the garbage collector?
-/// Note: An aggregated type is traced if any of its part is traced.
-pub fn is_traced(ty: &MuType) -> bool {
-    match ty.v {
-        MuType_::Ref(_) => true,
-        MuType_::IRef(_) => true,
-        MuType_::WeakRef(_) => true,
-        MuType_::Array(ref elem_ty, _)
-        | MuType_::Vector(ref elem_ty, _) => is_traced(elem_ty),
-        MuType_::ThreadRef
-        | MuType_::StackRef
-        | MuType_::Tagref64 => true,
-        MuType_::Hybrid(ref tag) => {
-            let map = HYBRID_TAG_MAP.read().unwrap();
-            let hybrid_ty = map.get(tag).unwrap();
-
-            let ref fix_tys = hybrid_ty.fix_tys;
-            let ref var_ty  = hybrid_ty.var_ty;
-
-            is_traced(var_ty) ||
-            fix_tys.into_iter().map(|ty| is_traced(ty))
-                .fold(false, |ret, this| ret || this)
-            },
-        MuType_::Struct(ref tag) => {
-            let map = STRUCT_TAG_MAP.read().unwrap();
-            let struct_ty = map.get(tag).unwrap();
-            let ref field_tys = struct_ty.tys;
-
-            field_tys.into_iter().map(|ty| is_traced(&ty))
-                .fold(false, |ret, this| ret || this)
-        },
-        _ => false
-    }
-}
-
-/// is a type native safe?
-/// Note: An aggregated type is native safe if all of its parts are native safe.
-pub fn is_native_safe(ty: &MuType) -> bool {
-    match ty.v {
-        MuType_::Int(_) => true,
-        MuType_::Float => true,
-        MuType_::Double => true,
-        MuType_::Void => true,
-        MuType_::Array(ref elem_ty, _)
-        | MuType_::Vector(ref elem_ty, _) => is_native_safe(elem_ty),
-        MuType_::UPtr(_) => true,
-        MuType_::UFuncPtr(_) => true,
-        MuType_::Hybrid(ref tag) => {
-            let map = HYBRID_TAG_MAP.read().unwrap();
-            let hybrid_ty = map.get(tag).unwrap();
-
-            let ref fix_tys = hybrid_ty.fix_tys;
-            let ref var_ty  = hybrid_ty.var_ty;
-
-            is_native_safe(var_ty) &&
-            fix_tys.into_iter().map(|ty| is_native_safe(&ty))
-                .fold(true, |ret, this| ret && this)
-        },
-        MuType_::Struct(ref tag) => {
-            let map = STRUCT_TAG_MAP.read().unwrap();
-            let struct_ty = map.get(tag).unwrap();
-            let ref field_tys = struct_ty.tys;
-
-            field_tys.into_iter().map(|ty| is_native_safe(&ty))
-                .fold(true, |ret, this| ret && this)
-        },
-        _ => false
     }
 }
 

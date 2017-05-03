@@ -126,65 +126,65 @@ fn test_cyclic_struct() {
 fn test_is_traced() {
     let types = create_types();
     
-    assert_eq!(is_traced(&types[0]), false);
-    assert_eq!(is_traced(&types[1]), false);
-    assert_eq!(is_traced(&types[2]), false);
-    assert_eq!(is_traced(&types[3]), true);
-    assert_eq!(is_traced(&types[4]), true);
-    assert_eq!(is_traced(&types[5]), true);
-    assert_eq!(is_traced(&types[6]), false);
-    assert_eq!(is_traced(&types[7]), false);
+    assert_eq!(types[0].is_traced(), false);
+    assert_eq!(types[1].is_traced(), false);
+    assert_eq!(types[2].is_traced(), false);
+    assert_eq!(types[3].is_traced(), true);
+    assert_eq!(types[4].is_traced(), true);
+    assert_eq!(types[5].is_traced(), true);
+    assert_eq!(types[6].is_traced(), false);
+    assert_eq!(types[7].is_traced(), false);
     let struct3 = MuType::new(100, MuType_::mustruct("MyStructTag3".to_string(), vec![types[3].clone(), types[0].clone()]));
-    assert_eq!(is_traced(&struct3), true);
+    assert_eq!(struct3.is_traced(), true);
     let struct4 = MuType::new(101, MuType_::mustruct("MyStructTag4".to_string(), vec![types[3].clone(), types[4].clone()]));
-    assert_eq!(is_traced(&struct4), true);
-    assert_eq!(is_traced(&types[8]), false);
+    assert_eq!(struct4.is_traced(), true);
+    assert_eq!(types[8].is_traced(), false);
     let ref_array = MuType::new(102, MuType_::array(types[3].clone(), 5));
-    assert_eq!(is_traced(&ref_array), true);
-    assert_eq!(is_traced(&types[9]), false);
+    assert_eq!(ref_array.is_traced(), true);
+    assert_eq!(types[9].is_traced(), false);
     let fix_ref_hybrid = MuType::new(103, MuType_::hybrid("FixRefHybrid".to_string(), vec![types[3].clone(), types[0].clone()], types[0].clone()));
-    assert_eq!(is_traced(&fix_ref_hybrid), true);
+    assert_eq!(fix_ref_hybrid.is_traced(), true);
     let var_ref_hybrid = MuType::new(104, MuType_::hybrid("VarRefHybrid".to_string(), vec![types[0].clone(), types[1].clone()], types[3].clone()));
-    assert_eq!(is_traced(&var_ref_hybrid), true);
-    assert_eq!(is_traced(&types[10]), false);
-    assert_eq!(is_traced(&types[11]), true);
-    assert_eq!(is_traced(&types[12]), true);
-    assert_eq!(is_traced(&types[13]), true);
-    assert_eq!(is_traced(&types[14]), false);
-    assert_eq!(is_traced(&types[15]), false);
-    assert_eq!(is_traced(&types[16]), false);
+    assert_eq!(var_ref_hybrid.is_traced(), true);
+    assert_eq!(types[10].is_traced(), false);
+    assert_eq!(types[11].is_traced(), true);
+    assert_eq!(types[12].is_traced(), true);
+    assert_eq!(types[13].is_traced(), true);
+    assert_eq!(types[14].is_traced(), false);
+    assert_eq!(types[15].is_traced(), false);
+    assert_eq!(types[16].is_traced(), false);
 }
 
 #[test]
 fn test_is_native_safe() {
     let types = create_types();    
     
-    assert_eq!(is_native_safe(&types[0]), true);
-    assert_eq!(is_native_safe(&types[1]), true);
-    assert_eq!(is_native_safe(&types[2]), true);
-    assert_eq!(is_native_safe(&types[3]), false);
-    assert_eq!(is_native_safe(&types[4]), false);
-    assert_eq!(is_native_safe(&types[5]), false);
-    assert_eq!(is_native_safe(&types[6]), true);
-    assert_eq!(is_native_safe(&types[7]), true);
+    assert_eq!(types[0].is_native_safe(), true);
+    assert_eq!(types[1].is_native_safe(), true);
+    assert_eq!(types[2].is_native_safe(), true);
+    assert_eq!(types[3].is_native_safe(), false);
+    assert_eq!(types[4].is_native_safe(), false);
+    assert_eq!(types[5].is_native_safe(), false);
+    assert_eq!(types[6].is_native_safe(), true);
+    assert_eq!(types[7].is_native_safe(), true);
     let struct3 = MuType::new(100, MuType_::mustruct("MyStructTag3".to_string(), vec![types[3].clone(), types[0].clone()]));
-    assert_eq!(is_native_safe(&struct3), false);
+    assert_eq!(struct3.is_native_safe(), false);
     let struct4 = MuType::new(101, MuType_::mustruct("MyStructTag4".to_string(), vec![types[3].clone(), types[4].clone()]));
-    assert_eq!(is_native_safe(&struct4), false);
-    assert_eq!(is_native_safe(&types[8]), true);
+    assert_eq!(struct4.is_native_safe(), false);
+    assert_eq!(types[8].is_native_safe(), true);
     let ref_array = MuType::new(102, MuType_::array(types[3].clone(), 5));
-    assert_eq!(is_native_safe(&ref_array), false);
-    assert_eq!(is_native_safe(&types[9]), true);
+    assert_eq!(ref_array.is_native_safe(), false);
+    assert_eq!(types[9].is_native_safe(), true);
     let fix_ref_hybrid = MuType::new(103, MuType_::hybrid("FixRefHybrid".to_string(), vec![types[3].clone(), types[0].clone()], types[0].clone()));
-    assert_eq!(is_native_safe(&fix_ref_hybrid), false);
+    assert_eq!(fix_ref_hybrid.is_native_safe(), false);
     let var_ref_hybrid = MuType::new(104, MuType_::hybrid("VarRefHybrid".to_string(), vec![types[0].clone(), types[1].clone()], types[3].clone()));
-    assert_eq!(is_native_safe(&var_ref_hybrid), false);
-    assert_eq!(is_native_safe(&types[10]), true);
-    assert_eq!(is_native_safe(&types[11]), false);
-    assert_eq!(is_native_safe(&types[12]), false);
-    assert_eq!(is_native_safe(&types[13]), false);
-    assert_eq!(is_native_safe(&types[14]), true);
-    assert_eq!(is_native_safe(&types[15]), false);    // funcref is not native safe
+    assert_eq!(var_ref_hybrid.is_native_safe(), false);
+    assert_eq!(types[10].is_native_safe(), true);
+    assert_eq!(types[11].is_native_safe(), false);
+    assert_eq!(types[12].is_native_safe(), false);
+    assert_eq!(types[13].is_native_safe(), false);
+    assert_eq!(types[14].is_native_safe(), true);
+    assert_eq!(types[15].is_native_safe(), false);    // funcref is not native safe
                                                       // and not traced either
-    assert_eq!(is_native_safe(&types[16]), true);
+    assert_eq!(types[16].is_native_safe(), true);
 }
