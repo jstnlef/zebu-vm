@@ -16,6 +16,7 @@ use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 use compiler::backend;
+use compiler::backend::RegGroup;
 use compiler::backend::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
@@ -601,7 +602,7 @@ impl <'a> InstructionSelection {
                         let mut status_value_index = 1;
 
                         // status flags only works with int operations
-                        if values[0].is_int_reg() {
+                        if RegGroup::get_from_value(&values[0]) == RegGroup::GPR {
                             // negative flag
                             if status.flag_n {
                                 let tmp_status = values[status_value_index].clone();
@@ -2206,7 +2207,7 @@ impl <'a> InstructionSelection {
             // new block (no livein)
             self.current_block = Some(slowpath.clone());
             self.backend.start_block(slowpath.clone());
-            if size.is_int_reg() {
+            if RegGroup::get_from_value(&size) == RegGroup::GPR {
                 self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
             }
 
@@ -2466,7 +2467,9 @@ impl <'a> InstructionSelection {
         let mut fpr_arg_count = 0;
 
         for arg in args.iter() {
-            if arg.is_int_reg() {
+            let arg_reg_group = RegGroup::get_from_value(&arg);
+
+            if arg_reg_group == RegGroup::GPR && arg.is_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
                     let arg_gpr = {
                         let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
@@ -2480,7 +2483,7 @@ impl <'a> InstructionSelection {
                     // use stack to pass argument
                     stack_args.push(arg.clone());
                 }
-            } else if arg.is_int_const() {
+            } else if arg_reg_group == RegGroup::GPR && arg.is_const() {
                 let int_const = arg.extract_int_const();
 
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
@@ -2501,9 +2504,7 @@ impl <'a> InstructionSelection {
                     // use stack to pass argument
                     stack_args.push(arg.clone());
                 }
-            } else if arg.is_mem() {
-                unimplemented!()
-            } else if arg.is_fp_reg() {
+            } else if arg_reg_group == RegGroup::FPR && arg.is_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
                     let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
 
@@ -2513,7 +2514,7 @@ impl <'a> InstructionSelection {
                     stack_args.push(arg.clone());
                 }
             } else {
-                // struct, etc
+                // fp const, struct, etc
                 unimplemented!()
             }
         }
@@ -2601,7 +2602,7 @@ impl <'a> InstructionSelection {
                 }
             };
 
-            if ret_val.is_int_reg() {
+            if RegGroup::get_from_value(&ret_val) == RegGroup::GPR && ret_val.is_reg() {
                 if gpr_ret_count < x86_64::RETURN_GPRs.len() {
                     let ret_gpr = {
                         let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
@@ -2615,7 +2616,7 @@ impl <'a> InstructionSelection {
                     // get return value by stack
                     unimplemented!()
                 }
-            } else if ret_val.is_fp_reg() {
+            } else if RegGroup::get_from_value(&ret_val) == RegGroup::FPR && ret_val.is_reg() {
                 // floating point register
                 if fpr_ret_count < x86_64::RETURN_FPRs.len() {
                     let ref ret_fpr = x86_64::RETURN_FPRs[fpr_ret_count];
@@ -2959,7 +2960,7 @@ impl <'a> InstructionSelection {
         let mut arg_by_stack = vec![];
 
         for arg in args {
-            if arg.is_int_reg() {
+            if RegGroup::get_from_value(&arg) == RegGroup::GPR && arg.is_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
                     let arg_gpr = {
                         let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
@@ -2982,7 +2983,7 @@ impl <'a> InstructionSelection {
 //                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
 //                    stack_arg_offset += arg_size as i32;
                 }
-            } else if arg.is_fp_reg() {
+            } else if RegGroup::get_from_value(&arg) == RegGroup::FPR && arg.is_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
                     let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
 
@@ -3210,7 +3211,7 @@ impl <'a> InstructionSelection {
                     
                     let ref value = inst.value.as_ref().unwrap()[0];
                     
-                    if value.is_int_reg() {
+                    if RegGroup::get_from_value(&value) == RegGroup::GPR && value.is_reg() {
                         true
                     } else {
                         false
@@ -3221,7 +3222,7 @@ impl <'a> InstructionSelection {
             }
             
             TreeNode_::Value(ref pv) => {
-                pv.is_int_reg() || pv.is_int_const()
+                RegGroup::get_from_value(&pv) == RegGroup::GPR
             }
         }
     }
@@ -3236,7 +3237,7 @@ impl <'a> InstructionSelection {
 
                     let ref value = inst.value.as_ref().unwrap()[0];
 
-                    if value.is_fp_reg() {
+                    if RegGroup::get_from_value(&value) == RegGroup::FPR {
                         true
                     } else {
                         false
@@ -3247,7 +3248,7 @@ impl <'a> InstructionSelection {
             }
 
             TreeNode_::Value(ref pv) => {
-                pv.is_fp_reg()
+                RegGroup::get_from_value(pv) == RegGroup::FPR
             }
         }
     }
@@ -3875,10 +3876,10 @@ impl <'a> InstructionSelection {
     fn emit_move_node_to_value(&mut self, dest: &P<Value>, src: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         let ref dst_ty = dest.ty;
         
-        if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
+        if RegGroup::get_from_ty(&dst_ty) == RegGroup::GPR {
             if self.match_iimm(src) {
                 let (src_imm, src_len) = self.node_iimm_to_i32_with_len(src);
-                if dest.is_int_reg() {
+                if RegGroup::get_from_value(&dest) == RegGroup::GPR && dest.is_reg() {
                     self.backend.emit_mov_r_imm(dest, src_imm);
                 } else if dest.is_mem() {
                     self.backend.emit_mov_mem_imm(dest, src_imm, src_len);
@@ -3891,7 +3892,7 @@ impl <'a> InstructionSelection {
             } else {
                 panic!("expected src: {}", src);
             }
-        } else if types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
+        } else if RegGroup::get_from_ty(&dst_ty) == RegGroup::FPR {
             if self.match_fpreg(src) {
                 let src_reg = self.emit_fpreg(src, f_content, f_context, vm);
                 self.emit_move_value_to_value(dest, &src_reg)
@@ -3911,43 +3912,45 @@ impl <'a> InstructionSelection {
         debug!("source type: {}", src_ty);
         debug!("dest   type: {}", dest.ty);
 
-        if types::is_scalar(src_ty) && !types::is_fp(src_ty) {
+        if RegGroup::get_from_ty(&src_ty) == RegGroup::GPR {
             // gpr mov
-            if dest.is_int_reg() && src.is_int_reg() {
+            if dest.is_reg() && src.is_reg() {
                 self.backend.emit_mov_r_r(dest, src);
-            } else if dest.is_int_reg() && src.is_mem() {
+            } else if dest.is_reg() && src.is_mem() {
                 self.backend.emit_mov_r_mem(dest, src);
-            } else if dest.is_int_reg() && src.is_int_const() {
+            } else if dest.is_reg() && src.is_const() {
                 let imm = self.value_iimm_to_i32(src);
                 self.backend.emit_mov_r_imm(dest, imm);
-            } else if dest.is_mem() && src.is_int_reg() {
+            } else if dest.is_mem() && src.is_reg() {
                 self.backend.emit_mov_mem_r(dest, src);
-            } else if dest.is_mem() && src.is_int_const() {
+            } else if dest.is_mem() && src.is_const() {
                 let (imm, len) = self.value_iimm_to_i32_with_len(src);
                 self.backend.emit_mov_mem_imm(dest, imm, len);
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }
-        } else if types::is_scalar(src_ty) && types::is_fp(src_ty) {
+        } else if RegGroup::get_from_ty(&src_ty) == RegGroup::GPREX {
+            unimplemented!()
+        } else if RegGroup::get_from_ty(&src_ty) == RegGroup::FPR {
             // fpr mov
             match src_ty.v {
                 MuType_::Double => {
-                    if dest.is_fp_reg() && src.is_fp_reg() {
+                    if dest.is_reg() && src.is_reg() {
                         self.backend.emit_movsd_f64_f64(dest, src);
-                    } else if dest.is_fp_reg() && src.is_mem() {
+                    } else if dest.is_reg() && src.is_mem() {
                         self.backend.emit_movsd_f64_mem64(dest, src);
-                    } else if dest.is_mem() && src.is_fp_reg() {
+                    } else if dest.is_mem() && src.is_reg() {
                         self.backend.emit_movsd_mem64_f64(dest, src);
                     } else {
                         panic!("unexpected fpr mov between {} -> {}", src, dest);
                     }
                 }
                 MuType_::Float => {
-                    if dest.is_fp_reg() && src.is_fp_reg() {
+                    if dest.is_reg() && src.is_reg() {
                         self.backend.emit_movss_f32_f32(dest, src);
-                    } else if dest.is_fp_reg() && src.is_mem() {
+                    } else if dest.is_reg() && src.is_mem() {
                         self.backend.emit_movss_f32_mem32(dest, src);
-                    } else if dest.is_mem() && src.is_fp_reg() {
+                    } else if dest.is_mem() && src.is_reg() {
                         self.backend.emit_movss_mem32_f32(dest, src);
                     } else {
                         panic!("unexpected fpr mov between {} -> {}", src, dest);

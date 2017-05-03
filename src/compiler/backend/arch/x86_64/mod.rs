@@ -425,8 +425,9 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
 
 pub fn number_of_regs_in_group(group: RegGroup) -> usize {
     match group {
-        RegGroup::GPR => ALL_GPRs.len(),
-        RegGroup::FPR => ALL_FPRs.len()
+        RegGroup::GPR   => ALL_GPRs.len(),
+        RegGroup::GPREX => ALL_GPRs.len(),
+        RegGroup::FPR   => ALL_FPRs.len()
     }
 }
 
@@ -444,13 +445,7 @@ pub fn all_usable_regs() -> &'static Vec<P<Value>> {
 
 pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
     let reg = all_regs().get(&reg_id).unwrap();
-    if reg.is_int_reg() {
-        RegGroup::GPR
-    } else if reg.is_fp_reg() {
-        RegGroup::FPR
-    } else {
-        panic!("expect a machine reg to be either a GPR or a FPR: {}", reg)
-    }
+    RegGroup::get_from_value(reg)
 }
 
 pub fn is_callee_saved(reg_id: MuID) -> bool {

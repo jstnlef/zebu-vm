@@ -120,6 +120,7 @@ impl MuStack {
             
             match reg_group {
                 RegGroup::GPR => gpr_used.push(word),
+                RegGroup::GPREX => unimplemented!(),
                 RegGroup::FPR => fpr_used.push(word),
             }
         }

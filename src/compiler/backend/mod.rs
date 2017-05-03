@@ -315,10 +315,10 @@ impl fmt::Display for BackendTypeInfo {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
-pub enum RegGroup {GPR, FPR}
+pub enum RegGroup {GPR, GPREX, FPR}
 
 impl RegGroup {
-    pub fn get(ty: &P<MuType>) -> RegGroup {
+    pub fn get_from_ty(ty: &P<MuType>) -> RegGroup {
         match ty.v {
             // for now, only use 64bits registers
             MuType_::Int(len) if len == 1  => RegGroup::GPR,
@@ -326,6 +326,7 @@ impl RegGroup {
             MuType_::Int(len) if len == 16 => RegGroup::GPR,
             MuType_::Int(len) if len == 32 => RegGroup::GPR,
             MuType_::Int(len) if len == 64 => RegGroup::GPR,
+            MuType_::Int(len) if len == 128=> RegGroup::GPREX,
 
             MuType_::Ref(_)
             | MuType_::IRef(_)
@@ -342,5 +343,9 @@ impl RegGroup {
 
             _ => unimplemented!()
         }
+    }
+
+    pub fn get_from_value(val: &P<Value>) -> RegGroup {
+        RegGroup::get_from_ty(&val.ty)
     }
 }

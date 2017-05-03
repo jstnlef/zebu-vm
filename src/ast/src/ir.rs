@@ -702,16 +702,17 @@ impl Value {
             _ => false
         }
     }
-    
-    pub fn is_int_reg(&self) -> bool {
+
+    pub fn is_reg(&self) -> bool {
         match self.v {
-            Value_::SSAVar(_) => {
-                if is_scalar(&self.ty) && !is_fp(&self.ty) {
-                    true
-                } else {
-                    false
-                }
-            }
+            Value_::SSAVar(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(_) => true,
             _ => false
         }
     }
@@ -722,21 +723,6 @@ impl Value {
             ty: ty,
             v: self.v.clone()
         })
-    }
-
-    pub fn is_fp_reg(&self) -> bool {
-        match self.v {
-            Value_::SSAVar(_) => {
-                if is_scalar(&self.ty) && is_fp(&self.ty) {
-                    true
-                } else {
-                    false
-                }
-            },
-            Value_::Constant(Constant::Double(_)) => true,
-            Value_::Constant(Constant::Float(_))  => true,
-            _ => false
-        }
     }
 
     pub fn is_int_const(&self) -> bool {
