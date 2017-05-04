@@ -64,6 +64,15 @@ fn link_dylib_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<St
 
     let mut cc = Command::new(get_test_clang_path());
 
+    // include mu static lib
+    let libmu_path = if cfg!(debug_assertions) {
+        "target/debug/libmu.a"
+    } else {
+        "target/release/libmu.a"
+    };
+    let libmu = get_path_under_mu(libmu_path);
+    cc.arg(format!("{}", libmu.to_str().unwrap()));
+
     // external libs
     for path in libpath.iter() {
         cc.arg(format!("-L{}", path));

@@ -1401,6 +1401,8 @@ impl <'a> InstructionSelection {
 
                     // adc res_h op2_h -> res_h
                     self.backend.emit_adc_r_r(&res_h, &op2_h);
+                } else {
+                    unimplemented!()
                 }
             },
             op::BinOp::Sub => {
@@ -1434,6 +1436,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // add op2 res
                     self.backend.emit_sub_r_r(&res_tmp, &reg_op2);
+                } else if self.match_ireg_ex(&ops[op1]) && self.match_ireg_ex(&ops[op2]){
+                    trace!("emit sub-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(&ops[op1], f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(&ops[op2], f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // sub res_l op2_l -> res_l
+                    self.backend.emit_sub_r_r(&res_l, &op2_l);
+
+                    // sbb res_h op2_h -> res_h
+                    self.backend.emit_sbb_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1472,6 +1491,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                     // and op2, res -> res
                     self.backend.emit_and_r_r(&res_tmp, &tmp_op2);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2){
+                    trace!("emit and-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // and res_l op2_l -> res_l
+                    self.backend.emit_and_r_r(&res_l, &op2_l);
+
+                    // and res_h op2_h -> res_h
+                    self.backend.emit_and_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1510,6 +1546,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                     // Or op2, res -> res
                     self.backend.emit_or_r_r(&res_tmp, &tmp_op2);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2){
+                    trace!("emit or-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // or res_l op2_l -> res_l
+                    self.backend.emit_or_r_r(&res_l, &op2_l);
+
+                    // or res_h op2_h -> res_h
+                    self.backend.emit_or_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1548,6 +1601,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                     // xor op2, res -> res
                     self.backend.emit_xor_r_r(&res_tmp, &tmp_op2);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2){
+                    trace!("emit xor-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // xor res_l op2_l -> res_l
+                    self.backend.emit_xor_r_r(&res_l, &op2_l);
+
+                    // xor res_h op2_h -> res_h
+                    self.backend.emit_xor_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1555,82 +1625,160 @@ impl <'a> InstructionSelection {
             op::BinOp::Mul => {
                 // mov op1 -> rax
                 let op1 = &ops[op1];
-
-                let mreg_op1 = match op1.clone_value().ty.get_int_length() {
-                    Some(64) => x86_64::RAX.clone(),
-                    Some(32) => x86_64::EAX.clone(),
-                    Some(16) => x86_64::AX.clone(),
-                    Some(8)  => x86_64::AL.clone(),
-                    _ => unimplemented!()
-                };
-
-                if self.match_iimm(op1) {
-                    let imm_op1 = self.node_iimm_to_i32(op1);
-
-                    self.backend.emit_mov_r_imm(&mreg_op1, imm_op1);
-                } else if self.match_mem(op1) {
-                    let mem_op1 = self.emit_mem(op1, vm);
-
-                    self.backend.emit_mov_r_mem(&mreg_op1, &mem_op1);
-                } else if self.match_ireg(op1) {
-                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-
-                    self.backend.emit_mov_r_r(&mreg_op1, &reg_op1);
-                } else {
-                    unimplemented!();
-                }
-
-                // mul op2
                 let op2 = &ops[op2];
-                if self.match_iimm(op2) {
-                    let imm_op2 = self.node_iimm_to_i32(op2);
 
-                    // put imm in a temporary
-                    // here we use result reg as temporary
-                    self.backend.emit_mov_r_imm(&res_tmp, imm_op2);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expected integer operand with MUL")
+                };
+                match op_len {
+                    1...64 => {
+                        trace!("emit mul");
 
-                    self.backend.emit_mul_r(&res_tmp);
-                } else if self.match_mem(op2) {
-                    let mem_op2 = self.emit_mem(op2, vm);
+                        let mreg_op1 = match op_len {
+                            64 => x86_64::RAX.clone(),
+                            32 => x86_64::EAX.clone(),
+                            16 => x86_64::AX.clone(),
+                            8  => x86_64::AL.clone(),
+                            _ => unimplemented!()
+                        };
 
-                    self.backend.emit_mul_mem(&mem_op2);
-                } else if self.match_ireg(op2) {
-                    let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+                        if self.match_iimm(op1) {
+                            let imm_op1 = self.node_iimm_to_i32(op1);
 
-                    self.backend.emit_mul_r(&reg_op2);
-                } else {
-                    unimplemented!();
-                }
+                            self.backend.emit_mov_r_imm(&mreg_op1, imm_op1);
+                        } else if self.match_mem(op1) {
+                            let mem_op1 = self.emit_mem(op1, vm);
 
-                // mov rax -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
-                    Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
-                    Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
-                    Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                            self.backend.emit_mov_r_mem(&mreg_op1, &mem_op1);
+                        } else if self.match_ireg(op1) {
+                            let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+
+                            self.backend.emit_mov_r_r(&mreg_op1, &reg_op1);
+                        } else {
+                            unimplemented!();
+                        }
+
+                        // mul op2
+                        if self.match_iimm(op2) {
+                            let imm_op2 = self.node_iimm_to_i32(op2);
+
+                            // put imm in a temporary
+                            // here we use result reg as temporary
+                            self.backend.emit_mov_r_imm(&res_tmp, imm_op2);
+
+                            self.backend.emit_mul_r(&res_tmp);
+                        } else if self.match_mem(op2) {
+                            let mem_op2 = self.emit_mem(op2, vm);
+
+                            self.backend.emit_mul_mem(&mem_op2);
+                        } else if self.match_ireg(op2) {
+                            let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+                            self.backend.emit_mul_r(&reg_op2);
+                        } else {
+                            unimplemented!();
+                        }
+
+                        // mov rax -> result
+                        let res_len = res_tmp.ty.get_int_length().unwrap();
+                        assert!(res_len == op_len, "op and res do not have matching type: {}", node);
+
+                        match res_len {
+                            64 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                            32 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                            16 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                            8  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                            _ => unimplemented!()
+                        }
+                    }
+                    128 => {
+                        if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                            trace!("emit mul128");
+
+                            //     (hi, lo)
+                            //      a   b
+                            // x    c   d
+                            // ------------
+                            //      ad  bd
+                            //  ad  bc
+                            // ------------
+                            //      t1  t2
+                            //     (hi, lo)
+
+                            let (b, a) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                            let (d, c) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                            // mov a -> t1
+                            let t1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            self.backend.emit_mov_r_r(&t1, &a);
+
+                            // imul d, t1 -> t1
+                            self.backend.emit_imul_r_r(&t1, &d);
+
+                            // mul d, b -> (RDX:RAX) as (carry:t2)
+                            self.backend.emit_mov_r_r(&x86_64::RAX, &d);
+                            self.backend.emit_mul_r(&b);
+
+                            let t2 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            self.backend.emit_mov_r_r(&t2, &x86_64::RAX);
+
+                            // add t1, carry -> t1
+                            self.backend.emit_add_r_r(&t1, &x86_64::RDX);
+
+                            // mov c -> tt
+                            let tt = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            self.backend.emit_mov_r_r(&tt, &c);
+
+                            // imul b, tt -> tt
+                            self.backend.emit_imul_r_r(&tt, &b);
+
+                            // add t1, tt -> t1
+                            self.backend.emit_add_r_r(&t1, &tt);
+
+                            // result: t1(higher), t2(lower)
+                            let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                            self.backend.emit_mov_r_r(&res_l, &t2);
+                            self.backend.emit_mov_r_r(&res_h, &t1);
+                        } else {
+                            unimplemented!()
+                        }
+                    }
                     _ => unimplemented!()
                 }
-
             },
             op::BinOp::Udiv => {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                self.emit_udiv(op1, op2, f_content, f_context, vm);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expect integer op in UDIV")
+                };
 
-                // mov rax -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
+                match op_len {
+                    0...64 => {
+                        self.emit_udiv(op1, op2, f_content, f_context, vm);
+
+                        // mov rax -> result
+                        match res_tmp.ty.get_int_length() {
+                            Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                            Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                            Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                            Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                            _ => unimplemented!()
+                        }
                     }
-                    Some(32) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX);
-                    }
-                    Some(16) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX);
-                    }
-                    Some(8)  => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL);
+                    128 => {
+                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                        self.emit_runtime_entry(&entrypoints::UDIV_U128,
+                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
+                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
                 }
@@ -1639,21 +1787,34 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                self.emit_idiv(op1, op2, f_content, f_context, vm);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expect integer op in SDIV")
+                };
 
-                // mov rax -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
+                match op_len {
+                    0...64 => {
+                        self.emit_idiv(op1, op2, f_content, f_context, vm);
+
+                        // mov rax -> result
+                        match res_tmp.ty.get_int_length() {
+                            Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                            Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                            Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                            Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                            _ => unimplemented!()
+                        }
                     }
-                    Some(32) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX);
-                    }
-                    Some(16) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX);
-                    }
-                    Some(8)  => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL);
+                    128 => {
+                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                        self.emit_runtime_entry(&entrypoints::SDIV_I128,
+                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
+                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
                 }
@@ -1662,21 +1823,34 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                self.emit_udiv(op1, op2, f_content, f_context, vm);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expect integer op in UREM")
+                };
 
-                // mov rdx -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
+                match op_len {
+                    0...64 => {
+                        self.emit_udiv(op1, op2, f_content, f_context, vm);
+
+                        // mov rdx -> result
+                        match res_tmp.ty.get_int_length() {
+                            Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX),
+                            Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX),
+                            Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX),
+                            Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH),
+                            _ => unimplemented!()
+                        }
                     }
-                    Some(32) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX);
-                    }
-                    Some(16) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX);
-                    }
-                    Some(8)  => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH);
+                    128 => {
+                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                        self.emit_runtime_entry(&entrypoints::UREM_U128,
+                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
+                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
                 }
@@ -1685,21 +1859,34 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                self.emit_idiv(op1, op2, f_content, f_context, vm);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expect integer op in SREM")
+                };
 
-                // mov rdx -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
+                match op_len {
+                    0...64 => {
+                        self.emit_idiv(op1, op2, f_content, f_context, vm);
+
+                        // mov rdx -> result
+                        match res_tmp.ty.get_int_length() {
+                            Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX),
+                            Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX),
+                            Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX),
+                            Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH),
+                            _ => unimplemented!()
+                        }
                     }
-                    Some(32) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX);
-                    }
-                    Some(16) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX);
-                    }
-                    Some(8)  => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH);
+                    128 => {
+                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                        self.emit_runtime_entry(&entrypoints::SREM_I128,
+                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
+                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
                 }

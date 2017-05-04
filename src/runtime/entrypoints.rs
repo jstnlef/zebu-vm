@@ -128,6 +128,46 @@ lazy_static! {
         jit: RwLock::new(None)
     };
 
+    pub static ref UDIV_U128 : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![UINT64_TYPE.clone(); 2],
+            arg_tys: vec![UINT64_TYPE.clone(); 4]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_udiv_u128")),
+        jit: RwLock::new(None)
+    };
+
+    pub static ref SDIV_I128 : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![UINT64_TYPE.clone(); 2],
+            arg_tys: vec![UINT64_TYPE.clone(); 4]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_sdiv_i128")),
+        jit: RwLock::new(None)
+    };
+
+    pub static ref UREM_U128 : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![UINT64_TYPE.clone(); 2],
+            arg_tys: vec![UINT64_TYPE.clone(); 4]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_urem_u128")),
+        jit: RwLock::new(None)
+    };
+
+    pub static ref SREM_I128 : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![UINT64_TYPE.clone(); 2],
+            arg_tys: vec![UINT64_TYPE.clone(); 4]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_srem_i128")),
+        jit: RwLock::new(None)
+    };
+
     // impl/decl: mod.rs
     pub static ref PRINT_HEX : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig {

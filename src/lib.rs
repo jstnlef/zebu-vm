@@ -8,6 +8,7 @@ extern crate stderrlog;
 extern crate maplit;
 #[macro_use]
 extern crate field_offset;
+extern crate extprim;
 
 #[macro_use]
 pub extern crate ast;

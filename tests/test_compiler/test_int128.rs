@@ -1,4 +1,5 @@
 extern crate libloading;
+extern crate extprim;
 
 use mu::ast::ir::*;
 use mu::ast::inst::*;
@@ -17,11 +18,17 @@ fn test_add_u128() {
     let lib = testutil::compile_fnc("add_u128", &add_u128);
 
     unsafe {
+        use std::u64;
+
         let add_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"add_u128").unwrap();
 
         let res = add_u128(1, 0, 1, 0);
         println!("add_u128(1, 1) = {:?}", res);
         assert!(res == (2, 0));
+
+        let res = add_u128(u64::MAX, 0, 1, 0);
+        println!("add_u128(u64::MAX, 1) = {:?}", res);
+        assert!(res == (0, 1));
     }
 }
 
@@ -53,6 +60,113 @@ fn add_u128() -> VM {
     });
 
     define_func_ver!((vm) add_u128_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_mul_u128() {
+    let lib = testutil::compile_fnc("mul_u128", &mul_u128);
+
+    unsafe {
+        use std::u64;
+
+        let mul_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"mul_u128").unwrap();
+
+        let res = mul_u128(6, 0, 7, 0);
+        println!("mul_u128(6, 7) = {:?}", res);
+        assert!(res == (42, 0));
+
+        let res = mul_u128(6, 6, 7, 7);
+        println!("mul_u128(??, ??) = {:?}", res);
+        assert!(res == (42, 84));
+    }
+}
+
+fn mul_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+
+    funcsig!    ((vm) sig = (u128, u128) -> (u128));
+    funcdecl!   ((vm) <sig> mul_u128);
+    funcdef!    ((vm) <sig> mul_u128 VERSION mul_u128_v1);
+
+    block!      ((vm, mul_u128_v1) blk_entry);
+    ssa!        ((vm, mul_u128_v1) <u128> a);
+    ssa!        ((vm, mul_u128_v1) <u128> b);
+
+    // sum = Add %a %b
+    ssa!        ((vm, mul_u128_v1) <u128> sum);
+    inst!       ((vm, mul_u128_v1) blk_entry_mul_u128:
+        sum = BINOP (BinOp::Mul) a b
+    );
+
+    inst!       ((vm, mul_u128_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, mul_u128_v1) blk_entry(a, b) {
+        blk_entry_mul_u128, blk_entry_ret
+    });
+
+    define_func_ver!((vm) mul_u128_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_udiv_u128() {
+    let lib = testutil::compile_fnc("udiv_u128", &udiv_u128);
+
+    unsafe {
+        use self::extprim::u128::u128;
+
+        let udiv_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"udiv_u128").unwrap();
+
+        let res = udiv_u128(42, 0, 7, 0);
+        println!("udiv_u128(42, 7) = {:?}", res);
+        assert!(res == (6, 0));
+
+        let res = udiv_u128(41, 42, 6, 7);
+        let a = u128::from_parts(42, 41); // hi, lo
+        let b = u128::from_parts(7, 6);
+        let expect = a.wrapping_div(b);
+
+        println!("udiv_u128(??, ??) = {:?}", res);
+        assert!(expect.low64()  == res.0);
+        assert!(expect.high64() == res.1)
+    }
+}
+
+fn udiv_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+
+    funcsig!    ((vm) sig = (u128, u128) -> (u128));
+    funcdecl!   ((vm) <sig> udiv_u128);
+    funcdef!    ((vm) <sig> udiv_u128 VERSION udiv_u128_v1);
+
+    block!      ((vm, udiv_u128_v1) blk_entry);
+    ssa!        ((vm, udiv_u128_v1) <u128> a);
+    ssa!        ((vm, udiv_u128_v1) <u128> b);
+
+    // sum = Add %a %b
+    ssa!        ((vm, udiv_u128_v1) <u128> sum);
+    inst!       ((vm, udiv_u128_v1) blk_entry_udiv_u128:
+        sum = BINOP (BinOp::Udiv) a b
+    );
+
+    inst!       ((vm, udiv_u128_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, udiv_u128_v1) blk_entry(a, b) {
+        blk_entry_udiv_u128, blk_entry_ret
+    });
+
+    define_func_ver!((vm) udiv_u128_v1 (entry: blk_entry) {blk_entry});
 
     vm
 }

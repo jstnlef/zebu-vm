@@ -142,9 +142,17 @@ pub trait CodeGenerator {
     fn emit_sub_r_mem(&mut self, dest: Reg, src: Mem);
     fn emit_sub_r_imm(&mut self, dest: Reg, src: i32);
 
+    // sub with borrow
+    fn emit_sbb_r_r  (&mut self, dest: Reg, src: Reg);
+    fn emit_sbb_r_mem(&mut self, dest: Reg, src: Mem);
+    fn emit_sbb_r_imm(&mut self, dest: Reg, src: i32);
+
     // multiply
     fn emit_mul_r  (&mut self, src: Reg);
     fn emit_mul_mem(&mut self, src: Mem);
+
+    // signed multiply
+    fn emit_imul_r_r(&mut self, dest: Reg, src: Reg);
 
     // div
     fn emit_div_r   (&mut self, src: Reg);

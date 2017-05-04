@@ -2460,6 +2460,17 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_sub_r_mem(&mut self, dest: Reg, src: Mem) {
         self.internal_binop_def_r_mem("sub", dest, src)
     }
+
+    // sbb
+    fn emit_sbb_r_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_binop_def_r_r("sbb", dest, src)
+    }
+    fn emit_sbb_r_mem(&mut self, dest: Reg, src: Mem) {
+        self.internal_binop_def_r_mem("sbb", dest, src)
+    }
+    fn emit_sbb_r_imm(&mut self, dest: Reg, src: i32) {
+        self.internal_binop_def_r_imm("sbb", dest, src)
+    }
     
     fn emit_mul_r(&mut self, src: &P<Value>) {
         let len = check_op_len(src);
@@ -2506,6 +2517,10 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_mul_mem(&mut self, src: &P<Value>) {
         unimplemented!()
+    }
+
+    fn emit_imul_r_r(&mut self, dest: Reg, src: Reg) {
+        self.internal_binop_def_r_r("imul", dest, src)
     }
 
     fn emit_div_r  (&mut self, src: &P<Value>) {
