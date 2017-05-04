@@ -842,7 +842,7 @@ impl Decodable for SSAVarEntry {
                 val: val,
                 use_count: ATOMIC_USIZE_INIT,
                 expr: expr,
-                split: Some(split)
+                split: split
             };
             
             ret.use_count.store(count, Ordering::SeqCst);
