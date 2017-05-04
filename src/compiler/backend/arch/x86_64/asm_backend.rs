@@ -2439,6 +2439,17 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_binop_def_r_mem("add", dest, src)
     }
 
+    // adc
+    fn emit_adc_r_r  (&mut self, dest: Reg, src: Reg) {
+        self.internal_binop_def_r_r("adc", dest, src)
+    }
+    fn emit_adc_r_mem(&mut self, dest: Reg, src: Mem) {
+        self.internal_binop_def_r_mem("adc", dest, src)
+    }
+    fn emit_adc_r_imm(&mut self, dest: Reg, src: i32) {
+        self.internal_binop_def_r_imm("adc", dest, src)
+    }
+
     // sub
     fn emit_sub_r_imm(&mut self, dest: Reg, src: i32) {
         self.internal_binop_def_r_imm("sub", dest, src)

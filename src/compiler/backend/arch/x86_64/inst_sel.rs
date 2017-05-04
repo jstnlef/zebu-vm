@@ -1384,8 +1384,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // add op2 res
                     self.backend.emit_add_r_r(&res_tmp, &reg_op2);
-                } else {
-                    unimplemented!()
+                } else if self.match_ireg_ex(&ops[op1]) && self.match_ireg_ex(&ops[op2]){
+                    trace!("emit add-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(&ops[op1], f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(&ops[op2], f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // add res_l op2_l -> res_l
+                    self.backend.emit_add_r_r(&res_l, &op2_l);
+
+                    // adc res_h op2_h -> res_h
+                    self.backend.emit_adc_r_r(&res_h, &op2_h);
                 }
             },
             op::BinOp::Sub => {
@@ -3082,7 +3097,7 @@ impl <'a> InstructionSelection {
 
                 if gpr_ret_count + 1 < x86_64::RETURN_GPRs.len() {
                     let ret_gpr1 = x86_64::RETURN_GPRs[gpr_ret_count].clone();
-                    let ret_gpr2 = x86_64::RETURN_GPRs[gpr_ret_count].clone();
+                    let ret_gpr2 = x86_64::RETURN_GPRs[gpr_ret_count + 1].clone();
 
                     self.backend.emit_mov_r_r(&ret_gpr1, &ret_val1);
                     self.backend.emit_mov_r_r(&ret_gpr2, &ret_val2);

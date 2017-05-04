@@ -131,6 +131,11 @@ pub trait CodeGenerator {
     fn emit_add_r_r  (&mut self, dest: Reg, src: Reg);
     fn emit_add_r_mem(&mut self, dest: Reg, src: Mem);
     fn emit_add_r_imm(&mut self, dest: Reg, src: i32);
+
+    // add with carry
+    fn emit_adc_r_r  (&mut self, dest: Reg, src: Reg);
+    fn emit_adc_r_mem(&mut self, dest: Reg, src: Mem);
+    fn emit_adc_r_imm(&mut self, dest: Reg, src: i32);
     
     // sub
     fn emit_sub_r_r  (&mut self, dest: Reg, src: Reg);
