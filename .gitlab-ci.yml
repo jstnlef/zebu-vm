@@ -43,7 +43,7 @@ build_test:
     - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
 
 before_script:
-  - EXPORT PATH=$PATH:/root/.cargo/bin
+  - export PATH=$PATH:/root/.cargo/bin
 
 test:cargo:api:
   stage: test
