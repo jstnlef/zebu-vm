@@ -64,6 +64,26 @@ fn link_dylib_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<St
 
     let mut cc = Command::new(get_test_clang_path());
 
+    // external libs
+    for path in libpath.iter() {
+        cc.arg(format!("-L{}", path));
+    }
+    for l in lib.iter() {
+        cc.arg(format!("-l{}", l));
+    }
+
+    // options
+    cc.arg("-shared");
+    cc.arg("-fPIC");
+    cc.arg("-Wl");
+    cc.arg("-undefined");
+    cc.arg("dynamic_lookup");
+
+    // all object files
+    for obj in object_files {
+        cc.arg(obj.as_os_str());
+    }
+
     // include mu static lib
     let libmu_path = if cfg!(debug_assertions) {
         "target/debug/libmu.a"
@@ -73,23 +93,7 @@ fn link_dylib_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<St
     let libmu = get_path_under_mu(libmu_path);
     cc.arg(format!("{}", libmu.to_str().unwrap()));
 
-    // external libs
-    for path in libpath.iter() {
-        cc.arg(format!("-L{}", path));
-    }
-    for l in lib.iter() {
-        cc.arg(format!("-l{}", l));
-    }
-
-    cc.arg("-shared");
-    cc.arg("-fPIC");
-    cc.arg("-Wl");
-    cc.arg("-undefined");
-    cc.arg("dynamic_lookup");
-    for obj in object_files {
-        cc.arg(obj.as_os_str());
-    }
-
+    // output
     cc.arg("-o");
     cc.arg(out.as_os_str());
 
