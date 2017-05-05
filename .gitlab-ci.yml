@@ -1,7 +1,7 @@
 # This file is a template, and might need editing before it works on your project.
 # Unofficial language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/scorpil/rust/tags/
-image: "qinsoon/ubuntu-zebu-test:lastest"
+image: "qinsoon/ubuntu-zebu-test:latest"
 
 # Optional: Pick zero or more services to be used on all builds.
 # Only needed when using a docker container to run your tests in.
@@ -26,8 +26,24 @@ cache:
     - target
     - Cargo.lock
 
+stages:
+  - build
+  - test
+
+build_vm:
+  stage: build
+  script:
+    - rustc --version
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo build
+
+build_test:
+  stage: build
+  script:
+    - rustc --version
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
+
 before_script:
-  - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
+  - EXPORT PATH=$PATH:/root/.cargo/bin
 
 test:cargo:api:
   stage: test
