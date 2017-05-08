@@ -94,6 +94,7 @@ fn test_set_global_by_api() {
 
 fn set_global_by_api(vm: &VM) {
     typedef!    ((vm) int64      = mu_int(64));
+    typedef!    ((vm) int32      = mu_int(32));
     typedef!    ((vm) iref_int64 = mu_iref(int64));
 
     globaldef!  ((vm) <int64> my_global);
@@ -106,11 +107,14 @@ fn set_global_by_api(vm: &VM) {
     block!      ((vm, set_global_by_api_v1) blk_entry);
     ssa!        ((vm, set_global_by_api_v1) <int64> val);
     global!     ((vm, set_global_by_api_v1) blk_entry_my_global = my_global);
+    ssa!        ((vm, set_global_by_api_v1) <int32> val2);
     inst!       ((vm, set_global_by_api_v1) blk_entry_load:
         val = LOAD blk_entry_my_global (is_ptr: false, order: MemoryOrder::SeqCst)
     );
-
-    let blk_entry_exit = gen_ccall_exit(val.clone(), &mut set_global_by_api_v1, &vm);
+    inst!       ((vm, set_global_by_api_v1) blk_entry_trunc:
+        val2 = CONVOP (ConvOp::TRUNC) <int64 int32> val
+    );
+    let blk_entry_exit = gen_ccall_exit(val2.clone(), &mut set_global_by_api_v1, &vm);
 
     // won't execute this inst
     inst!       ((vm, set_global_by_api_v1) blk_entry_ret:
@@ -118,7 +122,7 @@ fn set_global_by_api(vm: &VM) {
     );
 
     define_block!   ((vm, set_global_by_api_v1) blk_entry() {
-        blk_entry_load, blk_entry_exit, blk_entry_ret
+        blk_entry_load, blk_entry_trunc, blk_entry_exit, blk_entry_ret
     });
 
     define_func_ver!((vm) set_global_by_api_v1 (entry: blk_entry) {
@@ -282,6 +286,7 @@ fn test_persist_linked_list() {
 }
 
 fn persist_linked_list(vm: &VM) {
+    typedef!    ((vm) int32      = mu_int(32));
     typedef!    ((vm) int1       = mu_int(1));
     typedef!    ((vm) int64      = mu_int(64));
     typedef!    ((vm) node       = mu_struct_placeholder());
@@ -403,15 +408,19 @@ fn persist_linked_list(vm: &VM) {
 
     // --- blk exit ---
     ssa!       ((vm, persist_linked_list_v1) <int64> res);
+    ssa!       ((vm, persist_linked_list_v1) <int32> res2);
+    inst!      ((vm, persist_linked_list_v1) blk_exit_trunc:
+        res2 = CONVOP (ConvOp::TRUNC) <int64 int32> res
+    );
 
-    let blk_exit_exit = gen_ccall_exit(res.clone(), &mut persist_linked_list_v1, &vm);
+    let blk_exit_exit = gen_ccall_exit(res2.clone(), &mut persist_linked_list_v1, &vm);
 
     inst!      ((vm, persist_linked_list_v1) blk_exit_ret:
         RET (res)
     );
 
     define_block!   ((vm, persist_linked_list_v1) blk_exit(res) {
-        blk_exit_exit, blk_exit_ret
+        blk_exit_trunc, blk_exit_exit, blk_exit_ret
     });
 
     define_func_ver!((vm) persist_linked_list_v1 (entry: blk_entry) {
@@ -493,6 +502,7 @@ fn test_persist_hybrid() {
 fn persist_hybrid(vm: &VM) {
     typedef!    ((vm) int1            = mu_int(1));
     typedef!    ((vm) int64           = mu_int(64));
+    typedef!    ((vm) int32           = mu_int(32));
     typedef!    ((vm) ref_int64       = mu_ref(int64));
     typedef!    ((vm) iref_int64      = mu_iref(int64));
     typedef!    ((vm) hybrid          = mu_hybrid(none; ref_int64));
@@ -623,15 +633,19 @@ fn persist_hybrid(vm: &VM) {
 
     // --- blk exit ---
     ssa!        ((vm, persist_hybrid_v1) <int64> res);
+    ssa!        ((vm, persist_hybrid_v1) <int32> res2);
+    inst!       ((vm, persist_hybrid_v1) blk_exit_trunc:
+        res2 = CONVOP (ConvOp::TRUNC) <int64 int32> res
+    );
 
-    let blk_exit_exit = gen_ccall_exit(res.clone(), &mut persist_hybrid_v1, &vm);
+    let blk_exit_exit = gen_ccall_exit(res2.clone(), &mut persist_hybrid_v1, &vm);
 
     inst!       ((vm, persist_hybrid_v1) blk_exit_ret:
         RET (res)
     );
 
     define_block!   ((vm, persist_hybrid_v1) blk_exit(res) {
-        blk_exit_exit, blk_exit_ret
+        blk_exit_trunc, blk_exit_exit, blk_exit_ret
     });
 
     define_func_ver! ((vm) persist_hybrid_v1 (entry: blk_entry) {

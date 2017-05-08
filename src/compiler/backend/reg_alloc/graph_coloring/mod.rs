@@ -70,7 +70,7 @@ impl RegisterAllocation {
             let used_callee_saved: Vec<MuID> = used_callee_saved.into_iter().collect();
             let n_used_callee_saved = used_callee_saved.len();
 
-            let removed_callee_saved = coloring.cf.mc_mut().remove_unnecessary_callee_saved(used_callee_saved);
+            let (removed_callee_saved, n_kept_callee_saved) = coloring.cf.mc_mut().remove_unnecessary_callee_saved(used_callee_saved);
             for reg in removed_callee_saved {
                 coloring.cf.frame.remove_record_for_callee_saved_reg(reg);
             }
@@ -78,7 +78,7 @@ impl RegisterAllocation {
             // patch frame size
 
             // size for callee saved regs
-            let size_for_callee_saved_regs = n_used_callee_saved * POINTER_SIZE;
+            let size_for_callee_saved_regs = n_kept_callee_saved * POINTER_SIZE;
             trace!("callee saved registers used {} bytes", size_for_callee_saved_regs);
 
             let total_frame_size = coloring.cf.frame.cur_size();

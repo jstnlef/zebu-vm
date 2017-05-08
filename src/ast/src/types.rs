@@ -32,7 +32,15 @@ lazy_static! {
     pub static ref UINT64_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::int(64))
     );
-    
+
+    pub static ref UINT128_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::int(128))
+    );
+
+    pub static ref FLOAT_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::float())
+    );
+
     pub static ref DOUBLE_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::double())
     );
@@ -48,6 +56,8 @@ lazy_static! {
         UINT16_TYPE.clone(),
         UINT32_TYPE.clone(),
         UINT64_TYPE.clone(),
+        UINT128_TYPE.clone(),
+        FLOAT_TYPE.clone(),
         DOUBLE_TYPE.clone(),
         VOID_TYPE.clone()
     ];    

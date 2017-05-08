@@ -1,4 +1,4 @@
-#![allow(unused_variables)]
+/*#![allow(unused_variables)]
 
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::RegGroup;
@@ -655,7 +655,7 @@ impl MachineCode for ASMCode {
 //        self.code.insert(index, ASMInst::nop());
     }
 
-    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID> {
+    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> (Vec<MuID>, usize) {
         // we always save rbp
         let rbp = x86_64::RBP.extract_ssa_id().unwrap();
         // every push/pop will use/define rsp
@@ -678,6 +678,7 @@ impl MachineCode for ASMCode {
 
         let mut inst_to_remove = vec![];
         let mut regs_to_remove = vec![];
+        let mut kept_callee_saved = 0;
 
         for i in 0..self.number_of_insts() {
             let ref inst = self.code[i];
@@ -687,10 +688,14 @@ impl MachineCode for ASMCode {
                     Some(op) => {
                         // if this push/pop instruction is about a callee saved register
                         // and the register is not used, we set the instruction as nop
-                        if x86_64::is_callee_saved(op) && !used_callee_saved.contains(&op) {
-                            trace!("removing instruction {:?} for save/restore unnecessary callee saved regs", inst);
-                            regs_to_remove.push(op);
-                            inst_to_remove.push(i);
+                        if x86_64::is_callee_saved(op) {
+                            if used_callee_saved.contains(&op) {
+                                kept_callee_saved += 1;
+                            } else {
+                                trace!("removing instruction {:?} for save/restore unnecessary callee saved regs", inst);
+                                regs_to_remove.push(op);
+                                inst_to_remove.push(i);
+                            }
                         }
                     }
                     None => {}
@@ -702,7 +707,7 @@ impl MachineCode for ASMCode {
             self.set_inst_nop(i);
         }
 
-        regs_to_remove
+        (regs_to_remove, kept_callee_saved)
     }
 
     #[allow(unused_variables)]
@@ -3639,3 +3644,4 @@ pub fn spill_rewrite(
 
     spilled_scratch_temps
 }
+*/

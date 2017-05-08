@@ -4,6 +4,7 @@ use mu::ast::ptr::*;
 use mu::ast::inst::*;
 use mu::vm::*;
 use mu::compiler::*;
+use mu::ast::op::*;
 
 use std::sync::RwLock;
 use std::sync::Arc;
@@ -145,6 +146,158 @@ fn ccall_exit() -> VM {
 }
 
 #[test]
+#[cfg(target_arch = "aarch64")]
+fn test_pass_1arg_by_stack() {
+    VM::start_logging_trace();
+    let vm = Arc::new(pass_1arg_by_stack());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_foo = vm.id_of("foo9");
+    let func_main = vm.id_of("pass_1arg_by_stack");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_foo).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_main).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_main, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("foo9"), Mu("pass_1arg_by_stack")], "test_pass_1arg_by_stack", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    // exit with (1)
+    assert!(output.status.code().is_some());
+    assert_eq!(output.status.code().unwrap(), 1);
+}
+
+
+#[cfg(target_arch = "aarch64")]
+fn pass_1arg_by_stack() -> VM {
+    let vm = VM::new_with_opts("init_mu --disable-inline");
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int32 = mu_int(32));
+
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+    constdef!   ((vm) <int64> int64_2 = Constant::Int(2));
+
+    // foo9
+    funcsig!    ((vm) foo9_sig = (int64, int64, int64, int64, int64, int64, int64, int64, int64) -> (int64));
+    funcdecl!   ((vm) <foo9_sig> foo9);
+    funcdef!    ((vm) <foo9_sig> foo9 VERSION foo9_v1);
+
+    // blk_entry
+    ssa!        ((vm, foo9_v1) <int64> v0);
+    ssa!        ((vm, foo9_v1) <int64> v1);
+    ssa!        ((vm, foo9_v1) <int64> v2);
+    ssa!        ((vm, foo9_v1) <int64> v3);
+    ssa!        ((vm, foo9_v1) <int64> v4);
+    ssa!        ((vm, foo9_v1) <int64> v5);
+    ssa!        ((vm, foo9_v1) <int64> v6);
+    ssa!        ((vm, foo9_v1) <int64> v7);
+    ssa!        ((vm, foo9_v1) <int64> v8);
+    block!      ((vm, foo9_v1) blk_entry);
+
+    inst!       ((vm, foo9_v1) blk_entry_ret:
+        RET (v8)
+    );
+
+    define_block!((vm, foo9_v1) blk_entry(v0, v1, v2, v3, v4, v5, v6, v7, v8) {
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) foo9_v1 (entry: blk_entry) {blk_entry});
+
+    // pass_1arg_by_stack
+    funcsig!    ((vm) sig = () -> ());
+    funcdecl!   ((vm) <sig> pass_1arg_by_stack);
+    funcdef!    ((vm) <sig> pass_1arg_by_stack VERSION pass_1arg_by_stack_v1);
+
+    typedef!    ((vm) type_funcref_foo9 = mu_funcref(foo9_sig));
+    constdef!   ((vm) <type_funcref_foo9> const_funcref_foo9 = Constant::FuncRef(vm.id_of("foo9")));
+
+    // blk_entry
+    consta!     ((vm, pass_1arg_by_stack_v1) int64_0_local = int64_0);
+    consta!     ((vm, pass_1arg_by_stack_v1) int64_1_local = int64_1);
+
+    block!      ((vm, pass_1arg_by_stack_v1) blk_entry);
+    block!      ((vm, pass_1arg_by_stack_v1) blk_main);
+    inst!       ((vm, pass_1arg_by_stack_v1) blk_entry_branch:
+        BRANCH blk_main (
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+
+            int64_1_local
+        )
+    );
+
+    define_block!((vm, pass_1arg_by_stack_v1) blk_entry() {blk_entry_branch});
+
+    // blk_main
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a0);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a1);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a2);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a3);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a4);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a5);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a6);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a7);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> a8);
+
+    consta!     ((vm, pass_1arg_by_stack_v1) const_funcref_foo9_local = const_funcref_foo9);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int64> retval);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int32> retval2);
+    inst!       ((vm, pass_1arg_by_stack_v1) blk_main_call:
+        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo9_local (a0, a1, a2, a3, a4, a5, a6, a7, a8)
+    );
+    inst!       ((vm, pass_1arg_by_stack_v1) blk_main_trunc:
+        retval2 = CONVOP (ConvOp::TRUNC) <int64 int32> retval
+    );
+
+    let blk_main_exit = gen_ccall_exit(retval2.clone(), &mut pass_1arg_by_stack_v1, &vm);
+
+    inst!       ((vm, pass_1arg_by_stack_v1) blk_main_ret:
+        RET
+    );
+
+    define_block!((vm, pass_1arg_by_stack_v1) blk_main(a0, a1, a2, a3, a4, a5, a6, a7, a8) {
+        blk_main_call,
+        blk_main_trunc,
+        blk_main_exit,
+        blk_main_ret
+    });
+
+    define_func_ver!((vm) pass_1arg_by_stack_v1 (entry: blk_entry) {
+        blk_entry,
+        blk_main
+    });
+
+    vm
+}
+
+#[test]
+#[cfg(target_arch = "x86_64")]
 fn test_pass_1arg_by_stack() {
     VM::start_logging_trace();
     let vm = Arc::new(pass_1arg_by_stack());
@@ -182,10 +335,12 @@ fn test_pass_1arg_by_stack() {
     assert_eq!(output.status.code().unwrap(), 1);
 }
 
+#[cfg(target_arch = "x86_64")]
 fn pass_1arg_by_stack() -> VM {
     let vm = VM::new_with_opts("init_mu --disable-inline");
 
     typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int32 = mu_int(32));
 
     constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
     constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
@@ -256,11 +411,15 @@ fn pass_1arg_by_stack() -> VM {
 
     consta!     ((vm, pass_1arg_by_stack_v1) const_funcref_foo7_local = const_funcref_foo7);
     ssa!        ((vm, pass_1arg_by_stack_v1) <int64> retval);
+    ssa!        ((vm, pass_1arg_by_stack_v1) <int32> retval2);
     inst!       ((vm, pass_1arg_by_stack_v1) blk_main_call:
         retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo7_local (a0, a1, a2, a3, a4, a5, a6)
     );
+    inst!       ((vm, pass_1arg_by_stack_v1) blk_main_trunc:
+        retval2 = CONVOP (ConvOp::TRUNC) <int64 int32> retval
+    );
 
-    let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_1arg_by_stack_v1, &vm);
+    let blk_main_exit = gen_ccall_exit(retval2.clone(), &mut pass_1arg_by_stack_v1, &vm);
 
     inst!       ((vm, pass_1arg_by_stack_v1) blk_main_ret:
         RET
@@ -281,13 +440,168 @@ fn pass_1arg_by_stack() -> VM {
 }
 
 #[test]
+#[cfg(target_arch = "aarch64")]
 fn test_pass_2args_by_stack() {
     VM::start_logging_trace();
     let vm = Arc::new(pass_2args_by_stack());
 
     let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
-    let func_foo = vm.id_of("foo8");
+    let func_foo = vm.id_of("foo10");
+    let func_main = vm.id_of("pass_2args_by_stack");
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_foo).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_main).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_main, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("foo10"), Mu("pass_2args_by_stack")], "test_pass_2args_by_stack", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    // exit with (2)
+    assert!(output.status.code().is_some());
+    assert_eq!(output.status.code().unwrap(), 2);
+}
+
+#[cfg(target_arch = "aarch64")]
+fn pass_2args_by_stack() -> VM {
+    let vm = VM::new_with_opts("init_mu --disable-inline");
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int32 = mu_int(32));
+
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+    constdef!   ((vm) <int64> int64_2 = Constant::Int(2));
+
+    // foo10
+    funcsig!    ((vm) foo10_sig = (int64, int64, int64, int64, int64, int64, int64, int64, int64, int64) -> (int64));
+    funcdecl!   ((vm) <foo10_sig> foo10);
+    funcdef!    ((vm) <foo10_sig> foo10 VERSION foo10_v1);
+
+    // blk_entry
+    ssa!        ((vm, foo10_v1) <int64> v0);
+    ssa!        ((vm, foo10_v1) <int64> v1);
+    ssa!        ((vm, foo10_v1) <int64> v2);
+    ssa!        ((vm, foo10_v1) <int64> v3);
+    ssa!        ((vm, foo10_v1) <int64> v4);
+    ssa!        ((vm, foo10_v1) <int64> v5);
+    ssa!        ((vm, foo10_v1) <int64> v6);
+    ssa!        ((vm, foo10_v1) <int64> v7);
+    ssa!        ((vm, foo10_v1) <int64> v8);
+    ssa!        ((vm, foo10_v1) <int64> v9);
+    block!      ((vm, foo10_v1) blk_entry);
+
+    inst!       ((vm, foo10_v1) blk_entry_ret:
+        RET (v9)
+    );
+
+    define_block!((vm, foo10_v1) blk_entry(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) foo10_v1 (entry: blk_entry) {blk_entry});
+
+    // pass_2args_by_stack
+    funcsig!    ((vm) sig = () -> ());
+    funcdecl!   ((vm) <sig> pass_2args_by_stack);
+    funcdef!    ((vm) <sig> pass_2args_by_stack VERSION pass_2args_by_stack_v1);
+
+    typedef!    ((vm) type_funcref_foo10 = mu_funcref(foo10_sig));
+    constdef!   ((vm) <type_funcref_foo10> const_funcref_foo10 = Constant::FuncRef(vm.id_of("foo10")));
+
+    // blk_entry
+    consta!     ((vm, pass_2args_by_stack_v1) int64_0_local = int64_0);
+    consta!     ((vm, pass_2args_by_stack_v1) int64_1_local = int64_1);
+    consta!     ((vm, pass_2args_by_stack_v1) int64_2_local = int64_2);
+
+    block!      ((vm, pass_2args_by_stack_v1) blk_entry);
+    block!      ((vm, pass_2args_by_stack_v1) blk_main);
+    inst!       ((vm, pass_2args_by_stack_v1) blk_entry_branch:
+        BRANCH blk_main (
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+            int64_0_local,
+
+            int64_1_local,
+            int64_2_local
+        )
+    );
+
+    define_block!((vm, pass_2args_by_stack_v1) blk_entry() {blk_entry_branch});
+
+    // blk_main
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a0);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a1);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a2);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a3);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a4);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a5);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a6);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a7);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a8);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> a9);
+
+    consta!     ((vm, pass_2args_by_stack_v1) const_funcref_foo10_local = const_funcref_foo10);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int64> retval);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int32> retval2);
+    inst!       ((vm, pass_2args_by_stack_v1) blk_main_call:
+        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo10_local (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)
+    );
+    inst!       ((vm, pass_2args_by_stack_v1) blk_main_trunc:
+        retval2 = CONVOP (ConvOp::TRUNC) <int64 int32> retval
+    );
+
+    let blk_main_exit = gen_ccall_exit(retval2.clone(), &mut pass_2args_by_stack_v1, &vm);
+
+    inst!       ((vm, pass_2args_by_stack_v1) blk_main_ret:
+        RET
+    );
+
+    define_block!((vm, pass_2args_by_stack_v1) blk_main(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) {
+        blk_main_call,
+        blk_main_trunc,
+        blk_main_exit,
+        blk_main_ret
+    });
+
+    define_func_ver!((vm) pass_2args_by_stack_v1 (entry: blk_entry) {
+        blk_entry,
+        blk_main
+    });
+
+    vm
+}
+
+#[test]
+#[cfg(target_arch = "x86_64")]
+fn test_pass_2args_by_stack() {
+    VM::start_logging_trace();
+    let vm = Arc::new(pass_2args_by_stack());
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+    let func_foo = vm.id_of("foo9");
     let func_main = vm.id_of("pass_2args_by_stack");
     {
         let funcs = vm.funcs().read().unwrap();
@@ -318,6 +632,7 @@ fn test_pass_2args_by_stack() {
     assert_eq!(output.status.code().unwrap(), 2);
 }
 
+#[cfg(target_arch = "x86_64")]
 fn pass_2args_by_stack() -> VM {
     let vm = VM::new_with_opts("init_mu --disable-inline");
 
@@ -396,11 +711,16 @@ fn pass_2args_by_stack() -> VM {
 
     consta!     ((vm, pass_2args_by_stack_v1) const_funcref_foo8_local = const_funcref_foo8);
     ssa!        ((vm, pass_2args_by_stack_v1) <int64> retval);
+    ssa!        ((vm, pass_2args_by_stack_v1) <int32> retval2);
     inst!       ((vm, pass_2args_by_stack_v1) blk_main_call:
         retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7)
     );
+    inst!       ((vm, pass_2args_by_stack_v1) blk_main_trunc:
+        retval2 = CONVOP (ConvOp::TRUNC) <int64 int32> retval
+    );
 
-    let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_2args_by_stack_v1, &vm);
+
+    let blk_main_exit = gen_ccall_exit(retval2.clone(), &mut pass_2args_by_stack_v1, &vm);
 
     inst!       ((vm, pass_2args_by_stack_v1) blk_main_ret:
         RET
@@ -408,6 +728,7 @@ fn pass_2args_by_stack() -> VM {
 
     define_block!((vm, pass_2args_by_stack_v1) blk_main(a0, a1, a2, a3, a4, a5, a6, a7) {
         blk_main_call,
+        blk_main_trunc,
         blk_main_exit,
         blk_main_ret
     });

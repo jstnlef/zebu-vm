@@ -60,7 +60,7 @@ impl Frame {
         }
     }
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     pub fn cur_size(&self) -> usize {
         // frame size is a multiple of 16 bytes
         let size = self.cur_offset.abs() as usize;
@@ -83,6 +83,7 @@ impl Frame {
     
     pub fn alloc_slot_for_callee_saved_reg(&mut self, reg: P<Value>, vm: &VM) -> P<Value> {
         let slot = self.alloc_slot(&reg, vm);
+
         slot.make_memory_op(reg.ty.clone(), vm)
     }
 
@@ -144,6 +145,23 @@ impl FrameSlot {
                     offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
                     index: None,
                     scale: None
+                }
+            )
+        })
+    }
+    #[cfg(target_arch = "aarch64")]
+    pub fn make_memory_op(&self, ty: P<MuType>, vm: &VM) -> P<Value> {
+        use compiler::backend::aarch64;
+
+        P(Value{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty: ty.clone(),
+            v: Value_::Memory(
+                MemoryLocation::Address{
+                    base: aarch64::FP.clone(),
+                    offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
+                    shift: 0,
+                    signed: false
                 }
             )
         })

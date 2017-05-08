@@ -156,6 +156,7 @@ pub fn struct_insts_macro() -> VM {
     let vm = VM::new();
 
     typedef! ((vm) int64        = mu_int(64));
+    typedef! ((vm) int32        = mu_int(32));
     typedef! ((vm) struct_point = mu_struct(int64, int64));
     typedef! ((vm) ref_point    = mu_ref(struct_point));
     typedef! ((vm) iref_point   = mu_iref(struct_point));
@@ -230,10 +231,14 @@ pub fn struct_insts_macro() -> VM {
     );
 
     ssa!    ((vm, struct_insts_v1) <int64> blk_check_res);
+    ssa!    ((vm, struct_insts_v1) <int32> blk_check_res2);
+
     inst!   ((vm, struct_insts_v1) blk_check_inst5:
                 blk_check_res = BINOP (BinOp::Add) blk_check_x blk_check_y
     );
-
+    inst!       ((vm, struct_insts_v1) blk_check_trunc:
+        blk_check_res2 = CONVOP (ConvOp::TRUNC) <int64 int32> blk_check_res
+    );
     let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut struct_insts_v1, &vm);
 
     inst!   ((vm, struct_insts_v1) blk_check_ret:
@@ -241,7 +246,7 @@ pub fn struct_insts_macro() -> VM {
     );
 
     define_block! ((vm, struct_insts_v1) blk_check(blk_check_a) {
-        blk_check_inst0, blk_check_inst1, blk_check_inst2, blk_check_inst3, blk_check_inst4, blk_check_inst5, blk_check_ccall, blk_check_ret
+        blk_check_inst0, blk_check_inst1, blk_check_inst2, blk_check_inst3, blk_check_inst4, blk_check_inst5, blk_check_trunc, blk_check_ccall, blk_check_ret
     });
 
     define_func_ver! ((vm) struct_insts_v1 (entry: blk_entry) {blk_entry, blk_check});
@@ -256,6 +261,8 @@ pub fn struct_insts() -> VM {
     // .typedef @int64 = int<64>
     let int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
     vm.set_name(int64.as_entity(), Mu("int64"));
+    let int32 = vm.declare_type(vm.next_id(), MuType_::int(32));
+    vm.set_name(int32.as_entity(), Mu("int32"));
     // .typedef @point = struct<@int64 @int64>
     let struct_point = vm.declare_type(vm.next_id(), MuType_::mustruct("Point".to_string(), vec![int64.clone(), int64.clone()]));
     vm.set_name(struct_point.as_entity(), Mu("point"));
@@ -451,9 +458,14 @@ pub fn struct_insts() -> VM {
         ops: RwLock::new(vec![blk_check_x.clone(), blk_check_y.clone()]),
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
+    ssa!        ((vm, struct_insts_v1) <int32> blk_check_res2);
+
+    inst!       ((vm, struct_insts_v1) blk_check_trunc:
+        blk_check_res2 = CONVOP (ConvOp::TRUNC) <int64 int32> blk_check_res
+    );
 
     // CCALL exit(%res)
-    let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut func_ver, &vm);
+    let blk_check_ccall = gen_ccall_exit(blk_check_res2.clone(), &mut func_ver, &vm);
 
     // RET <@int64> 0
     let blk_check_ret = func_ver.new_inst(Instruction{
@@ -473,6 +485,7 @@ pub fn struct_insts() -> VM {
             blk_check_inst3,
             blk_check_inst4,
             blk_check_inst5,
+            blk_check_trunc,
             blk_check_ccall,
             blk_check_ret
         ],
@@ -531,6 +544,9 @@ pub fn hybrid_fix_part_insts() -> VM {
     // .typedef @int64 = int<64>
     let int64 = vm.declare_type(vm.next_id(), MuType_::int(64));
     vm.set_name(int64.as_entity(), Mu("int64"));
+
+    typedef!    ((vm) int32      = mu_int(32));
+
     // .typedef @my_hybrid = hybrid<@int64 @int64 | @int64>
     let my_hybrid = vm.declare_type(vm.next_id(), MuType_::hybrid("MyHybrid".to_string(), vec![int64.clone(), int64.clone()], int64.clone()));
     vm.set_name(my_hybrid.as_entity(), Mu("my_hybrid"));
@@ -722,6 +738,8 @@ pub fn hybrid_fix_part_insts() -> VM {
         }
     });
 
+    ssa!        ((vm, hybrid_fix_part_insts_v1) <int32> blk_check_res2);
+
     // %res = ADD <@int64> %x %y
     let blk_check_res = func_ver.new_ssa(vm.next_id(), int64.clone());
     vm.set_name(blk_check_res.as_entity(), Mu("blk_check_res"));
@@ -732,8 +750,12 @@ pub fn hybrid_fix_part_insts() -> VM {
         v: Instruction_::BinOp(BinOp::Add, 0, 1)
     });
 
+    inst!       ((vm, hybrid_fix_part_insts_v1) blk_check_trunc:
+        blk_check_res2 = CONVOP (ConvOp::TRUNC) <int64 int32> blk_check_res
+    );
+
     // CCALL exit(%res)
-    let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut func_ver, &vm);
+    let blk_check_ccall = gen_ccall_exit(blk_check_res2.clone(), &mut func_ver, &vm);
 
     // RET <@int64> 0
     let blk_check_ret = func_ver.new_inst(Instruction{
@@ -753,6 +775,7 @@ pub fn hybrid_fix_part_insts() -> VM {
         blk_check_inst3,
         blk_check_inst4,
         blk_check_inst5,
+        blk_check_trunc,
         blk_check_ccall,
         blk_check_ret
         ],
@@ -1183,8 +1206,15 @@ pub fn hybrid_var_part_insts() -> VM {
     let mut blk_exit = Block::new(blk_exit_id);
     vm.set_name(blk_exit.as_entity(), Mu("blk_exit"));
 
+    ssa!        ((vm, set_global_by_api_v1) <int32> val2);
+
+
     let blk_exit_sum = func_ver.new_ssa(vm.next_id(), int64.clone());
     vm.set_name(blk_exit_sum.as_entity(), Mu("blk_exit_sum"));
+
+    inst!       ((vm, set_global_by_api_v1) blk_exit_trunc:
+        blk_exit_sum2 = CONVOP (ConvOp::TRUNC) <int64 int32> blk_exit_sum
+    );
 
     let blk_exit_exit = gen_ccall_exit(blk_exit_sum.clone(), &mut func_ver, &vm);
 
@@ -1199,7 +1229,7 @@ pub fn hybrid_var_part_insts() -> VM {
     blk_exit.content = Some(BlockContent{
         args: vec![blk_exit_sum.clone_value()],
         exn_arg: None,
-        body: vec![blk_exit_exit, blk_exit_ret],
+        body: vec![blk_exit_trunc, blk_exit_exit, blk_exit_ret],
         keepalives: None
     });
 

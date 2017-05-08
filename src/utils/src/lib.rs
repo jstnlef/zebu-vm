@@ -6,7 +6,7 @@ pub type ByteOffset = isize;
 pub type ByteSize   = usize;
 pub type Word       = usize;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub const LOG_POINTER_SIZE : usize = 3;
 
 pub const POINTER_SIZE     : ByteSize = 1 << LOG_POINTER_SIZE;
@@ -40,7 +40,7 @@ macro_rules! linked_hashmap {
     };
 }
 
-#[macro_exprt]
+#[macro_export]
 macro_rules! linked_hashset {
     (@single $($x:tt)*) => (());
     (@count $($rest:expr),*) => (<[()]>::len(&[$(linked_hashset!(@single $rest)),*]));

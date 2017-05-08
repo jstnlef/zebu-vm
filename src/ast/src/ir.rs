@@ -956,6 +956,7 @@ impl fmt::Display for Constant {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 #[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum MemoryLocation {
     Address{
@@ -971,6 +972,7 @@ pub enum MemoryLocation {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl fmt::Display for MemoryLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -993,6 +995,67 @@ impl fmt::Display for MemoryLocation {
                 } else {
                     write!(f, "{}", label)
                 }
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
+pub enum MemoryLocation {
+    // Represents how an adress should be computed,
+    // will need to be converted to a real Address before being used
+    VirtualAddress{
+        // Represents base + offset*scale
+        // With offset being inerpreted as signed if 'signed' is true
+        base: P<Value>,
+        offset: Option<P<Value>>,
+        scale: u64,
+        signed: bool
+    },
+    Address{
+        base: P<Value>, // Must be a normal 64-bit register or SP
+        offset: Option<P<Value>>, // Can be any GPR or a 12-bit unsigned immediate << n
+        shift: u8, // valid values are 0, log2(n)
+        signed: bool, // Whether offset is signed or not (only set this if offset is a register)
+        // Note: n is the number of bytes the adress refers two
+    },
+    Symbolic{
+        label: MuName,
+        is_global: bool
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+impl fmt::Display for MemoryLocation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &MemoryLocation::VirtualAddress{ref base, ref offset, scale, signed} => {
+                write!(f, "[{}", base).unwrap();
+
+                if offset.is_some() {
+                    let sign_type = if signed { "SInt"} else { "UInt" };
+                    write!(f, " + {}({})", sign_type, offset.as_ref().unwrap()).unwrap();
+                }
+
+                write!(f, " * {}", scale).unwrap();
+                write!(f, "]")
+            }
+            &MemoryLocation::Address{ref base, ref offset, shift, signed} => {
+                write!(f, "[{}", base).unwrap();
+
+                if offset.is_some() {
+                    let sign_type = if signed { "SInt"} else { "UInt" };
+                    write!(f, " + {}({})", sign_type, offset.as_ref().unwrap()).unwrap();
+                }
+
+                if shift != 0 {
+                    write!(f, " LSL {}", shift).unwrap();
+                }
+                write!(f, "]")
+            }
+            &MemoryLocation::Symbolic{ref label, ..} => {
+                write!(f, "{}", label)
             }
         }
     }

@@ -267,7 +267,7 @@ fn emit_muir_dot_inner(file: &mut File,
         }
     }
 
-    file.write("}".as_bytes()).unwrap();
+    file.write("}\n".as_bytes()).unwrap();
 }
 
 fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
@@ -338,7 +338,7 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
         }
     }
 
-    file.write("}".as_bytes()).unwrap();
+    file.write("}\n".as_bytes()).unwrap();
 }
 
 impl CompilerPass for CodeEmission {
