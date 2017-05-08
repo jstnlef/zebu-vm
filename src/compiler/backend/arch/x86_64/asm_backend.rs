@@ -1,4 +1,4 @@
-/*#![allow(unused_variables)]
+#![allow(unused_variables)]
 
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::RegGroup;
@@ -3658,4 +3658,3 @@ pub fn spill_rewrite(
 
     spilled_scratch_temps
 }
-*/

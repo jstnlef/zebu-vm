@@ -1079,7 +1079,9 @@ pub fn bits_ones(n: usize) -> u64 {
 pub fn is_valid_immediate_offset(val: i64, n : usize) -> bool {
     use std;
     let n =  std::cmp::max(n, 8);
-    val >= 0 && (val as u64) % (n as u64) == 0 && ((val as u64)/(n as u64) < (1 << 12))
+    (val >= -(1 << 8) && val < (1 << 8)) || // Valid 9 bit signed unscaled offset
+    // Valid unsigned 12-bit scalled offset
+    (val >= 0 && (val as u64) % (n as u64) == 0 && ((val as u64)/(n as u64) < (1 << 12)))
 }
 
 #[inline(always)]

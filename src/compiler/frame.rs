@@ -104,9 +104,9 @@ impl Frame {
         self.exception_callsites.push((callsite, dest));
     }
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {
-        // RBP is 16 bytes aligned, we are offsetting from RBP
+        // RBP/FP is 16 bytes aligned, we are offsetting from RBP/FP
         // every value should be properly aligned
 
         let backendty = vm.get_backend_type_info(val.ty.id());

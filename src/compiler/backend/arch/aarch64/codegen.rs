@@ -56,29 +56,10 @@ pub trait CodeGenerator {
         prfop is a string (or an imm5)
     PRFM    PRFM_imm
 
-    (also look at load / store unscaled)
-    CAS/b-h (ARMv8.1    (check if this will work on Wolf)
-    CASP
+TODO:
+    LSLV, ASRV, LSRV ??
 
-    SWP/-b-h    (ARMv8.1 only)
-
-    LDADD/-b-h      Add
-    LDCLR/-b-h      Bit clear
-    LDEOR/-b-h           Exclusive Or
-    LDSET/-b-h      Set
-    LDMAX-b-h   signed maximum
-    LDMIN/b-h   sign minimum
-    LDUMAX/-b-h unsigned maximum
-    LDUMIN/-b-h unsigned minimum
-
-    STADD/-b-h   Add
-      STCLR/-b-h
-      STEOR/-b-h
-      STSET/-b-h
-      STMAX/-b-h
-      STMIN/-b-h
-      STUMAX/-b-h
-      STUMIN/-b-
+   Cryptograhpy instructions??
     NOTE:
         with loads and stores the menmonic indicated may be given a suffix indicating the size and signenedness of the access
         also b_cond's menmononic is 'B.cond'

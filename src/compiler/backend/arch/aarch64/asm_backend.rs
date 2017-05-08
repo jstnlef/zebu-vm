@@ -1,10 +1,8 @@
-#![allow(unused_variables)]
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
 use utils::Address;
 use utils::POINTER_SIZE;
-use compiler::backend::aarch64;
 use compiler::backend::aarch64::*;
 
 use compiler::backend::{Reg, Mem};
@@ -1163,7 +1161,7 @@ impl ASMCodeGen {
         op.extract_ssa_id().unwrap()
     }
 
-    fn aarch64_prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, LinkedHashMap<MuID, Vec<ASMLocation>>) {
+    fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, LinkedHashMap<MuID, Vec<ASMLocation>>) {
         if cfg!(debug_assertions) {
             match op.v {
                 Value_::Memory(_) => {},
@@ -1287,10 +1285,10 @@ impl ASMCodeGen {
         self.cur.take().unwrap()
     }
 
-    fn emit_ldr_spill(&mut self, dest: Reg, src: Mem) { self.aarch64_internal_load("LDR", dest, src, false, true); }
-    fn emit_str_spill(&mut self, dest: Mem, src: Reg) { self.aarch64_internal_store("STR", dest, src, true) }
+    fn emit_ldr_spill(&mut self, dest: Reg, src: Mem) { self.internal_load("LDR", dest, src, false, true); }
+    fn emit_str_spill(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, true) }
 
-    fn aarch64_internal_simple(&mut self, inst: &str) {
+    fn internal_simple(&mut self, inst: &str) {
         let inst = inst.to_string();
         trace!("emit: \t{}", inst);
 
@@ -1304,7 +1302,7 @@ impl ASMCodeGen {
         )
     }
 
-    fn aarch64_internal_simple_imm(&mut self, inst: &str, val: u64) {
+    fn internal_simple_imm(&mut self, inst: &str, val: u64) {
         let inst = inst.to_string();
         trace!("emit: \t{} {}", inst, val);
 
@@ -1318,7 +1316,7 @@ impl ASMCodeGen {
         )
     }
 
-    fn aarch64_internal_simple_str(&mut self, inst: &str, option: &str) {
+    fn internal_simple_str(&mut self, inst: &str, option: &str) {
         let inst = inst.to_string();
         let option = option.to_string();
         trace!("emit: \t{} {}", inst, option);
@@ -1334,7 +1332,7 @@ impl ASMCodeGen {
     }
 
     #[warn(unused_variables)] // A system instruction
-    fn aarch64_internal_system(&mut self, inst: &str, option: &str, src: &P<Value>) {
+    fn internal_system(&mut self, inst: &str, option: &str, src: &P<Value>) {
         let inst = inst.to_string();
         let option = option.to_string();
         trace!("emit: \t{} {} {}", inst, option, src);
@@ -1346,12 +1344,12 @@ impl ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{},
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             false
         )
     }
 
-    fn aarch64_internal_branch_op(&mut self, inst: &str, src: &P<Value>, dest_name: MuName) {
+    fn internal_branch_op(&mut self, inst: &str, src: &P<Value>, dest_name: MuName) {
         trace!("emit: \t{} {}, {}", inst, src, dest_name);
 
         let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
@@ -1360,7 +1358,7 @@ impl ASMCodeGen {
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{ id1 => vec![loc1]}, false, ASMBranchTarget::Conditional(dest_name), None);
     }
 
-    fn aarch64_internal_branch_op_imm(&mut self, inst: &str, src1: &P<Value>, src2: u8, dest_name: MuName) {
+    fn internal_branch_op_imm(&mut self, inst: &str, src1: &P<Value>, src2: u8, dest_name: MuName) {
         trace!("emit: \t{} {},{},{}", inst, src1, src2, dest_name);
 
         let (reg1, id1, loc1) = self.prepare_reg(src1, inst.len() + 1);
@@ -1370,7 +1368,7 @@ impl ASMCodeGen {
     }
 
     #[warn(unused_variables)] // Same as inetnral_binop except extends the second source register
-    fn aarch64_internal_binop_ext(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>, signed : bool, shift: u8) {
+    fn internal_binop_ext(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>, signed : bool, shift: u8) {
         let inst = inst.to_string();
         let ext_s = if signed { "S" } else { "U" };
         let ext_p = match src2.ty.get_int_length() {
@@ -1396,13 +1394,13 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_create_hash_map(vec![(id2, loc2), (id3, loc3)]),
+            ignore_zero_register(id1, vec![loc1]),
+            create_hash_map(vec![(id2, loc2), (id3, loc3)]),
             false
         )
     }
 
-    fn aarch64_internal_binop_imm(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: u64, shift: u8) {
+    fn internal_binop_imm(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: u64, shift: u8) {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, {} LSL {} -> {}", inst, src1, src2, shift, dest);
 
@@ -1417,14 +1415,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_ignore_zero_register(id2, vec![loc2]),
+            ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id2, vec![loc2]),
             false
         )
     }
 
     #[warn(unused_variables)] // dest <= inst(src1, src2)
-    fn aarch64_internal_unop_shift(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>, shift: &str, amount: u8) {
+    fn internal_unop_shift(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>, shift: &str, amount: u8) {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, {} {} -> {}", inst, src, shift, amount, dest);
 
@@ -1435,14 +1433,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_ignore_zero_register(id2, vec![loc2]),
+            ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id2, vec![loc2]),
             false
         )
     }
 
     #[warn(unused_variables)] // dest <= inst(src)
-    fn aarch64_internal_unop(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+    fn internal_unop(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
         let inst = inst.to_string();
         trace!("emit: \t{} {} -> {}", inst, src, dest);
 
@@ -1453,14 +1451,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_ignore_zero_register(id2, vec![loc2]),
+            ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id2, vec![loc2]),
             false
         )
     }
 
     // Note: different instructions have different allowed src values
-    fn aarch64_internal_unop_imm(&mut self, inst: &str, dest: &P<Value>, src: u64, shift: u8) {
+    fn internal_unop_imm(&mut self, inst: &str, dest: &P<Value>, src: u64, shift: u8) {
         debug_assert!(shift == 0 || shift == 16 || shift == 32 || shift == 48);
         let inst = inst.to_string();
         trace!("emit: \t{} {} LSL {} -> {}", inst, src, shift, dest);
@@ -1474,7 +1472,7 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             linked_hashmap!{},
             false
         )
@@ -1482,7 +1480,7 @@ impl ASMCodeGen {
 
 
     #[warn(unused_variables)] // dest <= inst(src1, src2)
-    fn aarch64_internal_binop(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>) {
+    fn internal_binop(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>) {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, {} -> {}", inst, src1, src2, dest);
 
@@ -1494,14 +1492,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_create_hash_map(vec![(id2, loc2), (id3, loc3)]),
+            ignore_zero_register(id1, vec![loc1]),
+            create_hash_map(vec![(id2, loc2), (id3, loc3)]),
             false
         )
     }
 
     #[warn(unused_variables)] // dest <= inst(src1, src2)
-    fn aarch64_internal_binop_shift(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>, shift: &str, amount: u8) {
+    fn internal_binop_shift(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>, shift: &str, amount: u8) {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, {}, {} {} -> {}", inst, src1, src2, shift, amount, dest);
 
@@ -1513,14 +1511,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_create_hash_map(vec![(id2, loc2), (id3, loc3)]),
+            ignore_zero_register(id1, vec![loc1]),
+            create_hash_map(vec![(id2, loc2), (id3, loc3)]),
             false
         )
     }
 
     #[warn(unused_variables)] // dest <= inst(src1, src2, src3)
-    fn aarch64_internal_ternop(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>, src3 : &P<Value>) {
+    fn internal_ternop(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>, src3 : &P<Value>) {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, {}, {} -> {}", inst, src3, src1, src2, dest);
 
@@ -1533,13 +1531,13 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_create_hash_map(vec![(id2, loc2), (id3, loc3), (id4, loc4)]),
+            ignore_zero_register(id1, vec![loc1]),
+            create_hash_map(vec![(id2, loc2), (id3, loc3), (id4, loc4)]),
             false
         )
     }
 
-    fn aarch64_internal_ternop_imm(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: u64, src3: u64) {
+    fn internal_ternop_imm(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: u64, src3: u64) {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, {}, {} -> {}", inst, src1, src2, src3, dest);
 
@@ -1550,14 +1548,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_ignore_zero_register(id2, vec![loc2]),
+            ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id2, vec![loc2]),
             false
         )
     }
 
     #[warn(unused_variables)] // PSTATE.<NZCV> = inst(src1, src2)
-    fn aarch64_internal_cmpop(&mut self, inst: &str, src1: &P<Value>, src2: &P<Value>)
+    fn internal_cmpop(&mut self, inst: &str, src1: &P<Value>, src2: &P<Value>)
     {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, {}", inst, src1, src2);
@@ -1570,13 +1568,13 @@ impl ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{},
-            aarch64_create_hash_map(vec![(id1, loc1), (id2, loc2)]),
+            create_hash_map(vec![(id1, loc1), (id2, loc2)]),
             false
         )
     }
 
     #[warn(unused_variables)] // dest <= inst(src1, src2)
-    fn aarch64_internal_cmpop_shift(&mut self, inst: &str, src1: &P<Value>, src2: &P<Value>, shift: &str, amount: u8) {
+    fn internal_cmpop_shift(&mut self, inst: &str, src1: &P<Value>, src2: &P<Value>, shift: &str, amount: u8) {
         let inst = inst.to_string();
         trace!("emit: \t{} {},{}, {} {}", inst, src1, src2, shift, amount);
 
@@ -1588,13 +1586,13 @@ impl ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{},
-            aarch64_create_hash_map(vec![(id1, loc1), (id2, loc2)]),
+            create_hash_map(vec![(id1, loc1), (id2, loc2)]),
             false
         )
     }
 
     #[warn(unused_variables)] // Same as inetnral_binop except extends the second source register
-    fn aarch64_internal_cmpop_ext(&mut self, inst: &str, src1: &P<Value>, src2: &P<Value>, signed : bool, shift: u8) {
+    fn internal_cmpop_ext(&mut self, inst: &str, src1: &P<Value>, src2: &P<Value>, signed : bool, shift: u8) {
         let inst = inst.to_string();
         let ext_s = if signed { "S" } else { "U" };
         let ext_p = match src2.ty.get_int_length() {
@@ -1617,12 +1615,12 @@ impl ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{},
-            aarch64_create_hash_map(vec![(id1, loc1), (id2, loc2)]),
+            create_hash_map(vec![(id1, loc1), (id2, loc2)]),
             false
         )
     }
     #[warn(unused_variables)] // PSTATE.<NZCV> = inst(src1, src2 [<< 12])
-    fn aarch64_internal_cmpop_imm(&mut self, inst: &str, src1: &P<Value>, src2: u64, shift: u8)
+    fn internal_cmpop_imm(&mut self, inst: &str, src1: &P<Value>, src2: u64, shift: u8)
     {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, {} LSL {}", inst, src1, src2, shift);
@@ -1638,13 +1636,13 @@ impl ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{ },
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             false
         )
     }
 
     #[warn(unused_variables)] // PSTATE.<NZCV> = inst(src1, 0.0)
-    fn aarch64_internal_cmpop_f0(&mut self, inst: &str, src1: &P<Value>)
+    fn internal_cmpop_f0(&mut self, inst: &str, src1: &P<Value>)
     {
         let inst = inst.to_string();
         trace!("emit: \t{} {}, 0.0", inst, src1);
@@ -1656,13 +1654,13 @@ impl ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{ },
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             false
         )
     }
 
     #[warn(unused_variables)] // dest <= inst<cond>()
-    fn aarch64_internal_cond_op(&mut self, inst: &str, dest: &P<Value>, cond: &str) {
+    fn internal_cond_op(&mut self, inst: &str, dest: &P<Value>, cond: &str) {
         let inst = inst.to_string();
         let cond = cond.to_string();
         trace!("emit: \t{} {} -> {}", inst, cond, dest);
@@ -1673,14 +1671,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             linked_hashmap!{},
             false
         )
     }
 
     #[warn(unused_variables)] // dest <= inst<cond>(src)
-    fn aarch64_internal_cond_unop(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>, cond: &str) {
+    fn internal_cond_unop(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>, cond: &str) {
         let inst = inst.to_string();
         let cond = cond.to_string();
         trace!("emit: \t{} {} {} -> {}", inst, cond, src, dest);
@@ -1692,14 +1690,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_ignore_zero_register(id2, vec![loc2]),
+            ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id2, vec![loc2]),
             false
         )
     }
 
     #[warn(unused_variables)] // dest <= inst<cond>(src1, src2)
-    fn aarch64_internal_cond_binop(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>, cond: &str) {
+    fn internal_cond_binop(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>, cond: &str) {
         let inst = inst.to_string();
         let cond = cond.to_string();
         trace!("emit: \t{} {}, {}, {} -> {}", inst, cond, src1, src2, dest);
@@ -1712,14 +1710,14 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_create_hash_map(vec![(id2, loc2), (id3, loc3)]),
+            ignore_zero_register(id1, vec![loc1]),
+            create_hash_map(vec![(id2, loc2), (id3, loc3)]),
             false
         )
     }
 
     #[warn(unused_variables)] // PSTATE.<NZCV> = inst<cond>(src1, src2, flags)
-    fn aarch64_internal_cond_cmpop(&mut self, inst: &str, src1: &P<Value>, src2: &P<Value>, flags: u8, cond: &str)
+    fn internal_cond_cmpop(&mut self, inst: &str, src1: &P<Value>, src2: &P<Value>, flags: u8, cond: &str)
     {
         let inst = inst.to_string();
         let cond = cond.to_string();
@@ -1733,13 +1731,13 @@ impl ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{},
-            aarch64_create_hash_map(vec![(id1, loc1), (id2, loc2)]),
+            create_hash_map(vec![(id1, loc1), (id2, loc2)]),
             false
         )
     }
 
     #[warn(unused_variables)] // PSTATE.<NZCV> = inst<cond>(src1, src2, flags)
-    fn aarch64_internal_cond_cmpop_imm(&mut self, inst: &str, src1: &P<Value>, src2: u8, flags: u8, cond: &str)
+    fn internal_cond_cmpop_imm(&mut self, inst: &str, src1: &P<Value>, src2: u8, flags: u8, cond: &str)
     {
         let inst = inst.to_string();
         let cond = cond.to_string();
@@ -1752,12 +1750,12 @@ impl ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{ },
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             false
         )
     }
 
-    fn aarch64_internal_load(&mut self, inst: &str, dest: &P<Value>, src: Mem, signed: bool, is_spill_related: bool)
+    fn internal_load(&mut self, inst: &str, dest: &P<Value>, src: Mem, signed: bool, is_spill_related: bool)
     {
         let op_len = primitive_byte_size(&dest.ty);
         let inst = inst.to_string() + if signed {
@@ -1782,14 +1780,14 @@ impl ASMCodeGen {
         trace!("emit: \t{} {} -> {}", inst, src, dest);
 
         let (reg, id, loc) = self.prepare_reg(dest, inst.len() + 1);
-        let (mem, uses) = self.aarch64_prepare_mem(src, inst.len() + 1 + reg.len() + 1);
+        let (mem, uses) = self.prepare_mem(src, inst.len() + 1 + reg.len() + 1);
 
         let asm = format!("{} {},{}", inst, reg, mem);
 
         if is_spill_related {
             self.add_asm_inst_with_spill(
                 asm,
-                aarch64_ignore_zero_register(id, vec![loc]),
+                ignore_zero_register(id, vec![loc]),
                 uses,
                 true,
                 SpillMemInfo::Load(src.clone())
@@ -1797,7 +1795,7 @@ impl ASMCodeGen {
         } else {
             self.add_asm_inst(
                 asm,
-                aarch64_ignore_zero_register(id, vec![loc]),
+                ignore_zero_register(id, vec![loc]),
                 uses,
                 true
             )
@@ -1806,26 +1804,26 @@ impl ASMCodeGen {
     }
 
     // TODO: What to do when src1/src2/stack are the same???
-    fn aarch64_internal_load_pair(&mut self, inst: &str, dest1: &P<Value>, dest2: &P<Value>, src: &P<Value>) {
+    fn internal_load_pair(&mut self, inst: &str, dest1: &P<Value>, dest2: &P<Value>, src: &P<Value>) {
         let inst = inst.to_string();
         trace!("emit: \t{} {} -> {},{}", inst, src, dest1, dest2);
 
         let (reg1, id1, loc1) = self.prepare_reg(dest1, 3 + 1);
         let (reg2, id2, loc2) = self.prepare_reg(dest2, 3 + 1 + reg1.len() + 1);
-        let (mem, uses) = self.aarch64_prepare_mem(src, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
+        let (mem, uses) = self.prepare_mem(src, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
 
         let asm = format!("{} {},{},{}", inst, reg1, reg2, mem);
 
         self.add_asm_inst(
             asm,
-            aarch64_create_hash_map(vec![(id1, loc1), (id2, loc2)]),
+            create_hash_map(vec![(id1, loc1), (id2, loc2)]),
             uses,
             true
         )
 
     }
 
-    fn aarch64_internal_store(&mut self, inst: &str, dest: Mem, src : &P<Value>, is_spill_related: bool)
+    fn internal_store(&mut self, inst: &str, dest: Mem, src : &P<Value>, is_spill_related: bool)
     {
         let op_len = primitive_byte_size(&src.ty);
         let inst = inst.to_string() + match op_len {
@@ -1839,7 +1837,7 @@ impl ASMCodeGen {
         trace!("emit: \t{} {} -> {}", inst, src, dest);
 
         let (reg, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
-        let (mem, mut uses) = self.aarch64_prepare_mem(dest, inst.len() + 1 + reg.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg.len() + 1);
 
         // the register we used for the memory location is counted as 'use'
         // use the vec from mem as 'use' (push use reg from src to it)
@@ -1872,7 +1870,7 @@ impl ASMCodeGen {
         }
     }
 
-    fn aarch64_internal_store_exclusive(&mut self, inst: &str, dest: Mem, status : &P<Value>, src : &P<Value>)
+    fn internal_store_exclusive(&mut self, inst: &str, dest: Mem, status : &P<Value>, src : &P<Value>)
     {
         let inst = inst.to_string();
         let op_len = primitive_byte_size(&src.ty);
@@ -1888,7 +1886,7 @@ impl ASMCodeGen {
 
         let (reg1, id1, loc1) = self.prepare_reg(status, inst.len() + 1);
         let (reg2, id2, loc2) = self.prepare_reg(src, inst.len() + 1 + reg1.len() + 1);
-        let (mem, mut uses) = self.aarch64_prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
 
         // the register we used for the memory location is counted as 'use'
         // use the vec from mem as 'use' (push use reg from src to it)
@@ -1905,19 +1903,19 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             uses,
             true
         )
     }
 
-    fn aarch64_internal_store_pair(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>) {
+    fn internal_store_pair(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>) {
         let inst = inst.to_string();
         trace!("emit: \t{} {},{} -> {}", inst, src1, src2, dest);
 
         let (reg1, id1, loc1) = self.prepare_reg(src2, inst.len() + 1);
         let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
-        let (mem, mut uses) = self.aarch64_prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
 
         if uses.contains_key(&id1) {
             let mut locs = uses.get_mut(&id1).unwrap();
@@ -1947,14 +1945,14 @@ impl ASMCodeGen {
         )
     }
 
-    fn aarch64_internal_store_pair_exclusive(&mut self, inst: &str, dest: &P<Value>, status: &P<Value>, src1: &P<Value>, src2: &P<Value>) {
+    fn internal_store_pair_exclusive(&mut self, inst: &str, dest: &P<Value>, status: &P<Value>, src1: &P<Value>, src2: &P<Value>) {
         let inst = inst.to_string();
         trace!("emit: \t{} {},{} -> {},{}", inst, src1, src2, dest, status);
 
         let (reg1, id1, loc1) = self.prepare_reg(status, inst.len() + 1);
         let (reg2, id2, loc2) = self.prepare_reg(src2, inst.len() + 1 + reg1.len() + 1);
         let (reg3, id3, loc3) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
-        let (mem, mut uses) = self.aarch64_prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1 + reg3.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1 + reg3.len() + 1);
 
         if uses.contains_key(&id2) {
             let mut locs = uses.get_mut(&id2).unwrap();
@@ -1978,7 +1976,7 @@ impl ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             uses,
             false
         )
@@ -1988,7 +1986,7 @@ impl ASMCodeGen {
 
 // Only used for loads and stores
 #[inline(always)]
-fn aarch64_op_postfix(op_len: usize) -> &'static str {
+fn op_postfix(op_len: usize) -> &'static str {
     match op_len {
         1  => "B",
         8  => "B",
@@ -2210,8 +2208,8 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id3, vec![loc3.clone()]),
-            aarch64_create_hash_map(vec![(id1, loc1), (id2, loc2), (id3, loc3)]),
+            ignore_zero_register(id3, vec![loc3.clone()]),
+            create_hash_map(vec![(id1, loc1), (id2, loc2), (id3, loc3)]),
             false
         )
     }
@@ -2229,8 +2227,8 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_create_hash_map(vec![(id1, loc1), (id2, loc2), (id3, loc3.clone())]),
-            aarch64_ignore_zero_register(id3, vec![loc3]),
+            create_hash_map(vec![(id1, loc1), (id2, loc2), (id3, loc3.clone())]),
+            ignore_zero_register(id3, vec![loc3]),
             false
         )
     }
@@ -2297,10 +2295,10 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("BR {}", reg1);
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{id1 => vec![loc1]}, false, ASMBranchTarget::UnconditionalReg(id1), None);
     }
-    fn emit_cbnz(&mut self, src: Reg, dest_name: MuName) { self.aarch64_internal_branch_op("CBNZ", src, dest_name); }
-    fn emit_cbz(&mut self, src: Reg, dest_name: MuName) { self.aarch64_internal_branch_op("CBZ", src, dest_name); }
-    fn emit_tbnz(&mut self, src1: Reg, src2: u8, dest_name: MuName) { self.aarch64_internal_branch_op_imm("TBNZ", src1, src2, dest_name); }
-    fn emit_tbz(&mut self, src1: Reg, src2: u8, dest_name: MuName) { self.aarch64_internal_branch_op_imm("TBZ", src1, src2, dest_name); }
+    fn emit_cbnz(&mut self, src: Reg, dest_name: MuName) { self.internal_branch_op("CBNZ", src, dest_name); }
+    fn emit_cbz(&mut self, src: Reg, dest_name: MuName) { self.internal_branch_op("CBZ", src, dest_name); }
+    fn emit_tbnz(&mut self, src1: Reg, src2: u8, dest_name: MuName) { self.internal_branch_op_imm("TBNZ", src1, src2, dest_name); }
+    fn emit_tbz(&mut self, src1: Reg, src2: u8, dest_name: MuName) { self.internal_branch_op_imm("TBZ", src1, src2, dest_name); }
 
     fn emit_msr(&mut self, dest: &str, src: Reg) {
         let dest = dest.to_string();
@@ -2313,7 +2311,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{},
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             false
         )
     }
@@ -2327,7 +2325,7 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             linked_hashmap!{},
             false
         )
@@ -2335,65 +2333,65 @@ impl CodeGenerator for ASMCodeGen {
 
 
     // Address calculation
-    fn emit_adr(&mut self, dest: Reg, src: Mem) { self.aarch64_internal_load("ADR", dest, src, false, false) }
-    fn emit_adrp(&mut self, dest: Reg, src: Mem) { self.aarch64_internal_load("ADRP", dest, src, false, false) }
+    fn emit_adr(&mut self, dest: Reg, src: Mem) { self.internal_load("ADR", dest, src, false, false) }
+    fn emit_adrp(&mut self, dest: Reg, src: Mem) { self.internal_load("ADRP", dest, src, false, false) }
 
     // Unary operators
-    fn emit_mov(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("MOV", dest, src) }
-    fn emit_mvn(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("MVN", dest, src) }
-    fn emit_neg(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("NEG", dest, src) }
-    fn emit_negs(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("NEGS", dest, src) }
-    fn emit_ngc(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("NGC", dest, src) }
-    fn emit_ngcs(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("NGCS", dest, src) }
-    fn emit_sxtb(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("SXTB", dest, src) }
-    fn emit_sxth(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("SXTH", dest, src) }
-    fn emit_sxtw(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("SXTW", dest, src) }
-    fn emit_uxtb(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("UXTB", dest, src) }
-    fn emit_cls(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("CLS", dest, src) }
-    fn emit_clz(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("CLZ", dest, src) }
-    fn emit_uxth(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("UXTH", dest, src) }
-    fn emit_rbit(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("RBIT", dest, src) }
-    fn emit_rev(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("REV", dest, src) }
-    fn emit_rev16(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("REV16", dest, src) }
-    fn emit_rev32(&mut self, dest: Reg/*64*/, src: Reg) { self.aarch64_internal_unop("REV32", dest, src) }
-    fn emit_rev64(&mut self, dest: Reg/*64*/, src: Reg) { self.aarch64_internal_unop("REV64", dest, src) }
-    fn emit_fabs(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FABS", dest, src) }
-    fn emit_fcvt(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVT", dest, src) }
-    fn emit_fcvtas(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTAS", dest, src) }
-    fn emit_fcvtau(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTAU", dest, src) }
-    fn emit_fcvtms(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTMS", dest, src) }
-    fn emit_fcvtmu(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTMU", dest, src) }
-    fn emit_fcvtns(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTNS", dest, src) }
-    fn emit_fcvtnu(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTNU", dest, src) }
-    fn emit_fcvtps(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTPS", dest, src) }
-    fn emit_fcvtpu(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTPU", dest, src) }
-    fn emit_fcvtzs(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTZS", dest, src) }
-    fn emit_fcvtzu(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FCVTZU", dest, src) }
-    fn emit_fmov(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FMOV", dest, src) }
-    fn emit_fneg(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FNEG", dest, src) }
-    fn emit_frinta(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FRINTA", dest, src) }
-    fn emit_frinti(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FRINTI", dest, src) }
-    fn emit_frintm(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FRINTM", dest, src) }
-    fn emit_frintn(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FRINTN", dest, src) }
-    fn emit_frintp(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FRINTP", dest, src) }
-    fn emit_frintx(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FRINTX", dest, src) }
-    fn emit_frintz(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FRINTZ", dest, src) }
-    fn emit_fsqrt(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("FSQRT", dest, src) }
-    fn emit_scvtf(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("SCVTF", dest, src) }
-    fn emit_ucvtf(&mut self, dest: Reg, src: Reg) { self.aarch64_internal_unop("UCVTF", dest, src) }
+    fn emit_mov(&mut self, dest: Reg, src: Reg) { self.internal_unop("MOV", dest, src) }
+    fn emit_mvn(&mut self, dest: Reg, src: Reg) { self.internal_unop("MVN", dest, src) }
+    fn emit_neg(&mut self, dest: Reg, src: Reg) { self.internal_unop("NEG", dest, src) }
+    fn emit_negs(&mut self, dest: Reg, src: Reg) { self.internal_unop("NEGS", dest, src) }
+    fn emit_ngc(&mut self, dest: Reg, src: Reg) { self.internal_unop("NGC", dest, src) }
+    fn emit_ngcs(&mut self, dest: Reg, src: Reg) { self.internal_unop("NGCS", dest, src) }
+    fn emit_sxtb(&mut self, dest: Reg, src: Reg) { self.internal_unop("SXTB", dest, src) }
+    fn emit_sxth(&mut self, dest: Reg, src: Reg) { self.internal_unop("SXTH", dest, src) }
+    fn emit_sxtw(&mut self, dest: Reg, src: Reg) { self.internal_unop("SXTW", dest, src) }
+    fn emit_uxtb(&mut self, dest: Reg, src: Reg) { self.internal_unop("UXTB", dest, src) }
+    fn emit_cls(&mut self, dest: Reg, src: Reg) { self.internal_unop("CLS", dest, src) }
+    fn emit_clz(&mut self, dest: Reg, src: Reg) { self.internal_unop("CLZ", dest, src) }
+    fn emit_uxth(&mut self, dest: Reg, src: Reg) { self.internal_unop("UXTH", dest, src) }
+    fn emit_rbit(&mut self, dest: Reg, src: Reg) { self.internal_unop("RBIT", dest, src) }
+    fn emit_rev(&mut self, dest: Reg, src: Reg) { self.internal_unop("REV", dest, src) }
+    fn emit_rev16(&mut self, dest: Reg, src: Reg) { self.internal_unop("REV16", dest, src) }
+    fn emit_rev32(&mut self, dest: Reg/*64*/, src: Reg) { self.internal_unop("REV32", dest, src) }
+    fn emit_rev64(&mut self, dest: Reg/*64*/, src: Reg) { self.internal_unop("REV64", dest, src) }
+    fn emit_fabs(&mut self, dest: Reg, src: Reg) { self.internal_unop("FABS", dest, src) }
+    fn emit_fcvt(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVT", dest, src) }
+    fn emit_fcvtas(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTAS", dest, src) }
+    fn emit_fcvtau(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTAU", dest, src) }
+    fn emit_fcvtms(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTMS", dest, src) }
+    fn emit_fcvtmu(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTMU", dest, src) }
+    fn emit_fcvtns(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTNS", dest, src) }
+    fn emit_fcvtnu(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTNU", dest, src) }
+    fn emit_fcvtps(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTPS", dest, src) }
+    fn emit_fcvtpu(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTPU", dest, src) }
+    fn emit_fcvtzs(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTZS", dest, src) }
+    fn emit_fcvtzu(&mut self, dest: Reg, src: Reg) { self.internal_unop("FCVTZU", dest, src) }
+    fn emit_fmov(&mut self, dest: Reg, src: Reg) { self.internal_unop("FMOV", dest, src) }
+    fn emit_fneg(&mut self, dest: Reg, src: Reg) { self.internal_unop("FNEG", dest, src) }
+    fn emit_frinta(&mut self, dest: Reg, src: Reg) { self.internal_unop("FRINTA", dest, src) }
+    fn emit_frinti(&mut self, dest: Reg, src: Reg) { self.internal_unop("FRINTI", dest, src) }
+    fn emit_frintm(&mut self, dest: Reg, src: Reg) { self.internal_unop("FRINTM", dest, src) }
+    fn emit_frintn(&mut self, dest: Reg, src: Reg) { self.internal_unop("FRINTN", dest, src) }
+    fn emit_frintp(&mut self, dest: Reg, src: Reg) { self.internal_unop("FRINTP", dest, src) }
+    fn emit_frintx(&mut self, dest: Reg, src: Reg) { self.internal_unop("FRINTX", dest, src) }
+    fn emit_frintz(&mut self, dest: Reg, src: Reg) { self.internal_unop("FRINTZ", dest, src) }
+    fn emit_fsqrt(&mut self, dest: Reg, src: Reg) { self.internal_unop("FSQRT", dest, src) }
+    fn emit_scvtf(&mut self, dest: Reg, src: Reg) { self.internal_unop("SCVTF", dest, src) }
+    fn emit_ucvtf(&mut self, dest: Reg, src: Reg) { self.internal_unop("UCVTF", dest, src) }
 
     // Unary operations with shift
-    fn emit_mov_shift(&mut self, dest: Reg, src: Reg, shift: &str, amount: u8) { self.aarch64_internal_unop_shift("MOV", dest, src, shift, amount) }
-    fn emit_mvn_shift(&mut self, dest: Reg, src: Reg, shift: &str, amount: u8) { self.aarch64_internal_unop_shift("MVN", dest, src, shift, amount) }
-    fn emit_neg_shift(&mut self, dest: Reg, src: Reg, shift: &str, amount: u8) { self.aarch64_internal_unop_shift("NEG", dest, src, shift, amount) }
-    fn emit_negs_shift(&mut self, dest: Reg, src: Reg, shift: &str, amount: u8) { self.aarch64_internal_unop_shift("NEGS", dest, src, shift, amount) }
+    fn emit_mov_shift(&mut self, dest: Reg, src: Reg, shift: &str, amount: u8) { self.internal_unop_shift("MOV", dest, src, shift, amount) }
+    fn emit_mvn_shift(&mut self, dest: Reg, src: Reg, shift: &str, amount: u8) { self.internal_unop_shift("MVN", dest, src, shift, amount) }
+    fn emit_neg_shift(&mut self, dest: Reg, src: Reg, shift: &str, amount: u8) { self.internal_unop_shift("NEG", dest, src, shift, amount) }
+    fn emit_negs_shift(&mut self, dest: Reg, src: Reg, shift: &str, amount: u8) { self.internal_unop_shift("NEGS", dest, src, shift, amount) }
 
     // Unary operations with moves
-    fn emit_mov_imm(&mut self, dest: &P<Value>, src: u64) { self.aarch64_internal_unop_imm("MOV", dest, src as u64, 0) }
-    fn emit_movz(&mut self, dest: &P<Value>, src: u16, shift: u8) { self.aarch64_internal_unop_imm("MOVZ", dest, src as u64, shift) }
-    fn emit_movk(&mut self, dest: &P<Value>, src: u16, shift: u8){ self.aarch64_internal_unop_imm("MOVK", dest, src as u64, shift) }
-    fn emit_movn(&mut self, dest: &P<Value>, src: u16, shift: u8){ self.aarch64_internal_unop_imm("MOVN", dest, src as u64, shift) }
-    fn emit_movi(&mut self, dest: &P<Value>, src: u64) { self.aarch64_internal_unop_imm("MOVI", dest, src as u64, 0) }
+    fn emit_mov_imm(&mut self, dest: &P<Value>, src: u64) { self.internal_unop_imm("MOV", dest, src as u64, 0) }
+    fn emit_movz(&mut self, dest: &P<Value>, src: u16, shift: u8) { self.internal_unop_imm("MOVZ", dest, src as u64, shift) }
+    fn emit_movk(&mut self, dest: &P<Value>, src: u16, shift: u8){ self.internal_unop_imm("MOVK", dest, src as u64, shift) }
+    fn emit_movn(&mut self, dest: &P<Value>, src: u16, shift: u8){ self.internal_unop_imm("MOVN", dest, src as u64, shift) }
+    fn emit_movi(&mut self, dest: &P<Value>, src: u64) { self.internal_unop_imm("MOVI", dest, src as u64, 0) }
 
     fn emit_fmov_imm(&mut self, dest: &P<Value>, src: f32) {
         trace!("emit: \tFMOV {} -> {}", src, dest);
@@ -2410,153 +2408,153 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     // Binary operations with immediates
-    fn emit_add_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool) {self.aarch64_internal_binop_imm("ADD", dest, src1, src2 as u64, if shift {12} else {0})}
-    fn emit_adds_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool) {self.aarch64_internal_binop_imm("ADDS", dest, src1, src2 as u64, if shift {12} else {0})}
-    fn emit_sub_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool) {self.aarch64_internal_binop_imm("SUB", dest, src1, src2 as u64, if shift {12} else {0})}
-    fn emit_subs_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool) {self.aarch64_internal_binop_imm("SUBS", dest, src1, src2 as u64, if shift {12} else {0})}
-    fn emit_and_imm(&mut self, dest: Reg, src1: Reg, src2: u64) {self.aarch64_internal_binop_imm("AND", dest, src1, src2, 0)}
-    fn emit_ands_imm(&mut self, dest: Reg, src1: Reg, src2: u64) {self.aarch64_internal_binop_imm("ANDS", dest, src1, src2, 0)}
-    fn emit_eor_imm(&mut self, dest: Reg, src1: Reg, src2: u64) {self.aarch64_internal_binop_imm("EOR", dest, src1, src2, 0)}
-    fn emit_orr_imm(&mut self, dest: Reg, src1: Reg, src2: u64) {self.aarch64_internal_binop_imm("ORR", dest, src1, src2, 0)}
-    fn emit_asr_imm(&mut self, dest: Reg, src1: Reg, src2: u8) {self.aarch64_internal_binop_imm("ASR", dest, src1, src2 as u64, 0)}
-    fn emit_lsr_imm(&mut self, dest: Reg, src1: Reg, src2: u8) {self.aarch64_internal_binop_imm("LSR", dest, src1, src2 as u64, 0)}
-    fn emit_lsl_imm(&mut self, dest: Reg, src1: Reg, src2: u8) {self.aarch64_internal_binop_imm("LSL", dest, src1, src2 as u64, 0)}
-    fn emit_ror_imm(&mut self, dest: Reg, src1: Reg, src2: u8) {self.aarch64_internal_binop_imm("ROR", dest, src1, src2 as u64, 0)}
+    fn emit_add_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool) {self.internal_binop_imm("ADD", dest, src1, src2 as u64, if shift {12} else {0})}
+    fn emit_adds_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool) {self.internal_binop_imm("ADDS", dest, src1, src2 as u64, if shift {12} else {0})}
+    fn emit_sub_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool) {self.internal_binop_imm("SUB", dest, src1, src2 as u64, if shift {12} else {0})}
+    fn emit_subs_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool) {self.internal_binop_imm("SUBS", dest, src1, src2 as u64, if shift {12} else {0})}
+    fn emit_and_imm(&mut self, dest: Reg, src1: Reg, src2: u64) {self.internal_binop_imm("AND", dest, src1, src2, 0)}
+    fn emit_ands_imm(&mut self, dest: Reg, src1: Reg, src2: u64) {self.internal_binop_imm("ANDS", dest, src1, src2, 0)}
+    fn emit_eor_imm(&mut self, dest: Reg, src1: Reg, src2: u64) {self.internal_binop_imm("EOR", dest, src1, src2, 0)}
+    fn emit_orr_imm(&mut self, dest: Reg, src1: Reg, src2: u64) {self.internal_binop_imm("ORR", dest, src1, src2, 0)}
+    fn emit_asr_imm(&mut self, dest: Reg, src1: Reg, src2: u8) {self.internal_binop_imm("ASR", dest, src1, src2 as u64, 0)}
+    fn emit_lsr_imm(&mut self, dest: Reg, src1: Reg, src2: u8) {self.internal_binop_imm("LSR", dest, src1, src2 as u64, 0)}
+    fn emit_lsl_imm(&mut self, dest: Reg, src1: Reg, src2: u8) {self.internal_binop_imm("LSL", dest, src1, src2 as u64, 0)}
+    fn emit_ror_imm(&mut self, dest: Reg, src1: Reg, src2: u8) {self.internal_binop_imm("ROR", dest, src1, src2 as u64, 0)}
 
     // Binary operations with extension
-    fn emit_add_ext(&mut self, dest: Reg, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.aarch64_internal_binop_ext("ADD", dest, src1, src2, signed, shift)}
-    fn emit_adds_ext(&mut self, dest: Reg, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.aarch64_internal_binop_ext("ADDS", dest, src1, src2, signed, shift)}
-    fn emit_sub_ext(&mut self, dest: Reg, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.aarch64_internal_binop_ext("SUB", dest, src1, src2, signed, shift)}
-    fn emit_subs_ext(&mut self, dest: Reg, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.aarch64_internal_binop_ext("SUBS", dest, src1, src2, signed, shift)}
+    fn emit_add_ext(&mut self, dest: Reg, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.internal_binop_ext("ADD", dest, src1, src2, signed, shift)}
+    fn emit_adds_ext(&mut self, dest: Reg, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.internal_binop_ext("ADDS", dest, src1, src2, signed, shift)}
+    fn emit_sub_ext(&mut self, dest: Reg, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.internal_binop_ext("SUB", dest, src1, src2, signed, shift)}
+    fn emit_subs_ext(&mut self, dest: Reg, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.internal_binop_ext("SUBS", dest, src1, src2, signed, shift)}
 
     // Normal Binary operations
-    fn emit_mul(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("MUL", dest, src1, src2)}
-    fn emit_mneg(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("MNEG", dest, src1, src2)}
-    fn emit_smulh(&mut self, dest: Reg/*64*/, src1: Reg/*64*/, src2: Reg/*64*/) {self.aarch64_internal_binop("SMULH", dest, src1, src2)}
-    fn emit_umulh(&mut self, dest: Reg/*64*/, src1: Reg/*64*/, src2: Reg/*64*/) {self.aarch64_internal_binop("UMULH", dest, src1, src2)}
-    fn emit_smnegl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/) {self.aarch64_internal_binop("SMNEGL", dest, src1, src2)}
-    fn emit_smull(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/) {self.aarch64_internal_binop("SMULL", dest, src1, src2)}
-    fn emit_umnegl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/) {self.aarch64_internal_binop("UMNEGL", dest, src1, src2)}
-    fn emit_umull(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/) {self.aarch64_internal_binop("UMULL", dest, src1, src2)}
-    fn emit_adc(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ADC", dest, src1, src2)}
-    fn emit_adcs(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ADCS", dest, src1, src2)}
-    fn emit_add(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ADD", dest, src1, src2)}
-    fn emit_adds(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ADDS", dest, src1, src2)}
-    fn emit_sbc(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("SBC", dest, src1, src2)}
-    fn emit_sbcs(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("SBCS", dest, src1, src2)}
-    fn emit_sub(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("SUB", dest, src1, src2)}
-    fn emit_subs(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("SUBS", dest, src1, src2)}
-    fn emit_sdiv(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("SDIV", dest, src1, src2)}
-    fn emit_udiv(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("UDIV", dest, src1, src2)}
-    fn emit_asr(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ASR", dest, src1, src2)}
-    fn emit_lsl(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("LSL", dest, src1, src2)}
-    fn emit_lsr(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("LSR", dest, src1, src2)}
-    fn emit_ror(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ROR", dest, src1, src2)}
-    fn emit_bic(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("BIC", dest, src1, src2)}
-    fn emit_bics(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("BICS", dest, src1, src2)}
-    fn emit_and(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("AND", dest, src1, src2)}
-    fn emit_ands(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ANDS", dest, src1, src2)}
-    fn emit_eon(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("EON", dest, src1, src2)}
-    fn emit_eor(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("EOR", dest, src1, src2)}
-    fn emit_orn(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ORN", dest, src1, src2)}
-    fn emit_orr(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("ORR", dest, src1, src2)}
-    fn emit_fadd(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FADD", dest, src1, src2)}
-    fn emit_fdiv(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FDIV", dest, src1, src2)}
-    fn emit_fmax(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FMAX", dest, src1, src2)}
-    fn emit_fmaxnm(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FMAXNM", dest, src1, src2)}
-    fn emit_fmin(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FMIN", dest, src1, src2)}
-    fn emit_fminm(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FMINM", dest, src1, src2)}
-    fn emit_fmul(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FMUL", dest, src1, src2)}
-    fn emit_fnmul(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FNMUL", dest, src1, src2)}
-    fn emit_fsub(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.aarch64_internal_binop("FSUB", dest, src1, src2)}
+    fn emit_mul(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("MUL", dest, src1, src2)}
+    fn emit_mneg(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("MNEG", dest, src1, src2)}
+    fn emit_smulh(&mut self, dest: Reg/*64*/, src1: Reg/*64*/, src2: Reg/*64*/) {self.internal_binop("SMULH", dest, src1, src2)}
+    fn emit_umulh(&mut self, dest: Reg/*64*/, src1: Reg/*64*/, src2: Reg/*64*/) {self.internal_binop("UMULH", dest, src1, src2)}
+    fn emit_smnegl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/) {self.internal_binop("SMNEGL", dest, src1, src2)}
+    fn emit_smull(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/) {self.internal_binop("SMULL", dest, src1, src2)}
+    fn emit_umnegl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/) {self.internal_binop("UMNEGL", dest, src1, src2)}
+    fn emit_umull(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/) {self.internal_binop("UMULL", dest, src1, src2)}
+    fn emit_adc(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ADC", dest, src1, src2)}
+    fn emit_adcs(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ADCS", dest, src1, src2)}
+    fn emit_add(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ADD", dest, src1, src2)}
+    fn emit_adds(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ADDS", dest, src1, src2)}
+    fn emit_sbc(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("SBC", dest, src1, src2)}
+    fn emit_sbcs(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("SBCS", dest, src1, src2)}
+    fn emit_sub(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("SUB", dest, src1, src2)}
+    fn emit_subs(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("SUBS", dest, src1, src2)}
+    fn emit_sdiv(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("SDIV", dest, src1, src2)}
+    fn emit_udiv(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("UDIV", dest, src1, src2)}
+    fn emit_asr(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ASR", dest, src1, src2)}
+    fn emit_lsl(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("LSL", dest, src1, src2)}
+    fn emit_lsr(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("LSR", dest, src1, src2)}
+    fn emit_ror(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ROR", dest, src1, src2)}
+    fn emit_bic(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("BIC", dest, src1, src2)}
+    fn emit_bics(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("BICS", dest, src1, src2)}
+    fn emit_and(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("AND", dest, src1, src2)}
+    fn emit_ands(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ANDS", dest, src1, src2)}
+    fn emit_eon(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("EON", dest, src1, src2)}
+    fn emit_eor(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("EOR", dest, src1, src2)}
+    fn emit_orn(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ORN", dest, src1, src2)}
+    fn emit_orr(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("ORR", dest, src1, src2)}
+    fn emit_fadd(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FADD", dest, src1, src2)}
+    fn emit_fdiv(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FDIV", dest, src1, src2)}
+    fn emit_fmax(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FMAX", dest, src1, src2)}
+    fn emit_fmaxnm(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FMAXNM", dest, src1, src2)}
+    fn emit_fmin(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FMIN", dest, src1, src2)}
+    fn emit_fminm(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FMINM", dest, src1, src2)}
+    fn emit_fmul(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FMUL", dest, src1, src2)}
+    fn emit_fnmul(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FNMUL", dest, src1, src2)}
+    fn emit_fsub(&mut self, dest: Reg, src1: Reg, src2: Reg) {self.internal_binop("FSUB", dest, src1, src2)}
 
     // Binary operations with shift
-    fn emit_add_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("ADD", dest, src1, src2, shift, amount)}
-    fn emit_adds_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("ADDS", dest, src1, src2, shift, amount)}
-    fn emit_sub_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("SUB", dest, src1, src2, shift, amount)}
-    fn emit_subs_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("SUBS", dest, src1, src2, shift, amount)}
-    fn emit_bic_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("BIC", dest, src1, src2, shift, amount)}
-    fn emit_bics_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("BICS", dest, src1, src2, shift, amount)}
-    fn emit_and_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("AND", dest, src1, src2, shift, amount)}
-    fn emit_ands_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("ANDS", dest, src1, src2, shift, amount)}
-    fn emit_eon_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("EON", dest, src1, src2, shift, amount)}
-    fn emit_eor_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("EOR", dest, src1, src2, shift, amount)}
-    fn emit_orn_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("ORN", dest, src1, src2, shift, amount)}
-    fn emit_orr_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_binop_shift("ORR", dest, src1, src2, shift, amount)}
+    fn emit_add_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("ADD", dest, src1, src2, shift, amount)}
+    fn emit_adds_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("ADDS", dest, src1, src2, shift, amount)}
+    fn emit_sub_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("SUB", dest, src1, src2, shift, amount)}
+    fn emit_subs_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("SUBS", dest, src1, src2, shift, amount)}
+    fn emit_bic_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("BIC", dest, src1, src2, shift, amount)}
+    fn emit_bics_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("BICS", dest, src1, src2, shift, amount)}
+    fn emit_and_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("AND", dest, src1, src2, shift, amount)}
+    fn emit_ands_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("ANDS", dest, src1, src2, shift, amount)}
+    fn emit_eon_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("EON", dest, src1, src2, shift, amount)}
+    fn emit_eor_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("EOR", dest, src1, src2, shift, amount)}
+    fn emit_orn_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("ORN", dest, src1, src2, shift, amount)}
+    fn emit_orr_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_binop_shift("ORR", dest, src1, src2, shift, amount)}
 
     // ternarry operations
-    fn emit_madd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("MADD", dest, src1, src2, src3)}
-    fn emit_msub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("MSUB", dest, src1, src2, src3)}
-    fn emit_smaddl(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("SMADDL", dest, src1, src2, src3)}
-    fn emit_smsubl(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("SMSUBL", dest, src1, src2, src3)}
-    fn emit_umaddl(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("UMADDL", dest, src1, src2, src3)}
-    fn emit_umsubl(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("UMSUBL", dest, src1, src2, src3)}
-    fn emit_fmadd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("FMADD", dest, src1, src2, src3)}
-    fn emit_fmsub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("FMSUB", dest, src1, src2, src3)}
-    fn emit_fnmadd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("FNMADD", dest, src1, src2, src3)}
-    fn emit_fnmsub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.aarch64_internal_ternop("FNMSUB", dest, src1, src2, src3)}
+    fn emit_madd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("MADD", dest, src1, src2, src3)}
+    fn emit_msub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("MSUB", dest, src1, src2, src3)}
+    fn emit_smaddl(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("SMADDL", dest, src1, src2, src3)}
+    fn emit_smsubl(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("SMSUBL", dest, src1, src2, src3)}
+    fn emit_umaddl(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("UMADDL", dest, src1, src2, src3)}
+    fn emit_umsubl(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("UMSUBL", dest, src1, src2, src3)}
+    fn emit_fmadd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("FMADD", dest, src1, src2, src3)}
+    fn emit_fmsub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("FMSUB", dest, src1, src2, src3)}
+    fn emit_fnmadd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("FNMADD", dest, src1, src2, src3)}
+    fn emit_fnmsub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg) {self.internal_ternop("FNMSUB", dest, src1, src2, src3)}
 
     // Ternary operations with immediates
-    fn emit_bfm(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("BFM", dest, src1, src2 as u64, src3 as u64)}
-    fn emit_bfi(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("BFI", dest, src1, src2 as u64, src3 as u64)}
-    fn emit_bfxil(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("BFXIL", dest, src1, src2 as u64, src3 as u64)}
-    fn emit_ubfm(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("UBFM", dest, src1, src2 as u64, src3 as u64)}
-    fn emit_ubfx(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("UBFX", dest, src1, src2 as u64, src3 as u64)}
-    fn emit_ubfiz(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("UBFIZ", dest, src1, src2 as u64, src3 as u64)}
-    fn emit_sbfm(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("SBFM", dest, src1, src2 as u64, src3 as u64)}
-    fn emit_sbfx(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("SBFX", dest, src1, src2 as u64, src3 as u64)}
-    fn emit_sbfiz(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.aarch64_internal_ternop_imm("SBFIZ", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_bfm(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("BFM", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_bfi(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("BFI", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_bfxil(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("BFXIL", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_ubfm(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("UBFM", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_ubfx(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("UBFX", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_ubfiz(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("UBFIZ", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_sbfm(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("SBFM", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_sbfx(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("SBFX", dest, src1, src2 as u64, src3 as u64)}
+    fn emit_sbfiz(&mut self, dest: Reg, src1: Reg, src2: u8, src3: u8) {self.internal_ternop_imm("SBFIZ", dest, src1, src2 as u64, src3 as u64)}
 
     // Comparisons
-    fn emit_tst(&mut self, src1: Reg, src2: Reg) {self.aarch64_internal_cmpop("TST", src1, src2)}
-    fn emit_cmn(&mut self, src1: Reg, src2: Reg) {self.aarch64_internal_cmpop("CMN", src1, src2)}
-    fn emit_cmp(&mut self, src1: Reg, src2: Reg) {self.aarch64_internal_cmpop("CMP", src1, src2)}
-    fn emit_fcmp(&mut self, src1: Reg, src2: Reg) {self.aarch64_internal_cmpop("FCMP", src1, src2)}
-    fn emit_fcmpe(&mut self, src1: Reg, src2: Reg) {self.aarch64_internal_cmpop("CMPE", src1, src2)}
+    fn emit_tst(&mut self, src1: Reg, src2: Reg) {self.internal_cmpop("TST", src1, src2)}
+    fn emit_cmn(&mut self, src1: Reg, src2: Reg) {self.internal_cmpop("CMN", src1, src2)}
+    fn emit_cmp(&mut self, src1: Reg, src2: Reg) {self.internal_cmpop("CMP", src1, src2)}
+    fn emit_fcmp(&mut self, src1: Reg, src2: Reg) {self.internal_cmpop("FCMP", src1, src2)}
+    fn emit_fcmpe(&mut self, src1: Reg, src2: Reg) {self.internal_cmpop("CMPE", src1, src2)}
 
     // Comparisons with extension
-    fn emit_cmn_ext(&mut self, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.aarch64_internal_cmpop_ext("CMN", src1, src2, signed, shift)}
-    fn emit_cmp_ext(&mut self, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.aarch64_internal_cmpop_ext("CMP", src1, src2, signed, shift)}
+    fn emit_cmn_ext(&mut self, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.internal_cmpop_ext("CMN", src1, src2, signed, shift)}
+    fn emit_cmp_ext(&mut self, src1: Reg, src2: Reg, signed: bool, shift: u8) {self.internal_cmpop_ext("CMP", src1, src2, signed, shift)}
 
     // Comparisons with shift
-    fn emit_tst_shift(&mut self, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_cmpop_shift("TST", src1, src2, shift, amount)}
-    fn emit_cmn_shift(&mut self, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_cmpop_shift("CMN", src1, src2, shift, amount)}
-    fn emit_cmp_shift(&mut self, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.aarch64_internal_cmpop_shift("CMP", src1, src2, shift, amount)}
+    fn emit_tst_shift(&mut self, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_cmpop_shift("TST", src1, src2, shift, amount)}
+    fn emit_cmn_shift(&mut self, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_cmpop_shift("CMN", src1, src2, shift, amount)}
+    fn emit_cmp_shift(&mut self, src1: Reg, src2: Reg, shift: &str, amount: u8) {self.internal_cmpop_shift("CMP", src1, src2, shift, amount)}
 
     // Comparisons with immediates
-    fn emit_tst_imm(&mut self, src1: Reg, src2: u64) {self.aarch64_internal_cmpop_imm("TST", src1, src2, 0)}
-    fn emit_cmn_imm(&mut self, src1: Reg, src2: u16, shift : bool) {self.aarch64_internal_cmpop_imm("CMN", src1, src2 as u64, if shift {12} else {0})}
-    fn emit_cmp_imm(&mut self, src1: Reg, src2: u16, shift : bool) {self.aarch64_internal_cmpop_imm("CMP", src1, src2 as u64, if shift {12} else {0})}
+    fn emit_tst_imm(&mut self, src1: Reg, src2: u64) {self.internal_cmpop_imm("TST", src1, src2, 0)}
+    fn emit_cmn_imm(&mut self, src1: Reg, src2: u16, shift : bool) {self.internal_cmpop_imm("CMN", src1, src2 as u64, if shift {12} else {0})}
+    fn emit_cmp_imm(&mut self, src1: Reg, src2: u16, shift : bool) {self.internal_cmpop_imm("CMP", src1, src2 as u64, if shift {12} else {0})}
 
     // Comparisons agains #0.0
-    fn emit_fcmp_0(&mut self, src: Reg) {self.aarch64_internal_cmpop_f0("FCMP", src)}
-    fn emit_fcmpe_0(&mut self, src: Reg) {self.aarch64_internal_cmpop_f0("CMPE", src)}
+    fn emit_fcmp_0(&mut self, src: Reg) {self.internal_cmpop_f0("FCMP", src)}
+    fn emit_fcmpe_0(&mut self, src: Reg) {self.internal_cmpop_f0("CMPE", src)}
 
     // Conditional ops
-    fn emit_cset(&mut self, dest: Reg, cond: &str) {self.aarch64_internal_cond_op("CSET", dest, cond)}
-    fn emit_csetm(&mut self, dest: Reg, cond: &str) {self.aarch64_internal_cond_op("CSETM", dest, cond)}
+    fn emit_cset(&mut self, dest: Reg, cond: &str) {self.internal_cond_op("CSET", dest, cond)}
+    fn emit_csetm(&mut self, dest: Reg, cond: &str) {self.internal_cond_op("CSETM", dest, cond)}
 
     // Conditional unary ops
-    fn emit_cinc(&mut self, dest: Reg, src: Reg, cond: &str) {self.aarch64_internal_cond_unop("CINC", dest, src, cond)}
-    fn emit_cneg(&mut self, dest: Reg, src: Reg, cond: &str) {self.aarch64_internal_cond_unop("CNEG", dest, src, cond)}
-    fn emit_cinv(&mut self, dest: Reg, src: Reg, cond: &str) {self.aarch64_internal_cond_unop("CINB", dest, src, cond)}
+    fn emit_cinc(&mut self, dest: Reg, src: Reg, cond: &str) {self.internal_cond_unop("CINC", dest, src, cond)}
+    fn emit_cneg(&mut self, dest: Reg, src: Reg, cond: &str) {self.internal_cond_unop("CNEG", dest, src, cond)}
+    fn emit_cinv(&mut self, dest: Reg, src: Reg, cond: &str) {self.internal_cond_unop("CINB", dest, src, cond)}
 
     // Conditional binary ops
-    fn emit_csel(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.aarch64_internal_cond_binop("CSEL", dest, src1, src2, cond)}
-    fn emit_csinc(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.aarch64_internal_cond_binop("CSINC", dest, src1, src2, cond)}
-    fn emit_csinv(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.aarch64_internal_cond_binop("CSINV", dest, src1, src2, cond)}
-    fn emit_csneg(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.aarch64_internal_cond_binop("CSNEG", dest, src1, src2, cond)}
-    fn emit_fcsel(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.aarch64_internal_cond_binop("FCSEL", dest, src1, src2, cond)}
+    fn emit_csel(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.internal_cond_binop("CSEL", dest, src1, src2, cond)}
+    fn emit_csinc(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.internal_cond_binop("CSINC", dest, src1, src2, cond)}
+    fn emit_csinv(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.internal_cond_binop("CSINV", dest, src1, src2, cond)}
+    fn emit_csneg(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.internal_cond_binop("CSNEG", dest, src1, src2, cond)}
+    fn emit_fcsel(&mut self, dest: Reg, src1: Reg, src2: Reg, cond: &str) {self.internal_cond_binop("FCSEL", dest, src1, src2, cond)}
 
     // Conditional comparisons
-    fn emit_ccmn(&mut self, src1: Reg, src2: Reg, flags: u8, cond: &str) {self.aarch64_internal_cond_cmpop("CCMN", src1, src2, flags, cond)}
-    fn emit_ccmp(&mut self, src1: Reg, src2: Reg, flags: u8, cond: &str) {self.aarch64_internal_cond_cmpop("CCMP", src1, src2, flags, cond)}
-    fn emit_fccmp(&mut self, src1: Reg, src2: Reg, flags: u8, cond: &str) {self.aarch64_internal_cond_cmpop("FCCMP", src1, src2, flags, cond)}
-    fn emit_fccmpe(&mut self, src1: Reg, src2: Reg, flags: u8, cond: &str) {self.aarch64_internal_cond_cmpop("FCCMPE", src1, src2, flags, cond)}
+    fn emit_ccmn(&mut self, src1: Reg, src2: Reg, flags: u8, cond: &str) {self.internal_cond_cmpop("CCMN", src1, src2, flags, cond)}
+    fn emit_ccmp(&mut self, src1: Reg, src2: Reg, flags: u8, cond: &str) {self.internal_cond_cmpop("CCMP", src1, src2, flags, cond)}
+    fn emit_fccmp(&mut self, src1: Reg, src2: Reg, flags: u8, cond: &str) {self.internal_cond_cmpop("FCCMP", src1, src2, flags, cond)}
+    fn emit_fccmpe(&mut self, src1: Reg, src2: Reg, flags: u8, cond: &str) {self.internal_cond_cmpop("FCCMPE", src1, src2, flags, cond)}
 
     // Conditional comparisons (with immediate)
-    fn emit_ccmn_imm(&mut self, src1: Reg, src2: u8, flags: u8, cond: &str) {self.aarch64_internal_cond_cmpop_imm("CCMN", src1, src2, flags, cond)}
-    fn emit_ccmp_imm(&mut self, src1: Reg, src2: u8, flags: u8, cond: &str) {self.aarch64_internal_cond_cmpop_imm("CCMP", src1, src2, flags, cond)}
+    fn emit_ccmn_imm(&mut self, src1: Reg, src2: u8, flags: u8, cond: &str) {self.internal_cond_cmpop_imm("CCMN", src1, src2, flags, cond)}
+    fn emit_ccmp_imm(&mut self, src1: Reg, src2: u8, flags: u8, cond: &str) {self.internal_cond_cmpop_imm("CCMP", src1, src2, flags, cond)}
 
     fn emit_bfc(&mut self, dest: Reg, src1: u8, src2: u8)
     {
@@ -2568,7 +2566,7 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             linked_hashmap!{},
             false
         )
@@ -2586,66 +2584,66 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
-            aarch64_create_hash_map(vec![(id2, loc2), (id3, loc3)]),
+            ignore_zero_register(id1, vec![loc1]),
+            create_hash_map(vec![(id2, loc2), (id3, loc3)]),
             false
         )
     }
 
     // Loads
-    fn emit_ldr(&mut self, dest: Reg, src: Mem, signed: bool) { self.aarch64_internal_load("LDR", dest, src, signed, false); }
-    fn emit_ldtr(&mut self, dest: Reg, src: Mem, signed: bool) { self.aarch64_internal_load("LDTR", dest, src, signed, false); }
-    fn emit_ldur(&mut self, dest: Reg, src: Mem, signed: bool) { self.aarch64_internal_load("LDUR", dest, src, signed, false); }
-    fn emit_ldxr(&mut self, dest: Reg, src: Mem) { self.aarch64_internal_load("LDXR", dest, src, false, false); }
-    fn emit_ldaxr(&mut self, dest: Reg, src: Mem) { self.aarch64_internal_load("LDAXR", dest, src, false, false); }
-    fn emit_ldar(&mut self, dest: Reg, src: Mem) { self.aarch64_internal_load("LDAR", dest, src, false, false); }
+    fn emit_ldr(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDR", dest, src, signed, false); }
+    fn emit_ldtr(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDTR", dest, src, signed, false); }
+    fn emit_ldur(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDUR", dest, src, signed, false); }
+    fn emit_ldxr(&mut self, dest: Reg, src: Mem) { self.internal_load("LDXR", dest, src, false, false); }
+    fn emit_ldaxr(&mut self, dest: Reg, src: Mem) { self.internal_load("LDAXR", dest, src, false, false); }
+    fn emit_ldar(&mut self, dest: Reg, src: Mem) { self.internal_load("LDAR", dest, src, false, false); }
 
     // Load pair
-    fn emit_ldp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.aarch64_internal_load_pair("LDP", dest1, dest2, src) }
-    fn emit_ldxp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.aarch64_internal_load_pair("LDXP", dest1, dest2, src) }
-    fn emit_ldaxp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.aarch64_internal_load_pair("LDAXP", dest1, dest2, src) }
-    fn emit_ldnp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.aarch64_internal_load_pair("LDNP", dest1, dest2, src) }
+    fn emit_ldp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.internal_load_pair("LDP", dest1, dest2, src) }
+    fn emit_ldxp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.internal_load_pair("LDXP", dest1, dest2, src) }
+    fn emit_ldaxp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.internal_load_pair("LDAXP", dest1, dest2, src) }
+    fn emit_ldnp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.internal_load_pair("LDNP", dest1, dest2, src) }
 
     // Stores
-    fn emit_str(&mut self, dest: Mem, src: Reg) { self.aarch64_internal_store("STR", dest, src, false) }
-    fn emit_sttr(&mut self, dest: Mem, src: Reg) { self.aarch64_internal_store("STTR", dest, src, false) }
-    fn emit_stur(&mut self, dest: Mem, src: Reg) { self.aarch64_internal_store("STUR", dest, src, false) }
-    fn emit_stxr(&mut self, dest: Mem, status: Reg, src: Reg) { self.aarch64_internal_store_exclusive("STXR", dest, status, src) }
-    fn emit_stlxr(&mut self, dest: Mem, status: Reg, src: Reg) { self.aarch64_internal_store_exclusive("STLXR", dest, status, src) }
-    fn emit_stlr(&mut self, dest: Mem, src: Reg) { self.aarch64_internal_store("STLR", dest, src, false) }
+    fn emit_str(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, false) }
+    fn emit_sttr(&mut self, dest: Mem, src: Reg) { self.internal_store("STTR", dest, src, false) }
+    fn emit_stur(&mut self, dest: Mem, src: Reg) { self.internal_store("STUR", dest, src, false) }
+    fn emit_stxr(&mut self, dest: Mem, status: Reg, src: Reg) { self.internal_store_exclusive("STXR", dest, status, src) }
+    fn emit_stlxr(&mut self, dest: Mem, status: Reg, src: Reg) { self.internal_store_exclusive("STLXR", dest, status, src) }
+    fn emit_stlr(&mut self, dest: Mem, src: Reg) { self.internal_store("STLR", dest, src, false) }
 
     // Store Pairs
-    fn emit_stp(&mut self, dest: Mem, src1: Reg, src2: Reg) { self.aarch64_internal_store_pair("STP", dest, src1, src2) }
-    fn emit_stxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg) { self.aarch64_internal_store_pair_exclusive("STXP", dest, status, src1, src2) }
-    fn emit_stlxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg) { self.aarch64_internal_store_pair_exclusive("STLXP", dest, status, src1, src2) }
-    fn emit_stnp(&mut self, dest: Mem, src1: Reg, src2: Reg) { self.aarch64_internal_store_pair("STNP", dest, src1, src2) }
+    fn emit_stp(&mut self, dest: Mem, src1: Reg, src2: Reg) { self.internal_store_pair("STP", dest, src1, src2) }
+    fn emit_stxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg) { self.internal_store_pair_exclusive("STXP", dest, status, src1, src2) }
+    fn emit_stlxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg) { self.internal_store_pair_exclusive("STLXP", dest, status, src1, src2) }
+    fn emit_stnp(&mut self, dest: Mem, src1: Reg, src2: Reg) { self.internal_store_pair("STNP", dest, src1, src2) }
 
     // Synchronisation
-    fn emit_dsb(&mut self, option: &str) { self.aarch64_internal_simple_str("DSB", option) }
-    fn emit_dmb(&mut self, option: &str) { self.aarch64_internal_simple_str("DMB", option) }
-    fn emit_isb(&mut self, option: &str) { self.aarch64_internal_simple_str("ISB", option) }
-    fn emit_clrex(&mut self) { self.aarch64_internal_simple("CLREX") }
+    fn emit_dsb(&mut self, option: &str) { self.internal_simple_str("DSB", option) }
+    fn emit_dmb(&mut self, option: &str) { self.internal_simple_str("DMB", option) }
+    fn emit_isb(&mut self, option: &str) { self.internal_simple_str("ISB", option) }
+    fn emit_clrex(&mut self) { self.internal_simple("CLREX") }
 
     // Hint instructions
-    fn emit_sevl(&mut self) { self.aarch64_internal_simple("SEVL") }
-    fn emit_sev(&mut self) { self.aarch64_internal_simple("SEV") }
-    fn emit_wfe(&mut self) { self.aarch64_internal_simple("WFE") }
-    fn emit_wfi(&mut self) { self.aarch64_internal_simple("WFI") }
-    fn emit_yield(&mut self) { self.aarch64_internal_simple("YIELD") }
-    fn emit_nop(&mut self) { self.aarch64_internal_simple("NOP") }
-    fn emit_hint(&mut self, val: u8) { self.aarch64_internal_simple_imm("HINT", val as u64) }
+    fn emit_sevl(&mut self) { self.internal_simple("SEVL") }
+    fn emit_sev(&mut self) { self.internal_simple("SEV") }
+    fn emit_wfe(&mut self) { self.internal_simple("WFE") }
+    fn emit_wfi(&mut self) { self.internal_simple("WFI") }
+    fn emit_yield(&mut self) { self.internal_simple("YIELD") }
+    fn emit_nop(&mut self) { self.internal_simple("NOP") }
+    fn emit_hint(&mut self, val: u8) { self.internal_simple_imm("HINT", val as u64) }
 
     // Debug instructions
-    fn emit_drps(&mut self) { self.aarch64_internal_simple("DRPS") }
-    fn emit_dcps1(&mut self, val: u16) { self.aarch64_internal_simple_imm("DCPS1", val as u64) }
-    fn emit_dcps2(&mut self, val: u16) { self.aarch64_internal_simple_imm("DCPS2", val as u64) }
-    fn emit_dcps3(&mut self, val: u16) { self.aarch64_internal_simple_imm("DCPS3", val as u64) }
+    fn emit_drps(&mut self) { self.internal_simple("DRPS") }
+    fn emit_dcps1(&mut self, val: u16) { self.internal_simple_imm("DCPS1", val as u64) }
+    fn emit_dcps2(&mut self, val: u16) { self.internal_simple_imm("DCPS2", val as u64) }
+    fn emit_dcps3(&mut self, val: u16) { self.internal_simple_imm("DCPS3", val as u64) }
 
     // System instruction
-    fn emit_dc(&mut self, option: &str, src: Reg) { self.aarch64_internal_system("DC", option, src) }
-    fn emit_at(&mut self, option: &str, src: Reg) { self.aarch64_internal_system("AT", option, src) }
-    fn emit_ic(&mut self, option: &str, src: Reg) { self.aarch64_internal_system("IC", option, src) }
-    fn emit_tlbi(&mut self, option: &str, src: Reg) { self.aarch64_internal_system("TLBI", option, src) }
+    fn emit_dc(&mut self, option: &str, src: Reg) { self.internal_system("DC", option, src) }
+    fn emit_at(&mut self, option: &str, src: Reg) { self.internal_system("AT", option, src) }
+    fn emit_ic(&mut self, option: &str, src: Reg) { self.internal_system("IC", option, src) }
+    fn emit_tlbi(&mut self, option: &str, src: Reg) { self.internal_system("TLBI", option, src) }
 
     fn emit_sys(&mut self, imm1: u8, cn: u8, cm: u8, imm2: u8, src: Reg)
     {
@@ -2659,7 +2657,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{},
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             false
         )
     }
@@ -2674,7 +2672,7 @@ impl CodeGenerator for ASMCodeGen {
 
         self.add_asm_inst(
             asm,
-            aarch64_ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id1, vec![loc1]),
             linked_hashmap!{},
             false
         )
@@ -2682,12 +2680,12 @@ impl CodeGenerator for ASMCodeGen {
 
 
     // Exceptiuon instructions (NOTE: these will alter the PC)
-    fn emit_brk(&mut self, val: u16) { self.aarch64_internal_simple_imm("BRK", val as u64) }
-    fn emit_hlt(&mut self, val: u16) { self.aarch64_internal_simple_imm("HLT", val as u64) }
-    fn emit_hvc(&mut self, val: u16) { self.aarch64_internal_simple_imm("HVC", val as u64) }
-    fn emit_smc(&mut self, val: u16) { self.aarch64_internal_simple_imm("SMC", val as u64) }
-    fn emit_svc(&mut self, val: u16) { self.aarch64_internal_simple_imm("SVC", val as u64) }
-    fn emit_eret(&mut self) { self.aarch64_internal_simple("ERET") }
+    fn emit_brk(&mut self, val: u16) { self.internal_simple_imm("BRK", val as u64) }
+    fn emit_hlt(&mut self, val: u16) { self.internal_simple_imm("HLT", val as u64) }
+    fn emit_hvc(&mut self, val: u16) { self.internal_simple_imm("HVC", val as u64) }
+    fn emit_smc(&mut self, val: u16) { self.internal_simple_imm("SMC", val as u64) }
+    fn emit_svc(&mut self, val: u16) { self.internal_simple_imm("SVC", val as u64) }
+    fn emit_eret(&mut self) { self.internal_simple("ERET") }
 }
 
 use compiler::backend::code_emission::create_emit_directory;
@@ -3049,7 +3047,7 @@ pub fn spill_rewrite(
 
                     // generate a random new temporary
                     let temp_ty = val_reg.ty.clone();
-                    let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
+                    let temp = func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), temp_ty.clone()).clone_value();
 
                     // maintain mapping
                     trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
@@ -3097,7 +3095,7 @@ pub fn spill_rewrite(
                         temp_for_cur_inst.get(&reg).unwrap().clone()
                     } else {
                         let temp_ty = val_reg.ty.clone();
-                        let temp = func.new_ssa(vm.next_id(), temp_ty.clone()).clone_value();
+                        let temp = func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), temp_ty.clone()).clone_value();
 
                         spilled_scratch_temps.insert(temp.id(), reg);
 
@@ -3153,7 +3151,7 @@ pub fn spill_rewrite(
 // This function is used so that the register allocator will ignore the zero register
 // (some instructions don't use this function as they don't support the zero regester,
 // or the use of the zero register would make no sense (such as branching to it))
-fn aarch64_ignore_zero_register(id: MuID, locs: Vec<ASMLocation>) -> LinkedHashMap<MuID, Vec<ASMLocation>>{
+fn ignore_zero_register(id: MuID, locs: Vec<ASMLocation>) -> LinkedHashMap<MuID, Vec<ASMLocation>>{
     if id == XZR.extract_ssa_id().unwrap() || id == WZR.extract_ssa_id().unwrap() {
         linked_hashmap!{}
     } else {
@@ -3164,7 +3162,7 @@ fn aarch64_ignore_zero_register(id: MuID, locs: Vec<ASMLocation>) -> LinkedHashM
 
 #[warn(unused_variables)] // dest <= inst(src1, src2, src3)
 #[inline(always)]
-fn aarch64_create_hash_map(data: Vec<(MuID, ASMLocation)>) -> LinkedHashMap<MuID, Vec<ASMLocation>>{
+fn create_hash_map(data: Vec<(MuID, ASMLocation)>) -> LinkedHashMap<MuID, Vec<ASMLocation>>{
     let mut map : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
 
     for (id, loc) in data {

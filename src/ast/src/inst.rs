@@ -576,8 +576,8 @@ pub struct Destination {
 
 impl Destination {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        let mut ret = format!("{} with ", self.target);
-        ret.push('[');
+        let mut ret = format!("{}", self.target);
+        ret.push('(');
         for i in 0..self.args.len() {
             let ref arg = self.args[i];
             ret.push_str(arg.debug_str(ops).as_str());
@@ -585,7 +585,7 @@ impl Destination {
                 ret.push_str(", ");
             }
         }
-        ret.push(']');
+        ret.push(')');
 
         ret
     }

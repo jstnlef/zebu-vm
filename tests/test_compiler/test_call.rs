@@ -46,12 +46,12 @@ fn test_ccall_exit() {
 }
 
 pub fn gen_ccall_exit(arg: P<TreeNode>, func_ver: &mut MuFunctionVersion, vm: &VM) -> Box<TreeNode> {
-    typedef!    ((vm) int32 = mu_int(32));
-    funcsig!    ((vm) exit_sig = (int32) -> ());
+    typedef!    ((vm) int64 = mu_int(64));
+    funcsig!    ((vm) exit_sig = (int64) -> ());
     typedef!    ((vm) ufp_exit = mu_ufuncptr(exit_sig));
 
     // .const @exit = EXTERN SYMBOL "exit"
-    constdef!   ((vm) <ufp_exit> const_exit = Constant::ExternSym(C("exit")));
+    constdef!   ((vm) <ufp_exit> const_exit = Constant::ExternSym(C ("exit")));
     consta!     ((vm, func_ver) const_exit_local = const_exit);
 
     inst!       ((vm, func_ver) ret:

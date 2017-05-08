@@ -189,7 +189,7 @@ fn emit_muir_dot_inner(file: &mut File,
     for (id, block) in f_content.blocks.iter() {
         let block_name = block.name().unwrap();
         // BBid [label = "name
-        file.write_fmt(format_args!("BB{} [label = \"{} ", *id, &block_name)).unwrap();
+        file.write_fmt(format_args!("BB{} [label = \"[{}]{} ", *id, *id, &block_name)).unwrap();
 
         let block_content = block.content.as_ref().unwrap();
 

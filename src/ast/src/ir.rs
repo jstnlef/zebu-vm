@@ -667,7 +667,7 @@ impl fmt::Display for TreeNode {
         match self.v {
             TreeNode_::Value(ref pv) => pv.fmt(f),
             TreeNode_::Instruction(ref inst) => {
-                write!(f, "+({})", inst)
+                write!(f, "{}", inst)
             }
         }
     }
@@ -777,16 +777,16 @@ impl fmt::Display for Value {
         if DISPLAY_TYPE {
             match self.v {
                 Value_::SSAVar(_) => {
-                    write!(f, "+({} %{})", self.ty, self.hdr)
+                    write!(f, "{}(%{})", self.ty, self.hdr)
                 },
                 Value_::Constant(ref c) => {
-                    write!(f, "+({} {} @{})", self.ty, c, self.hdr)
+                    write!(f, "{}({})", self.ty, c)
                 },
                 Value_::Global(ref ty) => {
-                    write!(f, "+(GLOBAL {} @{})", ty, self.hdr)
+                    write!(f, "{}(@{})", ty, self.hdr)
                 },
                 Value_::Memory(ref mem) => {
-                    write!(f, "+(MEM {} %{})", mem, self.hdr)
+                    write!(f, "{}(%{})", mem, self.hdr)
                 }
             }
         } else {
@@ -798,10 +798,10 @@ impl fmt::Display for Value {
                     write!(f, "{}", c)
                 },
                 Value_::Global(_) => {
-                    write!(f, "GLOBAL @{}", self.hdr)
+                    write!(f, "@{}", self.hdr)
                 },
                 Value_::Memory(ref mem) => {
-                    write!(f, "MEM {} %{}", mem, self.hdr)
+                    write!(f, "{}(%{})", mem, self.hdr)
                 }
             }
         }
@@ -1170,15 +1170,28 @@ impl PartialEq for MuEntityHeader {
     }
 }
 
+const DISPLAY_ID : bool = false;
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.name().is_none() {
-            write!(f, "UNNAMED #{}", self.id)
-        } else {
-            if PRINT_ABBREVIATE_NAME {
-                write!(f, "{} #{}", self.abbreviate_name().unwrap(), self.id)
+        if DISPLAY_ID {
+            if self.name().is_none() {
+                write!(f, "UNAMED #{}", self.id)
             } else {
-                write!(f, "{} #{}", self.name().unwrap(), self.id)
+                if PRINT_ABBREVIATE_NAME {
+                    write!(f, "{} #{}", self.abbreviate_name().unwrap(), self.id)
+                } else {
+                    write!(f, "{} #{}", self.name().unwrap(), self.id)
+                }
+            }
+        } else {
+            if self.name().is_none() {
+                write!(f, "{}", self.id)
+            } else {
+                if PRINT_ABBREVIATE_NAME {
+                    write!(f, "{}", self.abbreviate_name().unwrap())
+                } else {
+                    write!(f, "{}", self.name().unwrap())
+                }
             }
         }
     }
