@@ -39,7 +39,7 @@ extern "C" {
 pub fn resolve_symbol(symbol: String) -> Address {
     use std::ptr;
 
-    let symbol = MuEntityHeader::name_check(symbol);
+    let symbol = name_check(symbol);
     
     let rtld_default = unsafe {dlopen(ptr::null(), 0)};
     let ret = unsafe {dlsym(rtld_default, CString::new(symbol.clone()).unwrap().as_ptr())};

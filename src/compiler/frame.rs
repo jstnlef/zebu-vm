@@ -5,7 +5,6 @@ use runtime::ValueLocation;
 
 use std::fmt;
 use std::collections::HashMap;
-use utils::POINTER_SIZE;
 use vm::VM;
 
 // | previous frame ...
@@ -50,7 +49,7 @@ impl Frame {
     pub fn new(func_ver_id: MuID) -> Frame {
         Frame {
             func_ver_id: func_ver_id,
-            cur_offset: - (POINTER_SIZE as isize * 1), // reserve for old RBP
+            cur_offset: 0,
 
             argument_by_reg: HashMap::new(),
             argument_by_stack: HashMap::new(),
@@ -104,15 +103,36 @@ impl Frame {
         trace!("add exception callsite: {} to dest {}", callsite, dest);
         self.exception_callsites.push((callsite, dest));
     }
-    
+
+    #[cfg(target_arch = "x86_64")]
     fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {
+        // RBP is 16 bytes aligned, we are offsetting from RBP
+        // every value should be properly aligned
+
+        let backendty = vm.get_backend_type_info(val.ty.id());
+
+        if backendty.alignment > 16 {
+            unimplemented!()
+        }
+
+        self.cur_offset -= backendty.size as isize;
+
+        {
+            // if alignment doesnt satisfy, make adjustment
+            let abs_offset = self.cur_offset.abs() as usize;
+            if abs_offset % backendty.alignment != 0 {
+                use utils::math;
+                let abs_offset = math::align_up(abs_offset, backendty.alignment);
+
+                self.cur_offset = -(abs_offset as isize);
+            }
+        }
+
         let id = val.id();
         let ret = FrameSlot {
             offset: self.cur_offset,
             value: val.clone()
         };
-        
-        self.cur_offset -= vm.get_type_size(val.ty.id()) as isize;
         
         self.allocated.insert(id, ret);
         self.allocated.get(&id).unwrap()

@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate log;
 extern crate simple_logger;
 #[macro_use]
@@ -14,9 +13,6 @@ macro_rules! impl_mu_entity {
             fn id(&self) -> MuID {self.hdr.id()}
             #[inline(always)]
             fn name(&self) -> Option<MuName> {self.hdr.name()}
-            fn set_name(&self, name: MuName) {
-                self.hdr.set_name(name);
-            }
             fn as_entity(&self) -> &MuEntity {
                 let ref_ty : &$entity = self;
                 ref_ty as &MuEntity

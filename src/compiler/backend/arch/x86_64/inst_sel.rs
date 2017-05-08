@@ -23,6 +23,8 @@ use compiler::backend::x86_64::ASMCodeGen;
 use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
+use utils::math;
+
 use std::collections::HashMap;
 use std::any::Any;
 
@@ -906,9 +908,9 @@ impl <'a> InstructionSelection {
                         let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
 
                         if self.match_iimm(val_op) {
-                            let val = self.node_iimm_to_i32(val_op);
+                            let (val, len) = self.node_iimm_to_i32_with_len(val_op);
                             if generate_plain_mov {
-                                self.backend.emit_mov_mem_imm(&resolved_loc, val);
+                                self.backend.emit_mov_mem_imm(&resolved_loc, val, len);
                             } else {
                                 unimplemented!()
                             }
@@ -931,8 +933,9 @@ impl <'a> InstructionSelection {
                     Instruction_::GetIRef(_)
                     | Instruction_::GetFieldIRef{..}
                     | Instruction_::GetVarPartIRef{..}
-                    | Instruction_::ShiftIRef{..} => {
-                        trace!("instsel on GET/FIELD/VARPARTIREF, SHIFTIREF");
+                    | Instruction_::ShiftIRef{..}
+                    | Instruction_::GetElementIRef{..} => {
+                        trace!("instsel on GET/FIELD/VARPART/SHIFT/ELEM IREF");
 
                         let mem_addr = self.emit_get_mem_from_inst(node, f_content, f_context, vm);
                         let tmp_res  = self.get_result_value(node);
@@ -1057,15 +1060,9 @@ impl <'a> InstructionSelection {
                         let ty_info = vm.get_backend_type_info(ty.id());
                         let ty_align = ty_info.alignment;
                         let fix_part_size = ty_info.size;
-                        let var_ty_size = match ty.v {
-                            MuType_::Hybrid(ref name) => {
-                                let map_lock = HYBRID_TAG_MAP.read().unwrap();
-                                let hybrid_ty_ = map_lock.get(name).unwrap();
-                                let var_ty = hybrid_ty_.get_var_ty();
-
-                                vm.get_backend_type_info(var_ty.id()).size
-                            },
-                            _ => panic!("only expect HYBRID type here")
+                        let var_ty_size = match ty_info.elem_padded_size {
+                            Some(sz) => sz,
+                            None => panic!("expect HYBRID type here with elem_padded_size, found {}", ty_info)
                         };
 
                         // actual size = fix_part_size + var_ty_size * len
@@ -1085,31 +1082,14 @@ impl <'a> InstructionSelection {
                                 let tmp_actual_size = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
                                 let tmp_var_len = self.emit_ireg(var_len, f_content, f_context, vm);
 
-                                let is_power_of_two = |x: usize| {
-                                    use std::i8;
-
-                                    let mut power_of_two = 1;
-                                    let mut i: i8 = 0;
-                                    while power_of_two < x && i < i8::MAX {
-                                        power_of_two *= 2;
-                                        i += 1;
-                                    }
-
-                                    if power_of_two == x {
-                                        Some(i)
-                                    } else {
-                                        None
-                                    }
-                                };
-
-                                match is_power_of_two(var_ty_size) {
+                                match math::is_power_of_two(var_ty_size) {
                                     Some(shift) => {
                                         // use tmp_actual_size as result - we do not want to change tmp_var_len
                                         self.backend.emit_mov_r_r(&tmp_actual_size, &tmp_var_len);
 
                                         if shift != 0 {
                                             // a shift-left will get the total size of var part
-                                            self.backend.emit_shl_r_imm8(&tmp_actual_size, shift);
+                                            self.backend.emit_shl_r_imm8(&tmp_actual_size, shift as i8);
                                         }
 
                                         // add with fix-part size
@@ -2046,8 +2026,7 @@ impl <'a> InstructionSelection {
     
     fn emit_store_base_offset (&mut self, base: &P<Value>, offset: i32, src: &P<Value>, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, src.ty.clone(), vm);
-        
-        self.backend.emit_mov_mem_r(&mem, src);
+        self.emit_move_value_to_value(&mem, src);
     }
     
     fn emit_lea_base_immoffset(&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
@@ -2245,6 +2224,8 @@ impl <'a> InstructionSelection {
         // in the meantime record args that do not fit in registers
         let mut stack_args : Vec<P<Value>> = vec![];        
         let mut gpr_arg_count = 0;
+        let mut fpr_arg_count = 0;
+
         for arg in args.iter() {
             if arg.is_int_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
@@ -2261,32 +2242,39 @@ impl <'a> InstructionSelection {
                     stack_args.push(arg.clone());
                 }
             } else if arg.is_int_const() {
-                let arg_gpr = {
-                    let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
-                    let expected_len = arg.ty.get_int_length().unwrap();
-                    x86_64::get_alias_for_length(reg64.id(), expected_len)
-                };
+                let int_const = arg.extract_int_const();
 
-                if x86_64::is_valid_x86_imm(arg) {                
-                    let int_const = arg.extract_int_const() as i32;
-                    
-                    if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
-                        self.backend.emit_mov_r_imm(&arg_gpr, int_const);
-                        gpr_arg_count += 1;
+                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                    let arg_gpr = {
+                        let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
+                        let expected_len = arg.ty.get_int_length().unwrap();
+                        x86_64::get_alias_for_length(reg64.id(), expected_len)
+                    };
+
+                    if x86_64::is_valid_x86_imm(arg) {
+                        self.backend.emit_mov_r_imm(&arg_gpr, int_const as i32);
                     } else {
-                        // use stack to pass argument
-                        stack_args.push(arg.clone());
+                        // FIXME: put the constant to memory
+                        self.backend.emit_mov_r64_imm64(&arg_gpr, int_const as i64);
                     }
-                } else {
-                    // FIXME: put the constant to memory
-                    let int_const = arg.extract_int_const() as i64;
-                    self.backend.emit_mov_r64_imm64(&arg_gpr, int_const);
                     gpr_arg_count += 1;
+                } else {
+                    // use stack to pass argument
+                    stack_args.push(arg.clone());
                 }
             } else if arg.is_mem() {
                 unimplemented!()
+            } else if arg.is_fp_reg() {
+                if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
+                    let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
+
+                    self.emit_move_value_to_value(&arg_fpr, &arg);
+                    fpr_arg_count += 1;
+                } else {
+                    stack_args.push(arg.clone());
+                }
             } else {
-                // floating point
+                // struct, etc
                 unimplemented!()
             }
         }
@@ -2300,25 +2288,46 @@ impl <'a> InstructionSelection {
             // (32, if __m256 is passed on stack) byte boundary." - x86 ABI
             // if we need to special align the args, we do it now
             // (then the args will be put to stack following their regular alignment)
+
+            // reserve stack args - we want to layout stack args as below
+
+            // RSP -> .............
+            //        (padding)
+            //        (padding)
+            // RSP -> argN, argN-1, ...
+
+            // so we need to layout args in reverse order
+            stack_args.reverse();
+
             let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
             let (stack_arg_size, _, stack_arg_offsets) = backend::sequetial_layout(&stack_arg_tys, vm);
+
             let mut stack_arg_size_with_padding = stack_arg_size;
+
             if stack_arg_size % 16 == 0 {
                 // do not need to adjust rsp
             } else if stack_arg_size % 8 == 0 {
-                // adjust rsp by -8 (push a random padding value)
-                self.backend.emit_push_imm32(0x7777);
+                // adjust rsp by -8
                 stack_arg_size_with_padding += 8;
             } else {
-                panic!("expecting stack arguments to be at least 8-byte aligned, but it has size of {}", stack_arg_size);
+                let rem = stack_arg_size % 16;
+                let stack_arg_padding = 16 - rem;
+                stack_arg_size_with_padding += stack_arg_padding;
             }
 
             // now, we just put all the args on the stack
             {
-                let mut index = 0;
-                for arg in stack_args {
-                    self.emit_push(&arg);
-                    index += 1;
+                if stack_arg_size_with_padding != 0 {
+                    let mut index = 0;
+
+                    let rsp_offset_before_call = - (stack_arg_size_with_padding as i32);
+
+                    for arg in stack_args {
+                        self.emit_store_base_offset(&x86_64::RSP, rsp_offset_before_call + (stack_arg_offsets[index]) as i32, &arg, vm);
+                        index += 1;
+                    }
+
+                    self.backend.emit_sub_r_imm(&x86_64::RSP, stack_arg_size_with_padding as i32);
                 }
             }
 
@@ -2448,11 +2457,14 @@ impl <'a> InstructionSelection {
         for arg_index in calldata.args.iter() {
             let ref arg = ops[*arg_index];
 
-            if self.match_ireg(arg) {
+            if self.match_iimm(arg) {
+                let arg = self.node_iimm_to_value(arg);
+                arg_values.push(arg);
+            } else if self.match_ireg(arg) {
                 let arg = self.emit_ireg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
-            } else if self.match_iimm(arg) {
-                let arg = self.node_iimm_to_value(arg);
+            } else if self.match_fpreg(arg) {
+                let arg = self.emit_fpreg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
             } else {
                 unimplemented!();
@@ -2533,11 +2545,14 @@ impl <'a> InstructionSelection {
         for arg_index in calldata.args.iter() {
             let ref arg = ops[*arg_index];
 
-            if self.match_ireg(arg) {
+            if self.match_iimm(arg) {
+                let arg = self.node_iimm_to_value(arg);
+                arg_values.push(arg);
+            } else if self.match_ireg(arg) {
                 let arg = self.emit_ireg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
-            } else if self.match_iimm(arg) {
-                let arg = self.node_iimm_to_value(arg);
+            } else if self.match_fpreg(arg) {
+                let arg = self.emit_fpreg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
             } else {
                 unimplemented!();
@@ -2580,12 +2595,12 @@ impl <'a> InstructionSelection {
                 let callsite = self.new_callsite_label(Some(cur_node));
                 self.backend.emit_call_near_mem64(callsite, &target, potentially_excepting)
             } else {
-                unimplemented!()
+                panic!("unexpected callee as {}", func);
             }
         };
-        
-        // record exception branch
+
         if resumption.is_some() {
+            // record exception branch
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
             
@@ -2596,13 +2611,26 @@ impl <'a> InstructionSelection {
                 let mut callsites = vec![];
                 callsites.push(callsite);
                 self.current_exn_callsites.insert(target_block, callsites);
-            } 
+            }
+
+            // insert an intermediate block to branch to normal
+            // the branch is inserted later (because we need to deal with postcall convention)
+            self.finish_block();
+            let fv_id = self.current_fv_id;
+            self.start_block(format!("normal_cont_for_call_{}_{}", fv_id, cur_node.id()));
         }
         
-        // deal with ret vals
+        // deal with ret vals, collapse stack etc.
         self.emit_postcall_convention(
             &func_sig, &inst.value,
             stack_arg_size, f_context, vm);
+
+        if resumption.is_some() {
+            let ref normal_dest = resumption.as_ref().unwrap().normal_dest;
+            let normal_target_name = f_content.get_block(normal_dest.target).name().unwrap();
+
+            self.backend.emit_jmp(normal_target_name);
+        }
     }
     
     #[allow(unused_variables)]
@@ -2680,14 +2708,12 @@ impl <'a> InstructionSelection {
         // add x, rbp -> rbp (x is negative, however we do not know x now)
         self.backend.emit_frame_grow();
         
-        // unload arguments
+        // unload arguments by registers
         let mut gpr_arg_count = 0;
         let mut fpr_arg_count = 0;
-        // initial stack arg is at RBP+16
-        //   arg           <- RBP + 16
-        //   return addr
-        //   old RBP       <- RBP
-        let mut stack_arg_offset : i32 = 16;
+
+        let mut arg_by_stack = vec![];
+
         for arg in args {
             if arg.is_int_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
@@ -2702,14 +2728,15 @@ impl <'a> InstructionSelection {
 
                     gpr_arg_count += 1;
                 } else {
-                    // unload from stack
-                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-
-                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
-
-                    // move stack_arg_offset by the size of 'arg'
-                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
-                    stack_arg_offset += arg_size as i32;
+                    arg_by_stack.push(arg.clone());
+//                    // unload from stack
+//                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+//
+//                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
+//
+//                    // move stack_arg_offset by the size of 'arg'
+//                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
+//                    stack_arg_offset += arg_size as i32;
                 }
             } else if arg.is_fp_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
@@ -2720,19 +2747,38 @@ impl <'a> InstructionSelection {
 
                     fpr_arg_count += 1;
                 } else {
-                    // unload from stack
-                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-
-                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
-
-                    // move stack_arg_offset by the size of 'arg'
-                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
-                    stack_arg_offset += arg_size as i32;
+                    arg_by_stack.push(arg.clone());
+//                    // unload from stack
+//                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
+//
+//                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
+//
+//                    // move stack_arg_offset by the size of 'arg'
+//                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
+//                    stack_arg_offset += arg_size as i32;
                 }
             } else {
                 // args that are not fp or int (possibly struct/array/etc)
                 unimplemented!();
             }
+        }
+
+        // deal with arguments passed by stack
+        // initial stack arg is at RBP+16
+        //   arg           <- RBP + 16
+        //   return addr
+        //   old RBP       <- RBP
+        let stack_arg_base_offset : i32 = 16;
+        let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
+        let (_, _, stack_arg_offsets) = backend::sequetial_layout(&arg_by_stack_tys, vm);
+
+        // unload the args
+        let mut i = 0;
+        for arg in arg_by_stack {
+            let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP, (stack_arg_base_offset + stack_arg_offsets[i] as i32), vm);
+            self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
+
+            i += 1;
         }
         
         self.backend.end_block(block_name);
@@ -3038,6 +3084,13 @@ impl <'a> InstructionSelection {
         }
     }
 
+    fn node_iimm_to_i32_with_len(&mut self, op: &TreeNode) -> (i32, usize) {
+        match op.v {
+            TreeNode_::Value(ref pv) => self.value_iimm_to_i32_with_len(pv),
+            _ => panic!("expected iimm")
+        }
+    }
+
     fn node_iimm_to_value(&mut self, op: &TreeNode) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
@@ -3048,11 +3101,21 @@ impl <'a> InstructionSelection {
     }
 
     fn value_iimm_to_i32(&mut self, op: &P<Value>) -> i32 {
+        self.value_iimm_to_i32_with_len(op).0
+    }
+
+    /// also returns the length of the int
+    fn value_iimm_to_i32_with_len(&mut self, op: &P<Value>) -> (i32, usize) {
+        let op_length = match op.ty.get_int_length() {
+            Some(l) => l,
+            None => panic!("expected an int")
+        };
+
         match op.v {
             Value_::Constant(Constant::Int(val)) => {
                 debug_assert!(x86_64::is_valid_x86_imm(op));
 
-                val as i32
+                (val as i32, op_length)
             },
             _ => panic!("expected iimm")
         }
@@ -3272,7 +3335,8 @@ impl <'a> InstructionSelection {
                             Some(ty) => ty,
                             None => panic!("expected op in ShiftIRef of type IRef, found type: {}", base_ty)
                         };
-                        let ele_ty_size = vm.get_backend_type_info(ele_ty.id()).size;
+                        let ele_backend_ty = vm.get_backend_type_info(ele_ty.id());
+                        let ele_ty_size = math::align_up(ele_backend_ty.size, ele_backend_ty.alignment);
 
                         if self.match_iimm(offset) {
                             let index = self.node_iimm_to_i32(offset);
@@ -3308,9 +3372,22 @@ impl <'a> InstructionSelection {
                         } else {
                             let tmp_index = self.emit_ireg(offset, f_content, f_context, vm);
 
+                            // make a copy of it
+                            // (because we may need to alter index, and we dont want to chagne the original value)
+                            let tmp_index_copy = self.make_temporary(f_context, tmp_index.ty.clone(), vm);
+                            self.emit_move_value_to_value(&tmp_index_copy, &tmp_index);
+
                             let scale : u8 = match ele_ty_size {
                                 8 | 4 | 2 | 1 => ele_ty_size as u8,
-                                _  => unimplemented!()
+                                16| 32| 64    => {
+                                    let shift = math::is_power_of_two(ele_ty_size).unwrap();
+
+                                    // tmp_index_copy = tmp_index_copy << index
+                                    self.backend.emit_shl_r_imm8(&tmp_index_copy, shift as i8);
+
+                                    1
+                                }
+                                _  => panic!("unexpected var ty size: {}", ele_ty_size)
                             };
 
                             let mem = match base.v {
@@ -3318,7 +3395,7 @@ impl <'a> InstructionSelection {
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetVarPartIRef{..}, ..}) => {
                                     let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
 
-                                    let ret = self.addr_append_index_scale(mem, tmp_index, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from SHIFTIREF(GETVARPARTIREF(_), ireg): {}", ret);
                                     ret
@@ -3330,7 +3407,7 @@ impl <'a> InstructionSelection {
                                     let ret = MemoryLocation::Address {
                                         base: tmp,
                                         offset: None,
-                                        index: Some(tmp_index),
+                                        index: Some(tmp_index_copy),
                                         scale: Some(scale)
                                     };
 
@@ -3351,11 +3428,10 @@ impl <'a> InstructionSelection {
                             Some(ty) => ty,
                             None => panic!("expected base in GetElemIRef to be type IRef, found {}", iref_array_ty)
                         };
-                        let ele_ty = match array_ty.get_elem_ty() {
-                            Some(ty) => ty,
-                            None => panic!("expected base in GetElemIRef to be type Array, found {}", array_ty)
+                        let ele_ty_size = match vm.get_backend_type_info(array_ty.id()).elem_padded_size {
+                            Some(sz) => sz,
+                            None => panic!("array backend type should have a elem_padded_size, found {}", array_ty)
                         };
-                        let ele_ty_size = vm.get_backend_type_info(ele_ty.id()).size;
 
                         if self.match_iimm(index) {
                             let index = self.node_iimm_to_i32(index);
@@ -3395,16 +3471,30 @@ impl <'a> InstructionSelection {
                             }
                         } else {
                             let tmp_index = self.emit_ireg(index, f_content, f_context, vm);
+
+                            // make a copy of it
+                            // (because we may need to alter index, and we dont want to chagne the original value)
+                            let tmp_index_copy = self.make_temporary(f_context, tmp_index.ty.clone(), vm);
+                            self.emit_move_value_to_value(&tmp_index_copy, &tmp_index);
+
                             let scale : u8 = match ele_ty_size {
                                 8 | 4 | 2 | 1 => ele_ty_size as u8,
-                                _  => unimplemented!()
+                                16| 32| 64    => {
+                                    let shift = math::is_power_of_two(ele_ty_size).unwrap();
+
+                                    // tmp_index_copy = tmp_index_copy << index
+                                    self.backend.emit_shl_r_imm8(&tmp_index_copy, shift as i8);
+
+                                    1
+                                }
+                                _  => panic!("unexpected var ty size: {}", ele_ty_size)
                             };
 
                             match base.v {
                                 // GETELEMIREF(IREF, ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
                                     let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
-                                    let ret = self.addr_append_index_scale(mem, tmp_index, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from GETELEMIREF(GETIREF, ireg): {}", ret);
                                     ret
@@ -3412,7 +3502,7 @@ impl <'a> InstructionSelection {
                                 // GETELEMIREF(GETFIELDIREF, ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetFieldIRef{..}, ..}) => {
                                     let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
-                                    let ret = self.addr_append_index_scale(mem, tmp_index, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from GETELEMIREF(GETFIELDIREF, ireg): {}", ret);
                                     ret
@@ -3424,7 +3514,7 @@ impl <'a> InstructionSelection {
                                     let ret = MemoryLocation::Address {
                                         base: tmp,
                                         offset: None,
-                                        index: Some(tmp_index),
+                                        index: Some(tmp_index_copy),
                                         scale: Some(scale)
                                     };
 
@@ -3525,11 +3615,11 @@ impl <'a> InstructionSelection {
         
         if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
             if self.match_iimm(src) {
-                let src_imm = self.node_iimm_to_i32(src);
+                let (src_imm, src_len) = self.node_iimm_to_i32_with_len(src);
                 if dest.is_int_reg() {
                     self.backend.emit_mov_r_imm(dest, src_imm);
                 } else if dest.is_mem() {
-                    self.backend.emit_mov_mem_imm(dest, src_imm);
+                    self.backend.emit_mov_mem_imm(dest, src_imm, src_len);
                 } else {
                     panic!("unexpected dest: {}", dest);
                 }
@@ -3566,8 +3656,8 @@ impl <'a> InstructionSelection {
             } else if dest.is_mem() && src.is_int_reg() {
                 self.backend.emit_mov_mem_r(dest, src);
             } else if dest.is_mem() && src.is_int_const() {
-                let imm = self.value_iimm_to_i32(src);
-                self.backend.emit_mov_mem_imm(dest, imm);
+                let (imm, len) = self.value_iimm_to_i32_with_len(src);
+                self.backend.emit_mov_mem_imm(dest, imm, len);
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }

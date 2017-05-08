@@ -9,7 +9,6 @@ use utils::LinkedHashSet;
 
 use std::fmt;
 use std::default;
-use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
 pub type WPID  = usize;
@@ -74,9 +73,9 @@ pub struct MuFunction {
 }
 
 impl MuFunction {
-    pub fn new(id: MuID, sig: P<MuFuncSig>) -> MuFunction {
+    pub fn new(entity: MuEntityHeader, sig: P<MuFuncSig>) -> MuFunction {
         MuFunction {
-            hdr: MuEntityHeader::unnamed(id),
+            hdr: entity,
             sig: sig,
             cur_ver: None,
             all_vers: vec![]
@@ -143,9 +142,9 @@ impl fmt::Debug for MuFunctionVersion {
 }
 
 impl MuFunctionVersion {
-    pub fn new(id: MuID, func: MuID, sig: P<MuFuncSig>) -> MuFunctionVersion {
+    pub fn new(entity: MuEntityHeader, func: MuID, sig: P<MuFuncSig>) -> MuFunctionVersion {
         MuFunctionVersion{
-            hdr: MuEntityHeader::unnamed(id),
+            hdr: entity,
             func_id: func,
             sig: sig,
             orig_content: None,
@@ -194,9 +193,10 @@ impl MuFunctionVersion {
         self.is_compiled = true;
     }
 
-    pub fn new_ssa(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
+    pub fn new_ssa(&mut self, entity: MuEntityHeader, ty: P<MuType>) -> P<TreeNode> {
+        let id = entity.id();
         let val = P(Value{
-            hdr: MuEntityHeader::unnamed(id),
+            hdr: entity,
             ty: ty,
             v: Value_::SSAVar(id)
         });
@@ -425,8 +425,8 @@ impl fmt::Debug for Block {
 }
 
 impl Block {
-    pub fn new(id: MuID) -> Block {
-        Block{hdr: MuEntityHeader::unnamed(id), content: None, control_flow: ControlFlow::default()}
+    pub fn new(entity: MuEntityHeader) -> Block {
+        Block{hdr: entity, content: None, control_flow: ControlFlow::default()}
     }
     
     pub fn is_receiving_exception_arg(&self) -> bool {
@@ -588,7 +588,7 @@ impl BlockContent {
                         vec_utils::append_unique(&mut ret, &mut live_outs);
                     }
                     
-                    _ => panic!("didn't expect last inst as {:?}", inst) 
+                    _ => panic!("didn't expect last inst as {}", inst)
                 }
             },
             _ => panic!("expect last treenode of block is a inst")
@@ -763,7 +763,7 @@ impl Value {
     }
 }
 
-const DISPLAY_TYPE : bool = false;
+const DISPLAY_TYPE : bool = true;
 const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {
@@ -1065,14 +1065,14 @@ impl fmt::Display for MemoryLocation {
 #[derive(Debug)] // Display, PartialEq, Clone
 pub struct MuEntityHeader {
     id: MuID,
-    name: RwLock<Option<MuName>>
+    name: Option<MuName>
 }
 
 impl Clone for MuEntityHeader {
     fn clone(&self) -> Self {
         MuEntityHeader {
             id: self.id,
-            name: RwLock::new(self.name.read().unwrap().clone())
+            name: self.name.clone()
         }
     }
 }
@@ -1083,7 +1083,7 @@ impl Encodable for MuEntityHeader {
         s.emit_struct("MuEntityHeader", 2, |s| {
             try!(s.emit_struct_field("id", 0, |s| self.id.encode(s)));
             
-            let name = &self.name.read().unwrap();
+            let name = &self.name;
             try!(s.emit_struct_field("name", 1, |s| name.encode(s)));
             
             Ok(())
@@ -1099,24 +1099,36 @@ impl Decodable for MuEntityHeader {
             
             Ok(MuEntityHeader{
                     id: id,
-                    name: RwLock::new(name)
+                    name: name
                 })
         })
     }
+}
+
+pub fn name_check(name: MuName) -> MuName {
+    let name = name.replace('.', "$");
+
+    if name.starts_with("@") || name.starts_with("%") {
+        let (_, name) = name.split_at(1);
+
+        return name.to_string();
+    }
+
+    name
 }
 
 impl MuEntityHeader {
     pub fn unnamed(id: MuID) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: RwLock::new(None)
+            name: None
         }
     }
     
     pub fn named(id: MuID, name: MuName) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: RwLock::new(Some(MuEntityHeader::name_check(name)))
+            name: Some(name_check(name))
         }
     }
     
@@ -1125,24 +1137,7 @@ impl MuEntityHeader {
     }
     
     pub fn name(&self) -> Option<MuName> {
-        self.name.read().unwrap().clone()
-    }
-
-    pub fn set_name(&self, name: MuName) {
-        let mut name_guard = self.name.write().unwrap();
-        *name_guard = Some(MuEntityHeader::name_check(name));
-    }
-
-    pub fn name_check(name: MuName) -> MuName {
-        let name = name.replace('.', "$");
-
-        if name.starts_with("@") || name.starts_with("%") {
-            let (_, name) = name.split_at(1);
-
-            return name.to_string();
-        }
-
-        name
+        self.name.clone()
     }
 
     fn abbreviate_name(&self) -> Option<MuName> {
@@ -1192,7 +1187,6 @@ impl fmt::Display for MuEntityHeader {
 pub trait MuEntity {
     fn id(&self) -> MuID;
     fn name(&self) -> Option<MuName>;
-    fn set_name(&self, name: MuName);
     fn as_entity(&self) -> &MuEntity;
 }
 
@@ -1215,13 +1209,6 @@ impl MuEntity for TreeNode {
         match self.v {
             TreeNode_::Instruction(ref inst) => inst.name(),
             TreeNode_::Value(ref pv) => pv.name()
-        }
-    }
-
-    fn set_name(&self, name: MuName) {
-        match self.v {
-            TreeNode_::Instruction(ref inst) => inst.set_name(name),
-            TreeNode_::Value(ref pv) => pv.set_name(name)
         }
     }
 

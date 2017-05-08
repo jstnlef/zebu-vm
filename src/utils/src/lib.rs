@@ -58,6 +58,8 @@ macro_rules! linked_hashset {
     };
 }
 
+pub mod math;
+
 mod address;
 pub use address::Address;
 pub use address::ObjectReference;

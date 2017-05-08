@@ -11,8 +11,8 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::collections::HashMap;
 
-const EMIT_MUIR : bool = true;
-const EMIT_MC_DOT : bool = true;
+pub const EMIT_MUIR : bool = true;
+pub const EMIT_MC_DOT : bool = true;
 
 pub fn create_emit_directory(vm: &VM) {
     use std::fs;
@@ -42,6 +42,48 @@ impl CodeEmission {
         CodeEmission {
             name: "Code Emission"
         }
+    }
+}
+
+#[allow(dead_code)]
+pub fn emit_mu_types(vm: &VM) {
+    if EMIT_MUIR {
+        create_emit_directory(vm);
+
+        let mut file_path = path::PathBuf::new();
+        file_path.push(&vm.vm_options.flag_aot_emit_dir);
+        file_path.push("___types.muty");
+        let mut file = match File::create(file_path.as_path()) {
+            Err(why) => panic!("couldn't create mu types file {}: {}", file_path.to_str().unwrap(), why),
+            Ok(file) => file
+        };
+
+        {
+            use ast::types::*;
+
+            let ty_guard = vm.types().read().unwrap();
+            let struct_map = STRUCT_TAG_MAP.read().unwrap();
+            let hybrid_map = HYBRID_TAG_MAP.read().unwrap();
+
+            for ty in ty_guard.values() {
+                if ty.is_struct() {
+                    file.write_fmt(format_args!("{}", ty)).unwrap();
+
+                    let struct_ty = struct_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
+                    file.write_fmt(format_args!(" -> {}\n", struct_ty)).unwrap();
+                    file.write_fmt(format_args!("  {}\n", vm.get_backend_type_info(ty.id()))).unwrap();
+                } else if ty.is_hybrid() {
+                    file.write_fmt(format_args!("{}", ty)).unwrap();
+                    let hybrid_ty = hybrid_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
+                    file.write_fmt(format_args!(" -> {}\n", hybrid_ty)).unwrap();
+                    file.write_fmt(format_args!("  {}\n", vm.get_backend_type_info(ty.id()))).unwrap();
+                } else {
+                    // we only care about struct
+                }
+            }
+        }
+
+
     }
 }
 

@@ -73,6 +73,8 @@ impl VMOptions {
         ret.flag_gc_disable_collection = true;
         // at the moment always emit debug info
         ret.flag_emit_debug_info = true;
+        // always disable register validation
+        ret.flag_disable_regalloc_validate = true;
 
         ret
     }

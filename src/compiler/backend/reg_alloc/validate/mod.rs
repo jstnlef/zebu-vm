@@ -11,6 +11,8 @@ use compiler::backend::reg_alloc::validate::alive_entry::*;
 mod exact_liveness;
 use compiler::backend::reg_alloc::validate::exact_liveness::*;
 
+const VERIFY_SPILLING : bool = false;
+
 pub fn validate_regalloc(cf: &CompiledFunction,
                          reg_assigned: LinkedHashMap<MuID, MuID>,
                          spill_scratch_regs: LinkedHashMap<MuID, MuID>)
@@ -62,42 +64,46 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             Some(range) => range,
             None => panic!("cannot find range for block {}", block)
         };
-        let last_inst = range.end - 1;
+        let last_inst = mc.get_last_inst(range.end - 1).unwrap();
         for i in range {
             mc.trace_inst(i);
 
             // validate spill
-            if let Some(spill_loc) = mc.is_spill_load(i) {
-                // spill load is a move from spill location (mem) to temp
+            if VERIFY_SPILLING {
+                panic!("the code doesnt work");
 
-                // its define is the scratch temp
-                let scratch_temp = mc.get_inst_reg_defines(i)[0];
-                let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
+                if let Some(spill_loc) = mc.is_spill_load(i) {
+                    // spill load is a move from spill location (mem) to temp
 
-                // we check if source_temp are alive, and if it is alive in the designated location
-                validate_spill_load(scratch_temp, source_temp, spill_loc, &mut alive);
-            } else if let Some(spill_loc) = mc.is_spill_store(i) {
-                // spill store is a move from scratch temp to mem
+                    // its define is the scratch temp
+                    let scratch_temp = mc.get_inst_reg_defines(i)[0];
+                    let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
-                // it uses scratch temp as well as stack pointer (to refer to mem)
-                // we try to find the scratch temp
-                let scratch_temp = {
-                    let uses = mc.get_inst_reg_uses(i);
-                    let mut use_temps = vec![];
-                    for reg in uses {
-                        if reg >= MACHINE_ID_END {
-                            use_temps.push(reg)
-                        }
+                    // we check if source_temp are alive, and if it is alive in the designated location
+                    validate_spill_load(scratch_temp, source_temp, spill_loc, &mut alive);
+                } else if let Some(spill_loc) = mc.is_spill_store(i) {
+                    // spill store is a move from scratch temp to mem
+
+                    // it uses scratch temp as well as stack pointer (to refer to mem)
+                    // we try to find the scratch temp
+                    let scratch_temp = {
+                        let uses = mc.get_inst_reg_uses(i);
+                        let mut use_temps = vec![];
+                        for reg in uses {
+                            if reg >= MACHINE_ID_END {
+                                use_temps.push(reg)
+                            }
+                        };
+
+                        assert!(use_temps.len() == 1);
+
+                        use_temps[0]
                     };
+                    let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
-                    assert!(use_temps.len() == 1);
-
-                    use_temps[0]
-                };
-                let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
-
-                // we add both scratch_temp, and source_temp as alive
-                add_spill_store(scratch_temp, source_temp, spill_loc, &mut alive);
+                    // we add both scratch_temp, and source_temp as alive
+                    add_spill_store(scratch_temp, source_temp, spill_loc, &mut alive);
+                }
             }
 
             // validate uses of registers
@@ -108,6 +114,7 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             // remove registers that die at this instruction from alive entries
             if let Some(kills) = liveness.get_kills(i) {
                 for reg in kills.iter() {
+                    debug!("Temp/Reg{} is killed", reg);
                     kill_reg(*reg, &mut alive);
                 }
             }
@@ -123,7 +130,10 @@ pub fn validate_regalloc(cf: &CompiledFunction,
                 } else {
                     // we need to kill the reg, so that other temps cannot use it
                     // (its value has been defined)
-                    kill_reg(reg_def, &mut alive);
+                    if !mc.is_move(i) {
+                        debug!("Temp/Reg{} is not liveout, will be killed", reg_def);
+                        kill_reg(reg_def, &mut alive);
+                    }
                 }
             }
 

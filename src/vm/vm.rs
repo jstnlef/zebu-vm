@@ -32,7 +32,7 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_
 // possibly INTERNAL_ID in ir.rs, internal types, etc
 
 pub struct VM {
-    // serialize
+    // ---serialize---
     // 0
     next_id: AtomicUsize,
     // 1
@@ -61,10 +61,19 @@ pub struct VM {
     // 12
     pub vm_options: VMOptions,
     
-    // partially serialize
+    // ---partially serialize---
     // 13
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
+
+    // ---do not serialize---
+
+    // client may try to store funcref to the heap, so that they can load it later, and call it
+    // however the store may happen before we have an actual address to the func (in AOT scenario)
+    aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>
 }
+
+use std::u64;
+const PENDING_FUNCREF : u64 = u64::MAX;
 
 const VM_SERIALIZE_FIELDS : usize = 14;
 
@@ -371,7 +380,8 @@ impl Decodable for VM {
                 primordial: RwLock::new(primordial),
                 is_running: ATOMIC_BOOL_INIT,
                 vm_options: vm_options,
-                compiled_funcs: RwLock::new(compiled_funcs)
+                compiled_funcs: RwLock::new(compiled_funcs),
+                aot_pending_funcref_store: RwLock::new(HashMap::new())
             };
             
             vm.next_id.store(next_id, Ordering::SeqCst);
@@ -431,7 +441,9 @@ impl <'a> VM {
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
 
-            primordial: RwLock::new(None)
+            primordial: RwLock::new(None),
+
+            aot_pending_funcref_store: RwLock::new(HashMap::new())
         };
 
         // insert all intenral types
@@ -561,9 +573,9 @@ impl <'a> VM {
         self.is_running.load(Ordering::Relaxed)
     }
     
-    pub fn set_name(&self, entity: &MuEntity, name: MuName) {
+    pub fn set_name(&self, entity: &MuEntity) {
         let id = entity.id();
-        entity.set_name(name.clone());
+        let name = entity.name().unwrap();
         
         let mut map = self.id_name_map.write().unwrap();
         map.insert(id, name.clone());
@@ -589,11 +601,11 @@ impl <'a> VM {
         map.get(&id).unwrap().clone()
     }
     
-    pub fn declare_const(&self, id: MuID, ty: P<MuType>, val: Constant) -> P<Value> {
+    pub fn declare_const(&self, entity: MuEntityHeader, ty: P<MuType>, val: Constant) -> P<Value> {
         let mut constants = self.constants.write().unwrap();
-        let ret = P(Value{hdr: MuEntityHeader::unnamed(id), ty: ty, v: Value_::Constant(val)});
+        let ret = P(Value{hdr: entity, ty: ty, v: Value_::Constant(val)});
 
-        self.declare_const_internal(&mut constants, id, ret.clone());
+        self.declare_const_internal(&mut constants, ret.id(), ret.clone());
         
         ret
     }
@@ -632,17 +644,17 @@ impl <'a> VM {
         ValueLocation::Relocatable(backend::RegGroup::GPR, name)
     }
     
-    pub fn declare_global(&self, id: MuID, ty: P<MuType>) -> P<Value> {
+    pub fn declare_global(&self, entity: MuEntityHeader, ty: P<MuType>) -> P<Value> {
         let global = P(Value{
-            hdr: MuEntityHeader::unnamed(id),
-            ty: self.declare_type(self.next_id(), MuType_::iref(ty.clone())),
+            hdr: entity,
+            ty: self.declare_type(MuEntityHeader::unnamed(self.next_id()), MuType_::iref(ty.clone())),
             v: Value_::Global(ty)
         });
         
         let mut globals = self.globals.write().unwrap();
         let mut global_locs = self.global_locations.write().unwrap();
 
-        self.declare_global_internal(&mut globals, &mut global_locs, id, global.clone());
+        self.declare_global_internal(&mut globals, &mut global_locs, global.id(), global.clone());
         
         global
     }
@@ -680,12 +692,12 @@ impl <'a> VM {
         global_locs.insert(id, loc);
     }
     
-    pub fn declare_type(&self, id: MuID, ty: MuType_) -> P<MuType> {
-        let ty = P(MuType{hdr: MuEntityHeader::unnamed(id), v: ty});
+    pub fn declare_type(&self, entity: MuEntityHeader, ty: MuType_) -> P<MuType> {
+        let ty = P(MuType{hdr: entity, v: ty});
         
         let mut types = self.types.write().unwrap();
 
-        self.declare_type_internal(&mut types, id, ty.clone());
+        self.declare_type_internal(&mut types, ty.id(), ty.clone());
         
         ty
     }
@@ -717,11 +729,11 @@ impl <'a> VM {
         }
     }    
     
-    pub fn declare_func_sig(&self, id: MuID, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
-        let ret = P(MuFuncSig{hdr: MuEntityHeader::unnamed(id), ret_tys: ret_tys, arg_tys: arg_tys});
+    pub fn declare_func_sig(&self, entity: MuEntityHeader, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
+        let ret = P(MuFuncSig{hdr: entity, ret_tys: ret_tys, arg_tys: arg_tys});
 
         let mut func_sigs = self.func_sigs.write().unwrap();
-        self.declare_func_sig_internal(&mut func_sigs, id, ret.clone());
+        self.declare_func_sig_internal(&mut func_sigs, ret.id(), ret.clone());
         
         ret
     }
@@ -1023,7 +1035,7 @@ impl <'a> VM {
             panic!("Zebu doesnt support creating primordial thread through a stack, name a entry function instead")
         } else {
             // extract func id
-            let func_id = primordial_func.unwrap().v.as_func();
+            let func_id = primordial_func.unwrap().v.as_funcref();
 
             // make primordial thread in vm
             self.make_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
@@ -1034,7 +1046,7 @@ impl <'a> VM {
                 let mut ret = hashmap!{};
                 for i in 0..sym_fields.len() {
                     let addr = sym_fields[i].v.as_address();
-                    ret.insert(addr, sym_strings[i].clone());
+                    ret.insert(addr, name_check(sym_strings[i].clone()));
                 }
                 ret
             };
@@ -1042,10 +1054,21 @@ impl <'a> VM {
             assert_eq!(reloc_fields.len(), reloc_strings.len());
             let fields = {
                 let mut ret = hashmap!{};
+
+                // client supplied relocation fields
                 for i in 0..reloc_fields.len() {
                     let addr = reloc_fields[i].v.as_address();
-                    ret.insert(addr, reloc_strings[i].clone());
+                    ret.insert(addr, name_check(reloc_strings[i].clone()));
                 }
+
+                // pending funcrefs - we want to replace them as symbol
+                {
+                    let mut pending_funcref = self.aot_pending_funcref_store.write().unwrap();
+                    for (addr, vl) in pending_funcref.drain() {
+                        ret.insert(addr, name_check(vl.to_relocatable()));
+                    }
+                }
+
                 ret
             };
 
@@ -1144,7 +1167,7 @@ impl <'a> VM {
                     v : APIHandleValue::IRef(inner_ty, addr)
                 })
             },
-            APIHandleValue::FuncRef => unimplemented!(),
+            APIHandleValue::FuncRef(_) => unimplemented!(),
 
             _ => panic!("unexpected operand for refcast: {:?}", from_op)
         }
@@ -1320,11 +1343,27 @@ impl <'a> VM {
                 APIHandleValue::Ref(_, aval)
                 | APIHandleValue::IRef(_, aval) => addr.store::<Address>(aval),
 
-                _ => unimplemented!()
+                // if we are JITing, we can store the address of the function
+                // but if we are doing AOT, we pend the store, and resolve the store when making boot image
+                APIHandleValue::FuncRef(id) => self.store_funcref(addr, id),
+
+                _ => panic!("unimplemented store for handle {}", val.v)
             }
         }
 
         trace!("API: store value {:?} to location {:?}", val, loc);
+    }
+
+    #[cfg(feature = "aot")]
+    fn store_funcref(&self, addr: Address, func_id: MuID) {
+        // put a pending funcref in the address
+        unsafe {addr.store::<u64>(PENDING_FUNCREF)};
+
+        // and record this funcref
+        let symbol = self.name_of(func_id);
+
+        let mut pending_funcref_guard = self.aot_pending_funcref_store.write().unwrap();
+        pending_funcref_guard.insert(addr, ValueLocation::Relocatable(backend::RegGroup::GPR, symbol));
     }
 
     // this function and the following two make assumption that GC will not move object
@@ -1363,7 +1402,7 @@ impl <'a> VM {
 
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Func(id)
+            v : APIHandleValue::FuncRef(id)
         })
     }
 
