@@ -7,7 +7,7 @@ Cargo.lock
 *.log
 *.DS_Store
 *.swp
-.idea
+.idea   
 *.pyc
 *.o
 *.dylib
