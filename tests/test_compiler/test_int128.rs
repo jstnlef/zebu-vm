@@ -170,3 +170,54 @@ fn udiv_u128() -> VM {
 
     vm
 }
+
+#[test]
+fn test_shl_u128() {
+    let lib = testutil::compile_fnc("shl_u128", &shl_u128);
+
+    unsafe {
+        use self::extprim::u128::u128;
+
+        let shl_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"shl_u128").unwrap();
+
+        let res = shl_u128(1, 0, 64, 0);
+        println!("shl_u128(1, 64) = {:?}", res);
+        assert!(res == (0, 1));
+
+        let res = shl_u128(1, 1, 64, 0);
+        println!("shl_u128(1, 64) = {:?}", res);
+        assert!(res == (0, 1));
+    }
+}
+
+fn shl_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+
+    funcsig!    ((vm) sig = (u128, u128) -> (u128));
+    funcdecl!   ((vm) <sig> shl_u128);
+    funcdef!    ((vm) <sig> shl_u128 VERSION shl_u128_v1);
+
+    block!      ((vm, shl_u128_v1) blk_entry);
+    ssa!        ((vm, shl_u128_v1) <u128> a);
+    ssa!        ((vm, shl_u128_v1) <u128> b);
+
+    // sum = Add %a %b
+    ssa!        ((vm, shl_u128_v1) <u128> sum);
+    inst!       ((vm, shl_u128_v1) blk_entry_shl_u128:
+        sum = BINOP (BinOp::Shl) a b
+    );
+
+    inst!       ((vm, shl_u128_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, shl_u128_v1) blk_entry(a, b) {
+        blk_entry_shl_u128, blk_entry_ret
+    });
+
+    define_func_ver!((vm) shl_u128_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}

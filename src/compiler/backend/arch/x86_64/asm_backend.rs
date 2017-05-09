@@ -1555,6 +1555,43 @@ impl ASMCodeGen {
         )
     }
 
+    fn internal_triop_def_r_r_mr(&mut self, inst: &str, dest: Reg, src1: Reg, src2: Reg) {
+        let len = check_op_len(dest);
+
+        let inst = inst.to_string() + &op_postfix(len);
+        trace!("emit: {} {}, {}, {} -> {}", inst, dest, src1, src2, dest);
+
+        let mreg = self.prepare_machine_reg(src2);
+        let mreg_name = src2.name().unwrap();
+
+        let (reg1, id1, loc1) = self.prepare_reg(src1, inst.len() + 1 + 1 + mreg_name.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + 1 + mreg_name.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} %{},{},{}", inst, mreg_name, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2.clone()]
+            },
+            {
+                if id1 == id2 {
+                    linked_hashmap! {
+                        id1 => vec![loc1, loc2],
+                        mreg => vec![]
+                    }
+                } else {
+                    linked_hashmap! {
+                        id1 => vec![loc1],
+                        id2 => vec![loc2],
+                        mreg => vec![]
+                    }
+                }
+            },
+            false
+        )
+    }
+
     fn internal_mov_r64_imm64(&mut self, inst: &str, dest: &P<Value>, src: i64) {
         let inst = inst.to_string() + &op_postfix(64);
         trace!("emit: {} {} -> {}", inst, src, dest);
@@ -2161,6 +2198,10 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_binop_no_def_r_r("test", op1, op2)
     }
 
+    fn emit_test_imm_r(&mut self, op1: i32, op2: Reg) {
+        self.internal_binop_no_def_imm_r("test", op1, op2)
+    }
+
     // mov
 
     fn emit_mov_r64_imm64  (&mut self, dest: &P<Value>, src: i64) {
@@ -2743,12 +2784,20 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_binop_def_r_imm("shl", dest, src as i32)
     }
 
+    fn emit_shld_r_r_cl (&mut self, dest: Reg, src: Reg) {
+        self.internal_triop_def_r_r_mr("shld", dest, src, &x86_64::CL);
+    }
+
     fn emit_shr_r_cl    (&mut self, dest: &P<Value>) {
         self.internal_binop_def_r_mr("shr", dest, &x86_64::CL)
     }
 
     fn emit_shr_r_imm8  (&mut self, dest: &P<Value>, src: i8) {
         self.internal_binop_def_r_imm("shr", dest, src as i32)
+    }
+
+    fn emit_shrd_r_r_cl (&mut self, dest: Reg, src: Reg) {
+        self.internal_triop_def_r_r_mr("shrd", dest, src, &x86_64::CL);
     }
 
     fn emit_sar_r_cl    (&mut self, dest: &P<Value>) {

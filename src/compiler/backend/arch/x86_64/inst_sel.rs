@@ -1896,35 +1896,71 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                if self.match_mem(op1) {
-                    unimplemented!()
-                } else if self.match_ireg(op1) {
+                if self.match_ireg(op1) && self.match_iimm(op2) {
+                    trace!("emit shl-ireg-iimm");
+
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let imm_op2 = self.node_iimm_to_i32(op2);
 
-                    if self.match_iimm(op2) {
-                        let imm_op2 = self.node_iimm_to_i32(op2) as i8;
+                    // mov op1 -> res
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
 
-                        // mov op1 -> result
-                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    // shl result, op2 -> result
+                    self.backend.emit_shl_r_imm8(&res_tmp, imm_op2 as i8);
+                } else if self.match_ireg(op1) && self.match_ireg(op2) {
+                    trace!("emit shl-ireg-ireg");
 
-                        // shl result, op2 -> result
-                        self.backend.emit_shl_r_imm8(&res_tmp, imm_op2);
-                    } else if self.match_ireg(op2) {
-                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+                    let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                        // mov op2 -> cl
-                        self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
+                    // mov op2 -> cl
+                    self.backend.emit_mov_r_r(&x86_64::CL, unsafe {&tmp_op2.as_type(UINT8_TYPE.clone())});
 
-                        // mov op1 -> result
-                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    // mov op1 -> result
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
 
-                        // shl result, cl -> result
-                        self.backend.emit_shl_r_cl(&res_tmp);
-                    } else {
-                        panic!("unexpected op2 (not ireg not iimm): {}", op2);
-                    }
+                    // shl result, cl -> result
+                    self.backend.emit_shl_r_cl(&res_tmp);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                    trace!("emit shl-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                    // mov op2_l -> ecx (we do not care higher bits)
+                    self.backend.emit_mov_r_r(&x86_64::ECX, unsafe {&op2_l.as_type(UINT32_TYPE.clone())});
+
+                    // mov op1_h -> t1
+                    let t1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t1, &op1_h);
+
+                    // shld op1_l, t1, cl -> t1
+                    self.backend.emit_shld_r_r_cl(&t1, &op1_l);
+
+                    // mov op1_l -> t2
+                    let t2 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t2, &op1_l);
+
+                    // shl t2, cl -> t2
+                    self.backend.emit_shl_r_cl(&t2);
+
+                    // clear res_l
+                    self.backend.emit_mov_r_imm(&res_l, 0);
+
+                    // test 64, cl
+                    self.backend.emit_test_imm_r(64i32, &x86_64::CL);
+
+                    // cmovne t2 -> t1
+                    self.backend.emit_cmovne_r_r(&t1, &t2);
+
+                    // cmove t2 -> res_l
+                    self.backend.emit_cmove_r_r(&res_l, &t2);
+
+                    // mov t1 -> res_h
+                    self.backend.emit_mov_r_r(&res_h, &t1);
                 } else {
-                    panic!("unexpected op1 (not ireg not mem): {}", op1);
+                    unimplemented!()
                 }
             },
             op::BinOp::Lshr => {

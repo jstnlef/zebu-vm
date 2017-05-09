@@ -39,7 +39,8 @@ pub trait CodeGenerator {
     fn emit_cmp_imm_r(&mut self, op1: i32, op2: Reg);
     fn emit_cmp_mem_r(&mut self, op1: Reg, op2: Reg);
 
-    fn emit_test_r_r (&mut self, op1: Reg, op2: Reg);
+    fn emit_test_r_r  (&mut self, op1: Reg, op2: Reg);
+    fn emit_test_imm_r(&mut self, op1: i32, op2: Reg);
 
     // gpr move
 
@@ -166,8 +167,12 @@ pub trait CodeGenerator {
     fn emit_shl_r_cl    (&mut self, dest: Reg);
     fn emit_shl_r_imm8  (&mut self, dest: Reg, src: i8);
 
+    fn emit_shld_r_r_cl (&mut self, dest: Reg, src: Reg);
+
     fn emit_shr_r_cl    (&mut self, dest: &P<Value>);
     fn emit_shr_r_imm8  (&mut self, dest: &P<Value>, src: i8);
+
+    fn emit_shrd_r_r_cl (&mut self, dest: Reg, src: Reg);
 
     fn emit_sar_r_cl    (&mut self, dest: &P<Value>);
     fn emit_sar_r_imm8  (&mut self, dest: &P<Value>, src: i8);
@@ -177,15 +182,15 @@ pub trait CodeGenerator {
     fn emit_cwd(&mut self); // sign extend ax  to dx:ax
     
     fn emit_jmp(&mut self, dest: MuName);
-    fn emit_je(&mut self, dest: MuName);
+    fn emit_je (&mut self, dest: MuName);
     fn emit_jne(&mut self, dest: MuName);
-    fn emit_ja(&mut self, dest: MuName);
+    fn emit_ja (&mut self, dest: MuName);
     fn emit_jae(&mut self, dest: MuName);
-    fn emit_jb(&mut self, dest: MuName);
+    fn emit_jb (&mut self, dest: MuName);
     fn emit_jbe(&mut self, dest: MuName);
-    fn emit_jg(&mut self, dest: MuName);
+    fn emit_jg (&mut self, dest: MuName);
     fn emit_jge(&mut self, dest: MuName);
-    fn emit_jl(&mut self, dest: MuName);
+    fn emit_jl (&mut self, dest: MuName);
     fn emit_jle(&mut self, dest: MuName);
 
     fn emit_js(&mut self, dest: MuName);
