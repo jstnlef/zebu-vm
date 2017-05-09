@@ -221,3 +221,101 @@ fn shl_u128() -> VM {
 
     vm
 }
+
+#[test]
+fn test_lshr_u128() {
+    let lib = testutil::compile_fnc("lshr_u128", &lshr_u128);
+
+    unsafe {
+        use self::extprim::u128::u128;
+
+        let lshr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"lshr_u128").unwrap();
+
+        let res = lshr_u128(1, 1, 64, 0);
+        println!("lshr_u128(100000000000...0001, 64) = {:?}", res);
+        assert!(res == (1, 0));
+
+        let res = lshr_u128(1, 0xffffffffffffffff, 64, 0);
+        println!("lshr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}", res);
+        assert!(res == (0xffffffffffffffff, 0));
+    }
+}
+
+fn lshr_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+
+    funcsig!    ((vm) sig = (u128, u128) -> (u128));
+    funcdecl!   ((vm) <sig> lshr_u128);
+    funcdef!    ((vm) <sig> lshr_u128 VERSION lshr_u128_v1);
+
+    block!      ((vm, lshr_u128_v1) blk_entry);
+    ssa!        ((vm, lshr_u128_v1) <u128> a);
+    ssa!        ((vm, lshr_u128_v1) <u128> b);
+
+    // sum = Add %a %b
+    ssa!        ((vm, lshr_u128_v1) <u128> sum);
+    inst!       ((vm, lshr_u128_v1) blk_entry_lshr_u128:
+        sum = BINOP (BinOp::Lshr) a b
+    );
+
+    inst!       ((vm, lshr_u128_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, lshr_u128_v1) blk_entry(a, b) {
+        blk_entry_lshr_u128, blk_entry_ret
+    });
+
+    define_func_ver!((vm) lshr_u128_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_ashr_u128() {
+    let lib = testutil::compile_fnc("ashr_u128", &ashr_u128);
+
+    unsafe {
+        use self::extprim::u128::u128;
+
+        let ashr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"ashr_u128").unwrap();
+
+        let res = ashr_u128(1, 0xffffffffffffffff, 64, 0);
+        println!("ashr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}", res);
+        assert!(res == (0xffffffffffffffff, 0xffffffffffffffff));
+    }
+}
+
+fn ashr_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+
+    funcsig!    ((vm) sig = (u128, u128) -> (u128));
+    funcdecl!   ((vm) <sig> ashr_u128);
+    funcdef!    ((vm) <sig> ashr_u128 VERSION ashr_u128_v1);
+
+    block!      ((vm, ashr_u128_v1) blk_entry);
+    ssa!        ((vm, ashr_u128_v1) <u128> a);
+    ssa!        ((vm, ashr_u128_v1) <u128> b);
+
+    // sum = Add %a %b
+    ssa!        ((vm, ashr_u128_v1) <u128> sum);
+    inst!       ((vm, ashr_u128_v1) blk_entry_ashr_u128:
+        sum = BINOP (BinOp::Ashr) a b
+    );
+
+    inst!       ((vm, ashr_u128_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, ashr_u128_v1) blk_entry(a, b) {
+        blk_entry_ashr_u128, blk_entry_ret
+    });
+
+    define_func_ver!((vm) ashr_u128_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
