@@ -3,12 +3,10 @@ extern crate extprim;
 
 use mu::ast::ir::*;
 use mu::ast::inst::*;
-use mu::ast::types;
 use mu::ast::types::*;
 use mu::ast::op::*;
 use mu::vm::*;
 
-use std::sync::Arc;
 use std::sync::RwLock;
 use mu::utils::LinkedHashMap;
 use mu::testutil;
@@ -229,8 +227,6 @@ fn test_shl_u128() {
     let lib = testutil::compile_fnc("shl_u128", &shl_u128);
 
     unsafe {
-        use self::extprim::u128::u128;
-
         let shl_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"shl_u128").unwrap();
 
         let res = shl_u128(1, 0, 64, 0);
@@ -280,8 +276,6 @@ fn test_lshr_u128() {
     let lib = testutil::compile_fnc("lshr_u128", &lshr_u128);
 
     unsafe {
-        use self::extprim::u128::u128;
-
         let lshr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"lshr_u128").unwrap();
 
         let res = lshr_u128(1, 1, 64, 0);
@@ -331,8 +325,6 @@ fn test_ashr_u128() {
     let lib = testutil::compile_fnc("ashr_u128", &ashr_u128);
 
     unsafe {
-        use self::extprim::u128::u128;
-
         let ashr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"ashr_u128").unwrap();
 
         let res = ashr_u128(1, 0xffffffffffffffff, 64, 0);
