@@ -46,10 +46,11 @@ def compile_c_script(c_src_name):
     CFLAGS = [
         "-std=c11",
         "-I%(proj_dir)s/src/vm/api" % globals(),
-        "-L" + libmu_path.dirname,
-        "-lmu",
+        "-lpthread",
+        "-ldl",
+        "-lm"
     ]
-    cmd = [CC] + CFLAGS + ['-o', bin_path.strpath] + [src_c.strpath]
+    cmd = [CC] + CFLAGS + ['-o', bin_path.strpath] + [src_c.strpath] + ["%s" % proj_dir.join('target', 'debug', 'libmu.a')]
 
     # compile
     p = subp.Popen(cmd, stdout=subp.PIPE, stderr=subp.PIPE, env=os.environ)
