@@ -915,6 +915,7 @@ impl fmt::Display for SSAVarEntry {
 #[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Constant {
     Int(u64),
+    IntEx(Vec<u64>),
     Float(f32),
     Double(f64),
 //    IRef(Address),
@@ -931,6 +932,7 @@ impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Constant::Int(v) => write!(f, "{}", v as i64),
+            &Constant::IntEx(ref v) => write!(f, "IntEx {:?}", v),
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
 //            &Constant::IRef(v) => write!(f, "{}", v),

@@ -1925,7 +1925,7 @@ impl <'a> InstructionSelection {
                     trace!("emit shl-iregex-iregex");
 
                     let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+                    let (op2_l, _)     = self.emit_ireg_ex(op2, f_content, f_context, vm);
                     let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
 
                     // mov op2_l -> ecx (we do not care higher bits)
@@ -1996,7 +1996,7 @@ impl <'a> InstructionSelection {
                     trace!("emit lshr-iregex-iregex");
 
                     let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+                    let (op2_l, _)     = self.emit_ireg_ex(op2, f_content, f_context, vm);
                     let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
 
                     // mov op2_l -> ecx (we do not care higher bits)
@@ -2067,7 +2067,7 @@ impl <'a> InstructionSelection {
                     trace!("emit ashr-iregex-iregex");
 
                     let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+                    let (op2_l, _)     = self.emit_ireg_ex(op2, f_content, f_context, vm);
                     let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
 
                     // mov op2_l -> ecx
@@ -3686,9 +3686,17 @@ impl <'a> InstructionSelection {
                     Value_::SSAVar(_) => {
                         self.split_int128(pv, f_context, vm)
                     },
-                    Value_::Constant(ref c) => {
-                        unimplemented!()
-                    }
+                    Value_::Constant(Constant::IntEx(ref val)) => {
+                        assert!(val.len() == 2);
+
+                        let tmp_l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                        let tmp_h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                        self.backend.emit_mov_r64_imm64(&tmp_l, val[0] as i64);
+                        self.backend.emit_mov_r64_imm64(&tmp_h, val[1] as i64);
+
+                        (tmp_l, tmp_h)
+                    },
                     _ => panic!("expected ireg_ex")
                 }
             }

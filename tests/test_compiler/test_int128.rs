@@ -65,6 +65,59 @@ fn add_u128() -> VM {
 }
 
 #[test]
+fn test_add_const_u128() {
+    let lib = testutil::compile_fnc("add_const_u128", &add_const_u128);
+
+    unsafe {
+        use std::u64;
+
+        let add_const_u128 : libloading::Symbol<unsafe extern fn(u64, u64) -> (u64, u64)> = lib.get(b"add_const_u128").unwrap();
+
+        let res = add_const_u128(1, 0);
+        println!("add_const_u128(1, 1) = {:?}", res);
+        assert!(res == (2, 0));
+
+        let res = add_const_u128(u64::MAX, 0);
+        println!("add_const_u128(u64::MAX, 1) = {:?}", res);
+        assert!(res == (0, 1));
+    }
+}
+
+fn add_const_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+
+    constdef!   ((vm) <u128> b = Constant::IntEx(vec![1, 0]));
+
+    funcsig!    ((vm) sig = (u128) -> (u128));
+    funcdecl!   ((vm) <sig> add_const_u128);
+    funcdef!    ((vm) <sig> add_const_u128 VERSION add_const_u128_v1);
+
+    block!      ((vm, add_const_u128_v1) blk_entry);
+    ssa!        ((vm, add_const_u128_v1) <u128> a);
+
+    // sum = Add %a %b
+    ssa!        ((vm, add_const_u128_v1) <u128> sum);
+    consta!     ((vm, add_const_u128_v1) b_local = b);
+    inst!       ((vm, add_const_u128_v1) blk_entry_add_const_u128:
+        sum = BINOP (BinOp::Add) a b_local
+    );
+
+    inst!       ((vm, add_const_u128_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, add_const_u128_v1) blk_entry(a) {
+        blk_entry_add_const_u128, blk_entry_ret
+    });
+
+    define_func_ver!((vm) add_const_u128_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
 fn test_mul_u128() {
     let lib = testutil::compile_fnc("mul_u128", &mul_u128);
 
