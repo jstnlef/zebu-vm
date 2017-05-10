@@ -747,6 +747,13 @@ impl Value {
             _ => None
         }
     }
+
+    pub fn extract_memory_location(&self) -> Option<MemoryLocation> {
+        match self.v {
+            Value_::Memory(ref loc) => Some(loc.clone()),
+            _ => None
+        }
+    }
 }
 
 const DISPLAY_TYPE : bool = true;

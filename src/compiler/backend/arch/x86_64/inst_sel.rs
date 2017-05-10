@@ -25,6 +25,7 @@ use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
 use utils::math;
+use utils::POINTER_SIZE;
 
 use std::collections::HashMap;
 use std::any::Any;
@@ -1015,6 +1016,16 @@ impl <'a> InstructionSelection {
 
                         if self.match_ireg(node) {
                             self.backend.emit_mov_r_mem(&res_temp, &resolved_loc);
+                        } else if self.match_ireg_ex(node) {
+                            let (res_l, res_h) = self.split_int128(&res_temp, f_context, vm);
+
+                            // load lower half
+                            self.backend.emit_mov_r_mem(&res_l, &resolved_loc);
+
+                            // shift ptr, and load higher half
+                            let loc = self.addr_const_offset_adjust(resolved_loc.extract_memory_location().unwrap(), POINTER_SIZE as u64, vm);
+                            let val_loc = self.make_value_memory_location(loc, vm);
+                            self.backend.emit_mov_r_mem(&res_h, &val_loc);
                         } else if self.match_fpreg(node) {
                             match res_temp.ty.v {
                                 MuType_::Double => self.backend.emit_movsd_f64_mem64(&res_temp, &resolved_loc),
@@ -1056,6 +1067,21 @@ impl <'a> InstructionSelection {
                             let val = self.emit_ireg(val_op, f_content, f_context, vm);
                             if generate_plain_mov {
                                 self.backend.emit_mov_mem_r(&resolved_loc, &val);
+                            } else {
+                                unimplemented!()
+                            }
+                        } else if self.match_ireg_ex(val_op) {
+                            let (val_l, val_h) = self.emit_ireg_ex(val_op, f_content, f_context, vm);
+                            if generate_plain_mov {
+                                // store lower half
+                                self.backend.emit_mov_mem_r(&resolved_loc, &val_l);
+
+                                // shift pointer, and store higher hal
+                                let loc = self.addr_const_offset_adjust(resolved_loc.extract_memory_location().unwrap(),
+                                                                        POINTER_SIZE as u64, vm);
+                                let loc_val = self.make_value_memory_location(loc, vm);
+
+                                self.backend.emit_mov_mem_r(&loc_val, &val_h);
                             } else {
                                 unimplemented!()
                             }
@@ -1344,6 +1370,14 @@ impl <'a> InstructionSelection {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: UINT64_TYPE.clone(),
             v: Value_::Constant(Constant::Int(val))
+        })
+    }
+
+    fn make_value_memory_location (&mut self, loc: MemoryLocation, vm: &VM) -> P<Value> {
+        P(Value{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty : ADDRESS_TYPE.clone(),
+            v  : Value_::Memory(loc)
         })
     }
 

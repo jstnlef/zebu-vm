@@ -364,3 +364,65 @@ fn ashr_u128() -> VM {
 
     vm
 }
+
+#[test]
+fn test_store_load_u128() {
+    let lib = testutil::compile_fnc("store_load_u128", &store_load_u128);
+
+    unsafe {
+        use mu::utils::mem::memsec::malloc;
+        let ptr = match malloc::<u64>(16) {
+            Some(ptr) => ptr,
+            None => panic!("failed to alloc memory for testing")
+        };
+
+        let store_load_u128 : libloading::Symbol<unsafe extern fn(u64, u64, *mut u64) -> (u64, u64)> = lib.get(b"store_load_u128").unwrap();
+
+        let res = store_load_u128(1, 2, ptr);
+        println!("store_load(1, 2, ptr) = {:?}", res);
+        assert!(res == (1, 2));
+    }
+}
+
+fn store_load_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+    typedef!    ((vm) uptr_u128 = mu_uptr(u128));
+
+    funcsig!    ((vm) sig = (u128, uptr_u128) -> (u128));
+    funcdecl!   ((vm) <sig> store_load_u128);
+    funcdef!    ((vm) <sig> store_load_u128 VERSION store_load_u128_v1);
+
+    block!      ((vm, store_load_u128_v1) blk_entry);
+    ssa!        ((vm, store_load_u128_v1) <u128> x);
+    ssa!        ((vm, store_load_u128_v1) <uptr_u128> ptr);
+
+    // store
+    inst!       ((vm, store_load_u128_v1) blk_entry_store:
+        STORE ptr x (is_ptr: true, order: MemoryOrder::Relaxed)
+    );
+
+    // load
+    ssa!        ((vm, store_load_u128_v1) <u128> val);
+    inst!       ((vm, store_load_u128_v1) blk_entry_load:
+        val = LOAD ptr (is_ptr: true, order: MemoryOrder::Relaxed)
+    );
+
+    // ret
+    inst!       ((vm, store_load_u128_v1) blk_entry_ret:
+        RET (val)
+    );
+
+    define_block!((vm, store_load_u128_v1) blk_entry(x, ptr) {
+        blk_entry_store,
+        blk_entry_load,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) store_load_u128_v1(entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
