@@ -40,7 +40,7 @@ macro_rules! linked_hashmap {
     };
 }
 
-#[macro_exprt]
+#[macro_export]
 macro_rules! linked_hashset {
     (@single $($x:tt)*) => (());
     (@count $($rest:expr),*) => (<[()]>::len(&[$(linked_hashset!(@single $rest)),*]));
