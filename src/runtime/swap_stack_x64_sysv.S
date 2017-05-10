@@ -1,4 +1,4 @@
-#include "asm_common.S.inc"
+#include "asm_common_x64.S.inc"
 
 # swap_stack_to(new_sp: Address, entry: Address, old_sp_loc: Address)
 #               %rdi             %rsi            %rdx

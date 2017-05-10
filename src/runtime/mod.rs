@@ -242,5 +242,5 @@ pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *
 #[no_mangle]
 #[allow(unreachable_code)]
 pub extern fn muentry_print_hex(x: u64) {
-    println!("0x{:x}", x);
+    println!("PRINTHEX: 0x{:x}", x);
 }

@@ -16,6 +16,7 @@ pub trait CodeGenerator {
     fn print_cur_code(&self);
 
     fn start_block(&mut self, block_name: MuName);
+    fn block_exists(&self, block_name: MuName) -> bool;
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation;
     fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>);
     fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
@@ -37,6 +38,10 @@ pub trait CodeGenerator {
     // stack minimpulation
     fn emit_push_pair(&mut self, src1: Reg, src2: Reg, stack: Reg); // Emits a STP
     fn emit_pop_pair(&mut self, dest1: Reg, dest2: Reg, stack: Reg); // Emits a LDP
+
+    // For callee saved loads and stores (flags them so that only they are removed)
+    fn emit_ldr_callee_saved(&mut self, dest: Reg, src: Mem);
+    fn emit_str_callee_saved(&mut self, dest: Mem, src: Reg);
 
 
     /* DON'T IMPLEMENT
@@ -266,6 +271,9 @@ TODO:
     fn emit_orr_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8);
 
     // binary ops with immediates
+    // The 'str' will be patched by the linker (used to access global variables)
+    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str);
+
     fn emit_add_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool);
     fn emit_adds_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool);
     fn emit_sub_imm(&mut self, dest: Reg, src1: Reg, src2: u16, shift: bool);

@@ -22,6 +22,7 @@ use std::str;
 use std::usize;
 use std::slice::Iter;
 use std::ops;
+use std::collections::HashSet;
 
 struct ASMCode {
     name: MuName,
@@ -652,71 +653,52 @@ impl MachineCode for ASMCode {
 //        self.code.insert(index, ASMInst::nop());
     }
 
-    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> (Vec<MuID>, usize) {
+    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> HashSet<MuID> {
         // every push pair (STP)/and pop pair (LDP) will use/define SP
-        let sp = SP.extract_ssa_id().unwrap();
+        let fp = FP.extract_ssa_id().unwrap();
 
-        let find_op_other_than_sp = |inst: &ASMInst| -> Vec<MuID> {
-            let mut ret : Vec<MuID> = vec![];
+        // Note: this version assumes only 1 callee is pushed or poped
+        let find_op_other_than_fp = |inst: &ASMInst| -> MuID {
             for id in inst.defines.keys() {
-                if *id != sp {
-                    ret.push(*id);
+                if *id != fp {
+                    return *id;
                 }
             }
             for id in inst.uses.keys() {
-                if *id != sp {
-                    ret.push(*id);
+                if *id != fp {
+                    return *id;
                 }
             }
 
-            ret
+            panic!("Expected to find a used register other than the FP");
         };
 
         let mut inst_to_remove = vec![];
-        let mut regs_to_remove = vec![];
-        let mut number_kept = 0; // Number of callee saved registers kept
+        let mut regs_to_remove = HashSet::new();
 
         for i in 0..self.number_of_insts() {
             let ref inst = self.code[i];
 
-            if inst.code.starts_with("STP ") || inst.code.starts_with("LDP ") {
-                let regs = find_op_other_than_sp(inst);
-                let mut temp_kept = 0;
-                let mut remove = true;
-                for r in &regs {
-                    if is_callee_saved(*r) {
-                        // Keep this callee saved register
-                        // (will still be kept if unused and the instruction isn't to be deleted)
-                        temp_kept += 1;
-                        if used_callee_saved.contains(&r) {
-                            remove = false; // We can't remove the instruction
-                        }
-                    } else {
-                        // Not an (unused) callee saved register, don't remove the instruction
-                        remove = false;
+            match inst.spill_info {
+                Some(SpillMemInfo::CalleeSaved) => {
+                    let reg = find_op_other_than_fp(inst);
+                    if !used_callee_saved.contains(&reg) {
+                        inst_to_remove.push(i);
+                        regs_to_remove.insert(reg);
                     }
                 }
-
-                if remove {
-                    inst_to_remove.push(i);
-                    regs_to_remove.extend(regs);
-                } else {
-                    // All the callee saved registers are kept (even if some aren't used)
-                    number_kept += temp_kept;
-                }
+                _ => {}
             }
         }
 
         for i in inst_to_remove {
             self.set_inst_nop(i);
         }
-
-        (regs_to_remove, number_kept)
+        regs_to_remove
     }
 
-    fn patch_frame_size(&mut self, size: usize, size_used: usize) {
+    fn patch_frame_size(&mut self, size: usize) {
         debug_assert!(size % 16 == 0);
-        debug_assert!(size_used % 16 == 0);
 
         let size = size.to_string();
 
@@ -801,9 +783,7 @@ impl MachineCode for ASMCode {
         block.liveout = set;
     }
 
-    fn get_all_blocks(&self) -> Vec<MuName> {
-        self.blocks.keys().map(|x| x.clone()).collect()
-    }
+    fn get_all_blocks(&self) -> Vec<MuName> { self.blocks.keys().map(|x| x.clone()).collect() }
 
     fn get_entry_block(&self) -> MuName {
         self.entry.clone()
@@ -848,7 +828,8 @@ enum ASMBranchTarget {
 #[derive(Clone, Debug)]
 enum SpillMemInfo {
     Load(P<Value>),
-    Store(P<Value>)
+    Store(P<Value>),
+    CalleeSaved, // Callee saved record
 }
 
 #[derive(Clone, Debug)]
@@ -1094,6 +1075,16 @@ impl ASMCodeGen {
         self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None, None)
     }
 
+    fn add_asm_inst_with_callee_saved(
+        &mut self,
+        code: String,
+        defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        is_using_mem_op: bool,
+    ) {
+        self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None, Some(SpillMemInfo::CalleeSaved))
+    }
+
     fn add_asm_inst_with_spill(
         &mut self,
         code: String,
@@ -1220,6 +1211,10 @@ impl ASMCodeGen {
                             result_str.push('#');
                             result_str.push_str(&str);
                         },
+                        Value_::Constant(Constant::ExternSym(ref name)) => {
+                            result_str.push('#');
+                            result_str.push_str(name.as_str());
+                        }
                         _ => panic!("unexpected offset type: {:?}", offset)
                     }
                 }
@@ -1285,8 +1280,8 @@ impl ASMCodeGen {
         self.cur.take().unwrap()
     }
 
-    fn emit_ldr_spill(&mut self, dest: Reg, src: Mem) { self.internal_load("LDR", dest, src, false, true); }
-    fn emit_str_spill(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, true) }
+    fn emit_ldr_spill(&mut self, dest: Reg, src: Mem) { self.internal_load("LDR", dest, src, false, true, false); }
+    fn emit_str_spill(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, true, false) }
 
     fn internal_simple(&mut self, inst: &str) {
         let inst = inst.to_string();
@@ -1755,7 +1750,7 @@ impl ASMCodeGen {
         )
     }
 
-    fn internal_load(&mut self, inst: &str, dest: &P<Value>, src: Mem, signed: bool, is_spill_related: bool)
+    fn internal_load(&mut self, inst: &str, dest: &P<Value>, src: Mem, signed: bool, is_spill_related: bool, is_callee_saved: bool)
     {
         let op_len = primitive_byte_size(&dest.ty);
         let inst = inst.to_string() + if signed {
@@ -1784,7 +1779,14 @@ impl ASMCodeGen {
 
         let asm = format!("{} {},{}", inst, reg, mem);
 
-        if is_spill_related {
+        if is_callee_saved {
+            self.add_asm_inst_with_callee_saved(
+                asm,
+                ignore_zero_register(id, vec![loc]),
+                uses,
+                true,
+            )
+        } else if is_spill_related {
             self.add_asm_inst_with_spill(
                 asm,
                 ignore_zero_register(id, vec![loc]),
@@ -1823,7 +1825,7 @@ impl ASMCodeGen {
 
     }
 
-    fn internal_store(&mut self, inst: &str, dest: Mem, src : &P<Value>, is_spill_related: bool)
+    fn internal_store(&mut self, inst: &str, dest: Mem, src : &P<Value>, is_spill_related: bool, is_callee_saved: bool)
     {
         let op_len = primitive_byte_size(&src.ty);
         let inst = inst.to_string() + match op_len {
@@ -1852,7 +1854,14 @@ impl ASMCodeGen {
 
         let asm = format!("{} {},{}", inst, reg, mem);
 
-        if is_spill_related {
+        if is_callee_saved {
+            self.add_asm_inst_with_callee_saved(
+                asm,
+                linked_hashmap!{},
+                uses,
+                true,
+            )
+        } else if is_spill_related {
             self.add_asm_inst_with_spill(
                 asm,
                 linked_hashmap!{},
@@ -2010,6 +2019,7 @@ impl CodeGenerator for ASMCodeGen {
         // to link with C sources via gcc
         let func_symbol = symbol(func_name.clone());
         self.add_asm_symbolic(directive_globl(func_symbol.clone()));
+        self.add_asm_symbolic(format!(".type {}, @function", func_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
 
         ValueLocation::Relocatable(RegGroup::GPR, func_name)
@@ -2023,6 +2033,7 @@ impl CodeGenerator for ASMCodeGen {
         };
         self.add_asm_symbolic(directive_globl(symbol(func_end.clone())));
         self.add_asm_symbolic(format!("{}:", symbol(func_end.clone())));
+        self.add_asm_symbolic(format!(".size {}, {}-{}", symbol(func_name.clone()), symbol(func_end.clone()), symbol(func_name.clone())));
 
         self.cur.as_mut().unwrap().control_flow_analysis();
 
@@ -2093,6 +2104,10 @@ impl CodeGenerator for ASMCodeGen {
         }
     }
 
+    fn block_exists(&self, block_name: MuName) -> bool {
+        self.cur().blocks.contains_key(&block_name)
+    }
+
     fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>) {
         let cur = self.cur_mut();
 
@@ -2147,22 +2162,22 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     fn add_cfi_startproc(&mut self) {
-        self.add_asm_symbolic(".cfi_startproc".to_string());
+        self.add_asm_symbolic("\t.cfi_startproc".to_string());
     }
     fn add_cfi_endproc(&mut self) {
-        self.add_asm_symbolic(".cfi_endproc".to_string());
+        self.add_asm_symbolic("\t.cfi_endproc".to_string());
     }
 
     fn add_cfi_def_cfa_register(&mut self, reg: Reg) {
         let reg = self.asm_reg_op(reg);
-        self.add_asm_symbolic(format!(".cfi_def_cfa_register {}", reg));
+        self.add_asm_symbolic(format!("\t.cfi_def_cfa_register {}", reg));
     }
     fn add_cfi_def_cfa_offset(&mut self, offset: i32) {
-        self.add_asm_symbolic(format!(".cfi_def_cfa_offset {}", offset));
+        self.add_asm_symbolic(format!("\t.cfi_def_cfa_offset {}", offset));
     }
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32) {
         let reg = self.asm_reg_op(reg);
-        self.add_asm_symbolic(format!(".cfi_offset {}, {}", reg, offset));
+        self.add_asm_symbolic(format!("\t.cfi_offset {}, {}", reg, offset));
     }
 
     fn emit_frame_grow(&mut self) {
@@ -2258,7 +2273,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_blr(&mut self, callsite: String, func: Reg, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: \tBLR {}", func);
 
-        let (reg1, id1, loc1) = self.prepare_reg(func, 2 + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(func, 3 + 1);
         let asm = format!("BLR {}", reg1);
         self.add_asm_call(asm, pe, Some((id1, loc1)));
 
@@ -2333,8 +2348,8 @@ impl CodeGenerator for ASMCodeGen {
 
 
     // Address calculation
-    fn emit_adr(&mut self, dest: Reg, src: Mem) { self.internal_load("ADR", dest, src, false, false) }
-    fn emit_adrp(&mut self, dest: Reg, src: Mem) { self.internal_load("ADRP", dest, src, false, false) }
+    fn emit_adr(&mut self, dest: Reg, src: Mem) { self.internal_load("ADR", dest, src, false, false, false) }
+    fn emit_adrp(&mut self, dest: Reg, src: Mem) { self.internal_load("ADRP", dest, src, false, false, false) }
 
     // Unary operators
     fn emit_mov(&mut self, dest: Reg, src: Reg) { self.internal_unop("MOV", dest, src) }
@@ -2403,6 +2418,22 @@ impl CodeGenerator for ASMCodeGen {
             asm,
             linked_hashmap!{id1 => vec![loc1]},
             linked_hashmap!{},
+            false
+        )
+    }
+
+    // The 'str' will be patched by the linker (used to access global variables)
+    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str) {
+        trace!("emit: \tADD {}, {} -> {}", src1, src2, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, 3 + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(src1, 3 + 1 + reg1.len() + 1);
+
+        let asm = format!("ADD {},{},#{}", reg1, reg2, src2);
+        self.add_asm_inst(
+            asm,
+            ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id2, vec![loc2]),
             false
         )
     }
@@ -2590,13 +2621,17 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
+    fn emit_ldr_callee_saved(&mut self, dest: Reg, src: Mem) { self.internal_load("LDR", dest, src, false, false, true); }
+    fn emit_str_callee_saved(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, false, true) }
+
+
     // Loads
-    fn emit_ldr(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDR", dest, src, signed, false); }
-    fn emit_ldtr(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDTR", dest, src, signed, false); }
-    fn emit_ldur(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDUR", dest, src, signed, false); }
-    fn emit_ldxr(&mut self, dest: Reg, src: Mem) { self.internal_load("LDXR", dest, src, false, false); }
-    fn emit_ldaxr(&mut self, dest: Reg, src: Mem) { self.internal_load("LDAXR", dest, src, false, false); }
-    fn emit_ldar(&mut self, dest: Reg, src: Mem) { self.internal_load("LDAR", dest, src, false, false); }
+    fn emit_ldr(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDR", dest, src, signed, false, false); }
+    fn emit_ldtr(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDTR", dest, src, signed, false, false); }
+    fn emit_ldur(&mut self, dest: Reg, src: Mem, signed: bool) { self.internal_load("LDUR", dest, src, signed, false, false); }
+    fn emit_ldxr(&mut self, dest: Reg, src: Mem) { self.internal_load("LDXR", dest, src, false, false, false); }
+    fn emit_ldaxr(&mut self, dest: Reg, src: Mem) { self.internal_load("LDAXR", dest, src, false, false, false); }
+    fn emit_ldar(&mut self, dest: Reg, src: Mem) { self.internal_load("LDAR", dest, src, false, false, false); }
 
     // Load pair
     fn emit_ldp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.internal_load_pair("LDP", dest1, dest2, src) }
@@ -2605,12 +2640,12 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_ldnp(&mut self, dest1: Mem, dest2: Reg, src: Mem) { self.internal_load_pair("LDNP", dest1, dest2, src) }
 
     // Stores
-    fn emit_str(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, false) }
-    fn emit_sttr(&mut self, dest: Mem, src: Reg) { self.internal_store("STTR", dest, src, false) }
-    fn emit_stur(&mut self, dest: Mem, src: Reg) { self.internal_store("STUR", dest, src, false) }
+    fn emit_str(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, false, false) }
+    fn emit_sttr(&mut self, dest: Mem, src: Reg) { self.internal_store("STTR", dest, src, false, false) }
+    fn emit_stur(&mut self, dest: Mem, src: Reg) { self.internal_store("STUR", dest, src, false, false) }
     fn emit_stxr(&mut self, dest: Mem, status: Reg, src: Reg) { self.internal_store_exclusive("STXR", dest, status, src) }
     fn emit_stlxr(&mut self, dest: Mem, status: Reg, src: Reg) { self.internal_store_exclusive("STLXR", dest, status, src) }
-    fn emit_stlr(&mut self, dest: Mem, src: Reg) { self.internal_store("STLR", dest, src, false) }
+    fn emit_stlr(&mut self, dest: Mem, src: Reg) { self.internal_store("STLR", dest, src, false, false) }
 
     // Store Pairs
     fn emit_stp(&mut self, dest: Mem, src1: Reg, src2: Reg) { self.internal_store_pair("STP", dest, src1, src2) }
@@ -2713,11 +2748,11 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         Ok(file) => file
     };
 
+    file.write("\t.arch armv8-a\n".as_bytes()).unwrap();
+
     // constants in text section
     file.write("\t.text\n".as_bytes()).unwrap();
 
-    // FIXME: need a more precise way to determine alignment
-    // (probably use alignment backend info, which require introducing int128 to zebu)
     write_const_min_align(&mut file);
 
     for (id, constant) in cf.consts.iter() {
@@ -2734,8 +2769,8 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     }
 }
 
-// min alignment as 16 byte (written as 4 (2^4) on macos)
-const MIN_ALIGN : ByteSize = 16;
+// min alignment as 4 bytes
+const MIN_ALIGN : ByteSize = 4;
 
 fn check_min_align(align: ByteSize) -> ByteSize {
     if align > MIN_ALIGN {
@@ -2752,7 +2787,7 @@ fn write_const_min_align(f: &mut File) {
 #[cfg(target_os = "linux")]
 fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
-    f.write_fmt(format_args!("\t.align {}\n", check_min_align(align))).unwrap();
+    f.write_fmt(format_args!("\t.balign {}\n", check_min_align(align))).unwrap();
 }
 
 fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
@@ -2994,7 +3029,7 @@ fn directive_globl(name: String) -> String {
 }
 
 fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
-    format!(".comm {},{},{}", name, size, align)
+    format!("\t.comm {},{},{}", name, size, align)
 }
 
 #[cfg(target_os = "linux")]

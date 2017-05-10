@@ -1,62 +1,7 @@
-#include "asm_common.S.inc"
+.arch armv8-a
 
-FP .req X29
-LR .req X30
+#include "asm_common_aarch64.S.inc"
 
-.macro push_pair src1 src2 stack=SP
-STP \src2 , \src1, [ \stack ,#-16]
-.endm
-
-.macro pop_pair dest1 dest2 stack=SP
-LDP \dest1 , \dest2 , [ \stack ],#16
-.endm
-
-.macro enter_frame
-push_pair LR, FP
-MOV FP, SP
-.endm
-
-.macro exit_frame
-pop_pair FP, LR
-.endm
-
-.macro push_callee_saved stack=SP
-push_pair D8, D9, \stack
-push_pair D10, D11, \stack
-push_pair D12, D13, \stack
-push_pair D14, D15, \stack
-
-push_pair X19, X20, \stack
-push_pair X21, X22, \stack
-push_pair X23, X24, \stack
-push_pair X25, X26, \stack
-push_pair X27, X28, \stack
-.endm
-
-.macro pop_callee_saved stack=SP
-pop_pair X28, X27, \stack
-pop_pair X26, X25, \stack
-pop_pair X24, X23, \stack
-pop_pair X22, X21, \stack
-pop_pair X20, X19, \stack
-
-pop_pair D15, D14, \stack
-pop_pair D13, D12, \stack
-pop_pair D11, D10, \stack
-pop_pair D9, D8, \stack
-.endm
-
-.macro pop_arguments stack=SP // 16
-pop_pair x7, x6, \stack
-pop_pair x5, x4, \stack
-pop_pair x3, x2, \stack
-pop_pair x1, x0, \stack
-
-pop_pair d7, d6, \stack
-pop_pair d5, d4, \stack
-pop_pair d3, d2, \stack
-pop_pair d1, d0, \stack
-.endm
 
 # swap_stack_to(new_sp: Address, entry: Address, old_sp_loc: Address)
 #               X0               X1              X2
@@ -67,39 +12,43 @@ begin_func swap_to_mu_stack
           # push all callee-saved registers
           push_callee_saved
 
-          # save sp to arg2
+          # *old_sp_loc = SP
           MOV X9, SP
           STR X9, [X2]
 
-          # switch to new stack
+          # sp = new_sp
           MOV SP, X0
-          # save entry function in %X9
+          # x9 = entry
           MOV X9, X1
 
           # -- on new stack --
           # arguments (reverse order of thread.rs - runtime_load_args)
           pop_arguments
+          //enter_frame // Unncesary Note saves the return address of the function that called this function
 
-          # at this point new stack is clean (no intermediate values)
-          MOV FP, SP
+          # If entry tries to return (IT SHOULDN'T) it will return to entry_returned
+          ADR LR, entry_returned
 
-          # Set an invalid return address, in case the entry function tries to return
-          MOV LR, #0
-
-          # start the entry function
+          # branch to entry
           RET X9
 end_func swap_to_mu_stack
+
+# For debuging only, executes
+begin_func entry_returned
+          HLT #0
+end_func entry_returned
+
 
 # _swap_back_to_native_stack(sp_loc: Address)
 #                            X0
 begin_func muentry_swap_back_to_native_stack
-          # SP <- *sp_loc
+          # SP = *sp_loc
           LDR X9, [X0]
           MOV SP, X9
 
           pop_callee_saved
-          # Restore the previouse frame (but discard the LR, so we don't return the the wrong place)
-          pop_pair FP, XZR
+          # Restore the previouse frame (and return to its return location)
+          exit_frame
           RET
 end_func muentry_swap_back_to_native_stack
 
@@ -114,14 +63,14 @@ end_func get_current_frame_rbp
 #                         X0
 begin_func muentry_throw_exception
          # save all callee-saved
-
+         push_pair LR, FP
          push_callee_saved
 
-         # %rsp points to somewhere, pass this as 2nd argument
+         # SP points to the callee saved registers, pass this as 2nd argument
          MOV X1, SP
 
 #if defined (__linux__)
-         B CNAME(throw_exception_internal)
+         B throw_exception_internal
 #else
          #error "Only Linux is supported. "
 #endif
@@ -129,10 +78,11 @@ begin_func muentry_throw_exception
 
 # _exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !
 #                    X0             X1                         X2
-# callee_saved: [rbx, rbp, r12, r13, r14, r15]
+# callee_saved: [x28, x27, x26, x25, x24, x23, x22, x21, x20, x19, d15, d14, d13, d12, d11, d10, d9, d8, fp, lr]
 begin_func exception_restore
           // load each callee saved register relative to the stack pointer
           pop_callee_saved X1
+          pop_pair FP, LR, X1 // TODO: Should we be restoring the link register?
 
           MOV SP, X2
           BR X0

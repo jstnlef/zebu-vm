@@ -335,7 +335,7 @@ lazy_static! {
         X27.clone(),
         X28.clone(),
 
-        // Note: These two are technically CALEE saved but need to be dealt with specially
+        // Note: These two are technically CALLEE saved but need to be dealt with specially
         //X29.clone(), // Frame Pointer
         //X30.clone() // Link Register
     ];
@@ -608,6 +608,33 @@ lazy_static! {
         map
     };
 
+    pub static ref CALLEE_SAVED_REGs : [P<Value>; 18] = [
+        X19.clone(),
+        X20.clone(),
+        X21.clone(),
+        X22.clone(),
+        X23.clone(),
+        X24.clone(),
+        X25.clone(),
+        X26.clone(),
+        X27.clone(),
+        X28.clone(),
+
+        // Note: These two are technically CALLEE saved but need to be dealt with specially
+        //X29.clone(), // Frame Pointer
+        //X30.clone() // Link Register
+
+        D8.clone(),
+        D9.clone(),
+        D10.clone(),
+        D11.clone(),
+        D12.clone(),
+        D13.clone(),
+        D14.clone(),
+        D15.clone()
+    ];
+
+
     // put caller saved regs first (they imposes no overhead if there is no call instruction)
     pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
         X19.clone(),
@@ -789,7 +816,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
 
 // Splits an integer immediate into four 16-bit segments (returns the least significant first)
-pub fn split_aarch64_iimm(val: u64) -> (u16, u16, u16, u16) {
+pub fn split_aarch64_imm_u64(val: u64) -> (u16, u16, u16, u16) {
     (val as u16, (val >> 16) as u16, (val >> 32) as u16, (val >> 48) as u16)
 }
 
@@ -852,10 +879,10 @@ pub fn get_bit(x: u64, i: usize) -> bool {
     (x & ((1 as u64) << i) ) != 0
 }
 
-// Returns true if val = A << S, from some A < 4096, and S = 0 or S = 12
+// Returns true if val = A << S, from some 0 <= A < 4096, and S = 0 or S = 12
+// Note: Even though '0' is a valid arithmetic immediate, the Zero register should be used instead
 pub fn is_valid_arithmetic_imm(val : u64) -> bool {
-
-    val < 4096 || ((val & 0b111111111111) == 0 && val < (4096 << 12))
+    val > 0 && val < 4096 || ((val & 0b111111111111) == 0 && val < (4096 << 12))
 }
 
 // aarch64 instructions only operate on 32 and 64-bit registers
@@ -1107,15 +1134,15 @@ pub fn round_up(n: usize, d: usize) -> usize { ((n + d - 1)/d)*d }
 // TODO: Implement this more efficiently?
 pub fn log2(val: u64) -> u64 {
     debug_assert!(val.is_power_of_two());
-    /*debug_assert!(val != 0);
+    debug_assert!(val != 0);
     let mut ret = 0;
     for i in 0..63 {
         if val & (1 << i) != 0 {
             ret = i;
         }
-    }*/
+    }
     // WARNING: This will only work for val < 2^31
-    let ret = (val as f64).log2() as u64;
+    //let ret = (val as f64).log2() as u64;
     debug_assert!(val == 1 << ret);
     ret
 }
