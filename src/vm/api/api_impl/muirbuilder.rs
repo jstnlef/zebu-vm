@@ -211,7 +211,8 @@ impl MuIRBuilder {
     }
 
     pub fn new_const_int_ex(&mut self, id: MuID, ty: MuID, values: &[u64]) {
-        panic!("Not implemented")
+        self.bundle.consts.insert(id, Box::new(NodeConst::ConstIntEx {id: id,
+            ty: ty, value: values.to_vec()}));
     }
 
     pub fn new_const_float(&mut self, id: MuID, ty: MuID, value: f32) {
@@ -1106,6 +1107,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeConst::ConstInt { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Int(value);
+                (c, t)
+            },
+            NodeConst::ConstIntEx { id: _, ty, ref value } => {
+                let t = self.ensure_type_rec(ty);
+                let c = Constant::IntEx(value.clone());
                 (c, t)
             },
             NodeConst::ConstFloat { id: _, ty, value } => {
