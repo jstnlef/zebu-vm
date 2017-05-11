@@ -157,7 +157,7 @@ impl <'a> InstructionSelection {
                         // 'branch_if_true' == true, we emit cjmp the same as CmpOp  (je  for EQ, jne for NE)
                         // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
                         let (fallthrough_dest, branch_dest, branch_if_true) = {
-                            if true_prob > 0.5f32 {
+                            if true_prob >= 0.5f32 {
                                 (true_dest, false_dest, false)
                             } else {
                                 (false_dest, true_dest, true)
@@ -3533,6 +3533,90 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_cmp_r_r(&reg_op2, &reg_op1);
 
                                 return op;
+                            } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                                let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                                let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                                match op {
+                                    CmpOp::EQ | CmpOp::NE => {
+                                        // mov op1_h -> h
+                                        let h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&h, &op1_h);
+
+                                        // xor op2_h, h -> h
+                                        self.backend.emit_xor_r_r(&h, &op2_h);
+
+                                        // mov op1_l -> l
+                                        let l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&l, &op1_l);
+
+                                        // xor op2_l, l -> l
+                                        self.backend.emit_xor_r_r(&l, &op2_l);
+
+                                        // or h, l -> l
+                                        self.backend.emit_or_r_r(&l, &h);
+
+                                        return op;
+                                    }
+                                    CmpOp::UGT | CmpOp::SGT => {
+                                        // cmp op1_l, op2_l
+                                        self.backend.emit_cmp_r_r(&op1_l, &op2_l);
+
+                                        // mov op2_h -> t
+                                        // sbb t, op1_h -> t
+                                        let t = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&t, &op2_h);
+                                        self.backend.emit_sbb_r_r(&t, &op1_h);
+
+                                        match op {
+                                            CmpOp::UGT => CmpOp::ULT,
+                                            CmpOp::SGT => CmpOp::SLT,
+                                            _ => unreachable!()
+                                        }
+                                    }
+                                    CmpOp::UGE | CmpOp::SGE => {
+                                        // cmp op2_l, op1_l
+                                        self.backend.emit_cmp_r_r(&op2_l, &op1_l);
+
+                                        // mov op1_h -> t
+                                        // sbb t, op2_h -> t
+                                        let t = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&t, &op1_h);
+                                        self.backend.emit_sbb_r_r(&t, &op2_h);
+
+                                        op
+                                    }
+                                    CmpOp::ULT | CmpOp::SLT => {
+                                        // cmp op2_l, op1_l
+                                        self.backend.emit_cmp_r_r(&op2_l, &op1_l);
+
+                                        // mov op1_h -> t
+                                        // sbb t, op2_h -> t
+                                        let t = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&t, &op1_h);
+                                        self.backend.emit_sbb_r_r(&t, &op2_h);
+
+                                        op
+                                    }
+                                    CmpOp::ULE | CmpOp::SLE => {
+                                        // cmp op2_l, op1_l
+                                        self.backend.emit_cmp_r_r(&op2_l, &op1_l);
+
+                                        // mov op1_h -> t
+                                        // sbb t, op2_h -> t
+                                        let t = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&t, &op1_h);
+                                        self.backend.emit_sbb_r_r(&t, &op2_h);
+
+                                        match op {
+                                            CmpOp::ULE => CmpOp::UGE,
+                                            CmpOp::SLE => CmpOp::SGE,
+                                            _ => unreachable!()
+                                        }
+                                    }
+
+                                    _ => unimplemented!()
+                                }
                             } else {
                                 unimplemented!()
                             }

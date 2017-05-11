@@ -426,3 +426,363 @@ fn store_load_u128() -> VM {
 
     vm
 }
+
+#[test]
+fn test_ugt_u128() {
+    let lib = testutil::compile_fnc("ugt_u128", &ugt_u128);
+
+    unsafe {
+        let ugt_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> u64> = lib.get(b"ugt_u128").unwrap();
+
+        let res = ugt_u128(1, 0, 2, 0);
+        println!("ugt_u128(1, 0, 2, 0) = {:?}", res);
+        assert!(res == 0);
+
+        let res = ugt_u128(1, 0, 1, 0);
+        println!("ugt_u128(1, 0, 1, 0) = {:?}", res);
+        assert!(res == 0);
+
+        let res = ugt_u128(1, 0, 0, 0);
+        println!("ugt_u128(1, 0, 0, 0) = {:?}", res);
+        assert!(res == 1);
+
+        let res = ugt_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff);
+        println!("ugt_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff) = {:?}", res);
+        assert!(res == 0);
+
+        let res = ugt_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff);
+        println!("ugt_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff) = {:?}", res);
+        assert!(res == 0);
+
+        let res = ugt_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff);
+        println!("ugt_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff) = {:?}", res);
+        assert!(res == 1);
+    }
+}
+
+fn ugt_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+    typedef!    ((vm) u64  = mu_int(64));
+    typedef!    ((vm) u1   = mu_int(1));
+
+    constdef!   ((vm) <u64> u64_0 = Constant::Int(0));
+    constdef!   ((vm) <u64> u64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (u128, u128) -> (u64));
+    funcdecl!   ((vm) <sig> ugt_u128);
+    funcdef!    ((vm) <sig> ugt_u128 VERSION ugt_u128_v1);
+
+    // blk entry
+    block!      ((vm, ugt_u128_v1) blk_entry);
+    ssa!        ((vm, ugt_u128_v1) <u128> a);
+    ssa!        ((vm, ugt_u128_v1) <u128> b);
+
+    // cond = UGT a b
+    ssa!        ((vm, ugt_u128_v1) <u1> cond);
+    inst!       ((vm, ugt_u128_v1) blk_entry_ugt:
+        cond = CMPOP (CmpOp::UGT) a b
+    );
+
+    // BRANCH2 cond (blk_ret: 1) (blk_ret: 0)
+    block!      ((vm, ugt_u128_v1) blk_ret);
+    consta!     ((vm, ugt_u128_v1) u64_0_local = u64_0);
+    consta!     ((vm, ugt_u128_v1) u64_1_local = u64_1);
+    inst!       ((vm, ugt_u128_v1) blk_entry_branch2:
+        BRANCH2 (cond, u64_1_local, u64_0_local)
+            IF (OP 0)
+            THEN blk_ret (vec![1]) WITH 0.5f32,
+            ELSE blk_ret (vec![2])
+    );
+
+    define_block!((vm, ugt_u128_v1) blk_entry(a, b) {
+        blk_entry_ugt, blk_entry_branch2
+    });
+
+    // blk ret (res)
+    ssa!        ((vm, ugt_u128_v1) <u64> res);
+    // RET res
+    inst!       ((vm, ugt_u128_v1) blk_ret_ret:
+        RET (res)
+    );
+
+    define_block!((vm, ugt_u128_v1) blk_ret(res) {
+        blk_ret_ret
+    });
+
+    define_func_ver!((vm) ugt_u128_v1(entry: blk_entry) {
+        blk_entry, blk_ret
+    });
+
+    vm
+}
+
+#[test]
+fn test_sgt_i128() {
+    let lib = testutil::compile_fnc("sgt_i128", &sgt_i128);
+
+    unsafe {
+        use self::extprim::i128::i128;
+
+        let sgt_i128 : libloading::Symbol<unsafe extern fn(i128, i128) -> u64> = lib.get(b"sgt_i128").unwrap();
+
+        let res = sgt_i128(i128::new(1i64), i128::new(2i64));
+        println!("sgt_i128(1, 2) = {:?}", res);
+        assert!(res == 0);
+
+        let res = sgt_i128(i128::new(1i64), i128::new(1i64));
+        println!("sgt_i128(1, 1) = {:?}", res);
+        assert!(res == 0);
+
+        let res = sgt_i128(i128::new(1i64), i128::new(0i64));
+        println!("sgt_i128(1, 0) = {:?}", res);
+        assert!(res == 1);
+
+        let res = sgt_i128(i128::new(-1i64), i128::new(1i64));
+        println!("sgt_i128(-1, 1) = {:?}", res);
+        assert!(res == 0);
+
+        let res = sgt_i128(i128::new(-1i64), i128::new(-2i64));
+        println!("sgt_i128(-1, -2) = {:?}", res);
+        assert!(res == 1);
+    }
+}
+
+fn sgt_i128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) i128 = mu_int(128));
+    typedef!    ((vm) u64  = mu_int(64));
+    typedef!    ((vm) u1   = mu_int(1));
+
+    constdef!   ((vm) <u64> u64_0 = Constant::Int(0));
+    constdef!   ((vm) <u64> u64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (i128, i128) -> (u64));
+    funcdecl!   ((vm) <sig> sgt_i128);
+    funcdef!    ((vm) <sig> sgt_i128 VERSION sgt_i128_v1);
+
+    // blk entry
+    block!      ((vm, sgt_i128_v1) blk_entry);
+    ssa!        ((vm, sgt_i128_v1) <i128> a);
+    ssa!        ((vm, sgt_i128_v1) <i128> b);
+
+    // cond = UGT a b
+    ssa!        ((vm, sgt_i128_v1) <u1> cond);
+    inst!       ((vm, sgt_i128_v1) blk_entry_ugt:
+        cond = CMPOP (CmpOp::SGT) a b
+    );
+
+    // BRANCH2 cond (blk_ret: 1) (blk_ret: 0)
+    block!      ((vm, sgt_i128_v1) blk_ret);
+    consta!     ((vm, sgt_i128_v1) u64_0_local = u64_0);
+    consta!     ((vm, sgt_i128_v1) u64_1_local = u64_1);
+    inst!       ((vm, sgt_i128_v1) blk_entry_branch2:
+        BRANCH2 (cond, u64_1_local, u64_0_local)
+            IF (OP 0)
+            THEN blk_ret (vec![1]) WITH 0.5f32,
+            ELSE blk_ret (vec![2])
+    );
+
+    define_block!((vm, sgt_i128_v1) blk_entry(a, b) {
+        blk_entry_ugt, blk_entry_branch2
+    });
+
+    // blk ret (res)
+    ssa!        ((vm, sgt_i128_v1) <u64> res);
+    // RET res
+    inst!       ((vm, sgt_i128_v1) blk_ret_ret:
+        RET (res)
+    );
+
+    define_block!((vm, sgt_i128_v1) blk_ret(res) {
+        blk_ret_ret
+    });
+
+    define_func_ver!((vm) sgt_i128_v1(entry: blk_entry) {
+        blk_entry, blk_ret
+    });
+
+    vm
+}
+
+#[test]
+fn test_ult_u128() {
+    let lib = testutil::compile_fnc("ult_u128", &ult_u128);
+
+    unsafe {
+        let ult_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> u64> = lib.get(b"ult_u128").unwrap();
+
+        let res = ult_u128(1, 0, 2, 0);
+        println!("ult_u128(1, 0, 2, 0) = {:?}", res);
+        assert!(res == 1);
+
+        let res = ult_u128(1, 0, 1, 0);
+        println!("ult_u128(1, 0, 1, 0) = {:?}", res);
+        assert!(res == 0);
+
+        let res = ult_u128(1, 0, 0, 0);
+        println!("ult_u128(1, 0, 0, 0) = {:?}", res);
+        assert!(res == 0);
+
+        let res = ult_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff);
+        println!("ult_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff) = {:?}", res);
+        assert!(res == 1);
+
+        let res = ult_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff);
+        println!("ult_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff) = {:?}", res);
+        assert!(res == 0);
+
+        let res = ult_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff);
+        println!("ult_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff) = {:?}", res);
+        assert!(res == 0);
+    }
+}
+
+fn ult_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+    typedef!    ((vm) u64  = mu_int(64));
+    typedef!    ((vm) u1   = mu_int(1));
+
+    constdef!   ((vm) <u64> u64_0 = Constant::Int(0));
+    constdef!   ((vm) <u64> u64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (u128, u128) -> (u64));
+    funcdecl!   ((vm) <sig> ult_u128);
+    funcdef!    ((vm) <sig> ult_u128 VERSION ult_u128_v1);
+
+    // blk entry
+    block!      ((vm, ult_u128_v1) blk_entry);
+    ssa!        ((vm, ult_u128_v1) <u128> a);
+    ssa!        ((vm, ult_u128_v1) <u128> b);
+
+    // cond = UGT a b
+    ssa!        ((vm, ult_u128_v1) <u1> cond);
+    inst!       ((vm, ult_u128_v1) blk_entry_ugt:
+        cond = CMPOP (CmpOp::ULT) a b
+    );
+
+    // BRANCH2 cond (blk_ret: 1) (blk_ret: 0)
+    block!      ((vm, ult_u128_v1) blk_ret);
+    consta!     ((vm, ult_u128_v1) u64_0_local = u64_0);
+    consta!     ((vm, ult_u128_v1) u64_1_local = u64_1);
+    inst!       ((vm, ult_u128_v1) blk_entry_branch2:
+        BRANCH2 (cond, u64_1_local, u64_0_local)
+            IF (OP 0)
+            THEN blk_ret (vec![1]) WITH 0.5f32,
+            ELSE blk_ret (vec![2])
+    );
+
+    define_block!((vm, ult_u128_v1) blk_entry(a, b) {
+        blk_entry_ugt, blk_entry_branch2
+    });
+
+    // blk ret (res)
+    ssa!        ((vm, ult_u128_v1) <u64> res);
+    // RET res
+    inst!       ((vm, ult_u128_v1) blk_ret_ret:
+        RET (res)
+    );
+
+    define_block!((vm, ult_u128_v1) blk_ret(res) {
+        blk_ret_ret
+    });
+
+    define_func_ver!((vm) ult_u128_v1(entry: blk_entry) {
+        blk_entry, blk_ret
+    });
+
+    vm
+}
+
+#[test]
+fn test_slt_i128() {
+    let lib = testutil::compile_fnc("slt_i128", &slt_i128);
+
+    unsafe {
+        use self::extprim::i128::i128;
+
+        let slt_i128 : libloading::Symbol<unsafe extern fn(i128, i128) -> u64> = lib.get(b"slt_i128").unwrap();
+
+        let res = slt_i128(i128::new(1i64), i128::new(2i64));
+        println!("slt_i128(1, 2) = {:?}", res);
+        assert!(res == 1);
+
+        let res = slt_i128(i128::new(1i64), i128::new(1i64));
+        println!("slt_i128(1, 1) = {:?}", res);
+        assert!(res == 0);
+
+        let res = slt_i128(i128::new(1i64), i128::new(0i64));
+        println!("slt_i128(1, 0) = {:?}", res);
+        assert!(res == 0);
+
+        let res = slt_i128(i128::new(-1i64), i128::new(1i64));
+        println!("slt_i128(-1, 1) = {:?}", res);
+        assert!(res == 1);
+
+        let res = slt_i128(i128::new(-1i64), i128::new(-2i64));
+        println!("slt_i128(-1, -2) = {:?}", res);
+        assert!(res == 0);
+    }
+}
+
+fn slt_i128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) i128 = mu_int(128));
+    typedef!    ((vm) u64  = mu_int(64));
+    typedef!    ((vm) u1   = mu_int(1));
+
+    constdef!   ((vm) <u64> u64_0 = Constant::Int(0));
+    constdef!   ((vm) <u64> u64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (i128, i128) -> (u64));
+    funcdecl!   ((vm) <sig> slt_i128);
+    funcdef!    ((vm) <sig> slt_i128 VERSION slt_i128_v1);
+
+    // blk entry
+    block!      ((vm, slt_i128_v1) blk_entry);
+    ssa!        ((vm, slt_i128_v1) <i128> a);
+    ssa!        ((vm, slt_i128_v1) <i128> b);
+
+    // cond = UGT a b
+    ssa!        ((vm, slt_i128_v1) <u1> cond);
+    inst!       ((vm, slt_i128_v1) blk_entry_ugt:
+        cond = CMPOP (CmpOp::SLT) a b
+    );
+
+    // BRANCH2 cond (blk_ret: 1) (blk_ret: 0)
+    block!      ((vm, slt_i128_v1) blk_ret);
+    consta!     ((vm, slt_i128_v1) u64_0_local = u64_0);
+    consta!     ((vm, slt_i128_v1) u64_1_local = u64_1);
+    inst!       ((vm, slt_i128_v1) blk_entry_branch2:
+        BRANCH2 (cond, u64_1_local, u64_0_local)
+            IF (OP 0)
+            THEN blk_ret (vec![1]) WITH 0.5f32,
+            ELSE blk_ret (vec![2])
+    );
+
+    define_block!((vm, slt_i128_v1) blk_entry(a, b) {
+        blk_entry_ugt, blk_entry_branch2
+    });
+
+    // blk ret (res)
+    ssa!        ((vm, slt_i128_v1) <u64> res);
+    // RET res
+    inst!       ((vm, slt_i128_v1) blk_ret_ret:
+        RET (res)
+    );
+
+    define_block!((vm, slt_i128_v1) blk_ret(res) {
+        blk_ret_ret
+    });
+
+    define_func_ver!((vm) slt_i128_v1(entry: blk_entry) {
+        blk_entry, blk_ret
+    });
+
+    vm
+}
