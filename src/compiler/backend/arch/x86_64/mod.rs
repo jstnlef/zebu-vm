@@ -6,7 +6,7 @@ pub mod inst_sel;
 mod codegen;
 pub use compiler::backend::x86_64::codegen::CodeGenerator;
 
-mod asm_backend;
+pub mod asm_backend;
 pub use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 pub use compiler::backend::x86_64::asm_backend::emit_code;
 pub use compiler::backend::x86_64::asm_backend::emit_context;

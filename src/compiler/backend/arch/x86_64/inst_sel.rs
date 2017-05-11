@@ -3767,8 +3767,9 @@ impl <'a> InstructionSelection {
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
                             },
-                            &Constant::FuncRef(_) => {
-                                unimplemented!()
+                            &Constant::FuncRef(func_id) => {
+                                let mem = self.get_mem_for_funcref(func_id, vm);
+                                self.backend.emit_lea_r64(&tmp, &mem);
                             },
                             &Constant::NullRef => {
                                 // xor a, a -> a will mess up register allocation validation
@@ -4543,6 +4544,24 @@ impl <'a> InstructionSelection {
 
             const_mem_val
         }
+    }
+
+    #[cfg(feature = "aot")]
+    fn get_mem_for_funcref(&mut self, func_id: MuID, vm: &VM) -> P<Value> {
+//        use compiler::backend::x86_64::asm_backend;
+//
+        let func_name = vm.name_of(func_id);
+//        let label = asm_backend::symbol(func_name);
+
+        P(Value {
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty : ADDRESS_TYPE.clone(),
+            v  : Value_::Memory(MemoryLocation::Symbolic {
+                base: Some(x86_64::RIP.clone()),
+                label: func_name,
+                is_global: true
+            })
+        })
     }
 
     fn split_int128(&mut self, int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>){
