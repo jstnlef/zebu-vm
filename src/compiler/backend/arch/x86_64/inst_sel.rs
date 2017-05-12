@@ -656,23 +656,27 @@ impl <'a> InstructionSelection {
 
                         match operation {
                             op::ConvOp::TRUNC => {
+                                let tmp_res = self.get_result_value(node);
+                                let to_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
+
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                                    let tmp_res = self.get_result_value(node);
-                                    let dst_length = match tmp_res.ty.get_int_length() {
-                                        Some(len) => len,
-                                        None => panic!("dst of TRUNC is not int: {}", tmp_res)
-                                    };
-
                                     // mov op -> result
-                                    match dst_length {
-                                        1  => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT8_TYPE.clone())}),
-                                        8  => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT8_TYPE.clone())}),
-                                        16 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT16_TYPE.clone())}),
-                                        32 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT32_TYPE.clone())}),
-                                        64 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT64_TYPE.clone())}),
-                                        _  => panic!("unsupported int length: {}", dst_length)
+                                    match to_ty_size {
+                                        1 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT8_TYPE.clone())}),
+                                        2 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT16_TYPE.clone())}),
+                                        4 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT32_TYPE.clone())}),
+                                        8 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT64_TYPE.clone())}),
+                                        _  => panic!("unsupported int size: {}", to_ty_size)
+                                    }
+                                } else if self.match_ireg_ex(op) {
+                                    let (op_l, op_h) = self.emit_ireg_ex(op, f_content, f_context, vm);
+
+                                    match to_ty_size {
+                                        1 | 2 => self.backend.emit_movz_r_r(unsafe {&tmp_res.as_type(UINT32_TYPE.clone())}, &op_l),
+                                        4 | 8 => self.backend.emit_mov_r_r(&tmp_res, &op_l),
+                                        _ => panic!("unsupported int size: {}", to_ty_size)
                                     }
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
@@ -688,18 +692,30 @@ impl <'a> InstructionSelection {
                                     let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
                                     if from_ty_size != to_ty_size {
-                                        if from_ty_size == 4 && to_ty_size == 8 {
-                                            // zero extend from 32 bits to 64 bits is a mov instruction
-                                            // x86 does not have movzlq (32 to 64)
+                                        match (from_ty_size, to_ty_size) {
+                                            // int32 to int64
+                                            (4, 8) => {
+                                                // zero extend from 32 bits to 64 bits is a mov instruction
+                                                // x86 does not have movzlq (32 to 64)
 
-                                            // tmp_op is int32, but tmp_res is int64
-                                            // we want to force a 32-to-32 mov, so high bits of the destination will be zeroed
+                                                // tmp_op is int32, but tmp_res is int64
+                                                // we want to force a 32-to-32 mov, so high bits of the destination will be zeroed
 
-                                            let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
+                                                let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
 
-                                            self.backend.emit_mov_r_r(&tmp_res32, &tmp_op);
-                                        } else {
-                                            self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
+                                                self.backend.emit_mov_r_r(&tmp_res32, &tmp_op);
+                                            }
+                                            // any int to int128
+                                            (_, 16) => {
+                                                let (res_l, res_h) = self.split_int128(&tmp_res, f_context, vm);
+
+                                                self.backend.emit_mov_r_r(&res_l, unsafe {&tmp_op.as_type(UINT64_TYPE.clone())});
+                                                self.backend.emit_mov_r_imm(&res_h, 0);
+                                            }
+                                            // else
+                                            _ => {
+                                                self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
+                                            }
                                         }
                                     } else {
                                         self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
@@ -718,7 +734,33 @@ impl <'a> InstructionSelection {
                                     let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
                                     if from_ty_size != to_ty_size {
-                                        self.backend.emit_movs_r_r(&tmp_res, &tmp_op);
+                                        match (from_ty_size, to_ty_size) {
+                                            // int64 to int128
+                                            (8, 16) => {
+                                                let (res_l, res_h) = self.split_int128(&tmp_res, f_context, vm);
+
+                                                // mov tmp_op -> res_h
+                                                // sar res_h 63
+                                                self.backend.emit_mov_r_r(&res_h, &tmp_op);
+                                                self.backend.emit_sar_r_imm8(&res_h, 63i8);
+
+                                                // mov tmp_op -> res_l
+                                                self.backend.emit_mov_r_r(&res_l, &tmp_op);
+                                            }
+                                            // int32 to int128
+                                            (_, 16) => {
+                                                let (res_l, res_h) = self.split_int128(&tmp_res, f_context, vm);
+
+                                                // movs tmp_op -> res_l
+                                                self.backend.emit_movs_r_r(&res_l, &tmp_op);
+
+                                                // mov res_l -> res_h
+                                                // sar res_h 63
+                                                self.backend.emit_mov_r_r(&res_h, unsafe {&res_l.as_type(UINT32_TYPE.clone())});
+                                                self.backend.emit_sar_r_imm8(&res_h, 63i8);
+                                            }
+                                            _ => self.backend.emit_movs_r_r(&tmp_res, &tmp_op)
+                                        }
                                     } else {
                                         self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                     }
