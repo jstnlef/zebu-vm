@@ -3768,8 +3768,15 @@ impl <'a> InstructionSelection {
                                 }
                             },
                             &Constant::FuncRef(func_id) => {
-                                let mem = self.get_mem_for_funcref(func_id, vm);
-                                self.backend.emit_lea_r64(&tmp, &mem);
+                                if cfg!(target_os = "macos") {
+                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    self.backend.emit_lea_r64(&tmp, &mem);
+                                } else if cfg!(target_os = "linux") {
+                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    self.backend.emit_mov_r_mem(&tmp, &mem);
+                                } else {
+                                    unimplemented!()
+                                }
                             },
                             &Constant::NullRef => {
                                 // xor a, a -> a will mess up register allocation validation
