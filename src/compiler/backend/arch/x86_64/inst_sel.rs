@@ -4223,7 +4223,18 @@ impl <'a> InstructionSelection {
 
                                     1
                                 }
-                                _  => panic!("unexpected var ty size: {}", ele_ty_size)
+                                _  => {
+                                    // mov ele_ty_size -> rax
+                                    self.backend.emit_mov_r_imm(&x86_64::RAX, ele_ty_size as i32);
+
+                                    // mul tmp_index_copy rax -> rdx:rax
+                                    self.backend.emit_mul_r(&tmp_index_copy);
+
+                                    // mov rax -> tmp_index_copy
+                                    self.backend.emit_mov_r_r(&tmp_index_copy, &x86_64::RAX);
+
+                                    1
+                                }
                             };
 
                             let mem = match base.v {
@@ -4465,6 +4476,17 @@ impl <'a> InstructionSelection {
             } else {
                 panic!("expected src: {}", src);
             }
+        } else if RegGroup::get_from_ty(&dst_ty) == RegGroup::GPREX {
+              if self.match_ireg_ex(src) {
+                  let (op_l, op_h) = self.emit_ireg_ex(src, f_content, f_context, vm);
+
+                  let (res_l, res_h) = self.split_int128(dest, f_context, vm);
+
+                  self.backend.emit_mov_r_r(&res_l, &op_l);
+                  self.backend.emit_mov_r_r(&res_h, &op_h);
+              } else {
+                  panic!("expected src as ireg_ex: {}", src);
+              }
         } else if RegGroup::get_from_ty(&dst_ty) == RegGroup::FPR {
             if self.match_fpreg(src) {
                 let src_reg = self.emit_fpreg(src, f_content, f_context, vm);
@@ -4473,6 +4495,7 @@ impl <'a> InstructionSelection {
                 panic!("unexpected fp src: {}", src);
             }
         } else {
+            warn!("move {} to {} unimplemented", src, dest);
             unimplemented!()
         } 
     }
