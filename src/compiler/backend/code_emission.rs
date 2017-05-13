@@ -200,11 +200,11 @@ fn emit_muir_dot_inner(file: &mut File,
             file.write_fmt(format_args!("[{}]", block_content.exn_arg.as_ref().unwrap())).unwrap();
         }
         // :\n\n
-        file.write(":\\n\\n".as_bytes()).unwrap();
+        file.write(":\\l\\l".as_bytes()).unwrap();
 
         // all the instructions
         for inst in block_content.body.iter() {
-            file.write_fmt(format_args!("{}\\n", inst)).unwrap();
+            file.write_fmt(format_args!("{}\\l", inst)).unwrap();
         }
 
         // "];
@@ -352,7 +352,7 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
 
     for block_name in blocks.iter() {
         // BB [label = "
-        file.write_fmt(format_args!("{} [label = \"{}:\\n\\n", id(block_name.clone()), block_name)).unwrap();
+        file.write_fmt(format_args!("{} [label = \"{}:\\l\\l", id(block_name.clone()), block_name)).unwrap();
 
         for inst in mc.get_block_range(&block_name).unwrap() {
             file.write(&mc.emit_inst(inst)).unwrap();

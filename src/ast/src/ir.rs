@@ -667,7 +667,7 @@ impl fmt::Display for TreeNode {
         match self.v {
             TreeNode_::Value(ref pv) => pv.fmt(f),
             TreeNode_::Instruction(ref inst) => {
-                write!(f, "{}", inst)
+                write!(f, "({})", inst)
             }
         }
     }
@@ -763,7 +763,8 @@ impl Value {
     }
 }
 
-const DISPLAY_TYPE : bool = true;
+const DISPLAY_ID : bool = true;
+const DISPLAY_TYPE : bool = false;
 const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {
@@ -786,7 +787,7 @@ impl fmt::Display for Value {
                     write!(f, "{}(@{})", ty, self.hdr)
                 },
                 Value_::Memory(ref mem) => {
-                    write!(f, "{}(%{})", mem, self.hdr)
+                    write!(f, "%{}{})", self.hdr, mem)
                 }
             }
         } else {
@@ -801,7 +802,7 @@ impl fmt::Display for Value {
                     write!(f, "@{}", self.hdr)
                 },
                 Value_::Memory(ref mem) => {
-                    write!(f, "{}(%{})", mem, self.hdr)
+                    write!(f, "%{}{}", self.hdr, mem)
                 }
             }
         }
@@ -1170,12 +1171,11 @@ impl PartialEq for MuEntityHeader {
     }
 }
 
-const DISPLAY_ID : bool = false;
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_ID {
             if self.name().is_none() {
-                write!(f, "UNAMED #{}", self.id)
+                write!(f, "{}", self.id)
             } else {
                 if PRINT_ABBREVIATE_NAME {
                     write!(f, "{} #{}", self.abbreviate_name().unwrap(), self.id)
