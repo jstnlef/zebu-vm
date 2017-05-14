@@ -337,19 +337,16 @@ impl <'a> InstructionSelection {
                         self.emit_c_call_ir(inst, data, Some(resume), node, f_content, f_context, vm);
                     }
 
-                    Instruction_::Return(_) => {
+                    Instruction_::Return(ref vals) => {
                         trace!("instsel on RETURN");
 
                         // prepare return regs
                         let ref ops = inst.ops.read().unwrap();
-                        // TODO: Are ret_val_indices in the same order as the return types in the functions signature?
-                        let ret_val_indices = match inst.v {
-                            Instruction_::Return(ref vals) => vals,
-                            _ => panic!("expected ret inst")
-                        };
+                        // TODO: Are vals in the same order as the return types in the functions signature?
 
-                        let ret_tys = ret_val_indices.iter().map(|i| node_type(&ops[*i])).collect();
+                        let ret_tys = vals.iter().map(|i| node_type(&ops[*i])).collect();
                         let ret_type = self.combine_return_types(&ret_tys);
+
                         // Note: this shouldn't cause any overhead in the generated code if the register is never used
                         let temp_xr = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
 
@@ -363,12 +360,12 @@ impl <'a> InstructionSelection {
                             // Do nothing
                         } else if n == 1{
                             let ret_loc = self.compute_return_locations(&ret_type, &temp_xr, &vm);
-                            self.emit_move_node_to_value(&ret_loc, &ops[ret_val_indices[0]], f_content, f_context, vm);
+                            self.emit_move_node_to_value(&ret_loc, &ops[vals[0]], f_content, f_context, vm);
                         } else {
                             let ret_loc = self.compute_return_locations(&ret_type, &temp_xr, &vm);
 
                             let mut i = 0;
-                            for ret_index in ret_val_indices {
+                            for ret_index in vals {
                                 let ret_val = self.emit_node_value(&ops[*ret_index], f_content, f_context, vm);
                                 let ref ty = ret_val.ty;
                                 let offset = self.get_field_offset(&ret_type, i, &vm);
@@ -377,8 +374,8 @@ impl <'a> InstructionSelection {
                                     MuType_::Vector(_, _) | MuType_::Tagref64 => unimplemented!(),
                                     MuType_::Void => panic!("Unexpected void"),
                                     MuType_::Struct(_) | MuType_::Array(_, _) => unimplemented!(),
-
-                                    // Integral, pointer of floating point type
+                                    MuType_::Hybrid(_) => panic!("Can't return a hybrid"),
+                                    // Integral, pointer or floating point type
                                     _ => self.insert_bytes(&ret_loc, &ret_val, offset as i64, f_context, vm),
                                 }
 
@@ -2693,19 +2690,17 @@ impl <'a> InstructionSelection {
             self.backend.add_cfi_def_cfa_register(&FP);
         }
 
+        // reserve spaces for current frame
+        self.backend.emit_frame_grow(); // will include space for callee saved registers
+
         // We need to return arguments in the memory area pointed to by XR, so we need to save it
         let ret_ty = self.combine_return_types(&sig.ret_tys);
         if self.compute_return_allocation(&ret_ty, &vm) > 0 {
-            trace!("allocate frame slot for {}, {}", XR.clone(), XZR.clone());
-            self.backend.emit_push_pair(&XR, &XZR, &SP);
-
-            let frame = self.current_frame.as_mut().unwrap();
-            frame.alloc_slot(&XR, vm);
-            frame.alloc_slot(&XZR, vm);
+            trace!("allocate frame slot for {}", XR.clone());
+            let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(XR.clone(), vm);
+            let loc = emit_mem(self.backend.as_mut(), &loc, f_context, vm);
+            self.backend.emit_str(&loc, &XR);
         }
-
-        // reserve spaces for current frame
-        self.backend.emit_frame_grow(); // will include space for callee saved registers
 
         // push all callee-saved registers
         for i in 0..CALLEE_SAVED_FPRs.len() {
@@ -2798,11 +2793,6 @@ impl <'a> InstructionSelection {
             let loc = self.current_frame.as_mut().unwrap().allocated.get(&reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);
             let loc = emit_mem(self.backend.as_mut(), &loc, f_context, vm);
             self.backend.emit_ldr_callee_saved(reg, &loc);
-        }
-
-        if self.compute_return_allocation(&ret_type, &vm) > 0 {
-            // Remove the space that was saving XR
-            self.backend.emit_add_imm(&SP, &SP, 16, false);
         }
 
         // frame shrink

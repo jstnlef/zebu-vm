@@ -15,7 +15,6 @@ use vm::VM;
 // | spilled
 // |---------------
 // | alloca area
-// Total size for all callee saved registers
 
 
 #[derive(RustcEncodable, RustcDecodable, Clone)]
