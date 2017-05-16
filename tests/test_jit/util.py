@@ -17,7 +17,12 @@ elif sys.platform.startswith('linux'):
     libext = '.so'
 else:
     libext = '.dll'
-libmu_path = proj_dir.join('target', 'debug', 'libmu' + libext)
+
+libmu_build = os.environ.get('ZEBU_BUILD', 'debug')
+
+libmu_dir_path       = proj_dir.join('target', libmu_build)
+libmu_dylib_path     = proj_dir.join('target', libmu_build, 'libmu' + libext)
+libmu_staticlib_path = proj_dir.join('target', libmu_build, 'libmu.a')
 
 
 def mu_instance_via_ctyeps():
@@ -46,7 +51,7 @@ def compile_c_script(c_src_name):
     CFLAGS = [
         "-std=c11",
         "-I%(proj_dir)s/src/vm/api" % globals(),
-        "-L" + libmu_path.dirname,
+        "-L" + libmu_dir_path.strpath,
         "-lmu"
     ]
     cmd = [CC] + CFLAGS + ['-o', bin_path.strpath] + [src_c.strpath]
@@ -59,7 +64,7 @@ def compile_c_script(c_src_name):
         sys.stderr.write(err + '\n')
         raise subp.CalledProcessError(p.returncode, cmd)
 
-    os.environ['LD_LIBRARY_PATH'] = "%s:%s" % ("%(proj_dir)s/target/debug" % globals(),
+    os.environ['LD_LIBRARY_PATH'] = "%s:%s" % (libmu_dir_path.strpath,
                                                os.environ['LD_LIBRARY_PATH'] if 'LD_LIBRARY_PATH' in os.environ else "")
     # run
     p = subp.Popen([bin_path.strpath], stdout=subp.PIPE, stderr=subp.PIPE, env=os.environ)
@@ -139,7 +144,7 @@ def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctype
 
 def preload_libmu():
     # load libmu before rffi so to load it with RTLD_GLOBAL
-    return ctypes.CDLL(libmu_path.strpath, ctypes.RTLD_GLOBAL)
+    return ctypes.CDLL(libmu_dylib_path.strpath, ctypes.RTLD_GLOBAL)
 
 
 spawn_proc = bool(int(os.environ.get('SPAWN_PROC', '1')))
