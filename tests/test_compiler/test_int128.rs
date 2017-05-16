@@ -166,6 +166,7 @@ fn mul_u128() -> VM {
     vm
 }
 
+#[ignore]   // this test uses runtime function, should run it as bootimage
 #[test]
 fn test_udiv_u128() {
     let lib = testutil::compile_fnc("udiv_u128", &udiv_u128);
