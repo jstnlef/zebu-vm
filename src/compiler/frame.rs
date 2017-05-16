@@ -16,11 +16,11 @@ use vm::VM;
 // |---------------
 // | alloca area
 
+
 #[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct Frame {
     func_ver_id: MuID,
     cur_offset: isize, // offset to frame base pointer
-
     pub argument_by_reg: HashMap<MuID, P<Value>>,
     pub argument_by_stack: HashMap<MuID, P<Value>>,
     
@@ -50,7 +50,6 @@ impl Frame {
         Frame {
             func_ver_id: func_ver_id,
             cur_offset: 0,
-
             argument_by_reg: HashMap::new(),
             argument_by_stack: HashMap::new(),
 
@@ -59,7 +58,7 @@ impl Frame {
         }
     }
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     pub fn cur_size(&self) -> usize {
         // frame size is a multiple of 16 bytes
         let size = self.cur_offset.abs() as usize;
@@ -82,6 +81,7 @@ impl Frame {
     
     pub fn alloc_slot_for_callee_saved_reg(&mut self, reg: P<Value>, vm: &VM) -> P<Value> {
         let slot = self.alloc_slot(&reg, vm);
+
         slot.make_memory_op(reg.ty.clone(), vm)
     }
 
@@ -103,9 +103,9 @@ impl Frame {
         self.exception_callsites.push((callsite, dest));
     }
 
-    #[cfg(target_arch = "x86_64")]
-    fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {
-        // RBP is 16 bytes aligned, we are offsetting from RBP
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {
+        // RBP/FP is 16 bytes aligned, we are offsetting from RBP/FP
         // every value should be properly aligned
 
         let backendty = vm.get_backend_type_info(val.ty.id());
@@ -130,9 +130,9 @@ impl Frame {
         let id = val.id();
         let ret = FrameSlot {
             offset: self.cur_offset,
-            value: val.clone()
+            value: val.clone(),
         };
-        
+
         self.allocated.insert(id, ret);
         self.allocated.get(&id).unwrap()
     }
@@ -141,12 +141,18 @@ impl Frame {
 #[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct FrameSlot {
     pub offset: isize,
-    pub value: P<Value>
+    pub value: P<Value>,
 }
 
 impl fmt::Display for FrameSlot {
+    #[cfg(target_arch = "x86_64")]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}(RBP): {}", self.offset, self.value)
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[FP, #{}]: {}", self.offset, self.value)
     }
 }
 
@@ -164,6 +170,23 @@ impl FrameSlot {
                     offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
                     index: None,
                     scale: None
+                }
+            )
+        })
+    }
+    #[cfg(target_arch = "aarch64")]
+    pub fn make_memory_op(&self, ty: P<MuType>, vm: &VM) -> P<Value> {
+        use compiler::backend::aarch64;
+
+        P(Value{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty: ty.clone(),
+            v: Value_::Memory(
+                MemoryLocation::VirtualAddress{
+                    base: aarch64::FP.clone(),
+                    offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
+                    scale: 1,
+                    signed: false
                 }
             )
         })

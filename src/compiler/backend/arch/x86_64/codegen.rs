@@ -54,6 +54,10 @@ pub trait CodeGenerator {
     // because mem may only have type as ADDRESS_TYPE
     fn emit_mov_mem_imm(&mut self, dest: Mem, src: i32, oplen: usize); // store
 
+    fn emit_mov_mem_r_callee_saved  (&mut self, dest: Mem, src: Reg); // store callee saved register
+    fn emit_mov_r_mem_callee_saved  (&mut self, dest: Reg, src: Mem); // load callee saved register
+
+
     // zero/sign extend mov
     fn emit_movs_r_r   (&mut self, dest: Reg, src: Reg);
     fn emit_movz_r_r   (&mut self, dest: Reg, src: Reg);

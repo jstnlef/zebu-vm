@@ -388,3 +388,28 @@ fn add_machine_specific_regs_at_func_start(alive: &mut AliveEntries) {
     alive.new_alive_reg(x86_64::R14.id());
     alive.new_alive_reg(x86_64::R15.id());
 }
+
+#[cfg(target_arch = "aarch64")]
+fn add_machine_specific_regs_at_func_start(alive: &mut AliveEntries) {
+    use compiler::backend::aarch64;
+
+    // the instruction pointer, stack pointer, link register and frame pointer, always have valid values
+    alive.new_alive_reg(aarch64::SP.id());
+    alive.new_alive_reg(aarch64::LR.id());
+    alive.new_alive_reg(aarch64::FP.id());
+
+    // callee saved regs are alive
+    alive.new_alive_reg(aarch64::X28.id());
+    alive.new_alive_reg(aarch64::X27.id());
+    alive.new_alive_reg(aarch64::X26.id());
+    alive.new_alive_reg(aarch64::X25.id());
+    alive.new_alive_reg(aarch64::X24.id());
+    alive.new_alive_reg(aarch64::X23.id());
+    alive.new_alive_reg(aarch64::X22.id());
+    alive.new_alive_reg(aarch64::X21.id());
+    alive.new_alive_reg(aarch64::X20.id());
+    alive.new_alive_reg(aarch64::X19.id());
+
+    // platform register, reserved (never use it)
+    alive.new_alive_reg(aarch64::PR.id());
+}

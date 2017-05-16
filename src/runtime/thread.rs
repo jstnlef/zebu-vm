@@ -22,6 +22,9 @@ use std::fmt;
 
 pub const STACK_SIZE : ByteSize = (4 << 20); // 4mb
 
+#[cfg(target_arch = "aarch64")]
+pub const PAGE_SIZE  : ByteSize = (4 << 10); // 4kb
+
 #[cfg(target_arch = "x86_64")]
 pub const PAGE_SIZE  : ByteSize = (4 << 10); // 4kb
 
@@ -103,7 +106,66 @@ impl MuStack {
             mmap: Some(anon_mmap)
         }
     }
-    
+
+    #[cfg(target_arch = "aarch64")]
+    // TODO: What will hapen if some things need to be loaded on the stack?
+    // TODO: Should we save XR (X8, the indirect locations result register)
+    // (NOTE: Any changes to here need to be reflected in swap_to_mu_stack)
+    pub fn runtime_load_args(&mut self, vals: Vec<ValueLocation>) {
+        use compiler::backend::Word;
+        use compiler::backend::WORD_SIZE;
+        use compiler::backend::RegGroup;
+        use compiler::backend::aarch64;
+
+        let mut gpr_used = vec![];
+        let mut fpr_used = vec![];
+
+        for i in 0..vals.len() {
+            let ref val = vals[i];
+            let (reg_group, word) = val.load_value();
+
+            match reg_group {
+                RegGroup::GPR => gpr_used.push(word),
+                RegGroup::FPR => fpr_used.push(word),
+            }
+        }
+
+        // Ar these
+        let mut stack_ptr = self.sp;
+        for i in 0..aarch64::ARGUMENT_FPRs.len() {
+            stack_ptr = stack_ptr.sub(WORD_SIZE);
+            let val = {
+                if i < fpr_used.len() {
+                    fpr_used[i]
+                } else {
+                    0 as Word
+                }
+            };
+
+            debug!("store {} to {}", val, stack_ptr);
+            unsafe {stack_ptr.store(val);}
+        }
+
+        for i in 0..aarch64::ARGUMENT_GPRs.len() {
+            stack_ptr = stack_ptr.sub(WORD_SIZE);
+            let val = {
+                if i < gpr_used.len() {
+                    gpr_used[i]
+                } else {
+                    0 as Word
+                }
+            };
+
+            debug!("store {} to {}", val, stack_ptr);
+            unsafe {stack_ptr.store(val);}
+        }
+
+        // save it back
+        self.sp = stack_ptr;
+
+        self.print_stack(Some(20));
+    }
+
     #[cfg(target_arch = "x86_64")]
     pub fn runtime_load_args(&mut self, vals: Vec<ValueLocation>) {
         use compiler::backend::Word;
@@ -232,6 +294,26 @@ impl fmt::Display for MuThread {
 
         Ok(())
     }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[link(name = "swap_stack")]
+extern "C" {
+    fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
+    fn fake_swap_mu_thread(old_sp_loc: Address);
+    fn muentry_swap_back_to_native_stack(sp_loc: Address);
+    pub fn get_current_frame_rbp() -> Address;
+    pub fn exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !;
+}
+
+#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[link(name = "runtime")]
+#[allow(improper_ctypes)]
+extern "C" {
+    pub fn set_thread_local(thread: *mut MuThread);
+    pub fn muentry_get_thread_local() -> Address;
 }
 
 #[cfg(target_arch = "x86_64")]
