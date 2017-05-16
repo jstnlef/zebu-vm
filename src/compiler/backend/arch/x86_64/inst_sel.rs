@@ -322,25 +322,26 @@ impl <'a> InstructionSelection {
                         let ref true_val = ops[true_val];
                         let ref false_val = ops[false_val];
 
+                        // generate compare
+                        let cmpop = if self.match_cmp_res(cond) {
+                            self.emit_cmp_res(cond, f_content, f_context, vm)
+                        } else if self.match_ireg(cond) {
+                            let tmp_cond = self.emit_ireg(cond, f_content, f_context, vm);
+                            // emit: cmp cond_reg 1
+                            self.backend.emit_cmp_imm_r(1, &tmp_cond);
+
+                            EQ
+                        } else {
+                            panic!("expected cond to be ireg, found {}", cond)
+                        };
+
                         if self.match_ireg(true_val) {
                             // moving integers/pointers
                             let tmp_res   = self.get_result_value(node);
 
-                            // generate compare
-                            let cmpop = if self.match_cmp_res(cond) {
-                                self.emit_cmp_res(cond, f_content, f_context, vm)
-                            } else if self.match_ireg(cond) {
-                                let tmp_cond = self.emit_ireg(cond, f_content, f_context, vm);
-                                // emit: cmp cond_reg 1
-                                self.backend.emit_cmp_imm_r(1, &tmp_cond);
-
-                                EQ
-                            } else {
-                                panic!("expected ireg, found {}", cond)
-                            };
-
                             // use cmov for 16/32/64bit integer
                             // use jcc  for 8 bit
+                            // FIXME: could use 32bit register to implement 8bit select
                             match tmp_res.ty.get_int_length() {
                                 // cmov
                                 Some(len) if len > 8 => {
@@ -374,9 +375,9 @@ impl <'a> InstructionSelection {
                                 }
                                 // jcc
                                 _ => {
-                                    let blk_true  = format!("{}_select_true", node.id());
-                                    let blk_false = format!("{}_select_false", node.id());
-                                    let blk_end   = format!("{}_select_end", node.id());
+                                    let blk_true  = format!("{}_{}_select_true",  self.current_fv_id, node.id());
+                                    let blk_false = format!("{}_{}_select_false", self.current_fv_id, node.id());
+                                    let blk_end   = format!("{}_{}_select_end",   self.current_fv_id, node.id());
 
                                     // jump to blk_true if true
                                     match cmpop {
@@ -432,8 +433,66 @@ impl <'a> InstructionSelection {
                                     self.current_block = Some(blk_end.clone());
                                 }
                             }
+                        } else if self.match_fpreg(true_val) {
+                            let tmp_res = self.get_result_value(node);
+
+                            let blk_true  = format!("{}_{}_select_true",  self.current_fv_id, node.id());
+                            let blk_false = format!("{}_{}_select_false", self.current_fv_id, node.id());
+                            let blk_end   = format!("{}_{}_select_end",   self.current_fv_id, node.id());
+
+                            // jump to blk_true if true
+                            match cmpop {
+                                EQ  => self.backend.emit_je (blk_true.clone()),
+                                NE  => self.backend.emit_jne(blk_true.clone()),
+                                SGE => self.backend.emit_jge(blk_true.clone()),
+                                SGT => self.backend.emit_jg (blk_true.clone()),
+                                SLE => self.backend.emit_jle(blk_true.clone()),
+                                SLT => self.backend.emit_jl (blk_true.clone()),
+                                UGE => self.backend.emit_jae(blk_true.clone()),
+                                UGT => self.backend.emit_ja (blk_true.clone()),
+                                ULE => self.backend.emit_jbe(blk_true.clone()),
+                                ULT => self.backend.emit_jb (blk_true.clone()),
+
+                                FOEQ | FUEQ => self.backend.emit_je (blk_true.clone()),
+                                FONE | FUNE => self.backend.emit_jne(blk_true.clone()),
+                                FOGT | FUGT => self.backend.emit_ja (blk_true.clone()),
+                                FOGE | FUGE => self.backend.emit_jae(blk_true.clone()),
+                                FOLT | FULT => self.backend.emit_jb (blk_true.clone()),
+                                FOLE | FULE => self.backend.emit_jbe(blk_true.clone()),
+
+                                _ => unimplemented!()
+                            }
+
+                            // finishing current block
+                            let cur_block = self.current_block.as_ref().unwrap().clone();
+                            self.backend.end_block(cur_block.clone());
+
+                            // blk_false:
+                            self.current_block = Some(blk_false.clone());
+                            self.backend.start_block(blk_false.clone());
+
+                            // mov false result here
+                            self.emit_move_node_to_value(&tmp_res, &false_val, f_content, f_context, vm);
+
+                            // jmp to end
+                            self.backend.emit_jmp(blk_end.clone());
+
+                            // finishing current block
+                            let cur_block = self.current_block.as_ref().unwrap().clone();
+                            self.backend.end_block(cur_block.clone());
+
+                            // blk_true:
+                            self.current_block = Some(blk_true.clone());
+                            self.backend.start_block(blk_true.clone());
+                            // mov true value -> result
+                            self.emit_move_node_to_value(&tmp_res, &true_val, f_content, f_context, vm);
+
+                            self.backend.end_block(blk_true.clone());
+
+                            // blk_end:
+                            self.backend.start_block(blk_end.clone());
+                            self.current_block = Some(blk_end.clone());
                         } else {
-                            // moving vectors, floatingpoints
                             unimplemented!()
                         }
                     },
@@ -4620,10 +4679,7 @@ impl <'a> InstructionSelection {
 
     #[cfg(feature = "aot")]
     fn get_mem_for_funcref(&mut self, func_id: MuID, vm: &VM) -> P<Value> {
-//        use compiler::backend::x86_64::asm_backend;
-//
-        let func_name = vm.name_of(func_id);
-//        let label = asm_backend::symbol(func_name);
+        let func_name = vm.get_func_name(func_id);
 
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),

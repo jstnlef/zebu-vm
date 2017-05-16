@@ -591,11 +591,15 @@ impl <'a> VM {
             None => panic!("cannot find id for name: {}", name)
         }
     }
-    
+
+    /// should only used by client
+    /// 'name' used internally may be slightly different to remove some special symbols
     pub fn id_of(&self, name: &str) -> MuID {
         self.id_of_by_refstring(&name.to_string())
     }
-    
+
+    /// should only used by client
+    /// 'name' used internally may be slightly different to remove some special symbols
     pub fn name_of(&self, id: MuID) -> MuName {
         let map = self.id_name_map.read().unwrap();
         map.get(&id).unwrap().clone()
@@ -764,6 +768,15 @@ impl <'a> VM {
 
         info!("declare func #{} = {}", id, func);
         funcs.insert(id, RwLock::new(func));
+    }
+
+    /// this is different than vm.name_of()
+    pub fn get_func_name(&self, id: MuID) -> MuName {
+        let funcs_lock = self.funcs.read().unwrap();
+        match funcs_lock.get(&id) {
+            Some(func) => func.read().unwrap().name().unwrap(),
+            None => panic!("cannot find name for Mu function #{}")
+        }
     }
     
     /// The IR builder needs to look-up the function signature from the existing function ID.
