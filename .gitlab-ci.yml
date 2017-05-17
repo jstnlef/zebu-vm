@@ -129,4 +129,3 @@ testjit:rpython:
       - .cargo/registry/index
       - target
       - Cargo.lock
-      - tests/test_jit/mu-client-pypy
