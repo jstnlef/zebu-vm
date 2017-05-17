@@ -42,7 +42,7 @@ build_test:
     - rustc --version
     - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --release --no-run
   artifacts:
-    path:
+    paths:
       - target
 
 before_script:
