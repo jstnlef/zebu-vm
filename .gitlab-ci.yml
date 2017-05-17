@@ -34,17 +34,18 @@ build_vm:
   stage: build
   script:
     - rustc --version
-    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo build
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo build --release
 
 build_test:
   stage: build
   script:
     - rustc --version
-    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --release --no-run
 
 before_script:
   - export PATH=$PATH:/root/.cargo/bin
   - export MU_ZEBU=$CI_PROJECT_DIR
+  - export ZEBU_BUILD=release
 
 test:cargo:api:
   stage: test
