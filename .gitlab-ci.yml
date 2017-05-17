@@ -50,22 +50,22 @@ before_script:
 test:cargo:api:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_api 2> /dev/null
+    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --release test_api 2> /dev/null
 
 test:cargo:ir:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_ir 2> /dev/null
+    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --release test_ir 2> /dev/null
 
 test:cargo:compiler:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_compiler 2> /dev/null
+    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --release test_compiler 2> /dev/null
 
 test:cargo:runtime:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_runtime 2> /dev/null
+    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test --release test_runtime 2> /dev/null
 
 testjit:milestones:
   stage: test
