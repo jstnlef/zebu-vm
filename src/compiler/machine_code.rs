@@ -5,6 +5,7 @@ use runtime::ValueLocation;
 
 use std::ops;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
@@ -189,10 +190,11 @@ pub trait MachineCode {
     /// set an instruction as nop
     fn set_inst_nop(&mut self, index: usize);
     /// remove unnecessary push/pop if the callee saved register is not used
-    /// returns what registers push/pop have been deleted
-    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID>;
+    /// returns what registers push/pop have been deleted, and the number of callee saved registers
+    /// that weren't deleted
+    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> HashSet<MuID>;
     /// patch frame size
-    fn patch_frame_size(&mut self, size: usize, size_used: usize);
+    fn patch_frame_size(&mut self, size: usize);
 
     fn as_any(&self) -> &Any;
 }

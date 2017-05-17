@@ -22,6 +22,10 @@ pub mod entrypoints;
 #[path = "exception_x64.rs"]
 pub mod exception;
 
+#[cfg(target_arch = "aarch64")]
+#[path = "exception_aarch64.rs"]
+pub mod exception;
+
 // consider using libloading crate instead of the raw c functions for dynalic libraries
 // however i am not sure if libloading can load symbols from current process (not from an actual dylib)
 // so here i use dlopen/dlsym from C
@@ -238,5 +242,5 @@ pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *
 #[no_mangle]
 #[allow(unreachable_code)]
 pub extern fn muentry_print_hex(x: u64) {
-    println!("0x{:x}", x);
+    println!("PRINTHEX: 0x{:x}", x);
 }

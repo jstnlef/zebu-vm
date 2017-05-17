@@ -2452,13 +2452,13 @@ impl <'a> InstructionSelection {
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
-                            self.emit_runtime_entry(&entrypoints::FREM_DOUBLE,
+                            self.emit_runtime_entry(&entrypoints::FREM64,
                                                     vec![reg_op1.clone(), reg_op2.clone()],
                                                     Some(vec![reg_tmp.clone()]),
                                                     Some(node), f_content, f_context, vm);
                         }
                         MuType_::Float  => {
-                            self.emit_runtime_entry(&entrypoints::FREM_FLOAT,
+                            self.emit_runtime_entry(&entrypoints::FREM32,
                                                     vec![reg_op1.clone(), reg_op2.clone()],
                                                     Some(vec![reg_tmp.clone()]),
                                                     Some(node), f_content, f_context, vm);
@@ -3383,6 +3383,10 @@ impl <'a> InstructionSelection {
             self.backend.add_cfi_def_cfa_register(&x86_64::RBP);
         }
 
+        // reserve spaces for current frame
+        // add x, rbp -> rbp (x is negative, however we do not know x now)
+        self.backend.emit_frame_grow();
+
         // push all callee-saved registers
         {
             let frame = self.current_frame.as_mut().unwrap();
@@ -3393,16 +3397,13 @@ impl <'a> InstructionSelection {
                 // not pushing rbp (as we have done that)
                 if reg.extract_ssa_id().unwrap() !=  rbp {
                     trace!("allocate frame slot for reg {}", reg);
-                    self.backend.emit_push_r64(&reg);
-                    frame.alloc_slot_for_callee_saved_reg(reg.clone(), vm);
+
+                    let loc = frame.alloc_slot_for_callee_saved_reg(reg.clone(), vm);
+                    self.backend.emit_mov_mem_r_callee_saved(&loc, &reg);
                 }
             }
         }
 
-        // reserve spaces for current frame
-        // add x, rbp -> rbp (x is negative, however we do not know x now)
-        self.backend.emit_frame_grow();
-        
         // unload arguments by registers
         let mut gpr_arg_count = 0;
         let mut fpr_arg_count = 0;
@@ -3562,17 +3563,21 @@ impl <'a> InstructionSelection {
             }
         }
 
-        // frame shrink
-        self.backend.emit_frame_shrink();
-        
         // pop all callee-saved registers - reverse order
-        for i in (0..x86_64::CALLEE_SAVED_GPRs.len()).rev() {
-            let ref reg = x86_64::CALLEE_SAVED_GPRs[i];
-            if reg.extract_ssa_id().unwrap() != x86_64::RBP.extract_ssa_id().unwrap() {
-                self.backend.emit_pop_r64(&reg);
+        {
+            let frame = self.current_frame.as_mut().unwrap();
+            for i in (0..x86_64::CALLEE_SAVED_GPRs.len()).rev() {
+                let ref reg = x86_64::CALLEE_SAVED_GPRs[i];
+                let reg_id = reg.extract_ssa_id().unwrap();
+                if reg_id != x86_64::RBP.extract_ssa_id().unwrap() {
+                    let loc = frame.allocated.get(&reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);
+                    self.backend.emit_mov_r_mem_callee_saved(&reg, &loc);
+                }
             }
         }
-        
+        // frame shrink
+        self.backend.emit_frame_shrink();
+
         // pop rbp
         self.backend.emit_pop_r64(&x86_64::RBP);
     }

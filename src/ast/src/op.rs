@@ -186,21 +186,81 @@ pub enum CmpOp {
 }
 
 impl CmpOp {
+    // Returns the CmpOp c, such that (a self b) is equivelent to (b c a)
     pub fn swap_operands(self) -> CmpOp {
         use op::CmpOp::*;
         match self {
-            EQ => EQ,
-            NE => NE,
-            SGE => SLT,
-            SGT => SLE,
-            SLE => SGT,
-            SLT => SGE,
-            UGE => ULT,
+            SGE => SLE,
+            SLE => SGE,
+            SGT => SLT,
+            SLT => SGT,
+
+            UGE => ULE,
+            ULE => UGE,
+            UGT => ULT,
+            ULT => UGT,
+
+            FOGE => FOLE,
+            FOLE => FOGE,
+            FOGT => FOLT,
+            FOLT => FOGT,
+
+            FUGE => FULE,
+            FULE => FUGE,
+            FUGT => FULT,
+            FULT => FUGT,
+
+            _ => self, // all other comparisons are reflexive
+        }
+    }
+    pub fn invert(self) -> CmpOp {
+        use op::CmpOp::*;
+        match self {
+            EQ => NE,
+            NE => EQ,
+
+            FOEQ => FUNE,
+            FUNE => FOEQ,
+
+            FUGE => FOLT,
+            FOLT => FUGE,
+
+            FUNO => FORD,
+            FORD => FUNO,
+
             UGT => ULE,
             ULE => UGT,
+
+            FUGT => FOLE,
+            FOLE => FUGT,
+
+            SGE => SLT,
+            SLT => SGE,
+
+            FOGE => FULT,
+            FULT => FOGE,
+
+            SGT => SLE,
+            SLE => SGT,
+
+            FOGT => FULE,
+            FULE => FOGT,
+
+            UGE => ULT,
             ULT => UGE,
 
-            _ => unimplemented!()
+            FUEQ => FONE,
+            FONE => FUEQ,
+
+            FFALSE => FTRUE,
+            FTRUE => FFALSE,
+        }
+    }
+    pub fn is_signed(self) -> bool {
+        use op::CmpOp::*;
+        match self {
+            SGE | SLT | SGT | SLE => true,
+            _ => false
         }
     }
 }

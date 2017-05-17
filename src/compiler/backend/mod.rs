@@ -55,11 +55,40 @@ pub use compiler::backend::x86_64::emit_context_with_reloc;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::spill_rewrite;
 
-// ARM
+// aarch64
 
-#[cfg(target_arch = "arm")]
-#[path = "arch/arm/mod.rs"]
-mod arm;
+#[cfg(target_arch = "aarch64")]
+#[path = "arch/aarch64/mod.rs"]
+pub mod aarch64;
+
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::estimate_insts_for_ir;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::init_machine_regs_for_func;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::is_aliased;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_color_for_precolored;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::number_of_regs_in_group;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::number_of_all_regs;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::all_regs;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::all_usable_regs;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::pick_group_for_reg;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::is_callee_saved;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::emit_code;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::emit_context;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::emit_context_with_reloc;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::spill_rewrite;
 
 // common data structure with target specific info
 

@@ -24,6 +24,7 @@ use std::str;
 use std::usize;
 use std::slice::Iter;
 use std::ops;
+use std::collections::HashSet;
 
 struct ASMCode {
     name: MuName, 
@@ -654,46 +655,41 @@ impl MachineCode for ASMCode {
 //        self.code.insert(index, ASMInst::nop());
     }
 
-    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> Vec<MuID> {
+    fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> HashSet<MuID> {
         // we always save rbp
         let rbp = x86_64::RBP.extract_ssa_id().unwrap();
-        // every push/pop will use/define rsp
-        let rsp = x86_64::RSP.extract_ssa_id().unwrap();
 
-        let find_op_other_than_rsp = |inst: &ASMInst| -> Option<MuID> {
+        let find_op_other_than_rbp = |inst: &ASMInst| -> MuID {
             for id in inst.defines.keys() {
-                if *id != rsp && *id != rbp {
-                    return Some(*id);
+                if *id != rbp {
+                    return *id;
                 }
             }
             for id in inst.uses.keys() {
-                if *id != rsp && *id != rbp {
-                    return Some(*id);
+                if *id != rbp {
+                    return *id;
                 }
             }
 
-            None
+            panic!("Expected to find a used register other than the rbp");
         };
 
         let mut inst_to_remove = vec![];
-        let mut regs_to_remove = vec![];
+        let mut regs_to_remove = HashSet::new();
 
         for i in 0..self.number_of_insts() {
             let ref inst = self.code[i];
 
-            if inst.code.contains("push") || inst.code.contains("pop") {
-                match find_op_other_than_rsp(inst) {
-                    Some(op) => {
-                        // if this push/pop instruction is about a callee saved register
-                        // and the register is not used, we set the instruction as nop
-                        if x86_64::is_callee_saved(op) && !used_callee_saved.contains(&op) {
-                            trace!("removing instruction {:?} for save/restore unnecessary callee saved regs", inst);
-                            regs_to_remove.push(op);
-                            inst_to_remove.push(i);
-                        }
+            match inst.spill_info {
+                Some(SpillMemInfo::CalleeSaved) => {
+                    let reg = find_op_other_than_rbp(inst);
+                    if !used_callee_saved.contains(&reg) {
+                        trace!("removing instruction {:?} for save/restore unnecessary callee saved regs", inst);
+                        regs_to_remove.insert(reg);
+                        inst_to_remove.push(i);
                     }
-                    None => {}
                 }
+                _ => {}
             }
         }
 
@@ -704,8 +700,7 @@ impl MachineCode for ASMCode {
         regs_to_remove
     }
 
-    #[allow(unused_variables)]
-    fn patch_frame_size(&mut self, size: usize, size_used: usize) {
+    fn patch_frame_size(&mut self, size: usize) {
         let size = size.to_string();
 
         debug_assert!(size.len() <= FRAME_SIZE_PLACEHOLDER_LEN);
@@ -835,7 +830,8 @@ enum ASMBranchTarget {
 #[derive(Clone, Debug)]
 enum SpillMemInfo {
     Load(P<Value>),
-    Store(P<Value>)
+    Store(P<Value>),
+    CalleeSaved, // Callee saved record
 }
 
 #[derive(Clone, Debug)]
@@ -1072,6 +1068,16 @@ impl ASMCodeGen {
         is_using_mem_op: bool
     ) {
         self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None, None)
+    }
+
+    fn add_asm_inst_with_callee_saved(
+        &mut self,
+        code: String,
+        defines: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        uses: LinkedHashMap<MuID, Vec<ASMLocation>>,
+        is_using_mem_op: bool,
+    ) {
+        self.add_asm_inst_internal(code, defines, uses, is_using_mem_op, ASMBranchTarget::None, Some(SpillMemInfo::CalleeSaved))
     }
 
     fn add_asm_inst_with_spill(
@@ -1655,7 +1661,7 @@ impl ASMCodeGen {
     }
 
     fn internal_mov_r_mem(&mut self, inst: &str, dest: Reg, src: Mem,
-                          is_spill_related: bool
+                          is_spill_related: bool, is_callee_saved: bool
     ) {
         let len = check_op_len(dest);
 
@@ -1667,7 +1673,16 @@ impl ASMCodeGen {
 
         let asm = format!("{} {},{}", inst, mem, reg);
 
-        if is_spill_related {
+        if is_callee_saved {
+            self.add_asm_inst_with_callee_saved(
+                asm,
+                linked_hashmap!{
+                    id2 => vec![loc2]
+                },
+                uses,
+                true,
+            )
+        } else if is_spill_related {
             self.add_asm_inst_with_spill(
                 asm,
                 linked_hashmap!{
@@ -1690,7 +1705,7 @@ impl ASMCodeGen {
     }
 
     fn internal_mov_mem_r(&mut self, inst: &str, dest: Mem, src: Reg,
-                          is_spill_related: bool)
+                          is_spill_related: bool, is_callee_saved: bool)
     {
         let len = check_op_len(src);
 
@@ -1711,7 +1726,14 @@ impl ASMCodeGen {
 
         let asm = format!("{} {},{}", inst, reg, mem);
 
-        if is_spill_related {
+        if is_callee_saved {
+            self.add_asm_inst_with_callee_saved(
+                asm,
+                linked_hashmap! {},
+                uses,
+                true,
+            )
+        } else if is_spill_related {
             self.add_asm_inst_with_spill(
                 asm,
                 linked_hashmap!{},
@@ -1940,11 +1962,11 @@ impl ASMCodeGen {
     }
 
     fn emit_spill_store_gpr(&mut self, dest: Mem, src: Reg) {
-        self.internal_mov_mem_r("mov", dest, src, true)
+        self.internal_mov_mem_r("mov", dest, src, true, false)
     }
 
     fn emit_spill_load_gpr(&mut self, dest: Reg, src: Mem) {
-        self.internal_mov_r_mem("mov", dest, src, true)
+        self.internal_mov_r_mem("mov", dest, src, true, false)
     }
 
     fn emit_spill_store_fpr(&mut self, dest: Mem, src: Reg) {
@@ -2232,18 +2254,24 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_mov_r_imm("mov", dest, src)
     }
     fn emit_mov_r_mem  (&mut self, dest: &P<Value>, src: &P<Value>) {
-        self.internal_mov_r_mem("mov", dest, src, false)
+        self.internal_mov_r_mem("mov", dest, src, false, false)
     }
     fn emit_mov_r_r    (&mut self, dest: &P<Value>, src: &P<Value>) {
         self.internal_mov_r_r("mov", dest, src)
     }
     fn emit_mov_mem_r  (&mut self, dest: &P<Value>, src: &P<Value>) {
-        self.internal_mov_mem_r("mov", dest, src, false)
+        self.internal_mov_mem_r("mov", dest, src, false, false)
     }
     fn emit_mov_mem_imm(&mut self, dest: &P<Value>, src: i32, oplen: usize) {
         self.internal_mov_mem_imm("mov", dest, src, oplen)
     }
 
+    fn emit_mov_r_mem_callee_saved  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_mov_r_mem("mov", dest, src, false, true)
+    }
+    fn emit_mov_mem_r_callee_saved  (&mut self, dest: &P<Value>, src: &P<Value>) {
+        self.internal_mov_mem_r("mov", dest, src, false, true)
+    }
     // zero/sign extend mov
     
     fn emit_movs_r_r (&mut self, dest: Reg, src: Reg) {
@@ -2433,7 +2461,7 @@ impl CodeGenerator for ASMCodeGen {
 
     // lea
     fn emit_lea_r64(&mut self, dest: &P<Value>, src: &P<Value>) {
-        self.internal_mov_r_mem("lea", dest, src, false)
+        self.internal_mov_r_mem("lea", dest, src, false, false)
     }
 
     // and

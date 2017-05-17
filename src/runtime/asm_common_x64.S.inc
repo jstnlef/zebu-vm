@@ -9,7 +9,7 @@
   .text
   .globl CNAME(\n)
   .type CNAME(\n),@function
-  .align 16
+  .balign 16
 CNAME(\n):
   .endm
 
@@ -24,7 +24,7 @@ CNAME(\n):
   .macro begin_func n
   .text
   .globl CNAME(\n)
-  .align 4
+  .balign 4
 CNAME(\n):
   .endm
 

@@ -62,6 +62,17 @@ extern "C" {
     fn get_registers_count() -> i32;
 }
 
+#[cfg(target_arch = "aarch64")]
+#[link(name = "gc_clib_aarch64")]
+extern "C" {
+    pub fn malloc_zero(size: usize) -> *const c_void;
+    fn immmix_get_stack_ptr() -> Address;
+    pub fn set_low_water_mark();
+    fn get_low_water_mark() -> Address;
+    fn get_registers() -> *const Address;
+    fn get_registers_count() -> i32;
+}
+
 pub fn stack_scan() -> Vec<ObjectReference> {
     trace!("stack scanning...");
     let stack_ptr : Address = unsafe {immmix_get_stack_ptr()};
@@ -167,7 +178,7 @@ pub fn sync_barrier(mutator: &mut ImmixMutatorLocal) {
         trace!("expect {} mutators to park", *N_MUTATORS.read().unwrap() - 1);
         while count < *N_MUTATORS.read().unwrap() - 1 {
             let new_count = {*lock.lock().unwrap()};
-            if new_count != count {				
+            if new_count != count {
                 count = new_count;
                 trace!("count = {}", count);
             }
