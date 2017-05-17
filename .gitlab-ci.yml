@@ -41,6 +41,9 @@ build_test:
   script:
     - rustc --version
     - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --release --no-run
+  artifects:
+    path:
+      - target
 
 before_script:
   - export PATH=$PATH:/root/.cargo/bin
