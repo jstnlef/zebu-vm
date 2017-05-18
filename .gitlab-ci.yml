@@ -121,6 +121,7 @@ testjit:rpython:
   script:
     - if [ -d "tests/test_jit/RPySOM" ]; then rm -Rf tests/test_jit/RPySOM; fi
     - git clone https://github.com/microvm/RPySOM.git tests/test_jit/RPySOM
+    - cd tests/test_jit/RPySOM; git submodule init; git submodule update; cd $CI_PROJECT_DIR
     - if [ -d "tests/test_jit/mu-client-pypy" ]; then rm -Rf tests/test_jit/mu-client-pypy; fi
     - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git tests/test_jit/mu-client-pypy
     - cd tests/test_jit/mu-client-pypy
