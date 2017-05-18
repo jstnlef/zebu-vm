@@ -17,3 +17,4 @@ Cargo.lock
 cmake-build-debug/*
 Notes/*
 CMakeLists.txt
+*.iml
