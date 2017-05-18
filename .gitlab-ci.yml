@@ -18,13 +18,13 @@ image: "qinsoon/ubuntu-zebu-test:latest"
 #- apt-get install -yqq --no-install-recommends build-essential
 
 # Use cargo to test the project
-cache:
-  key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
-  paths:
-    - .cargo/registry/cache
-    - .cargo/registry/index
-    - target
-    - Cargo.lock
+# cache:
+#   key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
+#   paths:
+#     - .cargo/registry/cache
+#     - .cargo/registry/index
+#     - target
+#     - Cargo.lock
 
 stages:
   - build
@@ -128,11 +128,11 @@ testjit:rpython:
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
     - LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_rpython*.py -v
-  cache:
-    key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
-    paths:
-      - .cargo/registry/cache
-      - .cargo/registry/index
-      - target
-      - Cargo.lock
-      - tests/test_jit/mu-client-pypy
+#   cache:
+#     key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
+#     paths:
+#       - .cargo/registry/cache
+#       - .cargo/registry/index
+#       - target
+#       - Cargo.lock
+#       - tests/test_jit/mu-client-pypy
