@@ -997,7 +997,7 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.get
 
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output
-   
+
     #t.backendopt(inline=True, mallocs=True)
     #t.view()
     #t.mutype()
@@ -1014,7 +1014,7 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.get
     else:
         from rpython.rlib.rmu import holstein
         runmu = py.path.local(holstein.mu_dir).join('..', 'tools', 'runmu.sh')
-        flags = ['--vmLog=ERROR', '--losSize=780M', '--sosSize=780M']
+        flags = ['--vmLog=ERROR', '--uPtrHack=True', '--losSize=780M', '--sosSize=780M']
         log_platform.execute(' '.join([str(runmu)] + flags + [str(exe)] + args))
         res = platform.execute(runmu, flags + [str(exe)] + args)
 
@@ -1045,7 +1045,7 @@ def test_make_boot_image_simple():
 
     res = run_boot_image(pypy_mu_entry, '/tmp/test_make_boot_image_mu', True, ['abc', '123'])
     exe = '/tmp/test_make_boot_image_mu'
-    
+
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
