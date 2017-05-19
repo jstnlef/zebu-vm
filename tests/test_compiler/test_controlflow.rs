@@ -8,8 +8,6 @@ use mu::vm::*;
 use mu::testutil;
 use mu::utils::LinkedHashMap;
 
-use std::sync::RwLock;
-
 #[test]
 fn test_switch() {
     let lib = testutil::compile_fnc("switch", &switch);
@@ -66,12 +64,12 @@ fn switch() -> VM {
     let blk_entry_switch = switch_v1.new_inst(Instruction {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
-        ops: RwLock::new(vec![
+        ops: vec![
             a.clone(), // 0
             int64_0_local.clone(), // 1
             int64_1_local.clone(), // 2
             int64_2_local.clone(), // 3
-        ]),
+        ],
         v: Instruction_::Switch {
             cond: 0,
             default: Destination {

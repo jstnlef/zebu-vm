@@ -15,7 +15,6 @@ use self::mu::ast::op::*;
 use self::mu::vm::VM;
 
 use std::sync::Arc;
-use std::sync::RwLock;
 
 // NOTE: aarch64 has 28 usable GPRs (wheras x86-64 has 14) so there are slightly different tests for spilling on aarch64
 

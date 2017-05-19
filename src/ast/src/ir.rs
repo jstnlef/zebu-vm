@@ -242,7 +242,7 @@ impl MuFunctionVersion {
             for inst in block_content.body.iter() {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         match inst.v {
                             Instruction_::ExprCall{ref data, ..}
@@ -535,7 +535,7 @@ impl BlockContent {
         
         match last_inst.v {
             TreeNode_::Instruction(ref inst) => {
-                let ops = inst.ops.read().unwrap();
+                let ref ops = inst.ops;
                 match inst.v {
                     Instruction_::Return(_)
                     | Instruction_::ThreadExit

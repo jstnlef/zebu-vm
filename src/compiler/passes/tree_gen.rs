@@ -46,15 +46,15 @@ impl CompilerPass for TreeGen {
                 trace!("check block {}", label);
                 trace!("");
                 
-                for node in body.into_iter() {
+                for mut node in body.into_iter() {
                     trace!("check inst: {}", node);
-                    match &node.v {
-                        &TreeNode_::Instruction(ref inst) => {
+                    match &mut node.v {
+                        &mut TreeNode_::Instruction(ref mut inst) => {
                             // check if any operands can be replaced by expression
                             {
                                 trace!("check if we can replace any operand with inst");
                                 
-                                let mut ops = inst.ops.write().unwrap();
+                                let ref mut ops = inst.ops;
                                 for index in 0..ops.len() {
                                     let possible_ssa_id = ops[index].extract_ssa_id();
                                     if possible_ssa_id.is_some() {

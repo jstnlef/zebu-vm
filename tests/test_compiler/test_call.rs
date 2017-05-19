@@ -8,7 +8,6 @@ use mu::ast::op::*;
 use mu::vm::*;
 use mu::compiler::*;
 
-use std::sync::RwLock;
 use std::sync::Arc;
 use mu::testutil;
 use mu::testutil::aot;

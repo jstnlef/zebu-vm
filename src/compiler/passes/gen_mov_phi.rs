@@ -5,7 +5,6 @@ use vm::VM;
 
 use compiler::CompilerPass;
 use std::any::Any;
-use std::sync::RwLock;
 
 pub struct GenMovPhi {
     name: &'static str,
@@ -58,7 +57,7 @@ impl CompilerPass for GenMovPhi {
 
                     match last_inst.v {
                         TreeNode_::Instruction(inst) => {
-                            let ops = inst.ops.read().unwrap();
+                            let ref ops = inst.ops;
 
                             match inst.v {
                                 Instruction_::Branch2{cond, true_dest, false_dest, true_prob} => {
@@ -68,7 +67,7 @@ impl CompilerPass for GenMovPhi {
                                     let new_inst = func.new_inst(Instruction{
                                         hdr: inst.hdr.clone(),
                                         value: inst.value.clone(),
-                                        ops: RwLock::new(ops.to_vec()),
+                                        ops: ops.to_vec(),
                                         v: Instruction_::Branch2 {
                                             cond: cond,
                                             true_dest: true_dest,
@@ -87,7 +86,7 @@ impl CompilerPass for GenMovPhi {
                                     let new_inst = func.new_inst(Instruction{
                                         hdr: inst.hdr.clone(),
                                         value: inst.value.clone(),
-                                        ops: RwLock::new(ops.to_vec()),
+                                        ops: ops.to_vec(),
                                         v: Instruction_::Call {
                                             data: data.clone(),
                                             resume: ResumptionData{
@@ -107,7 +106,7 @@ impl CompilerPass for GenMovPhi {
                                     let new_inst = func.new_inst(Instruction{
                                         hdr: inst.hdr.clone(),
                                         value: inst.value.clone(),
-                                        ops: RwLock::new(ops.to_vec()),
+                                        ops: ops.to_vec(),
                                         v: Instruction_::Call {
                                             data: data.clone(),
                                             resume: ResumptionData{
@@ -131,7 +130,7 @@ impl CompilerPass for GenMovPhi {
                                     let new_inst = func.new_inst(Instruction{
                                         hdr: inst.hdr.clone(),
                                         value: inst.value.clone(),
-                                        ops: RwLock::new(ops.to_vec()),
+                                        ops: ops.to_vec(),
                                         v: Instruction_::Switch {
                                             cond: cond,
                                             default: default_dest,
@@ -206,7 +205,7 @@ impl CompilerPass for GenMovPhi {
                             let m = func.new_inst(Instruction{
                                 hdr: MuEntityHeader::unnamed(vm.next_id()),
                                 value: Some(vec![target_args[i].clone()]),
-                                ops: RwLock::new(vec![arg.clone()]),
+                                ops: vec![arg.clone()],
                                 v: Instruction_::Move(0)
                             });
 
@@ -219,7 +218,7 @@ impl CompilerPass for GenMovPhi {
                         let b = func.new_inst(Instruction{
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             value: None,
-                            ops: RwLock::new(vec![]),
+                            ops: vec![],
                             v: Instruction_::Branch1(Destination{
                                 target: target_id,
                                 args: vec![]

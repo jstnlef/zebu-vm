@@ -164,7 +164,7 @@ impl <'a> InstructionSelection {
                             }
                         };
                         
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
                         self.process_dest(&ops, branch_dest, f_content, f_context, vm);
@@ -316,7 +316,7 @@ impl <'a> InstructionSelection {
                         use ast::op::CmpOp::*;
 
                         trace!("instsel on SELECT");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         let ref cond = ops[cond];
                         let ref true_val = ops[true_val];
@@ -501,7 +501,7 @@ impl <'a> InstructionSelection {
                         use ast::op::CmpOp::*;
 
                         trace!("instsel on CMPOP");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref op1 = ops[op1];
                         let ref op2 = ops[op2];
 
@@ -536,7 +536,7 @@ impl <'a> InstructionSelection {
 
                     Instruction_::Branch1(ref dest) => {
                         trace!("instsel on BRANCH1");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                                             
                         self.process_dest(&ops, dest, f_content, f_context, vm);
                         
@@ -549,7 +549,7 @@ impl <'a> InstructionSelection {
 
                     Instruction_::Switch{cond, ref default, ref branches} => {
                         trace!("instsel on SWITCH");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         let ref cond = ops[cond];
 
@@ -709,7 +709,7 @@ impl <'a> InstructionSelection {
                     Instruction_::ConvOp{operation, ref from_ty, ref to_ty, operand} => {
                         trace!("instsel on CONVOP");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         let ref op = ops[operand];
 
@@ -1099,7 +1099,7 @@ impl <'a> InstructionSelection {
                     Instruction_::Load{is_ptr, order, mem_loc} => {
                         trace!("instsel on LOAD");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref loc_op = ops[mem_loc];
                         
                         // check order
@@ -1141,7 +1141,7 @@ impl <'a> InstructionSelection {
                     Instruction_::Store{is_ptr, order, mem_loc, value} => {
                         trace!("instsel on STORE");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref loc_op = ops[mem_loc];
                         let ref val_op = ops[value];
                         
@@ -1237,7 +1237,7 @@ impl <'a> InstructionSelection {
                     Instruction_::CommonInst_SetThreadLocal(op) => {
                         trace!("instsel on SETTHREADLOCAL");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref op = ops[op];
 
                         debug_assert!(self.match_ireg(op));
@@ -1256,7 +1256,7 @@ impl <'a> InstructionSelection {
 
                         if !mm::GC_MOVES_OBJECT {
                             // non-moving GC: pin is a nop (move from op to result)
-                            let ops = inst.ops.read().unwrap();
+                            let ref ops = inst.ops;
                             let ref op = ops[op];
 
                             let tmp_res = self.get_result_value(node);
@@ -1280,7 +1280,7 @@ impl <'a> InstructionSelection {
                     Instruction_::Move(op) => {
                         trace!("instsel on MOVE (internal IR)");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref op = ops[op];
 
                         let tmp_res = self.get_result_value(node);
@@ -1337,7 +1337,7 @@ impl <'a> InstructionSelection {
 
                         // actual size = fix_part_size + var_ty_size * len
                         let (actual_size, length) = {
-                            let ops = inst.ops.read().unwrap();
+                            let ref ops = inst.ops;
                             let ref var_len = ops[var_len];
 
                             if self.match_iimm(var_len) {
@@ -1402,7 +1402,7 @@ impl <'a> InstructionSelection {
                     Instruction_::Throw(op_index) => {
                         trace!("instsel on THROW");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref exception_obj = ops[op_index];
                         
                         self.emit_runtime_entry(
@@ -1415,7 +1415,7 @@ impl <'a> InstructionSelection {
                     Instruction_::PrintHex(index) => {
                         trace!("instsel on PRINTHEX");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref op = ops[index];
 
                         self.emit_runtime_entry(
@@ -1483,7 +1483,7 @@ impl <'a> InstructionSelection {
     }
 
     fn emit_binop (&mut self, node: &TreeNode, inst: &Instruction, op: BinOp, op1: OpIndex, op2: OpIndex, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
-        let ops = inst.ops.read().unwrap();
+        let ref ops = inst.ops;
 
         let res_tmp = self.get_result_value(node);
 
@@ -3145,7 +3145,7 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM)
     {
-        let ops = inst.ops.read().unwrap();
+        let ref ops = inst.ops;
 
         // prepare args (they could be instructions, we need to emit inst and get value)
         let mut arg_values = vec![];
@@ -3212,7 +3212,7 @@ impl <'a> InstructionSelection {
         vm: &VM) {
         trace!("deal with pre-call convention");
         
-        let ops = inst.ops.read().unwrap();
+        let ref ops = inst.ops;
         let ref func = ops[calldata.func];
         let ref func_sig = match func.v {
             TreeNode_::Value(ref pv) => {
@@ -3491,7 +3491,7 @@ impl <'a> InstructionSelection {
         // FIXME: this may change in the future
 
         // prepare return regs
-        let ref ops = ret_inst.ops.read().unwrap();
+        let ref ops = ret_inst.ops;
         let ret_val_indices = match ret_inst.v {
             Instruction_::Return(ref vals) => vals,
             _ => panic!("expected ret inst")
@@ -3597,7 +3597,7 @@ impl <'a> InstructionSelection {
     fn emit_cmp_res(&mut self, cond: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
-                let ops = inst.ops.read().unwrap();                
+                let ref ops = inst.ops;
                 
                 match inst.v {
                     Instruction_::CmpOp(op, op1, op2) => {
@@ -4132,7 +4132,7 @@ impl <'a> InstructionSelection {
 
     fn emit_get_mem_from_inst_inner(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {        match op.v {
             TreeNode_::Instruction(ref inst) => {
-                let ref ops = inst.ops.read().unwrap();
+                let ref ops = inst.ops;
                 
                 match inst.v {
                     // GETIREF -> [base]

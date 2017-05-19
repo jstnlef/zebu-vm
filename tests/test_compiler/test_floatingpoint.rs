@@ -10,8 +10,6 @@ use self::mu::vm::*;
 use self::mu::testutil;
 use mu::utils::LinkedHashMap;
 
-use std::sync::RwLock;
-
 #[test]
 fn test_double_add() {
     let lib = testutil::compile_fnc("double_add", &double_add);

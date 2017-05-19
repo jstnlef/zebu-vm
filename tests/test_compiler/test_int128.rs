@@ -7,7 +7,6 @@ use mu::ast::types::*;
 use mu::ast::op::*;
 use mu::vm::*;
 
-use std::sync::RwLock;
 use mu::utils::LinkedHashMap;
 use mu::testutil;
 
