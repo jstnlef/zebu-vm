@@ -1463,6 +1463,39 @@ Running test DoesNotUnderstandTest
     assert res.out == expected_out
 
 
+@may_spawn_proc
+def test_open_file_as_stream():
+    from rpython.rlib.streamio import open_file_as_stream
+
+    john1 = \
+'''\
+In the beginning was the Word, and the Word was with God, and the Word was God.
+He was in the beginning with God.
+All things were made through him, and without him was not any thing made that was made.
+In him was life, and the life was the light of men.
+The light shines in the darkness, and the darkness has not overcome it.
+'''
+    test_file = py.path.local('/tmp/john1.txt')
+    with test_file.open('w') as fp:
+        fp.write(john1)
+
+    def entry_point(argv):
+        f = open_file_as_stream(argv[1])
+        txt = ""
+        l = f.readline()
+        while l != '':
+            txt += l
+            l = f.readline()
+        print txt
+        f.close()
+        return 0
+
+    res = run_boot_image(entry_point, '/tmp/test_open_file_as_stream', args=[str(test_file)])
+
+    assert res.returncode == 0, res.err
+    assert res.out == john1 + '\n'
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
