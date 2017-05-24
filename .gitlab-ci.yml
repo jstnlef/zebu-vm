@@ -119,6 +119,7 @@ testjit:otherops:
 testjit:rpython:
   stage: test
   script:
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo build --release
     - if [ -d "tests/test_jit/RPySOM" ]; then rm -Rf tests/test_jit/RPySOM; fi
     - git clone https://github.com/microvm/RPySOM.git tests/test_jit/RPySOM
     - cd tests/test_jit/RPySOM; git submodule init; git submodule update; cd $CI_PROJECT_DIR
@@ -128,7 +129,7 @@ testjit:rpython:
     - git checkout mu-rewrite
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_rpython*.py -v
+    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_rpython*.py -v
 #   cache:
 #     key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
 #     paths:
@@ -137,3 +138,4 @@ testjit:rpython:
 #       - target
 #       - Cargo.lock
 #       - tests/test_jit/mu-client-pypy
+
