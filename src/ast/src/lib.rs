@@ -33,7 +33,6 @@ macro_rules! select_value {
 
 #[macro_use]
 pub mod ir;
-pub mod bundle;
 pub mod inst;
 pub mod types;
 pub mod ir_semantics;
