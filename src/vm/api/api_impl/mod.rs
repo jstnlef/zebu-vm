@@ -41,7 +41,6 @@ mod common {
     pub use super::super::api_c::*;
     pub use super::super::api_bridge::*;
 
-    pub use ast::bundle::*;
     pub use ast::ir::*;
     pub use ast::ptr::*;
     pub use ast::types::*;

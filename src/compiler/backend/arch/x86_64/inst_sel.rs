@@ -2429,9 +2429,12 @@ impl <'a> InstructionSelection {
             
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
-                let cur_node = cur_node.unwrap(); 
-                if cur_node.op == OpCode::CCall {
-                    unimplemented!()
+                let cur_node = cur_node.unwrap();
+                match cur_node.v {
+                    TreeNode_::Instruction(Instruction {v: Instruction_::CCall{..}, ..}) => {
+                        unimplemented!()
+                    }
+                    _ => panic!("expect cur_node in emit_c_call_internal to be an CCALL instruction")
                 }
             }
         }

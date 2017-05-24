@@ -1,7 +1,6 @@
 use ptr::P;
 use types::*;
 use inst::*;
-use op::*;
 
 use utils::vec_utils;
 use utils::LinkedHashMap;
@@ -204,28 +203,24 @@ impl MuFunctionVersion {
         self.context.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         })
     }
 
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
     
     pub fn new_global(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
 
     pub fn new_inst(&mut self, v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }
@@ -382,7 +377,6 @@ impl FunctionContext {
         self.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         })
     }
@@ -601,7 +595,6 @@ impl BlockContent {
 #[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
-    pub op: OpCode,
     pub v: TreeNode_,
 }
 
@@ -609,14 +602,12 @@ impl TreeNode {
     // this is a hack to allow creating TreeNode without using a &mut MuFunctionVersion
     pub fn new_inst(v: Instruction) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }
 
     pub fn new_boxed_inst(v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }

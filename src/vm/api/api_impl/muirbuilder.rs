@@ -1250,7 +1250,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb.ctx.values.insert(id, SSAVarEntry::new(val.clone()));
 
         let tn = P(TreeNode {
-            op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         });
 
@@ -1261,14 +1260,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
     pub fn new_inst(&self, v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }
 
     pub fn new_global(&self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
