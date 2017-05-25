@@ -403,34 +403,27 @@ impl <'a> InstructionSelection {
                                     }
 
                                     // finishing current block
-                                    let cur_block = self.current_block.as_ref().unwrap().clone();
-                                    self.backend.end_block(cur_block.clone());
+                                    self.finish_block();
 
                                     // blk_false:
-                                    self.current_block = Some(blk_false.clone());
-                                    self.backend.start_block(blk_false.clone());
-
+                                    self.start_block(blk_false.clone());
                                     // mov false result here
                                     self.emit_move_node_to_value(&tmp_res, &false_val, f_content, f_context, vm);
-
                                     // jmp to end
                                     self.backend.emit_jmp(blk_end.clone());
 
                                     // finishing current block
-                                    let cur_block = self.current_block.as_ref().unwrap().clone();
-                                    self.backend.end_block(cur_block.clone());
+                                    self.finish_block();
 
                                     // blk_true:
-                                    self.current_block = Some(blk_true.clone());
-                                    self.backend.start_block(blk_true.clone());
+                                    self.start_block(blk_true.clone());
                                     // mov true value -> result
                                     self.emit_move_node_to_value(&tmp_res, &true_val, f_content, f_context, vm);
 
                                     self.backend.end_block(blk_true.clone());
 
                                     // blk_end:
-                                    self.backend.start_block(blk_end.clone());
-                                    self.current_block = Some(blk_end.clone());
+                                    self.finish_block();
                                 }
                             }
                         } else if self.match_fpreg(true_val) {
@@ -464,34 +457,26 @@ impl <'a> InstructionSelection {
                             }
 
                             // finishing current block
-                            let cur_block = self.current_block.as_ref().unwrap().clone();
-                            self.backend.end_block(cur_block.clone());
+                            self.finish_block();
 
                             // blk_false:
-                            self.current_block = Some(blk_false.clone());
-                            self.backend.start_block(blk_false.clone());
-
+                            self.start_block(blk_false.clone());
                             // mov false result here
                             self.emit_move_node_to_value(&tmp_res, &false_val, f_content, f_context, vm);
-
                             // jmp to end
                             self.backend.emit_jmp(blk_end.clone());
 
                             // finishing current block
-                            let cur_block = self.current_block.as_ref().unwrap().clone();
-                            self.backend.end_block(cur_block.clone());
+                            self.finish_block();
 
                             // blk_true:
-                            self.current_block = Some(blk_true.clone());
-                            self.backend.start_block(blk_true.clone());
+                            self.start_block(blk_true.clone());
                             // mov true value -> result
                             self.emit_move_node_to_value(&tmp_res, &true_val, f_content, f_context, vm);
-
-                            self.backend.end_block(blk_true.clone());
+                            self.finish_block();
 
                             // blk_end:
-                            self.backend.start_block(blk_end.clone());
-                            self.current_block = Some(blk_end.clone());
+                            self.start_block(blk_end.clone());
                         } else {
                             unimplemented!()
                         }
@@ -2513,27 +2498,17 @@ impl <'a> InstructionSelection {
 
             // alloc small here
             let tmp_res = self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
-
             self.backend.emit_jmp(blk_alloc_large_end.clone());
-
             // finishing current block
-            let cur_block = self.current_block.as_ref().unwrap().clone();
-            self.backend.end_block(cur_block.clone());
-            self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
+            self.finish_block();
 
             // alloc_large:
-            self.current_block = Some(blk_alloc_large.clone());
-            self.backend.start_block(blk_alloc_large.clone());
-            self.backend.set_block_livein(blk_alloc_large.clone(), &vec![size.clone()]);
-
+            self.start_block(blk_alloc_large.clone());
             let tmp_res = self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_content, f_context, vm);
-
-            self.backend.end_block(blk_alloc_large.clone());
-            self.backend.set_block_liveout(blk_alloc_large.clone(), &vec![tmp_res.clone()]);
+            self.finish_block();
 
             // alloc_large_end:
-            self.backend.start_block(blk_alloc_large_end.clone());
-            self.current_block = Some(blk_alloc_large_end.clone());
+            self.start_block(blk_alloc_large_end.clone());
 
             tmp_res
         }
@@ -2648,18 +2623,12 @@ impl <'a> InstructionSelection {
             self.backend.emit_jmp(allocend.clone());
 
             // finishing current block
-            let cur_block = self.current_block.as_ref().unwrap().clone();
-            self.backend.end_block(cur_block.clone());
-            self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
+            self.finish_block();
 
             // alloc_slow:
             // call alloc_slow(size, align) -> %ret
             // new block (no livein)
-            self.current_block = Some(slowpath.clone());
-            self.backend.start_block(slowpath.clone());
-            if RegGroup::get_from_value(&size) == RegGroup::GPR {
-                self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
-            }
+            self.start_block(slowpath.clone());
 
             // arg1: allocator address
             // arg2: size
@@ -2681,12 +2650,10 @@ impl <'a> InstructionSelection {
             }
 
             // end block (no liveout other than result)
-            self.backend.end_block(slowpath.clone());
-            self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
+            self.finish_block();
 
             // block: alloc_end
-            self.backend.start_block(allocend.clone());
-            self.current_block = Some(allocend.clone());
+            self.start_block(allocend.clone());
 
             tmp_res
         } else {
@@ -4714,6 +4681,8 @@ impl <'a> InstructionSelection {
     fn finish_block(&mut self) {
         let cur_block = self.current_block.as_ref().unwrap().clone();
         self.backend.end_block(cur_block.clone());
+
+        self.current_block = None;
     }
 
     fn start_block(&mut self, block: String) {
@@ -4773,7 +4742,7 @@ impl CompilerPass for InstructionSelection {
 
             let block = f_content.get_block(*block_id);
             let block_label = block.name().unwrap();
-            self.current_block = Some(block_label.clone());            
+            self.current_block = Some(block_label.clone());
             
             let block_content = block.content.as_ref().unwrap();
 
@@ -4815,7 +4784,7 @@ impl CompilerPass for InstructionSelection {
             }
             
             // we may start block a, and end with block b (instruction selection may create blocks)
-            // we set liveout to current block 
+            // we set liveout to current block
             {
                 let current_block = self.current_block.as_ref().unwrap();
                 self.backend.set_block_liveout(current_block.clone(), &live_out);
