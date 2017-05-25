@@ -358,6 +358,16 @@ impl FunctionContent {
             None => panic!("cannot find block #{}", id)
         }
     }
+
+    pub fn get_block_by_name(&self, name: String) -> &Block {
+        for block in self.blocks.values() {
+            if block.name().unwrap() == name {
+                return block;
+            }
+        }
+
+        panic!("cannot find block {}", name)
+    }
 }
 
 #[derive(Default, Debug, RustcEncodable, RustcDecodable)]

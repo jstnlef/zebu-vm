@@ -157,7 +157,11 @@ impl <'a> InstructionSelection {
                         // 'branch_if_true' == true, we emit cjmp the same as CmpOp  (je  for EQ, jne for NE)
                         // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
                         let (fallthrough_dest, branch_dest, branch_if_true) = {
-                            if true_prob >= 0.5f32 {
+                            // get current block and next block in trace (fallthrough block)
+                            let cur_block = f_content.get_block_by_name(self.current_block.as_ref().unwrap().clone());
+                            let next_block_in_trace = cur_block.control_flow.get_hottest_succ().unwrap();
+
+                            if next_block_in_trace == true_dest.target {
                                 (true_dest, false_dest, false)
                             } else {
                                 (false_dest, true_dest, true)
