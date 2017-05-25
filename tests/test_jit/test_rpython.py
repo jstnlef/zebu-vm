@@ -1495,6 +1495,34 @@ The light shines in the darkness, and the darkness has not overcome it.
     assert res.returncode == 0, res.err
     assert res.out == john1 + '\n'
 
+@may_spawn_proc
+def test_rpython_rethrow():
+    def main(argv):
+        array = [1, 2, 3, 0]
+
+        for i in array:
+            print i
+            ret = i
+            try:
+                my_rethrow(i)
+            except IOError:
+                pass
+
+        return ret
+
+    def my_rethrow(i):
+        try:
+            my_throw(i)
+        except OSError:
+            raise IOError()
+
+    def my_throw(i):
+        if i != 0:
+            raise OSError()
+
+    res = run_boot_image(main, '/tmp/test_rpython_rethrow')
+    assert res.returncode == 0, res.err
+    assert res.out == '1\n2\n3\n0\n'
 
 if __name__ == '__main__':
     import argparse
