@@ -1499,6 +1499,7 @@ The light shines in the darkness, and the darkness has not overcome it.
 def test_rpython_rethrow():
     def main(argv):
         array = [1, 2, 3, 0]
+        ret = array[0]
 
         for i in array:
             print i
