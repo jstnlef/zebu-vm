@@ -423,11 +423,10 @@ impl <'a> InstructionSelection {
                                     self.start_block(blk_true.clone());
                                     // mov true value -> result
                                     self.emit_move_node_to_value(&tmp_res, &true_val, f_content, f_context, vm);
-
-                                    self.backend.end_block(blk_true.clone());
+                                    self.finish_block();
 
                                     // blk_end:
-                                    self.finish_block();
+                                    self.start_block(blk_end.clone());
                                 }
                             }
                         } else if self.match_fpreg(true_val) {
