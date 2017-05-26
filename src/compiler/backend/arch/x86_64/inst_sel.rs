@@ -106,6 +106,7 @@ pub struct InstructionSelection {
     current_callsite_id: usize,
     current_frame: Option<Frame>,
     current_block: Option<MuName>,
+    current_block_in_ir: Option<MuName>,
     current_func_start: Option<ValueLocation>,
     // key: block id, val: callsite that names the block as exception block
     current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
@@ -126,7 +127,13 @@ impl <'a> InstructionSelection {
             current_fv_id: 0,
             current_callsite_id: 0,
             current_frame: None,
-            current_block: None,
+            current_block: None,        // which block we are generating code for
+            current_block_in_ir: None,  // it is possible the block is newly created in instruction selection
+                                        // but sometimes we want to know its control flow
+                                        // so we need to track what block it is from the IR
+
+                                        // FIXME: ideally we should not create new blocks in instruction selection
+                                        // see Issue #6
             current_func_start: None,
             // key: block id, val: callsite that names the block as exception block
             current_exn_callsites: HashMap::new(), 
@@ -158,7 +165,7 @@ impl <'a> InstructionSelection {
                         // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
                         let (fallthrough_dest, branch_dest, branch_if_true) = {
                             // get current block and next block in trace (fallthrough block)
-                            let cur_block = f_content.get_block_by_name(self.current_block.as_ref().unwrap().clone());
+                            let cur_block = f_content.get_block_by_name(self.current_block_in_ir.as_ref().unwrap().clone());
                             let next_block_in_trace = cur_block.control_flow.get_hottest_succ().unwrap();
 
                             if next_block_in_trace == true_dest.target {
@@ -4746,7 +4753,7 @@ impl CompilerPass for InstructionSelection {
             let block = f_content.get_block(*block_id);
             let block_label = block.name().unwrap();
             self.current_block = Some(block_label.clone());
-            
+            self.current_block_in_ir = Some(block_label.clone());
             let block_content = block.content.as_ref().unwrap();
 
             if is_exception_block {
@@ -4794,6 +4801,7 @@ impl CompilerPass for InstructionSelection {
                 self.backend.end_block(current_block.clone());
             }            
             self.current_block = None;
+            self.current_block_in_ir = None;
         }
     }
     
