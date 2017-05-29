@@ -1405,7 +1405,6 @@ def test_float():
     assert res.returncode == 0, res.err
     assert res.out == '(0.893876, 1.000000, 0.447179)\n'
 
-@pytest.mark.skipif(True, reason='taking too long')
 @may_spawn_proc
 def test_RPySOM():
     from som.vm.universe import main, Exit
