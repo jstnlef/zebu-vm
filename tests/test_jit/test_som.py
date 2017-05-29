@@ -28,37 +28,37 @@ def test_RPySOM():
                                '%(RPYSOM)s/TestSuite/TestHarness.som' % locals()])
     assert res.returncode == 0, res.err
     expected_out = \
-        """\
-        Testing...
-        Running test EmptyTest
-        Running test SystemTest
-        Running test ArrayTest
-        Running test ClassLoadingTest
-        Running test ClosureTest
-        Running test CoercionTest
-        Running test CompilerReturnTest
-        Running test DoubleTest
-        Running test HashTest
-        Running test IntegerTest
-        Warning: Test instance of IntegerTest failed: Identity failed. Expected: true, but Actual: false
-        Warning: Test instance of IntegerTest failed: Identity failed. Expected: true, but Actual: false
-        Running test ObjectSizeTest
-        Warning: Test instance of ObjectSizeTest failed: Plain object does not have size 1.
-        Warning: Test instance of ObjectSizeTest failed: Integer object does not have size 1.
-        Warning: Test instance of ObjectSizeTest failed: hello String object does not have size 1.
-        Warning: Test instance of ObjectSizeTest failed: Empty array object does not have size 1.
-        Warning: Test instance of ObjectSizeTest failed: Array object (length 4) does not have size 5.
-        Running test PreliminaryTest
-        Running test ReflectionTest
-        Running test SelfBlockTest
-        Running test SuperTest
-        Running test SymbolTest
-        Running test VectorTest
-        Running test BlockTest
-        Running test StringTest
-        Running test ClassStructureTest
-        Definition of Class changed. Testcase needs to be updated.
-        Running test DoesNotUnderstandTest
-        ...done
-        """
+"""\
+Testing...
+Running test EmptyTest
+Running test SystemTest
+Running test ArrayTest
+Running test ClassLoadingTest
+Running test ClosureTest
+Running test CoercionTest
+Running test CompilerReturnTest
+Running test DoubleTest
+Running test HashTest
+Running test IntegerTest
+Warning: Test instance of IntegerTest failed: Identity failed. Expected: true, but Actual: false
+Warning: Test instance of IntegerTest failed: Identity failed. Expected: true, but Actual: false
+Running test ObjectSizeTest
+Warning: Test instance of ObjectSizeTest failed: Plain object does not have size 1.
+Warning: Test instance of ObjectSizeTest failed: Integer object does not have size 1.
+Warning: Test instance of ObjectSizeTest failed: hello String object does not have size 1.
+Warning: Test instance of ObjectSizeTest failed: Empty array object does not have size 1.
+Warning: Test instance of ObjectSizeTest failed: Array object (length 4) does not have size 5.
+Running test PreliminaryTest
+Running test ReflectionTest
+Running test SelfBlockTest
+Running test SuperTest
+Running test SymbolTest
+Running test VectorTest
+Running test BlockTest
+Running test StringTest
+Running test ClassStructureTest
+Definition of Class changed. Testcase needs to be updated.
+Running test DoesNotUnderstandTest
+...done
+"""
     assert res.out == expected_out
