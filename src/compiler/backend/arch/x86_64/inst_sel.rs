@@ -321,6 +321,16 @@ impl <'a> InstructionSelection {
                         } else {
                             unimplemented!();
                         }
+
+                        // it is possible that the fallthrough block is scheduled somewhere else
+                        // we need to explicitly jump to it
+                        self.finish_block();
+
+                        let fallthrough_temp_block = format!("{}_{}_branch_fallthrough", self.current_fv_id, node.id());
+                        self.start_block(fallthrough_temp_block);
+
+                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name().unwrap();
+                        self.backend.emit_jmp(fallthrough_target);
                     },
 
                     Instruction_::Select{cond, true_val, false_val} => {
@@ -2507,20 +2517,20 @@ impl <'a> InstructionSelection {
             self.start_block(format!("{}_allocsmall", node.id()));
 
             // alloc small here
-            let tmp_res = self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
+            self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
             self.backend.emit_jmp(blk_alloc_large_end.clone());
             // finishing current block
             self.finish_block();
 
             // alloc_large:
             self.start_block(blk_alloc_large.clone());
-            let tmp_res = self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_content, f_context, vm);
+            self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_content, f_context, vm);
             self.finish_block();
 
             // alloc_large_end:
             self.start_block(blk_alloc_large_end.clone());
 
-            tmp_res
+            self.get_result_value(node)
         }
     }
 
