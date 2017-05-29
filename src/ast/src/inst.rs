@@ -68,6 +68,13 @@ impl Clone for Instruction {
 }
 
 impl Instruction {
+    pub fn clone_with_id(&self, new_id: MuID) -> Instruction {
+        let mut clone = self.clone();
+        clone.hdr = self.hdr.clone_with_id(new_id);
+
+        clone
+    }
+
     pub fn has_exception_clause(&self) -> bool {
         ir_semantics::is_potentially_excepting_instruction(&self.v)
     }

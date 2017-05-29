@@ -331,13 +331,21 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
         {
             let block_content = block.content.as_mut().unwrap();
             let last_inst = block_content.body.pop().unwrap();
-            let last_inst_clone = last_inst.clone();
+
+            // every inst should have a unique ID
+            let inst_new_id = vm.next_id();
+            let last_inst_clone = match last_inst.v {
+                TreeNode_::Instruction(ref inst) => {
+                    TreeNode::new_boxed_inst(inst.clone_with_id(inst_new_id))
+                }
+                _ => panic!("expect instruction as block body")
+            };
 
             match last_inst.v {
                 TreeNode_::Instruction(inst) => {
                     trace!("last instruction: {}", inst);
 
-                    let hdr = inst.hdr;
+                    let hdr = inst.hdr.clone_with_id(inst_new_id);
                     let value = inst.value;
                     let ops = inst.ops;
                     let v = inst.v;
