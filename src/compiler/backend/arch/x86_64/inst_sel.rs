@@ -1779,7 +1779,7 @@ impl <'a> InstructionSelection {
     fn emit_alloc_sequence (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
-            let size_i = size.extract_int_const();
+            let size_i = size.extract_int_const().unwrap();
 
             if size_i + OBJECT_HEADER_SIZE as u64 > mm::LARGE_OBJECT_THRESHOLD as u64 {
                 self.emit_alloc_sequence_large(tmp_allocator, size, align, node, f_content, f_context, vm)
@@ -1898,7 +1898,7 @@ impl <'a> InstructionSelection {
             // or lea size(%start) -> %end
             let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
             let size = if size.is_int_const() {
-                let mut offset = size.extract_int_const() as i32;
+                let mut offset = size.extract_int_const().unwrap() as i32;
 
                 if OBJECT_HEADER_SIZE != 0 {
                     offset += OBJECT_HEADER_SIZE as i32;
@@ -2038,7 +2038,7 @@ impl <'a> InstructionSelection {
     fn emit_push(&mut self, op: &P<Value>) {
         if op.is_int_const() {
             if x86_64::is_valid_x86_imm(op) {
-                let int = op.extract_int_const();
+                let int = op.extract_int_const().unwrap();
                 self.backend.emit_push_imm32(int as i32);
             } else {
                 unimplemented!();
@@ -2242,7 +2242,7 @@ impl <'a> InstructionSelection {
                     stack_args.push(arg.clone());
                 }
             } else if arg.is_int_const() {
-                let int_const = arg.extract_int_const();
+                let int_const = arg.extract_int_const().unwrap();
 
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
                     let arg_gpr = {
@@ -3206,7 +3206,7 @@ impl <'a> InstructionSelection {
             MemoryLocation::Address { base, offset, index, scale } => {
                 let new_offset = match offset {
                     Some(pv) => {
-                        let old_offset = pv.extract_int_const();
+                        let old_offset = pv.extract_int_const().unwrap();
                         old_offset + more_offset
                     },
                     None => more_offset

@@ -1,6 +1,5 @@
 use ast::ir::*;
 use ast::inst::*;
-use ast::ir_semantics::*;
 
 use vm::VM;
 use compiler::CompilerPass;
@@ -17,8 +16,8 @@ impl TreeGen {
     }
 }
 
-fn is_movable(expr: &Instruction_) -> bool {
-    !has_side_effect(expr)
+fn is_movable(inst: &Instruction) -> bool {
+    !inst.has_side_effect()
 }
 
 impl CompilerPass for TreeGen {
@@ -83,7 +82,7 @@ impl CompilerPass for TreeGen {
                                 if left.len() == 1 {
                                     let lhs = context.get_value_mut(left[0].extract_ssa_id().unwrap()).unwrap(); 
                                     if lhs.use_count() == 1{
-                                        if is_movable(&inst.v) {
+                                        if is_movable(&inst) {
                                             lhs.assign_expr(inst.clone()); // FIXME: should be able to move the inst here
                                             
                                             trace!("yes");

@@ -1057,7 +1057,7 @@ impl <'a> InstructionSelection {
                     if offset.is_some() {
                         let offset = offset.as_ref().unwrap();
                         if match_value_int_imm(&offset) {
-                            let offset = offset.extract_int_const()*scale + (more_offset as u64);
+                            let offset = offset.extract_int_const().unwrap()*scale + (more_offset as u64);
                             make_value_int_const(offset as u64, vm)
                         } else {
                             let offset = emit_ireg_value(self.backend.as_mut(), &offset, f_context, vm);
@@ -1112,7 +1112,7 @@ impl <'a> InstructionSelection {
                             let offset = offset.as_ref().unwrap();
                             if match_value_int_imm(&offset) {
                                 let temp = make_temporary(f_context, offset.ty.clone(), vm);
-                                let offset_scaled = (offset.extract_int_const() as i64)*(scale as i64);
+                                let offset_scaled = (offset.extract_int_const().unwrap() as i64)*(scale as i64);
                                 if offset_scaled % (new_scale as i64) == 0 {
                                     self.emit_add_u64(&temp, &more_offset, f_context, vm, (offset_scaled / (new_scale as i64)) as u64);
                                     // new_scale*temp = (more_offset + (offset*scale)/new_scale)
@@ -1846,7 +1846,7 @@ impl <'a> InstructionSelection {
     fn emit_alloc_sequence(&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
-            let size_i = size.extract_int_const();
+            let size_i = size.extract_int_const().unwrap();
 
             if size_i + OBJECT_HEADER_SIZE as u64 > mm::LARGE_OBJECT_THRESHOLD as u64 {
                 self.emit_alloc_sequence_large(tmp_allocator, size, align, node, f_content, f_context, vm)

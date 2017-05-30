@@ -33,19 +33,21 @@ lazy_static! {
         a.store(INTERNAL_ID_START, Ordering::SeqCst);
         a
     };
-} 
+}
+/// MuID reserved for machine registers
 pub const  MACHINE_ID_START : usize = 0;
 pub const  MACHINE_ID_END   : usize = 200;
 
+/// MuID reserved for internal types, etc.
 pub const  INTERNAL_ID_START: usize = 201;
 pub const  INTERNAL_ID_END  : usize = 500;
 pub const  USER_ID_START    : usize = 1001;
 
 #[deprecated]
 #[allow(dead_code)]
-/// it could happen that one same machine register get different IDs
-/// during serialization and restoring
-/// currently I hand-write fixed ID for each machine register
+// it could happen that one same machine register get different IDs
+// during serialization and restoring
+// currently I hand-write fixed ID for each machine register
 pub fn new_machine_id() -> MuID {
     let ret = MACHINE_ID.fetch_add(1, Ordering::SeqCst);
     if ret >= MACHINE_ID_END {
@@ -62,6 +64,9 @@ pub fn new_internal_id() -> MuID {
     ret
 }
 
+/// MuFunction represents a Mu function (not a specific definition of a function)
+/// This stores function signature, and a list of all versions of this function (as ID),
+/// and its current version (as ID)
 #[derive(Debug, RustcEncodable, RustcDecodable)]
 pub struct MuFunction {
     pub hdr: MuEntityHeader,
@@ -80,7 +85,8 @@ impl MuFunction {
             all_vers: vec![]
         }
     }
-    
+
+    /// adds a new version to this function, and it becomes the current version
     pub fn new_version(&mut self, fv: MuID) {
         if self.cur_ver.is_some() {
             let obsolete_ver = self.cur_ver.unwrap();
@@ -97,22 +103,23 @@ impl fmt::Display for MuFunction {
     }
 }
 
+/// MuFunctionVersion represents a specific definition of a Mu function
+/// It owns the tree structure of MuIRs for the function version
+
+// FIXME: currently part of compilation information is also stored in this data structure
+// we should move them (see Issue #18)
 #[derive(RustcEncodable, RustcDecodable)]
 pub struct MuFunctionVersion {
     pub hdr: MuEntityHeader,
-         
+
     pub func_id: MuID,
     pub sig: P<MuFuncSig>,
-
-    orig_content: Option<FunctionContent>,
-    pub content: Option<FunctionContent>,
+    orig_content: Option<FunctionContent>,      // original IR
+    pub content: Option<FunctionContent>,       // IR that may have been rewritten during compilation
     is_defined: bool,
     is_compiled: bool,
-
     pub context: FunctionContext,
-
     pub force_inline: bool,
-
     pub block_trace: Option<Vec<MuID>> // only available after Trace Generation Pass
 }
 
@@ -141,6 +148,7 @@ impl fmt::Debug for MuFunctionVersion {
 }
 
 impl MuFunctionVersion {
+    /// creates an empty function version
     pub fn new(entity: MuEntityHeader, func: MuID, sig: P<MuFuncSig>) -> MuFunctionVersion {
         MuFunctionVersion{
             hdr: entity,
@@ -156,6 +164,7 @@ impl MuFunctionVersion {
         }
     }
 
+    /// creates a complete function version
     pub fn new_(hdr: MuEntityHeader, id: MuID, sig: P<MuFuncSig>, content: FunctionContent, context: FunctionContext) -> MuFunctionVersion {
         MuFunctionVersion {
             hdr: hdr,
@@ -175,6 +184,7 @@ impl MuFunctionVersion {
         self.orig_content.as_ref()
     }
 
+    /// defines function content
     pub fn define(&mut self, content: FunctionContent) {
         if self.is_defined {
             panic!("alread defined the function: {}", self);
@@ -188,6 +198,7 @@ impl MuFunctionVersion {
     pub fn is_compiled(&self) -> bool {
         self.is_compiled
     }
+
     pub fn set_compiled(&mut self) {
         self.is_compiled = true;
     }
@@ -225,7 +236,8 @@ impl MuFunctionVersion {
         })
     }
 
-    /// get Map(CallSiteID -> FuncID) that are called by this function
+    /// gets call outedges in this function
+    /// returns Map(CallSiteID -> FuncID)
     pub fn get_static_call_edges(&self) -> LinkedHashMap<MuID, MuID> {
         let mut ret = LinkedHashMap::new();
 
@@ -296,13 +308,12 @@ impl MuFunctionVersion {
     }
 }
 
+/// FunctionContent contains all blocks (which include all instructions) for the function
 #[derive(Clone, RustcEncodable, RustcDecodable)]
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: LinkedHashMap<MuID, Block>,
-
-    // this field only valid after control flow analysis
-    pub exception_blocks: LinkedHashSet<MuID>
+    pub exception_blocks: LinkedHashSet<MuID> // this field only valid after control flow analysis
 }
 
 impl fmt::Debug for FunctionContent {
@@ -355,6 +366,9 @@ impl FunctionContent {
     }
 }
 
+/// FunctionContext contains compilation information about the function
+
+// FIXME: should move this out of ast crate and bind its lifetime with compilation (Issue #18)
 #[derive(Default, Debug, RustcEncodable, RustcDecodable)]
 pub struct FunctionContext {
     pub values: LinkedHashMap<MuID, SSAVarEntry>
@@ -366,7 +380,8 @@ impl FunctionContext {
             values: LinkedHashMap::new()
         }
     }
-    
+
+    /// makes a TreeNode of an SSA variable
     pub fn make_temporary(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
         let val = P(Value{
             hdr: MuEntityHeader::unnamed(id),
@@ -381,6 +396,7 @@ impl FunctionContext {
         })
     }
 
+    /// shows the name for an SSA by ID
     pub fn get_temp_display(&self, id: MuID) -> String {
         match self.get_value(id) {
             Some(entry) => format!("{}", entry.value()),
@@ -388,15 +404,20 @@ impl FunctionContext {
         }
     }
 
+    /// returns a &SSAVarEntry for the given ID
     pub fn get_value(&self, id: MuID) -> Option<&SSAVarEntry> {
         self.values.get(&id)
     }
 
+    /// returns a &mut SSAVarEntry for the given ID
     pub fn get_value_mut(&mut self, id: MuID) -> Option<&mut SSAVarEntry> {
         self.values.get_mut(&id)
     }
 }
 
+/// Block contains BlockContent, which includes all the instructions for the block
+
+// FIXME: control_flow field should be moved out of ast crate (Issue #18)
 #[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct Block {
     pub hdr: MuEntityHeader,
@@ -422,11 +443,13 @@ impl Block {
     pub fn new(entity: MuEntityHeader) -> Block {
         Block{hdr: entity, content: None, control_flow: ControlFlow::default()}
     }
-    
+
+    /// does this block have an exception arguments?
     pub fn is_receiving_exception_arg(&self) -> bool {
         return self.content.as_ref().unwrap().exn_arg.is_some()
     }
 
+    /// how many IR instruction does this block have?
     pub fn number_of_irs(&self) -> usize {
         if self.content.is_none() {
             0
@@ -438,6 +461,9 @@ impl Block {
     }
 }
 
+/// ControlFlow stores compilation info about control flows of a block
+
+// FIXME: Issue #18
 #[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
 pub struct ControlFlow {
     pub preds : Vec<MuID>,
@@ -445,6 +471,8 @@ pub struct ControlFlow {
 }
 
 impl ControlFlow {
+    /// returns the successor with highest branching probability
+    /// (in case of tie, returns first met successor)
     pub fn get_hottest_succ(&self) -> Option<MuID> {
         if self.succs.len() == 0 {
             None
@@ -477,6 +505,7 @@ impl default::Default for ControlFlow {
     }
 }
 
+/// BlockEdge represents an edge in control flow graph
 #[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct BlockEdge {
     pub target: MuID,
@@ -496,6 +525,7 @@ pub enum EdgeKind {
     Forward, Backward
 }
 
+/// BlockContent describes arguments to this block, and owns all the IR instructions
 #[derive(RustcEncodable, RustcDecodable, Clone)]
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
@@ -521,6 +551,7 @@ impl fmt::Debug for BlockContent {
 }
 
 impl BlockContent {
+    /// returns all the arguments passed to its successors
     pub fn get_out_arguments(&self) -> Vec<P<Value>> {
         let n_insts = self.body.len();
         let ref last_inst = self.body[n_insts - 1];
@@ -592,26 +623,30 @@ impl BlockContent {
     }
 }
 
+/// TreeNode represents a node in the AST, it could either be an instruction,
+/// or an value (SSA, constant, global, etc)
 #[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
-/// always use with P<TreeNode>
 pub struct TreeNode {
     pub v: TreeNode_,
 }
 
 impl TreeNode {
-    // this is a hack to allow creating TreeNode without using a &mut MuFunctionVersion
+    /// creates a sharable Instruction TreeNode
     pub fn new_inst(v: Instruction) -> P<TreeNode> {
         P(TreeNode{
             v: TreeNode_::Instruction(v),
         })
     }
 
+    /// creates an owned Instruction TreeNode
     pub fn new_boxed_inst(v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
             v: TreeNode_::Instruction(v),
         })
     }
 
+    /// extracts the MuID of an SSA TreeNode
+    /// if the node is not an SSA, returns None
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             TreeNode_::Value(ref pv) => {
@@ -624,6 +659,9 @@ impl TreeNode {
         }
     }
 
+    /// clones the value from the TreeNode
+    /// * if this is a Instruction TreeNode, returns its first result value
+    /// * if this is a value, returns a clone of it
     pub fn clone_value(&self) -> P<Value> {
         match self.v {
             TreeNode_::Value(ref val) => val.clone(),
@@ -637,6 +675,7 @@ impl TreeNode {
         }
     }
 
+    /// consumes the TreeNode, returns the value in it (or None if it is not a value)
     pub fn into_value(self) -> Option<P<Value>> {
         match self.v {
             TreeNode_::Value(val) => Some(val),
@@ -644,6 +683,7 @@ impl TreeNode {
         }
     }
 
+    /// consumes the TreeNode, returns the instruction in it (or None if it is not an instruction)
     pub fn into_inst(self) -> Option<Instruction> {
         match self.v {
             TreeNode_::Instruction(inst) => Some(inst),
@@ -652,7 +692,6 @@ impl TreeNode {
     }
 }
 
-/// use +() to display a node
 impl fmt::Display for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.v {
@@ -664,13 +703,18 @@ impl fmt::Display for TreeNode {
     }
 }
 
+/// TreeNode_ is used for pattern matching for TreeNode
 #[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
     Instruction(Instruction)
 }
 
-/// always use with P<Value>
+/// Value represents a value in the tree, it could be SSA variables, constants, globals,
+/// which all will appear in Mu IR. Value may also represent a memory (as in transformed tree,
+/// we need to represent memory as well)
+///
+/// Value should always be used with P<Value> (sharable)
 #[derive(PartialEq, RustcEncodable, RustcDecodable)]
 pub struct Value {
     pub hdr: MuEntityHeader,
@@ -679,6 +723,7 @@ pub struct Value {
 }
 
 impl Value {
+    /// creates an int constant value
     pub fn make_int_const(id: MuID, val: u64) -> P<Value> {
         P(Value{
             hdr: MuEntityHeader::unnamed(id),
@@ -707,6 +752,9 @@ impl Value {
         }
     }
 
+    /// disguises a value as another type.
+    /// This is usually used for treat an integer type as an integer of a different length
+    /// This method is unsafe
     pub unsafe fn as_type(&self, ty: P<MuType>) -> P<Value> {
         P(Value{
             hdr: self.hdr.clone(),
@@ -738,11 +786,11 @@ impl Value {
         }
     }
     
-    pub fn extract_int_const(&self) -> u64 {
+    pub fn extract_int_const(&self) -> Option<u64> {
         match self.v {
-            Value_::Constant(Constant::Int(val)) => val,
-            Value_::Constant(Constant::NullRef)  => 0,
-            _ => panic!("expect int const")
+            Value_::Constant(Constant::Int(val)) => Some(val),
+            Value_::Constant(Constant::NullRef)  => Some(0),
+            _ => None
         }
     }
 
@@ -800,6 +848,7 @@ impl fmt::Display for Value {
     }
 }
 
+/// Value_ is used for pattern matching for Value
 #[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Value_ {
     SSAVar(MuID),
@@ -808,12 +857,14 @@ pub enum Value_ {
     Memory(MemoryLocation)
 }
 
+/// SSAVarEntry represent compilation info for an SSA variable
+// FIXME: Issue#18
 #[derive(Debug)]
 pub struct SSAVarEntry {
     val: P<Value>,
 
     // how many times this entry is used
-    // availalbe after DefUse pass
+    // available after DefUse pass
     use_count: AtomicUsize,
 
     // this field is only used during TreeGeneration pass
@@ -901,19 +952,25 @@ impl fmt::Display for SSAVarEntry {
     }
 }
 
+/// Constant presents all kinds of constant that can appear in MuIR
 #[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum Constant {
+    /// all integer constants are stored as u64
     Int(u64),
+    /// float constants
     Float(f32),
+    /// double constants
     Double(f64),
-//    IRef(Address),
+    /// function reference
     FuncRef(MuID),
+    /// vector constant (currently not used)
     Vector(Vec<Constant>),
-    //Pointer(Address),
+    /// null reference
     NullRef,
+    /// external symbol
     ExternSym(CName),
-
-    List(Vec<P<Value>>) // a composite type of several constants
+    /// a composite type of several constants (currently not used)
+    List(Vec<P<Value>>)
 }
 
 impl fmt::Display for Constant {
@@ -948,15 +1005,19 @@ impl fmt::Display for Constant {
     }
 }
 
+/// MemoryLocation represents a memory value
+/// This enumerate type is target dependent
 #[cfg(target_arch = "x86_64")]
 #[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum MemoryLocation {
+    /// addr = base + offset + index * scale
     Address{
         base: P<Value>,
         offset: Option<P<Value>>,
         index: Option<P<Value>>,
         scale: Option<u8>
     },
+    /// addr = base + label(offset)
     Symbolic{
         base: Option<P<Value>>,
         label: MuName,
@@ -992,25 +1053,31 @@ impl fmt::Display for MemoryLocation {
     }
 }
 
+/// MemoryLocation represents a memory value
+/// This enumerate type is target dependent
 #[cfg(target_arch = "aarch64")]
 #[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum MemoryLocation {
-    // Represents how an adress should be computed,
-    // will need to be converted to a real Address before being used
+    /// Represents how an address should be computed,
+    /// will need to be converted to a real Address before being used
     VirtualAddress{
-        // Represents base + offset*scale
-        // With offset being inerpreted as signed if 'signed' is true
+        /// Represents base + offset*scale
+        /// With offset being inerpreted as signed if 'signed' is true
         base: P<Value>,
         offset: Option<P<Value>>,
         scale: u64,
         signed: bool
     },
     Address{
-        base: P<Value>, // Must be a normal 64-bit register or SP
-        offset: Option<P<Value>>, // Can be any GPR or a 12-bit unsigned immediate << n
-        shift: u8, // valid values are 0, log2(n)
-        signed: bool, // Whether offset is signed or not (only set this if offset is a register)
-        // Note: n is the number of bytes the adress refers two
+        /// Must be a normal 64-bit register or SP
+        base: P<Value>,
+        /// Can be any GPR or a 12-bit unsigned immediate << n
+        offset: Option<P<Value>>,
+        /// valid values are 0, log2(n)
+        shift: u8,
+        /// Whether offset is signed or not (only set this if offset is a register)
+        /// Note: n is the number of bytes the adress refers two
+        signed: bool,
     },
     Symbolic{
         label: MuName,
@@ -1053,6 +1120,7 @@ impl fmt::Display for MemoryLocation {
     }
 }
 
+/// MuEntityHeader is a prefix struct for all Mu Entities (who have an Mu ID, and possibly a name)
 #[repr(C)]
 #[derive(Debug)] // Display, PartialEq, Clone
 pub struct MuEntityHeader {
@@ -1097,6 +1165,10 @@ impl Decodable for MuEntityHeader {
     }
 }
 
+/// turns a client supplied name into a valid name for internal use and code generation.
+/// The name should not contain special characters that may be escaped.
+/// This name is stored with every Mu Entity while the original name from client is
+/// stored somewhere else only for query use.
 pub fn name_check(name: MuName) -> MuName {
     let name = name.replace('.', "$");
 
@@ -1132,6 +1204,7 @@ impl MuEntityHeader {
         self.name.clone()
     }
 
+    /// an abbreviate (easy reading) version of the name
     fn abbreviate_name(&self) -> Option<MuName> {
         match self.name() {
             Some(name) => {
@@ -1188,11 +1261,15 @@ impl fmt::Display for MuEntityHeader {
     }
 }
 
+/// MuEntity trait allows accessing id and name on AST data structures
 pub trait MuEntity {
     fn id(&self) -> MuID;
     fn name(&self) -> Option<MuName>;
     fn as_entity(&self) -> &MuEntity;
 }
+
+// The following structs defined in this module implement MuEntity
+// TreeNode implements MuEntity in a different way
 
 impl_mu_entity!(MuFunction);
 impl_mu_entity!(MuFunctionVersion);
@@ -1222,16 +1299,4 @@ impl MuEntity for TreeNode {
             TreeNode_::Value(ref pv) => pv.as_entity()
         }
     }
-}
-
-pub fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
-    let mut ret = String::new();
-    for i in 0..vec.len() {
-        let index = vec[i];
-        ret.push_str(format!("{}", ops[index]).as_str());
-        if i != vec.len() - 1 {
-            ret.push_str(", ");
-        }
-    }
-    ret
 }

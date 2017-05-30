@@ -2,22 +2,27 @@ use ir::*;
 use ptr::*;
 use types::*;
 use op::*;
-use ir_semantics;
 
 use utils::vec_utils;
 
 use std::fmt;
 use std::sync::RwLock;
 
-#[derive(Debug)]
-// this implements RustcEncodable, RustcDecodable, Clone and Display
+/// Instruction represents a Mu instruction
+#[derive(Debug)] // RustcEncodable, RustcDecodable, Clone and Display
 pub struct Instruction {
     pub hdr: MuEntityHeader,
+    /// the values this instruction holds
     pub value : Option<Vec<P<Value>>>,
+    /// ops field list all the children nodes,
+    /// and in Instruction_, the children nodes are referred by indices
+    /// This design makes it easy for the compiler to iterate through all the children
     pub ops : RwLock<Vec<P<TreeNode>>>,
+    /// used for pattern matching
     pub v: Instruction_
 }
 
+// Instruction implements MuEntity
 impl_mu_entity!(Instruction);
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
@@ -69,12 +74,172 @@ impl Clone for Instruction {
 }
 
 impl Instruction {
+    pub fn is_terminal_inst(&self) -> bool {
+        use inst::Instruction_::*;
+
+        match self.v {
+            BinOp(_, _, _)
+            | BinOpWithStatus(_, _, _, _)
+            | CmpOp(_, _, _)
+            | ConvOp{..}
+            | ExprCall{..}
+            | ExprCCall{..}
+            | Load{..}
+            | Store{..}
+            | CmpXchg{..}
+            | AtomicRMW{..}
+            | New(_)
+            | AllocA(_)
+            | NewHybrid(_, _)
+            | AllocAHybrid(_, _)
+            | NewStack(_)
+            | NewThread(_, _)
+            | NewThreadExn(_, _)
+            | NewFrameCursor(_)
+            | GetIRef(_)
+            | GetFieldIRef{..}
+            | GetElementIRef{..}
+            | ShiftIRef{..}
+            | GetVarPartIRef{..}
+            | Select{..}
+            | Fence(_)
+            | CommonInst_GetThreadLocal
+            | CommonInst_SetThreadLocal(_)
+            | CommonInst_Pin(_)
+            | CommonInst_Unpin(_)
+            | Move(_)
+            | PrintHex(_) => false,
+            Return(_)
+            | ThreadExit
+            | Throw(_)
+            | TailCall(_)
+            | Branch1(_)
+            | Branch2{..}
+            | Watchpoint{..}
+            | WPBranch{..}
+            | Call{..}
+            | CCall{..}
+            | SwapStack{..}
+            | Switch{..}
+            | ExnInstruction{..} => true
+        }
+    }
+
+    pub fn is_non_terminal_inst(&self) -> bool {
+        !self.is_terminal_inst()
+    }
+
+    // FIXME: need to check correctness
+    pub fn has_side_effect(&self) -> bool {
+        use inst::Instruction_::*;
+
+        match self.v {
+            BinOp(_, _, _) => false,
+            BinOpWithStatus(_, _, _, _) => false,
+            CmpOp(_, _, _) => false,
+            ConvOp{..} => false,
+            ExprCall{..} => true,
+            ExprCCall{..} => true,
+            Load{..} => true,
+            Store{..} => true,
+            CmpXchg{..} => true,
+            AtomicRMW{..} => true,
+            New(_) => true,
+            AllocA(_) => true,
+            NewHybrid(_, _) => true,
+            AllocAHybrid(_, _) => true,
+            NewStack(_) => true,
+            NewThread(_, _) => true,
+            NewThreadExn(_, _) => true,
+            NewFrameCursor(_) => true,
+            GetIRef(_) => false,
+            GetFieldIRef{..} => false,
+            GetElementIRef{..} => false,
+            ShiftIRef{..} => false,
+            GetVarPartIRef{..} => false,
+            Fence(_) => true,
+            Return(_) => true,
+            ThreadExit => true,
+            Throw(_) => true,
+            TailCall(_) => true,
+            Branch1(_) => true,
+            Branch2{..} => true,
+            Select{..} => false,
+            Watchpoint{..} => true,
+            WPBranch{..} => true,
+            Call{..} => true,
+            CCall{..} => true,
+            SwapStack{..} => true,
+            Switch{..} => true,
+            ExnInstruction{..} => true,
+            CommonInst_GetThreadLocal => true,
+            CommonInst_SetThreadLocal(_) => true,
+            CommonInst_Pin(_) => true,
+            CommonInst_Unpin(_) => true,
+            Move(_) => false,
+            PrintHex(_) => true
+        }
+    }
+
+    pub fn is_potentially_excepting_instruction(&self) -> bool {
+        use inst::Instruction_::*;
+
+        match self.v {
+            Watchpoint{..}
+            | Call{..}
+            | CCall{..}
+            | SwapStack{..}
+            | ExnInstruction{..} => true,
+
+            BinOp(_, _, _)
+            | BinOpWithStatus(_, _, _, _)
+            | CmpOp(_, _, _)
+            | ConvOp{..}
+            | ExprCall{..}
+            | ExprCCall{..}
+            | Load{..}
+            | Store{..}
+            | CmpXchg{..}
+            | AtomicRMW{..}
+            | New(_)
+            | AllocA(_)
+            | NewHybrid(_, _)
+            | AllocAHybrid(_, _)
+            | NewStack(_)
+            | NewThread(_, _)
+            | NewThreadExn(_, _)
+            | NewFrameCursor(_)
+            | GetIRef(_)
+            | GetFieldIRef{..}
+            | GetElementIRef{..}
+            | ShiftIRef{..}
+            | GetVarPartIRef{..}
+            | Fence(_)
+            | Return(_)
+            | ThreadExit
+            | Throw(_)
+            | TailCall(_)
+            | Branch1(_)
+            | Branch2{..}
+            | Select{..}
+            | WPBranch{..}
+            | Switch{..}
+            | CommonInst_GetThreadLocal
+            | CommonInst_SetThreadLocal(_)
+            | CommonInst_Pin(_)
+            | CommonInst_Unpin(_)
+            | Move(_)
+            | PrintHex(_) => false
+        }
+    }
+
     pub fn has_exception_clause(&self) -> bool {
-        ir_semantics::is_potentially_excepting_instruction(&self.v)
+        self.is_potentially_excepting_instruction()
     }
 
     pub fn get_exception_target(&self) -> Option<MuID> {
         use inst::Instruction_::*;
+
         match self.v {
             Watchpoint {ref resume, ..}
             | Call {ref resume, ..}
@@ -624,4 +789,16 @@ impl DestArg {
             &DestArg::Freshbound(n) => format!("${}", n)
         }
     }
+}
+
+fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
+    let mut ret = String::new();
+    for i in 0..vec.len() {
+        let index = vec[i];
+        ret.push_str(format!("{}", ops[index]).as_str());
+        if i != vec.len() - 1 {
+            ret.push_str(", ");
+        }
+    }
+    ret
 }

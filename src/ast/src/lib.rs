@@ -1,3 +1,21 @@
+//! # MuIR AST crate
+//!
+//! This crate provides data structures to allow construct MuIR in Rust code, including:
+//! * types
+//! * ir
+//!   * MuFunction
+//!   * MuFunctionVersion
+//!     * FunctionContent
+//!       * Block
+//!         * BlockContent
+//!           * TreeNode
+//!             * Value
+//!             * Instruction
+//! * inst
+//! * op (operators)
+//!
+//! Client should not create MuIR via this crate, use API instead.
+
 extern crate log;
 extern crate simple_logger;
 #[macro_use]
@@ -5,6 +23,8 @@ extern crate lazy_static;
 extern crate rustc_serialize;
 extern crate utils;
 
+/// all data structures for MuIR is an *MuEntity*
+/// which has a unique MuID, and an optional MuName
 #[macro_export]
 macro_rules! impl_mu_entity {
     ($entity: ty) => {
@@ -35,6 +55,5 @@ macro_rules! select_value {
 pub mod ir;
 pub mod inst;
 pub mod types;
-pub mod ir_semantics;
 pub mod ptr;
 pub mod op;
