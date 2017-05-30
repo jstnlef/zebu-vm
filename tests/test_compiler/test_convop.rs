@@ -10,8 +10,6 @@ use self::mu::vm::*;
 use self::mu::testutil;
 use mu::utils::LinkedHashMap;
 
-use std::sync::RwLock;
-
 #[test]
 fn test_truncate_then_call() {
     let lib = testutil::compile_fncs("truncate_then_call", vec!["truncate_then_call", "dummy_call"], &truncate_then_call);

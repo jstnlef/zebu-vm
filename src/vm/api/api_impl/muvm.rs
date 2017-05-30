@@ -80,19 +80,19 @@ impl MuVM {
         use compiler::*;
         use testutil::aot;
 
-        let compiler = Compiler::new(CompilerPolicy::default(), &self.vm);
-        let funcs = self.vm.funcs().read().unwrap();
-        let mut func_names = vec![];
-        // NOTE: this fails because load() API call is not properly implemented yet.
-        for (func_id, ref f) in funcs.iter() {
-            let func = f.read().unwrap();
-            let func_vers = self.vm.func_vers().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-            compiler.compile(&mut func_ver);
-            func_names.push(func.name().unwrap());
-        }
-        backend::emit_context(&self.vm);
-        aot::link_dylib_with_extra_srcs(func_names, extra_srcs, &lib_name, &self.vm);
+        let funcs : Vec<MuID> = {
+            let funcs = self.vm.funcs().read().unwrap();
+            funcs.keys().map(|x| *x).collect()
+        };
+
+        self.vm.make_boot_image_internal(funcs,
+                                         None, None,
+                                         None,
+                                         vec![], vec![],
+                                         vec![], vec![],
+                                         extra_srcs,
+                                         lib_name
+        );
     }
 
     pub fn current_thread_as_mu_thread(&self, threadlocal: CMuCPtr) {

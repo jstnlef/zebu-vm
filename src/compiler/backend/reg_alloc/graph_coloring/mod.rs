@@ -14,7 +14,6 @@ use compiler::CompilerPass;
 use compiler::backend::is_callee_saved;
 use compiler::backend::init_machine_regs_for_func;
 use compiler::backend::reg_alloc::validate;
-use utils::POINTER_SIZE;
 use std::any::Any;
 
 pub struct RegisterAllocation {

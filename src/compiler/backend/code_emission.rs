@@ -222,7 +222,7 @@ fn emit_muir_dot_inner(file: &mut File,
 
         match last_inst.v {
             TreeNode_::Instruction(ref inst) => {
-                let ops = inst.ops.read().unwrap();
+                let ref ops = inst.ops;
 
                 match inst.v {
                     Branch1(ref dest) => {

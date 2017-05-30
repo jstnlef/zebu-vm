@@ -5,7 +5,6 @@ use vm::VM;
 
 use compiler::CompilerPass;
 use std::any::Any;
-use std::sync::RwLock;
 use std::collections::HashMap;
 
 pub struct Inlining {
@@ -149,7 +148,7 @@ impl Inlining {
 
                         // change current call insts to a branch
                         trace!("turning CALL instruction into a branch");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         match inst.v {
                             Instruction_::ExprCall {ref data, ..} => {
@@ -159,7 +158,7 @@ impl Inlining {
                                 let branch = TreeNode::new_boxed_inst(Instruction{
                                     hdr: inst.hdr.clone(),
                                     value: None,
-                                    ops: RwLock::new(arg_nodes.clone()),
+                                    ops: arg_nodes.clone(),
                                     v: Instruction_::Branch1(Destination{
                                         // this block doesnt exist yet, we will fix it later
                                         target: new_inlined_entry_id,
@@ -209,7 +208,7 @@ impl Inlining {
                                 let branch = Instruction{
                                     hdr: inst.hdr.clone(),
                                     value: None,
-                                    ops: RwLock::new(arg_nodes),
+                                    ops: arg_nodes,
                                     v: Instruction_::Branch1(Destination{
                                         target: new_inlined_entry_id,
                                         args: arg_indices.iter().map(|x| DestArg::Normal(*x)).collect()
@@ -237,7 +236,7 @@ impl Inlining {
                                     let branch = Instruction {
                                         hdr: MuEntityHeader::unnamed(vm.next_id()),
                                         value: None,
-                                        ops: RwLock::new(normal_dest_args),
+                                        ops: normal_dest_args,
                                         v: Instruction_::Branch1(Destination {
                                             target: resume.normal_dest.target,
                                             args: (0..normal_dest_args_len).map(|x| DestArg::Normal(x)).collect()
@@ -332,13 +331,21 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
         {
             let block_content = block.content.as_mut().unwrap();
             let last_inst = block_content.body.pop().unwrap();
-            let last_inst_clone = last_inst.clone();
+
+            // every inst should have a unique ID
+            let inst_new_id = vm.next_id();
+            let last_inst_clone = match last_inst.v {
+                TreeNode_::Instruction(ref inst) => {
+                    TreeNode::new_boxed_inst(inst.clone_with_id(inst_new_id))
+                }
+                _ => panic!("expect instruction as block body")
+            };
 
             match last_inst.v {
                 TreeNode_::Instruction(inst) => {
                     trace!("last instruction: {}", inst);
 
-                    let hdr = inst.hdr;
+                    let hdr = inst.hdr.clone_with_id(inst_new_id);
                     let value = inst.value;
                     let ops = inst.ops;
                     let v = inst.v;

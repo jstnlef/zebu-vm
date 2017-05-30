@@ -12,7 +12,6 @@ use self::mu::utils::Address;
 use self::mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
-use std::sync::RwLock;
 use self::mu::testutil;
 use self::mu::testutil::aot;
 

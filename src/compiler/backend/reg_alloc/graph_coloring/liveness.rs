@@ -43,7 +43,7 @@ impl InterferenceGraph {
             let node = GraphNode {
                 temp: reg_id,
                 color: None,
-                group: backend::RegGroup::get(entry.ty()),
+                group: backend::RegGroup::get_from_ty(entry.ty()),
                 spill_cost: 0.0f32
             };
 

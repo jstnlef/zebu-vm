@@ -63,6 +63,7 @@ pub struct NodeFuncSig { pub id: MuID, pub paramtys: Vec<MuTypeNode>, pub rettys
 #[derive(Debug)]
 pub enum NodeConst {
     ConstInt    { id: MuID, ty: MuTypeNode, value:  u64 },
+    ConstIntEx  { id: MuID, ty: MuTypeNode, value:  Vec<u64>},
     ConstFloat  { id: MuID, ty: MuTypeNode, value:  f32 },
     ConstDouble { id: MuID, ty: MuTypeNode, value:  f64 },
     ConstNull   { id: MuID, ty: MuTypeNode },
