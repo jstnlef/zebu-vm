@@ -1,6 +1,6 @@
 #[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum BinOp {
-    // Int(n) BinOp Int(n) -> Int(n)
+    // BinOp Int(n) Int(n) -> Int(n)
     Add,
     Sub,
     Mul,
@@ -12,12 +12,12 @@ pub enum BinOp {
     Or,
     Xor,
 
-    // Int(n) BinOp Int(m) -> Int(n)
+    // BinOp Int(n) Int(m) -> Int(n)
     Shl,
     Lshr,
     Ashr,
 
-    // FP BinOp FP -> FP
+    // BinOp FP FP -> FP
     FAdd,
     FSub,
     FMul,
@@ -59,7 +59,7 @@ pub enum CmpOp {
 }
 
 impl CmpOp {
-    // Returns the CmpOp c, such that (a self b) is equivelent to (b c a)
+    /// returns the CmpOp X for CmpOp Y, such that (a Y b) is equivalent to (b X a)
     pub fn swap_operands(self) -> CmpOp {
         use op::CmpOp::*;
         match self {
@@ -86,6 +86,8 @@ impl CmpOp {
             _ => self, // all other comparisons are reflexive
         }
     }
+
+    /// returns the CmpOp X for CmpOp Y, such that (a Y b) is equivalent to NOT(a X b)
     pub fn invert(self) -> CmpOp {
         use op::CmpOp::*;
         match self {
@@ -129,10 +131,28 @@ impl CmpOp {
             FTRUE => FFALSE,
         }
     }
+
     pub fn is_signed(self) -> bool {
         use op::CmpOp::*;
         match self {
             SGE | SLT | SGT | SLE => true,
+            _ => false
+        }
+    }
+
+    pub fn is_int_cmp(self) -> bool {
+        use op::CmpOp::*;
+        match self {
+            EQ
+            | NE
+            | SGE
+            | SGT
+            | SLE
+            | SLT
+            | UGE
+            | UGT
+            | ULE
+            | ULT => true,
             _ => false
         }
     }
@@ -167,20 +187,4 @@ pub enum AtomicRMWOp {
     MIN,
     UMAX,
     UMIN
-}
-
-pub fn is_int_cmp(op: CmpOp) -> bool {
-    match op {
-        CmpOp::EQ
-        | CmpOp::NE
-        | CmpOp::SGE
-        | CmpOp::SGT
-        | CmpOp::SLE
-        | CmpOp::SLT
-        | CmpOp::UGE
-        | CmpOp::UGT
-        | CmpOp::ULE
-        | CmpOp::ULT => true,
-        _ => false
-    }
 }

@@ -2880,7 +2880,7 @@ impl <'a> InstructionSelection {
         }
         use std;
         let mut swap = false; // Whether op1 and op2 have been swapped
-        if op::is_int_cmp(op) {
+        if op.is_int_cmp() {
             let n = node_type(op1).get_int_length().unwrap();
 
             let mut imm_val = 0 as u64;

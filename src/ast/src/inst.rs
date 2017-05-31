@@ -74,6 +74,8 @@ impl Clone for Instruction {
 }
 
 impl Instruction {
+    /// is this instruction the terminal inst of its block?
+    /// Terminal instructions end Mu blocks, and Mu block ends with a terminal instruction.
     pub fn is_terminal_inst(&self) -> bool {
         use inst::Instruction_::*;
 
@@ -125,10 +127,14 @@ impl Instruction {
         }
     }
 
+    /// is this instruction a non-terminal instruction of its block?
     pub fn is_non_terminal_inst(&self) -> bool {
         !self.is_terminal_inst()
     }
 
+    /// does this instruction has side effect?
+    /// An instruction has side effect if it affects something other than its result operands.
+    /// e.g. affecting memory, stack, thread, etc.
     // FIXME: need to check correctness
     pub fn has_side_effect(&self) -> bool {
         use inst::Instruction_::*;
@@ -181,6 +187,8 @@ impl Instruction {
         }
     }
 
+    /// can this instruction throw exception?
+    /// an instruction with an exceptional branch can throw exception
     pub fn is_potentially_excepting_instruction(&self) -> bool {
         use inst::Instruction_::*;
 
@@ -233,10 +241,12 @@ impl Instruction {
         }
     }
 
+    /// does this instruction have an exceptional clause/branch?
     pub fn has_exception_clause(&self) -> bool {
         self.is_potentially_excepting_instruction()
     }
 
+    /// returns exception target(block ID), returns None if this instruction does not have exceptional branch
     pub fn get_exception_target(&self) -> Option<MuID> {
         use inst::Instruction_::*;
 
@@ -307,17 +317,21 @@ impl fmt::Display for Instruction {
     }
 }
 
+/// Instruction_ is used for pattern matching for Instruction
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
 pub enum Instruction_ {
     // non-terminal instruction
 
-    // expressions
-
+    /// binary operations
     BinOp(BinOp, OpIndex, OpIndex),
+    /// binary operations with status flag (overflow, sign, etc. )
     BinOpWithStatus(BinOp, BinOpStatus, OpIndex, OpIndex),
 
+    /// comparison operations
     CmpOp(CmpOp, OpIndex, OpIndex),
+
+    /// conversion operations (casting)
     ConvOp{
         operation: ConvOp,
         from_ty: P<MuType>,
@@ -325,25 +339,26 @@ pub enum Instruction_ {
         operand: OpIndex
     },
 
-    // yields a tuple of results from the call
+    /// a non-terminating Call instruction (the call does not have an exceptional branch)
     ExprCall{
         data: CallData,
         is_abort: bool, // T to abort, F to rethrow - FIXME: current, always rethrow for now
     },
 
+    /// a non-terminating CCall instruction (the call does not have an exceptional branch)
     ExprCCall{
         data: CallData,
         is_abort: bool
     },
 
-    // yields the memory value
+    /// load instruction
     Load{
         is_ptr: bool,
         order: MemoryOrder,
         mem_loc: OpIndex
     },
 
-    // yields nothing
+    /// store instruction
     Store{
         is_ptr: bool,
         order: MemoryOrder,
@@ -351,7 +366,7 @@ pub enum Instruction_ {
         value: OpIndex
     },
 
-    // yields pair (oldvalue, boolean (T = success, F = failure))
+    /// compare and exchange, yields a pair value (oldvalue, boolean (T = success, F = failure))
     CmpXchg{
         is_ptr: bool,
         is_weak: bool,
@@ -362,7 +377,7 @@ pub enum Instruction_ {
         desired_value: OpIndex
     },
 
-    // yields old memory value
+    /// atomic read-modify-write, yields old memory value
     AtomicRMW{
         is_ptr: bool, // T for iref, F for ptr
         order: MemoryOrder,
@@ -371,137 +386,168 @@ pub enum Instruction_ {
         value: OpIndex // operand for op
     },
 
-    // yields a reference of the type
+    /// allocate an object (non hybrid type) in the heap, yields a reference of the type
     New(P<MuType>),
 
-    // yields an iref of the type
+    /// allocate an object (non hybrid type) on the stack, yields an iref of the type
     AllocA(P<MuType>),
 
-    // yields ref
+    /// allocate a hybrid type object in the heap, yields ref
+    /// args: the type of the hybrid, hybrid part length
     NewHybrid(P<MuType>, OpIndex),
 
-    // yields iref
+    /// allocate a hybrid type object on the stack, yields iref
+    /// args: the type of the hybrid, hybrid part length
     AllocAHybrid(P<MuType>, OpIndex),
 
-    // yields stack ref
-    NewStack(OpIndex), // func
-                           // TODO: common inst
+    /// create a new Mu stack, yields stack ref
+    /// args: functionref of the entry function
+    NewStack(OpIndex),
 
-    // yields thread reference
+    /// create a new Mu thread, yields thread reference
+    /// args: stackref of a Mu stack, a list of arguments
     NewThread(OpIndex, Vec<OpIndex>), // stack, args
 
-    // yields thread reference (thread resumes with exceptional value)
+    /// create a new Mu thread, yields thread reference (thread resumes with exceptional value)
+    /// args: stackref of a Mu stack, an exceptional value
     NewThreadExn(OpIndex, OpIndex), // stack, exception
 
-    // yields frame cursor
+    /// create a frame cursor reference
+    /// args: stackref of a Mu stack
     NewFrameCursor(OpIndex), // stack
 
-    // ref<T> -> iref<T>
+    /// get internal reference of a reference
+    /// args: a reference
     GetIRef(OpIndex),
 
-    // iref|uptr<struct|hybrid<T>> int<M> -> iref|uptr<U>
+    /// get internal reference of an iref (or uptr) to a struct/hybrid fix part
     GetFieldIRef{
         is_ptr: bool,
         base: OpIndex, // iref or uptr
         index: usize // constant
     },
 
-    // iref|uptr<array<T N>> int<M> -> iref|uptr<T>
+    /// get internal reference of an element of an iref (or uptr) to an array
     GetElementIRef{
         is_ptr: bool,
         base: OpIndex,
         index: OpIndex // can be constant or ssa var
     },
 
-    // iref|uptr<T> int<M> -> iref|uptr<T>
+    /// offset an iref (or uptr) (offset is an index)
     ShiftIRef{
         is_ptr: bool,
         base: OpIndex,
         offset: OpIndex
     },
 
-    // iref|uptr<hybrid<T U>> -> iref|uptr<U>
+    /// get internal reference to an element in hybrid var part
     GetVarPartIRef{
         is_ptr: bool,
         base: OpIndex
     },
 
-//    PushFrame{
-//        stack: P<Value>,
-//        func: P<Value>
-//    },
-//    PopFrame{
-//        stack: P<Value>
-//    }
-
+    /// a fence of certain memory order
     Fence(MemoryOrder),
 
     // terminal instruction
+
+    /// return instruction
+    /// args: a list of return values
     Return(Vec<OpIndex>),
-    ThreadExit, // TODO:  common inst
+
+    /// thread exit
+    ThreadExit,
+
+    /// throw an exception
     Throw(OpIndex),
+
+    /// tail call a function (reuse current frame)
     TailCall(CallData),
+
+    /// unconditional branch
     Branch1(Destination),
+
+    /// conditional branch
     Branch2{
         cond: OpIndex,
         true_dest: Destination,
         false_dest: Destination,
         true_prob: f32
     },
+
+    /// returns value1 if condition is true, otherwise returns value2
     Select{
         cond: OpIndex,
         true_val: OpIndex,
         false_val: OpIndex
     },
-    Watchpoint{ // Watchpoint NONE ResumptionData
-                //   serves as an unconditional trap. Trap to client, and resume with ResumptionData
-                // Watchpoint (WPID dest) ResumptionData
-                //   when disabled, jump to dest
-                //   when enabled, trap to client and resume
+
+    /// a watchpoint
+    /// * Watchpoint NONE ResumptionData: serves as an unconditional trap. Trap to client, and resume with ResumptionData
+    /// * Watchpoint (WPID dest) ResumptionData:
+    ///   * when disabled, jump to dest
+    ///   * when enabled, trap to client and resume
+    Watchpoint{
         id: Option<WPID>,
         disable_dest: Option<Destination>,
         resume: ResumptionData
     },
+
+    /// a watchpoint branch, branch to different destinations based on enabled/disabled
     WPBranch{
         wp: WPID,
         disable_dest: Destination,
         enable_dest: Destination
     },
+
+    /// a call instruction that may throw an exception
     Call{
         data: CallData,
         resume: ResumptionData
     },
+
+    /// a ccall instruction that may throw an exception
     CCall{
         data: CallData,
         resume: ResumptionData
     },
+
+    /// swapstack. swap current Mu stack with the named Mu stack, and continue with specified resumption
     SwapStack{
         stack: OpIndex,
         is_exception: bool,
         args: Vec<OpIndex>,
         resume: ResumptionData
     },
+
+    /// a multiway branch
     Switch{
         cond: OpIndex,
         default: Destination,
         branches: Vec<(OpIndex, Destination)>
     },
+
+    /// a wrapper for any instruction that may throw an exception
+    //  This is not used at the moment
     ExnInstruction{
         inner: Box<Instruction>,
         resume: ResumptionData
     },
 
-    // common inst
+    /// common inst: get thread local
     CommonInst_GetThreadLocal,
+    /// common inst: set thread local
     CommonInst_SetThreadLocal(OpIndex),
 
-    // pin/unpin
+    /// common inst: pin an object (prevent it being moved and reclaimed by GC), yields a uptr
     CommonInst_Pin  (OpIndex),
+    /// common inst: unpin an object (the object is automatically managed by GC)
     CommonInst_Unpin(OpIndex),
 
-    // internal use: mov from ops[0] to value
+    /// internal use: move from value to value
     Move(OpIndex),
-    // internal use: print op as hex value
+    /// internal use: print op as hex value
     PrintHex(OpIndex)
 }
 
@@ -634,11 +680,16 @@ impl Instruction_ {
     }
 }
 
+/// BinOpStatus represents status flags from a binary operation
 #[derive(Copy, Clone, RustcEncodable, RustcDecodable)]
 pub struct BinOpStatus {
+    /// negative flag
     pub flag_n: bool,
+    /// zero flag
     pub flag_z: bool,
+    /// carry flag
     pub flag_c: bool,
+    /// overflow flag
     pub flag_v: bool
 }
 
@@ -778,7 +829,9 @@ impl Destination {
 
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub enum DestArg {
+    /// a normal destination argument is an SSA value (appears in the ops field of the instruction)
     Normal(OpIndex),
+    /// a freshbound argument is an undeclared/anonymous value (currently not support this)
     Freshbound(usize)
 }
 

@@ -2872,7 +2872,7 @@ impl <'a> InstructionSelection {
                         let op1 = &ops[op1];
                         let op2 = &ops[op2];
                         
-                        if op::is_int_cmp(op) {
+                        if op.is_int_cmp() {
                             if self.match_iimm(op1) && self.match_iimm(op2) {
                                 let ty : &P<MuType> = match op1.clone_value().ty.get_int_length() {
                                     Some(64) => &UINT64_TYPE,
