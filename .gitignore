@@ -11,8 +11,10 @@ Cargo.lock
 *.pyc
 *.o
 *.dylib
-mu-client-pypy
+**mu-client-pypy**
+**RPySOM**
 .gitignore
 cmake-build-debug/*
 Notes/*
 CMakeLists.txt
+*.iml

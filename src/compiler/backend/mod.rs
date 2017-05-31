@@ -121,6 +121,10 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
                     size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
                 },
+                128 => BackendTypeInfo {
+                    size: 16, alignment: 16, struct_layout: None, elem_padded_size: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(16, 16))
+                },
                 _ => unimplemented!()
             }
         },
@@ -297,7 +301,7 @@ pub fn sequetial_layout(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, ByteSize, V
     let ret = layout_struct(tys, vm);
     
     (ret.size, ret.alignment, ret.struct_layout.unwrap())
-} 
+}
 
 #[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
 pub struct BackendTypeInfo {
@@ -343,10 +347,10 @@ impl fmt::Display for BackendTypeInfo {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
-pub enum RegGroup {GPR, FPR}
+pub enum RegGroup {GPR, GPREX, FPR}
 
 impl RegGroup {
-    pub fn get(ty: &P<MuType>) -> RegGroup {
+    pub fn get_from_ty(ty: &P<MuType>) -> RegGroup {
         match ty.v {
             // for now, only use 64bits registers
             MuType_::Int(len) if len == 1  => RegGroup::GPR,
@@ -354,6 +358,7 @@ impl RegGroup {
             MuType_::Int(len) if len == 16 => RegGroup::GPR,
             MuType_::Int(len) if len == 32 => RegGroup::GPR,
             MuType_::Int(len) if len == 64 => RegGroup::GPR,
+            MuType_::Int(len) if len == 128=> RegGroup::GPREX,
 
             MuType_::Ref(_)
             | MuType_::IRef(_)
@@ -370,5 +375,9 @@ impl RegGroup {
 
             _ => unimplemented!()
         }
+    }
+
+    pub fn get_from_value(val: &P<Value>) -> RegGroup {
+        RegGroup::get_from_ty(&val.ty)
     }
 }

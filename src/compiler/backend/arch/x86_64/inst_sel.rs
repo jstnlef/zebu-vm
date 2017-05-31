@@ -16,6 +16,7 @@ use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 use compiler::backend;
+use compiler::backend::RegGroup;
 use compiler::backend::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
@@ -24,6 +25,7 @@ use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
 use utils::math;
+use utils::POINTER_SIZE;
 
 use std::collections::HashMap;
 use std::any::Any;
@@ -81,10 +83,16 @@ lazy_static! {
         ]))
     });
 
-    pub static ref FPTOUI_C : P<Value> = P(Value{
-        hdr: MuEntityHeader::named(new_internal_id(), Mu("FPTOUI_C")),
+    pub static ref FPTOUI_C_DOUBLE : P<Value> = P(Value{
+        hdr: MuEntityHeader::named(new_internal_id(), Mu("FPTOUI_C_DOUBLE")),
         ty : UINT64_TYPE.clone(),
         v  : Value_::Constant(Constant::Int(4890909195324358656u64))
+    });
+
+    pub static ref FPTOUI_C_FLOAT : P<Value> = P(Value{
+        hdr: MuEntityHeader::named(new_internal_id(), Mu("FPTOUI_C_FLOAT")),
+        ty : UINT32_TYPE.clone(),
+        v  : Value_::Constant(Constant::Int(1593835520u64))
     });
 }
 
@@ -98,6 +106,7 @@ pub struct InstructionSelection {
     current_callsite_id: usize,
     current_frame: Option<Frame>,
     current_block: Option<MuName>,
+    current_block_in_ir: Option<MuName>,
     current_func_start: Option<ValueLocation>,
     // key: block id, val: callsite that names the block as exception block
     current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
@@ -118,7 +127,13 @@ impl <'a> InstructionSelection {
             current_fv_id: 0,
             current_callsite_id: 0,
             current_frame: None,
-            current_block: None,
+            current_block: None,        // which block we are generating code for
+            current_block_in_ir: None,  // it is possible the block is newly created in instruction selection
+                                        // but sometimes we want to know its control flow
+                                        // so we need to track what block it is from the IR
+
+                                        // FIXME: ideally we should not create new blocks in instruction selection
+                                        // see Issue #6
             current_func_start: None,
             // key: block id, val: callsite that names the block as exception block
             current_exn_callsites: HashMap::new(), 
@@ -149,14 +164,18 @@ impl <'a> InstructionSelection {
                         // 'branch_if_true' == true, we emit cjmp the same as CmpOp  (je  for EQ, jne for NE)
                         // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
                         let (fallthrough_dest, branch_dest, branch_if_true) = {
-                            if true_prob > 0.5f32 {
+                            // get current block and next block in trace (fallthrough block)
+                            let cur_block = f_content.get_block_by_name(self.current_block_in_ir.as_ref().unwrap().clone());
+                            let next_block_in_trace = cur_block.control_flow.get_hottest_succ().unwrap();
+
+                            if next_block_in_trace == true_dest.target {
                                 (true_dest, false_dest, false)
                             } else {
                                 (false_dest, true_dest, true)
                             }
                         };
                         
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
                         self.process_dest(&ops, branch_dest, f_content, f_context, vm);
@@ -302,37 +321,48 @@ impl <'a> InstructionSelection {
                         } else {
                             unimplemented!();
                         }
+
+                        // it is possible that the fallthrough block is scheduled somewhere else
+                        // we need to explicitly jump to it
+                        self.finish_block();
+
+                        let fallthrough_temp_block = format!("{}_{}_branch_fallthrough", self.current_fv_id, node.id());
+                        self.start_block(fallthrough_temp_block);
+
+                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name().unwrap();
+                        self.backend.emit_jmp(fallthrough_target);
                     },
 
                     Instruction_::Select{cond, true_val, false_val} => {
                         use ast::op::CmpOp::*;
 
                         trace!("instsel on SELECT");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         let ref cond = ops[cond];
                         let ref true_val = ops[true_val];
                         let ref false_val = ops[false_val];
 
+                        // generate compare
+                        let cmpop = if self.match_cmp_res(cond) {
+                            self.emit_cmp_res(cond, f_content, f_context, vm)
+                        } else if self.match_ireg(cond) {
+                            let tmp_cond = self.emit_ireg(cond, f_content, f_context, vm);
+                            // emit: cmp cond_reg 1
+                            self.backend.emit_cmp_imm_r(1, &tmp_cond);
+
+                            EQ
+                        } else {
+                            panic!("expected cond to be ireg, found {}", cond)
+                        };
+
                         if self.match_ireg(true_val) {
                             // moving integers/pointers
                             let tmp_res   = self.get_result_value(node);
 
-                            // generate compare
-                            let cmpop = if self.match_cmp_res(cond) {
-                                self.emit_cmp_res(cond, f_content, f_context, vm)
-                            } else if self.match_ireg(cond) {
-                                let tmp_cond = self.emit_ireg(cond, f_content, f_context, vm);
-                                // emit: cmp cond_reg 1
-                                self.backend.emit_cmp_imm_r(1, &tmp_cond);
-
-                                EQ
-                            } else {
-                                panic!("expected ireg, found {}", cond)
-                            };
-
                             // use cmov for 16/32/64bit integer
                             // use jcc  for 8 bit
+                            // FIXME: could use 32bit register to implement 8bit select
                             match tmp_res.ty.get_int_length() {
                                 // cmov
                                 Some(len) if len > 8 => {
@@ -366,9 +396,9 @@ impl <'a> InstructionSelection {
                                 }
                                 // jcc
                                 _ => {
-                                    let blk_true  = format!("{}_select_true", node.id());
-                                    let blk_false = format!("{}_select_false", node.id());
-                                    let blk_end   = format!("{}_select_end", node.id());
+                                    let blk_true  = format!("{}_{}_select_true",  self.current_fv_id, node.id());
+                                    let blk_false = format!("{}_{}_select_false", self.current_fv_id, node.id());
+                                    let blk_end   = format!("{}_{}_select_end",   self.current_fv_id, node.id());
 
                                     // jump to blk_true if true
                                     match cmpop {
@@ -394,38 +424,80 @@ impl <'a> InstructionSelection {
                                     }
 
                                     // finishing current block
-                                    let cur_block = self.current_block.as_ref().unwrap().clone();
-                                    self.backend.end_block(cur_block.clone());
+                                    self.finish_block();
 
                                     // blk_false:
-                                    self.current_block = Some(blk_false.clone());
-                                    self.backend.start_block(blk_false.clone());
-
+                                    self.start_block(blk_false.clone());
                                     // mov false result here
                                     self.emit_move_node_to_value(&tmp_res, &false_val, f_content, f_context, vm);
-
                                     // jmp to end
                                     self.backend.emit_jmp(blk_end.clone());
 
                                     // finishing current block
-                                    let cur_block = self.current_block.as_ref().unwrap().clone();
-                                    self.backend.end_block(cur_block.clone());
+                                    self.finish_block();
 
                                     // blk_true:
-                                    self.current_block = Some(blk_true.clone());
-                                    self.backend.start_block(blk_true.clone());
+                                    self.start_block(blk_true.clone());
                                     // mov true value -> result
                                     self.emit_move_node_to_value(&tmp_res, &true_val, f_content, f_context, vm);
-
-                                    self.backend.end_block(blk_true.clone());
+                                    self.finish_block();
 
                                     // blk_end:
-                                    self.backend.start_block(blk_end.clone());
-                                    self.current_block = Some(blk_end.clone());
+                                    self.start_block(blk_end.clone());
                                 }
                             }
+                        } else if self.match_fpreg(true_val) {
+                            let tmp_res = self.get_result_value(node);
+
+                            let blk_true  = format!("{}_{}_select_true",  self.current_fv_id, node.id());
+                            let blk_false = format!("{}_{}_select_false", self.current_fv_id, node.id());
+                            let blk_end   = format!("{}_{}_select_end",   self.current_fv_id, node.id());
+
+                            // jump to blk_true if true
+                            match cmpop {
+                                EQ  => self.backend.emit_je (blk_true.clone()),
+                                NE  => self.backend.emit_jne(blk_true.clone()),
+                                SGE => self.backend.emit_jge(blk_true.clone()),
+                                SGT => self.backend.emit_jg (blk_true.clone()),
+                                SLE => self.backend.emit_jle(blk_true.clone()),
+                                SLT => self.backend.emit_jl (blk_true.clone()),
+                                UGE => self.backend.emit_jae(blk_true.clone()),
+                                UGT => self.backend.emit_ja (blk_true.clone()),
+                                ULE => self.backend.emit_jbe(blk_true.clone()),
+                                ULT => self.backend.emit_jb (blk_true.clone()),
+
+                                FOEQ | FUEQ => self.backend.emit_je (blk_true.clone()),
+                                FONE | FUNE => self.backend.emit_jne(blk_true.clone()),
+                                FOGT | FUGT => self.backend.emit_ja (blk_true.clone()),
+                                FOGE | FUGE => self.backend.emit_jae(blk_true.clone()),
+                                FOLT | FULT => self.backend.emit_jb (blk_true.clone()),
+                                FOLE | FULE => self.backend.emit_jbe(blk_true.clone()),
+
+                                _ => unimplemented!()
+                            }
+
+                            // finishing current block
+                            self.finish_block();
+
+                            // blk_false:
+                            self.start_block(blk_false.clone());
+                            // mov false result here
+                            self.emit_move_node_to_value(&tmp_res, &false_val, f_content, f_context, vm);
+                            // jmp to end
+                            self.backend.emit_jmp(blk_end.clone());
+
+                            // finishing current block
+                            self.finish_block();
+
+                            // blk_true:
+                            self.start_block(blk_true.clone());
+                            // mov true value -> result
+                            self.emit_move_node_to_value(&tmp_res, &true_val, f_content, f_context, vm);
+                            self.finish_block();
+
+                            // blk_end:
+                            self.start_block(blk_end.clone());
                         } else {
-                            // moving vectors, floatingpoints
                             unimplemented!()
                         }
                     },
@@ -434,7 +506,7 @@ impl <'a> InstructionSelection {
                         use ast::op::CmpOp::*;
 
                         trace!("instsel on CMPOP");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref op1 = ops[op1];
                         let ref op2 = ops[op2];
 
@@ -469,7 +541,7 @@ impl <'a> InstructionSelection {
 
                     Instruction_::Branch1(ref dest) => {
                         trace!("instsel on BRANCH1");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                                             
                         self.process_dest(&ops, dest, f_content, f_context, vm);
                         
@@ -482,7 +554,7 @@ impl <'a> InstructionSelection {
 
                     Instruction_::Switch{cond, ref default, ref branches} => {
                         trace!("instsel on SWITCH");
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         let ref cond = ops[cond];
 
@@ -594,44 +666,47 @@ impl <'a> InstructionSelection {
                         let values = inst.value.as_ref().unwrap();
                         let mut status_value_index = 1;
 
-                        // negative flag
-                        if status.flag_n {
-                            let tmp_status = values[status_value_index].clone();
-                            status_value_index += 1;
+                        // status flags only works with int operations
+                        if RegGroup::get_from_value(&values[0]) == RegGroup::GPR {
+                            // negative flag
+                            if status.flag_n {
+                                let tmp_status = values[status_value_index].clone();
+                                status_value_index += 1;
 
-                            self.backend.emit_sets_r8(&tmp_status);
-                        }
-
-                        // zero flag
-                        if status.flag_z {
-                            let tmp_status = values[status_value_index].clone();
-                            status_value_index += 1;
-
-                            self.backend.emit_setz_r8(&tmp_status);
-                        }
-
-                        // unsigned overflow
-                        if status.flag_c {
-                            let tmp_status = values[status_value_index].clone();
-                            status_value_index += 1;
-
-                            match op {
-                                BinOp::Add | BinOp::Sub | BinOp::Mul => {
-                                    self.backend.emit_setb_r8(&tmp_status);
-                                }
-                                _ => panic!("Only Add/Sub/Mul has #C flag")
+                                self.backend.emit_sets_r8(&tmp_status);
                             }
-                        }
 
-                        // signed overflow
-                        if status.flag_v {
-                            let tmp_status = values[status_value_index].clone();
+                            // zero flag
+                            if status.flag_z {
+                                let tmp_status = values[status_value_index].clone();
+                                status_value_index += 1;
 
-                            match op {
-                                BinOp::Add | BinOp::Sub | BinOp::Mul => {
-                                    self.backend.emit_seto_r8(&tmp_status);
+                                self.backend.emit_setz_r8(&tmp_status);
+                            }
+
+                            // unsigned overflow
+                            if status.flag_c {
+                                let tmp_status = values[status_value_index].clone();
+                                status_value_index += 1;
+
+                                match op {
+                                    BinOp::Add | BinOp::Sub | BinOp::Mul => {
+                                        self.backend.emit_setb_r8(&tmp_status);
+                                    }
+                                    _ => panic!("Only Add/Sub/Mul has #C flag")
                                 }
-                                _ => panic!("Only Add/Sub/Mul has #V flag")
+                            }
+
+                            // signed overflow
+                            if status.flag_v {
+                                let tmp_status = values[status_value_index].clone();
+
+                                match op {
+                                    BinOp::Add | BinOp::Sub | BinOp::Mul => {
+                                        self.backend.emit_seto_r8(&tmp_status);
+                                    }
+                                    _ => panic!("Only Add/Sub/Mul has #V flag")
+                                }
                             }
                         }
                     }
@@ -639,29 +714,33 @@ impl <'a> InstructionSelection {
                     Instruction_::ConvOp{operation, ref from_ty, ref to_ty, operand} => {
                         trace!("instsel on CONVOP");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         let ref op = ops[operand];
 
                         match operation {
                             op::ConvOp::TRUNC => {
+                                let tmp_res = self.get_result_value(node);
+                                let to_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
+
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                                    let tmp_res = self.get_result_value(node);
-                                    let dst_length = match tmp_res.ty.get_int_length() {
-                                        Some(len) => len,
-                                        None => panic!("dst of TRUNC is not int: {}", tmp_res)
-                                    };
-
                                     // mov op -> result
-                                    match dst_length {
-                                        1  => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT8_TYPE.clone())}),
-                                        8  => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT8_TYPE.clone())}),
-                                        16 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT16_TYPE.clone())}),
-                                        32 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT32_TYPE.clone())}),
-                                        64 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT64_TYPE.clone())}),
-                                        _  => panic!("unsupported int length: {}", dst_length)
+                                    match to_ty_size {
+                                        1 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT8_TYPE.clone())}),
+                                        2 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT16_TYPE.clone())}),
+                                        4 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT32_TYPE.clone())}),
+                                        8 => self.backend.emit_mov_r_r(&tmp_res, unsafe {&tmp_op.as_type(UINT64_TYPE.clone())}),
+                                        _  => panic!("unsupported int size: {}", to_ty_size)
+                                    }
+                                } else if self.match_ireg_ex(op) {
+                                    let (op_l, op_h) = self.emit_ireg_ex(op, f_content, f_context, vm);
+
+                                    match to_ty_size {
+                                        1 | 2 => self.backend.emit_movz_r_r(unsafe {&tmp_res.as_type(UINT32_TYPE.clone())}, &op_l),
+                                        4 | 8 => self.backend.emit_mov_r_r(&tmp_res, &op_l),
+                                        _ => panic!("unsupported int size: {}", to_ty_size)
                                     }
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
@@ -677,18 +756,30 @@ impl <'a> InstructionSelection {
                                     let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
                                     if from_ty_size != to_ty_size {
-                                        if from_ty_size == 4 && to_ty_size == 8 {
-                                            // zero extend from 32 bits to 64 bits is a mov instruction
-                                            // x86 does not have movzlq (32 to 64)
+                                        match (from_ty_size, to_ty_size) {
+                                            // int32 to int64
+                                            (4, 8) => {
+                                                // zero extend from 32 bits to 64 bits is a mov instruction
+                                                // x86 does not have movzlq (32 to 64)
 
-                                            // tmp_op is int32, but tmp_res is int64
-                                            // we want to force a 32-to-32 mov, so high bits of the destination will be zeroed
+                                                // tmp_op is int32, but tmp_res is int64
+                                                // we want to force a 32-to-32 mov, so high bits of the destination will be zeroed
 
-                                            let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
+                                                let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
 
-                                            self.backend.emit_mov_r_r(&tmp_res32, &tmp_op);
-                                        } else {
-                                            self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
+                                                self.backend.emit_mov_r_r(&tmp_res32, &tmp_op);
+                                            }
+                                            // any int to int128
+                                            (_, 16) => {
+                                                let (res_l, res_h) = self.split_int128(&tmp_res, f_context, vm);
+
+                                                self.backend.emit_mov_r_r(&res_l, unsafe {&tmp_op.as_type(UINT64_TYPE.clone())});
+                                                self.backend.emit_mov_r_imm(&res_h, 0);
+                                            }
+                                            // else
+                                            _ => {
+                                                self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
+                                            }
                                         }
                                     } else {
                                         self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
@@ -707,7 +798,33 @@ impl <'a> InstructionSelection {
                                     let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
 
                                     if from_ty_size != to_ty_size {
-                                        self.backend.emit_movs_r_r(&tmp_res, &tmp_op);
+                                        match (from_ty_size, to_ty_size) {
+                                            // int64 to int128
+                                            (8, 16) => {
+                                                let (res_l, res_h) = self.split_int128(&tmp_res, f_context, vm);
+
+                                                // mov tmp_op -> res_h
+                                                // sar res_h 63
+                                                self.backend.emit_mov_r_r(&res_h, &tmp_op);
+                                                self.backend.emit_sar_r_imm8(&res_h, 63i8);
+
+                                                // mov tmp_op -> res_l
+                                                self.backend.emit_mov_r_r(&res_l, &tmp_op);
+                                            }
+                                            // int32 to int128
+                                            (_, 16) => {
+                                                let (res_l, res_h) = self.split_int128(&tmp_res, f_context, vm);
+
+                                                // movs tmp_op -> res_l
+                                                self.backend.emit_movs_r_r(&res_l, &tmp_op);
+
+                                                // mov res_l -> res_h
+                                                // sar res_h 63
+                                                self.backend.emit_mov_r_r(&res_h, unsafe {&res_l.as_type(UINT32_TYPE.clone())});
+                                                self.backend.emit_sar_r_imm8(&res_h, 63i8);
+                                            }
+                                            _ => self.backend.emit_movs_r_r(&tmp_res, &tmp_op)
+                                        }
                                     } else {
                                         self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                     }
@@ -729,31 +846,38 @@ impl <'a> InstructionSelection {
                             op::ConvOp::SITOFP => {
                                 let tmp_res = self.get_result_value(node);
 
-                                if self.match_ireg(op) {
-                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                                    self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op);
-                                } else {
-                                    panic!("unexpected op (expected ireg): {}", op)
+                                assert!(self.match_ireg(op), "unexpected op (expected ireg): {}", op);
+                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                                match to_ty.v {
+                                    MuType_::Double => self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op),
+                                    MuType_::Float  => self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op),
+                                    _ => panic!("expecing fp type as to type in SITOFP, found {}", to_ty)
                                 }
                             }
                             op::ConvOp::FPTOSI => {
                                 let tmp_res = self.get_result_value(node);
 
-                                if self.match_fpreg(op) {
-                                    let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+
+                                if from_ty.is_double() {
                                     self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op);
+                                } else if from_ty.is_float() {
+                                    self.backend.emit_cvtss2si_r_f32(&tmp_res, &tmp_op);
                                 } else {
-                                    panic!("unexpected op (expected fpreg): {}", op)
+                                    panic!("expected fp type as from type in FPTOSI, found {}", to_ty)
                                 }
                             }
                             op::ConvOp::UITOFP => {
                                 let tmp_res = self.get_result_value(node);
 
-                                if self.match_ireg(op) {
-                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                assert!(self.match_ireg(op), "unexpected op (expected ireg): {}", op);
+                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                                    let op_ty_size = vm.get_backend_type_info(tmp_op.ty.id()).size;
+                                let op_ty_size = vm.get_backend_type_info(tmp_op.ty.id()).size;
 
+                                if to_ty.is_double() {
                                     match op_ty_size {
                                         8 => {
                                             // movd/movq op -> res
@@ -775,37 +899,102 @@ impl <'a> InstructionSelection {
                                             let tmp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
 
                                             // movl op -> tmp(32)
-                                            let tmp32 = unsafe {tmp.as_type(UINT32_TYPE.clone())};
+                                            let tmp32 = unsafe { tmp.as_type(UINT32_TYPE.clone()) };
                                             self.backend.emit_mov_r_r(&tmp32, &tmp_op);
 
                                             // cvtsi2sd %tmp(64) -> %tmp_res
                                             self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp);
                                         }
                                         2 | 1 => {
-                                            let tmp_op32 = unsafe {tmp_op.as_type(UINT32_TYPE.clone())};
+                                            let tmp_op32 = unsafe { tmp_op.as_type(UINT32_TYPE.clone()) };
                                             self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
                                         }
                                         _ => panic!("not implemented int length {}", op_ty_size)
                                     }
+                                } else if to_ty.is_float() {
+                                    match op_ty_size {
+                                        8 => {
+                                            // movl %tmp_op -> %tmp1
+                                            let tmp1 = self.make_temporary(f_context, UINT32_TYPE.clone(), vm);
+                                            self.backend.emit_mov_r_r(&tmp1, unsafe {&tmp_op.as_type(UINT32_TYPE.clone())});
+
+                                            // andl %tmp1 $1 -> %tmp1
+                                            self.backend.emit_and_r_imm(&tmp1, 1);
+
+                                            // testq %tmp_op %tmp_op
+                                            self.backend.emit_test_r_r(&tmp_op, &tmp_op);
+
+                                            let blk_if_signed     = format!("{}_{}_uitofp_float_if_signed", self.current_fv_id, node.id());
+                                            let blk_if_not_signed = format!("{}_{}_uitofp_float_if_not_signed", self.current_fv_id, node.id());
+                                            let blk_done          = format!("{}_{}_uitofp_float_done", self.current_fv_id, node.id());
+
+                                            // js %if_signed
+                                            self.backend.emit_js(blk_if_signed.clone());
+                                            self.finish_block();
+
+                                            // blk_if_not_signed:
+                                            self.start_block(blk_if_not_signed);
+
+                                            // cvtsi2ss %tmp_op -> %tmp_res
+                                            self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op);
+
+                                            // jmp blk_done
+                                            self.backend.emit_jmp(blk_done.clone());
+                                            self.finish_block();
+
+                                            // blk_if_signed:
+                                            self.start_block(blk_if_signed);
+
+                                            // shr %tmp_op $1 -> %tmp_op
+                                            self.backend.emit_shr_r_imm8(&tmp_op, 1);
+
+                                            // or %tmp_op %tmp1 -> %tmp1
+                                            self.backend.emit_or_r_r(unsafe {&tmp1.as_type(UINT64_TYPE.clone())}, &tmp_op);
+
+                                            // cvtsi2ss %tmp1 -> %tmp_res
+                                            self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp1);
+
+                                            // addss %tmp_res %tmp_res -> %tmp_res
+                                            self.backend.emit_addss_f32_f32(&tmp_res, &tmp_res);
+                                            self.finish_block();
+
+                                            self.start_block(blk_done);
+                                        }
+                                        4 => {
+                                            // movl %tmp_op -> %tmp1
+                                            let tmp1 = self.make_temporary(f_context, UINT32_TYPE.clone(), vm);
+                                            self.backend.emit_mov_r_r(&tmp1, &tmp_op);
+
+                                            // cvtsi2ssq %tmp1(64) -> %tmp_res
+                                            self.backend.emit_cvtsi2ss_f32_r(&tmp_res, unsafe {&tmp1.as_type(UINT64_TYPE.clone())});
+                                        }
+                                        2 | 1 => {
+                                            let tmp_op32 = unsafe {tmp_op.as_type(UINT32_TYPE.clone())};
+
+                                            // cvtsi2ss %tmp_op32 -> %tmp_res
+                                            self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op32);
+                                        }
+                                        _ => panic!("not implemented int length {}", op_ty_size)
+                                    }
                                 } else {
-                                    panic!("unexpected op (expected ireg): {}", op)
+                                    panic!("expect double or float")
                                 }
                             }
                             op::ConvOp::FPTOUI => {
                                 let tmp_res = self.get_result_value(node);
 
+                                assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
                                 let res_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
 
-                                if self.match_fpreg(op) {
-                                    let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
-
+                                if from_ty.is_double() {
                                     match res_ty_size {
                                         8 => {
                                             let tmp1 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
                                             let tmp2 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
 
-                                            // movsd FPTOUI_C -> %tmp1
-                                            let mem_c = self.get_mem_for_const(FPTOUI_C.clone(), vm);
+                                            // movsd FPTOUI_C_DOUBLE -> %tmp1
+                                            let mem_c = self.get_mem_for_const(FPTOUI_C_DOUBLE.clone(), vm);
                                             self.backend.emit_movsd_f64_mem64(&tmp1, &mem_c);
 
                                             // movapd %tmp_op -> %tmp2
@@ -834,13 +1023,13 @@ impl <'a> InstructionSelection {
                                             self.backend.emit_cmovae_r_r(&tmp_res, &tmp_const);
                                         }
                                         4 => {
-                                            let tmp_res64 = unsafe {tmp_res.as_type(UINT64_TYPE.clone())};
+                                            let tmp_res64 = unsafe { tmp_res.as_type(UINT64_TYPE.clone()) };
 
                                             // cvttsd2si %tmp_op -> %tmp_res(64)
                                             self.backend.emit_cvttsd2si_r_f64(&tmp_res64, &tmp_op);
                                         }
                                         2 | 1 => {
-                                            let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
+                                            let tmp_res32 = unsafe { tmp_res.as_type(UINT32_TYPE.clone()) };
 
                                             // cvttsd2si %tmp_op -> %tmp_res(32)
                                             self.backend.emit_cvttsd2si_r_f64(&tmp_res32, &tmp_op);
@@ -850,8 +1039,60 @@ impl <'a> InstructionSelection {
                                         }
                                         _ => panic!("not implemented int length {}", res_ty_size)
                                     }
+                                } else if from_ty.is_float() {
+                                    match res_ty_size {
+                                        8 => {
+                                            let tmp1 = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
+                                            let tmp2 = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
+
+                                            // movss FPTOUI_C_FLOAT -> %tmp1
+                                            let mem_c = self.get_mem_for_const(FPTOUI_C_FLOAT.clone(), vm);
+                                            self.backend.emit_movss_f32_mem32(&tmp1, &mem_c);
+
+                                            // movaps %tmp_op -> %tmp2
+                                            self.backend.emit_movaps_f32_f32(&tmp2, &tmp_op);
+
+                                            // subss %tmp1, %tmp2 -> %tmp2
+                                            self.backend.emit_subss_f32_f32(&tmp2, &tmp1);
+
+                                            // cvttss2si %tmp2 -> %tmp_res
+                                            self.backend.emit_cvttss2si_r_f32(&tmp_res, &tmp2);
+
+                                            let tmp_const = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                            // mov 0x8000000000000000 -> %tmp_const
+                                            self.backend.emit_mov_r64_imm64(&tmp_const, -9223372036854775808i64);
+
+                                            // xor %tmp_res, %tmp_const -> %tmp_const
+                                            self.backend.emit_xor_r_r(&tmp_const, &tmp_res);
+
+                                            // cvttss2si %tmp_op -> %tmp_res
+                                            self.backend.emit_cvttss2si_r_f32(&tmp_res, &tmp_op);
+
+                                            // ucomiss %tmp_op %tmp1
+                                            self.backend.emit_ucomiss_f32_f32(&tmp1, &tmp_op);
+
+                                            // cmovaeq %tmp_const -> %tmp_res
+                                            self.backend.emit_cmovae_r_r(&tmp_res, &tmp_const);
+                                        }
+                                        4 => {
+                                            let tmp_res64 = unsafe { tmp_res.as_type(UINT64_TYPE.clone())};
+
+                                            // cvttss2si %tmp_op -> %tmp_res(64)
+                                            self.backend.emit_cvttss2si_r_f32(&tmp_res64, &tmp_op);
+                                        }
+                                        2 | 1 => {
+                                            let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
+
+                                            // cvttss2si %tmp_op -> %tmp_res(32)
+                                            self.backend.emit_cvttss2si_r_f32(&tmp_res32, &tmp_op);
+
+                                            // movz %tmp_res(32) -> %tmp_res
+                                            self.backend.emit_movz_r_r(&tmp_res32, &tmp_res);
+                                        }
+                                        _ => panic!("not implemented int length {}", res_ty_size)
+                                    }
                                 } else {
-                                    panic!("unexpected op (expected ireg): {}", op)
+                                    panic!("expect double or float")
                                 }
                             }
                             _ => unimplemented!()
@@ -863,7 +1104,7 @@ impl <'a> InstructionSelection {
                     Instruction_::Load{is_ptr, order, mem_loc} => {
                         trace!("instsel on LOAD");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref loc_op = ops[mem_loc];
                         
                         // check order
@@ -878,20 +1119,34 @@ impl <'a> InstructionSelection {
 
                         let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
                         let res_temp = self.get_result_value(node);
-                        
+
                         if self.match_ireg(node) {
-                            // emit mov(GPR)
                             self.backend.emit_mov_r_mem(&res_temp, &resolved_loc);
+                        } else if self.match_ireg_ex(node) {
+                            let (res_l, res_h) = self.split_int128(&res_temp, f_context, vm);
+
+                            // load lower half
+                            self.backend.emit_mov_r_mem(&res_l, &resolved_loc);
+
+                            // shift ptr, and load higher half
+                            let loc = self.addr_const_offset_adjust(resolved_loc.extract_memory_location().unwrap(), POINTER_SIZE as u64, vm);
+                            let val_loc = self.make_value_memory_location(loc, vm);
+                            self.backend.emit_mov_r_mem(&res_h, &val_loc);
+                        } else if self.match_fpreg(node) {
+                            match res_temp.ty.v {
+                                MuType_::Double => self.backend.emit_movsd_f64_mem64(&res_temp, &resolved_loc),
+                                MuType_::Float  => self.backend.emit_movss_f32_mem32(&res_temp, &resolved_loc),
+                                _ => panic!("expect double or float")
+                            }
                         } else {
-                            // emit mov(FPR)
-                            self.backend.emit_movsd_f64_mem64(&res_temp, &resolved_loc);
+                            unimplemented!()
                         }
                     }
                     
                     Instruction_::Store{is_ptr, order, mem_loc, value} => {
                         trace!("instsel on STORE");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref loc_op = ops[mem_loc];
                         let ref val_op = ops[value];
                         
@@ -921,11 +1176,31 @@ impl <'a> InstructionSelection {
                             } else {
                                 unimplemented!()
                             }
-                        } else {
+                        } else if self.match_ireg_ex(val_op) {
+                            let (val_l, val_h) = self.emit_ireg_ex(val_op, f_content, f_context, vm);
+                            if generate_plain_mov {
+                                // store lower half
+                                self.backend.emit_mov_mem_r(&resolved_loc, &val_l);
+
+                                // shift pointer, and store higher hal
+                                let loc = self.addr_const_offset_adjust(resolved_loc.extract_memory_location().unwrap(),
+                                                                        POINTER_SIZE as u64, vm);
+                                let loc_val = self.make_value_memory_location(loc, vm);
+
+                                self.backend.emit_mov_mem_r(&loc_val, &val_h);
+                            } else {
+                                unimplemented!()
+                            }
+                        } else if self.match_fpreg(val_op) {
                             let val = self.emit_fpreg(val_op, f_content, f_context, vm);
 
-                            // emit mov(FPR)
-                            self.backend.emit_movsd_mem64_f64(&resolved_loc, &val);
+                            match val.ty.v {
+                                MuType_::Double => self.backend.emit_movsd_mem64_f64(&resolved_loc, &val),
+                                MuType_::Float  => self.backend.emit_movss_mem32_f32(&resolved_loc, &val),
+                                _ => panic!("unexpected fp type: {}", val.ty)
+                            }
+                        } else {
+                            unimplemented!()
                         }
                     }
 
@@ -967,7 +1242,7 @@ impl <'a> InstructionSelection {
                     Instruction_::CommonInst_SetThreadLocal(op) => {
                         trace!("instsel on SETTHREADLOCAL");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref op = ops[op];
 
                         debug_assert!(self.match_ireg(op));
@@ -986,7 +1261,7 @@ impl <'a> InstructionSelection {
 
                         if !mm::GC_MOVES_OBJECT {
                             // non-moving GC: pin is a nop (move from op to result)
-                            let ops = inst.ops.read().unwrap();
+                            let ref ops = inst.ops;
                             let ref op = ops[op];
 
                             let tmp_res = self.get_result_value(node);
@@ -1010,7 +1285,7 @@ impl <'a> InstructionSelection {
                     Instruction_::Move(op) => {
                         trace!("instsel on MOVE (internal IR)");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref op = ops[op];
 
                         let tmp_res = self.get_result_value(node);
@@ -1067,7 +1342,7 @@ impl <'a> InstructionSelection {
 
                         // actual size = fix_part_size + var_ty_size * len
                         let (actual_size, length) = {
-                            let ops = inst.ops.read().unwrap();
+                            let ref ops = inst.ops;
                             let ref var_len = ops[var_len];
 
                             if self.match_iimm(var_len) {
@@ -1132,7 +1407,7 @@ impl <'a> InstructionSelection {
                     Instruction_::Throw(op_index) => {
                         trace!("instsel on THROW");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref exception_obj = ops[op_index];
                         
                         self.emit_runtime_entry(
@@ -1145,7 +1420,7 @@ impl <'a> InstructionSelection {
                     Instruction_::PrintHex(index) => {
                         trace!("instsel on PRINTHEX");
 
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
                         let ref op = ops[index];
 
                         self.emit_runtime_entry(
@@ -1204,8 +1479,16 @@ impl <'a> InstructionSelection {
         })
     }
 
+    fn make_value_memory_location (&mut self, loc: MemoryLocation, vm: &VM) -> P<Value> {
+        P(Value{
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty : ADDRESS_TYPE.clone(),
+            v  : Value_::Memory(loc)
+        })
+    }
+
     fn emit_binop (&mut self, node: &TreeNode, inst: &Instruction, op: BinOp, op1: OpIndex, op2: OpIndex, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
-        let ops = inst.ops.read().unwrap();
+        let ref ops = inst.ops;
 
         let res_tmp = self.get_result_value(node);
 
@@ -1241,6 +1524,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // add op2 res
                     self.backend.emit_add_r_r(&res_tmp, &reg_op2);
+                } else if self.match_ireg_ex(&ops[op1]) && self.match_ireg_ex(&ops[op2]){
+                    trace!("emit add-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(&ops[op1], f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(&ops[op2], f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // add res_l op2_l -> res_l
+                    self.backend.emit_add_r_r(&res_l, &op2_l);
+
+                    // adc res_h op2_h -> res_h
+                    self.backend.emit_adc_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1276,6 +1576,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // add op2 res
                     self.backend.emit_sub_r_r(&res_tmp, &reg_op2);
+                } else if self.match_ireg_ex(&ops[op1]) && self.match_ireg_ex(&ops[op2]){
+                    trace!("emit sub-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(&ops[op1], f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(&ops[op2], f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // sub res_l op2_l -> res_l
+                    self.backend.emit_sub_r_r(&res_l, &op2_l);
+
+                    // sbb res_h op2_h -> res_h
+                    self.backend.emit_sbb_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1314,6 +1631,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                     // and op2, res -> res
                     self.backend.emit_and_r_r(&res_tmp, &tmp_op2);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2){
+                    trace!("emit and-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // and res_l op2_l -> res_l
+                    self.backend.emit_and_r_r(&res_l, &op2_l);
+
+                    // and res_h op2_h -> res_h
+                    self.backend.emit_and_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1352,6 +1686,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                     // Or op2, res -> res
                     self.backend.emit_or_r_r(&res_tmp, &tmp_op2);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2){
+                    trace!("emit or-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // or res_l op2_l -> res_l
+                    self.backend.emit_or_r_r(&res_l, &op2_l);
+
+                    // or res_h op2_h -> res_h
+                    self.backend.emit_or_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1390,6 +1741,23 @@ impl <'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                     // xor op2, res -> res
                     self.backend.emit_xor_r_r(&res_tmp, &tmp_op2);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2){
+                    trace!("emit xor-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                    // make result split
+                    // mov op1 to res
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                    self.backend.emit_mov_r_r(&res_l, &op1_l);
+                    self.backend.emit_mov_r_r(&res_h, &op1_h);
+
+                    // xor res_l op2_l -> res_l
+                    self.backend.emit_xor_r_r(&res_l, &op2_l);
+
+                    // xor res_h op2_h -> res_h
+                    self.backend.emit_xor_r_r(&res_h, &op2_h);
                 } else {
                     unimplemented!()
                 }
@@ -1397,82 +1765,160 @@ impl <'a> InstructionSelection {
             op::BinOp::Mul => {
                 // mov op1 -> rax
                 let op1 = &ops[op1];
-
-                let mreg_op1 = match op1.clone_value().ty.get_int_length() {
-                    Some(64) => x86_64::RAX.clone(),
-                    Some(32) => x86_64::EAX.clone(),
-                    Some(16) => x86_64::AX.clone(),
-                    Some(8)  => x86_64::AL.clone(),
-                    _ => unimplemented!()
-                };
-
-                if self.match_iimm(op1) {
-                    let imm_op1 = self.node_iimm_to_i32(op1);
-
-                    self.backend.emit_mov_r_imm(&mreg_op1, imm_op1);
-                } else if self.match_mem(op1) {
-                    let mem_op1 = self.emit_mem(op1, vm);
-
-                    self.backend.emit_mov_r_mem(&mreg_op1, &mem_op1);
-                } else if self.match_ireg(op1) {
-                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-
-                    self.backend.emit_mov_r_r(&mreg_op1, &reg_op1);
-                } else {
-                    unimplemented!();
-                }
-
-                // mul op2
                 let op2 = &ops[op2];
-                if self.match_iimm(op2) {
-                    let imm_op2 = self.node_iimm_to_i32(op2);
 
-                    // put imm in a temporary
-                    // here we use result reg as temporary
-                    self.backend.emit_mov_r_imm(&res_tmp, imm_op2);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expected integer operand with MUL")
+                };
+                match op_len {
+                    1...64 => {
+                        trace!("emit mul");
 
-                    self.backend.emit_mul_r(&res_tmp);
-                } else if self.match_mem(op2) {
-                    let mem_op2 = self.emit_mem(op2, vm);
+                        let mreg_op1 = match op_len {
+                            64 => x86_64::RAX.clone(),
+                            32 => x86_64::EAX.clone(),
+                            16 => x86_64::AX.clone(),
+                            8  => x86_64::AL.clone(),
+                            _ => unimplemented!()
+                        };
 
-                    self.backend.emit_mul_mem(&mem_op2);
-                } else if self.match_ireg(op2) {
-                    let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+                        if self.match_iimm(op1) {
+                            let imm_op1 = self.node_iimm_to_i32(op1);
 
-                    self.backend.emit_mul_r(&reg_op2);
-                } else {
-                    unimplemented!();
-                }
+                            self.backend.emit_mov_r_imm(&mreg_op1, imm_op1);
+                        } else if self.match_mem(op1) {
+                            let mem_op1 = self.emit_mem(op1, vm);
 
-                // mov rax -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
-                    Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
-                    Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
-                    Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                            self.backend.emit_mov_r_mem(&mreg_op1, &mem_op1);
+                        } else if self.match_ireg(op1) {
+                            let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+
+                            self.backend.emit_mov_r_r(&mreg_op1, &reg_op1);
+                        } else {
+                            unimplemented!();
+                        }
+
+                        // mul op2
+                        if self.match_iimm(op2) {
+                            let imm_op2 = self.node_iimm_to_i32(op2);
+
+                            // put imm in a temporary
+                            // here we use result reg as temporary
+                            self.backend.emit_mov_r_imm(&res_tmp, imm_op2);
+
+                            self.backend.emit_mul_r(&res_tmp);
+                        } else if self.match_mem(op2) {
+                            let mem_op2 = self.emit_mem(op2, vm);
+
+                            self.backend.emit_mul_mem(&mem_op2);
+                        } else if self.match_ireg(op2) {
+                            let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+                            self.backend.emit_mul_r(&reg_op2);
+                        } else {
+                            unimplemented!();
+                        }
+
+                        // mov rax -> result
+                        let res_len = res_tmp.ty.get_int_length().unwrap();
+                        assert!(res_len == op_len, "op and res do not have matching type: {}", node);
+
+                        match res_len {
+                            64 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                            32 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                            16 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                            8  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                            _ => unimplemented!()
+                        }
+                    }
+                    128 => {
+                        if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                            trace!("emit mul128");
+
+                            //     (hi, lo)
+                            //      a   b
+                            // x    c   d
+                            // ------------
+                            //      ad  bd
+                            //  ad  bc
+                            // ------------
+                            //      t1  t2
+                            //     (hi, lo)
+
+                            let (b, a) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                            let (d, c) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                            // mov a -> t1
+                            let t1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            self.backend.emit_mov_r_r(&t1, &a);
+
+                            // imul d, t1 -> t1
+                            self.backend.emit_imul_r_r(&t1, &d);
+
+                            // mul d, b -> (RDX:RAX) as (carry:t2)
+                            self.backend.emit_mov_r_r(&x86_64::RAX, &d);
+                            self.backend.emit_mul_r(&b);
+
+                            let t2 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            self.backend.emit_mov_r_r(&t2, &x86_64::RAX);
+
+                            // add t1, carry -> t1
+                            self.backend.emit_add_r_r(&t1, &x86_64::RDX);
+
+                            // mov c -> tt
+                            let tt = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            self.backend.emit_mov_r_r(&tt, &c);
+
+                            // imul b, tt -> tt
+                            self.backend.emit_imul_r_r(&tt, &b);
+
+                            // add t1, tt -> t1
+                            self.backend.emit_add_r_r(&t1, &tt);
+
+                            // result: t1(higher), t2(lower)
+                            let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                            self.backend.emit_mov_r_r(&res_l, &t2);
+                            self.backend.emit_mov_r_r(&res_h, &t1);
+                        } else {
+                            unimplemented!()
+                        }
+                    }
                     _ => unimplemented!()
                 }
-
             },
             op::BinOp::Udiv => {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                self.emit_udiv(op1, op2, f_content, f_context, vm);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expect integer op in UDIV")
+                };
 
-                // mov rax -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
+                match op_len {
+                    0...64 => {
+                        self.emit_udiv(op1, op2, f_content, f_context, vm);
+
+                        // mov rax -> result
+                        match res_tmp.ty.get_int_length() {
+                            Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                            Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                            Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                            Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                            _ => unimplemented!()
+                        }
                     }
-                    Some(32) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX);
-                    }
-                    Some(16) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX);
-                    }
-                    Some(8)  => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL);
+                    128 => {
+                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                        self.emit_runtime_entry(&entrypoints::UDIV_U128,
+                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
+                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
                 }
@@ -1481,21 +1927,34 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                self.emit_idiv(op1, op2, f_content, f_context, vm);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expect integer op in SDIV")
+                };
 
-                // mov rax -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX);
+                match op_len {
+                    0...64 => {
+                        self.emit_idiv(op1, op2, f_content, f_context, vm);
+
+                        // mov rax -> result
+                        match res_tmp.ty.get_int_length() {
+                            Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                            Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                            Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                            Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                            _ => unimplemented!()
+                        }
                     }
-                    Some(32) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX);
-                    }
-                    Some(16) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX);
-                    }
-                    Some(8)  => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL);
+                    128 => {
+                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                        self.emit_runtime_entry(&entrypoints::SDIV_I128,
+                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
+                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
                 }
@@ -1504,21 +1963,34 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                self.emit_udiv(op1, op2, f_content, f_context, vm);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expect integer op in UREM")
+                };
 
-                // mov rdx -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
+                match op_len {
+                    0...64 => {
+                        self.emit_udiv(op1, op2, f_content, f_context, vm);
+
+                        // mov rdx -> result
+                        match res_tmp.ty.get_int_length() {
+                            Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX),
+                            Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX),
+                            Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX),
+                            Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH),
+                            _ => unimplemented!()
+                        }
                     }
-                    Some(32) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX);
-                    }
-                    Some(16) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX);
-                    }
-                    Some(8)  => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH);
+                    128 => {
+                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                        self.emit_runtime_entry(&entrypoints::UREM_U128,
+                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
+                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
                 }
@@ -1527,21 +1999,34 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                self.emit_idiv(op1, op2, f_content, f_context, vm);
+                let op_len = match op1.clone_value().ty.get_int_length() {
+                    Some(len) => len,
+                    None => panic!("expect integer op in SREM")
+                };
 
-                // mov rdx -> result
-                match res_tmp.ty.get_int_length() {
-                    Some(64) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX);
+                match op_len {
+                    0...64 => {
+                        self.emit_idiv(op1, op2, f_content, f_context, vm);
+
+                        // mov rdx -> result
+                        match res_tmp.ty.get_int_length() {
+                            Some(64) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX),
+                            Some(32) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX),
+                            Some(16) => self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX),
+                            Some(8)  => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH),
+                            _ => unimplemented!()
+                        }
                     }
-                    Some(32) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX);
-                    }
-                    Some(16) => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX);
-                    }
-                    Some(8)  => {
-                        self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH);
+                    128 => {
+                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                        self.emit_runtime_entry(&entrypoints::SREM_I128,
+                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
+                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
                 }
@@ -1551,105 +2036,218 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                if self.match_mem(op1) {
-                    unimplemented!()
-                } else if self.match_ireg(op1) {
+                if self.match_ireg(op1) && self.match_iimm(op2) {
+                    trace!("emit shl-ireg-iimm");
+
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let imm_op2 = self.node_iimm_to_i32(op2);
 
-                    if self.match_iimm(op2) {
-                        let imm_op2 = self.node_iimm_to_i32(op2) as i8;
+                    // mov op1 -> res
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
 
-                        // mov op1 -> result
-                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    // shl result, op2 -> result
+                    self.backend.emit_shl_r_imm8(&res_tmp, imm_op2 as i8);
+                } else if self.match_ireg(op1) && self.match_ireg(op2) {
+                    trace!("emit shl-ireg-ireg");
 
-                        // shl result, op2 -> result
-                        self.backend.emit_shl_r_imm8(&res_tmp, imm_op2);
-                    } else if self.match_ireg(op2) {
-                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+                    let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                        // mov op2 -> cl
-                        self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
+                    // mov op2 -> cl
+                    self.backend.emit_mov_r_r(&x86_64::CL, unsafe {&tmp_op2.as_type(UINT8_TYPE.clone())});
 
-                        // mov op1 -> result
-                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    // mov op1 -> result
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
 
-                        // shl result, cl -> result
-                        self.backend.emit_shl_r_cl(&res_tmp);
-                    } else {
-                        panic!("unexpected op2 (not ireg not iimm): {}", op2);
-                    }
+                    // shl result, cl -> result
+                    self.backend.emit_shl_r_cl(&res_tmp);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                    trace!("emit shl-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, _)     = self.emit_ireg_ex(op2, f_content, f_context, vm);
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                    // mov op2_l -> ecx (we do not care higher bits)
+                    self.backend.emit_mov_r_r(&x86_64::ECX, unsafe {&op2_l.as_type(UINT32_TYPE.clone())});
+
+                    // mov op1_h -> t1
+                    let t1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t1, &op1_h);
+
+                    // shld op1_l, t1, cl -> t1
+                    self.backend.emit_shld_r_r_cl(&t1, &op1_l);
+
+                    // mov op1_l -> t2
+                    let t2 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t2, &op1_l);
+
+                    // shl t2, cl -> t2
+                    self.backend.emit_shl_r_cl(&t2);
+
+                    // clear res_l
+                    self.backend.emit_mov_r_imm(&res_l, 0);
+
+                    // test 64, cl
+                    self.backend.emit_test_imm_r(64i32, &x86_64::CL);
+
+                    // cmovne t2 -> t1
+                    self.backend.emit_cmovne_r_r(&t1, &t2);
+
+                    // cmove t2 -> res_l
+                    self.backend.emit_cmove_r_r(&res_l, &t2);
+
+                    // mov t1 -> res_h
+                    self.backend.emit_mov_r_r(&res_h, &t1);
                 } else {
-                    panic!("unexpected op1 (not ireg not mem): {}", op1);
+                    unimplemented!()
                 }
             },
             op::BinOp::Lshr => {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                if self.match_mem(op1) {
-                    unimplemented!()
-                } else if self.match_ireg(op1) {
+                if self.match_ireg(op1) && self.match_iimm(op2) {
+                    trace!("emit lshr-ireg-iimm");
+
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let imm_op2 = self.node_iimm_to_i32(op2);
 
-                    if self.match_iimm(op2) {
-                        let imm_op2 = self.node_iimm_to_i32(op2) as i8;
+                    // mov op1 -> res
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
 
-                        // mov op1 -> result
-                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    // lshr result, op2 -> result
+                    self.backend.emit_shr_r_imm8(&res_tmp, imm_op2 as i8);
+                } else if self.match_ireg(op1) && self.match_ireg(op2) {
+                    trace!("emit lshr-ireg-ireg");
 
-                        // shr result, op2 -> result
-                        self.backend.emit_shr_r_imm8(&res_tmp, imm_op2);
-                    } else if self.match_ireg(op2) {
-                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+                    let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                        // mov op2 -> cl
-                        self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
+                    // mov op2 -> cl
+                    self.backend.emit_mov_r_r(&x86_64::CL, unsafe {&tmp_op2.as_type(UINT8_TYPE.clone())});
 
-                        // mov op1 -> result
-                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    // mov op1 -> result
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
 
-                        // shr result, cl -> result
-                        self.backend.emit_shr_r_cl(&res_tmp);
-                    } else {
-                        panic!("unexpected op2 (not ireg not iimm): {}", op2);
-                    }
+                    // lshr result, cl -> result
+                    self.backend.emit_shr_r_cl(&res_tmp);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                    trace!("emit lshr-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, _)     = self.emit_ireg_ex(op2, f_content, f_context, vm);
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                    // mov op2_l -> ecx (we do not care higher bits)
+                    self.backend.emit_mov_r_r(&x86_64::ECX, unsafe {&op2_l.as_type(UINT32_TYPE.clone())});
+
+                    // mov op1_l -> t1
+                    let t1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t1, &op1_l);
+
+                    // shrd op1_h, t1, cl -> t1
+                    self.backend.emit_shrd_r_r_cl(&t1, &op1_h);
+
+                    // mov op1_h -> t2
+                    let t2 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t2, &op1_h);
+
+                    // shr t2, cl -> t2
+                    self.backend.emit_shr_r_cl(&t2);
+
+                    // clear res_h
+                    self.backend.emit_mov_r_imm(&res_h, 0);
+
+                    // test 64, cl
+                    self.backend.emit_test_imm_r(64i32, &x86_64::CL);
+
+                    // cmovne t2 -> t1
+                    self.backend.emit_cmovne_r_r(&t1, &t2);
+
+                    // cmove t2 -> res_h
+                    self.backend.emit_cmove_r_r(&res_h, &t2);
+
+                    // mov t1 -> res_l
+                    self.backend.emit_mov_r_r(&res_l, &t1);
                 } else {
-                    panic!("unexpected op1 (not ireg not mem): {}", op1);
+                    unimplemented!()
                 }
             },
             op::BinOp::Ashr => {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                if self.match_mem(op1) {
-                    unimplemented!()
-                } else if self.match_ireg(op1) {
+                if self.match_ireg(op1) && self.match_iimm(op2) {
+                    trace!("emit ashr-ireg-iimm");
+
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let imm_op2 = self.node_iimm_to_i32(op2);
 
-                    if self.match_iimm(op2) {
-                        let imm_op2 = self.node_iimm_to_i32(op2) as i8;
+                    // mov op1 -> res
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
 
-                        // mov op1 -> result
-                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    // sar result, op2 -> result
+                    self.backend.emit_sar_r_imm8(&res_tmp, imm_op2 as i8);
+                } else if self.match_ireg(op1) && self.match_ireg(op2) {
+                    trace!("emit ashr-ireg-ireg");
 
-                        // sar result, op2 -> result
-                        self.backend.emit_sar_r_imm8(&res_tmp, imm_op2);
-                    } else if self.match_ireg(op2) {
-                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+                    let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                        // mov op2 -> cl
-                        self.backend.emit_mov_r_r(&x86_64::CL, &tmp_op2);
+                    // mov op2 -> cl
+                    self.backend.emit_mov_r_r(&x86_64::CL, unsafe {&tmp_op2.as_type(UINT8_TYPE.clone())});
 
-                        // mov op1 -> result
-                        self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    // mov op1 -> result
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
 
-                        // sar result, cl -> result
-                        self.backend.emit_sar_r_cl(&res_tmp);
-                    } else  {
-                        panic!("unexpected op2 (not ireg not iimm): {}", op2);
-                    }
+                    // sar result, cl -> result
+                    self.backend.emit_sar_r_cl(&res_tmp);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                    trace!("emit ashr-iregex-iregex");
+
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, _)     = self.emit_ireg_ex(op2, f_content, f_context, vm);
+                    let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+
+                    // mov op2_l -> ecx
+                    self.backend.emit_mov_r_r(&x86_64::ECX, unsafe {&op2_l.as_type(UINT32_TYPE.clone())});
+
+                    // mov op1_l -> t1
+                    let t1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t1, &op1_l);
+
+                    // shrd op1_h, t1, cl -> t1
+                    self.backend.emit_shrd_r_r_cl(&t1, &op1_h);
+
+                    // mov op1_h -> t2
+                    let t2 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t2, &op1_h);
+
+                    // sar t2, cl -> t2
+                    self.backend.emit_sar_r_cl(&t2);
+
+                    // mov op1_h -> t3
+                    let t3 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                    self.backend.emit_mov_r_r(&t3, &op1_h);
+
+                    // sar t3, 63 -> t3
+                    self.backend.emit_sar_r_imm8(&t3, 63i8);
+
+                    // test 64 cl
+                    self.backend.emit_test_imm_r(64i32, &x86_64::CL);
+
+                    // cmovne t2 -> t1
+                    self.backend.emit_cmovne_r_r(&t1, &t2);
+
+                    // cmove t2 -> t3
+                    self.backend.emit_cmove_r_r(&t3, &t2);
+
+                    // t1 as lower, t3 as higher
+                    self.backend.emit_mov_r_r(&res_l, &t1);
+                    self.backend.emit_mov_r_r(&res_h, &t3);
                 } else {
-                    panic!("unexpected op1 (not ireg not mem): {}", op1);
+                    unimplemented!()
                 }
             },
 
@@ -1662,20 +2260,43 @@ impl <'a> InstructionSelection {
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let mem_op2 = self.emit_mem(&ops[op2], vm);
 
-                    // mov op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // add op2 res
-                    self.backend.emit_addsd_f64_mem64(&res_tmp, &mem_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // mov op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // add op2 res
+                            self.backend.emit_addsd_f64_mem64(&res_tmp, &mem_op2);
+                        }
+                        MuType_::Float => {
+                            // mov op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // add op2 res
+                            self.backend.emit_addss_f32_mem32(&res_tmp, &mem_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
+
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit add-fpreg-fpreg");
 
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
 
-                    // movsd op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // add op2 res
-                    self.backend.emit_addsd_f64_f64(&res_tmp, &reg_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // movsd op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // add op2 res
+                            self.backend.emit_addsd_f64_f64(&res_tmp, &reg_op2);
+                        }
+                        MuType_::Float => {
+                            // movsd op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // add op2 res
+                            self.backend.emit_addss_f32_f32(&res_tmp, &reg_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fadd: {}", node)
                 }
@@ -1688,20 +2309,42 @@ impl <'a> InstructionSelection {
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let mem_op2 = self.emit_mem(&ops[op2], vm);
 
-                    // mov op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // sub op2 res
-                    self.backend.emit_subsd_f64_mem64(&res_tmp, &mem_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // mov op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // sub op2 res
+                            self.backend.emit_subsd_f64_mem64(&res_tmp, &mem_op2);
+                        }
+                        MuType_::Float => {
+                            // mov op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // sub op2 res
+                            self.backend.emit_subss_f32_mem32(&res_tmp, &mem_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit sub-fpreg-fpreg");
 
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
 
-                    // movsd op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // sub op2 res
-                    self.backend.emit_subsd_f64_f64(&res_tmp, &reg_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // movsd op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // sub op2 res
+                            self.backend.emit_subsd_f64_f64(&res_tmp, &reg_op2);
+                        }
+                        MuType_::Float => {
+                            // movss op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // sub op2 res
+                            self.backend.emit_subss_f32_f32(&res_tmp, &reg_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fsub: {}", node)
                 }
@@ -1714,20 +2357,42 @@ impl <'a> InstructionSelection {
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let mem_op2 = self.emit_mem(&ops[op2], vm);
 
-                    // mov op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // mul op2 res
-                    self.backend.emit_mulsd_f64_mem64(&res_tmp, &mem_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // mov op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // mul op2 res
+                            self.backend.emit_mulsd_f64_mem64(&res_tmp, &mem_op2);
+                        }
+                        MuType_::Float => {
+                            // mov op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // mul op2 res
+                            self.backend.emit_mulss_f32_mem32(&res_tmp, &mem_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit mul-fpreg-fpreg");
 
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
 
-                    // movsd op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // mul op2 res
-                    self.backend.emit_mulsd_f64_f64(&res_tmp, &reg_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // movsd op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // mul op2 res
+                            self.backend.emit_mulsd_f64_f64(&res_tmp, &reg_op2);
+                        }
+                        MuType_::Float  => {
+                            // movss op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // mul op2 res
+                            self.backend.emit_mulss_f32_f32(&res_tmp, &reg_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fmul: {}", node)
                 }
@@ -1740,20 +2405,42 @@ impl <'a> InstructionSelection {
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let mem_op2 = self.emit_mem(&ops[op2], vm);
 
-                    // mov op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // div op2 res
-                    self.backend.emit_divsd_f64_mem64(&res_tmp, &mem_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // mov op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // div op2 res
+                            self.backend.emit_divsd_f64_mem64(&res_tmp, &mem_op2);
+                        }
+                        MuType_::Float => {
+                            // mov op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // div op2 res
+                            self.backend.emit_divss_f32_mem32(&res_tmp, &mem_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit div-fpreg-fpreg");
 
                     let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
                     let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
 
-                    // movsd op1, res
-                    self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
-                    // div op2 res
-                    self.backend.emit_divsd_f64_f64(&res_tmp, &reg_op2);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            // movsd op1, res
+                            self.backend.emit_movsd_f64_f64(&res_tmp, &reg_op1);
+                            // div op2 res
+                            self.backend.emit_divsd_f64_f64(&res_tmp, &reg_op2);
+                        }
+                        MuType_::Float => {
+                            // movss op1, res
+                            self.backend.emit_movss_f32_f32(&res_tmp, &reg_op1);
+                            // div op2 res
+                            self.backend.emit_divss_f32_f32(&res_tmp, &reg_op2);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fdiv: {}", node)
                 }
@@ -1768,7 +2455,21 @@ impl <'a> InstructionSelection {
 
                     let reg_tmp = self.get_result_value(node);
 
-                    self.emit_runtime_entry(&entrypoints::FREM64, vec![reg_op1.clone(), reg_op2.clone()], Some(vec![reg_tmp.clone()]), Some(node), f_content, f_context, vm);
+                    match reg_op1.ty.v {
+                        MuType_::Double => {
+                            self.emit_runtime_entry(&entrypoints::FREM64,
+                                                    vec![reg_op1.clone(), reg_op2.clone()],
+                                                    Some(vec![reg_tmp.clone()]),
+                                                    Some(node), f_content, f_context, vm);
+                        }
+                        MuType_::Float  => {
+                            self.emit_runtime_entry(&entrypoints::FREM32,
+                                                    vec![reg_op1.clone(), reg_op2.clone()],
+                                                    Some(vec![reg_tmp.clone()]),
+                                                    Some(node), f_content, f_context, vm);
+                        }
+                        _ => panic!("expect double or float")
+                    }
                 } else {
                     panic!("unexpected fdiv: {}", node)
                 }
@@ -1816,30 +2517,20 @@ impl <'a> InstructionSelection {
             self.start_block(format!("{}_allocsmall", node.id()));
 
             // alloc small here
-            let tmp_res = self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
-
+            self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
             self.backend.emit_jmp(blk_alloc_large_end.clone());
-
             // finishing current block
-            let cur_block = self.current_block.as_ref().unwrap().clone();
-            self.backend.end_block(cur_block.clone());
-            self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
+            self.finish_block();
 
             // alloc_large:
-            self.current_block = Some(blk_alloc_large.clone());
-            self.backend.start_block(blk_alloc_large.clone());
-            self.backend.set_block_livein(blk_alloc_large.clone(), &vec![size.clone()]);
-
-            let tmp_res = self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_content, f_context, vm);
-
-            self.backend.end_block(blk_alloc_large.clone());
-            self.backend.set_block_liveout(blk_alloc_large.clone(), &vec![tmp_res.clone()]);
+            self.start_block(blk_alloc_large.clone());
+            self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_content, f_context, vm);
+            self.finish_block();
 
             // alloc_large_end:
-            self.backend.start_block(blk_alloc_large_end.clone());
-            self.current_block = Some(blk_alloc_large_end.clone());
+            self.start_block(blk_alloc_large_end.clone());
 
-            tmp_res
+            self.get_result_value(node)
         }
     }
 
@@ -1952,18 +2643,12 @@ impl <'a> InstructionSelection {
             self.backend.emit_jmp(allocend.clone());
 
             // finishing current block
-            let cur_block = self.current_block.as_ref().unwrap().clone();
-            self.backend.end_block(cur_block.clone());
-            self.backend.set_block_liveout(cur_block.clone(), &vec![tmp_res.clone()]);
+            self.finish_block();
 
             // alloc_slow:
             // call alloc_slow(size, align) -> %ret
             // new block (no livein)
-            self.current_block = Some(slowpath.clone());
-            self.backend.start_block(slowpath.clone());
-            if size.is_int_reg() {
-                self.backend.set_block_livein(slowpath.clone(), &vec![size.clone()]);
-            }
+            self.start_block(slowpath.clone());
 
             // arg1: allocator address
             // arg2: size
@@ -1985,12 +2670,10 @@ impl <'a> InstructionSelection {
             }
 
             // end block (no liveout other than result)
-            self.backend.end_block(slowpath.clone());
-            self.backend.set_block_liveout(slowpath.clone(), &vec![tmp_res.clone()]);
+            self.finish_block();
 
             // block: alloc_end
-            self.backend.start_block(allocend.clone());
-            self.current_block = Some(allocend.clone());
+            self.start_block(allocend.clone());
 
             tmp_res
         } else {
@@ -2013,13 +2696,7 @@ impl <'a> InstructionSelection {
     fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) -> P<Value> {
         let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
 
-        if dest.is_int_reg() {
-            self.backend.emit_mov_r_mem(dest, &mem);
-        } else if dest.is_fp_reg() {
-            self.backend.emit_movsd_f64_mem64(dest, &mem);
-        } else {
-            unimplemented!();
-        }
+        self.emit_move_value_to_value(dest, &mem);
 
         mem
     }
@@ -2227,7 +2904,9 @@ impl <'a> InstructionSelection {
         let mut fpr_arg_count = 0;
 
         for arg in args.iter() {
-            if arg.is_int_reg() {
+            let arg_reg_group = RegGroup::get_from_value(&arg);
+
+            if arg_reg_group == RegGroup::GPR && arg.is_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
                     let arg_gpr = {
                         let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
@@ -2241,7 +2920,7 @@ impl <'a> InstructionSelection {
                     // use stack to pass argument
                     stack_args.push(arg.clone());
                 }
-            } else if arg.is_int_const() {
+            } else if arg_reg_group == RegGroup::GPR && arg.is_const() {
                 let int_const = arg.extract_int_const().unwrap();
 
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
@@ -2262,9 +2941,7 @@ impl <'a> InstructionSelection {
                     // use stack to pass argument
                     stack_args.push(arg.clone());
                 }
-            } else if arg.is_mem() {
-                unimplemented!()
-            } else if arg.is_fp_reg() {
+            } else if arg_reg_group == RegGroup::FPR && arg.is_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
                     let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
 
@@ -2274,7 +2951,7 @@ impl <'a> InstructionSelection {
                     stack_args.push(arg.clone());
                 }
             } else {
-                // struct, etc
+                // fp const, struct, etc
                 unimplemented!()
             }
         }
@@ -2362,7 +3039,7 @@ impl <'a> InstructionSelection {
                 }
             };
 
-            if ret_val.is_int_reg() {
+            if RegGroup::get_from_value(&ret_val) == RegGroup::GPR && ret_val.is_reg() {
                 if gpr_ret_count < x86_64::RETURN_GPRs.len() {
                     let ret_gpr = {
                         let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
@@ -2376,12 +3053,17 @@ impl <'a> InstructionSelection {
                     // get return value by stack
                     unimplemented!()
                 }
-            } else if ret_val.is_fp_reg() {
+            } else if RegGroup::get_from_value(&ret_val) == RegGroup::FPR && ret_val.is_reg() {
                 // floating point register
                 if fpr_ret_count < x86_64::RETURN_FPRs.len() {
                     let ref ret_fpr = x86_64::RETURN_FPRs[fpr_ret_count];
 
-                    self.backend.emit_movsd_f64_f64(&ret_val, &ret_fpr);
+                    match ret_val.ty.v {
+                        MuType_::Double => self.backend.emit_movsd_f64_f64(&ret_val, &ret_fpr),
+                        MuType_::Float  => self.backend.emit_movss_f32_f32(&ret_val, &ret_fpr),
+                        _ => panic!("expect double or float")
+                    }
+
                     fpr_ret_count += 1;
                 } else {
                     // get return value by stack
@@ -2455,7 +3137,7 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM)
     {
-        let ops = inst.ops.read().unwrap();
+        let ref ops = inst.ops;
 
         // prepare args (they could be instructions, we need to emit inst and get value)
         let mut arg_values = vec![];
@@ -2522,7 +3204,7 @@ impl <'a> InstructionSelection {
         vm: &VM) {
         trace!("deal with pre-call convention");
         
-        let ops = inst.ops.read().unwrap();
+        let ref ops = inst.ops;
         let ref func = ops[calldata.func];
         let ref func_sig = match func.v {
             TreeNode_::Value(ref pv) => {
@@ -2671,7 +3353,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, vm: &VM) {
+    fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, f_context: &mut FunctionContext, vm: &VM) {
         let block_name = PROLOGUE_BLOCK_NAME.to_string();
         self.backend.start_block(block_name.clone());
         
@@ -2721,7 +3403,7 @@ impl <'a> InstructionSelection {
         let mut arg_by_stack = vec![];
 
         for arg in args {
-            if arg.is_int_reg() {
+            if RegGroup::get_from_value(&arg) == RegGroup::GPR && arg.is_reg() {
                 if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
                     let arg_gpr = {
                         let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
@@ -2735,33 +3417,39 @@ impl <'a> InstructionSelection {
                     gpr_arg_count += 1;
                 } else {
                     arg_by_stack.push(arg.clone());
-//                    // unload from stack
-//                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-//
-//                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
-//
-//                    // move stack_arg_offset by the size of 'arg'
-//                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
-//                    stack_arg_offset += arg_size as i32;
                 }
-            } else if arg.is_fp_reg() {
+            } else if RegGroup::get_from_value(&arg) == RegGroup::GPREX && arg.is_reg() {
+                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRs.len() {
+                    // we need two registers
+                    let gpr1 = x86_64::ARGUMENT_GPRs[gpr_arg_count].clone();
+                    let gpr2 = x86_64::ARGUMENT_GPRs[gpr_arg_count + 1].clone();
+
+                    let (arg_l, arg_h) = self.split_int128(&arg, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&arg_l, &gpr1);
+                    self.current_frame.as_mut().unwrap().add_argument_by_reg(arg_l.id(), gpr1);
+                    self.backend.emit_mov_r_r(&arg_h, &gpr2);
+                    self.current_frame.as_mut().unwrap().add_argument_by_reg(arg_h.id(), gpr2);
+
+                    gpr_arg_count += 2;
+                } else {
+                    arg_by_stack.push(arg.clone())
+                }
+            } else if RegGroup::get_from_value(&arg) == RegGroup::FPR && arg.is_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
                     let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
 
-                    self.backend.emit_movsd_f64_f64(&arg, &arg_fpr);
+                    match arg.ty.v {
+                        MuType_::Double => self.backend.emit_movsd_f64_f64(&arg, &arg_fpr),
+                        MuType_::Float  => self.backend.emit_movss_f32_f32(&arg, &arg_fpr),
+                        _ => panic!("expect double or float")
+                    }
+
                     self.current_frame.as_mut().unwrap().add_argument_by_reg(arg.id(), arg_fpr);
 
                     fpr_arg_count += 1;
                 } else {
                     arg_by_stack.push(arg.clone());
-//                    // unload from stack
-//                    let stack_slot = self.emit_load_base_offset(&arg, &x86_64::RBP.clone(), stack_arg_offset, vm);
-//
-//                    self.current_frame.as_mut().unwrap().add_argument_by_stack(arg.id(), stack_slot);
-//
-//                    // move stack_arg_offset by the size of 'arg'
-//                    let arg_size = vm.get_backend_type_info(arg.ty.id()).size;
-//                    stack_arg_offset += arg_size as i32;
                 }
             } else {
                 // args that are not fp or int (possibly struct/array/etc)
@@ -2795,37 +3483,73 @@ impl <'a> InstructionSelection {
         // FIXME: this may change in the future
 
         // prepare return regs
-        let ref ops = ret_inst.ops.read().unwrap();
+        let ref ops = ret_inst.ops;
         let ret_val_indices = match ret_inst.v {
             Instruction_::Return(ref vals) => vals,
             _ => panic!("expected ret inst")
         };
-        
+
         let mut gpr_ret_count = 0;
         let mut fpr_ret_count = 0;
         for i in ret_val_indices {
             let ref ret_val = ops[*i];
-            if self.match_ireg(ret_val) {
+
+            if self.match_iimm(ret_val) {
+                let imm_ret_val = self.node_iimm_to_i32(ret_val);
+
+                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                    self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
+                    gpr_ret_count += 1;
+                } else {
+                    // pass by stack
+                    unimplemented!()
+                }
+            } else if self.match_ireg(ret_val) {
                 let reg_ret_val = self.emit_ireg(ret_val, f_content, f_context, vm);
 
-                let ret_gpr = {
-                    let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
-                    let expected_len = reg_ret_val.ty.get_int_length().unwrap();
-                    x86_64::get_alias_for_length(reg64.id(), expected_len)
-                };
-                
-                self.backend.emit_mov_r_r(&ret_gpr, &reg_ret_val);
-                gpr_ret_count += 1;
-            } else if self.match_iimm(ret_val) {
-                let imm_ret_val = self.node_iimm_to_i32(ret_val);
-                
-                self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
-                gpr_ret_count += 1;
+                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                    let ret_gpr = {
+                        let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
+                        let expected_len = reg_ret_val.ty.get_int_length().unwrap();
+                        x86_64::get_alias_for_length(reg64.id(), expected_len)
+                    };
+
+                    self.backend.emit_mov_r_r(&ret_gpr, &reg_ret_val);
+                    gpr_ret_count += 1;
+                } else {
+                    // pass by stack
+                    unimplemented!()
+                }
+            } else if self.match_ireg_ex(ret_val) {
+                let (ret_val1, ret_val2) = self.emit_ireg_ex(ret_val, f_content, f_context, vm);
+
+                if gpr_ret_count + 1 < x86_64::RETURN_GPRs.len() {
+                    let ret_gpr1 = x86_64::RETURN_GPRs[gpr_ret_count].clone();
+                    let ret_gpr2 = x86_64::RETURN_GPRs[gpr_ret_count + 1].clone();
+
+                    self.backend.emit_mov_r_r(&ret_gpr1, &ret_val1);
+                    self.backend.emit_mov_r_r(&ret_gpr2, &ret_val2);
+
+                    gpr_ret_count += 2;
+                } else {
+                    // pass by stack
+                    unimplemented!()
+                }
             } else if self.match_fpreg(ret_val) {
                 let reg_ret_val = self.emit_fpreg(ret_val, f_content, f_context, vm);
 
-                self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val);
-                fpr_ret_count += 1;
+                if fpr_ret_count < x86_64::RETURN_FPRs.len() {
+                    match reg_ret_val.ty.v {
+                        MuType_::Double => self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
+                        MuType_::Float  => self.backend.emit_movss_f32_f32(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
+                        _ => panic!("expect double or float")
+                    }
+
+                    fpr_ret_count += 1;
+                } else {
+                    // pass by stack
+                    unimplemented!()
+                }
             } else {
                 unimplemented!();
             }
@@ -2865,7 +3589,7 @@ impl <'a> InstructionSelection {
     fn emit_cmp_res(&mut self, cond: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
-                let ops = inst.ops.read().unwrap();                
+                let ref ops = inst.ops;
                 
                 match inst.v {
                     Instruction_::CmpOp(op, op1, op2) => {
@@ -2907,6 +3631,90 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_cmp_r_r(&reg_op2, &reg_op1);
 
                                 return op;
+                            } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                                let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                                let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+
+                                match op {
+                                    CmpOp::EQ | CmpOp::NE => {
+                                        // mov op1_h -> h
+                                        let h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&h, &op1_h);
+
+                                        // xor op2_h, h -> h
+                                        self.backend.emit_xor_r_r(&h, &op2_h);
+
+                                        // mov op1_l -> l
+                                        let l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&l, &op1_l);
+
+                                        // xor op2_l, l -> l
+                                        self.backend.emit_xor_r_r(&l, &op2_l);
+
+                                        // or h, l -> l
+                                        self.backend.emit_or_r_r(&l, &h);
+
+                                        return op;
+                                    }
+                                    CmpOp::UGT | CmpOp::SGT => {
+                                        // cmp op1_l, op2_l
+                                        self.backend.emit_cmp_r_r(&op1_l, &op2_l);
+
+                                        // mov op2_h -> t
+                                        // sbb t, op1_h -> t
+                                        let t = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&t, &op2_h);
+                                        self.backend.emit_sbb_r_r(&t, &op1_h);
+
+                                        match op {
+                                            CmpOp::UGT => CmpOp::ULT,
+                                            CmpOp::SGT => CmpOp::SLT,
+                                            _ => unreachable!()
+                                        }
+                                    }
+                                    CmpOp::UGE | CmpOp::SGE => {
+                                        // cmp op2_l, op1_l
+                                        self.backend.emit_cmp_r_r(&op2_l, &op1_l);
+
+                                        // mov op1_h -> t
+                                        // sbb t, op2_h -> t
+                                        let t = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&t, &op1_h);
+                                        self.backend.emit_sbb_r_r(&t, &op2_h);
+
+                                        op
+                                    }
+                                    CmpOp::ULT | CmpOp::SLT => {
+                                        // cmp op2_l, op1_l
+                                        self.backend.emit_cmp_r_r(&op2_l, &op1_l);
+
+                                        // mov op1_h -> t
+                                        // sbb t, op2_h -> t
+                                        let t = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&t, &op1_h);
+                                        self.backend.emit_sbb_r_r(&t, &op2_h);
+
+                                        op
+                                    }
+                                    CmpOp::ULE | CmpOp::SLE => {
+                                        // cmp op2_l, op1_l
+                                        self.backend.emit_cmp_r_r(&op2_l, &op1_l);
+
+                                        // mov op1_h -> t
+                                        // sbb t, op2_h -> t
+                                        let t = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                        self.backend.emit_mov_r_r(&t, &op1_h);
+                                        self.backend.emit_sbb_r_r(&t, &op2_h);
+
+                                        match op {
+                                            CmpOp::ULE => CmpOp::UGE,
+                                            CmpOp::SLE => CmpOp::SGE,
+                                            _ => unreachable!()
+                                        }
+                                    }
+
+                                    _ => unimplemented!()
+                                }
                             } else {
                                 unimplemented!()
                             }
@@ -2922,7 +3730,11 @@ impl <'a> InstructionSelection {
                                 | op::CmpOp::FOLT
                                 | op::CmpOp::FOLE
                                 | op::CmpOp::FONE => {
-                                    self.backend.emit_comisd_f64_f64(&reg_op2, &reg_op1);
+                                    match reg_op1.ty.v {
+                                        MuType_::Double => self.backend.emit_comisd_f64_f64(&reg_op2, &reg_op1),
+                                        MuType_::Float  => self.backend.emit_comiss_f32_f32(&reg_op2, &reg_op1),
+                                        _ => panic!("expect double or float")
+                                    }
 
                                     op
                                 },
@@ -2932,7 +3744,11 @@ impl <'a> InstructionSelection {
                                 | op::CmpOp::FULT
                                 | op::CmpOp::FULE
                                 | op::CmpOp::FUNE => {
-                                    self.backend.emit_ucomisd_f64_f64(&reg_op2, &reg_op1);
+                                    match reg_op1.ty.v {
+                                        MuType_::Double => self.backend.emit_ucomisd_f64_f64(&reg_op2, &reg_op1),
+                                        MuType_::Float  => self.backend.emit_ucomiss_f32_f32(&reg_op2, &reg_op1),
+                                        _ => panic!("expect double or float")
+                                    }
 
                                     op
                                 },
@@ -2958,7 +3774,7 @@ impl <'a> InstructionSelection {
                     
                     let ref value = inst.value.as_ref().unwrap()[0];
                     
-                    if value.is_int_reg() {
+                    if RegGroup::get_from_value(&value) == RegGroup::GPR && value.is_reg() {
                         true
                     } else {
                         false
@@ -2969,7 +3785,33 @@ impl <'a> InstructionSelection {
             }
             
             TreeNode_::Value(ref pv) => {
-                pv.is_int_reg() || pv.is_int_const()
+                RegGroup::get_from_value(&pv) == RegGroup::GPR
+            }
+        }
+    }
+
+    fn match_ireg_ex(&mut self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        return false;
+                    }
+
+                    let ref value = inst.value.as_ref().unwrap()[0];
+
+                    if RegGroup::get_from_value(&value) == RegGroup::GPREX && value.is_reg() {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+
+            TreeNode_::Value(ref pv) => {
+                RegGroup::get_from_value(&pv) == RegGroup::GPREX
             }
         }
     }
@@ -2984,7 +3826,7 @@ impl <'a> InstructionSelection {
 
                     let ref value = inst.value.as_ref().unwrap()[0];
 
-                    if value.is_fp_reg() {
+                    if RegGroup::get_from_value(&value) == RegGroup::FPR {
                         true
                     } else {
                         false
@@ -2995,7 +3837,7 @@ impl <'a> InstructionSelection {
             }
 
             TreeNode_::Value(ref pv) => {
-                pv.is_fp_reg()
+                RegGroup::get_from_value(pv) == RegGroup::FPR
             }
         }
     }
@@ -3023,8 +3865,16 @@ impl <'a> InstructionSelection {
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
                             },
-                            &Constant::FuncRef(_) => {
-                                unimplemented!()
+                            &Constant::FuncRef(func_id) => {
+                                if cfg!(target_os = "macos") {
+                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    self.backend.emit_lea_r64(&tmp, &mem);
+                                } else if cfg!(target_os = "linux") {
+                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    self.backend.emit_mov_r_mem(&tmp, &mem);
+                                } else {
+                                    unimplemented!()
+                                }
                             },
                             &Constant::NullRef => {
                                 // xor a, a -> a will mess up register allocation validation
@@ -3040,6 +3890,38 @@ impl <'a> InstructionSelection {
                         tmp
                     },
                     _ => panic!("expected ireg")
+                }
+            }
+        }
+    }
+
+    fn emit_ireg_ex(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>) {
+        match op.v {
+            TreeNode_::Instruction(_) => {
+                self.instruction_select(op, f_content, f_context, vm);
+
+                let res = self.get_result_value(op);
+
+                // find split for res
+                self.split_int128(&res, f_context, vm)
+            },
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::SSAVar(_) => {
+                        self.split_int128(pv, f_context, vm)
+                    },
+                    Value_::Constant(Constant::IntEx(ref val)) => {
+                        assert!(val.len() == 2);
+
+                        let tmp_l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                        let tmp_h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                        self.backend.emit_mov_r64_imm64(&tmp_l, val[0] as i64);
+                        self.backend.emit_mov_r64_imm64(&tmp_h, val[1] as i64);
+
+                        (tmp_l, tmp_h)
+                    },
+                    _ => panic!("expected ireg_ex")
                 }
             }
         }
@@ -3242,7 +4124,7 @@ impl <'a> InstructionSelection {
 
     fn emit_get_mem_from_inst_inner(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {        match op.v {
             TreeNode_::Instruction(ref inst) => {
-                let ref ops = inst.ops.read().unwrap();
+                let ref ops = inst.ops;
                 
                 match inst.v {
                     // GETIREF -> [base]
@@ -3397,7 +4279,18 @@ impl <'a> InstructionSelection {
 
                                     1
                                 }
-                                _  => panic!("unexpected var ty size: {}", ele_ty_size)
+                                _  => {
+                                    // mov ele_ty_size -> rax
+                                    self.backend.emit_mov_r_imm(&x86_64::RAX, ele_ty_size as i32);
+
+                                    // mul tmp_index_copy rax -> rdx:rax
+                                    self.backend.emit_mul_r(&tmp_index_copy);
+
+                                    // mov rax -> tmp_index_copy
+                                    self.backend.emit_mov_r_r(&tmp_index_copy, &x86_64::RAX);
+
+                                    1
+                                }
                             };
 
                             let mem = match base.v {
@@ -3623,10 +4516,10 @@ impl <'a> InstructionSelection {
     fn emit_move_node_to_value(&mut self, dest: &P<Value>, src: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         let ref dst_ty = dest.ty;
         
-        if !dst_ty.is_fp() && dst_ty.is_scalar() {
+        if RegGroup::get_from_ty(&dst_ty) == RegGroup::GPR {
             if self.match_iimm(src) {
                 let (src_imm, src_len) = self.node_iimm_to_i32_with_len(src);
-                if dest.is_int_reg() {
+                if RegGroup::get_from_value(&dest) == RegGroup::GPR && dest.is_reg() {
                     self.backend.emit_mov_r_imm(dest, src_imm);
                 } else if dest.is_mem() {
                     self.backend.emit_mov_mem_imm(dest, src_imm, src_len);
@@ -3639,7 +4532,18 @@ impl <'a> InstructionSelection {
             } else {
                 panic!("expected src: {}", src);
             }
-        } else if dst_ty.is_fp() && dst_ty.is_scalar() {
+        } else if RegGroup::get_from_ty(&dst_ty) == RegGroup::GPREX {
+              if self.match_ireg_ex(src) {
+                  let (op_l, op_h) = self.emit_ireg_ex(src, f_content, f_context, vm);
+
+                  let (res_l, res_h) = self.split_int128(dest, f_context, vm);
+
+                  self.backend.emit_mov_r_r(&res_l, &op_l);
+                  self.backend.emit_mov_r_r(&res_h, &op_h);
+              } else {
+                  panic!("expected src as ireg_ex: {}", src);
+              }
+        } else if RegGroup::get_from_ty(&dst_ty) == RegGroup::FPR {
             if self.match_fpreg(src) {
                 let src_reg = self.emit_fpreg(src, f_content, f_context, vm);
                 self.emit_move_value_to_value(dest, &src_reg)
@@ -3647,40 +4551,61 @@ impl <'a> InstructionSelection {
                 panic!("unexpected fp src: {}", src);
             }
         } else {
+            warn!("move {} to {} unimplemented", src, dest);
             unimplemented!()
         } 
     }
 
+    // FIXME: need to make sure dest and src have the same type
+    // which is not true all the time, especially when involving memory operand
     fn emit_move_value_to_value(&mut self, dest: &P<Value>, src: &P<Value>) {
         let ref src_ty = src.ty;
 
-        if src_ty.is_scalar() && !src_ty.is_fp() {
+        if RegGroup::get_from_ty(&src_ty) == RegGroup::GPR {
             // gpr mov
-            if dest.is_int_reg() && src.is_int_reg() {
+            if dest.is_reg() && src.is_reg() {
                 self.backend.emit_mov_r_r(dest, src);
-            } else if dest.is_int_reg() && src.is_mem() {
+            } else if dest.is_reg() && src.is_mem() {
                 self.backend.emit_mov_r_mem(dest, src);
-            } else if dest.is_int_reg() && src.is_int_const() {
+            } else if dest.is_reg() && src.is_const() {
                 let imm = self.value_iimm_to_i32(src);
                 self.backend.emit_mov_r_imm(dest, imm);
-            } else if dest.is_mem() && src.is_int_reg() {
+            } else if dest.is_mem() && src.is_reg() {
                 self.backend.emit_mov_mem_r(dest, src);
-            } else if dest.is_mem() && src.is_int_const() {
+            } else if dest.is_mem() && src.is_const() {
                 let (imm, len) = self.value_iimm_to_i32_with_len(src);
                 self.backend.emit_mov_mem_imm(dest, imm, len);
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }
-        } else if src_ty.is_scalar() && src_ty.is_fp() {
+        } else if RegGroup::get_from_ty(&src_ty) == RegGroup::GPREX {
+            unimplemented!()
+        } else if RegGroup::get_from_ty(&src_ty) == RegGroup::FPR {
             // fpr mov
-            if dest.is_fp_reg() && src.is_fp_reg() {
-                self.backend.emit_movsd_f64_f64(dest, src);
-            } else if dest.is_fp_reg() && src.is_mem() {
-                self.backend.emit_movsd_f64_mem64(dest, src);
-            } else if dest.is_mem() && src.is_fp_reg() {
-                self.backend.emit_movsd_mem64_f64(dest, src);
-            } else {
-                panic!("unexpected fpr mov between {} -> {}", src, dest);
+            match src_ty.v {
+                MuType_::Double => {
+                    if dest.is_reg() && src.is_reg() {
+                        self.backend.emit_movsd_f64_f64(dest, src);
+                    } else if dest.is_reg() && src.is_mem() {
+                        self.backend.emit_movsd_f64_mem64(dest, src);
+                    } else if dest.is_mem() && src.is_reg() {
+                        self.backend.emit_movsd_mem64_f64(dest, src);
+                    } else {
+                        panic!("unexpected fpr mov between {} -> {}", src, dest);
+                    }
+                }
+                MuType_::Float => {
+                    if dest.is_reg() && src.is_reg() {
+                        self.backend.emit_movss_f32_f32(dest, src);
+                    } else if dest.is_reg() && src.is_mem() {
+                        self.backend.emit_movss_f32_mem32(dest, src);
+                    } else if dest.is_mem() && src.is_reg() {
+                        self.backend.emit_movss_mem32_f32(dest, src);
+                    } else {
+                        panic!("unexpected fpr mov between {} -> {}", src, dest);
+                    }
+                }
+                _ => panic!("expect double or float")
             }
         } else {
             panic!("unexpected mov of type {}", src_ty)
@@ -3746,9 +4671,40 @@ impl <'a> InstructionSelection {
         }
     }
 
+    #[cfg(feature = "aot")]
+    fn get_mem_for_funcref(&mut self, func_id: MuID, vm: &VM) -> P<Value> {
+        let func_name = vm.get_func_name(func_id);
+
+        P(Value {
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty : ADDRESS_TYPE.clone(),
+            v  : Value_::Memory(MemoryLocation::Symbolic {
+                base: Some(x86_64::RIP.clone()),
+                label: func_name,
+                is_global: true
+            })
+        })
+    }
+
+    fn split_int128(&mut self, int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>){
+        if f_context.get_value(int128.id()).unwrap().has_split() {
+            let vec = f_context.get_value(int128.id()).unwrap().get_split().as_ref().unwrap();
+            (vec[0].clone(), vec[1].clone())
+        } else {
+            let arg_l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+            let arg_h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+            f_context.get_value_mut(int128.id()).unwrap().set_split(vec![arg_l.clone(), arg_h.clone()]);
+
+            (arg_l, arg_h)
+        }
+    }
+
     fn finish_block(&mut self) {
         let cur_block = self.current_block.as_ref().unwrap().clone();
         self.backend.end_block(cur_block.clone());
+
+        self.current_block = None;
     }
 
     fn start_block(&mut self, block: String) {
@@ -3793,7 +4749,9 @@ impl CompilerPass for InstructionSelection {
         
         // prologue (get arguments from entry block first)
         let ref args = entry_block.content.as_ref().unwrap().args;
-        self.emit_common_prologue(args, vm);
+        {
+            self.emit_common_prologue(args, &mut func_ver.context, vm);
+        }
     }
 
     #[allow(unused_variables)]
@@ -3806,8 +4764,8 @@ impl CompilerPass for InstructionSelection {
 
             let block = f_content.get_block(*block_id);
             let block_label = block.name().unwrap();
-            self.current_block = Some(block_label.clone());            
-            
+            self.current_block = Some(block_label.clone());
+            self.current_block_in_ir = Some(block_label.clone());
             let block_content = block.content.as_ref().unwrap();
 
             if is_exception_block {
@@ -3848,13 +4806,14 @@ impl CompilerPass for InstructionSelection {
             }
             
             // we may start block a, and end with block b (instruction selection may create blocks)
-            // we set liveout to current block 
+            // we set liveout to current block
             {
                 let current_block = self.current_block.as_ref().unwrap();
                 self.backend.set_block_liveout(current_block.clone(), &live_out);
                 self.backend.end_block(current_block.clone());
             }            
             self.current_block = None;
+            self.current_block_in_ir = None;
         }
     }
     

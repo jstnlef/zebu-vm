@@ -249,7 +249,7 @@ impl MuFunctionVersion {
             for inst in block_content.body.iter() {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
-                        let ops = inst.ops.read().unwrap();
+                        let ref ops = inst.ops;
 
                         match inst.v {
                             Instruction_::ExprCall{ref data, ..}
@@ -363,6 +363,16 @@ impl FunctionContent {
             Some(b) => b,
             None => panic!("cannot find block #{}", id)
         }
+    }
+
+    pub fn get_block_by_name(&self, name: String) -> &Block {
+        for block in self.blocks.values() {
+            if block.name().unwrap() == name {
+                return block;
+            }
+        }
+
+        panic!("cannot find block {}", name)
     }
 }
 
@@ -560,7 +570,7 @@ impl BlockContent {
         
         match last_inst.v {
             TreeNode_::Instruction(ref inst) => {
-                let ops = inst.ops.read().unwrap();
+                let ref ops = inst.ops;
                 match inst.v {
                     Instruction_::Return(_)
                     | Instruction_::ThreadExit
@@ -738,16 +748,17 @@ impl Value {
             _ => false
         }
     }
-    
-    pub fn is_int_reg(&self) -> bool {
+
+    pub fn is_reg(&self) -> bool {
         match self.v {
-            Value_::SSAVar(_) => {
-                if self.ty.is_scalar() && !self.ty.is_fp() {
-                    true
-                } else {
-                    false
-                }
-            }
+            Value_::SSAVar(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(_) => true,
             _ => false
         }
     }
@@ -761,21 +772,6 @@ impl Value {
             ty: ty,
             v: self.v.clone()
         })
-    }
-
-    pub fn is_fp_reg(&self) -> bool {
-        match self.v {
-            Value_::SSAVar(_) => {
-                if self.ty.is_scalar() && self.ty.is_fp() {
-                    true
-                } else {
-                    false
-                }
-            },
-            Value_::Constant(Constant::Double(_)) => true,
-            Value_::Constant(Constant::Float(_))  => true,
-            _ => false
-        }
     }
 
     pub fn is_int_const(&self) -> bool {
@@ -797,6 +793,13 @@ impl Value {
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             Value_::SSAVar(id) => Some(id),
+            _ => None
+        }
+    }
+
+    pub fn extract_memory_location(&self) -> Option<MemoryLocation> {
+        match self.v {
+            Value_::Memory(ref loc) => Some(loc.clone()),
             _ => None
         }
     }
@@ -868,7 +871,10 @@ pub struct SSAVarEntry {
     use_count: AtomicUsize,
 
     // this field is only used during TreeGeneration pass
-    expr: Option<Instruction>
+    expr: Option<Instruction>,
+
+    // some ssa vars (such as int128) needs to be split into smaller vars
+    split: Option<Vec<P<Value>>>
 }
 
 impl Encodable for SSAVarEntry {
@@ -878,6 +884,7 @@ impl Encodable for SSAVarEntry {
             let count = self.use_count.load(Ordering::SeqCst);
             try!(s.emit_struct_field("use_count", 1, |s| s.emit_usize(count)));
             try!(s.emit_struct_field("expr", 2, |s| self.expr.encode(s)));
+            try!(s.emit_struct_field("split", 3, |s| self.split.encode(s)));
             Ok(())
         })
     }
@@ -886,14 +893,16 @@ impl Encodable for SSAVarEntry {
 impl Decodable for SSAVarEntry {
     fn decode<D: Decoder>(d: &mut D) -> Result<SSAVarEntry, D::Error> {
         d.read_struct("SSAVarEntry", 3, |d| {
-            let val = try!(d.read_struct_field("val", 0, |d| Decodable::decode(d)));
+            let val   = try!(d.read_struct_field("val", 0, |d| Decodable::decode(d)));
             let count = try!(d.read_struct_field("use_count", 1, |d| d.read_usize()));
-            let expr = try!(d.read_struct_field("expr", 2, |d| Decodable::decode(d)));
+            let expr  = try!(d.read_struct_field("expr", 2, |d| Decodable::decode(d)));
+            let split = try!(d.read_struct_field("split", 3, |d| Decodable::decode(d)));
             
             let ret = SSAVarEntry {
                 val: val,
                 use_count: ATOMIC_USIZE_INIT,
-                expr: expr
+                expr: expr,
+                split: split
             };
             
             ret.use_count.store(count, Ordering::SeqCst);
@@ -908,7 +917,8 @@ impl SSAVarEntry {
         let ret = SSAVarEntry {
             val: val,
             use_count: ATOMIC_USIZE_INIT,
-            expr: None
+            expr: None,
+            split: None
         };
         
         ret.use_count.store(0, Ordering::SeqCst);
@@ -944,6 +954,16 @@ impl SSAVarEntry {
         debug_assert!(self.has_expr());
         self.expr.take().unwrap()
     }
+
+    pub fn has_split(&self) -> bool {
+        self.split.is_some()
+    }
+    pub fn set_split(&mut self, vec: Vec<P<Value>>) {
+        self.split = Some(vec);
+    }
+    pub fn get_split(&self) -> &Option<Vec<P<Value>>> {
+        &self.split
+    }
 }
 
 impl fmt::Display for SSAVarEntry {
@@ -957,6 +977,7 @@ impl fmt::Display for SSAVarEntry {
 pub enum Constant {
     /// all integer constants are stored as u64
     Int(u64),
+    IntEx(Vec<u64>),
     /// float constants
     Float(f32),
     /// double constants
@@ -977,6 +998,7 @@ impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Constant::Int(v) => write!(f, "{}", v as i64),
+            &Constant::IntEx(ref v) => write!(f, "IntEx {:?}", v),
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
 //            &Constant::IRef(v) => write!(f, "{}", v),
@@ -1226,6 +1248,13 @@ impl MuEntityHeader {
             }
             None => None
         }
+    }
+
+    pub fn clone_with_id(&self, new_id: MuID) -> MuEntityHeader {
+        let mut clone = self.clone();
+        clone.id = new_id;
+
+        clone
     }
 }
 

@@ -10,8 +10,6 @@ use self::mu::vm::*;
 use self::mu::testutil;
 use mu::utils::LinkedHashMap;
 
-use std::sync::RwLock;
-
 #[test]
 fn test_udiv() {
     let lib = testutil::compile_fnc("udiv", &udiv);

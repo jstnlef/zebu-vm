@@ -8,7 +8,6 @@ use mu::ast::op::*;
 use mu::vm::*;
 use mu::compiler::*;
 
-use std::sync::RwLock;
 use std::sync::Arc;
 use mu::testutil;
 use mu::testutil::aot;
@@ -1193,6 +1192,101 @@ fn pass_fp_arg() -> VM {
     });
 
     define_func_ver!((vm) pass_fp_arg_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
+fn test_store_funcref() {
+    let lib = testutil::compile_fncs("store_funcref", vec!["store_funcref", "foo"], &store_funcref);
+
+    unsafe {
+        use mu::utils::mem::memsec::malloc;
+        let ptr = match malloc::<u64>(8) {
+            Some(ptr) => ptr,
+            None => panic!("failed to alloc memory for testing")
+        };
+
+        let store_funcref : libloading::Symbol<unsafe extern fn (*mut u64) -> (u64)> = lib.get(b"store_funcref").unwrap();
+
+        let res = store_funcref(ptr);
+        println!("store_funcref() = {}", res);
+        assert!(res == 1);
+    }
+}
+
+fn store_funcref() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+
+    // foo
+    funcsig!    ((vm) foo_sig = () -> (int64));
+    funcdecl!   ((vm) <foo_sig> foo);
+    funcdef!    ((vm) <foo_sig> foo VERSION foo_v1);
+
+    block!      ((vm, foo_v1) blk_entry);
+    consta!     ((vm, foo_v1) int64_1_local = int64_1);
+    inst!       ((vm, foo_v1) blk_entry_ret:
+        RET (int64_1_local)
+    );
+
+    define_block!((vm, foo_v1) blk_entry() {
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) foo_v1(entry: blk_entry) {
+        blk_entry
+    });
+
+    // store_funcref
+    typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(vm.id_of("foo")));
+
+    typedef!    ((vm) uptr_funcref_foo = mu_uptr(type_funcref_foo));
+
+    funcsig!    ((vm) store_funcref_sig = (uptr_funcref_foo) -> (int64));
+    funcdecl!   ((vm) <store_funcref_sig> store_funcref);
+    funcdef!    ((vm) <store_funcref_sig> store_funcref VERSION store_funcref_v1);
+
+    // blk_entry(loc):
+    block!      ((vm, store_funcref_v1) blk_entry);
+    ssa!        ((vm, store_funcref_v1) <uptr_funcref_foo> loc);
+
+    // STORE funcref_foo loc
+    consta!     ((vm, store_funcref_v1) const_funcref_foo_local = const_funcref_foo);
+    inst!       ((vm, store_funcref_v1) blk_entry_store:
+        STORE loc const_funcref_foo_local (is_ptr: true, order: MemoryOrder::Relaxed)
+    );
+
+    // f = LOAD loc
+    ssa!        ((vm, store_funcref_v1) <type_funcref_foo> f);
+    inst!       ((vm, store_funcref_v1) blk_entry_load:
+        f = LOAD loc (is_ptr: true, order: MemoryOrder::Relaxed)
+    );
+
+    // res = EXPRCALL f ()
+    ssa!        ((vm, store_funcref_v1) <int64> res);
+    inst!       ((vm, store_funcref_v1) blk_entry_call:
+        res = EXPRCALL (CallConvention::Mu, is_abort: false) f ()
+    );
+
+    // RET res
+    inst!       ((vm, store_funcref_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, store_funcref_v1) blk_entry(loc) {
+        blk_entry_store,
+        blk_entry_load,
+        blk_entry_call,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) store_funcref_v1 (entry: blk_entry) {
         blk_entry
     });
 

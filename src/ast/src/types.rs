@@ -117,6 +117,22 @@ impl MuType {
         }
     }
 
+    /// is this type a float type (single-precision floating point)
+    pub fn is_float(&self) -> bool {
+        match self.v {
+            MuType_::Float => true,
+            _ => false
+        }
+    }
+
+    /// is this type a double type (double-precision floating point)
+    pub fn is_double(&self) -> bool {
+        match self.v {
+            MuType_::Double => true,
+            _ => false
+        }
+    }
+
     /// is this type a scalar type?
     pub fn is_scalar(&self) -> bool {
         match self.v {
@@ -169,6 +185,14 @@ impl MuType {
     pub fn is_iref(&self) -> bool {
         match self.v {
             MuType_::IRef(_) => true,
+            _ => false
+        }
+    }
+
+    /// is a type raw pointer?
+    pub fn is_ptr(&self) -> bool {
+        match self.v {
+            MuType_::UPtr(_) | MuType_::UFuncPtr(_) => true,
             _ => false
         }
     }

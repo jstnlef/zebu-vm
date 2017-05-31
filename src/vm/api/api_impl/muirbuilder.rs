@@ -211,7 +211,8 @@ impl MuIRBuilder {
     }
 
     pub fn new_const_int_ex(&mut self, id: MuID, ty: MuID, values: &[u64]) {
-        panic!("Not implemented")
+        self.bundle.consts.insert(id, Box::new(NodeConst::ConstIntEx {id: id,
+            ty: ty, value: values.to_vec()}));
     }
 
     pub fn new_const_float(&mut self, id: MuID, ty: MuID, value: f32) {
@@ -1108,6 +1109,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let c = Constant::Int(value);
                 (c, t)
             },
+            NodeConst::ConstIntEx { id: _, ty, ref value } => {
+                let t = self.ensure_type_rec(ty);
+                let c = Constant::IntEx(value.clone());
+                (c, t)
+            },
             NodeConst::ConstFloat { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Float(value);
@@ -1366,7 +1372,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     Instruction {
                         hdr: hdr,
                         value: Some(vec![impl_rv]),
-                        ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                        ops: vec![impl_opnd1, impl_opnd2],
                         v: Instruction_::BinOp(impl_optr, 0, 1),
                     }
                 } else {
@@ -1418,7 +1424,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     Instruction {
                         hdr: hdr,
                         value: Some(values),
-                        ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                        ops: vec![impl_opnd1, impl_opnd2],
                         v: Instruction_::BinOpWithStatus(impl_optr, impl_flags, 0, 1),
                     }
                 }
@@ -1465,7 +1471,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd1, impl_opnd2]),
+                    ops: vec![impl_opnd1, impl_opnd2],
                     v: Instruction_::CmpOp(impl_optr, 0, 1),
                 }
             },
@@ -1495,7 +1501,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd]),
+                    ops: vec![impl_opnd],
                     v: Instruction_::ConvOp {
                         operation: impl_optr,
                         from_ty: impl_from_ty,
@@ -1517,7 +1523,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_cond, impl_if_true, impl_if_false]),
+                    ops: vec![impl_cond, impl_if_true, impl_if_false],
                     v: Instruction_::Select {
                         cond: 0,
                         true_val: 1,
@@ -1533,7 +1539,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(ops),
+                    ops: ops,
                     v: Instruction_::Branch1(impl_dest),
                 }
             },
@@ -1549,7 +1555,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(ops),
+                    ops: ops,
                     v: Instruction_::Branch2 {
                         cond: 0,
                         true_dest: impl_dest_true,
@@ -1579,7 +1585,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(ops),
+                    ops: ops,
                     v: Instruction_::Switch {
                         cond: 0,
                         default: impl_dest_def,
@@ -1604,7 +1610,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(ops),
+                    ops: ops,
                     v: Instruction_::TailCall(call_data),
                 }
             },
@@ -1615,7 +1621,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(ops),
+                    ops: ops,
                     v: Instruction_::Return(op_indexes),
                 }
             },
@@ -1625,7 +1631,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(vec![impl_exc]),
+                    ops: vec![impl_exc],
                     v: Instruction_::Throw(0),
                 }
             },
@@ -1637,7 +1643,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![]),
+                    ops: vec![],
                     v: Instruction_::New(impl_allocty),
                 }
             },
@@ -1650,7 +1656,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_length]),
+                    ops: vec![impl_length],
                     v: Instruction_::NewHybrid(impl_allocty, 0),
                 }
             },
@@ -1662,7 +1668,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![]),
+                    ops: vec![],
                     v: Instruction_::AllocA(impl_allocty),
                 }
             },
@@ -1675,7 +1681,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_length]),
+                    ops: vec![impl_length],
                     v: Instruction_::AllocAHybrid(impl_allocty, 0),
                 }
             },
@@ -1686,7 +1692,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd]),
+                    ops: vec![impl_opnd],
                     v: Instruction_::GetIRef(0),
                 }
             },
@@ -1708,7 +1714,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd]),
+                    ops: vec![impl_opnd],
                     v: Instruction_::GetFieldIRef {
                         is_ptr: is_ptr,
                         base: 0,
@@ -1734,7 +1740,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd, impl_index]),
+                    ops: vec![impl_opnd, impl_index],
                     v: Instruction_::GetElementIRef {
                         is_ptr: is_ptr,
                         base: 0,
@@ -1750,7 +1756,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd, impl_offset]),
+                    ops: vec![impl_opnd, impl_offset],
                     v: Instruction_::ShiftIRef {
                         is_ptr: is_ptr,
                         base: 0,
@@ -1772,7 +1778,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_opnd]),
+                    ops: vec![impl_opnd],
                     v: Instruction_::GetVarPartIRef {
                         is_ptr: is_ptr,
                         base: 0,
@@ -1787,7 +1793,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
-                    ops: RwLock::new(vec![impl_loc]),
+                    ops: vec![impl_loc],
                     v: Instruction_::Load {
                         is_ptr: is_ptr,
                         order: impl_ord,
@@ -1803,7 +1809,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(vec![impl_loc, impl_newval]),
+                    ops: vec![impl_loc, impl_newval],
                     v: Instruction_::Store {
                         is_ptr: is_ptr,
                         order: impl_ord,
@@ -1942,7 +1948,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             Instruction {
                 hdr: hdr,
                 value: Some(rvs),
-                ops: RwLock::new(ops),
+                ops: ops,
                 v: impl_inst_,
             }
         } else {
@@ -1950,7 +1956,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             Instruction {
                 hdr: hdr,
                 value: Some(rvs),
-                ops: RwLock::new(ops),
+                ops: ops,
                 v: if is_ccall {
                     Instruction_::ExprCCall {
                         data: call_data,
@@ -1981,7 +1987,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![rv]),
-                    ops: RwLock::new(vec![]),
+                    ops: vec![],
                     v: Instruction_::CommonInst_GetThreadLocal
                 }
             }
@@ -1993,7 +1999,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(vec![op]),
+                    ops: vec![op],
                     v: Instruction_::CommonInst_SetThreadLocal(0)
                 }
             }
@@ -2016,7 +2022,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![rv]),
-                    ops: RwLock::new(vec![op]),
+                    ops: vec![op],
                     v: Instruction_::CommonInst_Pin(0)
                 }
             }
@@ -2030,7 +2036,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(vec![op]),
+                    ops: vec![op],
                     v: Instruction_::CommonInst_Unpin(0)
                 }
             }
@@ -2038,7 +2044,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 Instruction {
                     hdr: hdr,
                     value: None,
-                    ops: RwLock::new(vec![]),
+                    ops: vec![],
                     v: Instruction_::ThreadExit
                 }
             }

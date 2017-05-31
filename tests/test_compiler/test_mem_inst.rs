@@ -9,7 +9,6 @@ use mu::compiler::*;
 use mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
-use std::sync::RwLock;
 use mu::testutil::aot;
 use mu::testutil;
 

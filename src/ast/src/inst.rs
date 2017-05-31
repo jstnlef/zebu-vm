@@ -6,7 +6,6 @@ use op::*;
 use utils::vec_utils;
 
 use std::fmt;
-use std::sync::RwLock;
 
 /// Instruction represents a Mu instruction
 #[derive(Debug)] // RustcEncodable, RustcDecodable, Clone and Display
@@ -17,7 +16,7 @@ pub struct Instruction {
     /// ops field list all the children nodes,
     /// and in Instruction_, the children nodes are referred by indices
     /// This design makes it easy for the compiler to iterate through all the children
-    pub ops : RwLock<Vec<P<TreeNode>>>,
+    pub ops : Vec<P<TreeNode>>,
     /// used for pattern matching
     pub v: Instruction_
 }
@@ -32,7 +31,7 @@ impl Encodable for Instruction {
             try!(s.emit_struct_field("hdr", 0, |s| self.hdr.encode(s)));
             try!(s.emit_struct_field("value", 1, |s| self.value.encode(s)));
             
-            let ops = &self.ops.read().unwrap();
+            let ref ops = self.ops;
             try!(s.emit_struct_field("ops", 2, |s| ops.encode(s)));
             
             try!(s.emit_struct_field("v", 3, |s| self.v.encode(s)));
@@ -55,7 +54,7 @@ impl Decodable for Instruction {
             Ok(Instruction{
                 hdr: hdr,
                 value: value,
-                ops: RwLock::new(ops),
+                ops: ops,
                 v: v
             })
         })
@@ -67,13 +66,20 @@ impl Clone for Instruction {
         Instruction {
             hdr: self.hdr.clone(),
             value: self.value.clone(),
-            ops: RwLock::new(self.ops.read().unwrap().clone()),
+            ops: self.ops.clone(),
             v: self.v.clone()
         }
     }
 }
 
 impl Instruction {
+    pub fn clone_with_id(&self, new_id: MuID) -> Instruction {
+        let mut clone = self.clone();
+        clone.hdr = self.hdr.clone_with_id(new_id);
+
+        clone
+    }
+
     /// is this instruction the terminal inst of its block?
     /// Terminal instructions end Mu blocks, and Mu block ends with a terminal instruction.
     pub fn is_terminal_inst(&self) -> bool {
@@ -249,7 +255,6 @@ impl Instruction {
     /// returns exception target(block ID), returns None if this instruction does not have exceptional branch
     pub fn get_exception_target(&self) -> Option<MuID> {
         use inst::Instruction_::*;
-
         match self.v {
             Watchpoint {ref resume, ..}
             | Call {ref resume, ..}
@@ -308,7 +313,7 @@ impl Instruction {
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let ops = &self.ops.read().unwrap();
+        let ref ops = self.ops;
         if self.value.is_some() {
             write!(f, "{} = {}", vec_utils::as_str(self.value.as_ref().unwrap()), self.v.debug_str(ops))
         } else {

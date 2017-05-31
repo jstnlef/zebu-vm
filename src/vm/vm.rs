@@ -591,11 +591,15 @@ impl <'a> VM {
             None => panic!("cannot find id for name: {}", name)
         }
     }
-    
+
+    /// should only used by client
+    /// 'name' used internally may be slightly different to remove some special symbols
     pub fn id_of(&self, name: &str) -> MuID {
         self.id_of_by_refstring(&name.to_string())
     }
-    
+
+    /// should only used by client
+    /// 'name' used internally may be slightly different to remove some special symbols
     pub fn name_of(&self, id: MuID) -> MuName {
         let map = self.id_name_map.read().unwrap();
         map.get(&id).unwrap().clone()
@@ -764,6 +768,15 @@ impl <'a> VM {
 
         info!("declare func #{} = {}", id, func);
         funcs.insert(id, RwLock::new(func));
+    }
+
+    /// this is different than vm.name_of()
+    pub fn get_func_name(&self, id: MuID) -> MuName {
+        let funcs_lock = self.funcs.read().unwrap();
+        match funcs_lock.get(&id) {
+            Some(func) => func.read().unwrap().name().unwrap(),
+            None => panic!("cannot find name for Mu function #{}")
+        }
     }
     
     /// The IR builder needs to look-up the function signature from the existing function ID.
@@ -976,15 +989,34 @@ impl <'a> VM {
         let mut guard = self.primordial.write().unwrap();
         *guard = Some(MuPrimordialThread{func_id: func_id, has_const_args: has_const_args, args: args});
     }
+
+    pub fn make_boot_image(&self,
+                            whitelist: Vec<MuID>,
+                            primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>,
+                            primordial_threadlocal: Option<&APIHandle>,
+                            sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>,
+                            reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>,
+                            output_file: String) {
+        self.make_boot_image_internal(
+            whitelist,
+            primordial_func, primordial_stack,
+            primordial_threadlocal,
+            sym_fields, sym_strings,
+            reloc_fields, reloc_strings,
+            vec![],
+            output_file
+        )
+    }
     
     #[allow(unused_variables)]
-    pub fn make_boot_image(&self,
-                           whitelist: Vec<MuID>,
-                           primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>,
-                           primordial_threadlocal: Option<&APIHandle>,
-                           sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>,
-                           reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>,
-                           output_file: String) {
+    pub fn make_boot_image_internal(&self,
+                                   whitelist: Vec<MuID>,
+                                   primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>,
+                                   primordial_threadlocal: Option<&APIHandle>,
+                                   sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>,
+                                   reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>,
+                                   extra_sources_to_link: Vec<String>,
+                                   output_file: String) {
         trace!("Making boot image...");
 
         let whitelist_funcs = {
@@ -1023,22 +1055,20 @@ impl <'a> VM {
         // make sure only one of primordial_func or primoridial_stack is set
         let has_primordial_func  = primordial_func.is_some();
         let has_primordial_stack = primordial_stack.is_some();
-        assert!(
-            // do not have promordial stack/func
-            (!has_primordial_func && !has_primordial_stack)
-            // have either stack or func
-            || ((has_primordial_func && !has_primordial_stack) || (!has_primordial_func && has_primordial_stack))
-        );
 
         // we assume client will start with a function (instead of a stack)
         if has_primordial_stack {
             panic!("Zebu doesnt support creating primordial thread through a stack, name a entry function instead")
         } else {
-            // extract func id
-            let func_id = primordial_func.unwrap().v.as_funcref();
+            if has_primordial_func {
+                // extract func id
+                let func_id = primordial_func.unwrap().v.as_funcref();
 
-            // make primordial thread in vm
-            self.make_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
+                // make primordial thread in vm
+                self.make_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
+            } else {
+                warn!("no entry function is passed");
+            }
 
             // deal with relocation symbols
             assert_eq!(sym_fields.len(), sym_strings.len());
@@ -1076,12 +1106,12 @@ impl <'a> VM {
             backend::emit_context_with_reloc(self, symbols, fields);
 
             // link
-            self.link_boot_image(whitelist_funcs, output_file);
+            self.link_boot_image(whitelist_funcs, extra_sources_to_link, output_file);
         }
     }
 
     #[cfg(feature = "aot")]
-    fn link_boot_image(&self, funcs: Vec<MuID>, output_file: String) {
+    fn link_boot_image(&self, funcs: Vec<MuID>, extra_srcs: Vec<String>, output_file: String) {
         use testutil;
 
         trace!("Linking boot image...");
@@ -1092,12 +1122,14 @@ impl <'a> VM {
         };
 
         trace!("functions: {:?}", func_names);
+        trace!("extern sources: {:?}", extra_srcs);
         trace!("output   : {}", output_file);
 
         if output_file.ends_with("dylib") || output_file.ends_with("so") {
             // compile as dynamic library
-            testutil::aot::link_dylib(func_names, &output_file, self);
+            testutil::aot::link_dylib_with_extra_srcs(func_names, extra_srcs, &output_file, self);
         } else {
+            assert!(extra_srcs.len() == 0, "trying to create an executable with linking extern sources, unimplemented");
             // compile as executable
             testutil::aot::link_primordial(func_names, &output_file, self);
         }
