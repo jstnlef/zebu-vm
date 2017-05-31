@@ -2434,7 +2434,9 @@ impl <'a> InstructionSelection {
                     TreeNode_::Instruction(Instruction {v: Instruction_::CCall{..}, ..}) => {
                         unimplemented!()
                     }
-                    _ => panic!("expect cur_node in emit_c_call_internal to be an CCALL instruction")
+                    _ => {
+                        // wont have an exception branch, ignore
+                    }
                 }
             }
         }
