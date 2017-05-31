@@ -3137,7 +3137,7 @@ impl <'a> InstructionSelection {
                 match pv.v {
                     Value_::SSAVar(_) => P(Value{
                         hdr: MuEntityHeader::unnamed(vm.next_id()),
-                        ty: types::get_referent_ty(& pv.ty).unwrap(),
+                        ty: pv.ty.get_referent_ty().unwrap(),
                         v: Value_::Memory(MemoryLocation::Address{
                             base: pv.clone(),
                             offset: None,
@@ -3154,7 +3154,7 @@ impl <'a> InstructionSelection {
                             if cfg!(target_os = "macos") {
                                 P(Value {
                                     hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                    ty: types::get_referent_ty(&pv.ty).unwrap(),
+                                    ty: pv.ty.get_referent_ty().unwrap(),
                                     v: Value_::Memory(MemoryLocation::Symbolic {
                                         base: Some(x86_64::RIP.clone()),
                                         label: pv.name().unwrap(),
@@ -3179,7 +3179,7 @@ impl <'a> InstructionSelection {
                                 let actual_loc = self.make_temporary(f_context, pv.ty.clone(), vm);
                                 self.emit_move_value_to_value(&actual_loc, &got_loc);
 
-                                self.make_memory_op_base_offset(&actual_loc, 0, types::get_referent_ty(&pv.ty).unwrap(), vm)
+                                self.make_memory_op_base_offset(&actual_loc, 0, pv.ty.get_referent_ty().unwrap(), vm)
                             } else {
                                 unimplemented!()
                             }
@@ -3303,7 +3303,7 @@ impl <'a> InstructionSelection {
                     Instruction_::GetVarPartIRef{base, ..} => {
                         let ref base = ops[base];
 
-                        let struct_ty = match base.clone_value().ty.get_referenced_ty() {
+                        let struct_ty = match base.clone_value().ty.get_referent_ty() {
                             Some(ty) => ty,
                             None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
@@ -3341,7 +3341,7 @@ impl <'a> InstructionSelection {
                         let ref offset = ops[offset];
 
                         let ref base_ty = base.clone_value().ty;
-                        let ele_ty = match base_ty.get_referenced_ty() {
+                        let ele_ty = match base_ty.get_referent_ty() {
                             Some(ty) => ty,
                             None => panic!("expected op in ShiftIRef of type IRef, found type: {}", base_ty)
                         };
@@ -3434,7 +3434,7 @@ impl <'a> InstructionSelection {
                         let ref index = ops[index];
 
                         let ref iref_array_ty = base.clone_value().ty;
-                        let array_ty = match iref_array_ty.get_referenced_ty() {
+                        let array_ty = match iref_array_ty.get_referent_ty() {
                             Some(ty) => ty,
                             None => panic!("expected base in GetElemIRef to be type IRef, found {}", iref_array_ty)
                         };
@@ -3623,7 +3623,7 @@ impl <'a> InstructionSelection {
     fn emit_move_node_to_value(&mut self, dest: &P<Value>, src: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         let ref dst_ty = dest.ty;
         
-        if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
+        if !dst_ty.is_fp() && dst_ty.is_scalar() {
             if self.match_iimm(src) {
                 let (src_imm, src_len) = self.node_iimm_to_i32_with_len(src);
                 if dest.is_int_reg() {
@@ -3639,7 +3639,7 @@ impl <'a> InstructionSelection {
             } else {
                 panic!("expected src: {}", src);
             }
-        } else if types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
+        } else if dst_ty.is_fp() && dst_ty.is_scalar() {
             if self.match_fpreg(src) {
                 let src_reg = self.emit_fpreg(src, f_content, f_context, vm);
                 self.emit_move_value_to_value(dest, &src_reg)
@@ -3654,7 +3654,7 @@ impl <'a> InstructionSelection {
     fn emit_move_value_to_value(&mut self, dest: &P<Value>, src: &P<Value>) {
         let ref src_ty = src.ty;
 
-        if types::is_scalar(src_ty) && !types::is_fp(src_ty) {
+        if src_ty.is_scalar() && !src_ty.is_fp() {
             // gpr mov
             if dest.is_int_reg() && src.is_int_reg() {
                 self.backend.emit_mov_r_r(dest, src);
@@ -3671,7 +3671,7 @@ impl <'a> InstructionSelection {
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }
-        } else if types::is_scalar(src_ty) && types::is_fp(src_ty) {
+        } else if src_ty.is_scalar() && src_ty.is_fp() {
             // fpr mov
             if dest.is_fp_reg() && src.is_fp_reg() {
                 self.backend.emit_movsd_f64_f64(dest, src);

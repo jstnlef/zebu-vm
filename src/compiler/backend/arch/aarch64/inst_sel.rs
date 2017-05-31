@@ -3425,7 +3425,7 @@ impl <'a> InstructionSelection {
 
                     // GETVARPARTIREF < T1 > opnd = opnd + offset_of(T1.var_part)
                     Instruction_::GetVarPartIRef{base, ..} => {
-                        let struct_ty = match ops[base].clone_value().ty.get_referenced_ty() {
+                        let struct_ty = match ops[base].clone_value().ty.get_referent_ty() {
                             Some(ty) => ty,
                             None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
@@ -3435,13 +3435,13 @@ impl <'a> InstructionSelection {
 
                     // SHIFTIREF < T1 T2 > opnd offset = opnd + offset*size_of(T1)
                     Instruction_::ShiftIRef{base, offset, ..} => {
-                        let element_type = ops[base].clone_value().ty.get_referenced_ty().unwrap();
+                        let element_type = ops[base].clone_value().ty.get_referent_ty().unwrap();
                         let element_size = vm.get_backend_type_info(element_type.id()).size;
                         self.emit_shift_ref(&ops[base], &ops[offset], element_size, f_content, f_context, vm)
                     }
                     // GETELEMIREF <T1 T2> opnd index = opnd + index*element_size(T1)
                     Instruction_::GetElementIRef{base, index, ..} => {
-                        let element_type = ops[base].clone_value().ty.get_referenced_ty().unwrap().get_elem_ty().unwrap();
+                        let element_type = ops[base].clone_value().ty.get_referent_ty().unwrap().get_elem_ty().unwrap();
                         let element_size = vm.get_backend_type_info(element_type.id()).size;
 
                         self.emit_shift_ref(&ops[base], &ops[index], element_size, f_content, f_context, vm)
@@ -3599,7 +3599,7 @@ impl <'a> InstructionSelection {
     fn emit_move_node_to_value(&mut self, dest: &P<Value>, src: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         let ref dst_ty = dest.ty;
 
-        if !types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
+        if !dst_ty.is_fp() && dst_ty.is_scalar() {
             if match_node_int_imm(src) {
                 let src_imm = node_imm_to_u64(src);
                 if dest.is_int_reg() {
@@ -3617,7 +3617,7 @@ impl <'a> InstructionSelection {
             } else {
                 panic!("expected src: {}", src);
             }
-        } else if types::is_fp(dst_ty) && types::is_scalar(dst_ty) {
+        } else if dst_ty.is_fp() && dst_ty.is_scalar() {
             if match_node_int_imm(src) {
                 if dst_ty.v == MuType_::Double {
                     let src_imm = node_imm_to_f64(src);
@@ -3656,7 +3656,7 @@ impl <'a> InstructionSelection {
 
     fn emit_move_value_to_value(&mut self, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
         let ref src_ty = src.ty;
-        if types::is_scalar(src_ty) && !types::is_fp(src_ty) {
+        if src_ty.is_scalar() && !src_ty.is_fp() {
             // gpr mov
             if dest.is_int_reg() && src.is_int_const() {
                 let imm = value_imm_to_u64(src);
@@ -3671,7 +3671,7 @@ impl <'a> InstructionSelection {
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }
-        } else if types::is_scalar(src_ty) && types::is_fp(src_ty) {
+        } else if src_ty.is_scalar() && src_ty.is_fp() {
             // fpr mov
             if dest.is_fp_reg() && match_value_f32imm(src) {
                 let src = value_imm_to_f32(src);

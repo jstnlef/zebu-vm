@@ -686,7 +686,7 @@ impl <'a> VM {
         global_locs: &mut RwLockWriteGuard<HashMap<MuID, ValueLocation>>,
         id: MuID, val: P<Value>
     ) {
-        let backend_ty = self.get_backend_type_info(val.ty.get_referenced_ty().unwrap().id());
+        let backend_ty = self.get_backend_type_info(val.ty.get_referent_ty().unwrap().id());
         let loc = gc::allocate_global(val, backend_ty);
         info!("allocate global #{} as {}", id, loc);
         global_locs.insert(id, loc);
@@ -1151,7 +1151,7 @@ impl <'a> VM {
         match from_op.v {
             APIHandleValue::Ref(_, addr) => {
                 assert!(to_ty.is_ref());
-                let inner_ty = to_ty.get_referenced_ty().unwrap();
+                let inner_ty = to_ty.get_referent_ty().unwrap();
 
                 self.new_handle(APIHandle {
                     id: handle_id,
@@ -1160,7 +1160,7 @@ impl <'a> VM {
             },
             APIHandleValue::IRef(_, addr) => {
                 assert!(to_ty.is_iref());
-                let inner_ty = to_ty.get_referenced_ty().unwrap();
+                let inner_ty = to_ty.get_referent_ty().unwrap();
 
                 self.new_handle(APIHandle {
                     id: handle_id,
@@ -1414,7 +1414,7 @@ impl <'a> VM {
 
         let global_inner_ty = {
             let global_lock = self.globals.read().unwrap();
-            global_lock.get(&id).unwrap().ty.get_referenced_ty().unwrap()
+            global_lock.get(&id).unwrap().ty.get_referent_ty().unwrap()
         };
 
         let handle_id = self.next_id();

@@ -41,6 +41,7 @@ macro_rules! impl_mu_entity {
     }
 }
 
+/// select between two values based on condition
 macro_rules! select_value {
     ($cond: expr, $res1 : expr, $res2 : expr) => {
         if $cond {

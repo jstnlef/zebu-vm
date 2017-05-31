@@ -2005,7 +2005,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let op_ty = self.ensure_type_rec(tys[0]);
                 let op = self.get_treenode(fcb, args[0]);
 
-                let referent_ty = match op_ty.get_referenced_ty() {
+                let referent_ty = match op_ty.get_referent_ty() {
                     Some(ty) => ty,
                     _ => panic!("expected ty in PIN to be ref/iref, found {}", op_ty)
                 };

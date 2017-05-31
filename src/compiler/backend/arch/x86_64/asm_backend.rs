@@ -19,7 +19,6 @@ use utils::LinkedHashMap;
 
 use ast::ptr::P;
 use ast::ir::*;
-use ast::types::*;
 
 use std::str;
 use std::usize;
@@ -3594,7 +3593,7 @@ pub fn spill_rewrite(
                         let mut codegen = ASMCodeGen::new();
                         codegen.start_code_sequence();
 
-                        if is_fp(&temp_ty) {
+                        if temp_ty.is_fp() {
                             codegen.emit_spill_load_fpr(&temp, spill_mem);
                         } else {
                             codegen.emit_spill_load_gpr(&temp, spill_mem);
@@ -3643,7 +3642,7 @@ pub fn spill_rewrite(
                         let mut codegen = ASMCodeGen::new();
                         codegen.start_code_sequence();
 
-                        if is_fp(&temp.ty) {
+                        if temp.ty.is_fp() {
                             codegen.emit_spill_store_fpr(spill_mem, &temp);
                         } else {
                             codegen.emit_spill_store_gpr(spill_mem, &temp);

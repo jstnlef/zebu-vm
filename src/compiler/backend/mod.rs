@@ -3,7 +3,6 @@ pub mod reg_alloc;
 pub mod peephole_opt;
 pub mod code_emission;
 
-use ast::types;
 use utils::ByteSize;
 use utils::math::align_up;
 use runtime::mm;
@@ -253,13 +252,13 @@ fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendTypeInfo {
 
         // for convenience, if the struct contains other struct/array
         // we do not use reference map
-        if types::is_aggregate(ty) {
+        if ty.is_aggregate() {
             use_ref_offsets = false;
         }
 
         // if this type is reference type, we store its offsets
         // we may not use this ref map though
-        if types::is_reference(ty) {
+        if ty.is_heap_reference() {
             ref_offsets.push(cur);
         }
         // always store its gc type (we may not use it as well)

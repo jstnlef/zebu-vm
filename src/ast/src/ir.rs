@@ -742,7 +742,7 @@ impl Value {
     pub fn is_int_reg(&self) -> bool {
         match self.v {
             Value_::SSAVar(_) => {
-                if is_scalar(&self.ty) && !is_fp(&self.ty) {
+                if self.ty.is_scalar() && !self.ty.is_fp() {
                     true
                 } else {
                     false
@@ -766,7 +766,7 @@ impl Value {
     pub fn is_fp_reg(&self) -> bool {
         match self.v {
             Value_::SSAVar(_) => {
-                if is_scalar(&self.ty) && is_fp(&self.ty) {
+                if self.ty.is_scalar() && self.ty.is_fp() {
                     true
                 } else {
                     false
