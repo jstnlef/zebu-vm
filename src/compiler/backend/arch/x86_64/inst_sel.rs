@@ -3,7 +3,6 @@ use ast::ptr::*;
 use ast::inst::*;
 use ast::op;
 use ast::op::*;
-use ast::types;
 use ast::types::*;
 use vm::VM;
 use runtime::mm;
