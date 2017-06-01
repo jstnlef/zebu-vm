@@ -39,6 +39,9 @@ pub trait CodeGenerator {
     fn emit_cmp_imm_r(&mut self, op1: i32, op2: Reg);
     fn emit_cmp_mem_r(&mut self, op1: Reg, op2: Reg);
 
+    fn emit_test_r_r  (&mut self, op1: Reg, op2: Reg);
+    fn emit_test_imm_r(&mut self, op1: i32, op2: Reg);
+
     // gpr move
 
     // mov imm64 to r64
@@ -133,15 +136,28 @@ pub trait CodeGenerator {
     fn emit_add_r_r  (&mut self, dest: Reg, src: Reg);
     fn emit_add_r_mem(&mut self, dest: Reg, src: Mem);
     fn emit_add_r_imm(&mut self, dest: Reg, src: i32);
+
+    // add with carry
+    fn emit_adc_r_r  (&mut self, dest: Reg, src: Reg);
+    fn emit_adc_r_mem(&mut self, dest: Reg, src: Mem);
+    fn emit_adc_r_imm(&mut self, dest: Reg, src: i32);
     
     // sub
     fn emit_sub_r_r  (&mut self, dest: Reg, src: Reg);
     fn emit_sub_r_mem(&mut self, dest: Reg, src: Mem);
     fn emit_sub_r_imm(&mut self, dest: Reg, src: i32);
 
+    // sub with borrow
+    fn emit_sbb_r_r  (&mut self, dest: Reg, src: Reg);
+    fn emit_sbb_r_mem(&mut self, dest: Reg, src: Mem);
+    fn emit_sbb_r_imm(&mut self, dest: Reg, src: i32);
+
     // multiply
     fn emit_mul_r  (&mut self, src: Reg);
     fn emit_mul_mem(&mut self, src: Mem);
+
+    // signed multiply
+    fn emit_imul_r_r(&mut self, dest: Reg, src: Reg);
 
     // div
     fn emit_div_r   (&mut self, src: Reg);
@@ -155,8 +171,12 @@ pub trait CodeGenerator {
     fn emit_shl_r_cl    (&mut self, dest: Reg);
     fn emit_shl_r_imm8  (&mut self, dest: Reg, src: i8);
 
+    fn emit_shld_r_r_cl (&mut self, dest: Reg, src: Reg);
+
     fn emit_shr_r_cl    (&mut self, dest: &P<Value>);
     fn emit_shr_r_imm8  (&mut self, dest: &P<Value>, src: i8);
+
+    fn emit_shrd_r_r_cl (&mut self, dest: Reg, src: Reg);
 
     fn emit_sar_r_cl    (&mut self, dest: &P<Value>);
     fn emit_sar_r_imm8  (&mut self, dest: &P<Value>, src: i8);
@@ -166,16 +186,18 @@ pub trait CodeGenerator {
     fn emit_cwd(&mut self); // sign extend ax  to dx:ax
     
     fn emit_jmp(&mut self, dest: MuName);
-    fn emit_je(&mut self, dest: MuName);
+    fn emit_je (&mut self, dest: MuName);
     fn emit_jne(&mut self, dest: MuName);
-    fn emit_ja(&mut self, dest: MuName);
+    fn emit_ja (&mut self, dest: MuName);
     fn emit_jae(&mut self, dest: MuName);
-    fn emit_jb(&mut self, dest: MuName);
+    fn emit_jb (&mut self, dest: MuName);
     fn emit_jbe(&mut self, dest: MuName);
-    fn emit_jg(&mut self, dest: MuName);
+    fn emit_jg (&mut self, dest: MuName);
     fn emit_jge(&mut self, dest: MuName);
-    fn emit_jl(&mut self, dest: MuName);
+    fn emit_jl (&mut self, dest: MuName);
     fn emit_jle(&mut self, dest: MuName);
+
+    fn emit_js(&mut self, dest: MuName);
     
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName,    pe: Option<MuName>) -> ValueLocation;
     fn emit_call_near_r64  (&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation;
@@ -192,32 +214,56 @@ pub trait CodeGenerator {
     fn emit_movsd_f64_mem64(&mut self, dest: &P<Value>, src: &P<Value>); // load
     fn emit_movsd_mem64_f64(&mut self, dest: &P<Value>, src: &P<Value>); // store
 
+    fn emit_movss_f32_f32  (&mut self, dest: &P<Value>, src: &P<Value>);
+    fn emit_movss_f32_mem32(&mut self, dest: &P<Value>, src: &P<Value>); // load
+    fn emit_movss_mem32_f32(&mut self, dest: &P<Value>, src: &P<Value>); // store
+
     // fp add
     fn emit_addsd_f64_f64  (&mut self, dest: Reg, src: Reg);
     fn emit_addsd_f64_mem64(&mut self, dest: Reg, src: Mem);
+
+    fn emit_addss_f32_f32  (&mut self, dest: Reg, src: Reg);
+    fn emit_addss_f32_mem32(&mut self, dest: Reg, src: Mem);
 
     // fp sub
     fn emit_subsd_f64_f64  (&mut self, dest: Reg, src: Reg);
     fn emit_subsd_f64_mem64(&mut self, dest: Reg, src: Mem);
 
+    fn emit_subss_f32_f32  (&mut self, dest: Reg, src: Reg);
+    fn emit_subss_f32_mem32(&mut self, dest: Reg, src: Mem);
+
     // fp div
     fn emit_divsd_f64_f64  (&mut self, dest: Reg, src: Reg);
     fn emit_divsd_f64_mem64(&mut self, dest: Reg, src: Mem);
+
+    fn emit_divss_f32_f32  (&mut self, dest: Reg, src: Reg);
+    fn emit_divss_f32_mem32(&mut self, dest: Reg, src: Mem);
 
     // fp mul
     fn emit_mulsd_f64_f64  (&mut self, dest: Reg, src: Reg);
     fn emit_mulsd_f64_mem64(&mut self, dest: Reg, src: Mem);
 
+    fn emit_mulss_f32_f32  (&mut self, dest: Reg, src: Reg);
+    fn emit_mulss_f32_mem32(&mut self, dest: Reg, src: Mem);
+
     // fp comparison
     fn emit_comisd_f64_f64  (&mut self, op1: Reg, op2: Reg);
     fn emit_ucomisd_f64_f64 (&mut self, op1: Reg, op2: Reg);
 
+    fn emit_comiss_f32_f32  (&mut self, op1: Reg, op2: Reg);
+    fn emit_ucomiss_f32_f32 (&mut self, op1: Reg, op2: Reg);
+
     // fp conversion
     fn emit_cvtsi2sd_f64_r  (&mut self, dest: Reg, src: Reg);
     fn emit_cvtsd2si_r_f64  (&mut self, dest: Reg, src: Reg);
-    fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg);
+
+    fn emit_cvtsi2ss_f32_r  (&mut self, dest: Reg, src: Reg);
+    fn emit_cvtss2si_r_f32  (&mut self, dest: Reg, src: Reg);
 
     // used for unsigned int to fp conversion
+
+    fn emit_cvttsd2si_r_f64 (&mut self, dest: Reg, src: Reg);
+    fn emit_cvttss2si_r_f32 (&mut self, dest: Reg, src: Reg);
 
     // unpack low data - interleave low byte
     fn emit_punpckldq_f64_mem128(&mut self, dest: Reg, src: Mem);
@@ -229,4 +275,6 @@ pub trait CodeGenerator {
     // move aligned packed double-precision fp values
     fn emit_movapd_f64_mem128(&mut self, dest: Reg, src: Mem);
     fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Mem);
+
+    fn emit_movaps_f32_f32   (&mut self, dest: Reg, src: Reg);
 }

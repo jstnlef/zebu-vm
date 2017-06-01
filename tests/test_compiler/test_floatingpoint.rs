@@ -10,52 +10,100 @@ use self::mu::vm::*;
 use self::mu::testutil;
 use mu::utils::LinkedHashMap;
 
-use std::sync::RwLock;
-
 #[test]
-fn test_fp_add() {
-    let lib = testutil::compile_fnc("fp_add", &fp_add);
+fn test_double_add() {
+    let lib = testutil::compile_fnc("double_add", &double_add);
 
     unsafe {
-        let fp_add : libloading::Symbol<unsafe extern fn(f64, f64) -> f64> = lib.get(b"fp_add").unwrap();
+        let double_add : libloading::Symbol<unsafe extern fn(f64, f64) -> f64> = lib.get(b"double_add").unwrap();
 
-        let fp_add_1_1 = fp_add(1f64, 1f64);
-        println!("fp_add(1, 1) = {}", fp_add_1_1);
-        assert!(fp_add_1_1 == 2f64);
+        let double_add_1_1 = double_add(1f64, 1f64);
+        println!("double_add(1, 1) = {}", double_add_1_1);
+        assert!(double_add_1_1 == 2f64);
     }
 }
 
-fn fp_add() -> VM {
+fn double_add() -> VM {
     let vm = VM::new();
 
     typedef!        ((vm) double = mu_double);
 
-    funcsig!        ((vm) fp_add_sig = (double, double) -> (double));
-    funcdecl!       ((vm) <fp_add_sig> fp_add);
-    funcdef!        ((vm) <fp_add_sig> fp_add VERSION fp_add_v1);
+    funcsig!        ((vm) double_add_sig = (double, double) -> (double));
+    funcdecl!       ((vm) <double_add_sig> double_add);
+    funcdef!        ((vm) <double_add_sig> double_add VERSION double_add_v1);
 
     // %entry(<@double> %a, <@double> %b):
-    block!          ((vm, fp_add_v1) blk_entry);
-    ssa!            ((vm, fp_add_v1) <double> a);
-    ssa!            ((vm, fp_add_v1) <double> b);
+    block!          ((vm, double_add_v1) blk_entry);
+    ssa!            ((vm, double_add_v1) <double> a);
+    ssa!            ((vm, double_add_v1) <double> b);
 
     // %r = FADD %a %b
-    ssa!            ((vm, fp_add_v1) <double> r);
-    inst!           ((vm, fp_add_v1) blk_entry_fadd:
+    ssa!            ((vm, double_add_v1) <double> r);
+    inst!           ((vm, double_add_v1) blk_entry_fadd:
         r = BINOP (BinOp::FAdd) a b
     );
 
     // RET %r
-    inst!           ((vm, fp_add_v1) blk_entry_ret:
+    inst!           ((vm, double_add_v1) blk_entry_ret:
         RET (r)
     );
 
-    define_block!   ((vm, fp_add_v1) blk_entry(a, b) {
+    define_block!   ((vm, double_add_v1) blk_entry(a, b) {
         blk_entry_fadd,
         blk_entry_ret
     });
 
-    define_func_ver!((vm) fp_add_v1(entry: blk_entry) {
+    define_func_ver!((vm) double_add_v1(entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
+fn test_float_add() {
+    let lib = testutil::compile_fnc("float_add", &float_add);
+
+    unsafe {
+        let float_add : libloading::Symbol<unsafe extern fn(f32, f32) -> f32> = lib.get(b"float_add").unwrap();
+
+        let float_add_1_1 = float_add(1f32, 1f32);
+        println!("float_add(1, 1) = {}", float_add_1_1);
+        assert!(float_add_1_1 == 2f32);
+    }
+}
+
+fn float_add() -> VM {
+    let vm = VM::new();
+
+    typedef!        ((vm) float = mu_float);
+
+    funcsig!        ((vm) float_add_sig = (float, float) -> (float));
+    funcdecl!       ((vm) <float_add_sig> float_add);
+    funcdef!        ((vm) <float_add_sig> float_add VERSION float_add_v1);
+
+    // %entry(<@float> %a, <@float> %b):
+    block!          ((vm, float_add_v1) blk_entry);
+    ssa!            ((vm, float_add_v1) <float> a);
+    ssa!            ((vm, float_add_v1) <float> b);
+
+    // %r = FADD %a %b
+    ssa!            ((vm, float_add_v1) <float> r);
+    inst!           ((vm, float_add_v1) blk_entry_fadd:
+        r = BINOP (BinOp::FAdd) a b
+    );
+
+    // RET %r
+    inst!           ((vm, float_add_v1) blk_entry_ret:
+        RET (r)
+    );
+
+    define_block!   ((vm, float_add_v1) blk_entry(a, b) {
+        blk_entry_fadd,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) float_add_v1(entry: blk_entry) {
         blk_entry
     });
 
@@ -264,6 +312,55 @@ fn ui64tofp() -> VM {
     });
 
     define_func_ver!((vm) ui64tofp_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
+fn test_ui64tofp_float() {
+    let lib = testutil::compile_fnc("ui64tofp_float", &ui64tofp_float);
+
+    unsafe {
+        let ui64tofp_float : libloading::Symbol<unsafe extern fn(u64) -> f32> = lib.get(b"ui64tofp_float").unwrap();
+
+        let res = ui64tofp_float(0u64);
+        println!("ui64tofp_float(0) = {}", res);
+        assert!(res == 0f32);
+
+        let res = ui64tofp_float(1u64);
+        println!("ui64tofp_float(1) = {}", res);
+        assert!(res == 1f32);
+    }
+}
+
+fn ui64tofp_float() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) float = mu_float);
+
+    funcsig!    ((vm) sig = (int64) -> (float));
+    funcdecl!   ((vm) <sig> ui64tofp_float);
+    funcdef!    ((vm) <sig> ui64tofp_float VERSION ui64tofp_float_v1);
+
+    // blk entry
+    block!      ((vm, ui64tofp_float_v1) blk_entry);
+    ssa!        ((vm, ui64tofp_float_v1) <int64> x);
+
+    ssa!        ((vm, ui64tofp_float_v1) <float> res);
+    inst!       ((vm, ui64tofp_float_v1) blk_entry_conv:
+        res = CONVOP (ConvOp::UITOFP) <int64 float> x
+    );
+
+    inst!       ((vm, ui64tofp_float_v1) blk_entry_ret:
+        RET (res)
+    );
+
+    define_block!((vm, ui64tofp_float_v1) blk_entry(x){
+        blk_entry_conv, blk_entry_ret
+    });
+
+    define_func_ver!((vm) ui64tofp_float_v1 (entry: blk_entry) {blk_entry});
 
     vm
 }

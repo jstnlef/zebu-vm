@@ -11,7 +11,6 @@ use std::process::Output;
 use std::os::unix::process::ExitStatusExt;
 
 pub mod aot;
-pub mod c_api;
 
 pub fn get_test_clang_path() -> String {
     use std::env;

@@ -988,16 +988,16 @@ def test_exception_stack_unwind():
 
 def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.getenv('MU_IMPL', 'zebu'), vmargs = ""):
     from rpython.translator.interactive import Translation
-
+    from rpython.translator.platform import log as log_platform
     if has_c_main_sig:
         t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api', vmargs=vmargs)
         t.driver.disable(['entrypoint_mu'])
     else:
-        t = Translation(entry, None, backend='mu', impl=impl, codegen='api', vmargs=vmargs)
+        t = Translation(entry, None, backend='mu', impl=impl, codegen='c', vmargs=vmargs)
 
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output
-   
+
     #t.backendopt(inline=True, mallocs=True)
     #t.view()
     #t.mutype()
@@ -1014,8 +1014,8 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.get
     else:
         from rpython.rlib.rmu import holstein
         runmu = py.path.local(holstein.mu_dir).join('..', 'tools', 'runmu.sh')
-        flags = ['--vmLog=ERROR']
-        # log_platform.execute(' '.join([str(runmu)] + flags + [str(exe)] + cmdargs))
+        flags = ['--vmLog=ERROR', '--uPtrHack=True', '--losSize=780M', '--sosSize=780M']
+        log_platform.execute(' '.join([str(runmu)] + flags + [str(exe)] + args))
         res = platform.execute(runmu, flags + [str(exe)] + args)
 
     return res
@@ -1045,7 +1045,7 @@ def test_make_boot_image_simple():
 
     res = run_boot_image(pypy_mu_entry, '/tmp/test_make_boot_image_mu', True, ['abc', '123'])
     exe = '/tmp/test_make_boot_image_mu'
-    
+
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
 
@@ -1405,6 +1405,67 @@ def test_float():
     assert res.returncode == 0, res.err
     assert res.out == '(0.893876, 1.000000, 0.447179)\n'
 
+@may_spawn_proc
+def test_open_file_as_stream():
+    from rpython.rlib.streamio import open_file_as_stream
+
+    john1 = \
+'''\
+In the beginning was the Word, and the Word was with God, and the Word was God.
+He was in the beginning with God.
+All things were made through him, and without him was not any thing made that was made.
+In him was life, and the life was the light of men.
+The light shines in the darkness, and the darkness has not overcome it.
+'''
+    test_file = py.path.local('/tmp/john1.txt')
+    with test_file.open('w') as fp:
+        fp.write(john1)
+
+    def entry_point(argv):
+        f = open_file_as_stream(argv[1])
+        txt = ""
+        l = f.readline()
+        while l != '':
+            txt += l
+            l = f.readline()
+        print txt
+        f.close()
+        return 0
+
+    res = run_boot_image(entry_point, '/tmp/test_open_file_as_stream', args=[str(test_file)])
+
+    assert res.returncode == 0, res.err
+    assert res.out == john1 + '\n'
+
+@may_spawn_proc
+def test_rpython_rethrow():
+    def main(argv):
+        array = [1, 2, 3, 0]
+        ret = array[0]
+
+        for i in array:
+            print i
+            ret = i
+            try:
+                my_rethrow(i)
+            except IOError:
+                pass
+
+        return ret
+
+    def my_rethrow(i):
+        try:
+            my_throw(i)
+        except OSError:
+            raise IOError()
+
+    def my_throw(i):
+        if i != 0:
+            raise OSError()
+
+    res = run_boot_image(main, '/tmp/test_rpython_rethrow')
+    assert res.returncode == 0, res.err
+    assert res.out == '1\n2\n3\n0\n'
 
 if __name__ == '__main__':
     import argparse

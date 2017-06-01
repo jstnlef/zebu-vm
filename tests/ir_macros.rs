@@ -8,6 +8,10 @@ macro_rules! typedef {
         let $name = $vm.declare_type(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))), MuType_::double());
         $vm.set_name($name.as_entity());
     };
+    (($vm: expr) $name: ident = mu_float) => {
+        let $name = $vm.declare_type(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))), MuType_::float());
+        $vm.set_name($name.as_entity());
+    };
 
     // ref, iref, ptr
     (($vm: expr) $name: ident = mu_ref($ty: ident)) => {
@@ -166,7 +170,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![]),
+            ops:    vec![],
             v:      Instruction_::New($ty.clone())
         });
     };
@@ -176,7 +180,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![$len.clone()]),
+            ops:    vec![$len.clone()],
             v:      Instruction_::NewHybrid($ty.clone(), 0)
         });
     };
@@ -186,7 +190,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![$op.clone()]),
+            ops:    vec![$op.clone()],
             v:      Instruction_::GetIRef(0)
         });
     };
@@ -196,7 +200,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![$op.clone()]),
+            ops:    vec![$op.clone()],
             v:      Instruction_::GetFieldIRef {
                         is_ptr: $is_ptr,
                         base: 0,
@@ -210,7 +214,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![$op.clone(), $index.clone()]),
+            ops:    vec![$op.clone(), $index.clone()],
             v:      Instruction_::GetElementIRef {
                         is_ptr: $is_ptr,
                         base: 0,
@@ -224,7 +228,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![$op.clone()]),
+            ops:    vec![$op.clone()],
             v:      Instruction_::GetVarPartIRef {
                         is_ptr: $is_ptr,
                         base: 0
@@ -237,7 +241,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![$op.clone(), $offset.clone()]),
+            ops:    vec![$op.clone(), $offset.clone()],
             v:      Instruction_::ShiftIRef {
                         is_ptr: $is_ptr,
                         base: 0,
@@ -251,7 +255,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  None,
-            ops:    RwLock::new(vec![$loc.clone(), $val.clone()]),
+            ops:    vec![$loc.clone(), $val.clone()],
             v:      Instruction_::Store {
                         is_ptr: $is_ptr,
                         order: $order,
@@ -266,7 +270,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![$loc.clone()]),
+            ops:    vec![$loc.clone()],
             v:      Instruction_::Load {
                         is_ptr: $is_ptr,
                         order: $order,
@@ -280,7 +284,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value()]),
-            ops:    RwLock::new(vec![$op1.clone(), $op2.clone()]),
+            ops:    vec![$op1.clone(), $op2.clone()],
             v:      Instruction_::BinOp($op, 0, 1)
         });
     };
@@ -290,7 +294,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$value.clone_value(), $($flag.clone_value()), *]),
-            ops:    RwLock::new(vec![$op1.clone(), $op2.clone()]),
+            ops:    vec![$op1.clone(), $op2.clone()],
             v:      Instruction_::BinOpWithStatus($op, $flags, 0, 1)
         });
     };
@@ -300,7 +304,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr: MuEntityHeader::unnamed($vm.next_id()),
             value: Some(vec![$value.clone_value()]),
-            ops: RwLock::new(vec![$op1.clone(), $op2.clone()]),
+            ops: vec![$op1.clone(), $op2.clone()],
             v: Instruction_::CmpOp($op, 0, 1)
         });
     };
@@ -310,7 +314,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr: MuEntityHeader::unnamed($vm.next_id()),
             value: Some(vec![$value.clone_value()]),
-            ops: RwLock::new(vec![$operand.clone()]),
+            ops: vec![$operand.clone()],
             v: Instruction_::ConvOp{
                 operation: $operation,
                 from_ty: $ty1.clone(),
@@ -325,7 +329,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr: MuEntityHeader::unnamed($vm.next_id()),
             value: Some(vec![$value.clone_value()]),
-            ops: RwLock::new(vec![$cond.clone(), $op_true.clone(), $op_false.clone()]),
+            ops: vec![$cond.clone(), $op_true.clone(), $op_false.clone()],
             v: Instruction_::Select{
                 cond: 0,
                 true_val: 1,
@@ -339,7 +343,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  None,
-            ops:    RwLock::new(vec![$($arg.clone()),*]),
+            ops:    vec![$($arg.clone()),*],
             v:      Instruction_::Branch1(Destination{
                         target: $dest.id(),
                         args: {
@@ -363,7 +367,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  None,
-            ops:    RwLock::new(vec![$($op.clone()),*]),
+            ops:    vec![$($op.clone()),*],
             v:      {
                 let true_args = {
                     $true_args.iter().map(|x| DestArg::Normal(*x)).collect()
@@ -396,7 +400,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$res.clone_value()]),
-            ops:    RwLock::new(ops),
+            ops:    ops,
             v:      Instruction_::ExprCall {
                         data: CallData {
                             func: 0,
@@ -413,7 +417,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![]),
-            ops:    RwLock::new(ops),
+            ops:    ops,
             v:      Instruction_::ExprCall {
                         data: CallData {
                             func: 0,
@@ -432,7 +436,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![$res.clone_value()]),
-            ops:    RwLock::new(ops),
+            ops:    ops,
             v:      Instruction_::ExprCCall {
                         data: CallData {
                             func: 0,
@@ -449,7 +453,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  Some(vec![]),
-            ops:    RwLock::new(ops),
+            ops:    ops,
             v:      Instruction_::ExprCCall {
                         data: CallData {
                             func: 0,
@@ -469,7 +473,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction {
             hdr  : MuEntityHeader::unnamed($vm.next_id()),
             value: Some(vec![$res.clone_value()]),
-            ops  : RwLock::new(vec![$($op.clone()),*]),
+            ops  : vec![$($op.clone()),*],
             v    : Instruction_::Call {
                 data: CallData {
                     func: $func,
@@ -497,7 +501,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction {
             hdr  : MuEntityHeader::unnamed($vm.next_id()),
             value: None,
-            ops  : RwLock::new(vec![$($op.clone()),*]),
+            ops  : vec![$($op.clone()),*],
             v    : Instruction_::Call {
                 data: CallData {
                     func: $func,
@@ -524,7 +528,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  None,
-            ops:    RwLock::new(vec![$($val.clone()), *]),
+            ops:    vec![$($val.clone()), *],
             v:      Instruction_::Return({
                         let mut i = 0;
                         vec![$($val.clone()), *].iter().map(|_| {let ret = i; i+= 1; ret}).collect()
@@ -536,7 +540,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr:    MuEntityHeader::unnamed($vm.next_id()),
             value:  None,
-            ops:    RwLock::new(vec![]),
+            ops:    vec![],
             v:      Instruction_::Return(vec![])
         });
     };
@@ -546,7 +550,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr: MuEntityHeader::unnamed($vm.next_id()),
             value: None,
-            ops: RwLock::new(vec![]),
+            ops: vec![],
             v: Instruction_::ThreadExit
         });
     };
@@ -556,7 +560,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr: MuEntityHeader::unnamed($vm.next_id()),
             value: None,
-            ops: RwLock::new(vec![$op.clone()]),
+            ops: vec![$op.clone()],
             v: Instruction_::Throw(0)
         });
     };
@@ -566,7 +570,7 @@ macro_rules! inst {
         let $name = $fv.new_inst(Instruction{
             hdr: MuEntityHeader::unnamed($vm.next_id()),
             value: None,
-            ops: RwLock::new(vec![$val.clone()]),
+            ops: vec![$val.clone()],
             v: Instruction_::PrintHex(0)
         });
     }

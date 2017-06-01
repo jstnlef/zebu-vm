@@ -17,7 +17,6 @@ use mu::testutil::aot;
 use mu::vm::handle;
 use mu::testutil;
 
-use std::sync::RwLock;
 use std::sync::Arc;
 
 #[test]

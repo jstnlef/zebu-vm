@@ -8,8 +8,6 @@ use mu::vm::*;
 use mu::testutil;
 use mu::utils::LinkedHashMap;
 
-use std::sync::RwLock;
-
 #[test]
 fn test_switch() {
     let lib = testutil::compile_fnc("switch", &switch);
@@ -66,12 +64,12 @@ fn switch() -> VM {
     let blk_entry_switch = switch_v1.new_inst(Instruction {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         value: None,
-        ops: RwLock::new(vec![
+        ops: vec![
             a.clone(), // 0
             int64_0_local.clone(), // 1
             int64_1_local.clone(), // 2
             int64_2_local.clone(), // 3
-        ]),
+        ],
         v: Instruction_::Switch {
             cond: 0,
             default: Destination {
@@ -657,6 +655,286 @@ fn sge_i32_branch() -> VM {
 
     define_func_ver!((vm) sge_i32_branch_v1 (entry: blk_entry) {
         blk_entry, blk_ret1, blk_ret0
+    });
+
+    vm
+}
+
+#[test]
+fn test_branch2_eq_50p_1() {
+    let lib = testutil::compile_fnc("branch2_eq_50p_1", &branch2_eq_50p_1);
+
+    unsafe {
+        let branch2_eq_50p : libloading::Symbol<unsafe extern fn(u8) -> (u64)> = lib.get(b"branch2_eq_50p_1").unwrap();
+
+        let res = branch2_eq_50p(1);
+        println!("branch2_eq_50p(1) = {}", res);
+        assert!(res == 1);
+
+        let res = branch2_eq_50p(0);
+        println!("branch2_eq_50p(0) = {}", res);
+        assert!(res == 0);
+    }
+}
+
+fn branch2_eq_50p_1() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int1  = mu_int(1));
+    typedef!    ((vm) int8  = mu_int(8));
+    typedef!    ((vm) int64 = mu_int(64));
+
+    constdef!   ((vm) <int8>  int8_1  = Constant::Int(1));
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (int8) -> (int64));
+    funcdecl!   ((vm) <sig> branch2_eq_50p_1);
+    funcdef!    ((vm) <sig> branch2_eq_50p_1 VERSION branch2_eq_50p_1_v1);
+
+    // blk entry
+    block!      ((vm, branch2_eq_50p_1_v1) blk_entry);
+    ssa!        ((vm, branch2_eq_50p_1_v1) <int8> cond);
+
+    block!      ((vm, branch2_eq_50p_1_v1) blk_true);
+    block!      ((vm, branch2_eq_50p_1_v1) blk_false);
+
+    consta!     ((vm, branch2_eq_50p_1_v1) int8_1_local = int8_1);
+    ssa!        ((vm, branch2_eq_50p_1_v1) <int1> cmp_res);
+    inst!       ((vm, branch2_eq_50p_1_v1) blk_entry_cmp:
+        cmp_res = CMPOP (CmpOp::EQ) cond int8_1_local
+    );
+
+    inst!       ((vm, branch2_eq_50p_1_v1) blk_entry_branch2:
+        BRANCH2 (cmp_res)
+            IF (OP 0)
+            THEN blk_true  (vec![]) WITH 0.5f32,
+            ELSE blk_false (vec![])
+    );
+
+    define_block!((vm, branch2_eq_50p_1_v1) blk_entry(cond) {
+        blk_entry_cmp,
+        blk_entry_branch2
+    });
+
+    // blk_true
+    consta!     ((vm, branch2_eq_50p_1_v1) int64_1_local = int64_1);
+    consta!     ((vm, branch2_eq_50p_1_v1) int64_0_local = int64_0);
+
+    inst!       ((vm, branch2_eq_50p_1_v1) blk_true_ret:
+        RET (int64_1_local)
+    );
+
+    define_block!((vm, branch2_eq_50p_1_v1) blk_true() {
+        blk_true_ret
+    });
+
+    // blk_false
+    inst!       ((vm, branch2_eq_50p_1_v1) blk_false_ret:
+        RET (int64_0_local)
+    );
+
+    define_block!((vm, branch2_eq_50p_1_v1) blk_false() {
+        blk_false_ret
+    });
+
+    define_func_ver!((vm) branch2_eq_50p_1_v1 (entry: blk_entry) {
+        blk_entry, blk_true, blk_false
+    });
+
+    vm
+}
+
+#[test]
+fn test_branch2_eq_50p_2() {
+    let lib = testutil::compile_fnc("branch2_eq_50p_2", &branch2_eq_50p_2);
+
+    unsafe {
+        let branch2_eq_50p : libloading::Symbol<unsafe extern fn(u8) -> (u64)> = lib.get(b"branch2_eq_50p_2").unwrap();
+
+        let res = branch2_eq_50p(1);
+        println!("branch2_eq_50p(1) = {}", res);
+        assert!(res == 1);
+
+        let res = branch2_eq_50p(0);
+        println!("branch2_eq_50p(0) = {}", res);
+        assert!(res == 0);
+    }
+}
+
+fn branch2_eq_50p_2() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int1  = mu_int(1));
+    typedef!    ((vm) int8  = mu_int(8));
+    typedef!    ((vm) int64 = mu_int(64));
+
+    constdef!   ((vm) <int8>  int8_1  = Constant::Int(1));
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (int8) -> (int64));
+    funcdecl!   ((vm) <sig> branch2_eq_50p_2);
+    funcdef!    ((vm) <sig> branch2_eq_50p_2 VERSION branch2_eq_50p_2_v1);
+
+    // blk entry
+    block!      ((vm, branch2_eq_50p_2_v1) blk_entry);
+    ssa!        ((vm, branch2_eq_50p_2_v1) <int8> cond);
+
+    block!      ((vm, branch2_eq_50p_2_v1) blk_true);
+    block!      ((vm, branch2_eq_50p_2_v1) blk_false);
+
+    consta!     ((vm, branch2_eq_50p_2_v1) int8_1_local = int8_1);
+    ssa!        ((vm, branch2_eq_50p_2_v1) <int1> cmp_res);
+    inst!       ((vm, branch2_eq_50p_2_v1) blk_entry_cmp:
+        cmp_res = CMPOP (CmpOp::EQ) cond int8_1_local
+    );
+
+    inst!       ((vm, branch2_eq_50p_2_v1) blk_entry_branch2:
+        BRANCH2 (cmp_res)
+            IF (OP 0)
+            THEN blk_true  (vec![]) WITH 0.5f32,
+            ELSE blk_false (vec![])
+    );
+
+    define_block!((vm, branch2_eq_50p_2_v1) blk_entry(cond) {
+        blk_entry_cmp,
+        blk_entry_branch2
+    });
+
+    // blk_true
+    consta!     ((vm, branch2_eq_50p_2_v1) int64_1_local = int64_1);
+    consta!     ((vm, branch2_eq_50p_2_v1) int64_0_local = int64_0);
+
+    inst!       ((vm, branch2_eq_50p_2_v1) blk_true_ret:
+        RET (int64_1_local)
+    );
+
+    define_block!((vm, branch2_eq_50p_2_v1) blk_true() {
+        blk_true_ret
+    });
+
+    // blk_false
+    inst!       ((vm, branch2_eq_50p_2_v1) blk_false_ret:
+        RET (int64_0_local)
+    );
+
+    define_block!((vm, branch2_eq_50p_2_v1) blk_false() {
+        blk_false_ret
+    });
+
+    define_func_ver!((vm) branch2_eq_50p_2_v1 (entry: blk_entry) {
+        blk_entry, blk_false, blk_true
+    });
+
+    vm
+}
+
+#[test]
+fn test_branch2_high_prob_branch_cannot_fallthrough() {
+    let lib = testutil::compile_fnc("branch2", &branch2_high_prob_branch_cannot_fallthrough);
+
+    unsafe {
+        let branch2 : libloading::Symbol<unsafe extern fn(u8) -> (u64)> = lib.get(b"branch2").unwrap();
+
+        let res = branch2(1);
+        println!("branch2(1) = {}", res);
+        assert!(res == 1);
+
+        let res = branch2(0);
+        println!("branch2(0) = {}", res);
+        assert!(res == 0);
+    }
+}
+
+fn branch2_high_prob_branch_cannot_fallthrough() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int1  = mu_int(1));
+    typedef!    ((vm) int8  = mu_int(8));
+    typedef!    ((vm) int64 = mu_int(64));
+
+    constdef!   ((vm) <int8>  int8_1  = Constant::Int(1));
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = (int8) -> (int64));
+    funcdecl!   ((vm) <sig> branch2);
+    funcdef!    ((vm) <sig> branch2 VERSION branch2_v1);
+
+    // blk entry
+    block!      ((vm, branch2_v1) blk_entry);
+    ssa!        ((vm, branch2_v1) <int8> blk_entry_arg);
+
+    consta!     ((vm, branch2_v1) int64_0_local = int64_0);
+    consta!     ((vm, branch2_v1) int64_1_local = int64_1);
+
+    // cmp1_res = EQ 0 1
+    ssa!        ((vm, branch2_v1) <int1> cmp1_res);
+    inst!       ((vm, branch2_v1) blk_entry_cmp:
+        cmp1_res = CMPOP (CmpOp::EQ) int64_0_local int64_1_local
+    );
+
+    // branch2 cmp1_res blk_true blk_check(blk_entry_arg)
+    block!      ((vm, branch2_v1) blk_true);
+    block!      ((vm, branch2_v1) blk_check);
+    inst!       ((vm, branch2_v1) blk_entry_branch2:
+        BRANCH2 (cmp1_res, blk_entry_arg)
+            IF (OP 0)
+            THEN blk_true  (vec![]) WITH 0.6f32,
+            ELSE blk_check (vec![1])
+    );
+
+    define_block!((vm, branch2_v1) blk_entry (blk_entry_arg) {
+        blk_entry_cmp, blk_entry_branch2
+    });
+
+    // blk_check
+    ssa!        ((vm, branch2_v1) <int8> blk_check_arg);
+
+    // cmp2_res = EQ blk_check_arg 1
+    ssa!        ((vm, branch2_v1) <int1> cmp2_res);
+    consta!     ((vm, branch2_v1) int8_1_local = int8_1);
+    inst!       ((vm, branch2_v1) blk_check_cmp:
+        cmp2_res = CMPOP (CmpOp::EQ) blk_check_arg int8_1_local
+    );
+
+    // branch2 cmp2_res blk_true blk_false
+    block!      ((vm, branch2_v1) blk_false);
+    inst!       ((vm, branch2_v1) blk_check_branch2:
+        BRANCH2 (cmp2_res)
+            IF (OP 0)
+            THEN blk_true  (vec![]) WITH 0.6f32,
+            ELSE blk_false (vec![])
+    );
+
+    define_block!((vm, branch2_v1) blk_check (blk_check_arg) {
+        blk_check_cmp, blk_check_branch2
+    });
+
+    // blk_true
+    consta!     ((vm, branch2_v1) int64_1_local = int64_1);
+    consta!     ((vm, branch2_v1) int64_0_local = int64_0);
+
+    inst!       ((vm, branch2_v1) blk_true_ret:
+        RET (int64_1_local)
+    );
+
+    define_block!((vm, branch2_v1) blk_true() {
+        blk_true_ret
+    });
+
+    // blk_false
+    inst!       ((vm, branch2_v1) blk_false_ret:
+        RET (int64_0_local)
+    );
+
+    define_block!((vm, branch2_v1) blk_false() {
+        blk_false_ret
+    });
+
+    define_func_ver!((vm) branch2_v1 (entry: blk_entry) {
+        blk_entry, blk_check, blk_true, blk_false
     });
 
     vm

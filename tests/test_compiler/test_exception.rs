@@ -14,7 +14,6 @@ use mu::testutil::aot;
 use test_compiler::test_call::gen_ccall_exit;
 
 use std::sync::Arc;
-use std::sync::RwLock;
 
 #[test]
 fn test_exception_throw_catch_simple() {

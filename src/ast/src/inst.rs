@@ -7,14 +7,13 @@ use ir_semantics;
 use utils::vec_utils;
 
 use std::fmt;
-use std::sync::RwLock;
 
 #[derive(Debug)]
 // this implements RustcEncodable, RustcDecodable, Clone and Display
 pub struct Instruction {
     pub hdr: MuEntityHeader,
     pub value : Option<Vec<P<Value>>>,
-    pub ops : RwLock<Vec<P<TreeNode>>>,
+    pub ops : Vec<P<TreeNode>>,
     pub v: Instruction_
 }
 
@@ -27,7 +26,7 @@ impl Encodable for Instruction {
             try!(s.emit_struct_field("hdr", 0, |s| self.hdr.encode(s)));
             try!(s.emit_struct_field("value", 1, |s| self.value.encode(s)));
             
-            let ops = &self.ops.read().unwrap();
+            let ref ops = self.ops;
             try!(s.emit_struct_field("ops", 2, |s| ops.encode(s)));
             
             try!(s.emit_struct_field("v", 3, |s| self.v.encode(s)));
@@ -50,7 +49,7 @@ impl Decodable for Instruction {
             Ok(Instruction{
                 hdr: hdr,
                 value: value,
-                ops: RwLock::new(ops),
+                ops: ops,
                 v: v
             })
         })
@@ -62,13 +61,20 @@ impl Clone for Instruction {
         Instruction {
             hdr: self.hdr.clone(),
             value: self.value.clone(),
-            ops: RwLock::new(self.ops.read().unwrap().clone()),
+            ops: self.ops.clone(),
             v: self.v.clone()
         }
     }
 }
 
 impl Instruction {
+    pub fn clone_with_id(&self, new_id: MuID) -> Instruction {
+        let mut clone = self.clone();
+        clone.hdr = self.hdr.clone_with_id(new_id);
+
+        clone
+    }
+
     pub fn has_exception_clause(&self) -> bool {
         ir_semantics::is_potentially_excepting_instruction(&self.v)
     }
@@ -133,7 +139,7 @@ impl Instruction {
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let ops = &self.ops.read().unwrap();
+        let ref ops = self.ops;
         if self.value.is_some() {
             write!(f, "{} = {}", vec_utils::as_str(self.value.as_ref().unwrap()), self.v.debug_str(ops))
         } else {

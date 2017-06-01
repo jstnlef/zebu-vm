@@ -1,7 +1,7 @@
 # This file is a template, and might need editing before it works on your project.
 # Unofficial language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/scorpil/rust/tags/
-image: "qinsoon/ubuntu-zebu-test:lastest"
+image: "qinsoon/ubuntu-zebu-test:latest"
 
 # Optional: Pick zero or more services to be used on all builds.
 # Only needed when using a docker container to run your tests in.
@@ -18,36 +18,60 @@ image: "qinsoon/ubuntu-zebu-test:lastest"
 #- apt-get install -yqq --no-install-recommends build-essential
 
 # Use cargo to test the project
-cache:
-  key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
-  paths:
-    - .cargo/registry/cache
-    - .cargo/registry/index
-    - target
-    - Cargo.lock
+# cache:
+#   key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
+#   paths:
+#     - .cargo/registry/cache
+#     - .cargo/registry/index
+#     - target
+#     - Cargo.lock
+
+stages:
+  - build
+  - test
+
+build_vm:
+  stage: build
+  script:
+    - rustc --version
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo build --release
+
+build_test:
+  stage: build
+  script:
+    - rustc --version
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --release --no-run
+  artifacts:
+    paths:
+      - target/release/libmu.so
+      - target/release/libmu.a
 
 before_script:
-  - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --no-run
+  - export PATH=$PATH:/root/.cargo/bin
+  - export MU_ZEBU=$CI_PROJECT_DIR
+  - export ZEBU_BUILD=release
+  - export CARGO_HOME=.cargo
+  - export CC=clang
 
 test:cargo:api:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_api 2> /dev/null
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test --release test_api 2> /dev/null
 
 test:cargo:ir:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_ir 2> /dev/null
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test --release test_ir 2> /dev/null
 
 test:cargo:compiler:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_compiler 2> /dev/null
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test --release test_compiler 2> /dev/null
 
 test:cargo:runtime:
   stage: test
   script:
-    - CARGO_HOME=.cargo RUST_BACKTRACE=1 RUST_TEST_THREADS=1 CC=clang cargo test test_runtime 2> /dev/null
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 cargo test --release test_runtime 2> /dev/null
 
 testjit:milestones:
   stage: test
@@ -98,17 +122,24 @@ testjit:otherops:
 testjit:rpython:
   stage: test
   script:
+    - if [ -d "tests/test_jit/mu-client-pypy" ]; then rm -Rf tests/test_jit/mu-client-pypy; fi
     - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git tests/test_jit/mu-client-pypy
     - cd tests/test_jit/mu-client-pypy
     - git checkout mu-rewrite
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy MU_ZEBU=$CI_PROJECT_DIR pytest test_rpython*.py -v
-  cache:
-    key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
-    paths:
-      - .cargo/registry/cache
-      - .cargo/registry/index
-      - target
-      - Cargo.lock
-      - tests/test_jit/mu-client-pypy
+    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy pytest test_rpython*.py -v
+
+testjit:som:
+  stage: test
+  script:
+    - if [ -d "tests/test_jit/RPySOM" ]; then rm -Rf tests/test_jit/RPySOM; fi
+    - git clone https://github.com/microvm/RPySOM.git tests/test_jit/RPySOM
+    - cd tests/test_jit/RPySOM; git submodule init; git submodule update; cd $CI_PROJECT_DIR
+    - if [ -d "tests/test_jit/mu-client-pypy" ]; then rm -Rf tests/test_jit/mu-client-pypy; fi
+    - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git tests/test_jit/mu-client-pypy
+    - cd tests/test_jit/mu-client-pypy
+    - git checkout mu-rewrite
+    - git apply pypy.patch
+    - cd $CI_PROJECT_DIR/tests/test_jit
+    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_som.py -v

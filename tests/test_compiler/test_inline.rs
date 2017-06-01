@@ -8,8 +8,6 @@ use mu::vm::*;
 use mu::testutil;
 use mu::utils::LinkedHashMap;
 
-use std::sync::RwLock;
-
 #[test]
 fn test_inline_add_simple() {
     let lib = testutil::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);

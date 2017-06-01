@@ -7,7 +7,6 @@ use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::utils::LinkedHashMap;
 
-use std::sync::RwLock;
 use std::sync::Arc;
 
 #[test]

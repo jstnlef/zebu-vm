@@ -72,15 +72,19 @@ fn link_dylib_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<St
         cc.arg(format!("-l{}", l));
     }
 
+    // options
     cc.arg("-shared");
     cc.arg("-fPIC");
     cc.arg("-Wl");
     cc.arg("-undefined");
     cc.arg("dynamic_lookup");
+
+    // all object files
     for obj in object_files {
         cc.arg(obj.as_os_str());
     }
 
+    // output
     cc.arg("-o");
     cc.arg(out.as_os_str());
 
