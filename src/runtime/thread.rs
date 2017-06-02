@@ -168,8 +168,8 @@ impl MuStack {
 
     #[cfg(target_arch = "x86_64")]
     pub fn runtime_load_args(&mut self, vals: Vec<ValueLocation>) {
-        use compiler::backend::Word;
-        use compiler::backend::WORD_SIZE;
+        use utils::Word;
+        use utils::WORD_SIZE;
         use compiler::backend::RegGroup;
         use compiler::backend::x86_64;
         
@@ -223,8 +223,8 @@ impl MuStack {
     }
     
     pub fn print_stack(&self, n_entries: Option<usize>) {
-        use compiler::backend::Word;
-        use compiler::backend::WORD_SIZE;
+        use utils::Word;
+        use utils::WORD_SIZE;
         
         let mut cursor = self.upper_bound.sub(WORD_SIZE);
         let mut count = 0;
@@ -249,10 +249,6 @@ impl MuStack {
         }
         
         debug!("0x{:x} | LOWER_BOUND", self.lower_bound);
-    }
-
-    pub fn print_backtrace(&self) {
-
     }
 }
 

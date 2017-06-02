@@ -9,7 +9,7 @@ use ast::ptr::*;
 use ast::types::*;
 use utils::Address;
 use compiler::backend::RegGroup;
-use compiler::backend::BackendTypeInfo;
+use compiler::backend::BackendType;
 use runtime::ValueLocation;
 use runtime::thread::MuThread;
 
@@ -46,7 +46,7 @@ fn allocate(allocator: *mut Mutator, size: ByteSize, align: ByteSize, encode: u6
     ret
 }
 
-pub fn allocate_fixed(ty: P<MuType>, backendtype: Box<BackendTypeInfo>) -> Address {
+pub fn allocate_fixed(ty: P<MuType>, backendtype: Box<BackendType>) -> Address {
     let gctype = backendtype.gc_type.clone();
     let encode = get_gc_type_encode(gctype.id);
 
@@ -57,7 +57,7 @@ pub fn allocate_fixed(ty: P<MuType>, backendtype: Box<BackendTypeInfo>) -> Addre
     check_allocator(gctype.size(), gctype.alignment, encode, None).to_address()
 }
 
-pub fn allocate_hybrid(ty: P<MuType>, len: u64, backendtype: Box<BackendTypeInfo>) -> Address {
+pub fn allocate_hybrid(ty: P<MuType>, len: u64, backendtype: Box<BackendType>) -> Address {
     let gctype = backendtype.gc_type.clone();
     let encode = get_gc_type_encode(gctype.id);
 
@@ -68,7 +68,7 @@ pub fn allocate_hybrid(ty: P<MuType>, len: u64, backendtype: Box<BackendTypeInfo
     check_allocator(gctype.size_hybrid(len as u32), gctype.alignment, encode, Some(len)).to_address()
 }
 
-pub fn allocate_global(iref_global: P<Value>, backendtype: Box<BackendTypeInfo>) -> ValueLocation {
+pub fn allocate_global(iref_global: P<Value>, backendtype: Box<BackendType>) -> ValueLocation {
     let referenced_type = match iref_global.ty.get_referent_ty() {
         Some(ty) => ty,
         None => panic!("expected global to be an iref type, found {}", iref_global.ty)

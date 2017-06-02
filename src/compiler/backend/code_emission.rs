@@ -11,27 +11,10 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::collections::HashMap;
 
+/// should emit Mu IR dot graph?
 pub const EMIT_MUIR : bool = true;
+/// should emit machien code dot graph?
 pub const EMIT_MC_DOT : bool = true;
-
-pub fn create_emit_directory(vm: &VM) {
-    use std::fs;
-    match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
-        Ok(_) => {},
-        Err(_) => {}
-    }
-}
-
-fn create_emit_file(name: String, vm: &VM) -> File {
-    let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
-    file_path.push(name);
-
-    match File::create(file_path.as_path()) {
-        Err(why) => panic!("couldn't create emit file {}: {}", file_path.to_str().unwrap(), why),
-        Ok(file) => file
-    }
-}
 
 pub struct CodeEmission {
     name: &'static str
@@ -42,6 +25,50 @@ impl CodeEmission {
         CodeEmission {
             name: "Code Emission"
         }
+    }
+}
+
+impl CompilerPass for CodeEmission {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
+    }
+
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        // emit the actual code
+        emit_code(func, vm);
+
+        // emit debug graphs
+        if EMIT_MUIR {
+            emit_muir_dot(func, vm);
+        }
+        if EMIT_MC_DOT {
+            emit_mc_dot(func, vm);
+        }
+    }
+}
+
+/// creates the emit directory (if it doesnt exist)
+pub fn create_emit_directory(vm: &VM) {
+    use std::fs;
+    match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
+        Ok(_) => {},
+        Err(_) => {}
+    }
+}
+
+/// creates an file to write, panics if the creation fails
+fn create_emit_file(name: String, vm: &VM) -> File {
+    let mut file_path = path::PathBuf::new();
+    file_path.push(&vm.vm_options.flag_aot_emit_dir);
+    file_path.push(name);
+
+    match File::create(file_path.as_path()) {
+        Err(why) => panic!("couldn't create emit file {}: {}", file_path.to_str().unwrap(), why),
+        Ok(file) => file
     }
 }
 
@@ -381,26 +408,4 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
     }
 
     file.write("}\n".as_bytes()).unwrap();
-}
-
-impl CompilerPass for CodeEmission {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn as_any(&self) -> &Any {
-        self
-    }
-
-    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        emit_code(func, vm);
-
-        if EMIT_MUIR {
-            emit_muir_dot(func, vm);
-        }
-
-        if EMIT_MC_DOT {
-            emit_mc_dot(func, vm);
-        }
-    }
 }

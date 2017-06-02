@@ -7,7 +7,7 @@ use ast::types;
 use ast::types::*;
 use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
-use compiler::backend::BackendTypeInfo;
+use compiler::backend::BackendType;
 use compiler::machine_code::CompiledFunction;
 use runtime::thread::*;
 use runtime::ValueLocation;
@@ -42,7 +42,7 @@ pub struct VM {
     // 3
     types: RwLock<HashMap<MuID, P<MuType>>>,
     // 4
-    backend_type_info: RwLock<HashMap<MuID, Box<BackendTypeInfo>>>,
+    backend_type_info: RwLock<HashMap<MuID, Box<BackendType>>>,
     // 5
     constants: RwLock<HashMap<MuID, P<Value>>>,
     // 6
@@ -527,7 +527,7 @@ impl <'a> VM {
         // restore gc types
         {
             let type_info_guard = vm.backend_type_info.read().unwrap();
-            let mut type_info_vec: Vec<Box<BackendTypeInfo>> = type_info_guard.values().map(|x| x.clone()).collect();
+            let mut type_info_vec: Vec<Box<BackendType>> = type_info_guard.values().map(|x| x.clone()).collect();
             type_info_vec.sort_by(|a, b| a.gc_type.id.cmp(&b.gc_type.id));
 
             let mut expect_id = 0;
@@ -905,7 +905,7 @@ impl <'a> VM {
         self.compiled_funcs.write().unwrap().insert(func.func_ver_id, RwLock::new(func));
     }
     
-    pub fn get_backend_type_info(&self, tyid: MuID) -> Box<BackendTypeInfo> {        
+    pub fn get_backend_type_info(&self, tyid: MuID) -> Box<BackendType> {
         {
             let read_lock = self.backend_type_info.read().unwrap();
         
@@ -920,7 +920,7 @@ impl <'a> VM {
             Some(ty) => ty,
             None => panic!("invalid type id during get_backend_type_info(): {}", tyid)
         };
-        let resolved = Box::new(backend::resolve_backend_type_info(ty, self));
+        let resolved = Box::new(backend::BackendType::resolve(ty, self));
         
         let mut write_lock = self.backend_type_info.write().unwrap();
         write_lock.insert(tyid, resolved.clone());

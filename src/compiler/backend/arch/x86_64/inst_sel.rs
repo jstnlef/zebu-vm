@@ -15,6 +15,7 @@ use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 use compiler::backend;
+use compiler::backend::BackendType;
 use compiler::backend::RegGroup;
 use compiler::backend::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
@@ -2976,7 +2977,7 @@ impl <'a> InstructionSelection {
             stack_args.reverse();
 
             let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
-            let (stack_arg_size, _, stack_arg_offsets) = backend::sequetial_layout(&stack_arg_tys, vm);
+            let (stack_arg_size, _, stack_arg_offsets) = BackendType::sequential_layout(&stack_arg_tys, vm);
 
             let mut stack_arg_size_with_padding = stack_arg_size;
 
@@ -3463,7 +3464,7 @@ impl <'a> InstructionSelection {
         //   old RBP       <- RBP
         let stack_arg_base_offset : i32 = 16;
         let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
-        let (_, _, stack_arg_offsets) = backend::sequetial_layout(&arg_by_stack_tys, vm);
+        let (_, _, stack_arg_offsets) = BackendType::sequential_layout(&arg_by_stack_tys, vm);
 
         // unload the args
         let mut i = 0;

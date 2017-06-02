@@ -1,9 +1,9 @@
 use utils;
+use utils::Word;
+use utils::Address;
 use ast::ir::*;
 use vm::VM;
-use compiler::backend::Word;
 use compiler::backend::RegGroup;
-use utils::Address;
 
 use std::fmt;
 use std::os::raw::c_int;
