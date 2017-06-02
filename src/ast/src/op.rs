@@ -66,7 +66,8 @@ pub enum OpCode {
     CommonInst_Unpin,
 
     Move,
-    PrintHex
+    PrintHex,
+    SetRetval
 }
 
 pub fn pick_op_code_for_ssa(ty: &P<MuType>) -> OpCode {
@@ -358,5 +359,6 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
         Instruction_::CommonInst_Unpin(_)           => OpCode::CommonInst_Unpin,
         Instruction_::Move(_)                    => OpCode::Move,
         Instruction_::PrintHex(_)                => OpCode::PrintHex,
+        Instruction_::SetRetval(_)               => OpCode::SetRetval
     }
 }

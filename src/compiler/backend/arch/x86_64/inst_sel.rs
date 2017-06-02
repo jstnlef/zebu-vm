@@ -1430,6 +1430,20 @@ impl <'a> InstructionSelection {
                             Some(node), f_content, f_context, vm
                         );
                     }
+
+                    Instruction_::SetRetval(index) => {
+                        trace!("instsel on SETRETVAL");
+
+                        let ref ops = inst.ops;
+                        let ref op  = ops[index];
+
+                        self.emit_runtime_entry(
+                            &entrypoints::SET_RETVAL,
+                            vec![op.clone_value()],
+                            None,
+                            Some(node), f_content, f_context, vm
+                        );
+                    }
     
                     _ => unimplemented!()
                 } // main switch

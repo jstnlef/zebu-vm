@@ -573,5 +573,15 @@ macro_rules! inst {
             ops: vec![$val.clone()],
             v: Instruction_::PrintHex(0)
         });
-    }
+    };
+
+    // SET_RETVAL
+    (($vm: expr, $fv: ident) $name: ident: SET_RETVAL $val: ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: None,
+            ops: vec![$val.clone()],
+            v: Instruction_::SetRetval(0)
+        });
+    };
 }

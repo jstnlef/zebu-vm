@@ -10,6 +10,11 @@
 #include <dlfcn.h>
 #include <pthread.h>
 
+uint32_t mu_retval;
+void muentry_set_retval(uint32_t x) {
+    mu_retval = x;
+}
+
 /*
  *         .type   mu_tls,@object          // @mu_tls
         .section        .tbss,"awT",@nobits
