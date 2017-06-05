@@ -30,12 +30,6 @@ pub trait CodeGenerator {
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation;
     /// finishes a block (must have called start_block() or start_excpetion_block() first)
     fn end_block(&mut self, block_name: MuName);
-    /// sets livein for a block (deprecated?)
-    // FIXME
-    fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>);
-    /// sets liveout for a block (deprecated?)
-    // FIXME
-    fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
 
     // adds CFI info
     fn add_cfi_startproc(&mut self);

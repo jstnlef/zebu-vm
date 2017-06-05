@@ -3356,11 +3356,6 @@ impl <'a> InstructionSelection {
         let block_name = PROLOGUE_BLOCK_NAME.to_string();
         self.backend.start_block(block_name.clone());
         
-        // no livein
-        // liveout = entry block's args
-        self.backend.set_block_livein(block_name.clone(), &vec![]);
-        self.backend.set_block_liveout(block_name.clone(), args);
-        
         // push rbp
         self.backend.emit_push_r64(&x86_64::RBP);
         if vm.vm_options.flag_emit_debug_info {
@@ -4780,24 +4775,12 @@ impl CompilerPass for InstructionSelection {
 
             if block.is_receiving_exception_arg() {
                 // this block uses exception arguments
-                // we need to add it to livein, and also emit landingpad for it
-
+                // we need to emit landingpad for it
                 let exception_arg = block_content.exn_arg.as_ref().unwrap();
-                
-                // live in is args of the block + exception arg
-                let mut livein = block_content.args.to_vec();
-                livein.push(exception_arg.clone());
-                self.backend.set_block_livein(block_label.clone(), &livein);
                 
                 // need to insert a landing pad
                 self.emit_landingpad(&exception_arg, f_content, &mut func.context, vm);
-            } else {
-                // live in is args of the block
-                self.backend.set_block_livein(block_label.clone(), &block_content.args);                    
             }
-            
-            // live out is the union of all branch args of this block
-            let live_out = block_content.get_out_arguments();
 
             // doing the actual instruction selection
             for inst in block_content.body.iter() {
@@ -4805,12 +4788,10 @@ impl CompilerPass for InstructionSelection {
             }
             
             // we may start block a, and end with block b (instruction selection may create blocks)
-            // we set liveout to current block
             {
                 let current_block = self.current_block.as_ref().unwrap();
-                self.backend.set_block_liveout(current_block.clone(), &live_out);
                 self.backend.end_block(current_block.clone());
-            }            
+            }
             self.current_block = None;
             self.current_block_in_ir = None;
         }
