@@ -1022,27 +1022,27 @@ impl ASMCodeGen {
             let (id, loc) = target.unwrap();
             uses.insert(id, vec![loc]);
         }
-        //        for reg in ARGUMENT_GPRs.iter() {
+        //        for reg in ARGUMENT_GPRS.iter() {
         //            uses.insert(reg.id(), vec![]);
         //        }
-        //        for reg in ARGUMENT_FPRs.iter() {
+        //        for reg in ARGUMENT_FPRS.iter() {
         //            uses.insert(reg.id(), vec![]);
         //        }
 
         // defines: return registers
         let mut defines: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for reg in RETURN_GPRs.iter() {
+        for reg in RETURN_GPRS.iter() {
             defines.insert(reg.id(), vec![]);
         }
-        for reg in RETURN_FPRs.iter() {
+        for reg in RETURN_FPRS.iter() {
             defines.insert(reg.id(), vec![]);
         }
-        for reg in CALLER_SAVED_GPRs.iter() {
+        for reg in CALLER_SAVED_GPRS.iter() {
             if !defines.contains_key(&reg.id()) {
                 defines.insert(reg.id(), vec![]);
             }
         }
-        for reg in CALLER_SAVED_FPRs.iter() {
+        for reg in CALLER_SAVED_FPRS.iter() {
             if !defines.contains_key(&reg.id()) {
                 defines.insert(reg.id(), vec![]);
             }

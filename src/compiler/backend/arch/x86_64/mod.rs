@@ -1,15 +1,23 @@
 #![allow(dead_code)]
-#![allow(non_upper_case_globals)]
 
+/// Tree pattern matching instruction selection.
 pub mod inst_sel;
 
 mod codegen;
-pub use compiler::backend::x86_64::codegen::CodeGenerator;
+/// CodeGenerator trait serves as an interface to the backend code generator, which
+/// may generate assembly code or binary (not implemented yet)
+use compiler::backend::x86_64::codegen::CodeGenerator;
 
-pub mod asm_backend;
-pub use compiler::backend::x86_64::asm_backend::ASMCodeGen;
+/// assembly backend as AOT compiler
+mod asm_backend;
+use compiler::backend::x86_64::asm_backend::ASMCodeGen;
+
+// re-export a few functions for AOT compilation
+#[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::emit_code;
+#[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::emit_context;
+#[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::emit_context_with_reloc;
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
@@ -22,6 +30,7 @@ use compiler::backend::RegGroup;
 use utils::LinkedHashMap;
 use std::collections::HashMap;
 
+/// a macro to declare a set of general purpose registers that are aliased to the first one
 macro_rules! GPR_ALIAS {
     ($alias: ident: ($id64: expr, $r64: ident) -> $r32: ident, $r16: ident, $r8l: ident, $r8h: ident) => {
         lazy_static!{
@@ -55,6 +64,7 @@ macro_rules! GPR_ALIAS {
     };
 }
 
+/// a macro to declare a general purpose register
 macro_rules! GPR {
     ($id:expr, $name: expr, $ty: ident) => {
         {
@@ -67,6 +77,7 @@ macro_rules! GPR {
     };
 }
 
+/// a macro to declare a floating point register
 macro_rules! FPR {
     ($id:expr, $name: expr) => {
         {
@@ -78,6 +89,9 @@ macro_rules! FPR {
         }
     };
 }
+
+// declare all general purpose registers for x86_64
+// non 64-bit registers are alias of its 64-bit one
 
 GPR_ALIAS!(RAX_ALIAS: (0, RAX)  -> EAX, AX , AL, AH);
 GPR_ALIAS!(RCX_ALIAS: (5, RCX)  -> ECX, CX , CL, CH);
@@ -98,6 +112,8 @@ GPR_ALIAS!(R15_ALIAS: (64,R15) -> R15D,R15W,R15B);
 GPR_ALIAS!(RIP_ALIAS: (68,RIP));
 
 lazy_static! {
+    /// a map from 64-bit register IDs to a vector of its aliased register (Values),
+    /// including the 64-bit register
     pub static ref GPR_ALIAS_TABLE : LinkedHashMap<MuID, Vec<P<Value>>> = {
         let mut ret = LinkedHashMap::new();
 
@@ -122,7 +138,7 @@ lazy_static! {
         ret
     };
 
-    // e.g. given eax, return rax
+    /// a map from any register to its 64-bit alias
     pub static ref GPR_ALIAS_LOOKUP : HashMap<MuID, P<Value>> = {
         let mut ret = HashMap::new();
 
@@ -138,6 +154,8 @@ lazy_static! {
     };
 }
 
+/// returns P<Value> for a register ID of its alias of the given length
+/// panics if the ID is not a machine register ID
 pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
     if id < FPR_ID_START {
         let vec = match GPR_ALIAS_TABLE.get(&id) {
@@ -154,7 +172,7 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
             _ => panic!("unexpected length {} for {}", length, vec[0])
         }
     } else {
-        for r in ALL_FPRs.iter() {
+        for r in ALL_FPRS.iter() {
             if r.id() == id {
                 return r.clone();
             }
@@ -164,6 +182,7 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
     }
 }
 
+/// are two registers aliased? (both must be machine register IDs, otherwise this function panics)
 pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
     if get_color_for_precolored(id1) == get_color_for_precolored(id2) {
         macro_rules! is_match {
@@ -215,12 +234,12 @@ pub fn check_op_len(op: &P<Value>) -> usize {
 }
 
 lazy_static! {
-    pub static ref RETURN_GPRs : [P<Value>; 2] = [
+    pub static ref RETURN_GPRS : [P<Value>; 2] = [
         RAX.clone(),
         RDX.clone(),
     ];
 
-    pub static ref ARGUMENT_GPRs : [P<Value>; 6] = [
+    pub static ref ARGUMENT_GPRS : [P<Value>; 6] = [
         RDI.clone(),
         RSI.clone(),
         RDX.clone(),
@@ -229,7 +248,7 @@ lazy_static! {
         R9.clone()
     ];
 
-    pub static ref CALLEE_SAVED_GPRs : [P<Value>; 6] = [
+    pub static ref CALLEE_SAVED_GPRS : [P<Value>; 6] = [
         RBX.clone(),
         RBP.clone(),
         R12.clone(),
@@ -238,7 +257,7 @@ lazy_static! {
         R15.clone()
     ];
 
-    pub static ref CALLER_SAVED_GPRs : [P<Value>; 9] = [
+    pub static ref CALLER_SAVED_GPRS : [P<Value>; 9] = [
         RAX.clone(),
         RCX.clone(),
         RDX.clone(),
@@ -250,7 +269,7 @@ lazy_static! {
         R11.clone()
     ];
 
-    static ref ALL_GPRs : [P<Value>; 15] = [
+    static ref ALL_GPRS : [P<Value>; 15] = [
         RAX.clone(),
         RCX.clone(),
         RDX.clone(),
@@ -290,12 +309,12 @@ lazy_static!{
     pub static ref XMM14 : P<Value> = FPR!(FPR_ID_START + 14,"xmm14");
     pub static ref XMM15 : P<Value> = FPR!(FPR_ID_START + 15,"xmm15");
 
-    pub static ref RETURN_FPRs : [P<Value>; 2] = [
+    pub static ref RETURN_FPRS : [P<Value>; 2] = [
         XMM0.clone(),
         XMM1.clone()
     ];
 
-    pub static ref ARGUMENT_FPRs : [P<Value>; 8] = [
+    pub static ref ARGUMENT_FPRS : [P<Value>; 8] = [
         XMM0.clone(),
         XMM1.clone(),
         XMM2.clone(),
@@ -306,9 +325,9 @@ lazy_static!{
         XMM7.clone()
     ];
 
-    pub static ref CALLEE_SAVED_FPRs : [P<Value>; 0] = [];
+    pub static ref CALLEE_SAVED_FPRS : [P<Value>; 0] = [];
 
-    pub static ref CALLER_SAVED_FPRs : [P<Value>; 16] = [
+    pub static ref CALLER_SAVED_FPRS : [P<Value>; 16] = [
         XMM0.clone(),
         XMM1.clone(),
         XMM2.clone(),
@@ -327,7 +346,7 @@ lazy_static!{
         XMM15.clone(),
     ];
 
-    static ref ALL_FPRs : [P<Value>; 16] = [
+    static ref ALL_FPRS : [P<Value>; 16] = [
         XMM0.clone(),
         XMM1.clone(),
         XMM2.clone(),
@@ -348,7 +367,7 @@ lazy_static!{
 }
 
 lazy_static! {
-    pub static ref ALL_MACHINE_REGs : LinkedHashMap<MuID, P<Value>> = {
+    pub static ref ALL_MACHINE_REGS : LinkedHashMap<MuID, P<Value>> = {
         let mut map = LinkedHashMap::new();
 
         for vec in GPR_ALIAS_TABLE.values() {
@@ -378,7 +397,7 @@ lazy_static! {
     };
 
     // put caller saved regs first (they imposes no overhead if there is no call instruction)
-    pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
+    pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = vec![
         RAX.clone(),
         RCX.clone(),
         RDX.clone(),
@@ -415,7 +434,7 @@ lazy_static! {
 }
 
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
-    for reg in ALL_MACHINE_REGs.values() {
+    for reg in ALL_MACHINE_REGS.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let entry = SSAVarEntry::new(reg.clone());
 
@@ -425,22 +444,22 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
 
 pub fn number_of_regs_in_group(group: RegGroup) -> usize {
     match group {
-        RegGroup::GPR   => ALL_GPRs.len(),
-        RegGroup::GPREX => ALL_GPRs.len(),
-        RegGroup::FPR   => ALL_FPRs.len()
+        RegGroup::GPR   => ALL_GPRS.len(),
+        RegGroup::GPREX => ALL_GPRS.len(),
+        RegGroup::FPR   => ALL_FPRS.len()
     }
 }
 
 pub fn number_of_all_regs() -> usize {
-    ALL_MACHINE_REGs.len()
+    ALL_MACHINE_REGS.len()
 }
 
 pub fn all_regs() -> &'static LinkedHashMap<MuID, P<Value>> {
-    &ALL_MACHINE_REGs
+    &ALL_MACHINE_REGS
 }
 
 pub fn all_usable_regs() -> &'static Vec<P<Value>> {
-    &ALL_USABLE_MACHINE_REGs
+    &ALL_USABLE_MACHINE_REGS
 }
 
 pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
@@ -449,7 +468,7 @@ pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
 }
 
 pub fn is_callee_saved(reg_id: MuID) -> bool {
-    for reg in CALLEE_SAVED_GPRs.iter() {
+    for reg in CALLEE_SAVED_GPRS.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {
             return true;
         }

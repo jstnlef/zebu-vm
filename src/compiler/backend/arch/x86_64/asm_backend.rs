@@ -1013,19 +1013,19 @@ impl ASMCodeGen {
         // defines
         let mut defines : LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
         // return registers get defined
-        for reg in x86_64::RETURN_GPRs.iter() {
+        for reg in x86_64::RETURN_GPRS.iter() {
             defines.insert(reg.id(), vec![]);
         }
-        for reg in x86_64::RETURN_FPRs.iter() {
+        for reg in x86_64::RETURN_FPRS.iter() {
             defines.insert(reg.id(), vec![]);
         }
         // caller saved register will be destroyed
-        for reg in x86_64::CALLER_SAVED_GPRs.iter() {
+        for reg in x86_64::CALLER_SAVED_GPRS.iter() {
             if !defines.contains_key(&reg.id()) {
                 defines.insert(reg.id(), vec![]);
             }
         }
-        for reg in x86_64::CALLER_SAVED_FPRs.iter() {
+        for reg in x86_64::CALLER_SAVED_FPRS.iter() {
             if !defines.contains_key(&reg.id()) {
                 defines.insert(reg.id(), vec![]);
             }

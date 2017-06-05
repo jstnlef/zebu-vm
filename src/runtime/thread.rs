@@ -132,7 +132,7 @@ impl MuStack {
 
         // Ar these
         let mut stack_ptr = self.sp;
-        for i in 0..aarch64::ARGUMENT_FPRs.len() {
+        for i in 0..aarch64::ARGUMENT_FPRS.len() {
             stack_ptr = stack_ptr.sub(WORD_SIZE);
             let val = {
                 if i < fpr_used.len() {
@@ -146,7 +146,7 @@ impl MuStack {
             unsafe {stack_ptr.store(val);}
         }
 
-        for i in 0..aarch64::ARGUMENT_GPRs.len() {
+        for i in 0..aarch64::ARGUMENT_GPRS.len() {
             stack_ptr = stack_ptr.sub(WORD_SIZE);
             let val = {
                 if i < gpr_used.len() {
@@ -188,7 +188,7 @@ impl MuStack {
         }
         
         let mut stack_ptr = self.sp;
-        for i in 0..x86_64::ARGUMENT_FPRs.len() {
+        for i in 0..x86_64::ARGUMENT_FPRS.len() {
             stack_ptr = stack_ptr.sub(WORD_SIZE);
             let val = {
                 if i < fpr_used.len() {
@@ -202,7 +202,7 @@ impl MuStack {
             unsafe {stack_ptr.store(val);}
         }
         
-        for i in 0..x86_64::ARGUMENT_GPRs.len() {
+        for i in 0..x86_64::ARGUMENT_GPRS.len() {
             stack_ptr = stack_ptr.sub(WORD_SIZE);
             let val = {
                 if i < gpr_used.len() {

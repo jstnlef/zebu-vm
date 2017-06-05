@@ -14,7 +14,6 @@ use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
-use compiler::backend;
 use compiler::backend::BackendType;
 use compiler::backend::RegGroup;
 use compiler::backend::PROLOGUE_BLOCK_NAME;
@@ -2907,9 +2906,9 @@ impl <'a> InstructionSelection {
             let arg_reg_group = RegGroup::get_from_value(&arg);
 
             if arg_reg_group == RegGroup::GPR && arg.is_reg() {
-                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                if gpr_arg_count < x86_64::ARGUMENT_GPRS.len() {
                     let arg_gpr = {
-                        let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
+                        let ref reg64 = x86_64::ARGUMENT_GPRS[gpr_arg_count];
                         let expected_len = arg.ty.get_int_length().unwrap();
                         x86_64::get_alias_for_length(reg64.id(), expected_len)
                     };
@@ -2923,9 +2922,9 @@ impl <'a> InstructionSelection {
             } else if arg_reg_group == RegGroup::GPR && arg.is_const() {
                 let int_const = arg.extract_int_const().unwrap();
 
-                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                if gpr_arg_count < x86_64::ARGUMENT_GPRS.len() {
                     let arg_gpr = {
-                        let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
+                        let ref reg64 = x86_64::ARGUMENT_GPRS[gpr_arg_count];
                         let expected_len = arg.ty.get_int_length().unwrap();
                         x86_64::get_alias_for_length(reg64.id(), expected_len)
                     };
@@ -2942,8 +2941,8 @@ impl <'a> InstructionSelection {
                     stack_args.push(arg.clone());
                 }
             } else if arg_reg_group == RegGroup::FPR && arg.is_reg() {
-                if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
-                    let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
+                if fpr_arg_count < x86_64::ARGUMENT_FPRS.len() {
+                    let arg_fpr = x86_64::ARGUMENT_FPRS[fpr_arg_count].clone();
 
                     self.emit_move_value_to_value(&arg_fpr, &arg);
                     fpr_arg_count += 1;
@@ -3040,9 +3039,9 @@ impl <'a> InstructionSelection {
             };
 
             if RegGroup::get_from_value(&ret_val) == RegGroup::GPR && ret_val.is_reg() {
-                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                if gpr_ret_count < x86_64::RETURN_GPRS.len() {
                     let ret_gpr = {
-                        let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
+                        let ref reg64 = x86_64::RETURN_GPRS[gpr_ret_count];
                         let expected_len = ret_val.ty.get_int_length().unwrap();
                         x86_64::get_alias_for_length(reg64.id(), expected_len)
                     };
@@ -3055,8 +3054,8 @@ impl <'a> InstructionSelection {
                 }
             } else if RegGroup::get_from_value(&ret_val) == RegGroup::FPR && ret_val.is_reg() {
                 // floating point register
-                if fpr_ret_count < x86_64::RETURN_FPRs.len() {
-                    let ref ret_fpr = x86_64::RETURN_FPRs[fpr_ret_count];
+                if fpr_ret_count < x86_64::RETURN_FPRS.len() {
+                    let ref ret_fpr = x86_64::RETURN_FPRS[fpr_ret_count];
 
                     match ret_val.ty.v {
                         MuType_::Double => self.backend.emit_movsd_f64_f64(&ret_val, &ret_fpr),
@@ -3384,8 +3383,8 @@ impl <'a> InstructionSelection {
             let frame = self.current_frame.as_mut().unwrap();
 
             let rbp = x86_64::RBP.extract_ssa_id().unwrap();
-            for i in 0..x86_64::CALLEE_SAVED_GPRs.len() {
-                let ref reg = x86_64::CALLEE_SAVED_GPRs[i];
+            for i in 0..x86_64::CALLEE_SAVED_GPRS.len() {
+                let ref reg = x86_64::CALLEE_SAVED_GPRS[i];
                 // not pushing rbp (as we have done that)
                 if reg.extract_ssa_id().unwrap() !=  rbp {
                     trace!("allocate frame slot for reg {}", reg);
@@ -3404,9 +3403,9 @@ impl <'a> InstructionSelection {
 
         for arg in args {
             if RegGroup::get_from_value(&arg) == RegGroup::GPR && arg.is_reg() {
-                if gpr_arg_count < x86_64::ARGUMENT_GPRs.len() {
+                if gpr_arg_count < x86_64::ARGUMENT_GPRS.len() {
                     let arg_gpr = {
-                        let ref reg64 = x86_64::ARGUMENT_GPRs[gpr_arg_count];
+                        let ref reg64 = x86_64::ARGUMENT_GPRS[gpr_arg_count];
                         let expected_len = arg.ty.get_int_length().unwrap();
                         x86_64::get_alias_for_length(reg64.id(), expected_len)
                     };
@@ -3419,10 +3418,10 @@ impl <'a> InstructionSelection {
                     arg_by_stack.push(arg.clone());
                 }
             } else if RegGroup::get_from_value(&arg) == RegGroup::GPREX && arg.is_reg() {
-                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRs.len() {
+                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRS.len() {
                     // we need two registers
-                    let gpr1 = x86_64::ARGUMENT_GPRs[gpr_arg_count].clone();
-                    let gpr2 = x86_64::ARGUMENT_GPRs[gpr_arg_count + 1].clone();
+                    let gpr1 = x86_64::ARGUMENT_GPRS[gpr_arg_count].clone();
+                    let gpr2 = x86_64::ARGUMENT_GPRS[gpr_arg_count + 1].clone();
 
                     let (arg_l, arg_h) = self.split_int128(&arg, f_context, vm);
 
@@ -3436,8 +3435,8 @@ impl <'a> InstructionSelection {
                     arg_by_stack.push(arg.clone())
                 }
             } else if RegGroup::get_from_value(&arg) == RegGroup::FPR && arg.is_reg() {
-                if fpr_arg_count < x86_64::ARGUMENT_FPRs.len() {
-                    let arg_fpr = x86_64::ARGUMENT_FPRs[fpr_arg_count].clone();
+                if fpr_arg_count < x86_64::ARGUMENT_FPRS.len() {
+                    let arg_fpr = x86_64::ARGUMENT_FPRS[fpr_arg_count].clone();
 
                     match arg.ty.v {
                         MuType_::Double => self.backend.emit_movsd_f64_f64(&arg, &arg_fpr),
@@ -3497,8 +3496,8 @@ impl <'a> InstructionSelection {
             if self.match_iimm(ret_val) {
                 let imm_ret_val = self.node_iimm_to_i32(ret_val);
 
-                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
-                    self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRs[gpr_ret_count], imm_ret_val);
+                if gpr_ret_count < x86_64::RETURN_GPRS.len() {
+                    self.backend.emit_mov_r_imm(&x86_64::RETURN_GPRS[gpr_ret_count], imm_ret_val);
                     gpr_ret_count += 1;
                 } else {
                     // pass by stack
@@ -3507,9 +3506,9 @@ impl <'a> InstructionSelection {
             } else if self.match_ireg(ret_val) {
                 let reg_ret_val = self.emit_ireg(ret_val, f_content, f_context, vm);
 
-                if gpr_ret_count < x86_64::RETURN_GPRs.len() {
+                if gpr_ret_count < x86_64::RETURN_GPRS.len() {
                     let ret_gpr = {
-                        let ref reg64 = x86_64::RETURN_GPRs[gpr_ret_count];
+                        let ref reg64 = x86_64::RETURN_GPRS[gpr_ret_count];
                         let expected_len = reg_ret_val.ty.get_int_length().unwrap();
                         x86_64::get_alias_for_length(reg64.id(), expected_len)
                     };
@@ -3523,9 +3522,9 @@ impl <'a> InstructionSelection {
             } else if self.match_ireg_ex(ret_val) {
                 let (ret_val1, ret_val2) = self.emit_ireg_ex(ret_val, f_content, f_context, vm);
 
-                if gpr_ret_count + 1 < x86_64::RETURN_GPRs.len() {
-                    let ret_gpr1 = x86_64::RETURN_GPRs[gpr_ret_count].clone();
-                    let ret_gpr2 = x86_64::RETURN_GPRs[gpr_ret_count + 1].clone();
+                if gpr_ret_count + 1 < x86_64::RETURN_GPRS.len() {
+                    let ret_gpr1 = x86_64::RETURN_GPRS[gpr_ret_count].clone();
+                    let ret_gpr2 = x86_64::RETURN_GPRS[gpr_ret_count + 1].clone();
 
                     self.backend.emit_mov_r_r(&ret_gpr1, &ret_val1);
                     self.backend.emit_mov_r_r(&ret_gpr2, &ret_val2);
@@ -3538,10 +3537,10 @@ impl <'a> InstructionSelection {
             } else if self.match_fpreg(ret_val) {
                 let reg_ret_val = self.emit_fpreg(ret_val, f_content, f_context, vm);
 
-                if fpr_ret_count < x86_64::RETURN_FPRs.len() {
+                if fpr_ret_count < x86_64::RETURN_FPRS.len() {
                     match reg_ret_val.ty.v {
-                        MuType_::Double => self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
-                        MuType_::Float  => self.backend.emit_movss_f32_f32(&x86_64::RETURN_FPRs[fpr_ret_count], &reg_ret_val),
+                        MuType_::Double => self.backend.emit_movsd_f64_f64(&x86_64::RETURN_FPRS[fpr_ret_count], &reg_ret_val),
+                        MuType_::Float  => self.backend.emit_movss_f32_f32(&x86_64::RETURN_FPRS[fpr_ret_count], &reg_ret_val),
                         _ => panic!("expect double or float")
                     }
 
@@ -3558,8 +3557,8 @@ impl <'a> InstructionSelection {
         // pop all callee-saved registers - reverse order
         {
             let frame = self.current_frame.as_mut().unwrap();
-            for i in (0..x86_64::CALLEE_SAVED_GPRs.len()).rev() {
-                let ref reg = x86_64::CALLEE_SAVED_GPRs[i];
+            for i in (0..x86_64::CALLEE_SAVED_GPRS.len()).rev() {
+                let ref reg = x86_64::CALLEE_SAVED_GPRS[i];
                 let reg_id = reg.extract_ssa_id().unwrap();
                 if reg_id != x86_64::RBP.extract_ssa_id().unwrap() {
                     let loc = frame.allocated.get(&reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);

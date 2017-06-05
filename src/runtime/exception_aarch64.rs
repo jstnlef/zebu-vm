@@ -179,7 +179,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
         trace!("didnt find a catch block");
 
         // update callee saved register location
-        for reg in aarch64::CALLEE_SAVED_REGs.iter() {
+        for reg in aarch64::CALLEE_SAVED_REGS.iter() {
             let reg_id = reg.id();
             trace!("update callee saved register {}", reg.name().unwrap());
             if frame.allocated.contains_key(&reg_id) {

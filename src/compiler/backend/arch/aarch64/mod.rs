@@ -301,8 +301,8 @@ pub fn primitive_byte_size(ty : &P<MuType>) -> usize
 }
 
 lazy_static! {
-    // Note: these are the same as the ARGUMENT_GPRs
-    pub static ref RETURN_GPRs : [P<Value>; 8] = [
+    // Note: these are the same as the ARGUMENT_GPRS
+    pub static ref RETURN_GPRS : [P<Value>; 8] = [
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -313,7 +313,7 @@ lazy_static! {
         X7.clone()
     ];
 
-    pub static ref ARGUMENT_GPRs : [P<Value>; 8] = [
+    pub static ref ARGUMENT_GPRS : [P<Value>; 8] = [
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -324,7 +324,7 @@ lazy_static! {
         X7.clone()
     ];
 
-    pub static ref CALLEE_SAVED_GPRs : [P<Value>; 10] = [
+    pub static ref CALLEE_SAVED_GPRS : [P<Value>; 10] = [
         X19.clone(),
         X20.clone(),
         X21.clone(),
@@ -341,7 +341,7 @@ lazy_static! {
         //X30.clone() // Link Register
     ];
 
-    pub static ref CALLER_SAVED_GPRs : [P<Value>; 18] = [
+    pub static ref CALLER_SAVED_GPRS : [P<Value>; 18] = [
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -363,7 +363,7 @@ lazy_static! {
         //X18.clone(), // Platform Register
     ];
 
-    static ref ALL_GPRs : [P<Value>; 30] = [
+    static ref ALL_GPRS : [P<Value>; 30] = [
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -490,8 +490,8 @@ lazy_static! {
 }
 
 lazy_static!{
-    // Same as ARGUMENT_FPRs
-    pub static ref RETURN_FPRs : [P<Value>; 8] = [
+    // Same as ARGUMENT_FPRS
+    pub static ref RETURN_FPRS : [P<Value>; 8] = [
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -502,7 +502,7 @@ lazy_static!{
         D7.clone()
     ];
 
-    pub static ref ARGUMENT_FPRs : [P<Value>; 8] = [
+    pub static ref ARGUMENT_FPRS : [P<Value>; 8] = [
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -513,7 +513,7 @@ lazy_static!{
         D7.clone(),
     ];
 
-    pub static ref CALLEE_SAVED_FPRs : [P<Value>; 8] = [
+    pub static ref CALLEE_SAVED_FPRS : [P<Value>; 8] = [
         D8.clone(),
         D9.clone(),
         D10.clone(),
@@ -524,7 +524,7 @@ lazy_static!{
         D15.clone()
     ];
 
-    pub static ref CALLER_SAVED_FPRs : [P<Value>; 24] = [
+    pub static ref CALLER_SAVED_FPRS : [P<Value>; 24] = [
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -552,7 +552,7 @@ lazy_static!{
         D31.clone()
     ];
 
-    static ref ALL_FPRs : [P<Value>; 32] = [
+    static ref ALL_FPRS : [P<Value>; 32] = [
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -591,7 +591,7 @@ lazy_static!{
 }
 
 lazy_static! {
-    pub static ref ALL_MACHINE_REGs : LinkedHashMap<MuID, P<Value>> = {
+    pub static ref ALL_MACHINE_REGS : LinkedHashMap<MuID, P<Value>> = {
         let mut map = LinkedHashMap::new();
 
         for vec in GPR_ALIAS_TABLE.values() {
@@ -609,7 +609,7 @@ lazy_static! {
         map
     };
 
-    pub static ref CALLEE_SAVED_REGs : [P<Value>; 18] = [
+    pub static ref CALLEE_SAVED_REGS : [P<Value>; 18] = [
         X19.clone(),
         X20.clone(),
         X21.clone(),
@@ -637,7 +637,7 @@ lazy_static! {
 
 
     // put caller saved regs first (they imposes no overhead if there is no call instruction)
-    pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
+    pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = vec![
         X19.clone(),
         X20.clone(),
         X21.clone(),
@@ -709,7 +709,7 @@ lazy_static! {
 }
 
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
-    for reg in ALL_MACHINE_REGs.values() {
+    for reg in ALL_MACHINE_REGS.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let entry = SSAVarEntry::new(reg.clone());
 
@@ -719,21 +719,21 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
 
 pub fn number_of_regs_in_group(group: RegGroup) -> usize {
     match group {
-        RegGroup::GPR => ALL_GPRs.len(),
-        RegGroup::FPR => ALL_FPRs.len()
+        RegGroup::GPR => ALL_GPRS.len(),
+        RegGroup::FPR => ALL_FPRS.len()
     }
 }
 
 pub fn number_of_all_regs() -> usize {
-    ALL_MACHINE_REGs.len()
+    ALL_MACHINE_REGS.len()
 }
 
 pub fn all_regs() -> &'static LinkedHashMap<MuID, P<Value>> {
-    &ALL_MACHINE_REGs
+    &ALL_MACHINE_REGS
 }
 
 pub fn all_usable_regs() -> &'static Vec<P<Value>> {
-    &ALL_USABLE_MACHINE_REGs
+    &ALL_USABLE_MACHINE_REGS
 }
 
 pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
@@ -749,13 +749,13 @@ pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
 
 pub fn is_callee_saved(reg_id: MuID) -> bool {
 
-    for reg in CALLEE_SAVED_GPRs.iter() {
+    for reg in CALLEE_SAVED_GPRS.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {
             return true;
         }
     }
 
-    for reg in CALLEE_SAVED_FPRs.iter() {
+    for reg in CALLEE_SAVED_FPRS.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {
             return true;
         }
