@@ -191,6 +191,7 @@ pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
     }
 }
 
+/// gets the color for a machine register (returns 64-bit alias for it)
 pub fn get_color_for_precolored(id: MuID) -> MuID {
     debug_assert!(id < MACHINE_ID_END);
 
@@ -205,6 +206,7 @@ pub fn get_color_for_precolored(id: MuID) -> MuID {
     }
 }
 
+/// returns register length (in bits) for an integer operand
 #[inline(always)]
 pub fn check_op_len(op: &P<Value>) -> usize {
     match op.ty.get_int_length() {
@@ -213,16 +215,20 @@ pub fn check_op_len(op: &P<Value>) -> usize {
         Some(16) => 16,
         Some(8)  => 8,
         Some(1)  => 8,
-        _ => panic!("unimplemented int types: {}", op.ty)
+        _ => panic!("unsupported register length for x64: {}", op.ty)
     }
 }
 
 lazy_static! {
+    /// GPRs for returning values
+    //  order matters
     pub static ref RETURN_GPRS : [P<Value>; 2] = [
         RAX.clone(),
         RDX.clone(),
     ];
 
+    /// GPRs for passing arguments
+    //  order matters
     pub static ref ARGUMENT_GPRS : [P<Value>; 6] = [
         RDI.clone(),
         RSI.clone(),
@@ -232,6 +238,7 @@ lazy_static! {
         R9.clone()
     ];
 
+    /// callee saved GPRs
     pub static ref CALLEE_SAVED_GPRS : [P<Value>; 6] = [
         RBX.clone(),
         RBP.clone(),
@@ -241,6 +248,7 @@ lazy_static! {
         R15.clone()
     ];
 
+    /// caller saved GPRs
     pub static ref CALLER_SAVED_GPRS : [P<Value>; 9] = [
         RAX.clone(),
         RCX.clone(),
@@ -253,6 +261,8 @@ lazy_static! {
         R11.clone()
     ];
 
+    /// all the genral purpose registers
+    //  FIXME: why RBP is commented out?
     static ref ALL_GPRS : [P<Value>; 15] = [
         RAX.clone(),
         RCX.clone(),
@@ -276,6 +286,7 @@ lazy_static! {
 pub const FPR_ID_START : usize = 100;
 
 lazy_static!{
+    // floating point registers, we use SSE registers
     pub static ref XMM0  : P<Value> = FPR!(FPR_ID_START,    "xmm0");
     pub static ref XMM1  : P<Value> = FPR!(FPR_ID_START + 1,"xmm1");
     pub static ref XMM2  : P<Value> = FPR!(FPR_ID_START + 2,"xmm2");
@@ -293,11 +304,15 @@ lazy_static!{
     pub static ref XMM14 : P<Value> = FPR!(FPR_ID_START + 14,"xmm14");
     pub static ref XMM15 : P<Value> = FPR!(FPR_ID_START + 15,"xmm15");
 
+    /// FPRs to return values
+    //  order matters
     pub static ref RETURN_FPRS : [P<Value>; 2] = [
         XMM0.clone(),
         XMM1.clone()
     ];
 
+    /// FPRs to pass arguments
+    //  order matters
     pub static ref ARGUMENT_FPRS : [P<Value>; 8] = [
         XMM0.clone(),
         XMM1.clone(),
@@ -309,8 +324,10 @@ lazy_static!{
         XMM7.clone()
     ];
 
+    /// callee saved FPRs (none for x86_64)
     pub static ref CALLEE_SAVED_FPRS : [P<Value>; 0] = [];
 
+    /// caller saved FPRs
     pub static ref CALLER_SAVED_FPRS : [P<Value>; 16] = [
         XMM0.clone(),
         XMM1.clone(),
@@ -330,6 +347,7 @@ lazy_static!{
         XMM15.clone(),
     ];
 
+    /// all the floating point registers
     static ref ALL_FPRS : [P<Value>; 16] = [
         XMM0.clone(),
         XMM1.clone(),
@@ -351,6 +369,7 @@ lazy_static!{
 }
 
 lazy_static! {
+    /// a map for all the machine registers, from ID to P<Value>
     pub static ref ALL_MACHINE_REGS : LinkedHashMap<MuID, P<Value>> = {
         let mut map = LinkedHashMap::new();
 
@@ -380,8 +399,12 @@ lazy_static! {
         map
     };
 
-    // put caller saved regs first (they imposes no overhead if there is no call instruction)
+    /// all the usable registers for register allocators to assign
+    //  order matters here (since register allocator will prioritize assigning temporaries
+    //  to a register that appears early)
+    //  we put caller saved regs first (they imposes no overhead if there is no call instruction)
     pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = vec![
+        // caller saved registers
         RAX.clone(),
         RCX.clone(),
         RDX.clone(),
@@ -391,13 +414,13 @@ lazy_static! {
         R9.clone(),
         R10.clone(),
         R11.clone(),
-
+        // callee saved registers
         RBX.clone(),
         R12.clone(),
         R13.clone(),
         R14.clone(),
         R15.clone(),
-
+        // floating point registers
         XMM0.clone(),
         XMM1.clone(),
         XMM2.clone(),
@@ -417,6 +440,7 @@ lazy_static! {
     ];
 }
 
+/// creates context for each machine register in FunctionContext
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
     for reg in ALL_MACHINE_REGS.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
@@ -426,6 +450,7 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
     }
 }
 
+/// gets the number of registers in a certain register group
 pub fn number_of_regs_in_group(group: RegGroup) -> usize {
     match group {
         RegGroup::GPR   => ALL_GPRS.len(),
@@ -434,23 +459,30 @@ pub fn number_of_regs_in_group(group: RegGroup) -> usize {
     }
 }
 
+/// returns the number of all registers on this platform
 pub fn number_of_all_regs() -> usize {
     ALL_MACHINE_REGS.len()
 }
 
+/// returns a reference to a map for all the registers
 pub fn all_regs() -> &'static LinkedHashMap<MuID, P<Value>> {
     &ALL_MACHINE_REGS
 }
 
+/// returns a reference to a vector of all usable registers
 pub fn all_usable_regs() -> &'static Vec<P<Value>> {
     &ALL_USABLE_MACHINE_REGS
 }
 
+/// returns RegGroup for a given machine register (by ID)
+/// panics if the ID is not a machine register
 pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
     let reg = all_regs().get(&reg_id).unwrap();
     RegGroup::get_from_value(reg)
 }
 
+/// is a machine register (by ID) callee saved?
+/// returns false if the ID is not a machine register
 pub fn is_callee_saved(reg_id: MuID) -> bool {
     for reg in CALLEE_SAVED_GPRS.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {
@@ -461,6 +493,7 @@ pub fn is_callee_saved(reg_id: MuID) -> bool {
     false
 }
 
+/// is a constant a valid x86_64 immediate number (32 bits integer)?
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
     use std::u32;
     match op.v {
@@ -472,6 +505,8 @@ pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
 }
 
 use ast::inst::*;
+
+/// estimate the number of machine instruction for each IR instruction
 pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
     use ast::inst::Instruction_::*;
 
@@ -506,7 +541,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         // memory addressing
         GetIRef(_) | GetFieldIRef{..} | GetElementIRef{..} | ShiftIRef{..} | GetVarPartIRef{..} => 0,
 
-        // runtime
+        // runtime call
         New(_) | NewHybrid(_, _) => 10,
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
         ThreadExit    => 10,
