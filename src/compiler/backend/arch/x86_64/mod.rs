@@ -185,25 +185,9 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
 /// are two registers aliased? (both must be machine register IDs, otherwise this function panics)
 pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
     if get_color_for_precolored(id1) == get_color_for_precolored(id2) {
-        macro_rules! is_match {
-            ($a1: expr, $a2: expr; $b: expr) => {
-                $a1 == $b.id() || $a2 == $b.id()
-            }
-        };
-
-        if is_match!(id1, id2; AH) {
-            return false;
-        } else if is_match!(id1, id2; BH) {
-            return false;
-        } else if is_match!(id1, id2; CH) {
-            return false;
-        } else if is_match!(id1, id2; DH) {
-            return false;
-        } else {
-            return true;
-        }
+        true
     } else {
-        return false;
+        false
     }
 }
 
