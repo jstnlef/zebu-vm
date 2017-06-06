@@ -912,13 +912,17 @@ impl <'a> InstructionSelection {
                             op::ConvOp::SITOFP => {
                                 let tmp_res = self.get_result_value(node);
 
-                                assert!(self.match_ireg(op), "unexpected op (expected ireg): {}", op);
-
-                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                                match to_ty.v {
-                                    MuType_::Double => self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op),
-                                    MuType_::Float  => self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op),
-                                    _ => panic!("expecing fp type as to type in SITOFP, found {}", to_ty)
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                    match to_ty.v {
+                                        MuType_::Double => self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op),
+                                        MuType_::Float  => self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op),
+                                        _ => panic!("expecting fp type as to type in SITOFP, found {}", to_ty)
+                                    }
+                                } else if self.match_ireg_ex(op) {
+                                    unimplemented!()
+                                } else {
+                                    panic!("unexpected op (expect ireg/ireg_ex): {}", op)
                                 }
                             }
                             // floating point to signed integer
@@ -926,124 +930,139 @@ impl <'a> InstructionSelection {
                                 let tmp_res = self.get_result_value(node);
 
                                 assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
-
                                 let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
-                                match from_ty.v {
-                                    MuType_::Double => self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op),
-                                    MuType_::Float  => self.backend.emit_cvtss2si_r_f32(&tmp_res, &tmp_op),
-                                    _ => panic!("expected fp type as from type in FPTOSI, found {}", from_ty)
+
+                                let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
+                                match to_ty_size {
+                                    1 | 2 | 4 | 8 => {
+                                        match from_ty.v {
+                                            MuType_::Double => self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op),
+                                            MuType_::Float  => self.backend.emit_cvtss2si_r_f32(&tmp_res, &tmp_op),
+                                            _ => panic!("expected fp type as from type in FPTOSI, found {}", from_ty)
+                                        }
+                                    }
+                                    16 => {
+                                        unimplemented!()
+                                    }
+                                    _ => panic!("unexpected support integer type as to_type: {}", to_ty)
                                 }
+
                             }
                             // unsigned integer to floating point
                             op::ConvOp::UITOFP => {
                                 let tmp_res = self.get_result_value(node);
 
-                                assert!(self.match_ireg(op), "unexpected op (expected ireg): {}", op);
-                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                                if self.match_ireg(op) {
+                                    let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                                let op_ty_size = vm.get_backend_type_info(tmp_op.ty.id()).size;
+                                    let op_ty_size = vm.get_backend_type_info(tmp_op.ty.id()).size;
 
-                                if to_ty.is_double() {
-                                    match op_ty_size {
-                                        8 => {
-                                            // movd/movq op -> res
-                                            self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
+                                    if to_ty.is_double() {
+                                        match op_ty_size {
+                                            8 => {
+                                                // movd/movq op -> res
+                                                self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
 
-                                            // punpckldq UITOFP_C0, tmp_res -> tmp_res
-                                            // (interleaving low bytes: xmm = xmm[0] mem[0] xmm[1] mem[1]
-                                            let mem_c0 = self.get_mem_for_const(UITOFP_C0.clone(), vm);
-                                            self.backend.emit_punpckldq_f64_mem128(&tmp_res, &mem_c0);
+                                                // punpckldq UITOFP_C0, tmp_res -> tmp_res
+                                                // (interleaving low bytes: xmm = xmm[0] mem[0] xmm[1] mem[1]
+                                                let mem_c0 = self.get_mem_for_const(UITOFP_C0.clone(), vm);
+                                                self.backend.emit_punpckldq_f64_mem128(&tmp_res, &mem_c0);
 
-                                            // subpd UITOFP_C1, tmp_res -> tmp_res
-                                            let mem_c1 = self.get_mem_for_const(UITOFP_C1.clone(), vm);
-                                            self.backend.emit_subpd_f64_mem128(&tmp_res, &mem_c1);
+                                                // subpd UITOFP_C1, tmp_res -> tmp_res
+                                                let mem_c1 = self.get_mem_for_const(UITOFP_C1.clone(), vm);
+                                                self.backend.emit_subpd_f64_mem128(&tmp_res, &mem_c1);
 
-                                            // haddpd tmp_res, tmp_res -> tmp_res
-                                            self.backend.emit_haddpd_f64_f64(&tmp_res, &tmp_res);
+                                                // haddpd tmp_res, tmp_res -> tmp_res
+                                                self.backend.emit_haddpd_f64_f64(&tmp_res, &tmp_res);
+                                            }
+                                            4 => {
+                                                let tmp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                                                // movl op -> tmp(32)
+                                                let tmp32 = unsafe { tmp.as_type(UINT32_TYPE.clone()) };
+                                                self.backend.emit_mov_r_r(&tmp32, &tmp_op);
+
+                                                // cvtsi2sd %tmp(64) -> %tmp_res
+                                                self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp);
+                                            }
+                                            2 | 1 => {
+                                                let tmp_op32 = unsafe { tmp_op.as_type(UINT32_TYPE.clone()) };
+                                                self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
+                                            }
+                                            _ => panic!("not implemented int length {}", op_ty_size)
                                         }
-                                        4 => {
-                                            let tmp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                    } else if to_ty.is_float() {
+                                        match op_ty_size {
+                                            8 => {
+                                                // movl %tmp_op -> %tmp1
+                                                let tmp1 = self.make_temporary(f_context, UINT32_TYPE.clone(), vm);
+                                                self.backend.emit_mov_r_r(&tmp1, unsafe {&tmp_op.as_type(UINT32_TYPE.clone())});
 
-                                            // movl op -> tmp(32)
-                                            let tmp32 = unsafe { tmp.as_type(UINT32_TYPE.clone()) };
-                                            self.backend.emit_mov_r_r(&tmp32, &tmp_op);
+                                                // andl %tmp1 $1 -> %tmp1
+                                                self.backend.emit_and_r_imm(&tmp1, 1);
 
-                                            // cvtsi2sd %tmp(64) -> %tmp_res
-                                            self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp);
+                                                // testq %tmp_op %tmp_op
+                                                self.backend.emit_test_r_r(&tmp_op, &tmp_op);
+
+                                                let blk_if_signed     = format!("{}_{}_uitofp_float_if_signed", self.current_fv_id, node.id());
+                                                let blk_if_not_signed = format!("{}_{}_uitofp_float_if_not_signed", self.current_fv_id, node.id());
+                                                let blk_done          = format!("{}_{}_uitofp_float_done", self.current_fv_id, node.id());
+
+                                                // js %if_signed
+                                                self.backend.emit_js(blk_if_signed.clone());
+                                                self.finish_block();
+
+                                                // blk_if_not_signed:
+                                                self.start_block(blk_if_not_signed);
+
+                                                // cvtsi2ss %tmp_op -> %tmp_res
+                                                self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op);
+
+                                                // jmp blk_done
+                                                self.backend.emit_jmp(blk_done.clone());
+                                                self.finish_block();
+
+                                                // blk_if_signed:
+                                                self.start_block(blk_if_signed);
+
+                                                // shr %tmp_op $1 -> %tmp_op
+                                                self.backend.emit_shr_r_imm8(&tmp_op, 1);
+
+                                                // or %tmp_op %tmp1 -> %tmp1
+                                                self.backend.emit_or_r_r(unsafe {&tmp1.as_type(UINT64_TYPE.clone())}, &tmp_op);
+
+                                                // cvtsi2ss %tmp1 -> %tmp_res
+                                                self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp1);
+
+                                                // addss %tmp_res %tmp_res -> %tmp_res
+                                                self.backend.emit_addss_f32_f32(&tmp_res, &tmp_res);
+                                                self.finish_block();
+
+                                                self.start_block(blk_done);
+                                            }
+                                            4 => {
+                                                // movl %tmp_op -> %tmp1
+                                                let tmp1 = self.make_temporary(f_context, UINT32_TYPE.clone(), vm);
+                                                self.backend.emit_mov_r_r(&tmp1, &tmp_op);
+
+                                                // cvtsi2ssq %tmp1(64) -> %tmp_res
+                                                self.backend.emit_cvtsi2ss_f32_r(&tmp_res, unsafe {&tmp1.as_type(UINT64_TYPE.clone())});
+                                            }
+                                            2 | 1 => {
+                                                let tmp_op32 = unsafe {tmp_op.as_type(UINT32_TYPE.clone())};
+
+                                                // cvtsi2ss %tmp_op32 -> %tmp_res
+                                                self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op32);
+                                            }
+                                            _ => panic!("not implemented int length {}", op_ty_size)
                                         }
-                                        2 | 1 => {
-                                            let tmp_op32 = unsafe { tmp_op.as_type(UINT32_TYPE.clone()) };
-                                            self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
-                                        }
-                                        _ => panic!("not implemented int length {}", op_ty_size)
+                                    } else {
+                                        panic!("expect double or float")
                                     }
-                                } else if to_ty.is_float() {
-                                    match op_ty_size {
-                                        8 => {
-                                            // movl %tmp_op -> %tmp1
-                                            let tmp1 = self.make_temporary(f_context, UINT32_TYPE.clone(), vm);
-                                            self.backend.emit_mov_r_r(&tmp1, unsafe {&tmp_op.as_type(UINT32_TYPE.clone())});
-
-                                            // andl %tmp1 $1 -> %tmp1
-                                            self.backend.emit_and_r_imm(&tmp1, 1);
-
-                                            // testq %tmp_op %tmp_op
-                                            self.backend.emit_test_r_r(&tmp_op, &tmp_op);
-
-                                            let blk_if_signed     = format!("{}_{}_uitofp_float_if_signed", self.current_fv_id, node.id());
-                                            let blk_if_not_signed = format!("{}_{}_uitofp_float_if_not_signed", self.current_fv_id, node.id());
-                                            let blk_done          = format!("{}_{}_uitofp_float_done", self.current_fv_id, node.id());
-
-                                            // js %if_signed
-                                            self.backend.emit_js(blk_if_signed.clone());
-                                            self.finish_block();
-
-                                            // blk_if_not_signed:
-                                            self.start_block(blk_if_not_signed);
-
-                                            // cvtsi2ss %tmp_op -> %tmp_res
-                                            self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op);
-
-                                            // jmp blk_done
-                                            self.backend.emit_jmp(blk_done.clone());
-                                            self.finish_block();
-
-                                            // blk_if_signed:
-                                            self.start_block(blk_if_signed);
-
-                                            // shr %tmp_op $1 -> %tmp_op
-                                            self.backend.emit_shr_r_imm8(&tmp_op, 1);
-
-                                            // or %tmp_op %tmp1 -> %tmp1
-                                            self.backend.emit_or_r_r(unsafe {&tmp1.as_type(UINT64_TYPE.clone())}, &tmp_op);
-
-                                            // cvtsi2ss %tmp1 -> %tmp_res
-                                            self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp1);
-
-                                            // addss %tmp_res %tmp_res -> %tmp_res
-                                            self.backend.emit_addss_f32_f32(&tmp_res, &tmp_res);
-                                            self.finish_block();
-
-                                            self.start_block(blk_done);
-                                        }
-                                        4 => {
-                                            // movl %tmp_op -> %tmp1
-                                            let tmp1 = self.make_temporary(f_context, UINT32_TYPE.clone(), vm);
-                                            self.backend.emit_mov_r_r(&tmp1, &tmp_op);
-
-                                            // cvtsi2ssq %tmp1(64) -> %tmp_res
-                                            self.backend.emit_cvtsi2ss_f32_r(&tmp_res, unsafe {&tmp1.as_type(UINT64_TYPE.clone())});
-                                        }
-                                        2 | 1 => {
-                                            let tmp_op32 = unsafe {tmp_op.as_type(UINT32_TYPE.clone())};
-
-                                            // cvtsi2ss %tmp_op32 -> %tmp_res
-                                            self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op32);
-                                        }
-                                        _ => panic!("not implemented int length {}", op_ty_size)
-                                    }
+                                } else if self.match_ireg_ex(op) {
+                                    unimplemented!()
                                 } else {
-                                    panic!("expect double or float")
+                                    panic!("expect op to be ireg/ireg_ex, found {}", op)
                                 }
                             }
                             op::ConvOp::FPTOUI => {
@@ -1055,6 +1074,9 @@ impl <'a> InstructionSelection {
 
                                 if from_ty.is_double() {
                                     match res_ty_size {
+                                        16=> {
+                                            unimplemented!()
+                                        }
                                         8 => {
                                             let tmp1 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
                                             let tmp2 = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
@@ -1107,6 +1129,9 @@ impl <'a> InstructionSelection {
                                     }
                                 } else if from_ty.is_float() {
                                     match res_ty_size {
+                                        16=> {
+                                            unimplemented!()
+                                        }
                                         8 => {
                                             let tmp1 = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
                                             let tmp2 = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
