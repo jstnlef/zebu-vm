@@ -30,11 +30,13 @@ use std::collections::HashMap;
 use std::any::Any;
 
 lazy_static! {
-    pub static ref LONG_4_TYPE : P<MuType> = P(
+    /// struct<int32, int32, int32, int32>
+    static ref LONG_4_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::mustruct(Mu("long_4"), vec![UINT32_TYPE.clone(); 4]))
     );
 
-    pub static ref UITOFP_C0 : P<Value> = P(Value{
+    /// constant for converting unsigned integer to floating point
+    static ref UITOFP_C0 : P<Value> = P(Value{
         hdr: MuEntityHeader::named(new_internal_id(), Mu("UITOFP_C0")),
         ty : LONG_4_TYPE.clone(),
         v  : Value_::Constant(Constant::List(vec![
@@ -61,11 +63,13 @@ lazy_static! {
         ]))
     });
 
-    pub static ref QUAD_2_TYPE : P<MuType> = P(
+    /// struct<int64, int64>
+    static ref QUAD_2_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::mustruct(Mu("quad_2"), vec![UINT64_TYPE.clone(); 2]))
     );
 
-    pub static ref UITOFP_C1 : P<Value> = P(Value{
+    /// constant for converting unsigned integer to floating point
+    static ref UITOFP_C1 : P<Value> = P(Value{
         hdr: MuEntityHeader::named(new_internal_id(), Mu("UITOFP_C1")),
         ty : QUAD_2_TYPE.clone(),
         v  : Value_::Constant(Constant::List(vec![
@@ -82,12 +86,14 @@ lazy_static! {
         ]))
     });
 
-    pub static ref FPTOUI_C_DOUBLE : P<Value> = P(Value{
+    /// constant for converting double to unsigned integer
+    static ref FPTOUI_C_DOUBLE : P<Value> = P(Value{
         hdr: MuEntityHeader::named(new_internal_id(), Mu("FPTOUI_C_DOUBLE")),
         ty : UINT64_TYPE.clone(),
         v  : Value_::Constant(Constant::Int(4890909195324358656u64))
     });
 
+    /// constant for converting float to unsigned integer
     pub static ref FPTOUI_C_FLOAT : P<Value> = P(Value{
         hdr: MuEntityHeader::named(new_internal_id(), Mu("FPTOUI_C_FLOAT")),
         ty : UINT32_TYPE.clone(),
@@ -95,24 +101,44 @@ lazy_static! {
     });
 }
 
+/// for some IR instructions, we need a call into runtime
+/// for efficiency, we may emit runtime fastpath directly in assembly
+//  FIXME: we should have a separate pass to rewrite the instruction into a fastpath (in IR),
+//         and a call to slowpath, then instruction selection (see Issue#6)
 const INLINE_FASTPATH : bool = false;
 
 pub struct InstructionSelection {
     name: &'static str,
+    /// backend code generator
     backend: Box<CodeGenerator>,
 
-    current_fv_id: MuID,
-    current_callsite_id: usize,
-    current_frame: Option<Frame>,
-    current_block: Option<MuName>,
-    current_block_in_ir: Option<MuName>,
-    current_func_start: Option<ValueLocation>,
-    // key: block id, val: callsite that names the block as exception block
-    current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
-    // key: block id, val: block location
-    current_exn_blocks: HashMap<MuID, ValueLocation>,
+    // information about the function being compiled
 
+    /// ID of current function version being compiled
+    current_fv_id: MuID,
+    /// used to create a unique callsite ID for current function
+    current_callsite_id: usize,
+    /// frame for current function
+    current_frame: Option<Frame>,
+    /// block that is currently being compiled
+    /// the block may be created during instruction selection
+    current_block: Option<MuName>,
+    /// IR block that is currently being compiled
+    /// use this block name to trace some information at IR level
+    current_block_in_ir: Option<MuName>,
+    /// start location of current function
+    current_func_start: Option<ValueLocation>,
+    /// a map of exception callsites of current function
+    /// key: block id, val: a vector of callsite locations that names the block as exception block
+    current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
+    /// a map of exception blocks
+    /// key: block id, val: block location
+    current_exn_blocks: HashMap<MuID, ValueLocation>,
+    /// constants used in this function that are put to memory
+    /// key: value id, val: constant value
     current_constants: HashMap<MuID, P<Value>>,
+    /// constants used in this function that are put to memory
+    /// key: value id, val: memory location
     current_constants_locs: HashMap<MuID, P<Value>>
 }
 
@@ -134,7 +160,6 @@ impl <'a> InstructionSelection {
                                         // FIXME: ideally we should not create new blocks in instruction selection
                                         // see Issue #6
             current_func_start: None,
-            // key: block id, val: callsite that names the block as exception block
             current_exn_callsites: HashMap::new(), 
             current_exn_blocks: HashMap::new(),
 
@@ -147,11 +172,9 @@ impl <'a> InstructionSelection {
     pub fn new() -> InstructionSelection {
         unimplemented!()
     }
-    
-    // in this pass, we assume that
-    // * we do not need to backup/restore caller-saved registers
-    // if any of these assumption breaks, we will need to re-emit the code
-    #[allow(unused_variables)]
+
+    /// we use hand-written pattern matching rules for instruction selection
+    /// for a pattern that can match several rules, the first rule met will be executed, and chosen.
     fn instruction_select(&mut self, node: &'a TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         trace!("instsel on node#{} {}", node.id(), node);
         
@@ -162,6 +185,8 @@ impl <'a> InstructionSelection {
                         trace!("instsel on BRANCH2");
                         // 'branch_if_true' == true, we emit cjmp the same as CmpOp  (je  for EQ, jne for NE)
                         // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
+                        // FIXME: we should move this to machine independent code
+                        // e.g. as a subpass after trace scheduling, see Issue#27
                         let (fallthrough_dest, branch_dest, branch_if_true) = {
                             // get current block and next block in trace (fallthrough block)
                             let cur_block = f_content.get_block_by_name(self.current_block_in_ir.as_ref().unwrap().clone());
@@ -175,15 +200,14 @@ impl <'a> InstructionSelection {
                         };
                         
                         let ref ops = inst.ops;
-                        
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
                         self.process_dest(&ops, branch_dest, f_content, f_context, vm);
                         
                         let branch_target = f_content.get_block(branch_dest.target).name().unwrap();
     
                         let ref cond = ops[cond];
-                        
                         if self.match_cmp_res(cond) {
+                            // this branch2's cond is from a comparison result
                             trace!("emit cmp_res-branch2");
                             match self.emit_cmp_res(cond, f_content, f_context, vm) {
                                 op::CmpOp::EQ => {
@@ -305,6 +329,8 @@ impl <'a> InstructionSelection {
                                 _ => unimplemented!()
                             }
                         } else if self.match_ireg(cond) {
+                            // this branch2 cond is a temporary with value, or an instruction that
+                            // emits a temporary
                             trace!("emit ireg-branch2");
                             
                             let cond_reg = self.emit_ireg(cond, f_content, f_context, vm);
@@ -318,11 +344,12 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_jne(branch_target);
                             }
                         } else {
-                            unimplemented!();
+                            panic!("unexpected cond in BRANCH2: {}", cond)
                         }
 
                         // it is possible that the fallthrough block is scheduled somewhere else
-                        // we need to explicitly jump to it
+                        // we need to explicitly jump to it (this jump will get eliminated in
+                        // peephole pass if the fallthrough block immediate follows the jump)
                         self.finish_block();
 
                         let fallthrough_temp_block = format!("{}_{}_branch_fallthrough", self.current_fv_id, node.id());
@@ -342,7 +369,7 @@ impl <'a> InstructionSelection {
                         let ref true_val = ops[true_val];
                         let ref false_val = ops[false_val];
 
-                        // generate compare
+                        // generate comparison
                         let cmpop = if self.match_cmp_res(cond) {
                             self.emit_cmp_res(cond, f_content, f_context, vm)
                         } else if self.match_ireg(cond) {
@@ -355,6 +382,7 @@ impl <'a> InstructionSelection {
                             panic!("expected cond to be ireg, found {}", cond)
                         };
 
+                        // emit code to move values
                         if self.match_ireg(true_val) {
                             // moving integers/pointers
                             let tmp_res   = self.get_result_value(node);
@@ -390,10 +418,11 @@ impl <'a> InstructionSelection {
                                         FOLT | FULT => self.backend.emit_cmovb_r_r (&tmp_res, &tmp_true),
                                         FOLE | FULE => self.backend.emit_cmovbe_r_r(&tmp_res, &tmp_true),
 
+                                        // FFALSE/FTRUE unimplemented
                                         _ => unimplemented!()
                                     }
                                 }
-                                // jcc
+                                // jcc - for 8-bits integer
                                 _ => {
                                     let blk_true  = format!("{}_{}_select_true",  self.current_fv_id, node.id());
                                     let blk_false = format!("{}_{}_select_false", self.current_fv_id, node.id());
@@ -419,6 +448,7 @@ impl <'a> InstructionSelection {
                                         FOLT | FULT => self.backend.emit_jb (blk_true.clone()),
                                         FOLE | FULE => self.backend.emit_jbe(blk_true.clone()),
 
+                                        // FFALSE/FTRUE unimplemented
                                         _ => unimplemented!()
                                     }
 
@@ -431,7 +461,6 @@ impl <'a> InstructionSelection {
                                     self.emit_move_node_to_value(&tmp_res, &false_val, f_content, f_context, vm);
                                     // jmp to end
                                     self.backend.emit_jmp(blk_end.clone());
-
                                     // finishing current block
                                     self.finish_block();
 
@@ -511,8 +540,8 @@ impl <'a> InstructionSelection {
 
                         let tmp_res = self.get_result_value(node);
                         
-                        debug_assert!(tmp_res.ty.get_int_length().is_some());
-                        debug_assert!(tmp_res.ty.get_int_length().unwrap() == 1);
+                        assert!(tmp_res.ty.get_int_length().is_some());
+                        assert!(tmp_res.ty.get_int_length().unwrap() == 1);
 
                         // set byte to result
                         match self.emit_cmp_res(node, f_content, f_context, vm) {
@@ -534,6 +563,7 @@ impl <'a> InstructionSelection {
                             FOLT | FULT => self.backend.emit_setb_r (&tmp_res),
                             FOLE | FULE => self.backend.emit_setbe_r(&tmp_res),
 
+                            // FFALSE/FTRUE
                             _ => unimplemented!()
                         }
                     }
@@ -545,8 +575,6 @@ impl <'a> InstructionSelection {
                         self.process_dest(&ops, dest, f_content, f_context, vm);
                         
                         let target = f_content.get_block(dest.target).name().unwrap();
-                        
-                        trace!("emit branch1");
                         // jmp
                         self.backend.emit_jmp(target);
                     },
@@ -554,11 +582,14 @@ impl <'a> InstructionSelection {
                     Instruction_::Switch{cond, ref default, ref branches} => {
                         trace!("instsel on SWITCH");
                         let ref ops = inst.ops;
-
                         let ref cond = ops[cond];
 
                         if self.match_ireg(cond) {
                             let tmp_cond = self.emit_ireg(cond, f_content, f_context, vm);
+
+                            // currently implementing switch as cascading conditional branch
+                            // This is slow if there are many 'case' arms. We should consider
+                            // using a switch table
 
                             // emit each branch
                             for &(case_op_index, ref case_dest) in branches {
@@ -597,7 +628,8 @@ impl <'a> InstructionSelection {
                             let default_target = f_content.get_block(default.target).name().unwrap();
                             self.backend.emit_jmp(default_target);
                         } else {
-                            panic!("expecting cond in switch to be ireg: {}", cond);
+                            // other EQ-comparable types, e.g. floating point
+                            unimplemented!()
                         }
                     }
                     
@@ -605,6 +637,9 @@ impl <'a> InstructionSelection {
                         trace!("instsel on EXPRCALL");
 
                         if is_abort {
+                            // if any exception throws from the callee,
+                            // we should abort execution, otherwise rethrow the exception
+                            // FIXME: implement is_abort
                             unimplemented!()
                         }
                         
@@ -631,16 +666,29 @@ impl <'a> InstructionSelection {
                         trace!("instsel on EXPRCCALL");
 
                         if is_abort {
+                            // if any exception throws from the callee,
+                            // we should abort execution, otherwise rethrow the exception
+                            // FIXME: implement is_abort
                             unimplemented!()
                         }
 
-                        self.emit_c_call_ir(inst, data, None, node, f_content, f_context, vm);
+                        self.emit_c_call_ir(
+                            inst,
+                            data,
+                            None,
+                            node,
+                            f_content, f_context, vm);
                     }
 
                     Instruction_::CCall{ref data, ref resume} => {
                         trace!("instsel on CCALL");
 
-                        self.emit_c_call_ir(inst, data, Some(resume), node, f_content, f_context, vm);
+                        self.emit_c_call_ir(
+                            inst,
+                            data,
+                            Some(resume),
+                            node,
+                            f_content, f_context, vm);
                     }
                     
                     Instruction_::Return(_) => {
@@ -667,6 +715,11 @@ impl <'a> InstructionSelection {
 
                         // status flags only works with int operations
                         if RegGroup::get_from_value(&values[0]) == RegGroup::GPR {
+                            // for mul, div, idiv, some of the flags may not generated
+                            // from the computation, and we may need extra code
+                            // to get the flags
+                            // FIXME: See Issue#22
+
                             // negative flag
                             if status.flag_n {
                                 let tmp_status = values[status_value_index].clone();
@@ -3319,29 +3372,16 @@ impl <'a> InstructionSelection {
         }
     }
     
-    #[allow(unused_variables)]
+    /// processes a Destination clause, emits move to pass arguments to the destination
+    /// It is problematic if we call process_dest() for multiway branches, but we have
+    /// a remove_phi_node pass to insert intermediate blocks to move arguments so that
+    /// the destination clause should have no arguments
     fn process_dest(&mut self, ops: &Vec<P<TreeNode>>, dest: &Destination, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         for i in 0..dest.args.len() {
             let ref dest_arg = dest.args[i];
             match dest_arg {
                 &DestArg::Normal(op_index) => {
                     let ref arg = ops[op_index];
-//                    match arg.op {
-//                        OpCode::RegI64 
-//                        | OpCode::RegFP
-//                        | OpCode::IntImmI64
-//                        | OpCode::FPImm => {
-//                            // do nothing
-//                        },
-//                        _ => {
-//                            trace!("nested: compute arg for branch");
-//                            // nested: compute arg
-//                            self.instruction_select(arg, cur_func);
-//                            
-//                            self.emit_get_result(arg);
-//                        }
-//                    }
-//                    
                     let ref target_args = f_content.get_block(dest.target).content.as_ref().unwrap().args;
                     let ref target_arg = target_args[i];
                     

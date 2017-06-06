@@ -345,12 +345,14 @@ pub enum Instruction_ {
     },
 
     /// a non-terminating Call instruction (the call does not have an exceptional branch)
+    /// This instruction is not in the Mu spec, but is documented in the HOL formal spec
     ExprCall{
         data: CallData,
-        is_abort: bool, // T to abort, F to rethrow - FIXME: current, always rethrow for now
+        is_abort: bool, // T to abort, F to rethrow
     },
 
     /// a non-terminating CCall instruction (the call does not have an exceptional branch)
+    /// This instruction is not in the Mu spec, but is documented in the HOL formal spec
     ExprCCall{
         data: CallData,
         is_abort: bool
