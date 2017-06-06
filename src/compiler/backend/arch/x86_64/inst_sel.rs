@@ -763,7 +763,7 @@ impl <'a> InstructionSelection {
                         } else if RegGroup::get_from_value(&values[0]) == RegGroup::GPREX {
                             unimplemented!()
                         } else {
-                            panic!("only int operations allow status flags")
+                            panic!("only int operations allow binop status flags")
                         }
                     }
 
@@ -771,10 +771,10 @@ impl <'a> InstructionSelection {
                         trace!("instsel on CONVOP");
 
                         let ref ops = inst.ops;
-
                         let ref op = ops[operand];
 
                         match operation {
+                            // Truncate (from int to int)
                             op::ConvOp::TRUNC => {
                                 let tmp_res = self.get_result_value(node);
                                 let to_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
@@ -802,6 +802,7 @@ impl <'a> InstructionSelection {
                                     panic!("unexpected op (expect ireg): {}", op);
                                 }
                             }
+                            // Zero extend (from int to int)
                             op::ConvOp::ZEXT => {
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
@@ -810,6 +811,9 @@ impl <'a> InstructionSelection {
                                     // movz op -> result
                                     let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
                                     let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
+
+                                    // we treat int1 as int8, so it is possible from_ty_size == to_ty_size == 1 byte
+                                    assert!(from_ty_size <= to_ty_size);
 
                                     if from_ty_size != to_ty_size {
                                         match (from_ty_size, to_ty_size) {
@@ -820,7 +824,6 @@ impl <'a> InstructionSelection {
 
                                                 // tmp_op is int32, but tmp_res is int64
                                                 // we want to force a 32-to-32 mov, so high bits of the destination will be zeroed
-
                                                 let tmp_res32 = unsafe {tmp_res.as_type(UINT32_TYPE.clone())};
 
                                                 self.backend.emit_mov_r_r(&tmp_res32, &tmp_op);
@@ -832,7 +835,7 @@ impl <'a> InstructionSelection {
                                                 self.backend.emit_mov_r_r(&res_l, unsafe {&tmp_op.as_type(UINT64_TYPE.clone())});
                                                 self.backend.emit_mov_r_imm(&res_h, 0);
                                             }
-                                            // else
+                                            // other cases
                                             _ => {
                                                 self.backend.emit_movz_r_r(&tmp_res, &tmp_op);
                                             }
@@ -844,6 +847,7 @@ impl <'a> InstructionSelection {
                                     panic!("unexpected op (expect ireg): {}", op);
                                 }
                             },
+                            // Sign extend (from int to int)
                             op::ConvOp::SEXT => {
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
@@ -852,6 +856,9 @@ impl <'a> InstructionSelection {
                                     // movs op -> result
                                     let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
                                     let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
+
+                                    // we treat int1 as int8, so it is possible from_ty_size == to_ty_size == 1 byte
+                                    assert!(from_ty_size <= to_ty_size);
 
                                     if from_ty_size != to_ty_size {
                                         match (from_ty_size, to_ty_size) {
@@ -882,12 +889,14 @@ impl <'a> InstructionSelection {
                                             _ => self.backend.emit_movs_r_r(&tmp_res, &tmp_op)
                                         }
                                     } else {
+                                        // FIXME: sign extending <int1> 1 to <int8> is not a plain move
                                         self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
                                     }
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op)
                                 }
                             }
+                            // pointer/ref cast
                             op::ConvOp::REFCAST | op::ConvOp::PTRCAST => {
                                 // just a mov (and hopefully reg alloc will coalesce it)
                                 let tmp_res = self.get_result_value(node);
@@ -899,32 +908,33 @@ impl <'a> InstructionSelection {
                                     panic!("unexpected op (expect ireg): {}", op)
                                 }
                             }
+                            // signed integer to floating point
                             op::ConvOp::SITOFP => {
                                 let tmp_res = self.get_result_value(node);
 
                                 assert!(self.match_ireg(op), "unexpected op (expected ireg): {}", op);
-                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
+                                let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
                                 match to_ty.v {
                                     MuType_::Double => self.backend.emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op),
                                     MuType_::Float  => self.backend.emit_cvtsi2ss_f32_r(&tmp_res, &tmp_op),
                                     _ => panic!("expecing fp type as to type in SITOFP, found {}", to_ty)
                                 }
                             }
+                            // floating point to signed integer
                             op::ConvOp::FPTOSI => {
                                 let tmp_res = self.get_result_value(node);
 
                                 assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
-                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
 
-                                if from_ty.is_double() {
-                                    self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op);
-                                } else if from_ty.is_float() {
-                                    self.backend.emit_cvtss2si_r_f32(&tmp_res, &tmp_op);
-                                } else {
-                                    panic!("expected fp type as from type in FPTOSI, found {}", to_ty)
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                match from_ty.v {
+                                    MuType_::Double => self.backend.emit_cvtsd2si_r_f64(&tmp_res, &tmp_op),
+                                    MuType_::Float  => self.backend.emit_cvtss2si_r_f32(&tmp_res, &tmp_op),
+                                    _ => panic!("expected fp type as from type in FPTOSI, found {}", from_ty)
                                 }
                             }
+                            // unsigned integer to floating point
                             op::ConvOp::UITOFP => {
                                 let tmp_res = self.get_result_value(node);
 
