@@ -760,6 +760,10 @@ impl <'a> InstructionSelection {
                                     _ => panic!("Only Add/Sub/Mul has #V flag")
                                 }
                             }
+                        } else if RegGroup::get_from_value(&values[0]) == RegGroup::GPREX {
+                            unimplemented!()
+                        } else {
+                            panic!("only int operations allow status flags")
                         }
                     }
 
