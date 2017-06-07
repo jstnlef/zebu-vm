@@ -1198,14 +1198,14 @@ impl <'a> InstructionSelection {
                         let ref ops = inst.ops;
                         let ref loc_op = ops[mem_loc];
                         
-                        // check order
+                        // check allowed order for LOAD
                         match order {
                             MemoryOrder::Relaxed 
                             | MemoryOrder::Consume 
                             | MemoryOrder::Acquire
                             | MemoryOrder::SeqCst
                             | MemoryOrder::NotAtomic => {},
-                            _ => panic!("didnt expect order {:?} with store inst", order)
+                            _ => panic!("unsupported order {:?} for LOAD", order)
                         }                        
 
                         let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
@@ -1214,6 +1214,7 @@ impl <'a> InstructionSelection {
                         if self.match_ireg(node) {
                             self.backend.emit_mov_r_mem(&res_temp, &resolved_loc);
                         } else if self.match_ireg_ex(node) {
+                            // FIXME: this load is not atomic, check memory order
                             let (res_l, res_h) = self.split_int128(&res_temp, f_context, vm);
 
                             // load lower half
@@ -1230,6 +1231,7 @@ impl <'a> InstructionSelection {
                                 _ => panic!("expect double or float")
                             }
                         } else {
+                            // load other types
                             unimplemented!()
                         }
                     }
@@ -1240,48 +1242,38 @@ impl <'a> InstructionSelection {
                         let ref ops = inst.ops;
                         let ref loc_op = ops[mem_loc];
                         let ref val_op = ops[value];
-                        
-                        let generate_plain_mov : bool = {
+
+                        // need mfence after the store? we need mfence for SeqCst store
+                        let need_fence : bool = {
                             match order {
                                 MemoryOrder::Relaxed
                                 | MemoryOrder::Release
-                                | MemoryOrder::NotAtomic => true,
-                                MemoryOrder::SeqCst => false,
-                                _ => panic!("didnt expect order {:?} with store inst", order)
+                                | MemoryOrder::NotAtomic => false,
+                                MemoryOrder::SeqCst => true,
+                                _ => panic!("unsupported order {:?} for STORE", order)
                             }
                         };
                         
                         let resolved_loc = self.emit_node_addr_to_value(loc_op, f_content, f_context, vm);
 
+                        // emit store
                         if self.match_iimm(val_op) {
                             let (val, len) = self.node_iimm_to_i32_with_len(val_op);
-                            if generate_plain_mov {
-                                self.backend.emit_mov_mem_imm(&resolved_loc, val, len);
-                            } else {
-                                unimplemented!()
-                            }
+                            self.backend.emit_mov_mem_imm(&resolved_loc, val, len);
                         } else if self.match_ireg(val_op) {
                             let val = self.emit_ireg(val_op, f_content, f_context, vm);
-                            if generate_plain_mov {
-                                self.backend.emit_mov_mem_r(&resolved_loc, &val);
-                            } else {
-                                unimplemented!()
-                            }
+                            self.backend.emit_mov_mem_r(&resolved_loc, &val);
                         } else if self.match_ireg_ex(val_op) {
                             let (val_l, val_h) = self.emit_ireg_ex(val_op, f_content, f_context, vm);
-                            if generate_plain_mov {
-                                // store lower half
-                                self.backend.emit_mov_mem_r(&resolved_loc, &val_l);
+                            // store lower half
+                            self.backend.emit_mov_mem_r(&resolved_loc, &val_l);
 
-                                // shift pointer, and store higher hal
-                                let loc = self.addr_const_offset_adjust(resolved_loc.extract_memory_location().unwrap(),
-                                                                        POINTER_SIZE as u64, vm);
-                                let loc_val = self.make_value_memory_location(loc, vm);
+                            // shift pointer, and store higher hal
+                            let loc = self.addr_const_offset_adjust(resolved_loc.extract_memory_location().unwrap(),
+                                                                    POINTER_SIZE as u64, vm);
+                            let loc_val = self.make_value_memory_location(loc, vm);
 
-                                self.backend.emit_mov_mem_r(&loc_val, &val_h);
-                            } else {
-                                unimplemented!()
-                            }
+                            self.backend.emit_mov_mem_r(&loc_val, &val_h);
                         } else if self.match_fpreg(val_op) {
                             let val = self.emit_fpreg(val_op, f_content, f_context, vm);
 
@@ -1291,7 +1283,30 @@ impl <'a> InstructionSelection {
                                 _ => panic!("unexpected fp type: {}", val.ty)
                             }
                         } else {
+                            // store other types
                             unimplemented!()
+                        }
+
+                        if need_fence {
+                            self.backend.emit_mfence();
+                        }
+                    }
+
+                    Instruction_::Fence(order) => {
+                        trace!("instsel on FENCE");
+
+                        // check order
+                        match order {
+                            MemoryOrder::Consume
+                            | MemoryOrder::Acquire
+                            | MemoryOrder::Release
+                            | MemoryOrder::AcqRel => {
+                                // ignore
+                            }
+                            MemoryOrder::SeqCst => {
+                                self.backend.emit_mfence();
+                            }
+                            _ => panic!("unsupported order {:?} for FENCE")
                         }
                     }
 

@@ -286,4 +286,7 @@ pub trait CodeGenerator {
     fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Mem);
 
     fn emit_movaps_f32_f32   (&mut self, dest: Reg, src: Reg);
+
+    // memory fence
+    fn emit_mfence(&mut self);
 }

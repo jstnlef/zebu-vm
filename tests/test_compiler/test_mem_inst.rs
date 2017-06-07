@@ -7,12 +7,66 @@ use mu::ast::op::*;
 use mu::vm::*;
 use mu::compiler::*;
 use mu::utils::LinkedHashMap;
+use mu::utils::mem::memsec;
 
 use std::sync::Arc;
 use mu::testutil::aot;
 use mu::testutil;
 
 use test_compiler::test_call::gen_ccall_exit;
+
+#[test]
+fn test_store_seqcst() {
+    let lib = testutil::compile_fnc("store_seqcst", &store_seqcst);
+
+    unsafe {
+        let ptr : *mut u64 = match memsec::malloc(8) {
+            Some(ptr) => ptr,
+            None => panic!("failed to allocate memory for test")
+        };
+
+        let store_seqcst : libloading::Symbol<unsafe extern fn(*mut u64, u64)> = lib.get(b"store_seqcst").unwrap();
+
+        store_seqcst(ptr, 42);
+        let load_val = *ptr;
+        println!("result = {}", load_val);
+        assert!(load_val == 42);
+    }
+}
+
+fn store_seqcst() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64      = mu_int(64));
+    typedef!    ((vm) iref_int64 = mu_iref(int64));
+
+    funcsig!    ((vm) sig = (iref_int64, int64) -> ());
+    funcdecl!   ((vm) <sig> store_seqcst);
+    funcdef!    ((vm) <sig> store_seqcst VERSION store_seqcst_v1);
+
+    block!      ((vm, store_seqcst_v1) blk_entry);
+    ssa!        ((vm, store_seqcst_v1) <iref_int64> loc);
+    ssa!        ((vm, store_seqcst_v1) <int64> val);
+
+    inst!       ((vm, store_seqcst_v1) blk_entry_store:
+        STORE loc val (is_ptr: false, order: MemoryOrder::SeqCst)
+    );
+
+    inst!       ((vm, store_seqcst_v1) blk_entry_ret:
+        RET
+    );
+
+    define_block!((vm, store_seqcst_v1) blk_entry(loc, val) {
+        blk_entry_store,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) store_seqcst_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
 
 #[repr(C)]
 struct Foo (i8, i8, i8);

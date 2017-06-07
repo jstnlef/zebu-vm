@@ -2989,6 +2989,13 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("ret");
         self.add_asm_ret(asm);
     }
+
+    fn emit_mfence(&mut self) {
+        trace!("emit: mfence");
+
+        let asm = format!("mfence");
+        self.add_asm_ret(asm);
+    }
     
     fn emit_push_r64(&mut self, src: &P<Value>) {
         trace!("emit: push {}", src);
