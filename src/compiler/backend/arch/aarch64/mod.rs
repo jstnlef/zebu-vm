@@ -1701,6 +1701,7 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                     tmp
                     //}
                 },
+                &Constant::IntEx(ref val) => { unimplemented!() },
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
@@ -1750,6 +1751,7 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                     tmp
                     //}
                 },
+                &Constant::IntEx(ref val) => { unimplemented!() },
                 &Constant::FuncRef(_) => {
                     unimplemented!();
                 },
