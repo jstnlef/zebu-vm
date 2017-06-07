@@ -1316,7 +1316,8 @@ impl <'a> InstructionSelection {
                     | Instruction_::GetVarPartIRef{..}
                     | Instruction_::ShiftIRef{..}
                     | Instruction_::GetElementIRef{..} => {
-                        trace!("instsel on GET/FIELD/VARPART/SHIFT/ELEM IREF");
+                        // if we reach here, it means we want to store the address in a variable
+                        trace!("instsel on GET FIELD/VARPART/ELEM IREF, SHIFTIREF");
 
                         let mem_addr = self.emit_get_mem_from_inst(node, f_content, f_context, vm);
                         let tmp_res  = self.get_result_value(node);
@@ -1326,13 +1327,15 @@ impl <'a> InstructionSelection {
                     
                     Instruction_::ThreadExit => {
                         trace!("instsel on THREADEXIT");
-                        // emit a call to swap_back_to_native_stack(sp_loc: Address)
-                        
+
                         // get thread local and add offset to get sp_loc
                         let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
                         self.backend.emit_add_r_imm(&tl, *thread::NATIVE_SP_LOC_OFFSET as i32);
-                        
-                        self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, Some(node), f_content, f_context, vm);
+
+                        // emit a call to swap_back_to_native_stack(sp_loc: Address)
+                        self.emit_runtime_entry(
+                            &entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()],
+                            None, Some(node), f_content, f_context, vm);
                     }
 
                     Instruction_::CommonInst_GetThreadLocal => {
@@ -1340,9 +1343,8 @@ impl <'a> InstructionSelection {
                         // get thread local
                         let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
 
-                        let tmp_res = self.get_result_value(node);
-
                         // load [tl + USER_TLS_OFFSET] -> tmp_res
+                        let tmp_res = self.get_result_value(node);
                         self.emit_load_base_offset(&tmp_res, &tl, *thread::USER_TLS_OFFSET as i32, vm);
                     }
                     Instruction_::CommonInst_SetThreadLocal(op) => {
@@ -1351,42 +1353,49 @@ impl <'a> InstructionSelection {
                         let ref ops = inst.ops;
                         let ref op = ops[op];
 
-                        debug_assert!(self.match_ireg(op));
-
+                        assert!(self.match_ireg(op));
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
                         // get thread local
                         let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
 
-                        // store tmp_op -> [tl + USER_TLS_OFFSTE]
+                        // store tmp_op -> [tl + USER_TLS_OFFSET]
                         self.emit_store_base_offset(&tl, *thread::USER_TLS_OFFSET as i32, &tmp_op, vm);
                     }
 
                     Instruction_::CommonInst_Pin(op) => {
                         trace!("instsel on PIN");
 
-                        if !mm::GC_MOVES_OBJECT {
-                            // non-moving GC: pin is a nop (move from op to result)
-                            let ref ops = inst.ops;
-                            let ref op = ops[op];
+                        // call pin() in GC
+                        let ref ops = inst.ops;
+                        let ref op = ops[op];
 
-                            let tmp_res = self.get_result_value(node);
+                        assert!(self.match_ireg(op));
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                        let tmp_res = self.get_result_value(node);
 
-                            self.emit_move_node_to_value(&tmp_res, op, f_content, f_context, vm);
-                        } else {
-                            unimplemented!()
-                        }
+                        self.emit_runtime_entry(
+                            &entrypoints::PIN_OBJECT,
+                            vec![tmp_op.clone()],
+                            Some(vec![tmp_res]),
+                            Some(node), f_content, f_context, vm);
                     }
-                    Instruction_::CommonInst_Unpin(_) => {
+                    Instruction_::CommonInst_Unpin(op) => {
                         trace!("instsel on UNPIN");
 
-                        if !mm::GC_MOVES_OBJECT {
-                            // do nothing
-                        } else {
-                            unimplemented!()
-                        }
-                    }
+                        // call unpin() in GC
+                        let ref ops = inst.ops;
+                        let ref op = ops[op];
 
+                        assert!(self.match_ireg(op));
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                        self.emit_runtime_entry(
+                            &entrypoints::UNPIN_OBJECT,
+                            vec![tmp_op.clone()],
+                            None,
+                            Some(node), f_content, f_context, vm);
+                    }
 
                     Instruction_::Move(op) => {
                         trace!("instsel on MOVE (internal IR)");

@@ -95,6 +95,28 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_init_hybrid")),
         jit: RwLock::new(None)
     };
+
+    // impl/decl: gc/lib.rs
+    pub static ref PIN_OBJECT : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![ADDRESS_TYPE.clone()],
+            arg_tys: vec![ADDRESS_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_pin_object")),
+        jit: RwLock::new(None)
+    };
+
+    // impl/decl: gc/lib.rs
+    pub static ref UNPIN_OBJECT : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![ADDRESS_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_unpin_object")),
+        jit: RwLock::new(None)
+    };
     
     // impl/decl: exception.rs
     pub static ref THROW_EXCEPTION : RuntimeEntrypoint = RuntimeEntrypoint {

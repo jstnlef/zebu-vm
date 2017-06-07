@@ -162,15 +162,30 @@ pub use heap::gc::set_low_water_mark;
 // explicitly control roots
 
 #[no_mangle]
+#[inline(always)]
 pub extern fn add_to_root(obj: ObjectReference) {
     let mut gc = MY_GC.write().unwrap();
     gc.as_mut().unwrap().roots.insert(obj);
 }
 
 #[no_mangle]
+#[inline(always)]
 pub extern fn remove_root(obj: ObjectReference) {
     let mut gc = MY_GC.write().unwrap();
     gc.as_mut().unwrap().roots.remove(&obj);
+}
+
+// pin/unpin
+
+#[no_mangle]
+pub extern fn muentry_pin_object(obj: ObjectReference) -> Address {
+    add_to_root(obj);
+    obj.to_address()
+}
+
+#[no_mangle]
+pub extern fn muentry_unpin_object(obj: Address) {
+    remove_root(unsafe {obj.to_object_reference()});
 }
 
 // yieldpoint
