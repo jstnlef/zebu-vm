@@ -673,14 +673,21 @@ impl TreeNode {
     /// * if this is a Instruction TreeNode, returns its first result value
     /// * if this is a value, returns a clone of it
     pub fn clone_value(&self) -> P<Value> {
+        self.as_value().clone()
+    }
+
+    /// returns the value from the TreeNode
+    /// * if this is a Instruction TreeNode, returns its first result value
+    /// * if this is a value, returns a clone of it
+    pub fn as_value(&self) -> &P<Value> {
         match self.v {
-            TreeNode_::Value(ref val) => val.clone(),
+            TreeNode_::Value(ref val) => val,
             TreeNode_::Instruction(ref inst) => {
                 let vals = inst.value.as_ref().unwrap();
                 if vals.len() != 1 {
                     panic!("we expect an inst with 1 value, but found multiple or zero (it should not be here - folded as a child)");
                 }
-                vals[0].clone()
+                &vals[0]
             }
         }
     }
