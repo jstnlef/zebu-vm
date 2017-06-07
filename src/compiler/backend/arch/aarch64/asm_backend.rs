@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
@@ -16,7 +18,6 @@ use utils::LinkedHashMap;
 
 use ast::ptr::P;
 use ast::ir::*;
-use ast::types::*;
 
 use std::str;
 use std::usize;
@@ -271,17 +272,6 @@ impl ASMCode {
 
         let ref blocks = self.blocks;
         let ref mut asm = self.code;
-
-        let block_start = {
-            let mut ret = vec![];
-            for block in blocks.values() {
-                if TRACE_CFA {
-                    trace!("Block starts at {}", block.start_inst);
-                }
-                ret.push(block.start_inst);
-            }
-            ret
-        };
 
         for i in 0..n_insts {
             if TRACE_CFA {
@@ -994,13 +984,11 @@ impl ASMCodeGen {
     }
 
     fn add_asm_label(&mut self, code: String) {
-        let l = self.line();
         trace!("emit: {}", code);
         self.cur_mut().code.push(ASMInst::symbolic(code));
     }
 
     fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
-        let l = self.line();
         trace!("emit: [{}]{}", block_name, code);
         self.cur_mut().code.push(ASMInst::symbolic(code));
     }
@@ -1819,8 +1807,8 @@ impl ASMCodeGen {
         let inst = inst.to_string();
         trace!("emit: \t{} {} -> {},{}", inst, src, dest1, dest2);
 
-        let (reg1, id1, loc1) = self.prepare_reg(dest1, 3 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest2, 3 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(dest1, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest2, inst.len() + 1 + reg1.len() + 1);
         let (mem, uses) = self.prepare_mem(src, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
 
         let asm = format!("{} {},{},{}", inst, reg1, reg2, mem);
@@ -1931,8 +1919,8 @@ impl ASMCodeGen {
         let inst = inst.to_string();
         trace!("emit: \t{} {},{} -> {}", inst, src1, src2, dest);
 
-        let (reg1, id1, loc1) = self.prepare_reg(src2, inst.len() + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(src1, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(src2, inst.len() + 1 + reg1.len() + 1);
         let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
 
         if is_zero_register_id(id1) {
@@ -1968,8 +1956,8 @@ impl ASMCodeGen {
         trace!("emit: \t{} {},{} -> {},{}", inst, src1, src2, dest, status);
 
         let (reg1, id1, loc1) = self.prepare_reg(status, inst.len() + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(src2, inst.len() + 1 + reg1.len() + 1);
-        let (reg3, id3, loc3) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
+        let (reg3, id3, loc3) = self.prepare_reg(src2, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
         let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1 + reg3.len() + 1);
 
         if is_zero_register_id(id2) {
@@ -2172,23 +2160,28 @@ impl CodeGenerator for ASMCodeGen {
         }
     }
 
+    fn add_cfi_sections(&mut self, arg: &str) { self.add_asm_symbolic(format!(".cfi_sections {}", arg)); }
     fn add_cfi_startproc(&mut self) {
-        self.add_asm_symbolic("\t.cfi_startproc".to_string());
+        self.add_asm_symbolic(".cfi_startproc".to_string());
     }
     fn add_cfi_endproc(&mut self) {
-        self.add_asm_symbolic("\t.cfi_endproc".to_string());
+        self.add_asm_symbolic(".cfi_endproc".to_string());
     }
 
     fn add_cfi_def_cfa_register(&mut self, reg: Reg) {
         let reg = self.asm_reg_op(reg);
-        self.add_asm_symbolic(format!("\t.cfi_def_cfa_register {}", reg));
+        self.add_asm_symbolic(format!(".cfi_def_cfa_register {}", reg));
     }
     fn add_cfi_def_cfa_offset(&mut self, offset: i32) {
-        self.add_asm_symbolic(format!("\t.cfi_def_cfa_offset {}", offset));
+        self.add_asm_symbolic(format!(".cfi_def_cfa_offset {}", offset));
+    }
+    fn add_cfi_def_cfa(&mut self, reg: Reg, offset: i32) {
+        let reg = self.asm_reg_op(reg);
+        self.add_asm_symbolic(format!(".cfi_def_cfa {}, {}", reg, offset));
     }
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32) {
         let reg = self.asm_reg_op(reg);
-        self.add_asm_symbolic(format!("\t.cfi_offset {}, {}", reg, offset));
+        self.add_asm_symbolic(format!(".cfi_offset {}, {}", reg, offset));
     }
 
     fn emit_frame_grow(&mut self) {
@@ -2745,10 +2738,10 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         Ok(file) => file
     };
 
-    file.write("\t.arch armv8-a\n".as_bytes()).unwrap();
+    file.write(".arch armv8-a\n".as_bytes()).unwrap();
 
     // constants in text section
-    file.write("\t.text\n".as_bytes()).unwrap();
+    file.write(".text\n".as_bytes()).unwrap();
 
     write_const_min_align(&mut file);
 
@@ -2784,7 +2777,7 @@ fn write_const_min_align(f: &mut File) {
 #[cfg(target_os = "linux")]
 fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
-    f.write_fmt(format_args!("\t.balign {}\n", check_min_align(align))).unwrap();
+    f.write_fmt(format_args!(".balign {}\n", check_min_align(align))).unwrap();
 }
 
 fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
@@ -2815,30 +2808,30 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         &Constant::Int(val) => {
             let len = ty.get_int_length().unwrap();
             match len {
-                8  => f.write_fmt(format_args!("\t.byte {}\n", val as u8 )).unwrap(),
-                16 => f.write_fmt(format_args!("\t.word {}\n", val as u16)).unwrap(),
-                32 => f.write_fmt(format_args!("\t.long {}\n", val as u32)).unwrap(),
-                64 => f.write_fmt(format_args!("\t.quad {}\n", val as u64)).unwrap(),
+                8  => f.write_fmt(format_args!(".byte {}\n", val as u8 )).unwrap(),
+                16 => f.write_fmt(format_args!(".word {}\n", val as u16)).unwrap(),
+                32 => f.write_fmt(format_args!(".long {}\n", val as u32)).unwrap(),
+                64 => f.write_fmt(format_args!(".quad {}\n", val as u64)).unwrap(),
                 _  => panic!("unimplemented int length: {}", len)
             }
         }
         &Constant::Float(val) => {
             let bytes: [u8; 4] = unsafe {mem::transmute(val)};
-            f.write("\t.long ".as_bytes()).unwrap();
+            f.write(".long ".as_bytes()).unwrap();
             f.write(&bytes).unwrap();
             f.write("\n".as_bytes()).unwrap();
         }
         &Constant::Double(val) => {
             let bytes: [u8; 8] = unsafe {mem::transmute(val)};
-            f.write("\t.quad ".as_bytes()).unwrap();
+            f.write(".quad ".as_bytes()).unwrap();
             f.write(&bytes).unwrap();
             f.write("\n".as_bytes()).unwrap();
         }
         &Constant::NullRef => {
-            f.write_fmt(format_args!("\t.quad 0\n")).unwrap()
+            f.write_fmt(format_args!(".quad 0\n")).unwrap()
         }
         &Constant::ExternSym(ref name) => {
-            f.write_fmt(format_args!("\t.quad {}\n", name)).unwrap()
+            f.write_fmt(format_args!(".quad {}\n", name)).unwrap()
         }
         &Constant::List(ref vals) => {
             for val in vals {
@@ -2871,10 +2864,10 @@ pub fn emit_context_with_reloc(vm: &VM,
     };
 
     // bss
-    file.write_fmt(format_args!("\t.bss\n")).unwrap();
+    file.write_fmt(format_args!(".bss\n")).unwrap();
 
     // data
-    file.write("\t.data\n".as_bytes()).unwrap();
+    file.write(".data\n".as_bytes()).unwrap();
 
     {
         use runtime::mm;
@@ -2943,20 +2936,20 @@ pub fn emit_context_with_reloc(vm: &VM,
                     let load_ref = unsafe {cur_addr.load::<Address>()};
                     if load_ref.is_zero() {
                         // write 0
-                        file.write("\t.quad 0\n".as_bytes()).unwrap();
+                        file.write(".quad 0\n".as_bytes()).unwrap();
                     } else {
                         let label = match relocatable_refs.get(&load_ref) {
                             Some(label) => label,
                             None => panic!("cannot find label for address {}, it is not dumped by GC (why GC didn't trace to it)", load_ref)
                         };
 
-                        file.write_fmt(format_args!("\t.quad {}\n", label.clone())).unwrap();
+                        file.write_fmt(format_args!(".quad {}\n", label.clone())).unwrap();
                     }
                 } else if fields.contains_key(&cur_addr) {
                     // write uptr (or other relocatable value) with label
                     let label = fields.get(&cur_addr).unwrap();
 
-                    file.write_fmt(format_args!("\t.quad {}\n", label.clone())).unwrap();
+                    file.write_fmt(format_args!(".quad {}\n", label.clone())).unwrap();
                 } else {
                     // write plain word (as bytes)
                     let next_word_addr = cur_addr.plus(POINTER_SIZE);
@@ -3002,7 +2995,7 @@ fn write_data_bytes(f: &mut File, from: Address, to: Address) {
     use std::io::Write;
 
     if from < to {
-        f.write("\t.byte ".as_bytes()).unwrap();
+        f.write(".byte ".as_bytes()).unwrap();
 
         let mut cursor = from;
         while cursor < to {
@@ -3025,7 +3018,7 @@ fn directive_globl(name: String) -> String {
 }
 
 fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
-    format!("\t.comm {},{},{}", name, size, align)
+    format!(".comm {},{},{}", name, size, align)
 }
 
 use compiler::machine_code::CompiledFunction;

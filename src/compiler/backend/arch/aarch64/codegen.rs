@@ -23,8 +23,10 @@ pub trait CodeGenerator {
     fn end_block(&mut self, block_name: MuName);
 
     // add CFI info
+    fn add_cfi_sections(&mut self, arg: &str);
     fn add_cfi_startproc(&mut self);
     fn add_cfi_endproc(&mut self);
+    fn add_cfi_def_cfa(&mut self, reg: Reg, offset: i32);
     fn add_cfi_def_cfa_register(&mut self, reg: Reg);
     fn add_cfi_def_cfa_offset(&mut self, offset: i32);
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32);

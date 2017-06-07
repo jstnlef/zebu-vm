@@ -1910,14 +1910,9 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
-
                         self.emit_runtime_entry(&entrypoints::UDIV_U128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![op1.clone(), op2.clone()],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
@@ -1946,14 +1941,9 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
-
                         self.emit_runtime_entry(&entrypoints::SDIV_I128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![op1.clone(), op2.clone()],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
@@ -1982,14 +1972,9 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
-
                         self.emit_runtime_entry(&entrypoints::UREM_U128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![op1.clone(), op2.clone()],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
@@ -2018,14 +2003,9 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
-
                         self.emit_runtime_entry(&entrypoints::SREM_I128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![op1.clone(), op2.clone()],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
