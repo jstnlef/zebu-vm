@@ -2048,7 +2048,7 @@ impl <'a> InstructionSelection {
                             _ => panic!("unexpected res for node {:?}", node)
                         }
                     }
-                    128 => {
+                    16 => {
                         let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
                         let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
                         let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
