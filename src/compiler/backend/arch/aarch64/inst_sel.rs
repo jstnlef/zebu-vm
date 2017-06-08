@@ -2783,7 +2783,8 @@ impl <'a> InstructionSelection {
                 // Everything else is simple
 
                 _ => {
-                    if is_int_ex_reg(&arg_val) {
+                    // Need to pass in two registers
+                    if is_int_ex_reg(&arg_val) && arg_loc.is_reg() {
                         let (val_l, val_h) = split_int128(&arg_val, f_context, vm);
                         let arg_loc_h = get_register_from_id(arg_loc.id() + 2);
 

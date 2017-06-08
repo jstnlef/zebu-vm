@@ -1910,8 +1910,11 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
+
                         self.emit_runtime_entry(&entrypoints::UDIV_U128,
-                                                vec![op1.clone(), op2.clone()],
+                                                vec![reg_op1, reg_op2],
                                                 Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
@@ -1941,8 +1944,11 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
+
                         self.emit_runtime_entry(&entrypoints::SDIV_I128,
-                                                vec![op1.clone(), op2.clone()],
+                                                vec![reg_op1, reg_op2],
                                                 Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
@@ -1972,10 +1978,14 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
+
                         self.emit_runtime_entry(&entrypoints::UREM_U128,
-                                                vec![op1.clone(), op2.clone()],
+                                                vec![reg_op1, reg_op2],
                                                 Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
+
                     }
                     _ => unimplemented!()
                 }
@@ -2003,8 +2013,11 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
+
                         self.emit_runtime_entry(&entrypoints::SREM_I128,
-                                                vec![op1.clone(), op2.clone()],
+                                                vec![reg_op1, reg_op2],
                                                 Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
@@ -3840,6 +3853,7 @@ impl <'a> InstructionSelection {
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
                             },
+                            &Constant::IntEx(ref vals) => { unimplemented!() },
                             &Constant::FuncRef(func_id) => {
                                 if cfg!(target_os = "macos") {
                                     let mem = self.get_mem_for_funcref(func_id, vm);

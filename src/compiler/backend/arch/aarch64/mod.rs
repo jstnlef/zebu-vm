@@ -1701,6 +1701,7 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                     tmp
                     //}
                 },
+                &Constant::IntEx(ref val) => { unimplemented!() },
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
@@ -1750,8 +1751,13 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                     tmp
                     //}
                 },
-                &Constant::FuncRef(_) => {
-                    unimplemented!();
+                &Constant::IntEx(ref val) => { unimplemented!() },
+                &Constant::FuncRef(func_id) => {
+                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
+
+                    let mem = make_value_symbolic(vm.get_func_name(func_id), true, &ADDRESS_TYPE, vm);
+                    emit_calculate_address(backend, &tmp, &mem, f_context, vm);
+                    tmp
                 },
                 &Constant::NullRef => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
@@ -1813,7 +1819,6 @@ pub fn emit_ireg_ex_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context:
             emit_mov_u64(backend, &tmp_h, val[1]);
 
             (tmp_l, tmp_h)
-
         },
         _ => panic!("expected ireg_ex")
     }
