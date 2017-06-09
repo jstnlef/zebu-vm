@@ -3082,6 +3082,19 @@ impl <'a> InstructionSelection {
                     // get return value by stack
                     unimplemented!()
                 }
+            } else if RegGroup::get_from_value(&ret_val) == RegGroup::GPREX && ret_val.is_reg() {
+                if gpr_ret_count + 1 < x86_64::RETURN_GPRs.len() {
+                    let ret_gpr1 = x86_64::RETURN_GPRs[gpr_ret_count].clone();
+                    let ret_gpr2 = x86_64::RETURN_GPRs[gpr_ret_count + 1].clone();
+
+                    let (ret_val_l, ret_val_h) = self.split_int128(&ret_val, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&ret_val_l, &ret_gpr1);
+                    self.backend.emit_mov_r_r(&ret_val_h, &ret_gpr2);
+                } else {
+                    // get return value by stack
+                    unimplemented!()
+                }
             } else if RegGroup::get_from_value(&ret_val) == RegGroup::FPR && ret_val.is_reg() {
                 // floating point register
                 if fpr_ret_count < x86_64::RETURN_FPRs.len() {
@@ -3261,6 +3274,9 @@ impl <'a> InstructionSelection {
                 arg_values.push(arg);
             } else if self.match_ireg(arg) {
                 let arg = self.emit_ireg(arg, f_content, f_context, vm);
+                arg_values.push(arg);
+            } else if self.match_ireg_ex(arg) {
+                let arg = self.emit_ireg_ex_as_one(arg, f_content, f_context, vm);
                 arg_values.push(arg);
             } else if self.match_fpreg(arg) {
                 let arg = self.emit_fpreg(arg, f_content, f_context, vm);
@@ -3889,7 +3905,12 @@ impl <'a> InstructionSelection {
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
                             },
-                            &Constant::IntEx(ref vals) => { unimplemented!() },
+                            &Constant::IntEx(ref vals) => {
+                                let (tmp_l, tmp_h) = self.split_int128(&tmp, f_context, vm);
+
+                                self.backend.emit_mov_r64_imm64(&tmp_l, vals[0] as i64);
+                                self.backend.emit_mov_r64_imm64(&tmp_h, vals[1] as i64);
+                            },
                             &Constant::FuncRef(func_id) => {
                                 if cfg!(target_os = "macos") {
                                     let mem = self.get_mem_for_funcref(func_id, vm);
@@ -3950,6 +3971,10 @@ impl <'a> InstructionSelection {
                 }
             }
         }
+    }
+
+    fn emit_ireg_ex_as_one(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        self.emit_ireg(op, f_content, f_context, vm)
     }
 
     fn emit_fpreg(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {

@@ -29,8 +29,8 @@ fn test_add_u128() {
     }
 }
 
-fn add_u128() -> VM {
-    let vm = VM::new();
+pub fn add_u128() -> VM {
+    let vm = VM::new_with_opts("init_mu --disable-inline");
 
     typedef!    ((vm) u128 = mu_int(128));
 
