@@ -1437,9 +1437,12 @@ impl <'a> InstructionSelection {
                         let ref ops = inst.ops;
                         let ref op  = ops[index];
 
+                        assert!(self.match_ireg(op));
+                        let retval = self.emit_ireg(op, f_content, f_context, vm);
+
                         self.emit_runtime_entry(
                             &entrypoints::SET_RETVAL,
-                            vec![op.clone_value()],
+                            vec![retval],
                             None,
                             Some(node), f_content, f_context, vm
                         );
