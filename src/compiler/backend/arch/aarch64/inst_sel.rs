@@ -2399,20 +2399,20 @@ impl <'a> InstructionSelection {
             self.finish_block();
 
             self.start_block(format!("{}_allocsmall", node.id()), &vec![]);
-            let tmp_res = self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_context, vm);
+            self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_context, vm);
             self.backend.emit_b(blk_alloc_large_end.clone());
 
             self.finish_block();
 
             // alloc_large:
             self.start_block(blk_alloc_large.clone(), &vec![size.clone()]);
-            let tmp_res = self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_context, vm);
+            self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_context, vm);
             self.finish_block();
 
             // alloc_large_end:
             self.start_block(blk_alloc_large_end.clone(), &vec![]);
 
-            tmp_res
+            self.get_result_value(node, 0)
         }
     }
 
@@ -4139,9 +4139,6 @@ impl CompilerPass for InstructionSelection {
                 // live in is args of the block
                 self.backend.set_block_livein(block_label.clone(), &block_content.args);
             }
-
-            // live out is the union of all branch args of this block
-            let live_out = block_content.get_out_arguments();
 
             // doing the actual instruction selection
             for inst in block_content.body.iter() {
