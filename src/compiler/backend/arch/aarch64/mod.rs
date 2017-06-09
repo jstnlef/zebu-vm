@@ -1,5 +1,4 @@
 #![allow(non_upper_case_globals)]
-#![allow(dead_code)]
 
 // TODO: Move architecture independent codes in here, inst_sel and asm_backend to somewhere else...
 pub mod inst_sel;
@@ -639,19 +638,6 @@ lazy_static! {
 
     // put caller saved regs first (they imposes no overhead if there is no call instruction)
     pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
-        X19.clone(),
-        X20.clone(),
-        X21.clone(),
-        X22.clone(),
-        X23.clone(),
-        X24.clone(),
-        X25.clone(),
-        X26.clone(),
-        X27.clone(),
-        X28.clone(),
-        //X29.clone(), // Frame Pointer
-        //X30.clone(), // Link Register
-
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -671,6 +657,19 @@ lazy_static! {
         X16.clone(),
         X17.clone(),
         // X18.clone(), // Platform Register
+
+        X19.clone(),
+        X20.clone(),
+        X21.clone(),
+        X22.clone(),
+        X23.clone(),
+        X24.clone(),
+        X25.clone(),
+        X26.clone(),
+        X27.clone(),
+        X28.clone(),
+        //X29.clone(), // Frame Pointer
+        //X30.clone(), // Link Register
 
         D8.clone(),
         D9.clone(),
@@ -1220,7 +1219,6 @@ pub fn node_type(op: &TreeNode) -> P<MuType> {
             }
         }
         TreeNode_::Value(ref pv) => pv.ty.clone(),
-        _ => panic!("expected node value")
     }
 }
 
@@ -1240,7 +1238,7 @@ pub fn match_value_int_imm(op: &P<Value>) -> bool {
 
 pub fn match_node_value(op: &TreeNode) -> bool {
     match op.v {
-        TreeNode_::Value(ref pv) => true,
+        TreeNode_::Value(_) => true,
         _ => false
     }
 }
@@ -1701,7 +1699,17 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                     tmp
                     //}
                 },
-                &Constant::IntEx(ref val) => { unimplemented!() },
+                &Constant::IntEx(ref val) => {
+                    assert!(val.len() == 2);
+
+                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
+                    let (tmp_l, tmp_h) = split_int128(&tmp, f_context, vm);
+
+                    emit_mov_u64(backend, &tmp_l, val[0]);
+                    emit_mov_u64(backend, &tmp_h, val[1]);
+
+                    tmp
+                },
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
@@ -1751,7 +1759,17 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                     tmp
                     //}
                 },
-                &Constant::IntEx(ref val) => { unimplemented!() },
+                &Constant::IntEx(ref val) => {
+                    assert!(val.len() == 2);
+
+                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
+                    let (tmp_l, tmp_h) = split_int128(&tmp, f_context, vm);
+
+                    emit_mov_u64(backend, &tmp_l, val[0]);
+                    emit_mov_u64(backend, &tmp_h, val[1]);
+
+                    tmp
+                },
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
@@ -1877,7 +1895,7 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Func
                         })
                     })
                 }
-                &MemoryLocation::Symbolic{ref label, is_global} => {
+                &MemoryLocation::Symbolic{is_global, ..} => {
                     if is_global {
                         let temp = make_temporary(f_context, pv.ty.clone(), vm);
                         emit_addr_sym(backend, &temp, &pv, vm);
@@ -1975,7 +1993,7 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
                         base.clone()
                     }
                 }
-                &MemoryLocation::Symbolic{ref label, is_global} => {
+                &MemoryLocation::Symbolic{..} => {
                     let temp = make_temporary(f_context, pv.ty.clone(), vm);
                     emit_addr_sym(backend, &temp, &pv, vm);
                     temp
@@ -2071,7 +2089,7 @@ fn emit_calculate_address(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<
             }
         },
 
-        Value_::Memory(MemoryLocation::Symbolic{ref label, is_global}) => {
+        Value_::Memory(MemoryLocation::Symbolic{..}) => {
             emit_addr_sym(backend, &dest, &src, vm);
         }
         _ => panic!("expect mem location as value")

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
@@ -21,7 +19,6 @@ use ast::ir::*;
 
 use std::str;
 use std::usize;
-use std::slice::Iter;
 use std::ops;
 use std::collections::HashSet;
 
@@ -95,16 +92,6 @@ impl ASMCode {
         }
 
         panic!("didnt find any block for inst {}", inst)
-    }
-
-    fn get_block_by_start_inst(&self, inst: usize) -> Option<&ASMBlock> {
-        for block in self.blocks.values() {
-            if block.start_inst == inst {
-                return Some(block);
-            }
-        }
-
-        None
     }
 
     fn rewrite_insert(
@@ -270,7 +257,6 @@ impl ASMCode {
         // control flow analysis
         let n_insts = self.number_of_insts();
 
-        let ref blocks = self.blocks;
         let ref mut asm = self.code;
 
         for i in 0..n_insts {
@@ -886,21 +872,6 @@ impl ASMInst {
             spill_info: spill_info
         }
     }
-
-    fn nop() -> ASMInst {
-        ASMInst {
-            code: "".to_string(),
-            defines: LinkedHashMap::new(),
-            uses: LinkedHashMap::new(),
-            is_symbol: false,
-            is_mem_op_used: false,
-            preds: vec![],
-            succs: vec![],
-            branch: ASMBranchTarget::None,
-
-            spill_info: None
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -983,11 +954,6 @@ impl ASMCodeGen {
         self.cur().code.len()
     }
 
-    fn add_asm_label(&mut self, code: String) {
-        trace!("emit: {}", code);
-        self.cur_mut().code.push(ASMInst::symbolic(code));
-    }
-
     fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
         trace!("emit: [{}]{}", block_name, code);
         self.cur_mut().code.push(ASMInst::symbolic(code));
@@ -996,10 +962,6 @@ impl ASMCodeGen {
     fn add_asm_symbolic(&mut self, code: String) {
         trace!("emit: {}", code);
         self.cur_mut().code.push(ASMInst::symbolic(code));
-    }
-
-    fn prepare_machine_regs(&self, regs: Iter<P<Value>>) -> Vec<MuID> {
-        regs.map(|x| self.prepare_machine_reg(x)).collect()
     }
 
     fn add_asm_call(&mut self, code: String, potentially_excepting: Option<MuName>, target: Option<(MuID, ASMLocation)>) {
@@ -1045,22 +1007,6 @@ impl ASMCodeGen {
         }, None)
     }
 
-    fn add_asm_ret(&mut self, code: String) {
-        // return instruction does not use anything (not RETURN REGS)
-        // otherwise it will keep RETURN REGS alive
-        // and if there is no actual move into RETURN REGS, it will keep RETURN REGS for alive for very long
-        // and prevents anything using those regsiters
-        self.add_asm_inst_internal(code, linked_hashmap! {}, linked_hashmap! {}, false, ASMBranchTarget::Return, None);
-    }
-
-    fn add_asm_branch(&mut self, code: String, target: MuName) {
-        self.add_asm_inst_internal(code, linked_hashmap! {}, linked_hashmap! {}, false, ASMBranchTarget::Unconditional(target), None);
-    }
-
-    fn add_asm_branch2(&mut self, code: String, target: MuName) {
-        self.add_asm_inst_internal(code, linked_hashmap! {}, linked_hashmap! {}, false, ASMBranchTarget::Conditional(target), None);
-    }
-
     fn add_asm_inst(
         &mut self,
         code: String,
@@ -1101,7 +1047,6 @@ impl ASMCodeGen {
         target: ASMBranchTarget,
         spill_info: Option<SpillMemInfo>)
     {
-        let line = self.line();
         trace!("asm: {}", code);
         trace!("     defines: {:?}", defines);
         trace!("     uses: {:?}", uses);
@@ -1122,30 +1067,6 @@ impl ASMCodeGen {
         let str = self.asm_reg_op(op);
         let len = str.len();
         (str, op.extract_ssa_id().unwrap(), ASMLocation::new(self.line(), loc, len, check_op_len(&op.ty)))
-    }
-
-    fn prepare_fpreg(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
-        if cfg!(debug_assertions) {
-            match op.v {
-                Value_::SSAVar(_) => {},
-                _ => panic!("expecting register op")
-            }
-        }
-
-        let str = self.asm_reg_op(op);
-        let len = str.len();
-        (str, op.extract_ssa_id().unwrap(), ASMLocation::new(self.line(), loc, len, 64))
-    }
-
-    fn prepare_machine_reg(&self, op: &P<Value>) -> MuID {
-        if cfg!(debug_assertions) {
-            match op.v {
-                Value_::SSAVar(_) => {},
-                _ => panic!("expecting machine register op")
-            }
-        }
-
-        op.extract_ssa_id().unwrap()
     }
 
     fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, LinkedHashMap<MuID, Vec<ASMLocation>>) {
@@ -1990,19 +1911,6 @@ impl ASMCodeGen {
 
     fn emit_ldr_spill(&mut self, dest: Reg, src: Mem) { self.internal_load("LDR", dest, src, false, true, false); }
     fn emit_str_spill(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, true, false); }
-}
-
-// Only used for loads and stores
-#[inline(always)]
-fn op_postfix(op_len: usize) -> &'static str {
-    match op_len {
-        1  => "B",
-        8  => "B",
-        16 => "H",
-        32 => "",
-        64 => "",
-        _  => panic!("unexpected op size: {}", op_len)
-    }
 }
 
 impl CodeGenerator for ASMCodeGen {
@@ -3015,10 +2923,6 @@ fn write_data_bytes(f: &mut File, from: Address, to: Address) {
 
 fn directive_globl(name: String) -> String {
     format!(".globl {}", name)
-}
-
-fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
-    format!(".comm {},{},{}", name, size, align)
 }
 
 use compiler::machine_code::CompiledFunction;
