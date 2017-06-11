@@ -1112,7 +1112,9 @@ impl ASMCodeGen {
                             result_str.push_str(",");
                             let n = offset.ty.get_int_length().unwrap();
                             let shift_type =
-                                if n == 64 { if signed { "SXTX" } else { "LSL" } } else if n == 32 { if signed { "SXTW" } else { "UXTW" } } else { panic!("Unexpected size for offset register") };
+				// Note: LSL (which is an unsigned extension from 64 bits to 64-bits) is equivelent to SXTX (which is a signed extension from 64-bits to 64-bits, but is encoded differently) 
+				// unfortunently there is a bug in valgrind in that it treats the SXTX version as an illegal instructin, so instead we emit LSL for the 64-bit signed case (instead of SXTX)
+                                if n == 64 { if signed { "LSL" } else { "LSL" } } else if n == 32 { if signed { "SXTW" } else { "UXTW" } } else { panic!("Unexpected size for offset register") };
 
                             result_str.push_str(&shift_type);
                             result_str.push_str(" #");
@@ -2325,7 +2327,13 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: \tFMOV {} -> {}", src, dest);
 
         let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1);
-        let asm = format!("FMOV {},#{}", reg1, src);
+        // GCC complains if the immediate argument has no decimal part (it will treat it as an integer)
+        // (e.g. #1 is an error, but #1.0 is not)
+        let asm = if src == src.trunc() { // src is an integer, append '.0'
+            format!("FMOV {},#{}.0", reg1, src)
+        } else {
+            format!("FMOV {},#{}", reg1, src)
+        };
 
         self.add_asm_inst(
             asm,
