@@ -37,6 +37,10 @@ pub trait CodeGenerator {
     fn emit_frame_grow(&mut self); // Emits a SUB
     fn emit_frame_shrink(&mut self); // Emits an ADD
 
+    // Used to pass a string that the assembler will interpret as an immediate argument
+    // (This is neccesary to support the use of ELF relocations like ':tprel_hi12:foo')
+    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str);
+
     // stack minimpulation
     fn emit_push_pair(&mut self, src1: Reg, src2: Reg, stack: Reg); // Emits a STP
     fn emit_pop_pair(&mut self, dest1: Reg, dest2: Reg, stack: Reg); // Emits a LDP

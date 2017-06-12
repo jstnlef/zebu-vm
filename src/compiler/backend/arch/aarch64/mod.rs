@@ -1,3 +1,9 @@
+// TODO: CHECK THAT THE TYPE OF EVERY MEMORY LOCATION HAS THE CORRECT SIZE
+// (the size should be size of the area in memory that it is referring to, and will indicate
+// how much data any load/store instructions that uses it will operate on
+// (so it should be [1], 8, 16, 32, 64, or 128 bits in size (when using emit_mem, it can have other sizes before this))
+
+
 #![allow(non_upper_case_globals)]
 
 // TODO: Move architecture independent codes in here, inst_sel and asm_backend to somewhere else...
@@ -282,6 +288,12 @@ pub fn get_bit_size(ty : &P<MuType>, vm: &VM) -> usize
             }
         }
     }
+}
+
+#[inline(always)]
+pub fn get_type_alignment(ty: &P<MuType>, vm: &VM) -> usize
+{
+    vm.get_backend_type_info(ty.id()).alignment
 }
 
 #[inline(always)]
@@ -978,12 +990,12 @@ pub fn is_valid_logical_imm(val : u64, n : usize) -> bool {
     return true;
 }
 
-// Returns the value of 'val' truncated to 'size', interpreted as an unsigned integer
+// Returns the value of 'val' truncated to 'size', and then zero extended
 pub fn get_unsigned_value(val: u64, size: usize) -> u64 {
     (val & bits_ones(size)) as u64 // clears all but the lowest 'size' bits of val
 }
 
-// Returns the value of 'val' truncated to 'size', interpreted as a signed integer
+// Returns the value of 'val' truncated to 'size', and then sign extended
 pub fn get_signed_value(val: u64, size: usize) -> i64 {
     if size == 64 {
         val as i64
@@ -1105,12 +1117,12 @@ pub fn bits_ones(n: usize) -> u64 {
 #[inline(always)]
 pub fn is_valid_immediate_offset(val: i64, n : usize) -> bool {
     use std;
-    let n_align =  std::cmp::max(n, 8);
+    let n_align = std::cmp::max(n, 8);
     if n <= 8 {
         (val >= -(1 << 8) && val < (1 << 8)) || // Valid 9 bit signed unscaled offset
             // Valid unsigned 12-bit scalled offset
             (val >= 0 && (val as u64) % (n_align as u64) == 0 && ((val as u64) / (n_align as u64) < (1 << 12)))
-    } else { // Will use a load-pair instead
+    } else { // Will be using a load/store-pair
         // Is val a signed 7 bit multiple of n_align
         (val as u64) % (n_align as u64) == 0  && ((val as u64)/(n_align as u64) < (1 << 7))
     }
@@ -1270,6 +1282,18 @@ pub fn node_imm_to_u64(op: &TreeNode) -> u64 {
         _ => panic!("expected imm")
     }
 }
+pub fn node_imm_to_i64(op: &TreeNode, signed: bool) -> u64 {
+    match op.v {
+        TreeNode_::Value(ref pv) => value_imm_to_i64(pv, signed),
+        _ => panic!("expected imm")
+    }
+}
+pub fn node_imm_to_s64(op: &TreeNode) -> i64 {
+    match op.v {
+        TreeNode_::Value(ref pv) => value_imm_to_s64(pv),
+        _ => panic!("expected imm")
+    }
+}
 
 pub fn node_imm_to_f64(op: &TreeNode) -> f64 {
     match op.v {
@@ -1321,7 +1345,20 @@ pub fn value_imm_to_u64(op: &P<Value>) -> u64 {
     }
 }
 
-pub fn value_imm_to_i64(op: &P<Value>) -> i64 {
+pub fn value_imm_to_i64(op: &P<Value>, signed: bool) -> u64 {
+    match op.v {
+        Value_::Constant(Constant::Int(val)) =>
+            if signed {
+                get_signed_value(val as u64, op.ty.get_int_length().unwrap()) as u64
+            } else {
+                get_unsigned_value(val as u64, op.ty.get_int_length().unwrap())
+            },
+        Value_::Constant(Constant::NullRef) => 0,
+        _ => panic!("expected imm int")
+    }
+}
+
+pub fn value_imm_to_s64(op: &P<Value>) -> i64 {
     match op.v {
         Value_::Constant(Constant::Int(val)) =>
             get_signed_value(val as u64, op.ty.get_int_length().unwrap()),
@@ -1594,6 +1631,26 @@ fn emit_add_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_
     }
 }
 
+// dest = src1*val + src2
+fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64, src2: &P<Value>)
+{
+    if val == 0 {
+        // dest = src2
+        backend.emit_mov(&dest, &src2);
+    } else if val == 1 {
+        // dest = src1 + src2
+        backend.emit_add(&dest, &src1, &src2);
+    } else if val.is_power_of_two() {
+        // dest = src1 << log2(val) + src2
+        backend.emit_lsl_imm(&dest, &src1, log2(val as u64) as u8);
+        backend.emit_add(&dest, &dest, &src2);
+    } else {
+        // dest = src1 * val + src2
+        let temp_mul = make_temporary(f_context, src1.ty.clone(), vm);
+        emit_mov_u64(backend, &temp_mul, val as u64);
+        backend.emit_madd(&dest, &src1, &temp_mul, &src2);
+    }
+}
 // Compare register with value
 fn emit_cmp_u64(backend: &mut CodeGenerator, src1: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64)
 {
@@ -1842,8 +1899,7 @@ pub fn emit_ireg_ex_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context:
     }
 }
 
-pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
-    let n = vm.get_backend_type_info(pv.ty.id()).alignment;
+pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, alignment: usize, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
     match pv.v {
         Value_::Memory(ref mem) => {
             match mem {
@@ -1853,14 +1909,15 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Func
                         if offset.is_some() {
                             let offset = offset.as_ref().unwrap();
                             if match_value_int_imm(offset) {
-                                let mut offset_val = value_imm_to_i64(offset);
+                                let mut offset_val = value_imm_to_i64(offset, signed) as i64;
                                 offset_val *= scale as i64;
-                                if is_valid_immediate_offset(offset_val, n) {
+
+                                if is_valid_immediate_offset(offset_val, alignment) {
                                     Some(make_value_int_const(offset_val as u64, vm))
-                                } else if n <= 8 {
-                                        let offset = make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                                        emit_mov_u64(backend, &offset, offset_val as u64);
-                                        Some(offset)
+                                } else if alignment <= 8 {
+                                    let offset = make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                    emit_mov_u64(backend, &offset, offset_val as u64);
+                                    Some(offset)
                                 } else {
                                     // We will be using a store/load pair which dosn't support register offsets
                                     return emit_mem_base(backend, &pv, f_context, vm);
@@ -1869,7 +1926,7 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Func
                                 let offset = emit_ireg_value(backend, offset, f_context, vm);
 
                                 // TODO: If scale == (2^n)*m (for some m), set shift = n, and multiply index by m
-                                if !is_valid_immediate_scale(scale, n) {
+                                if !is_valid_immediate_scale(scale, alignment) {
                                     let temp = make_temporary(f_context, offset.ty.clone(), vm);
 
                                     emit_mul_u64(backend, &temp, &offset, f_context, vm, scale);
@@ -1917,7 +1974,11 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Func
                 _ => pv.clone()
             }
         }
-        _ => panic!("expected memory")
+        _ => // Use the value as the base registers
+        {
+            let tmp_mem = make_value_base_offset(&pv, 0, &pv.ty, vm);
+            emit_mem(backend, &tmp_mem, alignment, f_context, vm)
+        }
     }
 }
 
@@ -1931,7 +1992,7 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
                     if offset.is_some() {
                         let offset = offset.as_ref().unwrap();
                         if match_value_int_imm(offset) {
-                            let offset_val = value_imm_to_i64(offset);
+                            let offset_val = value_imm_to_i64(offset, signed) as i64;
                             if offset_val == 0 {
                                 base.clone() // trivial
                             } else {
@@ -2011,7 +2072,11 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
                 })
             })
         }
-        _ => panic!("expected memory")
+        _ => // Use the value as the base register
+        {
+            let tmp_mem = make_value_base_offset(&pv, 0, &pv.ty, vm);
+            emit_mem_base(backend, &tmp_mem, f_context, vm)
+        }
     }
 }
 
@@ -2063,8 +2128,20 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
 }
 
 fn emit_calculate_address(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
-    let src = emit_mem(backend, &src, f_context, vm);
     match src.v {
+        Value_::Memory(MemoryLocation::VirtualAddress{ref base, ref offset, scale, signed}) => {
+            if offset.is_some() {
+                let offset = offset.as_ref().unwrap();
+                if match_value_int_imm(offset) {
+                    emit_add_u64(backend, &dest, &base, f_context, vm, ((value_imm_to_i64(offset, signed) as i64)*(scale as i64)) as u64);
+                } else {
+                    // dest = offset * scale + base
+                    emit_madd_u64(backend, &dest, &offset, f_context, vm, scale as u64, &base);
+                }
+            } else {
+                backend.emit_mov(&dest, &base)
+            }
+        }
         // offset(base,index,scale)
         Value_::Memory(MemoryLocation::Address{ref base, ref offset, shift, signed}) => {
             if offset.is_some() {
@@ -2192,7 +2269,7 @@ fn memory_location_shift(backend: &mut CodeGenerator, mem: MemoryLocation, more_
 // Returns a memory location that points to 'Base + offset*scale + more_offset*new_scale'
 fn memory_location_shift_scale(backend: &mut CodeGenerator, mem: MemoryLocation, more_offset:  &P<Value>, new_scale: u64, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {
     if match_value_int_imm(&more_offset) {
-        let more_offset = value_imm_to_i64(&more_offset);
+        let more_offset = value_imm_to_s64(&more_offset);
         memory_location_shift(backend, mem, more_offset * (new_scale as i64), f_context, vm)
     } else {
         let mut new_scale = new_scale;
@@ -2353,7 +2430,7 @@ fn emit_move_value_to_value(backend: &mut CodeGenerator, dest: &P<Value>, src: &
 }
 
 fn emit_load(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
-    let src = emit_mem(backend, &src, f_context, vm);
+    let src = emit_mem(backend, &src, get_type_alignment(&dest.ty, vm), f_context, vm);
     if is_int_reg(dest) || is_fp_reg(dest) {
         backend.emit_ldr(&dest, &src, false);
     } else if is_int_ex_reg(dest) {
@@ -2366,7 +2443,7 @@ fn emit_load(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_con
 }
 
 fn emit_store(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
-    let dest = emit_mem(backend, &dest, f_context, vm);
+    let dest = emit_mem(backend, &dest, get_type_alignment(&src.ty, vm), f_context, vm);
     if is_int_reg(src) || is_fp_reg(src) {
         backend.emit_str(&dest, &src);
     } else if is_int_ex_reg(src) {
@@ -2385,7 +2462,6 @@ fn emit_load_base_offset(backend: &mut CodeGenerator, dest: &P<Value>, base: &P<
 
 fn emit_store_base_offset(backend: &mut CodeGenerator, base: &P<Value>, offset: i64, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
     let mem = make_value_base_offset(base, offset, &src.ty, vm);
-    let mem = emit_mem(backend, &mem, f_context, vm);
     emit_store(backend, &mem, src, f_context, vm);
 }
 

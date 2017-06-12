@@ -633,7 +633,7 @@ impl <'a> InstructionSelection {
                                     _ => self.backend.emit_ldar(&res, &temp_loc)
                                 };
                             } else {
-                                let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, f_context, vm);
+                                let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, get_type_alignment(&res.ty, vm), f_context, vm);
                                 self.backend.emit_ldr(&res, &temp_loc, false);
                             }
                         } else if self.match_ireg_ex(node) {
@@ -641,7 +641,7 @@ impl <'a> InstructionSelection {
 
                             match order {
                                 MemoryOrder::NotAtomic => {
-                                    let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, f_context, vm);
+                                    let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, get_type_alignment(&res.ty, vm), f_context, vm);
                                     self.backend.emit_ldp(&res_l, &res_h, &temp_loc);
                                 }
 
@@ -735,7 +735,7 @@ impl <'a> InstructionSelection {
                                     _ => self.backend.emit_stlr(&temp_loc, &val)
                                 };
                             } else {
-                                let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, f_context, vm);
+                                let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, get_type_alignment(&val.ty, vm), f_context, vm);
                                 self.backend.emit_str(&temp_loc, &val);
                             }
                         } else if self.match_ireg_ex(val_op) {
@@ -743,7 +743,7 @@ impl <'a> InstructionSelection {
 
                             match order {
                                 MemoryOrder::NotAtomic => {
-                                    let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, f_context, vm);
+                                    let temp_loc = emit_mem(self.backend.as_mut(), &resolved_loc, 16, f_context, vm);
                                     self.backend.emit_stp(&temp_loc, &val_l, &val_h);
                                 }
 
@@ -981,7 +981,7 @@ impl <'a> InstructionSelection {
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
 
                         // get thread local and add offset to get sp_loc
-                        let tl = self.emit_get_threadlocal(Some(node), f_context, vm);
+                        let tl = self.emit_get_threadlocal(f_context, vm);
                         self.backend.emit_add_imm(&tl, &tl, *thread::NATIVE_SP_LOC_OFFSET as u16, false);
 
                         self.emit_runtime_entry(&entrypoints::SWAP_BACK_TO_NATIVE_STACK, vec![tl.clone()], None, Some(node), f_context, vm);
@@ -991,7 +991,7 @@ impl <'a> InstructionSelection {
                     Instruction_::CommonInst_GetThreadLocal => {
                         trace!("instsel on GETTHREADLOCAL");
                         // get thread local
-                        let tl = self.emit_get_threadlocal(Some(node), f_context, vm);
+                        let tl = self.emit_get_threadlocal(f_context, vm);
 
                         let tmp_res = self.get_result_value(node, 0);
 
@@ -1010,7 +1010,7 @@ impl <'a> InstructionSelection {
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
                         // get thread local
-                        let tl = self.emit_get_threadlocal(Some(node), f_context, vm);
+                        let tl = self.emit_get_threadlocal(f_context, vm);
 
                         // store tmp_op -> [tl + USER_TLS_OFFSTE]
                         emit_store_base_offset(self.backend.as_mut(), &tl, *thread::USER_TLS_OFFSET as i64, &tmp_op, f_context, vm);
@@ -1065,7 +1065,7 @@ impl <'a> InstructionSelection {
 
                         let const_size = make_value_int_const(size as u64, vm);
 
-                        let tmp_allocator = self.emit_get_allocator(node, f_context, vm);
+                        let tmp_allocator = self.emit_get_allocator(f_context, vm);
                         let tmp_res = self.emit_alloc_sequence(tmp_allocator.clone(), const_size, ty_align, node, f_context, vm);
 
                         // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
@@ -1125,7 +1125,7 @@ impl <'a> InstructionSelection {
                             }
                         };
 
-                        let tmp_allocator = self.emit_get_allocator(node, f_context, vm);
+                        let tmp_allocator = self.emit_get_allocator(f_context, vm);
                         let tmp_res = self.emit_alloc_sequence(tmp_allocator.clone(), actual_size, ty_align, node, f_context, vm);
 
                         // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
@@ -2416,9 +2416,9 @@ impl <'a> InstructionSelection {
         }
     }
 
-    fn emit_get_allocator(&mut self, node: &TreeNode, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+    fn emit_get_allocator(&mut self, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         // ASM: %tl = get_thread_local()
-        let tmp_tl = self.emit_get_threadlocal(Some(node), f_context, vm);
+        let tmp_tl = self.emit_get_threadlocal(f_context, vm);
 
         // ASM: lea [%tl + allocator_offset] -> %tmp_allocator
         let allocator_offset = *thread::ALLOCATOR_OFFSET;
@@ -2463,15 +2463,21 @@ impl <'a> InstructionSelection {
         }
     }
 
-    // TODO: Inline this function call (it's like 4 lines of assembly...)
-    fn emit_get_threadlocal(
-        &mut self,
-        cur_node: Option<&TreeNode>,
-        f_context: &mut FunctionContext,
-        vm: &VM) -> P<Value> {
-        let mut rets = self.emit_runtime_entry(&entrypoints::GET_THREAD_LOCAL, vec![], None, cur_node, f_context, vm);
+    // This generates code identical to (though it may use different registers) the function muentry_get_thread_local
+    fn emit_get_threadlocal(&mut self, f_context: &mut FunctionContext, vm: &VM) -> P<Value>
+    {
+        let tmp =  make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
 
-        rets.pop().unwrap()
+        // Read the start address of thread local storage
+        self.backend.emit_mrs(&tmp, "TPIDR_EL0");
+
+        // Add the offset of mu_tls
+        self.backend.emit_add_str(&tmp, &tmp, ":tprel_hi12:mu_tls");
+        self.backend.emit_add_str(&tmp, &tmp, ":tprel_lo12_nc:mu_tls");
+
+        // Load tmp with the value of mu_tls
+        emit_load(self.backend.as_mut(), &tmp, &tmp, f_context, vm);
+        tmp
     }
 
     // ret: Option<Vec<P<Value>>
@@ -2652,7 +2658,7 @@ impl <'a> InstructionSelection {
             let i = i as usize;
             let t = if reference[i] { P(MuType::new(new_internal_id(), MuType_::IRef(arg_types[i].clone()))) } else { arg_types[i].clone() };
             let size = round_up(vm.get_type_size(t.id()), 8);
-            let align = vm.get_backend_type_info(t.id()).alignment;
+            let align = get_type_alignment(&t, vm);
             match t.v {
                 Hybrid(_) => panic!("hybrid argument not supported"),
 
@@ -2774,6 +2780,7 @@ impl <'a> InstructionSelection {
                 _ => {
                     // Need to pass in two registers
                     if is_int_ex_reg(&arg_val) && arg_loc.is_reg() {
+                        let arg_val = emit_reg_value(self.backend.as_mut(), &arg_val, f_context, vm);
                         let (val_l, val_h) = split_int128(&arg_val, f_context, vm);
                         let arg_loc_h = get_register_from_id(arg_loc.id() + 2);
 
@@ -3277,7 +3284,7 @@ impl <'a> InstructionSelection {
 
             trace!("allocate frame slot for reg {}", reg);
             let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(reg.clone(), vm);
-            let loc = emit_mem(self.backend.as_mut(), &loc, f_context, vm);
+            let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
         for i in 0..CALLEE_SAVED_GPRs.len() {
@@ -3285,8 +3292,9 @@ impl <'a> InstructionSelection {
             trace!("allocate frame slot for regs {}", reg);
 
             let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(reg.clone(), vm);
-            let loc = emit_mem(self.backend.as_mut(), &loc, f_context, vm);
+            let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_str_callee_saved(&loc, &reg);
+
         }
 
         // unload arguments
@@ -3361,7 +3369,7 @@ impl <'a> InstructionSelection {
             let ref reg = CALLEE_SAVED_GPRs[i];
             let reg_id = reg.extract_ssa_id().unwrap();
             let loc = self.current_frame.as_mut().unwrap().allocated.get(&reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);
-            let loc = emit_mem(self.backend.as_mut(), &loc, f_context, vm);
+            let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_ldr_callee_saved(reg, &loc);
         }
         for i in (0..CALLEE_SAVED_FPRs.len()).rev() {
@@ -3369,7 +3377,7 @@ impl <'a> InstructionSelection {
 
             let reg_id = reg.extract_ssa_id().unwrap();
             let loc = self.current_frame.as_mut().unwrap().allocated.get(&reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);
-            let loc = emit_mem(self.backend.as_mut(), &loc, f_context, vm);
+            let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_ldr_callee_saved(reg, &loc);
         }
 
@@ -3453,16 +3461,11 @@ impl <'a> InstructionSelection {
             let mut imm_val = 0 as u64;
             // Is one of the arguments a valid immediate?
             let emit_imm = if match_node_int_imm(&op2) {
-                imm_val = node_imm_to_u64(&op2);
-                if op.is_signed() {
-                    imm_val = get_signed_value(imm_val, n) as u64;
-                }
+                imm_val = node_imm_to_i64(&op2, op.is_signed());
                 is_valid_arithmetic_imm(imm_val)
             } else if match_node_int_imm(&op1) {
-                imm_val = node_imm_to_u64(&op1);
-                if op.is_signed() {
-                    imm_val = get_signed_value(imm_val, n) as u64;
-                }
+                imm_val = node_imm_to_i64(&op1, op.is_signed());
+
                 // if op1 is a valid immediate, swap it with op2
                 if is_valid_arithmetic_imm(imm_val) {
                     std::mem::swap(&mut op1, &mut op2);
@@ -4018,7 +4021,7 @@ impl <'a> InstructionSelection {
 
     fn emit_landingpad(&mut self, exception_arg: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
         // get thread local and add offset to get exception_obj
-        let tl = self.emit_get_threadlocal(None, f_context, vm);
+        let tl = self.emit_get_threadlocal(f_context, vm);
         emit_load_base_offset(self.backend.as_mut(), exception_arg, &tl, *thread::EXCEPTION_OBJ_OFFSET as i64, f_context, vm);
     }
 

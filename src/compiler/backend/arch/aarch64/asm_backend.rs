@@ -1112,9 +1112,9 @@ impl ASMCodeGen {
                             result_str.push_str(",");
                             let n = offset.ty.get_int_length().unwrap();
                             let shift_type =
-				// Note: LSL (which is an unsigned extension from 64 bits to 64-bits) is equivelent to SXTX (which is a signed extension from 64-bits to 64-bits, but is encoded differently) 
-				// unfortunently there is a bug in valgrind in that it treats the SXTX version as an illegal instructin, so instead we emit LSL for the 64-bit signed case (instead of SXTX)
-                                if n == 64 { if signed { "LSL" } else { "LSL" } } else if n == 32 { if signed { "SXTW" } else { "UXTW" } } else { panic!("Unexpected size for offset register") };
+                                     if n == 64 { if signed { "SXTX" } else { "LSL"  } }
+                                else if n == 32 { if signed { "SXTW" } else { "UXTW" } }
+                                else            { panic!("Unexpected size for offset register") };
 
                             result_str.push_str(&shift_type);
                             result_str.push_str(" #");
@@ -1328,6 +1328,23 @@ impl ASMCodeGen {
         } else {
             format!("{} {},{},#{},LSL #{}", inst, reg1, reg2, src2, shift)
         };
+
+        self.add_asm_inst(
+            asm,
+            ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id2, vec![loc2]),
+            false
+        )
+    }
+
+    fn internal_binop_str(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &str) {
+        let inst = inst.to_string();
+        trace!("emit: \t{} {}, {} -> {}", inst, src1, src2, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{},#{}", inst, reg1, reg2, src2);
 
         self.add_asm_inst(
             asm,
@@ -1691,7 +1708,6 @@ impl ASMCodeGen {
                 _ => panic!("unexpected op size: {}", op_len)
             }
         };
-
 
         trace!("emit: \t{} {} -> {}", inst, src, dest);
 
@@ -2124,6 +2140,8 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
+
+    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str) {self.internal_binop_str("ADD", dest, src1, src2)}
 
     // Pushes a pair of registers on the givne stack (uses the STP instruction)
     fn emit_push_pair(&mut self, src1: &P<Value>, src2: &P<Value>, stack: &P<Value>) {
@@ -2986,7 +3004,7 @@ pub fn spill_rewrite(
 
                         codegen.start_code_sequence();
 
-                        let spill_mem = emit_mem(&mut codegen, &spill_mem, &mut func.context, vm);
+                        let spill_mem = emit_mem(&mut codegen, &spill_mem, get_type_alignment(&temp.ty, vm), &mut func.context, vm);
                         codegen.emit_ldr_spill(&temp, &spill_mem);
 
                         codegen.finish_code_sequence_asm()
@@ -3033,7 +3051,7 @@ pub fn spill_rewrite(
                         let mut codegen = ASMCodeGen::new();
                         codegen.start_code_sequence();
 
-                        let spill_mem = emit_mem(&mut codegen, &spill_mem, &mut func.context, vm);
+                        let spill_mem = emit_mem(&mut codegen, &spill_mem, get_type_alignment(&temp.ty, vm), &mut func.context, vm);
                         codegen.emit_str_spill(&spill_mem, &temp);
 
                         codegen.finish_code_sequence_asm()
