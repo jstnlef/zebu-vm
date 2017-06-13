@@ -3065,24 +3065,10 @@ impl <'a> InstructionSelection {
         }
 
         if !stack_args.is_empty() {
-            // deal with stack arg, put them on stack
-            // in reverse order, i.e. push the rightmost arg first to stack
-            stack_args.reverse();
-
             // "The end of the input argument area shall be aligned on a 16
             // (32, if __m256 is passed on stack) byte boundary." - x86 ABI
             // if we need to special align the args, we do it now
             // (then the args will be put to stack following their regular alignment)
-
-            // reserve stack args - we want to layout stack args as below
-
-            // RSP -> .............
-            //        (padding)
-            //        (padding)
-            // RSP -> argN, argN-1, ...
-
-            // so we need to layout args in reverse order
-            stack_args.reverse();
 
             let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
             let (stack_arg_size, _, stack_arg_offsets) = BackendType::sequential_layout(&stack_arg_tys, vm);
