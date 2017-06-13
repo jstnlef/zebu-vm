@@ -75,7 +75,7 @@ pub struct VM {
 use std::u64;
 const PENDING_FUNCREF : u64 = u64::MAX;
 
-const VM_SERIALIZE_FIELDS : usize = 14;
+const VM_SERIALIZE_FIELDS : usize = 13;
 
 impl Encodable for VM {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
@@ -174,25 +174,6 @@ impl Encodable for VM {
                             s.emit_map_elt_key(i, |s| k.encode(s)).ok();
                             let func : &MuFunction = &v.read().unwrap();
                             s.emit_map_elt_val(i, |s| func.encode(s)).ok();
-                            i += 1;
-                        }
-                        Ok(())
-                    })
-                }));
-            }
-            field_i += 1;
-            
-            // func_vers
-            trace!("...serializing func_vers");
-            {
-                let func_vers : &HashMap<_, _> = &self.func_vers.read().unwrap();
-                try!(s.emit_struct_field("func_vers", field_i, |s| {
-                    s.emit_map(func_vers.len(), |s| {
-                        let mut i = 0;
-                        for (k, v) in func_vers.iter() {
-                            try!(s.emit_map_elt_key(i, |s| k.encode(s)));
-                            let func_ver : &MuFunctionVersion = &v.read().unwrap();
-                            try!(s.emit_map_elt_val(i, |s| func_ver.encode(s)));
                             i += 1;
                         }
                         Ok(())
@@ -325,20 +306,6 @@ impl Decodable for VM {
             }));
             field_i += 1;
             
-            // func_vers
-            let func_vers = try!(d.read_struct_field("func_vers", field_i, |d| {
-                d.read_map(|d, len| {
-                    let mut map = HashMap::new();
-                    for i in 0..len {
-                        let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
-                        let val = RwLock::new(try!(d.read_map_elt_val(i, |d| Decodable::decode(d))));
-                        map.insert(key, val);
-                    }
-                    Ok(map)
-                })
-            }));
-            field_i += 1;
-            
             // primordial
             let primordial = try!(d.read_struct_field("primordial", field_i, |d| Decodable::decode(d)));
             field_i += 1;
@@ -376,7 +343,7 @@ impl Decodable for VM {
                 global_locations: RwLock::new(hashmap!{}),
                 func_sigs: RwLock::new(func_sigs),
                 funcs: RwLock::new(funcs),
-                func_vers: RwLock::new(func_vers),
+                func_vers: RwLock::new(hashmap!{}),
                 primordial: RwLock::new(primordial),
                 is_running: ATOMIC_BOOL_INIT,
                 vm_options: vm_options,

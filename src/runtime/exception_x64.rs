@@ -5,6 +5,7 @@ use utils::Address;
 use utils::Word;
 use utils::POINTER_SIZE;
 use runtime::thread;
+use runtime::PRINT_BACKTRACE;
 
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
@@ -83,7 +84,9 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
         }
     };
 
-    print_backtrace(throw_frame_callsite, cursor.clone());
+    if PRINT_BACKTRACE {
+        print_backtrace(throw_frame_callsite, cursor.clone());
+    }
     
     let mut callsite = rust_frame_return_addr;
     
