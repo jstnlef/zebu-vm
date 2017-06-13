@@ -2572,6 +2572,10 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// emits the allocation sequence
+    /// * if the size is known at compile time, either emits allocation for small objects or large objects
+    /// * if the size is not known at compile time, emits a branch to check the size at runtime,
+    ///   and call corresponding allocation
     fn emit_alloc_sequence (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
@@ -2598,10 +2602,10 @@ impl <'a> InstructionSelection {
             let blk_alloc_large_end = format!("{}_alloc_large_end", node.id());
 
             if OBJECT_HEADER_SIZE != 0 {
+                // if the header size is not zero, we need to calculate a total size to alloc
                 let size_with_hdr = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
                 self.backend.emit_mov_r_r(&size_with_hdr, &size);
                 self.backend.emit_add_r_imm(&size_with_hdr, OBJECT_HEADER_SIZE as i32);
-
                 self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size_with_hdr);
             } else {
                 self.backend.emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
@@ -2629,6 +2633,7 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// emits code to get allocator for current thread
     fn emit_get_allocator (&mut self, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         // ASM: %tl = get_thread_local()
         let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
@@ -2636,11 +2641,12 @@ impl <'a> InstructionSelection {
         // ASM: lea [%tl + allocator_offset] -> %tmp_allocator
         let allocator_offset = *thread::ALLOCATOR_OFFSET;
         let tmp_allocator = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        self.emit_lea_base_immoffset(&tmp_allocator, &tmp_tl, allocator_offset as i32, vm);
+        self.emit_lea_base_offset(&tmp_allocator, &tmp_tl, allocator_offset as i32, vm);
 
         tmp_allocator
     }
 
+    /// emits code for large object allocation
     fn emit_alloc_sequence_large (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         let tmp_res = self.get_result_value(node);
 
@@ -2657,11 +2663,12 @@ impl <'a> InstructionSelection {
         tmp_res
     }
 
-    // this function needs to generate exact same code as alloc() in immix_mutator.rs in GC
-    // FIXME: currently it is slightly different
+    /// emits code for small object allocation
     fn emit_alloc_sequence_small (&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if INLINE_FASTPATH {
-            // emit immix allocation fast path
+            //  this function needs to generate exact same code as alloc() in immix_mutator.rs in GC
+            //  FIXME: currently it is not, and may not be correct
+            //  FIXME: do not turn on INLINE_FASTPATH
 
             // ASM: %tl = get_thread_local()
             let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
@@ -2675,7 +2682,7 @@ impl <'a> InstructionSelection {
             // ASM: lea align-1(%cursor) -> %start
             let align = align as i32;
             let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-            self.emit_lea_base_immoffset(&tmp_start, &tmp_cursor, align - 1, vm);
+            self.emit_lea_base_offset(&tmp_start, &tmp_cursor, align - 1, vm);
             // ASM: and %start, !(align-1) -> %start
             self.backend.emit_and_r_imm(&tmp_start, !(align - 1) as i32);
 
@@ -2690,7 +2697,7 @@ impl <'a> InstructionSelection {
                     offset += OBJECT_HEADER_SIZE as i32;
                 }
 
-                self.emit_lea_base_immoffset(&tmp_end, &tmp_start, offset, vm);
+                self.emit_lea_base_offset(&tmp_end, &tmp_start, offset, vm);
 
                 self.make_int_const(offset as u64, vm)
             } else {
@@ -2727,7 +2734,7 @@ impl <'a> InstructionSelection {
             let tmp_res = self.get_result_value(node);
             if OBJECT_HEADER_OFFSET != 0 {
                 // ASM: lea -HEADER_OFFSET(%start) -> %result
-                self.emit_lea_base_immoffset(&tmp_res, &tmp_start, -OBJECT_HEADER_OFFSET as i32, vm);
+                self.emit_lea_base_offset(&tmp_res, &tmp_start, -OBJECT_HEADER_OFFSET as i32, vm);
             } else {
                 // ASM: mov %start -> %result
                 self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
@@ -2761,7 +2768,7 @@ impl <'a> InstructionSelection {
 
             if OBJECT_HEADER_OFFSET != 0 {
                 // ASM: lea -HEADER_OFFSET(%res) -> %result
-                self.emit_lea_base_immoffset(&tmp_res, &tmp_res, -OBJECT_HEADER_OFFSET as i32, vm);
+                self.emit_lea_base_offset(&tmp_res, &tmp_res, -OBJECT_HEADER_OFFSET as i32, vm);
             }
 
             // end block (no liveout other than result)
@@ -2788,6 +2795,7 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// emits a load instruction of address [base + offset]
     fn emit_load_base_offset (&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) -> P<Value> {
         let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
 
@@ -2795,18 +2803,21 @@ impl <'a> InstructionSelection {
 
         mem
     }
-    
+
+    /// emits a store instruction of address [base + offset]
     fn emit_store_base_offset (&mut self, base: &P<Value>, offset: i32, src: &P<Value>, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, src.ty.clone(), vm);
         self.emit_move_value_to_value(&mem, src);
     }
-    
-    fn emit_lea_base_immoffset(&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
+
+    /// emits a lea (load effective address) instruction of address [base + offset]
+    fn emit_lea_base_offset(&mut self, dest: &P<Value>, base: &P<Value>, offset: i32, vm: &VM) {
         let mem = self.make_memory_op_base_offset(base, offset, ADDRESS_TYPE.clone(), vm);
         
         self.backend.emit_lea_r64(dest, &mem);
     }
 
+    /// emits a push instruction
     fn emit_push(&mut self, op: &P<Value>) {
         if op.is_int_const() {
             if x86_64::is_valid_x86_imm(op) {
@@ -2820,6 +2831,7 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// emits a udiv instruction
     fn emit_udiv (
         &mut self,
         op1: &TreeNode, op2: &TreeNode,
@@ -2827,45 +2839,46 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM)
     {
-        debug_assert!(self.match_ireg(op1));
+        assert!(self.match_ireg(op1));
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
 
-        match reg_op1.ty.get_int_length() {
-            Some(64) => {
+        let op1_size = vm.get_backend_type_info(reg_op1.ty.id()).size;
+        match op1_size {
+            8 => {
                 // div uses RDX and RAX
                 self.backend.emit_mov_r_r(&x86_64::RAX, &reg_op1);
 
                 // xorq rdx, rdx -> rdx
                 self.backend.emit_xor_r_r(&x86_64::RDX, &x86_64::RDX);
             }
-            Some(32) => {
+            4 => {
                 // div uses edx, eax
                 self.backend.emit_mov_r_r(&x86_64::EAX, &reg_op1);
 
                 // xor edx edx
                 self.backend.emit_xor_r_r(&x86_64::EDX, &x86_64::EDX);
             }
-            Some(16) => {
+            2 => {
                 // div uses dx, ax
                 self.backend.emit_mov_r_r(&x86_64::AX, &reg_op1);
 
                 // xor dx, dx
                 self.backend.emit_xor_r_r(&x86_64::DX, &x86_64::DX);
-            },
-            Some(8) => {
+            }
+            1 => {
                 // div uses AX
                 self.backend.emit_mov_r_r(&x86_64::AL, &reg_op1);
             }
-            _ => unimplemented!()
+            _ => panic!("unsupported int size for udiv: {}", op1_size)
         }
 
         // div op2
         if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2, vm);
-
             self.backend.emit_div_mem(&mem_op2);
         } else if self.match_iimm(op2) {
             let imm = self.node_iimm_to_i32(op2);
+
             // moving to a temp
             let temp = self.make_temporary(f_context, reg_op1.ty.clone(), vm);
             self.backend.emit_mov_r_imm(&temp, imm);
@@ -2874,13 +2887,13 @@ impl <'a> InstructionSelection {
             self.backend.emit_div_r(&temp);
         } else if self.match_ireg(op2) {
             let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
-
             self.backend.emit_div_r(&reg_op2);
         } else {
-            unimplemented!();
+            panic!("unexpected op2 for udiv: {}", op2);
         }
     }
 
+    /// emits an idiv instruction
     fn emit_idiv (
         &mut self,
         op1: &TreeNode, op2: &TreeNode,
@@ -2888,45 +2901,45 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM)
     {
-        debug_assert!(self.match_ireg(op1));
+        assert!(self.match_ireg(op1));
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
 
-        match reg_op1.ty.get_int_length() {
-            Some(64) => {
+        let op1_size = vm.get_backend_type_info(reg_op1.ty.id()).size;
+        match op1_size {
+            8 => {
                 // idiv uses RDX and RAX
                 self.backend.emit_mov_r_r(&x86_64::RAX, &reg_op1);
 
                 // cqo: sign extend rax to rdx:rax
                 self.backend.emit_cqo();
             }
-            Some(32) => {
+            4 => {
                 // idiv uses edx, eax
                 self.backend.emit_mov_r_r(&x86_64::EAX, &reg_op1);
 
                 // cdq: sign extend eax to edx:eax
                 self.backend.emit_cdq();
             }
-            Some(16) => {
+            2 => {
                 // idiv uses dx, ax
                 self.backend.emit_mov_r_r(&x86_64::AX, &reg_op1);
 
                 // cwd: sign extend ax to dx:ax
                 self.backend.emit_cwd();
-            },
-            Some(8) => {
+            }
+            1 => {
                 // idiv uses AL
                 self.backend.emit_mov_r_r(&x86_64::AL, &reg_op1);
 
                 // sign extend al to ax
                 self.backend.emit_movs_r_r(&x86_64::AX, &x86_64::AL);
             }
-            _ => unimplemented!()
+            _ => panic!("unsupported int size for idiv: {}", op1_size)
         }
 
         // idiv op2
         if self.match_mem(op2) {
             let mem_op2 = self.emit_mem(op2, vm);
-
             self.backend.emit_idiv_mem(&mem_op2);
         } else if self.match_iimm(op2) {
             let imm = self.node_iimm_to_i32(op2);
@@ -2938,13 +2951,13 @@ impl <'a> InstructionSelection {
             self.backend.emit_idiv_r(&temp);
         } else if self.match_ireg(op2) {
             let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
-
             self.backend.emit_idiv_r(&reg_op2);
         } else {
-            unimplemented!();
+            panic!("unexpected op2 for idiv: {}", op2);
         }
     }
-    
+
+    /// emits code to get the thread local variable (not the client thread local)
     fn emit_get_threadlocal (
         &mut self, 
         cur_node: Option<&TreeNode>,
@@ -2955,11 +2968,10 @@ impl <'a> InstructionSelection {
         
         rets.pop().unwrap()
     }
-    
-    // ret: Option<Vec<P<Value>>
-    // if ret is Some, return values will put stored in given temporaries
-    // otherwise create temporaries
-    // always returns result temporaries (given or created)
+
+    /// emits code to call a runtime entry function, always returns result temporaries (given or created)
+    /// Note that rets is Option<Vec<P<Value>>. If rets is Some, return values will put stored
+    /// in the given temporaries. Otherwise create temporaries for return results
     fn emit_runtime_entry (
         &mut self, 
         entry: &RuntimeEntrypoint, 
@@ -2987,7 +2999,8 @@ impl <'a> InstructionSelection {
         self.emit_c_call_internal(entry_name, sig, args, rets, cur_node, f_content, f_context, vm)
     }
     
-    // returns the stack arg offset - we will need this to collapse stack after the call
+    /// emits calling convention before a call instruction
+    /// returns the stack arg offset - we will need this to collapse stack after the call
     fn emit_precall_convention(
         &mut self,
         args: &Vec<P<Value>>, 
