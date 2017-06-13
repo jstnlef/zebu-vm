@@ -1292,3 +1292,95 @@ fn store_funcref() -> VM {
 
     vm
 }
+
+use test_compiler::test_int128::add_u128;
+
+#[test]
+fn test_call_int128_arg() {
+    VM::start_logging_trace();
+
+    let vm = Arc::new(add_u128());
+    call_add_u128(&vm);
+
+    let func_add  = vm.id_of("add_u128");
+    let func_call = vm.id_of("call_add_u128");
+
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+
+        {
+            let func = funcs.get(&func_add).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        {
+            let func = funcs.get(&func_call).unwrap().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+    }
+
+    vm.make_primordial_thread(func_call, true, vec![]);
+    backend::emit_context(&vm);
+
+    let executable = aot::link_primordial(vec![Mu("add_u128"), Mu("call_add_u128")], "test_call_int128_arg", &vm);
+    let output = aot::execute_nocheck(executable);
+
+    // exit with (84)
+    assert!(output.status.code().is_some());
+    assert_eq!(output.status.code().unwrap(), 84);
+}
+
+fn call_add_u128(vm: &VM) {
+    let add_u128_sig = vm.get_func_sig(vm.id_of("sig"));
+    let add_u128_id  = vm.id_of("add_u128");
+
+    typedef!    ((vm) int64  = mu_int(64));
+    typedef!    ((vm) int128 = mu_int(128));
+
+    constdef!   ((vm) <int128> int128_42 = Constant::IntEx(vec![42, 0]));
+
+    typedef!    ((vm) funcref_add_u128 = mu_funcref(add_u128_sig));
+    constdef!   ((vm) <funcref_add_u128> const_funcref_add_u128 = Constant::FuncRef(add_u128_id));
+
+    funcsig!    ((vm) call_add_u128_sig = () -> ());
+    funcdecl!   ((vm) <call_add_u128_sig> call_add_u128);
+    funcdef!    ((vm) <call_add_u128_sig> call_add_u128 VERSION call_add_u128_v1);
+
+    // blk_entry
+    block!      ((vm, call_add_u128_v1) blk_entry);
+
+    // EXPRCALL add_u128 (42, 42)
+    ssa!        ((vm, call_add_u128_v1) <int128> res);
+    consta!     ((vm, call_add_u128_v1) int128_42_local = int128_42);
+    consta!     ((vm, call_add_u128_v1) const_funcref_add_u128_local = const_funcref_add_u128);
+    inst!       ((vm, call_add_u128_v1) blk_entry_call:
+        res = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_add_u128_local (int128_42_local, int128_42_local)
+    );
+
+    ssa!        ((vm, call_add_u128_v1) <int64> trunc_res);
+    inst!       ((vm, call_add_u128_v1) blk_entry_trunc:
+        trunc_res = CONVOP (ConvOp::TRUNC) <int128 int64> res
+    );
+
+    let blk_entry_exit = gen_ccall_exit(trunc_res.clone(), &mut call_add_u128_v1, &vm);
+
+    inst!       ((vm, call_add_u128_v1) blk_entry_ret:
+        RET
+    );
+
+    define_block!((vm, call_add_u128_v1) blk_entry() {
+        blk_entry_call,
+        blk_entry_trunc,
+        blk_entry_exit,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) call_add_u128_v1 (entry: blk_entry) {
+        blk_entry
+    });
+}
