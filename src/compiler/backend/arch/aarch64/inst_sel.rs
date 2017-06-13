@@ -2466,18 +2466,22 @@ impl <'a> InstructionSelection {
     // This generates code identical to (though it may use different registers) the function muentry_get_thread_local
     fn emit_get_threadlocal(&mut self, f_context: &mut FunctionContext, vm: &VM) -> P<Value>
     {
+        let mut rets = self.emit_runtime_entry(&entrypoints::GET_THREAD_LOCAL, vec![], None, None, f_context, vm);
+        rets.pop().unwrap()
+
+        /* TODO: Fix this
         let tmp =  make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
 
         // Read the start address of thread local storage
         self.backend.emit_mrs(&tmp, "TPIDR_EL0");
 
         // Add the offset of mu_tls
-        self.backend.emit_add_str(&tmp, &tmp, ":tprel_hi12:mu_tls");
+        self.backend.emit_add_str(&tmp, &tmp, ":tprel_hi12:mu_tls, LSL #12");
         self.backend.emit_add_str(&tmp, &tmp, ":tprel_lo12_nc:mu_tls");
 
         // Load tmp with the value of mu_tls
         emit_load(self.backend.as_mut(), &tmp, &tmp, f_context, vm);
-        tmp
+        tmp*/
     }
 
     // ret: Option<Vec<P<Value>>
