@@ -18,6 +18,8 @@ pub mod thread;
 pub mod math;
 pub mod entrypoints;
 
+const PRINT_BACKTRACE : bool = false;
+
 #[cfg(target_arch = "x86_64")]
 #[path = "exception_x64.rs"]
 pub mod exception;
