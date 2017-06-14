@@ -10,7 +10,13 @@
 #include <dlfcn.h>
 #include <pthread.h>
 
+uint32_t mu_retval;
+
 __thread void* mu_tls;
+
+void muentry_set_retval(uint32_t x) {
+    mu_retval = x;
+}
 
 void set_thread_local(void* thread) {
     // printf("Thread%p: setting mu_tls to %p\n", (void*) pthread_self(), thread);

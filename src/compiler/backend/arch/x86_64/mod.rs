@@ -514,7 +514,8 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
         // others
         Move(_) => 0,
-        PrintHex(_) => 10,
+        PrintHex(_)  => 10,
+        SetRetval(_) => 10,
         ExnInstruction{ref inner, ..} => estimate_insts_for_ir(&inner)
     }
 }

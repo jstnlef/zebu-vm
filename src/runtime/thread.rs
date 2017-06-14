@@ -316,6 +316,7 @@ extern "C" {
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
     pub fn muentry_get_thread_local() -> Address;
+    pub fn muentry_set_retval(val: u32);
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -324,6 +325,7 @@ extern "C" {
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
     pub fn muentry_get_thread_local() -> Address;
+    pub fn muentry_set_retval(val: u32);
 }
 
 #[cfg(target_arch = "x86_64")]

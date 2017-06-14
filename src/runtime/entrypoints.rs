@@ -28,6 +28,18 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_get_thread_local")),
         jit: RwLock::new(None),
     };
+
+    // impl: runtime_x64_sysv.c
+    // decl: thread.rs
+    pub static ref SET_RETVAL : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![UINT32_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_set_retval")),
+        jit: RwLock::new(None)
+    };
     
     // impl: swap_stack_x64_macos.s
     // decl: thread.rs
