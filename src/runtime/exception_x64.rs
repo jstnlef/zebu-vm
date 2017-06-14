@@ -45,8 +45,10 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
     trace!("throwing exception: {}", exception_obj);
 
     trace!("callee saved registers of last frame is saved at {}", last_frame_callee_saved);
-    inspect_nearby_address(last_frame_callee_saved, 8);
-    
+    if cfg!(debug_assertions) {
+        inspect_nearby_address(last_frame_callee_saved, 8);
+    }
+
     let mut cur_thread = thread::MuThread::current_mut();
     // set exception object
     cur_thread.exception_obj = exception_obj;
@@ -84,7 +86,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
         }
     };
 
-    if PRINT_BACKTRACE {
+    if cfg!(debug_assertions) {
         print_backtrace(throw_frame_callsite, cursor.clone());
     }
     
