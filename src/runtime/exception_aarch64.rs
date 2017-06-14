@@ -5,7 +5,6 @@ use utils::Address;
 use utils::Word;
 use utils::POINTER_SIZE;
 use runtime::thread;
-use runtime::PRINT_BACKTRACE;
 
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
@@ -45,7 +44,9 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
     trace!("throwing exception: {}", exception_obj);
 
     trace!("callee saved registers of last frame is saved at {}", last_frame_callee_saved);
-    inspect_higher_address(last_frame_callee_saved, 20);
+    if cfg!(debug_assertions) {
+        inspect_higher_address(last_frame_callee_saved, 20);
+    }
 
     let mut cur_thread = thread::MuThread::current_mut();
     // set exception object
@@ -100,7 +101,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, last_frame_callee
         }
     };
 
-    if PRINT_BACKTRACE {
+    if cfg!(debug_assertions) {
         print_backtrace(throw_frame_callsite, cursor.clone());
     }
 

@@ -186,7 +186,7 @@ impl FrameSlot {
                     base: aarch64::FP.clone(),
                     offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
                     scale: 1,
-                    signed: false
+                    signed: true
                 }
             )
         })

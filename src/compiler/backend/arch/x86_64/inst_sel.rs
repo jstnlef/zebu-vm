@@ -1927,14 +1927,16 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                        // emit_ireg_ex will split 128 bits register to two 64-bits temporaries
+                        // but here we want to pass 128-bit registers as argument, and let
+                        // calling convention deal with splitting.
+                        // FIXME: emit_ireg() may not be proper here (though it might work)
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
 
                         self.emit_runtime_entry(&entrypoints::UDIV_U128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![reg_op1, reg_op2],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
@@ -1963,14 +1965,12 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
 
                         self.emit_runtime_entry(&entrypoints::SDIV_I128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![reg_op1, reg_op2],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
@@ -1999,15 +1999,14 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
 
                         self.emit_runtime_entry(&entrypoints::UREM_U128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![reg_op1, reg_op2],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
+
                     }
                     _ => unimplemented!()
                 }
@@ -2035,14 +2034,12 @@ impl <'a> InstructionSelection {
                         }
                     }
                     128 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
 
                         self.emit_runtime_entry(&entrypoints::SREM_I128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![reg_op1, reg_op2],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => unimplemented!()
@@ -2912,7 +2909,8 @@ impl <'a> InstructionSelection {
     // returns the stack arg offset - we will need this to collapse stack after the call
     fn emit_precall_convention(
         &mut self,
-        args: &Vec<P<Value>>, 
+        args: &Vec<P<Value>>,
+        f_context: &mut FunctionContext,
         vm: &VM) -> usize {
         // put args into registers if we can
         // in the meantime record args that do not fit in registers
@@ -2956,6 +2954,37 @@ impl <'a> InstructionSelection {
                     gpr_arg_count += 1;
                 } else {
                     // use stack to pass argument
+                    stack_args.push(arg.clone());
+                }
+            } else if arg_reg_group == RegGroup::GPREX && arg.is_reg() {
+                // need two regsiters for this, otherwise, we need to pass on stack
+                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRs.len() {
+                    let arg_gpr1 = x86_64::ARGUMENT_GPRs[gpr_arg_count].clone();
+                    let arg_gpr2 = x86_64::ARGUMENT_GPRs[gpr_arg_count + 1].clone();
+
+                    let (arg_l, arg_h) = self.split_int128(&arg, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&arg_gpr1, &arg_l);
+                    self.backend.emit_mov_r_r(&arg_gpr2, &arg_h);
+
+                    gpr_arg_count += 2;
+                } else {
+                    stack_args.push(arg.clone());
+                }
+            } else if arg_reg_group == RegGroup::GPREX && arg.is_const() {
+                // need two registers for this, otherwise we need to pass on stack
+                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRs.len() {
+                    let arg_gpr1 = x86_64::ARGUMENT_GPRs[gpr_arg_count].clone();
+                    let arg_gpr2 = x86_64::ARGUMENT_GPRs[gpr_arg_count + 1].clone();
+
+                    let const_vals = arg.extract_int_ex_const();
+
+                    assert!(const_vals.len() == 2);
+                    self.backend.emit_mov_r64_imm64(&arg_gpr1, const_vals[0] as i64);
+                    self.backend.emit_mov_r64_imm64(&arg_gpr2, const_vals[1] as i64);
+
+                    gpr_arg_count += 2;
+                } else {
                     stack_args.push(arg.clone());
                 }
             } else if arg_reg_group == RegGroup::FPR && arg.is_reg() {
@@ -3070,6 +3099,19 @@ impl <'a> InstructionSelection {
                     // get return value by stack
                     unimplemented!()
                 }
+            } else if RegGroup::get_from_value(&ret_val) == RegGroup::GPREX && ret_val.is_reg() {
+                if gpr_ret_count + 1 < x86_64::RETURN_GPRs.len() {
+                    let ret_gpr1 = x86_64::RETURN_GPRs[gpr_ret_count].clone();
+                    let ret_gpr2 = x86_64::RETURN_GPRs[gpr_ret_count + 1].clone();
+
+                    let (ret_val_l, ret_val_h) = self.split_int128(&ret_val, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&ret_val_l, &ret_gpr1);
+                    self.backend.emit_mov_r_r(&ret_val_h, &ret_gpr2);
+                } else {
+                    // get return value by stack
+                    unimplemented!()
+                }
             } else if RegGroup::get_from_value(&ret_val) == RegGroup::FPR && ret_val.is_reg() {
                 // floating point register
                 if fpr_ret_count < x86_64::RETURN_FPRs.len() {
@@ -3117,7 +3159,7 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext, 
         vm: &VM) -> Vec<P<Value>> 
     {
-        let stack_arg_size = self.emit_precall_convention(&args, vm);
+        let stack_arg_size = self.emit_precall_convention(&args, f_context, vm);
         
         // make call
         if vm.is_running() {
@@ -3250,6 +3292,9 @@ impl <'a> InstructionSelection {
             } else if self.match_ireg(arg) {
                 let arg = self.emit_ireg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
+            } else if self.match_ireg_ex(arg) {
+                let arg = self.emit_ireg_ex_as_one(arg, f_content, f_context, vm);
+                arg_values.push(arg);
             } else if self.match_fpreg(arg) {
                 let arg = self.emit_fpreg(arg, f_content, f_context, vm);
                 arg_values.push(arg);
@@ -3257,7 +3302,7 @@ impl <'a> InstructionSelection {
                 unimplemented!();
             }
         }
-        let stack_arg_size = self.emit_precall_convention(&arg_values, vm);
+        let stack_arg_size = self.emit_precall_convention(&arg_values, f_context, vm);
 
         // check if this call has exception clause - need to tell backend about this
         let potentially_excepting = {
@@ -3877,6 +3922,12 @@ impl <'a> InstructionSelection {
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
                             },
+                            &Constant::IntEx(ref vals) => {
+                                let (tmp_l, tmp_h) = self.split_int128(&tmp, f_context, vm);
+
+                                self.backend.emit_mov_r64_imm64(&tmp_l, vals[0] as i64);
+                                self.backend.emit_mov_r64_imm64(&tmp_h, vals[1] as i64);
+                            },
                             &Constant::FuncRef(func_id) => {
                                 if cfg!(target_os = "macos") {
                                     let mem = self.get_mem_for_funcref(func_id, vm);
@@ -3937,6 +3988,10 @@ impl <'a> InstructionSelection {
                 }
             }
         }
+    }
+
+    fn emit_ireg_ex_as_one(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        self.emit_ireg(op, f_content, f_context, vm)
     }
 
     fn emit_fpreg(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {

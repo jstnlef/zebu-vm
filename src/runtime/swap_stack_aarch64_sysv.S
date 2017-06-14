@@ -24,23 +24,41 @@ begin_func swap_to_mu_stack
           # -- on new stack --
           # arguments (reverse order of thread.rs - runtime_load_args)
           pop_arguments
-          //enter_frame // Unncesary Note saves the return address of the function that called this function
 
-          # If entry tries to return (IT SHOULDN'T) it will return to entry_returned
+          # If entry tries to return (IT SHOULDN'T) it will call entry_returned (which will panic!)
           ADR LR, entry_returned
 
           # branch to entry
           RET X9
 end_func swap_to_mu_stack
 
-# For debuging only, executes
+# The error message to print when entry returns
+	.type .Lentry_returned_message, @object
+	.section .rodata.str1.1,"aMS",@progbits,1
+.Lentry_returned_message:
+        .asciz  "ERROR: The entry function returned\n"
+        .size   .Lentry_returned_message, 36
+
+# Prints an error mesage and calls exit(1)
 begin_func entry_returned
-          HLT #0
+    ADRP x0, .Lentry_returned_message
+    ADD x0, x0, :lo12:.Lentry_returned_message // Loads x0 with the adress of .Lentry_returned_message
+
+    MOV X1, #35 // Length of string
+
+	MOV X2, #1 // Number of elements
+
+    ADRP X3, :got:stderr
+    LDR X3, [X3, :got_lo12:stderr]
+    LDR X3, [X3] // Load X3 with the address of stderr
+
+    BL fwrite // calls fwrite(x0, x1, x2, x3)
+    MOV W0, 1
+    BL exit // call exit(1)
 end_func entry_returned
 
-
-# _swap_back_to_native_stack(sp_loc: Address)
-#                            X0
+// _swap_back_to_native_stack(sp_loc: Address)
+//                            X0
 begin_func muentry_swap_back_to_native_stack
           # SP = *sp_loc
           LDR X9, [X0]

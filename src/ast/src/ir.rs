@@ -735,6 +735,14 @@ impl Value {
         })
     }
 
+    pub fn is_int_ex_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(Constant::IntEx(_)) => true,
+            _ => false
+        }
+    }
+
+
     pub fn is_int_const(&self) -> bool {
         match self.v {
             Value_::Constant(Constant::Int(_)) => true,
@@ -742,12 +750,25 @@ impl Value {
             _ => false
         }
     }
-    
+    pub fn is_fp_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(Constant::Float(_)) => true,
+            Value_::Constant(Constant::Double(_)) => true,
+            _ => false
+        }
+    }
     pub fn extract_int_const(&self) -> u64 {
         match self.v {
             Value_::Constant(Constant::Int(val)) => val,
             Value_::Constant(Constant::NullRef)  => 0,
             _ => panic!("expect int const")
+        }
+    }
+
+    pub fn extract_int_ex_const(&self) -> Vec<u64> {
+        match self.v {
+            Value_::Constant(Constant::IntEx(ref val)) => val.clone(),
+            _ => panic!("expect int ex const")
         }
     }
 

@@ -211,7 +211,7 @@ impl CmpOp {
             FUGT => FULT,
             FULT => FUGT,
 
-            _ => self, // all other comparisons are reflexive
+            _ => self, // all other comparisons are symmetric
         }
     }
     pub fn invert(self) -> CmpOp {
@@ -257,10 +257,30 @@ impl CmpOp {
             FTRUE => FFALSE,
         }
     }
+
+    // gets the unsigned version of the comparison
+    pub fn get_unsigned(self) -> CmpOp {
+        use op::CmpOp::*;
+        match self {
+            SGE => UGE,
+            SLT => ULT,
+            SGT => UGT,
+            SLE => ULE,
+            _   => self,
+        }
+    }
     pub fn is_signed(self) -> bool {
         use op::CmpOp::*;
         match self {
             SGE | SLT | SGT | SLE => true,
+            _ => false
+        }
+    }
+
+    pub fn is_symmetric(self) -> bool {
+        use op::CmpOp::*;
+        match self {
+            EQ | NE | FORD| FUNO| FUNE | FUEQ | FONE | FOEQ => true,
             _ => false
         }
     }

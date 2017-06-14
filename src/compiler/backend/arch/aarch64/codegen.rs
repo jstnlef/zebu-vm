@@ -23,8 +23,10 @@ pub trait CodeGenerator {
     fn end_block(&mut self, block_name: MuName);
 
     // add CFI info
+    fn add_cfi_sections(&mut self, arg: &str);
     fn add_cfi_startproc(&mut self);
     fn add_cfi_endproc(&mut self);
+    fn add_cfi_def_cfa(&mut self, reg: Reg, offset: i32);
     fn add_cfi_def_cfa_register(&mut self, reg: Reg);
     fn add_cfi_def_cfa_offset(&mut self, offset: i32);
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32);
@@ -34,6 +36,10 @@ pub trait CodeGenerator {
     // emit code to adjust frame
     fn emit_frame_grow(&mut self); // Emits a SUB
     fn emit_frame_shrink(&mut self); // Emits an ADD
+
+    // Used to pass a string that the assembler will interpret as an immediate argument
+    // (This is neccesary to support the use of ELF relocations like ':tprel_hi12:foo')
+    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str);
 
     // stack minimpulation
     fn emit_push_pair(&mut self, src1: Reg, src2: Reg, stack: Reg); // Emits a STP
