@@ -28,6 +28,8 @@ use utils::math;
 use utils::POINTER_SIZE;
 
 use std::collections::HashMap;
+use std::collections::LinkedList;
+
 use std::any::Any;
 
 lazy_static! {
@@ -108,10 +110,12 @@ pub struct InstructionSelection {
     current_block: Option<MuName>,
     current_block_in_ir: Option<MuName>,
     current_func_start: Option<ValueLocation>,
-    // key: block id, val: callsite that names the block as exception block
-    current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
+    // Technically this is a map in that each Key is unique, but we will never try and add duplicate
+    // keys, or look things up, so a list of pairs is faster than a Map.
+    // A list of pairs, the first is the name of a callsite the second
+    current_callsites: LinkedList<(MuName, MuID)>,
     // key: block id, val: block location
-    current_exn_blocks: HashMap<MuID, ValueLocation>,
+    current_exn_blocks: HashMap<MuID, MuName>,
 
     current_constants: HashMap<MuID, P<Value>>,
     current_constants_locs: HashMap<MuID, P<Value>>
@@ -135,8 +139,7 @@ impl <'a> InstructionSelection {
                                         // FIXME: ideally we should not create new blocks in instruction selection
                                         // see Issue #6
             current_func_start: None,
-            // key: block id, val: callsite that names the block as exception block
-            current_exn_callsites: HashMap::new(), 
+            current_callsites: LinkedList::new(),
             current_exn_blocks: HashMap::new(),
 
             current_constants: HashMap::new(),
@@ -3166,8 +3169,11 @@ impl <'a> InstructionSelection {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
-            self.backend.emit_call_near_rel32(callsite, func_name, None); // assume ccall wont throw exception
-            
+            self.backend.emit_call_near_rel32(callsite.clone(), func_name, None); // assume ccall wont throw exception
+
+            // TODO: What if theres an exception block?
+            self.current_callsites.push_back((callsite, 0));
+
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
                 let cur_node = cur_node.unwrap(); 
@@ -3347,21 +3353,16 @@ impl <'a> InstructionSelection {
             // record exception branch
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
-            
-            if self.current_exn_callsites.contains_key(&target_block) {
-                let callsites = self.current_exn_callsites.get_mut(&target_block).unwrap();
-                callsites.push(callsite);
-            } else {
-                let mut callsites = vec![];
-                callsites.push(callsite);
-                self.current_exn_callsites.insert(target_block, callsites);
-            }
+
+            self.current_callsites.push_back((callsite.to_relocatable(), target_block));
 
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
             let fv_id = self.current_fv_id;
             self.start_block(format!("normal_cont_for_call_{}_{}", fv_id, cur_node.id()));
+        } else {
+            self.current_callsites.push_back((callsite.to_relocatable(), 0));
         }
         
         // deal with ret vals, collapse stack etc.
@@ -4811,7 +4812,7 @@ impl CompilerPass for InstructionSelection {
             start_loc
         });
         self.current_callsite_id = 0;
-        self.current_exn_callsites.clear();
+        self.current_callsites.clear();
         self.current_exn_blocks.clear();
 
         self.current_constants.clear();
@@ -4843,7 +4844,7 @@ impl CompilerPass for InstructionSelection {
                 // we need to be aware of exception blocks so that we can emit information to catch exceptions
 
                 let loc = self.backend.start_exception_block(block_label.clone());
-                self.current_exn_blocks.insert(block.id(), loc);
+                self.current_exn_blocks.insert(block.id(), loc.to_relocatable());
             } else {
                 // normal block
                 self.backend.start_block(block_label.clone());
@@ -4904,25 +4905,21 @@ impl CompilerPass for InstructionSelection {
         let (mc, func_end) = self.backend.finish_code(func_name.clone());
         
         // insert exception branch info
-        let mut frame = match self.current_frame.take() {
+        let frame = match self.current_frame.take() {
             Some(frame) => frame,
             None => panic!("no current_frame for function {} that is being compiled", func_name)
         };
-        for block_id in self.current_exn_blocks.keys() {
-            let block_loc = match self.current_exn_blocks.get(&block_id) {
-                Some(loc) => loc,
-                None => panic!("failed to find exception block {}", block_id)
+        for &(ref callsite, block_id) in self.current_callsites.iter() {
+            let block_loc = if block_id == 0 {
+                String::new()
+            } else {
+                self.current_exn_blocks.get(&block_id).unwrap().clone()
             };
-            let callsites = match self.current_exn_callsites.get(&block_id) {
-                Some(callsite) => callsite,
-                None => panic!("failed to find callsite for block {}", block_id)
-            };
-            
-            for callsite in callsites {
-                frame.add_exception_callsite(callsite.clone(), block_loc.clone());
-            }
+
+            vm.add_exception_callsite(callsite.clone(), block_loc, self.current_fv_id);
         }
-        
+
+
         let compiled_func = CompiledFunction::new(func.func_id, func.id(), mc,
                                                   self.current_constants.clone(), self.current_constants_locs.clone(),
                                                   frame, self.current_func_start.take().unwrap(), func_end);

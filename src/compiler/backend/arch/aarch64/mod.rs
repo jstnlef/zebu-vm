@@ -5,7 +5,6 @@
 
 
 #![allow(non_upper_case_globals)]
-
 // TODO: Move architecture independent codes in here, inst_sel and asm_backend to somewhere else...
 pub mod inst_sel;
 
@@ -17,6 +16,8 @@ pub use compiler::backend::aarch64::asm_backend::ASMCodeGen;
 pub use compiler::backend::aarch64::asm_backend::emit_code;
 pub use compiler::backend::aarch64::asm_backend::emit_context;
 pub use compiler::backend::aarch64::asm_backend::emit_context_with_reloc;
+use utils::Address;
+
 #[cfg(feature = "aot")]
 pub use compiler::backend::aarch64::asm_backend::spill_rewrite;
 
@@ -29,6 +30,9 @@ use vm::VM;
 
 use utils::LinkedHashMap;
 use std::collections::HashMap;
+
+// Number of nromal callee saved registers (excluding FP and LR, and SP)
+pub const CALLEE_SAVED_COUNT : usize = 18;
 
 macro_rules! REGISTER {
     ($id:expr, $name: expr, $ty: ident) => {
@@ -111,7 +115,7 @@ GPR_ALIAS!(XZR_ALIAS: (64, XZR)  -> WZR); // Pseudo register, not to be used by 
 ALIAS!(X8 -> XR); // Indirect result location register (points to a location in memory to write return values to)
 ALIAS!(X16 -> IP0); // Intra proecdure call register 0 (may be modified by the linker when executing BL/BLR instructions)
 ALIAS!(X17 -> IP1);// Intra proecdure call register 1 (may be modified by the linker when executing BL/BLR instructions)
-ALIAS!(X18 -> PR); // Platform Register (NEVER TOUCH THIS REGISTER (Unless you can proove Linux dosn't use it))
+ALIAS!(X18 -> PR); // Platform Register (NEVER TOUCH THIS REGISTER (Unless you can prove Linux dosn't use it))
 ALIAS!(X29 -> FP); // Frame Pointer (can be used as a normal register when not calling or returning)
 ALIAS!(X30 -> LR); // Link Register (not supposed to be used for any other purpose)
 
@@ -759,6 +763,59 @@ pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
         panic!("expect a machine reg to be either a GPR or a FPR: {}", reg)
     }
 }
+
+// Gets the previouse frame pointer with respect to the current
+#[inline(always)]
+pub fn get_previous_frame_pointer(frame_pointer: Address) -> Address {
+    unsafe { frame_pointer.load::<Address>() }
+}
+
+// Gets the return address for the current frame pointer
+#[inline(always)]
+pub fn get_return_address(frame_pointer: Address) -> Address {
+    unsafe { frame_pointer.plus(8).load::<Address>() }
+}
+
+// Gets the stack pointer before the current frame was created
+#[inline(always)]
+pub fn get_previous_stack_pointer(frame_pointer: Address) -> Address {
+    frame_pointer.plus(16)
+}
+
+#[inline(always)]
+pub fn set_previous_frame_pointer(frame_pointer: Address, value: Address) {
+    unsafe { frame_pointer.store::<Address>(value) }
+}
+
+// Gets the return address for the current frame pointer
+#[inline(always)]
+pub fn set_return_address(frame_pointer: Address, value: Address) {
+    unsafe { frame_pointer.plus(8).store::<Address>(value) }
+}
+
+// Reg should be a 64-bit callee saved GPR or FPR
+pub fn get_callee_saved_offset(reg: MuID) -> isize {
+    debug_assert!(is_callee_saved(reg));
+    let id = if reg < FPR_ID_START {
+        (reg - CALLEE_SAVED_GPRs[0].id())/2
+    } else {
+        (reg - CALLEE_SAVED_FPRs[0].id()) / 2 + CALLEE_SAVED_GPRs.len()
+    };
+    (id as isize + 1)*(-8)
+}
+
+// Returns the callee saved register with the id...
+/*pub fn get_callee_saved_register(offset: isize) -> P<Value> {
+    debug_assert!(offset <= -8 && (-offset) % 8 == 0);
+    let id = ((offset/-8) - 1) as usize;
+    if id < CALLEE_SAVED_GPRs.len() {
+        CALLEE_SAVED_GPRs[id].clone()
+    } else if id - CALLEE_SAVED_GPRs.len() < CALLEE_SAVED_FPRs.len() {
+        CALLEE_SAVED_FPRs[id - CALLEE_SAVED_GPRs.len()].clone()
+    } else {
+        panic!("There is no callee saved register with id {}", offset)
+    }
+}*/
 
 pub fn is_callee_saved(reg_id: MuID) -> bool {
 
@@ -1938,9 +1995,9 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, alignment: usize, f_
                                 }
                             }
                         }
-                        else {
-                            None
-                        };
+                            else {
+                                None
+                            };
 
                     P(Value {
                         hdr: MuEntityHeader::unnamed(vm.next_id()),
@@ -1976,10 +2033,10 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, alignment: usize, f_
             }
         }
         _ => // Use the value as the base registers
-        {
-            let tmp_mem = make_value_base_offset(&pv, 0, &pv.ty, vm);
-            emit_mem(backend, &tmp_mem, alignment, f_context, vm)
-        }
+            {
+                let tmp_mem = make_value_base_offset(&pv, 0, &pv.ty, vm);
+                emit_mem(backend, &tmp_mem, alignment, f_context, vm)
+            }
     }
 }
 
@@ -2074,10 +2131,10 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
             })
         }
         _ => // Use the value as the base register
-        {
-            let tmp_mem = make_value_base_offset(&pv, 0, &pv.ty, vm);
-            emit_mem_base(backend, &tmp_mem, f_context, vm)
-        }
+            {
+                let tmp_mem = make_value_base_offset(&pv, 0, &pv.ty, vm);
+                emit_mem_base(backend, &tmp_mem, f_context, vm)
+            }
     }
 }
 

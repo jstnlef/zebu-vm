@@ -13,6 +13,7 @@ pub use compiler::backend::x86_64::asm_backend::emit_context;
 pub use compiler::backend::x86_64::asm_backend::emit_context_with_reloc;
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
+use utils::Address;
 
 use ast::ptr::P;
 use ast::ir::*;
@@ -21,6 +22,9 @@ use compiler::backend::RegGroup;
 
 use utils::LinkedHashMap;
 use std::collections::HashMap;
+
+// Number of nromal callee saved registers (excluding RSP and RBP)
+pub const CALLEE_SAVED_COUNT : usize = 5;
 
 macro_rules! GPR_ALIAS {
     ($alias: ident: ($id64: expr, $r64: ident) -> $r32: ident, $r16: ident, $r8l: ident, $r8h: ident) => {
@@ -448,6 +452,47 @@ pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
     RegGroup::get_from_value(reg)
 }
 
+
+// Gets the previouse frame pointer with respect to the current
+#[inline(always)]
+pub fn get_previous_frame_pointer(frame_pointer: Address) -> Address {
+    unsafe { frame_pointer.load::<Address>() }
+}
+
+// Gets the return address for the current frame pointer
+#[inline(always)]
+pub fn get_return_address(frame_pointer: Address) -> Address {
+    unsafe { frame_pointer.plus(8).load::<Address>() }
+}
+
+// Gets the stack pointer before the current frame was created
+#[inline(always)]
+pub fn get_previous_stack_pointer(frame_pointer: Address) -> Address {
+    frame_pointer.plus(16)
+}
+
+#[inline(always)]
+pub fn set_previous_frame_pointer(frame_pointer: Address, value: Address) {
+    unsafe { frame_pointer.store::<Address>(value) }
+}
+
+// Gets the return address for the current frame pointer
+#[inline(always)]
+pub fn set_return_address(frame_pointer: Address, value: Address) {
+    unsafe { frame_pointer.plus(8).store::<Address>(value) }
+}
+
+// Reg should be a 64-bit callee saved GPR or FPR
+pub fn get_callee_saved_offset(reg: MuID) -> isize {
+    debug_assert!(is_callee_saved(reg) && reg != RBP.id());
+
+    let id = if reg == RBX.id() {
+        0
+    } else {
+        (reg - R12.id())/4 + 1
+    };
+    (id as isize + 1)*(-8)
+}
 pub fn is_callee_saved(reg_id: MuID) -> bool {
     for reg in CALLEE_SAVED_GPRs.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {

@@ -39,29 +39,29 @@ pop_pair FP, LR
 .endm
 
 .macro push_callee_saved stack=SP
-push_pair D8, D9, \stack
-push_pair D10, D11, \stack
-push_pair D12, D13, \stack
-push_pair D14, D15, \stack
-
 push_pair X19, X20, \stack
 push_pair X21, X22, \stack
 push_pair X23, X24, \stack
 push_pair X25, X26, \stack
 push_pair X27, X28, \stack
+
+push_pair D8, D9, \stack
+push_pair D10, D11, \stack
+push_pair D12, D13, \stack
+push_pair D14, D15, \stack
 .endm
 
 .macro pop_callee_saved stack=SP
+pop_pair D15, D14, \stack
+pop_pair D13, D12, \stack
+pop_pair D11, D10, \stack
+pop_pair D9, D8, \stack
+
 pop_pair X28, X27, \stack
 pop_pair X26, X25, \stack
 pop_pair X24, X23, \stack
 pop_pair X22, X21, \stack
 pop_pair X20, X19, \stack
-
-pop_pair D15, D14, \stack
-pop_pair D13, D12, \stack
-pop_pair D11, D10, \stack
-pop_pair D9, D8, \stack
 .endm
 
 .macro pop_arguments stack=SP

@@ -1,7 +1,7 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
-use runtime::ValueLocation;
+use compiler::backend::get_callee_saved_offset;
 
 use std::fmt;
 use std::collections::HashMap;
@@ -25,8 +25,9 @@ pub struct Frame {
     pub argument_by_stack: HashMap<MuID, P<Value>>,
     
     pub allocated: HashMap<MuID, FrameSlot>,
+    // Maping from callee saved id (i.e. the position in the list of callee saved registers) and offset from the frame pointer
+    pub callee_saved: HashMap<isize, isize>,
     // (callsite, destination address)
-    exception_callsites: Vec<(ValueLocation, ValueLocation)>
 }
 
 impl fmt::Display for Frame {
@@ -37,9 +38,6 @@ impl fmt::Display for Frame {
             writeln!(f, "    {}", slot).unwrap();
         }
         writeln!(f, "  exception callsites:").unwrap();
-        for &(ref callsite, ref dest) in self.exception_callsites.iter() {
-            writeln!(f, "    callsite: {} -> {}", callsite, dest).unwrap()
-        }
         writeln!(f, "  cur offset: {}", self.cur_offset).unwrap();
         writeln!(f, "}}")
     }
@@ -52,9 +50,8 @@ impl Frame {
             cur_offset: 0,
             argument_by_reg: HashMap::new(),
             argument_by_stack: HashMap::new(),
-
+            callee_saved: HashMap::new(),
             allocated: HashMap::new(),
-            exception_callsites: vec![]
         }
     }
 
@@ -80,13 +77,21 @@ impl Frame {
     }
     
     pub fn alloc_slot_for_callee_saved_reg(&mut self, reg: P<Value>, vm: &VM) -> P<Value> {
-        let slot = self.alloc_slot(&reg, vm);
-
-        slot.make_memory_op(reg.ty.clone(), vm)
+        let (mem, off) = {
+            let slot = self.alloc_slot(&reg, vm);
+            (slot.make_memory_op(reg.ty.clone(), vm), slot.offset)
+        };
+        let o = get_callee_saved_offset(reg.id());
+        trace!("ISAAC: callee saved {} is at {}", reg, o);
+        self.callee_saved.insert(o, off);
+        mem
     }
 
-    pub fn remove_record_for_callee_saved_reg(&mut self, reg: MuID) {
+    pub fn remove_record_for_callee_saved_reg(&mut self, reg: MuID)
+    {
         self.allocated.remove(&reg);
+        let id = get_callee_saved_offset(reg);
+        self.callee_saved.remove(&id);
     }
     
     pub fn alloc_slot_for_spilling(&mut self, reg: P<Value>, vm: &VM) -> P<Value> {
@@ -94,15 +99,6 @@ impl Frame {
         slot.make_memory_op(reg.ty.clone(), vm)
     }
     
-    pub fn get_exception_callsites(&self) -> &Vec<(ValueLocation, ValueLocation)> {
-        &self.exception_callsites
-    }
-    
-    pub fn add_exception_callsite(&mut self, callsite: ValueLocation, dest: ValueLocation) {
-        trace!("add exception callsite: {} to dest {}", callsite, dest);
-        self.exception_callsites.push((callsite, dest));
-    }
-
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     pub fn alloc_slot(&mut self, val: &P<Value>, vm: &VM) -> &FrameSlot {
         // RBP/FP is 16 bytes aligned, we are offsetting from RBP/FP
@@ -111,7 +107,11 @@ impl Frame {
         let backendty = vm.get_backend_type_info(val.ty.id());
 
         if backendty.alignment > 16 {
-            unimplemented!()
+            if cfg!(target_arch="aarch64") {
+                panic!("A type cannot have alignment greater than 16 on aarch64")
+            } else {
+                unimplemented!()
+            }
         }
 
         self.cur_offset -= backendty.size as isize;

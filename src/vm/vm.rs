@@ -9,8 +9,10 @@ use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use compiler::machine_code::CompiledFunction;
+use compiler::frame::*;
+
 use runtime::thread::*;
-use runtime::ValueLocation;
+use runtime::*;
 use utils::ByteSize;
 use utils::BitSize;
 use utils::Address;
@@ -65,17 +67,35 @@ pub struct VM {
     // 13
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
 
+    // Maps each callsite to a tuple of the corresponding catch blocks label (or ""_
+    // and the id of the containing function-version
+    // 14
+    exception_table: RwLock<HashMap<MuName, (MuName, MuID)>>,
+
     // ---do not serialize---
 
     // client may try to store funcref to the heap, so that they can load it later, and call it
     // however the store may happen before we have an actual address to the func (in AOT scenario)
-    aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>
+    aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>,
+
+    // Table for excetions
+    // TODO: Have a table of these tables (one per bundle?)
+
+    // The exception table (before it has been written to disk)
+
+
+    // Same as above but once the everything have been resolved to addreses
+
+    // TODO: What should the function version refer to? (It has to refer to something that has callee saved registers...)
+    pub compiled_exception_table: HashMap<Address, (Address, *const CompiledFunction)>
 }
+unsafe impl Sync for VM {}
+unsafe impl Send for VM {}
 
 use std::u64;
 const PENDING_FUNCREF : u64 = u64::MAX;
 
-const VM_SERIALIZE_FIELDS : usize = 13;
+const VM_SERIALIZE_FIELDS : usize = 14;
 
 impl Encodable for VM {
     fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
@@ -222,7 +242,13 @@ impl Encodable for VM {
                 }));
             }
             field_i += 1;
-            
+            trace!("...serializing exception_table");
+            {
+                let map : &HashMap<MuName, (MuName, MuID)> = &self.exception_table.read().unwrap();
+                try!(s.emit_struct_field("exception_table", field_i, |s| map.encode(s)));
+            }
+            field_i += 1;
+
             trace!("serializing finished");
             Ok(())
         })
@@ -331,8 +357,13 @@ impl Decodable for VM {
                 })
             }));
             field_i += 1;
-            
-            let vm = VM{
+
+            trace!("Deserialising exception table");
+            let exception_table = try!(d.read_struct_field("exception_table", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
+
+
+            let vm = VM {
                 next_id: ATOMIC_USIZE_INIT,
                 id_name_map: RwLock::new(id_name_map),
                 name_id_map: RwLock::new(name_id_map),
@@ -348,7 +379,9 @@ impl Decodable for VM {
                 is_running: ATOMIC_BOOL_INIT,
                 vm_options: vm_options,
                 compiled_funcs: RwLock::new(compiled_funcs),
-                aot_pending_funcref_store: RwLock::new(HashMap::new())
+                exception_table: RwLock::new(exception_table),
+                aot_pending_funcref_store: RwLock::new(HashMap::new()),
+                compiled_exception_table: HashMap::new(),
             };
             
             vm.next_id.store(next_id, Ordering::SeqCst);
@@ -407,10 +440,11 @@ impl <'a> VM {
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
-
+            exception_table: RwLock::new(HashMap::new()),
             primordial: RwLock::new(None),
 
-            aot_pending_funcref_store: RwLock::new(HashMap::new())
+            aot_pending_funcref_store: RwLock::new(HashMap::new()),
+            compiled_exception_table: HashMap::new(),
         };
 
         // insert all intenral types
@@ -483,11 +517,15 @@ impl <'a> VM {
             Err(e) => error!("failed to init logger, probably already initialized: {:?}", e)
         }
     }
-    
+
+    pub fn add_exception_callsite(&self, callsite: MuName, catch: MuName, fv: MuID) {
+        self.exception_table.write().unwrap().insert(callsite, (catch, fv));
+    }
+
     pub fn resume_vm(serialized_vm: &str) -> VM {
         use rustc_serialize::json;
         
-        let vm : VM = json::decode(serialized_vm).unwrap();
+        let mut vm : VM = json::decode(serialized_vm).unwrap();
         
         vm.init_runtime();
 
@@ -521,7 +559,23 @@ impl <'a> VM {
                 expect_id += 1;
             }
         }
-        
+
+        // Construct Exception table
+        {
+            let exception_table = vm.exception_table.read().unwrap();
+            let compiled_funcs = vm.compiled_funcs.read().unwrap();
+            for (callsite, &(ref catch, ref fv)) in exception_table.iter() {
+                let ref compiled_func = *compiled_funcs.get(fv).unwrap().read().unwrap();
+                let catch_addr = if catch.is_empty() {
+                    unsafe { Address::zero() }
+                } else {
+                    resolve_symbol(catch.clone())
+                };
+
+                vm.compiled_exception_table.insert(resolve_symbol(callsite.clone()), (catch_addr, &*compiled_func));
+            }
+        }
+
         vm
     }
     
@@ -1283,6 +1337,7 @@ impl <'a> VM {
         ret
     }
 
+    #[allow(unused_variables)]
     pub fn handle_load(&self, ord: MemoryOrder, loc: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = loc.v.as_iref();
 
@@ -1311,6 +1366,7 @@ impl <'a> VM {
         ret
     }
 
+    #[allow(unused_variables)]
     pub fn handle_store(&self, ord: MemoryOrder, loc: APIHandleArg, val: APIHandleArg) {
         // FIXME: take memory order into consideration
 

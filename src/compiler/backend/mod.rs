@@ -47,6 +47,20 @@ pub use compiler::backend::x86_64::pick_group_for_reg;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::is_callee_saved;
 #[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::CALLEE_SAVED_COUNT ;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::get_callee_saved_offset;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::get_previous_frame_pointer;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::get_return_address;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::set_previous_frame_pointer;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::set_return_address;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::get_previous_stack_pointer;
+#[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::emit_code;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::emit_context;
@@ -81,6 +95,20 @@ pub use compiler::backend::aarch64::all_usable_regs;
 pub use compiler::backend::aarch64::pick_group_for_reg;
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::is_callee_saved;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::CALLEE_SAVED_COUNT ;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_callee_saved_offset;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_previous_frame_pointer;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_return_address;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_previous_stack_pointer;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::set_previous_frame_pointer;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::set_return_address;
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::emit_code;
 #[cfg(target_arch = "aarch64")]

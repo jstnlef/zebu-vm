@@ -26,6 +26,8 @@ use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
 use std::collections::HashMap;
+use std::collections::LinkedList;
+
 use std::any::Any;
 
 const INLINE_FASTPATH : bool = false;
@@ -40,10 +42,14 @@ pub struct InstructionSelection {
     current_block: Option<MuName>,
     current_block_in_ir: Option<MuName>,
     current_func_start: Option<ValueLocation>,
-    // key: block id, val: callsite that names the block as exception block
-    current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
+
+    // A list of all callsites, with the corresponding exception block (if there is one)
+
+    // Technically this is a map in that each Key is unique, but we will never try and add duplicate
+    // keys, or look things up, so a list of pairs is faster than a Map.
+    current_callsites: LinkedList<(MuName, MuID)>,
     // key: block id, val: block location
-    current_exn_blocks: HashMap<MuID, ValueLocation>,
+    current_exn_blocks: HashMap<MuID, MuName>,
     current_xr_value: Option<P<Value>>, // A temporary that holds to saved XR value (if needed)
     current_constants: HashMap<MuID, P<Value>>,
     current_constants_locs: HashMap<MuID, P<Value>>
@@ -68,8 +74,7 @@ impl <'a> InstructionSelection {
                                         // FIXME: ideally we should not create new blocks in instruction selection
                                         // see Issue #6
             current_func_start: None,
-            // key: block id, val: callsite that names the block as exception block
-            current_exn_callsites: HashMap::new(),
+            current_callsites: LinkedList::new(),
             current_exn_blocks: HashMap::new(),
             current_xr_value: None,
             current_constants: HashMap::new(),
@@ -3042,7 +3047,11 @@ impl <'a> InstructionSelection {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
-            self.backend.emit_bl(callsite, func_name, None); // assume ccall wont throw exception
+
+            self.backend.emit_bl(callsite.clone(), func_name, None); // assume ccall wont throw exception
+
+            // TODO: What if theres an exception block?
+            self.current_callsites.push_back((callsite, 0));
 
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -3209,14 +3218,9 @@ impl <'a> InstructionSelection {
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
 
-            if self.current_exn_callsites.contains_key(&target_block) {
-                let callsites = self.current_exn_callsites.get_mut(&target_block).unwrap();
-                callsites.push(callsite);
-            } else {
-                let mut callsites = vec![];
-                callsites.push(callsite);
-                self.current_exn_callsites.insert(target_block, callsites);
-            }
+            self.current_callsites.push_back((callsite.to_relocatable(), target_block));
+        } else {
+            self.current_callsites.push_back((callsite.to_relocatable(), 0));
         }
 
         // deal with ret vals
@@ -3284,14 +3288,6 @@ impl <'a> InstructionSelection {
         }
 
         // push all callee-saved registers
-        for i in 0..CALLEE_SAVED_FPRs.len() {
-            let ref reg = CALLEE_SAVED_FPRs[i];
-
-            trace!("allocate frame slot for reg {}", reg);
-            let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(reg.clone(), vm);
-            let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
-            self.backend.emit_str_callee_saved(&loc, &reg);
-        }
         for i in 0..CALLEE_SAVED_GPRs.len() {
             let ref reg = CALLEE_SAVED_GPRs[i];
             trace!("allocate frame slot for regs {}", reg);
@@ -3299,7 +3295,14 @@ impl <'a> InstructionSelection {
             let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(reg.clone(), vm);
             let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_str_callee_saved(&loc, &reg);
+        }
+        for i in 0..CALLEE_SAVED_FPRs.len() {
+            let ref reg = CALLEE_SAVED_FPRs[i];
 
+            trace!("allocate frame slot for reg {}", reg);
+            let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(reg.clone(), vm);
+            let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
+            self.backend.emit_str_callee_saved(&loc, &reg);
         }
 
         // unload arguments
@@ -3370,16 +3373,16 @@ impl <'a> InstructionSelection {
         self.start_block(EPILOGUE_BLOCK_NAME.to_string(), &livein);
 
         // pop all callee-saved registers
-        for i in (0..CALLEE_SAVED_GPRs.len()).rev() {
-            let ref reg = CALLEE_SAVED_GPRs[i];
+        for i in (0..CALLEE_SAVED_FPRs.len()).rev() {
+            let ref reg = CALLEE_SAVED_FPRs[i];
+
             let reg_id = reg.extract_ssa_id().unwrap();
             let loc = self.current_frame.as_mut().unwrap().allocated.get(&reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);
             let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_ldr_callee_saved(reg, &loc);
         }
-        for i in (0..CALLEE_SAVED_FPRs.len()).rev() {
-            let ref reg = CALLEE_SAVED_FPRs[i];
-
+        for i in (0..CALLEE_SAVED_GPRs.len()).rev() {
+            let ref reg = CALLEE_SAVED_GPRs[i];
             let reg_id = reg.extract_ssa_id().unwrap();
             let loc = self.current_frame.as_mut().unwrap().allocated.get(&reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);
             let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
@@ -4093,7 +4096,7 @@ impl CompilerPass for InstructionSelection {
             start_loc
         });
         self.current_callsite_id = 0;
-        self.current_exn_callsites.clear();
+        self.current_callsites.clear();
         self.current_exn_blocks.clear();
 
         self.current_constants.clear();
@@ -4124,7 +4127,7 @@ impl CompilerPass for InstructionSelection {
                 // we need to be aware of exception blocks so that we can emit information to catch exceptions
 
                 let loc = self.backend.start_exception_block(block_label.clone());
-                self.current_exn_blocks.insert(block.id(), loc);
+                self.current_exn_blocks.insert(block.id(), loc.to_relocatable());
             } else {
                 // normal block
                 self.backend.start_block(block_label.clone());
@@ -4160,7 +4163,7 @@ impl CompilerPass for InstructionSelection {
         }
     }
 
-        fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+    fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         self.emit_common_epilogue(&func.sig.ret_tys, &mut func.context, vm);
 
         self.backend.print_cur_code();
@@ -4178,23 +4181,19 @@ impl CompilerPass for InstructionSelection {
         let (mc, func_end) = self.backend.finish_code(func_name.clone());
 
         // insert exception branch info
-        let mut frame = match self.current_frame.take() {
+        let frame = match self.current_frame.take() {
             Some(frame) => frame,
             None => panic!("no current_frame for function {} that is being compiled", func_name)
         };
-        for block_id in self.current_exn_blocks.keys() {
-            let block_loc = match self.current_exn_blocks.get(&block_id) {
-                Some(loc) => loc,
-                None => panic!("failed to find exception block {}", block_id)
-            };
-            let callsites = match self.current_exn_callsites.get(&block_id) {
-                Some(callsite) => callsite,
-                None => panic!("failed to find callsite for block {}", block_id)
+
+        for &(ref callsite, block_id) in self.current_callsites.iter() {
+            let block_loc = if block_id == 0 {
+                String::new()
+            } else {
+                self.current_exn_blocks.get(&block_id).unwrap().clone()
             };
 
-            for callsite in callsites {
-                frame.add_exception_callsite(callsite.clone(), block_loc.clone());
-            }
+            vm.add_exception_callsite(callsite.clone(), block_loc, self.current_fv_id);
         }
 
         let compiled_func = CompiledFunction::new(func.func_id, func.id(), mc,

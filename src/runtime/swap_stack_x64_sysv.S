@@ -74,15 +74,16 @@ end_func get_current_frame_rbp
 #                         %rdi
 begin_func muentry_throw_exception
          # save all callee-saved
-         pushq %r15
-         pushq %r14
-         pushq %r13
-         pushq %r12
          pushq %rbp
+         movq %rsp, %rbp
          pushq %rbx
+         pushq %r12
+         pushq %r13
+         pushq %r14
+         pushq %r15
 
          # %rsp points to %rbx, pass this as 2nd argument
-         movq  %rsp, %rsi
+         movq  %rbp, %rsi
 
 #if defined (__linux__)
          jmp CNAME(throw_exception_internal@PLT)
@@ -97,12 +98,12 @@ begin_func muentry_throw_exception
 #                    %rdi           %rsi                       %rdx
 # callee_saved: [rbx, rbp, r12, r13, r14, r15]
 begin_func exception_restore
-          movq 0(%rsi), %rbx
-          movq 8(%rsi), %rbp
-          movq 16(%rsi),%r12
-          movq 24(%rsi),%r13
-          movq 32(%rsi),%r14
-          movq 40(%rsi),%r15
+          movq 0(%rsi), %rbp
+          movq -8(%rsi),%rbx
+          movq -16(%rsi),%r12
+          movq -24(%rsi),%r13
+          movq -32(%rsi),%r14
+          movq -40(%rsi),%r15
 
           movq %rdx, %rsp
           jmpq *%rdi

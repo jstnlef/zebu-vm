@@ -18,25 +18,58 @@ pub mod thread;
 pub mod math;
 pub mod entrypoints;
 
-const PRINT_BACKTRACE : bool = false;
-
-#[cfg(target_arch = "x86_64")]
-#[path = "exception_x64.rs"]
-pub mod exception;
-
-#[cfg(target_arch = "aarch64")]
-#[path = "exception_aarch64.rs"]
 pub mod exception;
 
 // consider using libloading crate instead of the raw c functions for dynalic libraries
 // however i am not sure if libloading can load symbols from current process (not from an actual dylib)
 // so here i use dlopen/dlsym from C
+#[repr(C)]
+struct Dl_info {
+    dli_fname: *const c_char,
+    dli_fbase: *mut c_void,
+    dli_sname: *const c_char,
+    dli_saddr: *mut c_void,
+}
+
 #[link(name="dl")]
 extern "C" {
     fn dlopen(filename: *const c_char, flags: isize) -> *const c_void;
     fn dlsym(handle: *const c_void, symbol: *const c_char) -> *const c_void;
+    fn dladdr(addr: *mut c_void, info: *mut Dl_info) -> i32;
     fn dlerror() -> *const c_char;
 }
+
+// TODO: this actually returns the name and address of the nearest symbol (of any type)
+// that starts before function_addr (instead we want the nearest function symbol)
+pub fn get_function_info(function_addr: Address) -> (CName, Address) {
+    use std::ptr;
+
+    // Rust requires this to be initialised
+    let mut info = Dl_info {
+        dli_fname: ptr::null::<c_char>(),
+        dli_fbase: ptr::null_mut::<c_void>(),
+        dli_sname: ptr::null::<c_char>(),
+        dli_saddr: ptr::null_mut::<c_void>(),
+    };
+
+    unsafe {dladdr(function_addr.to_ptr_mut::<c_void>(), &mut info)};
+
+    let error = unsafe {dlerror()};
+    if !error.is_null() {
+        let cstr = unsafe {CStr::from_ptr(error)};
+        error!("cannot find function address: {}", function_addr);
+        error!("{}", cstr.to_str().unwrap());
+
+        panic!("failed to resolve function address");
+    }
+    if !info.dli_sname.is_null() {
+        (unsafe {CStr::from_ptr(info.dli_sname)}.to_str().unwrap().to_string(), Address::from_ptr(info.dli_saddr))
+    } else {
+        ("UNKOWN".to_string(), Address::from_ptr(info.dli_saddr))
+    }
+
+}
+
 
 pub fn resolve_symbol(symbol: String) -> Address {
     use std::ptr;

@@ -29,6 +29,7 @@ begin_func swap_to_mu_stack
           ADR LR, entry_returned
 
           # branch to entry
+          //MOV FP, 0 // End of call frame
           RET X9
 end_func swap_to_mu_stack
 
@@ -80,28 +81,25 @@ end_func get_current_frame_rbp
 # muentry_throw_exception(obj: Address)
 #                         X0
 begin_func muentry_throw_exception
-         # save all callee-saved
+         # save all callee-saved registers and pass tham as argument 2
          push_pair LR, FP
+         MOV FP, SP
          push_callee_saved
-
-         # SP points to the callee saved registers, pass this as 2nd argument
-         MOV X1, SP
-
+         MOV X1, FP // X1 is the frame pointer
 #if defined (__linux__)
-         B throw_exception_internal
+         BL throw_exception_internal
 #else
          #error "Only Linux is supported. "
 #endif
          # won't return
 
-# _exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !
+# _exception_restore(dest: Address, frame_cursor: *const Word, sp: Address) -> !
 #                    X0             X1                         X2
-# callee_saved: [x28, x27, x26, x25, x24, x23, x22, x21, x20, x19, d15, d14, d13, d12, d11, d10, d9, d8, fp, lr]
 begin_func exception_restore
+          SUB X1, X1, #144 // Skip to the bottom of the frame cursor
           // load each callee saved register relative to the stack pointer
           pop_callee_saved X1
-          pop_pair FP, LR, X1 // TODO: Should we be restoring the link register?
-
+          pop_pair FP, LR, X1
           MOV SP, X2
           BR X0
 end_func exception_restore
