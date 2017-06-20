@@ -23,7 +23,6 @@ use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
 use compiler::machine_code::CompiledFunction;
-use compiler::frame::*;
 
 use runtime::thread::*;
 use runtime::*;
@@ -84,7 +83,7 @@ pub struct VM {
     // Maps each callsite to a tuple of the corresponding catch blocks label (or ""_
     // and the id of the containing function-version
     // 14
-    exception_table: RwLock<HashMap<MuName, (MuName, MuID)>>,
+    exception_table: RwLock<HashMap<MuID, HashMap<MuName, MuName>>>,
 
     // ---do not serialize---
 
@@ -101,7 +100,9 @@ pub struct VM {
     // Same as above but once the everything have been resolved to addreses
 
     // TODO: What should the function version refer to? (It has to refer to something that has callee saved registers...)
-    pub compiled_exception_table: HashMap<Address, (Address, *const CompiledFunction)>
+    // TODO: probably we should remove the pointer (its unsafe), thats why we need Sync/Send for VM
+    //       we can make a copy of callee_saved_register location
+    pub compiled_exception_table: RwLock<HashMap<Address, (Address, *const CompiledFunction)>>
 }
 unsafe impl Sync for VM {}
 unsafe impl Send for VM {}
@@ -258,7 +259,7 @@ impl Encodable for VM {
             field_i += 1;
             trace!("...serializing exception_table");
             {
-                let map : &HashMap<MuName, (MuName, MuID)> = &self.exception_table.read().unwrap();
+                let map : &HashMap<MuID, HashMap<MuName, MuName>> = &self.exception_table.read().unwrap();
                 try!(s.emit_struct_field("exception_table", field_i, |s| map.encode(s)));
             }
             field_i += 1;
@@ -395,7 +396,7 @@ impl Decodable for VM {
                 compiled_funcs: RwLock::new(compiled_funcs),
                 exception_table: RwLock::new(exception_table),
                 aot_pending_funcref_store: RwLock::new(HashMap::new()),
-                compiled_exception_table: HashMap::new(),
+                compiled_exception_table: RwLock::new(HashMap::new()),
             };
             
             vm.next_id.store(next_id, Ordering::SeqCst);
@@ -458,7 +459,7 @@ impl <'a> VM {
             primordial: RwLock::new(None),
 
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
-            compiled_exception_table: HashMap::new(),
+            compiled_exception_table: RwLock::new(HashMap::new()),
         };
 
         // insert all intenral types
@@ -533,13 +534,23 @@ impl <'a> VM {
     }
 
     pub fn add_exception_callsite(&self, callsite: MuName, catch: MuName, fv: MuID) {
-        self.exception_table.write().unwrap().insert(callsite, (catch, fv));
+        let mut table = self.exception_table.write().unwrap();
+
+        if table.contains_key(&fv) {
+            let mut map = table.get_mut(&fv).unwrap();
+            map.insert(callsite, catch);
+        } else {
+            let mut new_map = HashMap::new();
+            new_map.insert(callsite, catch);
+
+            table.insert(fv, new_map);
+        };
     }
 
     pub fn resume_vm(serialized_vm: &str) -> VM {
         use rustc_serialize::json;
         
-        let mut vm : VM = json::decode(serialized_vm).unwrap();
+        let vm : VM = json::decode(serialized_vm).unwrap();
         
         vm.init_runtime();
 
@@ -574,23 +585,30 @@ impl <'a> VM {
             }
         }
 
-        // Construct Exception table
-        {
-            let exception_table = vm.exception_table.read().unwrap();
-            let compiled_funcs = vm.compiled_funcs.read().unwrap();
-            for (callsite, &(ref catch, ref fv)) in exception_table.iter() {
-                let ref compiled_func = *compiled_funcs.get(fv).unwrap().read().unwrap();
-                let catch_addr = if catch.is_empty() {
-                    unsafe { Address::zero() }
-                } else {
-                    resolve_symbol(catch.clone())
-                };
-
-                vm.compiled_exception_table.insert(resolve_symbol(callsite.clone()), (catch_addr, &*compiled_func));
-            }
-        }
+        // construct exception table
+        vm.build_exception_table();
 
         vm
+    }
+
+    pub fn build_exception_table(&self) {
+        let exception_table = self.exception_table.read().unwrap();
+        let compiled_funcs = self.compiled_funcs.read().unwrap();
+        let mut compiled_exception_table = self.compiled_exception_table.write().unwrap();
+
+        for (fv, map) in exception_table.iter() {
+            let ref compiled_func = *compiled_funcs.get(fv).unwrap().read().unwrap();
+
+            for (callsite, catch_block) in map.iter() {
+                let catch_addr = if catch_block.is_empty() {
+                    unsafe {Address::zero()}
+                } else {
+                    resolve_symbol(catch_block.clone())
+                };
+
+                compiled_exception_table.insert(resolve_symbol(callsite.clone()), (catch_addr, &*compiled_func));
+            }
+        }
     }
     
     pub fn next_id(&self) -> MuID {

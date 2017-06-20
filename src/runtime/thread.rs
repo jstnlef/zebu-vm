@@ -393,6 +393,9 @@ impl MuThread {
     pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) -> bool {
         use std::usize;
 
+        // build exception table
+        vm.build_exception_table();
+
         if ! unsafe{muentry_get_thread_local()}.is_zero() {
             warn!("current thread has a thread local (has a muthread to it)");
             return false;
@@ -442,13 +445,6 @@ impl MuThread {
 
         // set thread local
         unsafe {set_thread_local(ptr_fake_mu_thread)};
-
-//        let addr = unsafe {muentry_get_thread_local()};
-//        let sp_threadlocal_loc = addr.plus(*NATIVE_SP_LOC_OFFSET);
-//
-//        unsafe {
-//            fake_swap_mu_thread(sp_threadlocal_loc);
-//        }
 
         true
     }

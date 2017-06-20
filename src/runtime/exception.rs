@@ -52,21 +52,26 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
     let mut callsite = get_return_address(current_frame_pointer);
     let mut previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer); // thrower::fp, the starting point of the previous frame
 
+    // acquire lock for exception table
+    let compiled_exception_table = vm.compiled_exception_table.read().unwrap();
+
     loop {
         // Lookup the table for the callsite
         trace!("Callsite: 0x{:x}", callsite);
         trace!("\tprevious_frame_pointer: 0x{:x}", previous_frame_pointer);
         trace!("\tcurrent_frame_pointer: 0x{:x}", current_frame_pointer);
 
-        let table_entry = vm.compiled_exception_table.get(&callsite);
+        let &(catch_address, compiled_func) = {
+            let table_entry = compiled_exception_table.get(&callsite);
 
-        if table_entry.is_none() {
-            error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
-            print_backtrace(frame_cursor);
-            unreachable!(); // The above function will not return
-        }
+            if table_entry.is_none() {
+                error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
+                print_backtrace(frame_cursor);
+                unreachable!(); // The above function will not return
+            }
 
-        let &(catch_address, compiled_func) = table_entry.unwrap();
+            table_entry.unwrap()
+        };
 
         // Check for a catch block at this callsite (there won't be one on the first iteration of this loop)
         if !catch_address.is_zero() {
@@ -80,6 +85,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
             }
 
             // Found a catch block, branch to it
+            drop(compiled_exception_table);    // drop the lock first
             unsafe { thread::exception_restore(catch_address, frame_cursor.to_ptr(), sp); }
         }
 
@@ -129,11 +135,13 @@ fn print_backtrace(base: Address) -> !{
     let mut frame_pointer = base;
     let mut frame_count = 0;
 
+    let compiled_exception_table = vm.compiled_exception_table.read().unwrap();
+
     loop {
         let callsite = get_return_address(frame_pointer);
 
-        if vm.compiled_exception_table.contains_key(&callsite) {
-            let &(_, compiled_func_ptr) = vm.compiled_exception_table.get(&callsite).unwrap();
+        if compiled_exception_table.contains_key(&callsite) {
+            let &(_, compiled_func_ptr) = compiled_exception_table.get(&callsite).unwrap();
 
             unsafe {
                 let ref compiled_func = *compiled_func_ptr;

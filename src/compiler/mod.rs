@@ -62,6 +62,10 @@ impl <'vm> Compiler<'vm> {
         hprof_print_timing(hprof::profiler().root());
 
         func.set_compiled();
+        if self.vm.is_running() {
+            // build exception table for this function
+            unimplemented!()
+        }
     }
 
     pub fn get_policy(&self) -> &RefCell<CompilerPolicy> {
