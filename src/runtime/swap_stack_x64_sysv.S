@@ -51,7 +51,9 @@ begin_func swap_to_mu_stack
           movsd 24(%rsp), %xmm4
           movsd 32(%rsp), %xmm3
           movsd 40(%rsp), %xmm2
-          add $48, %rsp
+          movsd 48(%rsp), %xmm1
+          movsd 56(%rsp), %xmm0
+          add $64, %rsp
           # at this point new stack is clean (no intermediate values)
 
           movq %rsp, %rbp
