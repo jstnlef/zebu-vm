@@ -868,7 +868,7 @@ pub enum Value_ {
 }
 
 /// SSAVarEntry represent compilation info for an SSA variable
-// FIXME: Issue#18
+//  FIXME: Issue#18
 #[derive(Debug)]
 pub struct SSAVarEntry {
     val: P<Value>,

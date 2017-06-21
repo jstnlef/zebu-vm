@@ -1319,7 +1319,7 @@ impl <'a> InstructionSelection {
                         // if we reach here, it means we want to store the address in a variable
                         trace!("instsel on GET FIELD/VARPART/ELEM IREF, SHIFTIREF");
 
-                        let mem_addr = self.emit_get_mem_from_inst(node, f_content, f_context, vm);
+                        let mem_addr = self.emit_inst_addr_to_value(node, f_content, f_context, vm);
                         let tmp_res  = self.get_result_value(node);
 
                         self.backend.emit_lea_r64(&tmp_res, &mem_addr);
@@ -2970,7 +2970,7 @@ impl <'a> InstructionSelection {
     }
 
     /// emits code to call a runtime entry function, always returns result temporaries (given or created)
-    /// Note that rets is Option<Vec<P<Value>>. If rets is Some, return values will put stored
+    /// Note that rets is Option<Vec<P<Value>>. If rets is Some, return values will be put
     /// in the given temporaries. Otherwise create temporaries for return results
     fn emit_runtime_entry (
         &mut self, 
@@ -3065,6 +3065,7 @@ impl <'a> InstructionSelection {
         }
 
         if !stack_args.is_empty() {
+            use utils::math::align_up;
             // "The end of the input argument area shall be aligned on a 16
             // (32, if __m256 is passed on stack) byte boundary." - x86 ABI
             // if we need to special align the args, we do it now
@@ -3108,9 +3109,12 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// emits calling convention after a call instruction
+    /// If rets is Some, return values will be put in the given temporaries.
+    /// Otherwise create temporaries for return results.
     fn emit_postcall_convention(
         &mut self,
-        sig: &P<CFuncSig>,
+        sig: &P<MuFuncSig>,
         rets: &Option<Vec<P<Value>>>,
         precall_stack_arg_size: usize,
         f_context: &mut FunctionContext,
@@ -3118,13 +3122,13 @@ impl <'a> InstructionSelection {
     ) -> Vec<P<Value>> {
         // deal with ret vals
         let mut return_vals = vec![];
-
         let mut gpr_ret_count = 0;
         let mut fpr_ret_count = 0;
 
         for ret_index in 0..sig.ret_tys.len() {
             let ref ty = sig.ret_tys[ret_index];
 
+            // use the given return temporary, or create a new one
             let ret_val = match rets {
                 &Some(ref rets) => rets[ret_index].clone(),
                 &None => self.make_temporary(f_context, ty.clone(), vm)
@@ -3161,25 +3165,24 @@ impl <'a> InstructionSelection {
                     unimplemented!()
                 }
             } else {
+                // other type of return alue
                 unimplemented!()
             }
 
             return_vals.push(ret_val);
         }
 
-        // remove stack_args
+        // collapse space for stack_args
         if precall_stack_arg_size != 0 {
             self.backend.emit_add_r_imm(&x86_64::RSP, precall_stack_arg_size as i32);
         }
 
         return_vals
     }
-    
-    #[allow(unused_variables)]
-    // ret: Option<Vec<P<Value>>
-    // if ret is Some, return values will put stored in given temporaries
-    // otherwise create temporaries
-    // always returns result temporaries (given or created)
+
+    /// emits a native call
+    /// Note that rets is Option<Vec<P<Value>>. If rets is Some, return values will be put
+    /// in the given temporaries. Otherwise create temporaries for return results
     fn emit_c_call_internal(
         &mut self, 
         func_name: CName, 
@@ -3198,9 +3201,10 @@ impl <'a> InstructionSelection {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
-            self.backend.emit_call_near_rel32(callsite, func_name, None); // assume ccall wont throw exception
+            self.backend.emit_call_near_rel32(callsite, func_name, None);
             
             // record exception block (CCall may have an exception block)
+            // FIXME: unimplemented for now (see Issue #42)
             if cur_node.is_some() {
                 let cur_node = cur_node.unwrap();
                 match cur_node.v {
@@ -3217,7 +3221,8 @@ impl <'a> InstructionSelection {
         self.emit_postcall_convention(&sig, &rets, stack_arg_size, f_context, vm)
     }
 
-    #[allow(unused_variables)] // resumption not implemented
+    /// emits a CCALL
+    /// currently only support calling a C function by name (Constant::ExnSymbol)
     fn emit_c_call_ir(
         &mut self,
         inst: &Instruction,
@@ -3231,29 +3236,19 @@ impl <'a> InstructionSelection {
         let ref ops = inst.ops;
 
         // prepare args (they could be instructions, we need to emit inst and get value)
-        let mut arg_values = vec![];
-        for arg_index in calldata.args.iter() {
-            let ref arg = ops[*arg_index];
-
-            if self.match_iimm(arg) {
-                let arg = self.node_iimm_to_value(arg);
-                arg_values.push(arg);
-            } else if self.match_ireg(arg) {
-                let arg = self.emit_ireg(arg, f_content, f_context, vm);
-                arg_values.push(arg);
-            } else if self.match_fpreg(arg) {
-                let arg = self.emit_fpreg(arg, f_content, f_context, vm);
-                arg_values.push(arg);
-            } else {
-                unimplemented!();
-            }
-        }
-        let args = arg_values;
+        let args = self.process_call_arguments(calldata, ops, f_content, f_context, vm);
 
         trace!("generating ccall");
         let ref func = ops[calldata.func];
 
-        if self.match_funcref_const(func) {
+        // type of the callee is defined as below in the Mu spec:
+        // "The callee must have type T. The allowed type of T, and the number of return values,
+        // are implementation-dependent and calling convention-dependent.
+        // NOTE: T is usually ufuncptr<sig>, but the design also allows T to be the system call
+        // number (integer) or anything meaningful for a particular implementation."
+
+        // we only allow ufuncptr constant at the moment
+        if self.match_func_const(func) {
             match func.v {
                 TreeNode_::Value(ref pv) => {
                     let sig = match pv.ty.v {
@@ -3276,14 +3271,20 @@ impl <'a> InstructionSelection {
                                 f_context, // &mut FunctionContext,
                                 vm);
                         },
-                        _ => panic!("expect a ufuncptr to be either address constant, or symbol constant, we have {}", pv)
+                        _ => panic!("expect a ufuncptr to be either address constant, or symbol constant, we got {}", pv)
                     }
                 },
-                _ => unimplemented!()
+                _ => {
+                    // emit func pointer from an instruction
+                    unimplemented!()
+                }
             }
+        } else {
+            panic!("unsupported callee type for CCALL: {}", func)
         }
     }
-    
+
+    /// emits a CALL
     fn emit_mu_call(
         &mut self,
         inst: &Instruction,
@@ -3306,36 +3307,23 @@ impl <'a> InstructionSelection {
                     _ => panic!("expected funcref/ptr type")
                 }
             },
-            _ => panic!("expected funcref/ptr type")
-        };
-        
-        debug_assert!(func_sig.arg_tys.len() == calldata.args.len());
-        if cfg!(debug_assertions) {
-            if inst.value.is_some() {
-                assert!(func_sig.ret_tys.len() == inst.value.as_ref().unwrap().len());
-            } else {
-                assert!(func_sig.ret_tys.len() == 0, "expect call inst's value doesnt match reg args. value: {:?}, ret args: {:?}", inst.value, func_sig.ret_tys);
+            _ => {
+                // emit a funcref from an instruction
+                unimplemented!()
             }
+        };
+
+        // arguments should match the signature
+        assert!(func_sig.arg_tys.len() == calldata.args.len());
+        // return values should match the signature
+        if inst.value.is_some() {
+            assert!(func_sig.ret_tys.len() == inst.value.as_ref().unwrap().len());
+        } else {
+            assert!(func_sig.ret_tys.len() == 0, "expect call inst's value doesnt match reg args. value: {:?}, ret args: {:?}", inst.value, func_sig.ret_tys);
         }
 
         // prepare args (they could be instructions, we need to emit inst and get value)
-        let mut arg_values = vec![];
-        for arg_index in calldata.args.iter() {
-            let ref arg = ops[*arg_index];
-
-            if self.match_iimm(arg) {
-                let arg = self.node_iimm_to_value(arg);
-                arg_values.push(arg);
-            } else if self.match_ireg(arg) {
-                let arg = self.emit_ireg(arg, f_content, f_context, vm);
-                arg_values.push(arg);
-            } else if self.match_fpreg(arg) {
-                let arg = self.emit_fpreg(arg, f_content, f_context, vm);
-                arg_values.push(arg);
-            } else {
-                unimplemented!();
-            }
-        }
+        let mut arg_values = self.process_call_arguments(calldata, ops, f_content, f_context, vm);
         let stack_arg_size = self.emit_precall_convention(&arg_values, vm);
 
         // check if this call has exception clause - need to tell backend about this
@@ -3351,7 +3339,7 @@ impl <'a> InstructionSelection {
         trace!("generating call inst");
         // check direct call or indirect
         let callsite = {
-            if self.match_funcref_const(func) {
+            if self.match_func_const(func) {
                 let target_id = self.node_funcref_const_to_id(func);
                 let funcs = vm.funcs().read().unwrap();
                 let target = funcs.get(&target_id).unwrap().read().unwrap();
@@ -3373,7 +3361,7 @@ impl <'a> InstructionSelection {
                 let callsite = self.new_callsite_label(Some(cur_node));
                 self.backend.emit_call_near_mem64(callsite, &target, potentially_excepting)
             } else {
-                panic!("unexpected callee as {}", func);
+                panic!("unsupported callee type for CALL: {}", func);
             }
         };
 
@@ -3403,12 +3391,44 @@ impl <'a> InstructionSelection {
             &func_sig, &inst.value,
             stack_arg_size, f_context, vm);
 
+        // jump to target block
         if resumption.is_some() {
             let ref normal_dest = resumption.as_ref().unwrap().normal_dest;
             let normal_target_name = f_content.get_block(normal_dest.target).name().unwrap();
 
             self.backend.emit_jmp(normal_target_name);
         }
+    }
+
+    /// processes call arguments - gets P<Value> from P<TreeNode>, emits code if necessary
+    fn process_call_arguments(
+        &mut self,
+        calldata: &CallData,
+        ops: &Vec<P<TreeNode>>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM) -> Vec<P<Value>>
+    {
+        let mut ret = vec![];
+
+        for arg_index in calldata.args.iter() {
+            let ref arg = ops[*arg_index];
+
+            if self.match_iimm(arg) {
+                let arg = self.node_iimm_to_value(arg);
+                ret.push(arg);
+            } else if self.match_ireg(arg) {
+                let arg = self.emit_ireg(arg, f_content, f_context, vm);
+                ret.push(arg);
+            } else if self.match_fpreg(arg) {
+                let arg = self.emit_fpreg(arg, f_content, f_context, vm);
+                ret.push(arg);
+            } else {
+                unimplemented!();
+            }
+        }
+
+        ret
     }
     
     /// processes a Destination clause, emits move to pass arguments to the destination
@@ -3430,7 +3450,13 @@ impl <'a> InstructionSelection {
             }
         }
     }
-    
+
+    /// emits a prologue for a Mu function:
+    /// 1. builds linkage with last frame (push rbp, move rsp->rbp)
+    /// 2. reserves spaces for current frame (frame size unknown yet)
+    /// 3. pushes callee saved registers (this may get eliminated if we do not use
+    ///    callee saved for this function)
+    /// 4. marshalls arguments (from argument register/stack to temporaries)
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, f_context: &mut FunctionContext, vm: &VM) {
         let block_name = PROLOGUE_BLOCK_NAME.to_string();
         self.backend.start_block(block_name.clone());
@@ -3472,7 +3498,6 @@ impl <'a> InstructionSelection {
         // unload arguments by registers
         let mut gpr_arg_count = 0;
         let mut fpr_arg_count = 0;
-
         let mut arg_by_stack = vec![];
 
         for arg in args {
@@ -3550,11 +3575,16 @@ impl <'a> InstructionSelection {
         
         self.backend.end_block(block_name);
     }
-    
-    fn emit_common_epilogue(&mut self, ret_inst: &Instruction, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
-        // epilogue is not a block (its a few instruction inserted before return)
-        // FIXME: this may change in the future
 
+    /// emits an epilogue for a Mu function:
+    /// 1. marshalls return values (from temporaries to return registers/stack)
+    /// 2. restores callee saved registers
+    /// 3. collapses frame
+    /// 4. restore rbp
+    ///
+    /// Note that we do not have a single exit block so the epilogue is
+    /// not a block but a sequence of instructions inserted before return (see Issue #30)
+    fn emit_common_epilogue(&mut self, ret_inst: &Instruction, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         // prepare return regs
         let ref ops = ret_inst.ops;
         let ret_val_indices = match ret_inst.v {
@@ -3640,13 +3670,15 @@ impl <'a> InstructionSelection {
                 }
             }
         }
+
         // frame shrink
         self.backend.emit_frame_shrink();
 
         // pop rbp
         self.backend.emit_pop_r64(&x86_64::RBP);
     }
-    
+
+    /// matches a comparison result pattern
     fn match_cmp_res(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
@@ -3658,7 +3690,8 @@ impl <'a> InstructionSelection {
             TreeNode_::Value(_) => false
         }
     }
-    
+
+    /// emits code for a comparison result pattern
     fn emit_cmp_res(&mut self, cond: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
@@ -3671,15 +3704,10 @@ impl <'a> InstructionSelection {
                         
                         if op.is_int_cmp() {
                             if self.match_iimm(op1) && self.match_iimm(op2) {
-                                let ty : &P<MuType> = match op1.clone_value().ty.get_int_length() {
-                                    Some(64) => &UINT64_TYPE,
-                                    Some(32) => &UINT32_TYPE,
-                                    Some(16) => &UINT16_TYPE,
-                                    Some(8)  => &UINT8_TYPE,
-                                    _ => unimplemented!()
-                                };
+                                // comparing two immediate numbers
+                                let ty = op1.as_value().ty.clone();
 
-                                let tmp_op1 = self.make_temporary(f_context, ty.clone(), vm);
+                                let tmp_op1 = self.make_temporary(f_context, ty, vm);
                                 let iimm_op1 = self.node_iimm_to_i32(op1);
                                 self.backend.emit_mov_r_imm(&tmp_op1, iimm_op1);
 
@@ -3688,16 +3716,15 @@ impl <'a> InstructionSelection {
 
                                 return op;
                             } else if self.match_ireg(op1) && self.match_iimm(op2) {
+                                // comparing ireg and an immediate number (order matters)
                                 let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
                                 let iimm_op2 = self.node_iimm_to_i32(op2);
 
-                                // we adopt at&t syntax
-                                // so CMP op1 op2
-                                // is actually CMP op2 op1 (in machine code)
                                 self.backend.emit_cmp_imm_r(iimm_op2, &reg_op1);
 
                                 return op;
                             } else if self.match_ireg(op1) && self.match_ireg(op2) {
+                                // comparing two iregs (general case)
                                 let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
                                 let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
@@ -3705,6 +3732,7 @@ impl <'a> InstructionSelection {
 
                                 return op;
                             } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                                // comparing two int128 integers
                                 let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
                                 let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
 
@@ -3786,10 +3814,10 @@ impl <'a> InstructionSelection {
                                         }
                                     }
 
-                                    _ => unimplemented!()
+                                    _ => panic!("expected CmpOp for int128 integers, found {}", cond)
                                 }
                             } else {
-                                unimplemented!()
+                                panic!("expect ireg/ireg_ex for integer comparison, found {}", cond)
                             }
                         } else {
                             // floating point comparison
@@ -3825,7 +3853,10 @@ impl <'a> InstructionSelection {
 
                                     op
                                 },
-                                _ => unimplemented!()
+                                _ => {
+                                    // FFALSE/FTRUE unimplemented
+                                    unimplemented!()
+                                }
                             }
                         }
                     }
@@ -3836,7 +3867,10 @@ impl <'a> InstructionSelection {
             _ => panic!("expect cmp res to emit")
         }
     }    
-    
+
+    /// matches an integer register pattern
+    /// * temporaries that can be held in general purpose registers
+    /// * instructions that generates exactly one result value that matches above
     fn match_ireg(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
@@ -3858,11 +3892,18 @@ impl <'a> InstructionSelection {
             }
             
             TreeNode_::Value(ref pv) => {
-                RegGroup::get_from_value(&pv) == RegGroup::GPR
+                match pv.v {
+                    Value_::SSAVar(_)
+                    | Value_::Constant(_) => RegGroup::get_from_value(&pv) == RegGroup::GPR,
+                    _ => false
+                }
             }
         }
     }
 
+    /// matches an extended integer register (128 bits regsiter) pattern
+    /// * temporaries that can be held in two general purpose registers
+    /// * instructions that generates exactly one result value that matches above
     fn match_ireg_ex(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
@@ -3889,6 +3930,9 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// matches a floating point register pattern
+    /// * temporaries that can be held in floating point registers
+    /// * instructions that generates exactly one result value that matches above
     fn match_fpreg(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
@@ -3914,31 +3958,39 @@ impl <'a> InstructionSelection {
             }
         }
     }
-    
+
+    /// emits code for an integer register pattern
     fn emit_ireg(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
+                // recursively call instruction_select() on the node
                 self.instruction_select(op, f_content, f_context, vm);
-                
+
+                // get first result as P<Value>
                 self.get_result_value(op)
-            },
+            }
             TreeNode_::Value(ref pv) => {
                 match pv.v {
-                    Value_::SSAVar(_) => pv.clone(),
+                    Value_::SSAVar(_) => {
+                        // a temporary, simply returns it
+                        pv.clone()
+                    }
                     Value_::Constant(ref c) => {
                         let tmp = self.make_temporary(f_context, pv.ty.clone(), vm);
                         match c {
+                            // an integer constant, puts it to a temporary
                             &Constant::Int(val) => {
                                 if x86_64::is_valid_x86_imm(pv) {
                                     let val = self.value_iimm_to_i32(&pv);
-
-                                    debug!("tmp's ty: {}", tmp.ty);
-                                    self.backend.emit_mov_r_imm(&tmp, val)
+                                    self.backend.emit_mov_r_imm(&tmp, val);
                                 } else {
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
-                            },
+                            }
+                            // a function reference, loads the funcref to a temporary
                             &Constant::FuncRef(func_id) => {
+                                // our code for linux has one more level of indirection
+                                // so we need a load for linux
                                 if cfg!(target_os = "macos") {
                                     let mem = self.get_mem_for_funcref(func_id, vm);
                                     self.backend.emit_lea_r64(&tmp, &mem);
@@ -3948,34 +4000,38 @@ impl <'a> InstructionSelection {
                                 } else {
                                     unimplemented!()
                                 }
-                            },
+                            }
+                            // a null ref, puts 0 to a temporary
                             &Constant::NullRef => {
                                 // xor a, a -> a will mess up register allocation validation
-                                // since it uses a regsiter with arbitrary value
+                                // since it uses a register with arbitrary value
                                 // self.backend.emit_xor_r_r(&tmp, &tmp);
 
                                 // for now, use mov -> a
                                 self.backend.emit_mov_r_imm(&tmp, 0);
-                            },
-                            _ => panic!("expected ireg")
+                            }
+                            _ => panic!("expected a constant that fits ireg, found {}", c)
                         }
 
                         tmp
-                    },
-                    _ => panic!("expected ireg")
+                    }
+                    _ => panic!("value doesnt match with ireg: {}", pv)
                 }
             }
         }
     }
 
+    /// emits code for an extended integer register pattern
     fn emit_ireg_ex(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>) {
         match op.v {
             TreeNode_::Instruction(_) => {
+                // recursively call instruction_select() on the node
                 self.instruction_select(op, f_content, f_context, vm);
 
+                // get first result as P<Value>
                 let res = self.get_result_value(op);
 
-                // find split for res
+                // split the value
                 self.split_int128(&res, f_context, vm)
             },
             TreeNode_::Value(ref pv) => {
@@ -3994,17 +4050,20 @@ impl <'a> InstructionSelection {
 
                         (tmp_l, tmp_h)
                     },
-                    _ => panic!("expected ireg_ex")
+                    _ => panic!("value doesnt match with ireg-ex: {}", pv)
                 }
             }
         }
     }
 
+    /// emits code for a floating point register pattern
     fn emit_fpreg(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
+                // recursively call instruction_select() on the node
                 self.instruction_select(op, f_content, f_context, vm);
 
+                // get the first result as P<Value>
                 self.get_result_value(op)
             },
             TreeNode_::Value(ref pv) => {
@@ -4026,22 +4085,37 @@ impl <'a> InstructionSelection {
 
                         tmp_fp
                     }
-                    Value_::Constant(Constant::Float(_)) => {
-                        unimplemented!()
+                    Value_::Constant(Constant::Float(val)) => {
+                        use std::mem;
+
+                        // val into u32
+                        let val_u32 : u32 = unsafe {mem::transmute(val)};
+
+                        // mov val_u32 -> tmp_int
+                        let tmp_int = self.make_temporary(f_context, UINT32_TYPE.clone(), vm);
+                        self.backend.emit_mov_r_imm(&tmp_int, val_u32 as i32);
+
+                        // movq tmp_int (64) -> tmp_fp
+                        let tmp_fp = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
+                        self.backend.emit_mov_fpr_r64(&tmp_fp, unsafe {&tmp_int.as_type(UINT64_TYPE.clone())});
+
+                        tmp_fp
                     },
                     _ => panic!("expected fpreg")
                 }
             }
         }
     }
-    
+
+    /// matches an integer immediate number pattern
     fn match_iimm(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Value(ref pv) if x86_64::is_valid_x86_imm(pv) => true,
             _ => false
         }
     }
-    
+
+    /// converts an integer immediate TreeNode to i32 constant
     fn node_iimm_to_i32(&mut self, op: &TreeNode) -> i32 {
         match op.v {
             TreeNode_::Value(ref pv) => self.value_iimm_to_i32(pv),
@@ -4049,6 +4123,8 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// converts an integer immediate TreeNode to i32 constant
+    /// and also returns its length (in bits)
     fn node_iimm_to_i32_with_len(&mut self, op: &TreeNode) -> (i32, usize) {
         match op.v {
             TreeNode_::Value(ref pv) => self.value_iimm_to_i32_with_len(pv),
@@ -4056,6 +4132,7 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// converts an integer immediate TreeNode to P<Value>
     fn node_iimm_to_value(&mut self, op: &TreeNode) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
@@ -4065,11 +4142,13 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// converts an integer immediate P<Value> to i32 constant
     fn value_iimm_to_i32(&mut self, op: &P<Value>) -> i32 {
         self.value_iimm_to_i32_with_len(op).0
     }
 
-    /// also returns the length of the int
+    /// converts an integer immediate P<Value> to i32 constant
+    /// and also returns the length of the int
     fn value_iimm_to_i32_with_len(&mut self, op: &P<Value>) -> (i32, usize) {
         let op_length = match op.ty.get_int_length() {
             Some(l) => l,
@@ -4085,12 +4164,18 @@ impl <'a> InstructionSelection {
             _ => panic!("expected iimm")
         }
     }
-    
+
+    /// emits a TreeNode as address
+    /// * for a temporary t, emits address [t]
+    /// * for a global, emits code to fetch its address
+    /// * for a memory operand, returns itself
+    /// * for an instruction, emits a single address (if possible) using x86 addressing mode
     fn emit_node_addr_to_value(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar(_) => P(Value{
+                        // use the variables as base address
                         hdr: MuEntityHeader::unnamed(vm.next_id()),
                         ty: pv.ty.get_referent_ty().unwrap(),
                         v: Value_::Memory(MemoryLocation::Address{
@@ -4144,12 +4229,13 @@ impl <'a> InstructionSelection {
                     Value_::Constant(_) => unimplemented!()
                 }
             }
-            TreeNode_::Instruction(_) => self.emit_get_mem_from_inst(op, f_content, f_context, vm)
+            TreeNode_::Instruction(_) => self.emit_inst_addr_to_value(op, f_content, f_context, vm)
         }
     }
 
-    fn emit_get_mem_from_inst(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
-        let mem = self.emit_get_mem_from_inst_inner(op, f_content, f_context, vm);
+    /// emits the memory address P<Value> from an instruction
+    fn emit_inst_addr_to_value(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        let mem = self.emit_inst_addr_to_value_inner(op, f_content, f_context, vm);
 
         P(Value{
             hdr: MuEntityHeader::unnamed(vm.next_id()),
@@ -4158,44 +4244,11 @@ impl <'a> InstructionSelection {
         })
     }
 
-    fn addr_const_offset_adjust(&mut self, mem: MemoryLocation, more_offset: u64, vm: &VM) -> MemoryLocation {
-        match mem {
-            MemoryLocation::Address { base, offset, index, scale } => {
-                let new_offset = match offset {
-                    Some(pv) => {
-                        let old_offset = pv.extract_int_const().unwrap();
-                        old_offset + more_offset
-                    },
-                    None => more_offset
-                };
-
-                MemoryLocation::Address {
-                    base: base,
-                    offset: Some(self.make_int_const(new_offset, vm)),
-                    index: index,
-                    scale: scale
-                }
-            },
-            _ => panic!("expected an address memory location")
-        }
-    }
-
-    #[allow(unused_variables)]
-    fn addr_append_index_scale(&mut self, mem: MemoryLocation, index: P<Value>, scale: u8, vm: &VM) -> MemoryLocation {
-        match mem {
-            MemoryLocation::Address {base, offset, ..} => {
-                MemoryLocation::Address {
-                    base: base,
-                    offset: offset,
-                    index: Some(index),
-                    scale: Some(scale)
-                }
-            },
-            _ => panic!("expected an address memory location")
-        }
-    }
-
-    fn emit_get_mem_from_inst_inner(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {        match op.v {
+    /// emits the memory address P<Value> from an instruction (this function will be called recursively)
+    /// This function recognizes patterns from GetIRef, GetFieldIRef, GetVarPartIRef,
+    /// ShiftIRef and GetElemIRef, and yields a single memory operand using addressing mode.
+    fn emit_inst_addr_to_value_inner(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {
+        match op.v {
             TreeNode_::Instruction(ref inst) => {
                 let ref ops = inst.ops;
                 
@@ -4204,7 +4257,6 @@ impl <'a> InstructionSelection {
                     Instruction_::GetIRef(op_index) => {
                         let ref ref_op = ops[op_index];
                         let tmp_op = self.emit_ireg(ref_op, f_content, f_context, vm);
-
                         let ret = MemoryLocation::Address {
                             base: tmp_op,
                             offset: None,
@@ -4217,23 +4269,20 @@ impl <'a> InstructionSelection {
                     }
                     Instruction_::GetFieldIRef{base, index, ..} => {
                         let ref base = ops[base];
-
                         let struct_ty = {
-                            let ref iref_or_uptr_ty = base.clone_value().ty;
-
+                            let ref iref_or_uptr_ty = base.as_value().ty;
                             match iref_or_uptr_ty.v {
                                 MuType_::IRef(ref ty)
                                 | MuType_::UPtr(ref ty) => ty.clone(),
                                 _ => panic!("expected the base for GetFieldIRef has a type of iref or uptr, found type: {}", iref_or_uptr_ty)
                             }
                         };
-
                         let field_offset : i32 = self.get_field_offset(&struct_ty, index, vm);
 
                         match base.v {
                             // GETFIELDIREF(GETIREF) -> add FIELD_OFFSET to old offset
                             TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
-                                let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
                                 let ret = self.addr_const_offset_adjust(mem, field_offset as u64, vm);
 
                                 trace!("MEM from GETFIELDIREF(GETIREF): {}", ret);
@@ -4242,7 +4291,6 @@ impl <'a> InstructionSelection {
                             // GETFIELDIREF(ireg) -> [base + FIELD_OFFSET]
                             _ => {
                                 let tmp = self.emit_ireg(base, f_content, f_context, vm);
-
                                 let ret = MemoryLocation::Address {
                                     base: tmp,
                                     offset: Some(self.make_int_const(field_offset as u64, vm)),
@@ -4257,19 +4305,16 @@ impl <'a> InstructionSelection {
                     }
                     Instruction_::GetVarPartIRef{base, ..} => {
                         let ref base = ops[base];
-
-                        let struct_ty = match base.clone_value().ty.get_referent_ty() {
+                        let struct_ty = match base.as_value().ty.get_referent_ty() {
                             Some(ty) => ty,
                             None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
-
                         let fix_part_size = vm.get_backend_type_info(struct_ty.id()).size;
 
                         match base.v {
                             // GETVARPARTIREF(GETIREF) -> add FIX_PART_SIZE to old offset
                             TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
-                                let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
-
+                                let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
                                 let ret = self.addr_const_offset_adjust(mem, fix_part_size as u64, vm);
 
                                 trace!("MEM from GETIVARPARTIREF(GETIREF): {}", ret);
@@ -4278,7 +4323,6 @@ impl <'a> InstructionSelection {
                             // GETVARPARTIREF(ireg) -> [base + VAR_PART_SIZE]
                             _ => {
                                 let tmp = self.emit_ireg(base, f_content, f_context, vm);
-
                                 let ret = MemoryLocation::Address {
                                     base: tmp,
                                     offset: Some(self.make_int_const(fix_part_size as u64, vm)),
@@ -4304,14 +4348,15 @@ impl <'a> InstructionSelection {
                         let ele_ty_size = math::align_up(ele_backend_ty.size, ele_backend_ty.alignment);
 
                         if self.match_iimm(offset) {
+                            // byte offset is known at compile time,
+                            // we can calculate it as a constant offset
                             let index = self.node_iimm_to_i32(offset);
                             let shift_size = ele_ty_size as i32 * index;
 
                             let mem = match base.v {
                                 // SHIFTIREF(GETVARPARTIREF(_), imm) -> add shift_size to old offset
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetVarPartIRef{..}, ..}) => {
-                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
-
+                                    let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
                                     let ret = self.addr_const_offset_adjust(mem, shift_size as u64, vm);
 
                                     trace!("MEM from SHIFTIREF(GETVARPARTIREF(_), imm): {}", ret);
@@ -4320,7 +4365,6 @@ impl <'a> InstructionSelection {
                                 // SHIFTIREF(ireg, imm) -> [base + SHIFT_SIZE]
                                 _ => {
                                     let tmp = self.emit_ireg(base, f_content, f_context, vm);
-
                                     let ret = MemoryLocation::Address {
                                         base: tmp,
                                         offset: Some(self.make_int_const(shift_size as u64, vm)),
@@ -4335,6 +4379,7 @@ impl <'a> InstructionSelection {
 
                             mem
                         } else {
+                            // we need to calculate byte offset at runtime
                             let tmp_index = self.emit_ireg(offset, f_content, f_context, vm);
 
                             // make a copy of it
@@ -4343,22 +4388,22 @@ impl <'a> InstructionSelection {
                             self.emit_move_value_to_value(&tmp_index_copy, &tmp_index);
 
                             let scale : u8 = match ele_ty_size {
+                                // if we can use x86 scale
                                 8 | 4 | 2 | 1 => ele_ty_size as u8,
+                                // if we can get byte offset by shifting
                                 16| 32| 64    => {
                                     let shift = math::is_power_of_two(ele_ty_size).unwrap();
-
                                     // tmp_index_copy = tmp_index_copy << index
                                     self.backend.emit_shl_r_imm8(&tmp_index_copy, shift as i8);
 
                                     1
                                 }
+                                // otherwise we have to do multiplication
                                 _  => {
                                     // mov ele_ty_size -> rax
                                     self.backend.emit_mov_r_imm(&x86_64::RAX, ele_ty_size as i32);
-
                                     // mul tmp_index_copy rax -> rdx:rax
                                     self.backend.emit_mul_r(&tmp_index_copy);
-
                                     // mov rax -> tmp_index_copy
                                     self.backend.emit_mov_r_r(&tmp_index_copy, &x86_64::RAX);
 
@@ -4369,8 +4414,7 @@ impl <'a> InstructionSelection {
                             let mem = match base.v {
                                 // SHIFTIREF(GETVARPARTIREF(_), ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetVarPartIRef{..}, ..}) => {
-                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
-
+                                    let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
                                     let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from SHIFTIREF(GETVARPARTIREF(_), ireg): {}", ret);
@@ -4379,7 +4423,6 @@ impl <'a> InstructionSelection {
                                 // SHIFTIREF(ireg, ireg) -> base + index * scale
                                 _ => {
                                     let tmp = self.emit_ireg(base, f_content, f_context, vm);
-
                                     let ret = MemoryLocation::Address {
                                         base: tmp,
                                         offset: None,
@@ -4399,7 +4442,7 @@ impl <'a> InstructionSelection {
                         let ref base = ops[base];
                         let ref index = ops[index];
 
-                        let ref iref_array_ty = base.clone_value().ty;
+                        let ref iref_array_ty = base.as_value().ty;
                         let array_ty = match iref_array_ty.get_referent_ty() {
                             Some(ty) => ty,
                             None => panic!("expected base in GetElemIRef to be type IRef, found {}", iref_array_ty)
@@ -4410,13 +4453,14 @@ impl <'a> InstructionSelection {
                         };
 
                         if self.match_iimm(index) {
+                            // byte offset is known at compile time
                             let index = self.node_iimm_to_i32(index);
                             let offset = ele_ty_size as i32 * index;
 
                             match base.v {
                                 // GETELEMIREF(GETIREF) -> add offset
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
-                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                    let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
                                     let ret = self.addr_const_offset_adjust(mem, offset as u64, vm);
 
                                     trace!("MEM from GETELEMIREF(GETIREF, const): {}", ret);
@@ -4424,7 +4468,7 @@ impl <'a> InstructionSelection {
                                 },
                                 // GETELEMIREF(GETFIELDIREF) -> add offset
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetFieldIRef{..}, ..}) => {
-                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                    let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
                                     let ret = self.addr_const_offset_adjust(mem, offset as u64, vm);
 
                                     trace!("MEM from GETELEMIREF(GETFIELDIREF, const): {}", ret);
@@ -4433,7 +4477,6 @@ impl <'a> InstructionSelection {
                                 // GETELEMIREF(ireg) => [base + offset]
                                 _ => {
                                     let tmp = self.emit_ireg(base, f_content, f_context, vm);
-
                                     let ret = MemoryLocation::Address {
                                         base: tmp,
                                         offset: Some(self.make_int_const(offset as u64, vm)),
@@ -4446,6 +4489,7 @@ impl <'a> InstructionSelection {
                                 }
                             }
                         } else {
+                            // we need to calculate byte offset at runtime
                             let tmp_index = self.emit_ireg(index, f_content, f_context, vm);
 
                             // make a copy of it
@@ -4454,22 +4498,33 @@ impl <'a> InstructionSelection {
                             self.emit_move_value_to_value(&tmp_index_copy, &tmp_index);
 
                             let scale : u8 = match ele_ty_size {
+                                // if we can use x86 addressing mode scale
                                 8 | 4 | 2 | 1 => ele_ty_size as u8,
+                                // if we can calculate by shifting
                                 16| 32| 64    => {
                                     let shift = math::is_power_of_two(ele_ty_size).unwrap();
-
                                     // tmp_index_copy = tmp_index_copy << index
                                     self.backend.emit_shl_r_imm8(&tmp_index_copy, shift as i8);
 
                                     1
                                 }
-                                _  => panic!("unexpected var ty size: {}", ele_ty_size)
+                                // otherwise we have to do multiplication
+                                _  => {
+                                    // mov ele_ty_size -> rax
+                                    self.backend.emit_mov_r_imm(&x86_64::RAX, ele_ty_size as i32);
+                                    // mul tmp_index_copy rax -> rdx:rax
+                                    self.backend.emit_mul_r(&tmp_index_copy);
+                                    // mov rax -> tmp_index_copy
+                                    self.backend.emit_mov_r_r(&tmp_index_copy, &x86_64::RAX);
+
+                                    1
+                                }
                             };
 
                             match base.v {
                                 // GETELEMIREF(IREF, ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
-                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                    let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
                                     let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from GETELEMIREF(GETIREF, ireg): {}", ret);
@@ -4477,7 +4532,7 @@ impl <'a> InstructionSelection {
                                 }
                                 // GETELEMIREF(GETFIELDIREF, ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetFieldIRef{..}, ..}) => {
-                                    let mem = self.emit_get_mem_from_inst_inner(base, f_content, f_context, vm);
+                                    let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
                                     let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
 
                                     trace!("MEM from GETELEMIREF(GETFIELDIREF, ireg): {}", ret);
@@ -4486,7 +4541,6 @@ impl <'a> InstructionSelection {
                                 // GETELEMIREF(ireg, ireg)
                                 _ => {
                                     let tmp = self.emit_ireg(base, f_content, f_context, vm);
-
                                     let ret = MemoryLocation::Address {
                                         base: tmp,
                                         offset: None,
@@ -4501,21 +4555,60 @@ impl <'a> InstructionSelection {
                         }
 
                     }
-                    _ => unimplemented!()
+                    _ => panic!("instruction {} does not emit a memory address", inst)
                 }
             },
-            _ => panic!("expecting a instruction that yields a memory address")
+            _ => panic!("expected an instruction that yields a memory address, found {}", op)
         }
     }
-    
-    fn match_funcref_const(&mut self, op: &TreeNode) -> bool {
-        match op.v {
-            TreeNode_::Value(ref pv) => {
-                let is_const = match pv.v {
-                    Value_::Constant(_) => true,
-                    _ => false
+
+    /// adjusts the constant offset of a MemoryLocation
+    fn addr_const_offset_adjust(&mut self, mem: MemoryLocation, more_offset: u64, vm: &VM) -> MemoryLocation {
+        match mem {
+            MemoryLocation::Address { base, offset, index, scale } => {
+                let new_offset = match offset {
+                    Some(pv) => {
+                        let old_offset = pv.extract_int_const().unwrap();
+                        old_offset + more_offset
+                    },
+                    None => more_offset
                 };
 
+                MemoryLocation::Address {
+                    base: base,
+                    offset: Some(self.make_int_const(new_offset, vm)),
+                    index: index,
+                    scale: scale
+                }
+            },
+            _ => panic!("expected an address memory location")
+        }
+    }
+
+    /// sets index and scale for a MemoryLocation,
+    /// panics if this function tries to overwrite index and scale
+    fn addr_append_index_scale(&mut self, mem: MemoryLocation, index_: P<Value>, scale_: u8, vm: &VM) -> MemoryLocation {
+        match mem {
+            MemoryLocation::Address {base, offset, index, scale} => {
+                assert!(index.is_none());
+                assert!(scale.is_none());
+
+                MemoryLocation::Address {
+                    base: base,
+                    offset: offset,
+                    index: Some(index_),
+                    scale: Some(scale_)
+                }
+            },
+            _ => panic!("expected an address memory location")
+        }
+    }
+
+    /// matches a function reference/pointer pattern
+    fn match_func_const(&mut self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Value(ref pv) => {
+                let is_const = pv.is_const();
                 let is_func = match &pv.ty.v {
                     &MuType_::FuncRef(_)
                     | &MuType_::UFuncPtr(_) => true,
@@ -4527,7 +4620,8 @@ impl <'a> InstructionSelection {
             _ => false 
         }
     }
-    
+
+    /// converts a constant function reference to its function ID
     fn node_funcref_const_to_id(&mut self, op: &TreeNode) -> MuID {
         match op.v {
             TreeNode_::Value(ref pv) => {
@@ -4540,7 +4634,7 @@ impl <'a> InstructionSelection {
         }
     }
     
-    #[allow(unused_variables)]
+    /// matches a memory location pattern
     fn match_mem(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Value(ref pv) => {
@@ -4559,11 +4653,14 @@ impl <'a> InstructionSelection {
         }
     }
     
-    #[allow(unused_variables)]
+    /// emits code for a memory location pattern
     fn emit_mem(&mut self, op: &TreeNode, vm: &VM) -> P<Value> {
         unimplemented!()
     }
-    
+
+    /// returns the result P<Value> of a node
+    /// * if the node is an instruction, returns its first result value
+    /// * if the node is a value, returns the value
     fn get_result_value(&mut self, node: &TreeNode) -> P<Value> {
         match node.v {
             TreeNode_::Instruction(ref inst) => {
@@ -4585,21 +4682,31 @@ impl <'a> InstructionSelection {
             }
         }
     }
-    
+
+    /// emits a move instruction from a TreeNode to a P<Value>
+    /// This function matches source (TreeNode) pattern, emits its code, and then
+    /// recognizes different source operands and destination operands, and emits
+    /// corresponding move instruction
     fn emit_move_node_to_value(&mut self, dest: &P<Value>, src: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
+        // because src is a TreeNode, we may need to emit code to turn the node
+        // into a value before calling emit_move_value_to_value()
+
         let ref dst_ty = dest.ty;
-        
         if RegGroup::get_from_ty(&dst_ty) == RegGroup::GPR {
             if self.match_iimm(src) {
+                // source is an immediate number
                 let (src_imm, src_len) = self.node_iimm_to_i32_with_len(src);
                 if RegGroup::get_from_value(&dest) == RegGroup::GPR && dest.is_reg() {
+                    // move from immediate to register
                     self.backend.emit_mov_r_imm(dest, src_imm);
                 } else if dest.is_mem() {
+                    // move from immediate to memory
                     self.backend.emit_mov_mem_imm(dest, src_imm, src_len);
                 } else {
                     panic!("unexpected dest: {}", dest);
                 }
             } else if self.match_ireg(src) {
+                // source is a register
                 let src_reg = self.emit_ireg(src, f_content, f_context, vm);
                 self.emit_move_value_to_value(dest, &src_reg);
             } else {
@@ -4608,7 +4715,6 @@ impl <'a> InstructionSelection {
         } else if RegGroup::get_from_ty(&dst_ty) == RegGroup::GPREX {
               if self.match_ireg_ex(src) {
                   let (op_l, op_h) = self.emit_ireg_ex(src, f_content, f_context, vm);
-
                   let (res_l, res_h) = self.split_int128(dest, f_context, vm);
 
                   self.backend.emit_mov_r_r(&res_l, &op_l);
@@ -4624,30 +4730,37 @@ impl <'a> InstructionSelection {
                 panic!("unexpected fp src: {}", src);
             }
         } else {
-            warn!("move {} to {} unimplemented", src, dest);
+            warn!("move node {} to value {} unimplemented", src, dest);
             unimplemented!()
         } 
     }
 
-    // FIXME: need to make sure dest and src have the same type
-    // which is not true all the time, especially when involving memory operand
+    /// emits a move instruction from between two P<Value>
     fn emit_move_value_to_value(&mut self, dest: &P<Value>, src: &P<Value>) {
         let ref src_ty = src.ty;
 
         if RegGroup::get_from_ty(&src_ty) == RegGroup::GPR {
             // gpr mov
             if dest.is_reg() && src.is_reg() {
+                // reg -> reg
                 self.backend.emit_mov_r_r(dest, src);
             } else if dest.is_reg() && src.is_mem() {
+                // mem -> reg
                 self.backend.emit_mov_r_mem(dest, src);
             } else if dest.is_reg() && src.is_const() {
+                // imm -> reg
                 let imm = self.value_iimm_to_i32(src);
                 self.backend.emit_mov_r_imm(dest, imm);
             } else if dest.is_mem() && src.is_reg() {
+                // reg -> mem
                 self.backend.emit_mov_mem_r(dest, src);
             } else if dest.is_mem() && src.is_const() {
+                // imm -> mem
                 let (imm, len) = self.value_iimm_to_i32_with_len(src);
                 self.backend.emit_mov_mem_imm(dest, imm, len);
+            } else if dest.is_mem() && src.is_mem() {
+                // mem -> mem (need a temporary)
+                unimplemented!();
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }
@@ -4658,22 +4771,46 @@ impl <'a> InstructionSelection {
             match src_ty.v {
                 MuType_::Double => {
                     if dest.is_reg() && src.is_reg() {
+                        // reg -> reg
                         self.backend.emit_movsd_f64_f64(dest, src);
                     } else if dest.is_reg() && src.is_mem() {
+                        // mem -> reg
                         self.backend.emit_movsd_f64_mem64(dest, src);
+                    } else if dest.is_reg() && src.is_const() {
+                        // const -> reg
+                        unimplemented!()
                     } else if dest.is_mem() && src.is_reg() {
+                        // reg -> mem
                         self.backend.emit_movsd_mem64_f64(dest, src);
+                    } else if dest.is_mem() && src.is_const() {
+                        // const -> mem
+                        unimplemented!()
+                    } else if dest.is_mem() && src.is_mem() {
+                        // mem -> mem
+                        unimplemented!()
                     } else {
                         panic!("unexpected fpr mov between {} -> {}", src, dest);
                     }
                 }
                 MuType_::Float => {
                     if dest.is_reg() && src.is_reg() {
+                        // reg -> reg
                         self.backend.emit_movss_f32_f32(dest, src);
                     } else if dest.is_reg() && src.is_mem() {
+                        // mem -> reg
                         self.backend.emit_movss_f32_mem32(dest, src);
+                    } else if dest.is_reg() && src.is_const() {
+                        // const -> reg
+                        unimplemented!()
                     } else if dest.is_mem() && src.is_reg() {
+                        // reg -> mem
                         self.backend.emit_movss_mem32_f32(dest, src);
+                    } else if dest.is_mem() && src.is_const() {
+                        // const -> mem
+                        unimplemented!()
+                    } else if dest.is_mem() && src.is_mem() {
+                        // mem -> mem
+                        unimplemented!()
                     } else {
                         panic!("unexpected fpr mov between {} -> {}", src, dest);
                     }
@@ -4681,27 +4818,31 @@ impl <'a> InstructionSelection {
                 _ => panic!("expect double or float")
             }
         } else {
-            panic!("unexpected mov of type {}", src_ty)
+            warn!("mov of type {} unimplemented", src_ty);
+            unimplemented!()
         }
     }
-    
+
+    /// emits code to get exception object from thread local storage
     fn emit_landingpad(&mut self, exception_arg: &P<Value>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) {
         // get thread local and add offset to get exception_obj
         let tl = self.emit_get_threadlocal(None, f_content, f_context, vm);
         self.emit_load_base_offset(exception_arg, &tl, *thread::EXCEPTION_OBJ_OFFSET as i32, vm);
     }
 
+    /// gets field offset of a struct type
     fn get_field_offset(&mut self, ty: &P<MuType>, index: usize, vm: &VM) -> i32 {
         let ty_info = vm.get_backend_type_info(ty.id());
         let layout  = match ty_info.struct_layout.as_ref() {
             Some(layout) => layout,
             None => panic!("a struct type does not have a layout yet: {:?}", ty_info)
         };
-        debug_assert!(layout.len() > index);
 
+        assert!(layout.len() > index);
         layout[index] as i32
     }
-    
+
+    /// creates a callsite label that is globally unique
     fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
         let ret = {
             if cur_node.is_some() {
@@ -4714,6 +4855,7 @@ impl <'a> InstructionSelection {
         ret
     }
 
+    /// puts a constant in memory, and returns its memory location P<Value>
     fn get_mem_for_const(&mut self, val: P<Value>, vm: &VM) -> P<Value> {
         let id = val.id();
 
@@ -4721,7 +4863,6 @@ impl <'a> InstructionSelection {
             self.current_constants.get(&id).unwrap().clone()
         } else {
             let const_value_loc = vm.allocate_const(val.clone());
-
             let const_mem_val = match const_value_loc {
                 ValueLocation::Relocatable(_, ref name) => {
                     P(Value {
@@ -4744,6 +4885,7 @@ impl <'a> InstructionSelection {
         }
     }
 
+    /// returns a memory location P<Value> for a function reference
     #[cfg(feature = "aot")]
     fn get_mem_for_funcref(&mut self, func_id: MuID, vm: &VM) -> P<Value> {
         let func_name = vm.get_func_name(func_id);
@@ -4759,6 +4901,9 @@ impl <'a> InstructionSelection {
         })
     }
 
+    /// splits a 128-bits integer into two 64-bits integers
+    /// This function remembers mapping between 128-bits int and 64-bits ints, and always
+    /// returns the same 64-bits split result for a 128-bit integer
     fn split_int128(&mut self, int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>){
         if f_context.get_value(int128.id()).unwrap().has_split() {
             let vec = f_context.get_value(int128.id()).unwrap().get_split().as_ref().unwrap();
@@ -4766,13 +4911,13 @@ impl <'a> InstructionSelection {
         } else {
             let arg_l = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
             let arg_h = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-
             f_context.get_value_mut(int128.id()).unwrap().set_split(vec![arg_l.clone(), arg_h.clone()]);
 
             (arg_l, arg_h)
         }
     }
 
+    /// finishes current block
     fn finish_block(&mut self) {
         let cur_block = self.current_block.as_ref().unwrap().clone();
         self.backend.end_block(cur_block.clone());
@@ -4780,6 +4925,7 @@ impl <'a> InstructionSelection {
         self.current_block = None;
     }
 
+    /// starts a new block
     fn start_block(&mut self, block: String) {
         self.current_block = Some(block.clone());
         self.backend.start_block(block);
@@ -4795,12 +4941,12 @@ impl CompilerPass for InstructionSelection {
         self
     }
 
-    #[allow(unused_variables)]
     fn start_function(&mut self, vm: &VM, func_ver: &mut MuFunctionVersion) {
         debug!("{}", self.name());
 
         let entry_block = func_ver.content.as_ref().unwrap().get_entry_block();
 
+        // set up some context
         self.current_fv_id = func_ver.id();
         self.current_frame = Some(Frame::new(func_ver.id()));
         self.current_func_start = Some({
@@ -4816,21 +4962,18 @@ impl CompilerPass for InstructionSelection {
         self.current_callsite_id = 0;
         self.current_exn_callsites.clear();
         self.current_exn_blocks.clear();
-
         self.current_constants.clear();
         self.current_constants_locs.clear();
         
         // prologue (get arguments from entry block first)
         let ref args = entry_block.content.as_ref().unwrap().args;
-        {
-            self.emit_common_prologue(args, &mut func_ver.context, vm);
-        }
+        self.emit_common_prologue(args, &mut func_ver.context, vm);
     }
 
-    #[allow(unused_variables)]
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         let f_content = func.content.as_ref().unwrap();
-        
+
+        // compile block by block
         for block_id in func.block_trace.as_ref().unwrap() {
             // is this block an exception block?
             let is_exception_block = f_content.exception_blocks.contains(&block_id);
@@ -4841,10 +4984,10 @@ impl CompilerPass for InstructionSelection {
             self.current_block_in_ir = Some(block_label.clone());
             let block_content = block.content.as_ref().unwrap();
 
+            // we need to be aware of exception blocks
+            // so that we can emit information to catch exceptions
             if is_exception_block {
                 // exception block
-                // we need to be aware of exception blocks so that we can emit information to catch exceptions
-
                 let loc = self.backend.start_exception_block(block_label.clone());
                 self.current_exn_blocks.insert(block.id(), loc);
             } else {
@@ -4866,6 +5009,7 @@ impl CompilerPass for InstructionSelection {
                 self.instruction_select(&inst, f_content, &mut func.context, vm);
             }
             
+            // end block
             // we may start block a, and end with block b (instruction selection may create blocks)
             {
                 let current_block = self.current_block.as_ref().unwrap();
@@ -4875,8 +5019,7 @@ impl CompilerPass for InstructionSelection {
             self.current_block_in_ir = None;
         }
     }
-    
-    #[allow(unused_variables)]
+
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         self.backend.print_cur_code();
         
