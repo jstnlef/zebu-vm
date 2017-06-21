@@ -181,7 +181,7 @@ impl <'a> InstructionSelection {
         match node.v {
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
-                    Instruction_::Branch2{cond, ref true_dest, ref false_dest, true_prob} => {
+                    Instruction_::Branch2{cond, ref true_dest, ref false_dest, ..} => {
                         trace!("instsel on BRANCH2");
                         // 'branch_if_true' == true, we emit cjmp the same as CmpOp  (je  for EQ, jne for NE)
                         // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
@@ -530,16 +530,11 @@ impl <'a> InstructionSelection {
                         }
                     },
 
-                    Instruction_::CmpOp(op, op1, op2) => {
+                    Instruction_::CmpOp(_, _, _) => {
                         use ast::op::CmpOp::*;
-
                         trace!("instsel on CMPOP");
-                        let ref ops = inst.ops;
-                        let ref op1 = ops[op1];
-                        let ref op2 = ops[op2];
 
                         let tmp_res = self.get_result_value(node);
-                        
                         assert!(tmp_res.ty.get_int_length().is_some());
                         assert!(tmp_res.ty.get_int_length().unwrap() == 1);
 
@@ -791,7 +786,7 @@ impl <'a> InstructionSelection {
                                         _  => panic!("unsupported int size: {}", to_ty_size)
                                     }
                                 } else if self.match_ireg_ex(op) {
-                                    let (op_l, op_h) = self.emit_ireg_ex(op, f_content, f_context, vm);
+                                    let (op_l, _) = self.emit_ireg_ex(op, f_content, f_context, vm);
 
                                     match to_ty_size {
                                         1 | 2 => self.backend.emit_movz_r_r(unsafe {&tmp_res.as_type(UINT32_TYPE.clone())}, &op_l),
@@ -1192,7 +1187,7 @@ impl <'a> InstructionSelection {
                     
                     // load on x64 generates mov inst (no matter what order is specified)
                     // https://www.cl.cam.ac.uk/~pes20/cpp/cpp0xmappings.html
-                    Instruction_::Load{is_ptr, order, mem_loc} => {
+                    Instruction_::Load{order, mem_loc, ..} => {
                         trace!("instsel on LOAD");
 
                         let ref ops = inst.ops;
@@ -1236,7 +1231,7 @@ impl <'a> InstructionSelection {
                         }
                     }
                     
-                    Instruction_::Store{is_ptr, order, mem_loc, value} => {
+                    Instruction_::Store{order, mem_loc, value, ..} => {
                         trace!("instsel on STORE");
 
                         let ref ops = inst.ops;
@@ -1542,7 +1537,7 @@ impl <'a> InstructionSelection {
                 } // main switch
             },
             
-            TreeNode_::Value(ref p) => {
+            TreeNode_::Value(_) => {
                 // we recursively call instruction_select for all the nodes (and their children)
                 // so this pattern will be reached
                 // however we do not need to do anything for a Value node
@@ -3065,7 +3060,6 @@ impl <'a> InstructionSelection {
         }
 
         if !stack_args.is_empty() {
-            use utils::math::align_up;
             // "The end of the input argument area shall be aligned on a 16
             // (32, if __m256 is passed on stack) byte boundary." - x86 ABI
             // if we need to special align the args, we do it now
@@ -3183,6 +3177,7 @@ impl <'a> InstructionSelection {
     /// emits a native call
     /// Note that rets is Option<Vec<P<Value>>. If rets is Some, return values will be put
     /// in the given temporaries. Otherwise create temporaries for return results
+    #[allow(unused_variables)]  // f_content is not used, but we keep it in case
     fn emit_c_call_internal(
         &mut self, 
         func_name: CName, 
@@ -3223,6 +3218,7 @@ impl <'a> InstructionSelection {
 
     /// emits a CCALL
     /// currently only support calling a C function by name (Constant::ExnSymbol)
+    #[allow(unused_variables)]  // resumption is not used (CCALL exception is not implemented)
     fn emit_c_call_ir(
         &mut self,
         inst: &Instruction,
@@ -3323,7 +3319,7 @@ impl <'a> InstructionSelection {
         }
 
         // prepare args (they could be instructions, we need to emit inst and get value)
-        let mut arg_values = self.process_call_arguments(calldata, ops, f_content, f_context, vm);
+        let arg_values = self.process_call_arguments(calldata, ops, f_content, f_context, vm);
         let stack_arg_size = self.emit_precall_convention(&arg_values, vm);
 
         // check if this call has exception clause - need to tell backend about this
@@ -4415,7 +4411,7 @@ impl <'a> InstructionSelection {
                                 // SHIFTIREF(GETVARPARTIREF(_), ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetVarPartIRef{..}, ..}) => {
                                     let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
-                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale);
 
                                     trace!("MEM from SHIFTIREF(GETVARPARTIREF(_), ireg): {}", ret);
                                     ret
@@ -4525,7 +4521,7 @@ impl <'a> InstructionSelection {
                                 // GETELEMIREF(IREF, ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetIRef(_), ..}) => {
                                     let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
-                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale);
 
                                     trace!("MEM from GETELEMIREF(GETIREF, ireg): {}", ret);
                                     ret
@@ -4533,7 +4529,7 @@ impl <'a> InstructionSelection {
                                 // GETELEMIREF(GETFIELDIREF, ireg) -> add index and scale
                                 TreeNode_::Instruction(Instruction{v: Instruction_::GetFieldIRef{..}, ..}) => {
                                     let mem = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
-                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale, vm);
+                                    let ret = self.addr_append_index_scale(mem, tmp_index_copy, scale);
 
                                     trace!("MEM from GETELEMIREF(GETFIELDIREF, ireg): {}", ret);
                                     ret
@@ -4587,7 +4583,7 @@ impl <'a> InstructionSelection {
 
     /// sets index and scale for a MemoryLocation,
     /// panics if this function tries to overwrite index and scale
-    fn addr_append_index_scale(&mut self, mem: MemoryLocation, index_: P<Value>, scale_: u8, vm: &VM) -> MemoryLocation {
+    fn addr_append_index_scale(&mut self, mem: MemoryLocation, index_: P<Value>, scale_: u8) -> MemoryLocation {
         match mem {
             MemoryLocation::Address {base, offset, index, scale} => {
                 assert!(index.is_none());
@@ -4654,6 +4650,7 @@ impl <'a> InstructionSelection {
     }
     
     /// emits code for a memory location pattern
+    #[allow(unused_variables)]
     fn emit_mem(&mut self, op: &TreeNode, vm: &VM) -> P<Value> {
         unimplemented!()
     }
