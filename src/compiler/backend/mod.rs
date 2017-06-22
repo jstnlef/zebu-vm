@@ -186,14 +186,13 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
             size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
             gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
         },
-        // tagref
-        MuType_::Tagref64 => unimplemented!(),
         // floating point
         MuType_::Float => BackendTypeInfo{
             size: 4, alignment: 4, struct_layout: None, elem_padded_size: None,
             gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
         },
-        MuType_::Double => BackendTypeInfo {
+        // tagref or floating point
+        MuType_::Tagref64 | MuType_::Double => BackendTypeInfo {
             size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
             gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
         },

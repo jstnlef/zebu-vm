@@ -1411,11 +1411,14 @@ impl <'a> VM {
             match val.v {
                 APIHandleValue::Int(ival, bits) => {
                     match bits {
-                        8 => addr.store::<u8>(ival as u8),
+                        1  => addr.store::<u8>((ival as u8) & 0b1u8),
+                        6  => addr.store::<u8>((ival as u8) & 0b111111u8),
+                        8  => addr.store::<u8>(ival as u8),
                         16 => addr.store::<u16>(ival as u16),
                         32 => addr.store::<u32>(ival as u32),
+                        52 => addr.store::<u64>(ival & ((1 << 51)-1)),
                         64 => addr.store::<u64>(ival),
-                        _ => panic!("unimplemented int length")
+                        _  => panic!("unimplemented int length")
                     }
                 },
                 APIHandleValue::Float(fval) => addr.store::<f32>(fval),
