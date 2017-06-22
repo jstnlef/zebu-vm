@@ -14,9 +14,7 @@
 
 use compiler::backend::*;
 use utils::Address;
-use utils::Word;
 use utils::POINTER_SIZE;
-use runtime::thread;
 use runtime::*;
 
 // muentry_throw_exception should call this function,
