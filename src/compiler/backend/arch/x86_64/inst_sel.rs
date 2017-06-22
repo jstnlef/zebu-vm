@@ -4510,7 +4510,19 @@ impl <'a> InstructionSelection {
                         }
 
                     }
-                    _ => unimplemented!()
+                    _ => {
+                        let tmp_loc = self.emit_ireg(op, f_content, f_context, vm);
+
+                        let ret = MemoryLocation::Address {
+                            base: tmp_loc,
+                            offset: None,
+                            index: None,
+                            scale: None
+                        };
+
+                        trace!("MEM from general ireg inst: {}", op);
+                        ret
+                    }
                 }
             },
             _ => panic!("expecting a instruction that yields a memory address")
