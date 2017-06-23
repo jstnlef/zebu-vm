@@ -375,20 +375,7 @@ impl ASMCode {
 
         // control flow analysis
         let n_insts = self.number_of_insts();
-        let ref blocks = self.blocks;
         let ref mut asm = self.code;
-
-        // a vector of all block starting instruction
-        let block_start = {
-            let mut ret = vec![];
-            for block in blocks.values() {
-                if TRACE_CFA {
-                    trace!("Block starts at {}", block.start_inst);
-                }
-                ret.push(block.start_inst);
-            }
-            ret
-        };
 
         for i in 0..n_insts {
             if TRACE_CFA {
@@ -1083,8 +1070,8 @@ impl ASMCodeGen {
     }
 
     /// appends an block label to current code
+    #[allow(unused_variables)]  // block name is not used
     fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
-        let l = self.line();
         self.cur_mut().code.push(ASMInst::symbolic(code));
     }
 
@@ -1199,7 +1186,6 @@ impl ASMCodeGen {
         target: ASMBranchTarget,
         spill_info: Option<SpillMemInfo>)
     {
-        let line = self.line();
         trace!("asm: {}", code);
         trace!("     defines: {:?}", defines);
         trace!("     uses: {:?}", uses);
@@ -1239,6 +1225,8 @@ impl ASMCodeGen {
     /// prepares information for a memory operand, returns (operand string (as in asm), reg/tmp locations)
     /// This function turns memory operands into something like "offset(base, scale, index)" or
     /// "label(base)"
+    #[allow(unused_assignments)]
+    // we keep updating loc_cursor to be valid, but we may not read value in the end
     fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, LinkedHashMap<MuID, Vec<ASMLocation>>) {
         debug_assert!(op.is_mem());
 
@@ -1258,7 +1246,7 @@ impl ASMCodeGen {
                 if offset.is_some() {
                     let offset = offset.as_ref().unwrap();
                     match offset.v {
-                        Value_::SSAVar(id) => {
+                        Value_::SSAVar(_) => {
                             // temp as offset
                             let (str, id, loc) = self.prepare_reg(offset, loc_cursor);
                             
@@ -1278,7 +1266,7 @@ impl ASMCodeGen {
                 }
                 
                 result_str.push('(');
-                loc_cursor += 1; 
+                loc_cursor += 1;
                 
                 // deal with base, base is ssa
                 let (str, id, loc) = self.prepare_reg(base, loc_cursor);
@@ -1295,7 +1283,7 @@ impl ASMCodeGen {
                     let index = index.as_ref().unwrap();
                     
                     match index.v {
-                        Value_::SSAVar(id) => {
+                        Value_::SSAVar(_) => {
                             // temp as offset
                             let (str, id, loc) = self.prepare_reg(index, loc_cursor);
                             
@@ -2658,6 +2646,7 @@ impl CodeGenerator for ASMCodeGen {
         }
     }
 
+    #[allow(unused_variables)]
     fn emit_mul_mem(&mut self, src: &P<Value>) {
         unimplemented!()
     }
@@ -3102,7 +3091,8 @@ impl CodeGenerator for ASMCodeGen {
 
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
-    
+
+    #[allow(unused_variables)]
     fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
         unimplemented!()
