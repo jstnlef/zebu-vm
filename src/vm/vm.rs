@@ -1382,6 +1382,7 @@ impl <'a> VM {
                 MuType_::Ref(ref ty)  => APIHandleValue::Ref(ty.clone(), unsafe {addr.load::<Address>()}),
                 MuType_::IRef(ref ty) => APIHandleValue::IRef(ty.clone(), unsafe {addr.load::<Address>()}),
                 MuType_::UPtr(ref ty) => APIHandleValue::UPtr(ty.clone(), unsafe {addr.load::<Address>()}),
+                MuType_::Tagref64     => APIHandleValue::TagRef64(unsafe {addr.load::<u64>()}),
 
                 _ => unimplemented!()
             }
@@ -1421,6 +1422,7 @@ impl <'a> VM {
                         _  => panic!("unimplemented int length")
                     }
                 },
+                APIHandleValue::TagRef64(val) => addr.store::<u64>(val),
                 APIHandleValue::Float(fval) => addr.store::<f32>(fval),
                 APIHandleValue::Double(fval) => addr.store::<f64>(fval),
                 APIHandleValue::UPtr(_, aval) => addr.store::<Address>(aval),
