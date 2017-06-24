@@ -3879,6 +3879,17 @@ impl <'a> InstructionSelection {
 
                         self.emit_shift_ref(&ops[base], &ops[index], element_size, f_content, f_context, vm)
                     }
+                    Instruction_::ConvOp{operation, operand, ..} => {
+                        match operation {
+                            op::ConvOp::REFCAST | op::ConvOp::PTRCAST => {
+                                let ref ref_op = ops[operand];
+                                // TODO: Inline the input (i.e. discard the PTR cast)
+                                let temp = self.emit_ireg(ref_op, f_content, f_context, vm);
+                                make_memory_location_base_offset(&temp, 0, vm)
+                            }
+                            _ => panic!("Not a memory conversion")
+                        }
+                    }
                     _ => panic!("Not a memory reference instruction")
                 }
             },

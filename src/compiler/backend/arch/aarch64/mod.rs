@@ -1558,6 +1558,12 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
 
         // Have to use more than one instruciton
     } else {
+        // Mask val so the higher (unused) bits are cleared
+        let val = if n < 64 {
+            val & (1 << n) - 1
+        } else {
+            val
+        };
         // Note n > 16, so there are at least two halfwords in n
 
         // How many halfowrds are zero or one
@@ -1575,7 +1581,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
         let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(val);
         let mut movzn = false; // whether a movz/movn has been emmited yet
 
-        if n_ones > n_zeros {
+        if false /*n_ones > n_zeros*/ { // TODO: Fix this??
             // It will take less instructions to use MOVN
             // MOVN(dest, v, n) will set dest = !(v << n)
 

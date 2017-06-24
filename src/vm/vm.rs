@@ -542,7 +542,6 @@ impl <'a> VM {
         } else {
             let mut new_map = HashMap::new();
             new_map.insert(callsite, catch);
-
             table.insert(fv, new_map);
         };
     }
@@ -1680,21 +1679,12 @@ impl <'a> VM {
         let opnd = value.v.as_tr64();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Ref(
-                // FIXME: Shouldn't I be able to refer to an existing ref<void> type??
-                P(
-                    MuType::new(new_internal_id(), MuType_::muref(
-                        P(
-                            MuType::new(new_internal_id(), MuType_::void())
-                        )
-                    )
-                )
-            ),
-            unsafe { Address::from_raw(
-                    ((opnd & 0x7ffffffffff8u64) |
-                           (((!(((opnd & 0x8000000000000000u64) << 1) - 1)) >> 17) &
+            v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
+                unsafe { Address::from_raw(
+                        ((opnd & 0x7ffffffffff8u64) |
+                               (((!(((opnd & 0x8000000000000000u64) << 1) - 1)) >> 17) &
                                     0xffff800000000000u64)) as usize
-            ) } )
+                ) })
         })
     }
 
