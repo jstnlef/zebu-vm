@@ -110,11 +110,7 @@ impl Address {
         Address(usize::MAX)
     }
     #[inline(always)]
-    pub unsafe fn raw(&self) -> usize {
-        self.0
-    }
-    #[inline(always)]
-    pub unsafe fn from_raw(raw : usize) -> Address {
+    pub unsafe fn from_usize(raw : usize) -> Address {
         Address(raw)
     }
 }

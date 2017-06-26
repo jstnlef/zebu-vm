@@ -1667,7 +1667,7 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v : APIHandleValue::Int(
-                (((opnd & 0xffffffffffffeu64) >> 1) | ((opnd & 0x8000000000000000u64) >> 12) & (1u64 << 51)),
+                (((opnd & 0xffffffffffffeu64) >> 1) | ((opnd & 0x8000000000000000u64) >> 12)),
                 52
             )
         })
@@ -1680,7 +1680,7 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
-                unsafe { Address::from_raw(
+                unsafe { Address::from_usize(
                         ((opnd & 0x7ffffffffff8u64) |
                                (((!(((opnd & 0x8000000000000000u64) << 1) - 1)) >> 17) &
                                     0xffff800000000000u64)) as usize
@@ -1731,7 +1731,7 @@ impl <'a> VM {
     pub fn handle_tr64_from_ref(&self, reff: APIHandleArg, tag: APIHandleArg) -> APIHandleResult {
         let handle_id = self.next_id();
         let (_, addr) = reff.v.as_ref();
-        let addr_ = unsafe { addr.raw() as u64 };
+        let addr_ = unsafe { addr.as_usize() as u64 };
         let tag_  = tag.v.as_int();
         self.new_handle (APIHandle {
             id: handle_id,
