@@ -754,25 +754,7 @@ impl <'a> GraphColoring<'a> {
         ret
     }
 
-    pub fn get_spill_history(&self) -> LinkedHashMap<MuID, P<Value>> {
-        self.spill_history.clone()
-    }
-
     pub fn get_spill_scratch_temps(&self) -> LinkedHashMap<MuID, MuID> {
         self.spill_scratch_temps.clone()
-    }
-
-    pub fn get_coalesced(&self) -> LinkedHashMap<MuID, MuID> {
-        let mut ret = LinkedHashMap::new();
-
-        for mov in self.coalesced_moves.iter() {
-            let from = self.ig.get_temp_of(mov.from);
-            let to   = self.ig.get_temp_of(mov.to);
-
-            ret.insert(from, to);
-            ret.insert(to  , from);
-        }
-
-        ret
     }
 }

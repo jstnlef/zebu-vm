@@ -90,15 +90,6 @@ impl InterferenceGraph {
         }
     }
 
-    /// returns all the temps in the graph
-    pub fn temps(&self) -> Vec<MuID>{
-        let mut ret = vec![];
-        for reg in self.nodes.keys() {
-            ret.push(*reg);
-        }
-        ret
-    }
-
     /// returns all the nodes in the graph
     pub fn nodes(&self) -> Vec<NodeIndex> {
         let mut ret = vec![];
@@ -111,11 +102,6 @@ impl InterferenceGraph {
     /// returns all the moves in the graph
     pub fn moves(&self) -> &LinkedHashSet<Move> {
         &self.moves
-    }
-
-    /// returns the number of nodes in the graph
-    pub fn n_nodes(&self) -> usize {
-        self.nodes.len()
     }
 
     /// adds a move edge between two nodes
