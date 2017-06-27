@@ -35,7 +35,7 @@ pub struct GraphColoring<'a> {
     /// temporaries, not precolored and not yet processed
     initial: Vec<NodeIndex>,
     /// whether a temp is spillable
-    // FIXME: not used
+    // FIXME: not used at the moment
     spillable: LinkedHashMap<MuID, bool>,
 
     /// list of low-degree non-move-related nodes
@@ -247,7 +247,7 @@ impl <'a> GraphColoring<'a> {
         trace!("Making work list from initials...");
         while !self.initial.is_empty() {
             let node = self.initial.pop().unwrap();
-            
+
             if {
                 // condition: degree >= K
                 let degree = self.ig.get_degree_of(node);
@@ -325,7 +325,6 @@ impl <'a> GraphColoring<'a> {
         trace!("Simplifying {}", self.display_node(node));
         
         self.select_stack.push(node);
-        
         for m in self.adjacent(node).iter() {
             self.decrement_degree(*m);
         }

@@ -1,3 +1,10 @@
+//! This module is for validating register allocation
+//! However it is disabled for now due to bugs. It is uncertain
+//! how important this is to Zebu. More description and discussion
+//! can be found as Issue #19.
+
+#![allow(dead_code)]
+
 use utils::LinkedHashMap;
 use ast::ir::*;
 use ast::ptr::*;
