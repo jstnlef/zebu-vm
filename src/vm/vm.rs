@@ -171,7 +171,7 @@ impl <'a> VM {
             compiled_exception_table: RwLock::new(HashMap::new()),
         };
 
-        // insert all intenral types
+        // insert all internal types
         {
             let mut types = ret.types.write().unwrap();
             for ty in INTERNAL_TYPES.iter() {
@@ -1097,6 +1097,7 @@ impl <'a> VM {
                 MuType_::Ref(ref ty)  => APIHandleValue::Ref(ty.clone(), unsafe {addr.load::<Address>()}),
                 MuType_::IRef(ref ty) => APIHandleValue::IRef(ty.clone(), unsafe {addr.load::<Address>()}),
                 MuType_::UPtr(ref ty) => APIHandleValue::UPtr(ty.clone(), unsafe {addr.load::<Address>()}),
+                MuType_::Tagref64     => APIHandleValue::TagRef64(unsafe {addr.load::<u64>()}),
 
                 _ => unimplemented!()
             }
@@ -1136,6 +1137,7 @@ impl <'a> VM {
                         _  => panic!("unimplemented int length")
                     }
                 },
+                APIHandleValue::TagRef64(val) => addr.store::<u64>(val),
                 APIHandleValue::Float(fval) => addr.store::<f32>(fval),
                 APIHandleValue::Double(fval) => addr.store::<f64>(fval),
                 APIHandleValue::UPtr(_, aval) => addr.store::<Address>(aval),
@@ -1337,5 +1339,122 @@ impl <'a> VM {
 
     pub fn handle_to_ufp(&self, handle: APIHandleArg) -> Address {
         handle.v.as_ufp().1
+    }
+    
+   /**
+    * Functions for handling TagRef64-related API calls are taken from:
+    * https://gitlab.anu.edu.au/mu/mu-impl-ref2/blob/master/src/main/scala/uvm/refimpl/itpr/operationHelpers.scala
+    */
+    
+    // See: `tr64IsFP`
+    pub fn handle_tr64_is_fp(&self, value:APIHandleArg) -> bool {
+        let opnd = value.v.as_tr64();
+        (opnd & 0x7ff0000000000001u64) != 0x7ff0000000000001u64 &&
+           (opnd & 0x7ff0000000000003u64) != 0x7ff0000000000002u64
+    }
+
+    // See: `tr64IsInt`
+    pub fn handle_tr64_is_int(&self, value: APIHandleArg) -> bool {
+        let opnd = value.v.as_tr64();
+        (opnd & 0x7ff0000000000001u64) == 0x7ff0000000000001u64
+    }
+
+    // See: `tr64IsRef`
+    pub fn handle_tr64_is_ref(&self, value: APIHandleArg) -> bool {
+        let opnd = value.v.as_tr64();
+        (opnd & 0x7ff0000000000003u64) == 0x7ff0000000000002u64
+    }
+    
+    // See: `tr64ToFP`
+    pub fn handle_tr64_to_fp(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Double(
+                value.v.as_tr64() as f64
+            )
+        })
+    }
+
+    // See: `tr64ToInt`
+    pub fn handle_tr64_to_int(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let opnd = value.v.as_tr64();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Int(
+                (((opnd & 0xffffffffffffeu64) >> 1) | ((opnd & 0x8000000000000000u64) >> 12)),
+                52
+            )
+        })
+    }
+
+    // See: `tr64ToRef`
+    pub fn handle_tr64_to_ref(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let opnd = value.v.as_tr64();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
+                unsafe { Address::from_usize(
+                        ((opnd & 0x7ffffffffff8u64) |
+                               (((!(((opnd & 0x8000000000000000u64) << 1) - 1)) >> 17) &
+                                    0xffff800000000000u64)) as usize
+                ) })
+        })
+    }
+
+    // See: `tr64ToTag`
+    pub fn handle_tr64_to_tag(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let opnd = value.v.as_tr64();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Int(
+                    (((opnd & 0x000f800000000000u64) >> 46) | ((opnd & 0x4) >> 2)),
+                6
+            )
+        })
+    }
+
+    // See: `fpToTr64`
+    pub fn handle_tr64_from_fp(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let mut bits = value.v.as_double() as u64;
+        if value.v.as_double().is_nan() {
+            bits = bits & 0xfff8000000000000u64 | 0x0000000000000008u64;
+        }
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::TagRef64(bits)
+        })
+    }
+
+    // See: `intToTr64`
+    pub fn handle_tr64_from_int(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let opnd = value.v.as_int();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::TagRef64(
+                (0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) |
+                    ((opnd & 0x8000000000000u64) << 12))
+            )
+        })
+    }
+    
+    // See: `refToTr64`
+    pub fn handle_tr64_from_ref(&self, reff: APIHandleArg, tag: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let (_, addr) = reff.v.as_ref();
+        let addr_ = unsafe { addr.as_usize() as u64 };
+        let tag_  = tag.v.as_int();
+        self.new_handle (APIHandle {
+            id: handle_id,
+            v : APIHandleValue::TagRef64( 
+                (0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) | ((addr_ & 0x800000000000u64) << 16)
+                    | ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2))
+            )
+        })
     }
 }

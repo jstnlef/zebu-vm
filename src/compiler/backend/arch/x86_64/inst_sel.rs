@@ -3934,6 +3934,8 @@ impl <'a> InstructionSelection {
                                     debug!("tmp's ty: {}", tmp.ty);
                                     self.backend.emit_mov_r_imm(&tmp, val)
                                 } else {
+                                    assert!(tmp.ty.get_int_length().is_some());
+                                    assert!(tmp.ty.get_int_length().unwrap() == 64);
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
                             },

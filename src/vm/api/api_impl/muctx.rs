@@ -373,43 +373,43 @@ impl MuCtx {
     }
 
     pub fn tr64_is_fp(&mut self, value: &APIHandle) -> bool {
-        panic!("Not implemented")
+        self.get_mvm().vm.handle_tr64_is_fp(value)
     }
 
     pub fn tr64_is_int(&mut self, value: &APIHandle) -> bool {
-        panic!("Not implemented")
+        self.get_mvm().vm.handle_tr64_is_int(value)
     }
 
     pub fn tr64_is_ref(&mut self, value: &APIHandle) -> bool {
-        panic!("Not implemented")
+        self.get_mvm().vm.handle_tr64_is_ref(value)
     }
 
     pub fn tr64_to_fp(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_to_fp(value))
     }
 
     pub fn tr64_to_int(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_to_int(value))
     }
 
     pub fn tr64_to_ref(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_to_ref(value))
     }
 
     pub fn tr64_to_tag(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_to_tag(value))
     }
 
     pub fn tr64_from_fp(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_from_fp(value))
     }
 
     pub fn tr64_from_int(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_from_int(value))
     }
 
     pub fn tr64_from_ref(&mut self, reff: &APIHandle, tag: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_from_ref(reff, tag))
     }
 
     pub fn enable_watchpoint(&mut self, wpid: CMuWPID) {

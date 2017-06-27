@@ -1589,6 +1589,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
             ((negative_value & (bits_ones(16)<<32) == (bits_ones(16)<<32)) as u64) +
             ((negative_value & (bits_ones(16)<<48) == (bits_ones(16)<<48)) as u64);
 
+
         let mut movzn = false; // whether a movz/movn has been emmited yet
         if n_ones > n_zeros { // It will take less instructions to use MOVN
             let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(negative_value);

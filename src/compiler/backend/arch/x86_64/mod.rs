@@ -518,12 +518,17 @@ pub fn is_callee_saved(reg_id: MuID) -> bool {
 }
 
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
-    use std::u32;
-    match op.v {
-        Value_::Constant(Constant::Int(val)) if val <= u32::MAX as u64 => {
-            true
-        },
-        _ => false
+    use std::i32;
+
+    if op.ty.get_int_length().is_some() && op.ty.get_int_length().unwrap() <= 32 {
+        match op.v {
+            Value_::Constant(Constant::Int(val)) if val as i32 >= i32::MIN && val as i32 <= i32::MAX => {
+                true
+            },
+            _ => false
+        }
+    } else {
+        false
     }
 }
 

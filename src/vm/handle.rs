@@ -198,4 +198,11 @@ impl APIHandleValue {
             _ => panic!("expected FuncRef")
         }
     }
+    
+    pub fn as_tr64(&self) -> u64 {
+        match self {
+            &APIHandleValue::TagRef64(val) => val,
+            _ => panic!("expected TagRef64 handle")
+        }
+    }
 }
