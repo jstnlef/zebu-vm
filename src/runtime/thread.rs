@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #![allow(dead_code)]
 
 use ast::ir::*;
@@ -127,6 +141,7 @@ impl MuStack {
             match reg_group {
                 RegGroup::GPR => gpr_used.push(word),
                 RegGroup::FPR => fpr_used.push(word),
+                RegGroup::GPREX => unimplemented!(),
             }
         }
 
@@ -311,6 +326,7 @@ extern "C" {
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
     pub fn muentry_get_thread_local() -> Address;
+    pub fn muentry_set_retval(val: u32);
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -319,6 +335,7 @@ extern "C" {
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
     pub fn muentry_get_thread_local() -> Address;
+    pub fn muentry_set_retval(val: u32);
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -372,6 +389,9 @@ impl MuThread {
     pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) -> bool {
         use std::usize;
 
+        // build exception table
+        vm.build_exception_table();
+
         if ! unsafe{muentry_get_thread_local()}.is_zero() {
             warn!("current thread has a thread local (has a muthread to it)");
             return false;
@@ -421,13 +441,6 @@ impl MuThread {
 
         // set thread local
         unsafe {set_thread_local(ptr_fake_mu_thread)};
-
-//        let addr = unsafe {muentry_get_thread_local()};
-//        let sp_threadlocal_loc = addr.plus(*NATIVE_SP_LOC_OFFSET);
-//
-//        unsafe {
-//            fake_swap_mu_thread(sp_threadlocal_loc);
-//        }
 
         true
     }

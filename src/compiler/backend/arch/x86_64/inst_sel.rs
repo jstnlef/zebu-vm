@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use ast::ir::*;
 use ast::ptr::*;
 use ast::inst::*;
@@ -27,6 +41,8 @@ use utils::math;
 use utils::POINTER_SIZE;
 
 use std::collections::HashMap;
+use std::collections::LinkedList;
+
 use std::any::Any;
 
 lazy_static! {
@@ -128,12 +144,13 @@ pub struct InstructionSelection {
     current_block_in_ir: Option<MuName>,
     /// start location of current function
     current_func_start: Option<ValueLocation>,
-    /// a map of exception callsites of current function
-    /// key: block id, val: a vector of callsite locations that names the block as exception block
-    current_exn_callsites: HashMap<MuID, Vec<ValueLocation>>,
+    /// technically this is a map in that each Key is unique, but we will never try and add duplicate
+    /// keys, or look things up, so a list of pairs is faster than a Map.
+    /// A list of pairs, the first is the name of a callsite the second
+    current_callsites: LinkedList<(MuName, MuID)>,
     /// a map of exception blocks
     /// key: block id, val: block location
-    current_exn_blocks: HashMap<MuID, ValueLocation>,
+    current_exn_blocks: HashMap<MuID, MuName>,
     /// constants used in this function that are put to memory
     /// key: value id, val: constant value
     current_constants: HashMap<MuID, P<Value>>,
@@ -160,7 +177,7 @@ impl <'a> InstructionSelection {
                                         // FIXME: ideally we should not create new blocks in instruction selection
                                         // see Issue #6
             current_func_start: None,
-            current_exn_callsites: HashMap::new(), 
+            current_callsites: LinkedList::new(),
             current_exn_blocks: HashMap::new(),
 
             current_constants: HashMap::new(),
@@ -1532,7 +1549,24 @@ impl <'a> InstructionSelection {
                             Some(node), f_content, f_context, vm
                         );
                     }
-    
+
+                    Instruction_::SetRetval(index) => {
+                        trace!("instsel on SETRETVAL");
+
+                        let ref ops = inst.ops;
+                        let ref op  = ops[index];
+
+                        assert!(self.match_ireg(op));
+                        let retval = self.emit_ireg(op, f_content, f_context, vm);
+
+                        self.emit_runtime_entry(
+                            &entrypoints::SET_RETVAL,
+                            vec![retval],
+                            None,
+                            Some(node), f_content, f_context, vm
+                        );
+                    }
+
                     _ => unimplemented!()
                 } // main switch
             },
@@ -2011,13 +2045,16 @@ impl <'a> InstructionSelection {
                         }
                     }
                     16 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                        // emit_ireg_ex will split 128 bits register to two 64-bits temporaries
+                        // but here we want to pass 128-bit registers as argument, and let
+                        // calling convention deal with splitting.
+                        // FIXME: emit_ireg() may not be proper here (though it might work)
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
 
                         self.emit_runtime_entry(&entrypoints::UDIV_U128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![reg_op1, reg_op2],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => panic!("unsupported int size: {}", op_size)
@@ -2044,13 +2081,12 @@ impl <'a> InstructionSelection {
                         }
                     }
                     16 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
 
                         self.emit_runtime_entry(&entrypoints::SDIV_I128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![reg_op1, reg_op2],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => panic!("unsupported int size: {}", op_size)
@@ -2077,13 +2113,12 @@ impl <'a> InstructionSelection {
                         }
                     }
                     16 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
 
                         self.emit_runtime_entry(&entrypoints::UREM_U128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![reg_op1, reg_op2],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => panic!("unsupported int size: {}", op_size)
@@ -2110,13 +2145,12 @@ impl <'a> InstructionSelection {
                         }
                     }
                     16 => {
-                        let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                        let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
-                        let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                        let reg_op1 = self.emit_ireg(&op1, f_content, f_context, vm);
+                        let reg_op2 = self.emit_ireg(&op2, f_content, f_context, vm);
 
                         self.emit_runtime_entry(&entrypoints::SREM_I128,
-                                                vec![op1_l.clone(), op1_h.clone(), op2_l.clone(), op2_h.clone()],
-                                                Some(vec![res_l.clone(), res_h.clone()]),
+                                                vec![reg_op1, reg_op2],
+                                                Some(vec![res_tmp.clone()]),
                                                 Some(node), f_content, f_context, vm);
                     }
                     _ => panic!("unsupported int size: {}")
@@ -2998,7 +3032,8 @@ impl <'a> InstructionSelection {
     /// returns the stack arg offset - we will need this to collapse stack after the call
     fn emit_precall_convention(
         &mut self,
-        args: &Vec<P<Value>>, 
+        args: &Vec<P<Value>>,
+        f_context: &mut FunctionContext,
         vm: &VM) -> usize {
         // put args into registers if we can
         // in the meantime record args that do not fit in registers
@@ -3042,6 +3077,37 @@ impl <'a> InstructionSelection {
                     gpr_arg_count += 1;
                 } else {
                     // use stack to pass argument
+                    stack_args.push(arg.clone());
+                }
+            } else if arg_reg_group == RegGroup::GPREX && arg.is_reg() {
+                // need two regsiters for this, otherwise, we need to pass on stack
+                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRS.len() {
+                    let arg_gpr1 = x86_64::ARGUMENT_GPRS[gpr_arg_count].clone();
+                    let arg_gpr2 = x86_64::ARGUMENT_GPRS[gpr_arg_count + 1].clone();
+
+                    let (arg_l, arg_h) = self.split_int128(&arg, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&arg_gpr1, &arg_l);
+                    self.backend.emit_mov_r_r(&arg_gpr2, &arg_h);
+
+                    gpr_arg_count += 2;
+                } else {
+                    stack_args.push(arg.clone());
+                }
+            } else if arg_reg_group == RegGroup::GPREX && arg.is_const() {
+                // need two registers for this, otherwise we need to pass on stack
+                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRS.len() {
+                    let arg_gpr1 = x86_64::ARGUMENT_GPRS[gpr_arg_count].clone();
+                    let arg_gpr2 = x86_64::ARGUMENT_GPRS[gpr_arg_count + 1].clone();
+
+                    let const_vals = arg.extract_int_ex_const();
+
+                    assert!(const_vals.len() == 2);
+                    self.backend.emit_mov_r64_imm64(&arg_gpr1, const_vals[0] as i64);
+                    self.backend.emit_mov_r64_imm64(&arg_gpr2, const_vals[1] as i64);
+
+                    gpr_arg_count += 2;
+                } else {
                     stack_args.push(arg.clone());
                 }
             } else if arg_reg_group == RegGroup::FPR && arg.is_reg() {
@@ -3142,6 +3208,19 @@ impl <'a> InstructionSelection {
                     // get return value by stack
                     unimplemented!()
                 }
+            } else if RegGroup::get_from_value(&ret_val) == RegGroup::GPREX && ret_val.is_reg() {
+                if gpr_ret_count + 1 < x86_64::RETURN_GPRS.len() {
+                    let ret_gpr1 = x86_64::RETURN_GPRS[gpr_ret_count].clone();
+                    let ret_gpr2 = x86_64::RETURN_GPRS[gpr_ret_count + 1].clone();
+
+                    let (ret_val_l, ret_val_h) = self.split_int128(&ret_val, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&ret_val_l, &ret_gpr1);
+                    self.backend.emit_mov_r_r(&ret_val_h, &ret_gpr2);
+                } else {
+                    // get return value by stack
+                    unimplemented!()
+                }
             } else if RegGroup::get_from_value(&ret_val) == RegGroup::FPR && ret_val.is_reg() {
                 // floating point register
                 if fpr_ret_count < x86_64::RETURN_FPRS.len() {
@@ -3189,15 +3268,18 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext, 
         vm: &VM) -> Vec<P<Value>> 
     {
-        let stack_arg_size = self.emit_precall_convention(&args, vm);
+        let stack_arg_size = self.emit_precall_convention(&args, f_context, vm);
         
         // make call
         if vm.is_running() {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
-            self.backend.emit_call_near_rel32(callsite, func_name, None);
-            
+            self.backend.emit_call_near_rel32(callsite.clone(), func_name, None); // assume ccall wont throw exception
+
+            // TODO: What if theres an exception block?
+            self.current_callsites.push_back((callsite, 0));
+
             // record exception block (CCall may have an exception block)
             // FIXME: unimplemented for now (see Issue #42)
             if cur_node.is_some() {
@@ -3320,7 +3402,7 @@ impl <'a> InstructionSelection {
 
         // prepare args (they could be instructions, we need to emit inst and get value)
         let arg_values = self.process_call_arguments(calldata, ops, f_content, f_context, vm);
-        let stack_arg_size = self.emit_precall_convention(&arg_values, vm);
+        let stack_arg_size = self.emit_precall_convention(&arg_values, f_context, vm);
 
         // check if this call has exception clause - need to tell backend about this
         let potentially_excepting = {
@@ -3365,21 +3447,16 @@ impl <'a> InstructionSelection {
             // record exception branch
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
-            
-            if self.current_exn_callsites.contains_key(&target_block) {
-                let callsites = self.current_exn_callsites.get_mut(&target_block).unwrap();
-                callsites.push(callsite);
-            } else {
-                let mut callsites = vec![];
-                callsites.push(callsite);
-                self.current_exn_callsites.insert(target_block, callsites);
-            }
+
+            self.current_callsites.push_back((callsite.to_relocatable(), target_block));
 
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
             let fv_id = self.current_fv_id;
             self.start_block(format!("normal_cont_for_call_{}_{}", fv_id, cur_node.id()));
+        } else {
+            self.current_callsites.push_back((callsite.to_relocatable(), 0));
         }
         
         // deal with ret vals, collapse stack etc.
@@ -3416,7 +3493,10 @@ impl <'a> InstructionSelection {
             } else if self.match_ireg(arg) {
                 let arg = self.emit_ireg(arg, f_content, f_context, vm);
                 ret.push(arg);
-            } else if self.match_fpreg(arg) {
+            } else if self.match_ireg_ex(arg) {
+                let arg = self.emit_ireg_ex_as_one(arg, f_content, f_context, vm);
+                ret.push(arg);
+            }  else if self.match_fpreg(arg) {
                 let arg = self.emit_fpreg(arg, f_content, f_context, vm);
                 ret.push(arg);
             } else {
@@ -3426,7 +3506,7 @@ impl <'a> InstructionSelection {
 
         ret
     }
-    
+
     /// processes a Destination clause, emits move to pass arguments to the destination
     /// It is problematic if we call process_dest() for multiway branches, but we have
     /// a remove_phi_node pass to insert intermediate blocks to move arguments so that
@@ -3456,7 +3536,7 @@ impl <'a> InstructionSelection {
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, f_context: &mut FunctionContext, vm: &VM) {
         let block_name = PROLOGUE_BLOCK_NAME.to_string();
         self.backend.start_block(block_name.clone());
-        
+
         // push rbp
         self.backend.emit_push_r64(&x86_64::RBP);
         if vm.vm_options.flag_emit_debug_info {
@@ -3980,8 +4060,16 @@ impl <'a> InstructionSelection {
                                     let val = self.value_iimm_to_i32(&pv);
                                     self.backend.emit_mov_r_imm(&tmp, val);
                                 } else {
+                                    assert!(tmp.ty.get_int_length().is_some());
+                                    assert!(tmp.ty.get_int_length().unwrap() == 64);
                                     self.backend.emit_mov_r64_imm64(&tmp, val as i64);
                                 }
+                            }
+                            &Constant::IntEx(ref vals) => {
+                                let (tmp_l, tmp_h) = self.split_int128(&tmp, f_context, vm);
+
+                                self.backend.emit_mov_r64_imm64(&tmp_l, vals[0] as i64);
+                                self.backend.emit_mov_r64_imm64(&tmp_h, vals[1] as i64);
                             }
                             // a function reference, loads the funcref to a temporary
                             &Constant::FuncRef(func_id) => {
@@ -4050,6 +4138,11 @@ impl <'a> InstructionSelection {
                 }
             }
         }
+    }
+
+    /// emits a 128-bit integer register as one temporary
+    fn emit_ireg_ex_as_one(&mut self, op: &TreeNode, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        self.emit_ireg(op, f_content, f_context, vm)
     }
 
     /// emits code for a floating point register pattern
@@ -4551,7 +4644,19 @@ impl <'a> InstructionSelection {
                         }
 
                     }
-                    _ => panic!("instruction {} does not emit a memory address", inst)
+                    _ => {
+                        let tmp_loc = self.emit_ireg(op, f_content, f_context, vm);
+
+                        let ret = MemoryLocation::Address {
+                            base: tmp_loc,
+                            offset: None,
+                            index: None,
+                            scale: None
+                        };
+
+                        trace!("MEM from general ireg inst: {}", op);
+                        ret
+                    }
                 }
             },
             _ => panic!("expected an instruction that yields a memory address, found {}", op)
@@ -4957,7 +5062,7 @@ impl CompilerPass for InstructionSelection {
             start_loc
         });
         self.current_callsite_id = 0;
-        self.current_exn_callsites.clear();
+        self.current_callsites.clear();
         self.current_exn_blocks.clear();
         self.current_constants.clear();
         self.current_constants_locs.clear();
@@ -4986,7 +5091,7 @@ impl CompilerPass for InstructionSelection {
             if is_exception_block {
                 // exception block
                 let loc = self.backend.start_exception_block(block_label.clone());
-                self.current_exn_blocks.insert(block.id(), loc);
+                self.current_exn_blocks.insert(block.id(), loc.to_relocatable());
             } else {
                 // normal block
                 self.backend.start_block(block_label.clone());
@@ -4996,7 +5101,7 @@ impl CompilerPass for InstructionSelection {
                 // this block uses exception arguments
                 // we need to emit landingpad for it
                 let exception_arg = block_content.exn_arg.as_ref().unwrap();
-                
+
                 // need to insert a landing pad
                 self.emit_landingpad(&exception_arg, f_content, &mut func.context, vm);
             }
@@ -5033,25 +5138,21 @@ impl CompilerPass for InstructionSelection {
         let (mc, func_end) = self.backend.finish_code(func_name.clone());
         
         // insert exception branch info
-        let mut frame = match self.current_frame.take() {
+        let frame = match self.current_frame.take() {
             Some(frame) => frame,
             None => panic!("no current_frame for function {} that is being compiled", func_name)
         };
-        for block_id in self.current_exn_blocks.keys() {
-            let block_loc = match self.current_exn_blocks.get(&block_id) {
-                Some(loc) => loc,
-                None => panic!("failed to find exception block {}", block_id)
+        for &(ref callsite, block_id) in self.current_callsites.iter() {
+            let block_loc = if block_id == 0 {
+                String::new()
+            } else {
+                self.current_exn_blocks.get(&block_id).unwrap().clone()
             };
-            let callsites = match self.current_exn_callsites.get(&block_id) {
-                Some(callsite) => callsite,
-                None => panic!("failed to find callsite for block {}", block_id)
-            };
-            
-            for callsite in callsites {
-                frame.add_exception_callsite(callsite.clone(), block_loc.clone());
-            }
+
+            vm.add_exception_callsite(callsite.clone(), block_loc, self.current_fv_id);
         }
-        
+
+
         let compiled_func = CompiledFunction::new(func.func_id, func.id(), mc,
                                                   self.current_constants.clone(), self.current_constants_locs.clone(),
                                                   frame, self.current_func_start.take().unwrap(), func_end);

@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
@@ -16,11 +30,9 @@ use utils::LinkedHashMap;
 
 use ast::ptr::P;
 use ast::ir::*;
-use ast::types::*;
 
 use std::str;
 use std::usize;
-use std::slice::Iter;
 use std::ops;
 use std::collections::HashSet;
 
@@ -94,16 +106,6 @@ impl ASMCode {
         }
 
         panic!("didnt find any block for inst {}", inst)
-    }
-
-    fn get_block_by_start_inst(&self, inst: usize) -> Option<&ASMBlock> {
-        for block in self.blocks.values() {
-            if block.start_inst == inst {
-                return Some(block);
-            }
-        }
-
-        None
     }
 
     fn rewrite_insert(
@@ -269,19 +271,7 @@ impl ASMCode {
         // control flow analysis
         let n_insts = self.number_of_insts();
 
-        let ref blocks = self.blocks;
         let ref mut asm = self.code;
-
-        let block_start = {
-            let mut ret = vec![];
-            for block in blocks.values() {
-                if TRACE_CFA {
-                    trace!("Block starts at {}", block.start_inst);
-                }
-                ret.push(block.start_inst);
-            }
-            ret
-        };
 
         for i in 0..n_insts {
             if TRACE_CFA {
@@ -896,21 +886,6 @@ impl ASMInst {
             spill_info: spill_info
         }
     }
-
-    fn nop() -> ASMInst {
-        ASMInst {
-            code: "".to_string(),
-            defines: LinkedHashMap::new(),
-            uses: LinkedHashMap::new(),
-            is_symbol: false,
-            is_mem_op_used: false,
-            preds: vec![],
-            succs: vec![],
-            branch: ASMBranchTarget::None,
-
-            spill_info: None
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -993,14 +968,7 @@ impl ASMCodeGen {
         self.cur().code.len()
     }
 
-    fn add_asm_label(&mut self, code: String) {
-        let l = self.line();
-        trace!("emit: {}", code);
-        self.cur_mut().code.push(ASMInst::symbolic(code));
-    }
-
     fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
-        let l = self.line();
         trace!("emit: [{}]{}", block_name, code);
         self.cur_mut().code.push(ASMInst::symbolic(code));
     }
@@ -1008,10 +976,6 @@ impl ASMCodeGen {
     fn add_asm_symbolic(&mut self, code: String) {
         trace!("emit: {}", code);
         self.cur_mut().code.push(ASMInst::symbolic(code));
-    }
-
-    fn prepare_machine_regs(&self, regs: Iter<P<Value>>) -> Vec<MuID> {
-        regs.map(|x| self.prepare_machine_reg(x)).collect()
     }
 
     fn add_asm_call(&mut self, code: String, potentially_excepting: Option<MuName>, target: Option<(MuID, ASMLocation)>) {
@@ -1057,22 +1021,6 @@ impl ASMCodeGen {
         }, None)
     }
 
-    fn add_asm_ret(&mut self, code: String) {
-        // return instruction does not use anything (not RETURN REGS)
-        // otherwise it will keep RETURN REGS alive
-        // and if there is no actual move into RETURN REGS, it will keep RETURN REGS for alive for very long
-        // and prevents anything using those regsiters
-        self.add_asm_inst_internal(code, linked_hashmap! {}, linked_hashmap! {}, false, ASMBranchTarget::Return, None);
-    }
-
-    fn add_asm_branch(&mut self, code: String, target: MuName) {
-        self.add_asm_inst_internal(code, linked_hashmap! {}, linked_hashmap! {}, false, ASMBranchTarget::Unconditional(target), None);
-    }
-
-    fn add_asm_branch2(&mut self, code: String, target: MuName) {
-        self.add_asm_inst_internal(code, linked_hashmap! {}, linked_hashmap! {}, false, ASMBranchTarget::Conditional(target), None);
-    }
-
     fn add_asm_inst(
         &mut self,
         code: String,
@@ -1113,7 +1061,6 @@ impl ASMCodeGen {
         target: ASMBranchTarget,
         spill_info: Option<SpillMemInfo>)
     {
-        let line = self.line();
         trace!("asm: {}", code);
         trace!("     defines: {:?}", defines);
         trace!("     uses: {:?}", uses);
@@ -1134,30 +1081,6 @@ impl ASMCodeGen {
         let str = self.asm_reg_op(op);
         let len = str.len();
         (str, op.extract_ssa_id().unwrap(), ASMLocation::new(self.line(), loc, len, check_op_len(&op.ty)))
-    }
-
-    fn prepare_fpreg(&self, op: &P<Value>, loc: usize) -> (String, MuID, ASMLocation) {
-        if cfg!(debug_assertions) {
-            match op.v {
-                Value_::SSAVar(_) => {},
-                _ => panic!("expecting register op")
-            }
-        }
-
-        let str = self.asm_reg_op(op);
-        let len = str.len();
-        (str, op.extract_ssa_id().unwrap(), ASMLocation::new(self.line(), loc, len, 64))
-    }
-
-    fn prepare_machine_reg(&self, op: &P<Value>) -> MuID {
-        if cfg!(debug_assertions) {
-            match op.v {
-                Value_::SSAVar(_) => {},
-                _ => panic!("expecting machine register op")
-            }
-        }
-
-        op.extract_ssa_id().unwrap()
     }
 
     fn prepare_mem(&self, op: &P<Value>, loc: usize) -> (String, LinkedHashMap<MuID, Vec<ASMLocation>>) {
@@ -1203,7 +1126,9 @@ impl ASMCodeGen {
                             result_str.push_str(",");
                             let n = offset.ty.get_int_length().unwrap();
                             let shift_type =
-                                if n == 64 { if signed { "SXTX" } else { "LSL" } } else if n == 32 { if signed { "SXTW" } else { "UXTW" } } else { panic!("Unexpected size for offset register") };
+                                     if n == 64 { if signed { "SXTX" } else { "LSL"  } }
+                                else if n == 32 { if signed { "SXTW" } else { "UXTW" } }
+                                else            { panic!("Unexpected size for offset register") };
 
                             result_str.push_str(&shift_type);
                             result_str.push_str(" #");
@@ -1417,6 +1342,23 @@ impl ASMCodeGen {
         } else {
             format!("{} {},{},#{},LSL #{}", inst, reg1, reg2, src2, shift)
         };
+
+        self.add_asm_inst(
+            asm,
+            ignore_zero_register(id1, vec![loc1]),
+            ignore_zero_register(id2, vec![loc2]),
+            false
+        )
+    }
+
+    fn internal_binop_str(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &str) {
+        let inst = inst.to_string();
+        trace!("emit: \t{} {}, {} -> {}", inst, src1, src2, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{},#{}", inst, reg1, reg2, src2);
 
         self.add_asm_inst(
             asm,
@@ -1781,7 +1723,6 @@ impl ASMCodeGen {
             }
         };
 
-
         trace!("emit: \t{} {} -> {}", inst, src, dest);
 
         let (reg, id, loc) = self.prepare_reg(dest, inst.len() + 1);
@@ -1819,8 +1760,8 @@ impl ASMCodeGen {
         let inst = inst.to_string();
         trace!("emit: \t{} {} -> {},{}", inst, src, dest1, dest2);
 
-        let (reg1, id1, loc1) = self.prepare_reg(dest1, 3 + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(dest2, 3 + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(dest1, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest2, inst.len() + 1 + reg1.len() + 1);
         let (mem, uses) = self.prepare_mem(src, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
 
         let asm = format!("{} {},{},{}", inst, reg1, reg2, mem);
@@ -1931,8 +1872,8 @@ impl ASMCodeGen {
         let inst = inst.to_string();
         trace!("emit: \t{} {},{} -> {}", inst, src1, src2, dest);
 
-        let (reg1, id1, loc1) = self.prepare_reg(src2, inst.len() + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(src1, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(src2, inst.len() + 1 + reg1.len() + 1);
         let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
 
         if is_zero_register_id(id1) {
@@ -1968,8 +1909,8 @@ impl ASMCodeGen {
         trace!("emit: \t{} {},{} -> {},{}", inst, src1, src2, dest, status);
 
         let (reg1, id1, loc1) = self.prepare_reg(status, inst.len() + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(src2, inst.len() + 1 + reg1.len() + 1);
-        let (reg3, id3, loc3) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
+        let (reg3, id3, loc3) = self.prepare_reg(src2, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1);
         let (mem, mut uses) = self.prepare_mem(dest, inst.len() + 1 + reg1.len() + 1 + reg2.len() + 1 + reg3.len() + 1);
 
         if is_zero_register_id(id2) {
@@ -2002,19 +1943,6 @@ impl ASMCodeGen {
 
     fn emit_ldr_spill(&mut self, dest: Reg, src: Mem) { self.internal_load("LDR", dest, src, false, true, false); }
     fn emit_str_spill(&mut self, dest: Mem, src: Reg) { self.internal_store("STR", dest, src, true, false); }
-}
-
-// Only used for loads and stores
-#[inline(always)]
-fn op_postfix(op_len: usize) -> &'static str {
-    match op_len {
-        1  => "B",
-        8  => "B",
-        16 => "H",
-        32 => "",
-        64 => "",
-        _  => panic!("unexpected op size: {}", op_len)
-    }
 }
 
 impl CodeGenerator for ASMCodeGen {
@@ -2172,23 +2100,28 @@ impl CodeGenerator for ASMCodeGen {
         }
     }
 
+    fn add_cfi_sections(&mut self, arg: &str) { self.add_asm_symbolic(format!(".cfi_sections {}", arg)); }
     fn add_cfi_startproc(&mut self) {
-        self.add_asm_symbolic("\t.cfi_startproc".to_string());
+        self.add_asm_symbolic(".cfi_startproc".to_string());
     }
     fn add_cfi_endproc(&mut self) {
-        self.add_asm_symbolic("\t.cfi_endproc".to_string());
+        self.add_asm_symbolic(".cfi_endproc".to_string());
     }
 
     fn add_cfi_def_cfa_register(&mut self, reg: Reg) {
         let reg = self.asm_reg_op(reg);
-        self.add_asm_symbolic(format!("\t.cfi_def_cfa_register {}", reg));
+        self.add_asm_symbolic(format!(".cfi_def_cfa_register {}", reg));
     }
     fn add_cfi_def_cfa_offset(&mut self, offset: i32) {
-        self.add_asm_symbolic(format!("\t.cfi_def_cfa_offset {}", offset));
+        self.add_asm_symbolic(format!(".cfi_def_cfa_offset {}", offset));
+    }
+    fn add_cfi_def_cfa(&mut self, reg: Reg, offset: i32) {
+        let reg = self.asm_reg_op(reg);
+        self.add_asm_symbolic(format!(".cfi_def_cfa {}, {}", reg, offset));
     }
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32) {
         let reg = self.asm_reg_op(reg);
-        self.add_asm_symbolic(format!("\t.cfi_offset {}, {}", reg, offset));
+        self.add_asm_symbolic(format!(".cfi_offset {}, {}", reg, offset));
     }
 
     fn emit_frame_grow(&mut self) {
@@ -2221,6 +2154,8 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
+
+    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str) {self.internal_binop_str("ADD", dest, src1, src2)}
 
     // Pushes a pair of registers on the givne stack (uses the STP instruction)
     fn emit_push_pair(&mut self, src1: &P<Value>, src2: &P<Value>, stack: &P<Value>) {
@@ -2424,7 +2359,13 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: \tFMOV {} -> {}", src, dest);
 
         let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1);
-        let asm = format!("FMOV {},#{}", reg1, src);
+        // GCC complains if the immediate argument has no decimal part (it will treat it as an integer)
+        // (e.g. #1 is an error, but #1.0 is not)
+        let asm = if src == src.trunc() { // src is an integer, append '.0'
+            format!("FMOV {},#{}.0", reg1, src)
+        } else {
+            format!("FMOV {},#{}", reg1, src)
+        };
 
         self.add_asm_inst(
             asm,
@@ -2745,10 +2686,10 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         Ok(file) => file
     };
 
-    file.write("\t.arch armv8-a\n".as_bytes()).unwrap();
+    file.write(".arch armv8-a\n".as_bytes()).unwrap();
 
     // constants in text section
-    file.write("\t.text\n".as_bytes()).unwrap();
+    file.write(".text\n".as_bytes()).unwrap();
 
     write_const_min_align(&mut file);
 
@@ -2784,7 +2725,7 @@ fn write_const_min_align(f: &mut File) {
 #[cfg(target_os = "linux")]
 fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
-    f.write_fmt(format_args!("\t.balign {}\n", check_min_align(align))).unwrap();
+    f.write_fmt(format_args!(".balign {}\n", check_min_align(align))).unwrap();
 }
 
 fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
@@ -2815,30 +2756,30 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         &Constant::Int(val) => {
             let len = ty.get_int_length().unwrap();
             match len {
-                8  => f.write_fmt(format_args!("\t.byte {}\n", val as u8 )).unwrap(),
-                16 => f.write_fmt(format_args!("\t.word {}\n", val as u16)).unwrap(),
-                32 => f.write_fmt(format_args!("\t.long {}\n", val as u32)).unwrap(),
-                64 => f.write_fmt(format_args!("\t.quad {}\n", val as u64)).unwrap(),
+                8  => f.write_fmt(format_args!(".byte {}\n", val as u8 )).unwrap(),
+                16 => f.write_fmt(format_args!(".word {}\n", val as u16)).unwrap(),
+                32 => f.write_fmt(format_args!(".long {}\n", val as u32)).unwrap(),
+                64 => f.write_fmt(format_args!(".quad {}\n", val as u64)).unwrap(),
                 _  => panic!("unimplemented int length: {}", len)
             }
         }
         &Constant::Float(val) => {
             let bytes: [u8; 4] = unsafe {mem::transmute(val)};
-            f.write("\t.long ".as_bytes()).unwrap();
+            f.write(".long ".as_bytes()).unwrap();
             f.write(&bytes).unwrap();
             f.write("\n".as_bytes()).unwrap();
         }
         &Constant::Double(val) => {
             let bytes: [u8; 8] = unsafe {mem::transmute(val)};
-            f.write("\t.quad ".as_bytes()).unwrap();
+            f.write(".quad ".as_bytes()).unwrap();
             f.write(&bytes).unwrap();
             f.write("\n".as_bytes()).unwrap();
         }
         &Constant::NullRef => {
-            f.write_fmt(format_args!("\t.quad 0\n")).unwrap()
+            f.write_fmt(format_args!(".quad 0\n")).unwrap()
         }
         &Constant::ExternSym(ref name) => {
-            f.write_fmt(format_args!("\t.quad {}\n", name)).unwrap()
+            f.write_fmt(format_args!(".quad {}\n", name)).unwrap()
         }
         &Constant::List(ref vals) => {
             for val in vals {
@@ -2871,10 +2812,10 @@ pub fn emit_context_with_reloc(vm: &VM,
     };
 
     // bss
-    file.write_fmt(format_args!("\t.bss\n")).unwrap();
+    file.write_fmt(format_args!(".bss\n")).unwrap();
 
     // data
-    file.write("\t.data\n".as_bytes()).unwrap();
+    file.write(".data\n".as_bytes()).unwrap();
 
     {
         use runtime::mm;
@@ -2943,20 +2884,20 @@ pub fn emit_context_with_reloc(vm: &VM,
                     let load_ref = unsafe {cur_addr.load::<Address>()};
                     if load_ref.is_zero() {
                         // write 0
-                        file.write("\t.quad 0\n".as_bytes()).unwrap();
+                        file.write(".quad 0\n".as_bytes()).unwrap();
                     } else {
                         let label = match relocatable_refs.get(&load_ref) {
                             Some(label) => label,
                             None => panic!("cannot find label for address {}, it is not dumped by GC (why GC didn't trace to it)", load_ref)
                         };
 
-                        file.write_fmt(format_args!("\t.quad {}\n", label.clone())).unwrap();
+                        file.write_fmt(format_args!(".quad {}\n", label.clone())).unwrap();
                     }
                 } else if fields.contains_key(&cur_addr) {
                     // write uptr (or other relocatable value) with label
                     let label = fields.get(&cur_addr).unwrap();
 
-                    file.write_fmt(format_args!("\t.quad {}\n", label.clone())).unwrap();
+                    file.write_fmt(format_args!(".quad {}\n", label.clone())).unwrap();
                 } else {
                     // write plain word (as bytes)
                     let next_word_addr = cur_addr.plus(POINTER_SIZE);
@@ -3002,7 +2943,7 @@ fn write_data_bytes(f: &mut File, from: Address, to: Address) {
     use std::io::Write;
 
     if from < to {
-        f.write("\t.byte ".as_bytes()).unwrap();
+        f.write(".byte ".as_bytes()).unwrap();
 
         let mut cursor = from;
         while cursor < to {
@@ -3022,10 +2963,6 @@ fn write_data_bytes(f: &mut File, from: Address, to: Address) {
 
 fn directive_globl(name: String) -> String {
     format!(".globl {}", name)
-}
-
-fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
-    format!("\t.comm {},{},{}", name, size, align)
 }
 
 use compiler::machine_code::CompiledFunction;
@@ -3081,7 +3018,7 @@ pub fn spill_rewrite(
 
                         codegen.start_code_sequence();
 
-                        let spill_mem = emit_mem(&mut codegen, &spill_mem, &mut func.context, vm);
+                        let spill_mem = emit_mem(&mut codegen, &spill_mem, get_type_alignment(&temp.ty, vm), &mut func.context, vm);
                         codegen.emit_ldr_spill(&temp, &spill_mem);
 
                         codegen.finish_code_sequence_asm()
@@ -3128,7 +3065,7 @@ pub fn spill_rewrite(
                         let mut codegen = ASMCodeGen::new();
                         codegen.start_code_sequence();
 
-                        let spill_mem = emit_mem(&mut codegen, &spill_mem, &mut func.context, vm);
+                        let spill_mem = emit_mem(&mut codegen, &spill_mem, get_type_alignment(&temp.ty, vm), &mut func.context, vm);
                         codegen.emit_str_spill(&spill_mem, &temp);
 
                         codegen.finish_code_sequence_asm()

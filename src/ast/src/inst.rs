@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use ir::*;
 use ptr::*;
 use types::*;
@@ -116,7 +130,8 @@ impl Instruction {
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
             | Move(_)
-            | PrintHex(_) => false,
+            | PrintHex(_)
+            | SetRetval(_) => false,
             Return(_)
             | ThreadExit
             | Throw(_)
@@ -189,7 +204,8 @@ impl Instruction {
             CommonInst_Pin(_) => true,
             CommonInst_Unpin(_) => true,
             Move(_) => false,
-            PrintHex(_) => true
+            PrintHex(_) => true,
+            SetRetval(_) => true,
         }
     }
 
@@ -243,7 +259,8 @@ impl Instruction {
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
             | Move(_)
-            | PrintHex(_) => false
+            | PrintHex(_)
+            | SetRetval(_) => false
         }
     }
 
@@ -302,7 +319,8 @@ impl Instruction {
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
             | Move(_)
-            | PrintHex(_) => None
+            | PrintHex(_)
+            | SetRetval(_) => None
         }
     }
 
@@ -555,7 +573,9 @@ pub enum Instruction_ {
     /// internal use: move from value to value
     Move(OpIndex),
     /// internal use: print op as hex value
-    PrintHex(OpIndex)
+    PrintHex(OpIndex),
+    /// internal use: set return value for main
+    SetRetval(OpIndex)
 }
 
 impl Instruction_ {
@@ -682,7 +702,9 @@ impl Instruction_ {
             // move
             &Instruction_::Move(from) => format!("MOVE {}", ops[from]),
             // print hex
-            &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i])
+            &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i]),
+            // set retval
+            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val]),
         }
     }
 }

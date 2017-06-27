@@ -1,3 +1,19 @@
+// Copyright 2017 The Australian National University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#![allow(unused_variables)]
+
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
@@ -1221,7 +1237,7 @@ impl ASMCodeGen {
     fn prepare_machine_regs(&self, regs: Iter<P<Value>>) -> Vec<MuID> {
         regs.map(|x| self.prepare_machine_reg(x)).collect()
     }
-    
+
     /// prepares information for a memory operand, returns (operand string (as in asm), reg/tmp locations)
     /// This function turns memory operands into something like "offset(base, scale, index)" or
     /// "label(base)"
@@ -3111,7 +3127,7 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("mfence");
         self.add_asm_inst(asm, linked_hashmap!{}, linked_hashmap!{}, false);
     }
-    
+
     fn emit_push_r64(&mut self, src: &P<Value>) {
         trace!("emit: push {}", src);
         

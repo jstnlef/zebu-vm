@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 extern crate libloading;
 extern crate extprim;
 
@@ -29,8 +43,8 @@ fn test_add_u128() {
     }
 }
 
-fn add_u128() -> VM {
-    let vm = VM::new();
+pub fn add_u128() -> VM {
+    let vm = VM::new_with_opts("init_mu --disable-inline");
 
     typedef!    ((vm) u128 = mu_int(128));
 
@@ -61,6 +75,56 @@ fn add_u128() -> VM {
     vm
 }
 
+#[test]
+fn test_sub_u128() {
+    let lib = testutil::compile_fnc("sub_u128", &sub_u128);
+
+    unsafe {
+        use std::u64;
+
+        let sub_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"sub_u128").unwrap();
+
+        let res = sub_u128(1, 0, 1, 0);
+        println!("sub_u128(1, 1) = {:?}", res);
+        assert!(res == (0, 0));
+
+        let res = sub_u128(u64::MAX, 0, u64::MAX, u64::MAX);
+        println!("sub_u128(u64::MAX, -1) = {:?}", res);
+        assert!(res == (0, 1));
+    }
+}
+
+fn sub_u128() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) u128 = mu_int(128));
+
+    funcsig!    ((vm) sig = (u128, u128) -> (u128));
+    funcdecl!   ((vm) <sig> sub_u128);
+    funcdef!    ((vm) <sig> sub_u128 VERSION sub_u128_v1);
+
+    block!      ((vm, sub_u128_v1) blk_entry);
+    ssa!        ((vm, sub_u128_v1) <u128> a);
+    ssa!        ((vm, sub_u128_v1) <u128> b);
+
+    // sum = sub %a %b
+    ssa!        ((vm, sub_u128_v1) <u128> sum);
+    inst!       ((vm, sub_u128_v1) blk_entry_sub_u128:
+        sum = BINOP (BinOp::Sub) a b
+    );
+
+    inst!       ((vm, sub_u128_v1) blk_entry_ret:
+        RET (sum)
+    );
+
+    define_block!   ((vm, sub_u128_v1) blk_entry(a, b) {
+        blk_entry_sub_u128, blk_entry_ret
+    });
+
+    define_func_ver!((vm) sub_u128_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
 #[test]
 fn test_add_const_u128() {
     let lib = testutil::compile_fnc("add_const_u128", &add_const_u128);

@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use std::collections::HashMap;
 
 use ast::ptr::*;
@@ -9,8 +23,9 @@ use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
 use compiler::backend::BackendType;
 use compiler::machine_code::CompiledFunction;
+
 use runtime::thread::*;
-use runtime::ValueLocation;
+use runtime::*;
 use utils::ByteSize;
 use utils::BitSize;
 use utils::Address;
@@ -65,12 +80,32 @@ pub struct VM {
     // 13
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
 
+    // Maps each callsite to a tuple of the corresponding catch blocks label (or ""_
+    // and the id of the containing function-version
+    // 14
+    exception_table: RwLock<HashMap<MuID, HashMap<MuName, MuName>>>,
+
     // ---do not serialize---
 
     // client may try to store funcref to the heap, so that they can load it later, and call it
     // however the store may happen before we have an actual address to the func (in AOT scenario)
-    aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>
+    aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>,
+
+    // Table for excetions
+    // TODO: Have a table of these tables (one per bundle?)
+
+    // The exception table (before it has been written to disk)
+
+
+    // Same as above but once the everything have been resolved to addreses
+
+    // TODO: What should the function version refer to? (It has to refer to something that has callee saved registers...)
+    // TODO: probably we should remove the pointer (its unsafe), thats why we need Sync/Send for VM
+    //       we can make a copy of callee_saved_register location
+    pub compiled_exception_table: RwLock<HashMap<Address, (Address, *const CompiledFunction)>>
 }
+unsafe impl Sync for VM {}
+unsafe impl Send for VM {}
 
 use std::u64;
 const PENDING_FUNCREF : u64 = u64::MAX;
@@ -181,25 +216,6 @@ impl Encodable for VM {
                 }));
             }
             field_i += 1;
-            
-            // func_vers
-            trace!("...serializing func_vers");
-            {
-                let func_vers : &HashMap<_, _> = &self.func_vers.read().unwrap();
-                try!(s.emit_struct_field("func_vers", field_i, |s| {
-                    s.emit_map(func_vers.len(), |s| {
-                        let mut i = 0;
-                        for (k, v) in func_vers.iter() {
-                            try!(s.emit_map_elt_key(i, |s| k.encode(s)));
-                            let func_ver : &MuFunctionVersion = &v.read().unwrap();
-                            try!(s.emit_map_elt_val(i, |s| func_ver.encode(s)));
-                            i += 1;
-                        }
-                        Ok(())
-                    })
-                }));
-            }
-            field_i += 1;
 
             // primordial
             trace!("...serializing primordial");
@@ -241,7 +257,13 @@ impl Encodable for VM {
                 }));
             }
             field_i += 1;
-            
+            trace!("...serializing exception_table");
+            {
+                let map : &HashMap<MuID, HashMap<MuName, MuName>> = &self.exception_table.read().unwrap();
+                try!(s.emit_struct_field("exception_table", field_i, |s| map.encode(s)));
+            }
+            field_i += 1;
+
             trace!("serializing finished");
             Ok(())
         })
@@ -325,20 +347,6 @@ impl Decodable for VM {
             }));
             field_i += 1;
             
-            // func_vers
-            let func_vers = try!(d.read_struct_field("func_vers", field_i, |d| {
-                d.read_map(|d, len| {
-                    let mut map = HashMap::new();
-                    for i in 0..len {
-                        let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
-                        let val = RwLock::new(try!(d.read_map_elt_val(i, |d| Decodable::decode(d))));
-                        map.insert(key, val);
-                    }
-                    Ok(map)
-                })
-            }));
-            field_i += 1;
-            
             // primordial
             let primordial = try!(d.read_struct_field("primordial", field_i, |d| Decodable::decode(d)));
             field_i += 1;
@@ -364,8 +372,13 @@ impl Decodable for VM {
                 })
             }));
             field_i += 1;
-            
-            let vm = VM{
+
+            trace!("Deserialising exception table");
+            let exception_table = try!(d.read_struct_field("exception_table", field_i, |d| Decodable::decode(d)));
+            field_i += 1;
+
+
+            let vm = VM {
                 next_id: ATOMIC_USIZE_INIT,
                 id_name_map: RwLock::new(id_name_map),
                 name_id_map: RwLock::new(name_id_map),
@@ -376,12 +389,14 @@ impl Decodable for VM {
                 global_locations: RwLock::new(hashmap!{}),
                 func_sigs: RwLock::new(func_sigs),
                 funcs: RwLock::new(funcs),
-                func_vers: RwLock::new(func_vers),
+                func_vers: RwLock::new(hashmap!{}),
                 primordial: RwLock::new(primordial),
                 is_running: ATOMIC_BOOL_INIT,
                 vm_options: vm_options,
                 compiled_funcs: RwLock::new(compiled_funcs),
-                aot_pending_funcref_store: RwLock::new(HashMap::new())
+                exception_table: RwLock::new(exception_table),
+                aot_pending_funcref_store: RwLock::new(HashMap::new()),
+                compiled_exception_table: RwLock::new(HashMap::new()),
             };
             
             vm.next_id.store(next_id, Ordering::SeqCst);
@@ -440,13 +455,14 @@ impl <'a> VM {
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
-
+            exception_table: RwLock::new(HashMap::new()),
             primordial: RwLock::new(None),
 
-            aot_pending_funcref_store: RwLock::new(HashMap::new())
+            aot_pending_funcref_store: RwLock::new(HashMap::new()),
+            compiled_exception_table: RwLock::new(HashMap::new()),
         };
 
-        // insert all intenral types
+        // insert all internal types
         {
             let mut types = ret.types.write().unwrap();
             for ty in INTERNAL_TYPES.iter() {
@@ -516,7 +532,20 @@ impl <'a> VM {
             Err(e) => error!("failed to init logger, probably already initialized: {:?}", e)
         }
     }
-    
+
+    pub fn add_exception_callsite(&self, callsite: MuName, catch: MuName, fv: MuID) {
+        let mut table = self.exception_table.write().unwrap();
+
+        if table.contains_key(&fv) {
+            let mut map = table.get_mut(&fv).unwrap();
+            map.insert(callsite, catch);
+        } else {
+            let mut new_map = HashMap::new();
+            new_map.insert(callsite, catch);
+            table.insert(fv, new_map);
+        };
+    }
+
     pub fn resume_vm(serialized_vm: &str) -> VM {
         use rustc_serialize::json;
         
@@ -554,8 +583,31 @@ impl <'a> VM {
                 expect_id += 1;
             }
         }
-        
+
+        // construct exception table
+        vm.build_exception_table();
+
         vm
+    }
+
+    pub fn build_exception_table(&self) {
+        let exception_table = self.exception_table.read().unwrap();
+        let compiled_funcs = self.compiled_funcs.read().unwrap();
+        let mut compiled_exception_table = self.compiled_exception_table.write().unwrap();
+
+        for (fv, map) in exception_table.iter() {
+            let ref compiled_func = *compiled_funcs.get(fv).unwrap().read().unwrap();
+
+            for (callsite, catch_block) in map.iter() {
+                let catch_addr = if catch_block.is_empty() {
+                    unsafe {Address::zero()}
+                } else {
+                    resolve_symbol(catch_block.clone())
+                };
+
+                compiled_exception_table.insert(resolve_symbol(callsite.clone()), (catch_addr, &*compiled_func));
+            }
+        }
     }
     
     pub fn next_id(&self) -> MuID {
@@ -1316,6 +1368,7 @@ impl <'a> VM {
         ret
     }
 
+    #[allow(unused_variables)]
     pub fn handle_load(&self, ord: MemoryOrder, loc: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = loc.v.as_iref();
 
@@ -1328,6 +1381,7 @@ impl <'a> VM {
                 MuType_::Ref(ref ty)  => APIHandleValue::Ref(ty.clone(), unsafe {addr.load::<Address>()}),
                 MuType_::IRef(ref ty) => APIHandleValue::IRef(ty.clone(), unsafe {addr.load::<Address>()}),
                 MuType_::UPtr(ref ty) => APIHandleValue::UPtr(ty.clone(), unsafe {addr.load::<Address>()}),
+                MuType_::Tagref64     => APIHandleValue::TagRef64(unsafe {addr.load::<u64>()}),
 
                 _ => unimplemented!()
             }
@@ -1344,6 +1398,7 @@ impl <'a> VM {
         ret
     }
 
+    #[allow(unused_variables)]
     pub fn handle_store(&self, ord: MemoryOrder, loc: APIHandleArg, val: APIHandleArg) {
         // FIXME: take memory order into consideration
 
@@ -1356,13 +1411,17 @@ impl <'a> VM {
             match val.v {
                 APIHandleValue::Int(ival, bits) => {
                     match bits {
-                        8 => addr.store::<u8>(ival as u8),
+                        1  => addr.store::<u8>((ival as u8) & 0b1u8),
+                        6  => addr.store::<u8>((ival as u8) & 0b111111u8),
+                        8  => addr.store::<u8>(ival as u8),
                         16 => addr.store::<u16>(ival as u16),
                         32 => addr.store::<u32>(ival as u32),
+                        52 => addr.store::<u64>(ival & ((1 << 51)-1)),
                         64 => addr.store::<u64>(ival),
-                        _ => panic!("unimplemented int length")
+                        _  => panic!("unimplemented int length")
                     }
                 },
+                APIHandleValue::TagRef64(val) => addr.store::<u64>(val),
                 APIHandleValue::Float(fval) => addr.store::<f32>(fval),
                 APIHandleValue::Double(fval) => addr.store::<f64>(fval),
                 APIHandleValue::UPtr(_, aval) => addr.store::<Address>(aval),
@@ -1564,5 +1623,122 @@ impl <'a> VM {
 
     pub fn handle_to_ufp(&self, handle: APIHandleArg) -> Address {
         handle.v.as_ufp().1
+    }
+    
+   /**
+    * Functions for handling TagRef64-related API calls are taken from:
+    * https://gitlab.anu.edu.au/mu/mu-impl-ref2/blob/master/src/main/scala/uvm/refimpl/itpr/operationHelpers.scala
+    */
+    
+    // See: `tr64IsFP`
+    pub fn handle_tr64_is_fp(&self, value:APIHandleArg) -> bool {
+        let opnd = value.v.as_tr64();
+        (opnd & 0x7ff0000000000001u64) != 0x7ff0000000000001u64 &&
+           (opnd & 0x7ff0000000000003u64) != 0x7ff0000000000002u64
+    }
+
+    // See: `tr64IsInt`
+    pub fn handle_tr64_is_int(&self, value: APIHandleArg) -> bool {
+        let opnd = value.v.as_tr64();
+        (opnd & 0x7ff0000000000001u64) == 0x7ff0000000000001u64
+    }
+
+    // See: `tr64IsRef`
+    pub fn handle_tr64_is_ref(&self, value: APIHandleArg) -> bool {
+        let opnd = value.v.as_tr64();
+        (opnd & 0x7ff0000000000003u64) == 0x7ff0000000000002u64
+    }
+    
+    // See: `tr64ToFP`
+    pub fn handle_tr64_to_fp(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Double(
+                value.v.as_tr64() as f64
+            )
+        })
+    }
+
+    // See: `tr64ToInt`
+    pub fn handle_tr64_to_int(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let opnd = value.v.as_tr64();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Int(
+                (((opnd & 0xffffffffffffeu64) >> 1) | ((opnd & 0x8000000000000000u64) >> 12)),
+                52
+            )
+        })
+    }
+
+    // See: `tr64ToRef`
+    pub fn handle_tr64_to_ref(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let opnd = value.v.as_tr64();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
+                unsafe { Address::from_usize(
+                        ((opnd & 0x7ffffffffff8u64) |
+                               (((!(((opnd & 0x8000000000000000u64) << 1) - 1)) >> 17) &
+                                    0xffff800000000000u64)) as usize
+                ) })
+        })
+    }
+
+    // See: `tr64ToTag`
+    pub fn handle_tr64_to_tag(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let opnd = value.v.as_tr64();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::Int(
+                    (((opnd & 0x000f800000000000u64) >> 46) | ((opnd & 0x4) >> 2)),
+                6
+            )
+        })
+    }
+
+    // See: `fpToTr64`
+    pub fn handle_tr64_from_fp(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let mut bits = value.v.as_double() as u64;
+        if value.v.as_double().is_nan() {
+            bits = bits & 0xfff8000000000000u64 | 0x0000000000000008u64;
+        }
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::TagRef64(bits)
+        })
+    }
+
+    // See: `intToTr64`
+    pub fn handle_tr64_from_int(&self, value: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let opnd = value.v.as_int();
+        self.new_handle(APIHandle {
+            id: handle_id,
+            v : APIHandleValue::TagRef64(
+                (0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) |
+                    ((opnd & 0x8000000000000u64) << 12))
+            )
+        })
+    }
+    
+    // See: `refToTr64`
+    pub fn handle_tr64_from_ref(&self, reff: APIHandleArg, tag: APIHandleArg) -> APIHandleResult {
+        let handle_id = self.next_id();
+        let (_, addr) = reff.v.as_ref();
+        let addr_ = addr.as_usize() as u64;
+        let tag_  = tag.v.as_int();
+        self.new_handle (APIHandle {
+            id: handle_id,
+            v : APIHandleValue::TagRef64( 
+                (0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) | ((addr_ & 0x800000000000u64) << 16)
+                    | ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2))
+            )
+        })
     }
 }

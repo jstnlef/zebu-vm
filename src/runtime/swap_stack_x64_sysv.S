@@ -1,3 +1,17 @@
+# Copyright 2017 The Australian National University
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 #include "asm_common_x64.S.inc"
 
 # swap_stack_to(new_sp: Address, entry: Address, old_sp_loc: Address)
@@ -37,7 +51,9 @@ begin_func swap_to_mu_stack
           movsd 24(%rsp), %xmm4
           movsd 32(%rsp), %xmm3
           movsd 40(%rsp), %xmm2
-          add $48, %rsp
+          movsd 48(%rsp), %xmm1
+          movsd 56(%rsp), %xmm0
+          add $64, %rsp
           # at this point new stack is clean (no intermediate values)
 
           movq %rsp, %rbp
@@ -74,15 +90,16 @@ end_func get_current_frame_rbp
 #                         %rdi
 begin_func muentry_throw_exception
          # save all callee-saved
-         pushq %r15
-         pushq %r14
-         pushq %r13
-         pushq %r12
          pushq %rbp
+         movq %rsp, %rbp
          pushq %rbx
+         pushq %r12
+         pushq %r13
+         pushq %r14
+         pushq %r15
 
          # %rsp points to %rbx, pass this as 2nd argument
-         movq  %rsp, %rsi
+         movq  %rbp, %rsi
 
 #if defined (__linux__)
          jmp CNAME(throw_exception_internal@PLT)
@@ -97,12 +114,12 @@ begin_func muentry_throw_exception
 #                    %rdi           %rsi                       %rdx
 # callee_saved: [rbx, rbp, r12, r13, r14, r15]
 begin_func exception_restore
-          movq 0(%rsi), %rbx
-          movq 8(%rsi), %rbp
-          movq 16(%rsi),%r12
-          movq 24(%rsi),%r13
-          movq 32(%rsi),%r14
-          movq 40(%rsi),%r15
+          movq 0(%rsi), %rbp
+          movq -8(%rsi),%rbx
+          movq -16(%rsi),%r12
+          movq -24(%rsi),%r13
+          movq -32(%rsi),%r14
+          movq -40(%rsi),%r15
 
           movq %rdx, %rsp
           jmpq *%rdi

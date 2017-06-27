@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use super::common::*;
 use utils::Address;
 //use std::os::raw::c_void;
@@ -359,43 +373,43 @@ impl MuCtx {
     }
 
     pub fn tr64_is_fp(&mut self, value: &APIHandle) -> bool {
-        panic!("Not implemented")
+        self.get_mvm().vm.handle_tr64_is_fp(value)
     }
 
     pub fn tr64_is_int(&mut self, value: &APIHandle) -> bool {
-        panic!("Not implemented")
+        self.get_mvm().vm.handle_tr64_is_int(value)
     }
 
     pub fn tr64_is_ref(&mut self, value: &APIHandle) -> bool {
-        panic!("Not implemented")
+        self.get_mvm().vm.handle_tr64_is_ref(value)
     }
 
     pub fn tr64_to_fp(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_to_fp(value))
     }
 
     pub fn tr64_to_int(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_to_int(value))
     }
 
     pub fn tr64_to_ref(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_to_ref(value))
     }
 
     pub fn tr64_to_tag(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_to_tag(value))
     }
 
     pub fn tr64_from_fp(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_from_fp(value))
     }
 
     pub fn tr64_from_int(&mut self, value: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_from_int(value))
     }
 
     pub fn tr64_from_ref(&mut self, reff: &APIHandle, tag: &APIHandle) -> *const APIHandle {
-        panic!("Not implemented")
+        prepare_handle(self.get_mvm().vm.handle_tr64_from_ref(reff, tag))
     }
 
     pub fn enable_watchpoint(&mut self, wpid: CMuWPID) {

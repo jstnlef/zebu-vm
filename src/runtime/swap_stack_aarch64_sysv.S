@@ -1,3 +1,17 @@
+# Copyright 2017 The Australian National University
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 .arch armv8-a
 
 #include "asm_common_aarch64.S.inc"
@@ -24,23 +38,42 @@ begin_func swap_to_mu_stack
           # -- on new stack --
           # arguments (reverse order of thread.rs - runtime_load_args)
           pop_arguments
-          //enter_frame // Unncesary Note saves the return address of the function that called this function
 
-          # If entry tries to return (IT SHOULDN'T) it will return to entry_returned
+          # If entry tries to return (IT SHOULDN'T) it will call entry_returned (which will panic!)
           ADR LR, entry_returned
 
           # branch to entry
+          //MOV FP, 0 // End of call frame
           RET X9
 end_func swap_to_mu_stack
 
-# For debuging only, executes
+# The error message to print when entry returns
+	.type .Lentry_returned_message, @object
+	.section .rodata.str1.1,"aMS",@progbits,1
+.Lentry_returned_message:
+        .asciz  "ERROR: The entry function returned\n"
+        .size   .Lentry_returned_message, 36
+
+# Prints an error mesage and calls exit(1)
 begin_func entry_returned
-          HLT #0
+    ADRP x0, .Lentry_returned_message
+    ADD x0, x0, :lo12:.Lentry_returned_message // Loads x0 with the adress of .Lentry_returned_message
+
+    MOV X1, #35 // Length of string
+
+	MOV X2, #1 // Number of elements
+
+    ADRP X3, :got:stderr
+    LDR X3, [X3, :got_lo12:stderr]
+    LDR X3, [X3] // Load X3 with the address of stderr
+
+    BL fwrite // calls fwrite(x0, x1, x2, x3)
+    MOV W0, 1
+    BL exit // call exit(1)
 end_func entry_returned
 
-
-# _swap_back_to_native_stack(sp_loc: Address)
-#                            X0
+// _swap_back_to_native_stack(sp_loc: Address)
+//                            X0
 begin_func muentry_swap_back_to_native_stack
           # SP = *sp_loc
           LDR X9, [X0]
@@ -62,28 +95,25 @@ end_func get_current_frame_rbp
 # muentry_throw_exception(obj: Address)
 #                         X0
 begin_func muentry_throw_exception
-         # save all callee-saved
+         # save all callee-saved registers and pass tham as argument 2
          push_pair LR, FP
+         MOV FP, SP
          push_callee_saved
-
-         # SP points to the callee saved registers, pass this as 2nd argument
-         MOV X1, SP
-
+         MOV X1, FP // X1 is the frame pointer
 #if defined (__linux__)
-         B throw_exception_internal
+         BL throw_exception_internal
 #else
          #error "Only Linux is supported. "
 #endif
          # won't return
 
-# _exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !
+# _exception_restore(dest: Address, frame_cursor: *const Word, sp: Address) -> !
 #                    X0             X1                         X2
-# callee_saved: [x28, x27, x26, x25, x24, x23, x22, x21, x20, x19, d15, d14, d13, d12, d11, d10, d9, d8, fp, lr]
 begin_func exception_restore
+          SUB X1, X1, #144 // Skip to the bottom of the frame cursor
           // load each callee saved register relative to the stack pointer
           pop_callee_saved X1
-          pop_pair FP, LR, X1 // TODO: Should we be restoring the link register?
-
+          pop_pair FP, LR, X1
           MOV SP, X2
           BR X0
 end_func exception_restore

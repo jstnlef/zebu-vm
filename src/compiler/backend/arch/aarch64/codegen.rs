@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use ast::ptr::P;
 use ast::ir::*;
 use runtime::ValueLocation;
@@ -23,8 +37,10 @@ pub trait CodeGenerator {
     fn end_block(&mut self, block_name: MuName);
 
     // add CFI info
+    fn add_cfi_sections(&mut self, arg: &str);
     fn add_cfi_startproc(&mut self);
     fn add_cfi_endproc(&mut self);
+    fn add_cfi_def_cfa(&mut self, reg: Reg, offset: i32);
     fn add_cfi_def_cfa_register(&mut self, reg: Reg);
     fn add_cfi_def_cfa_offset(&mut self, offset: i32);
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32);
@@ -34,6 +50,10 @@ pub trait CodeGenerator {
     // emit code to adjust frame
     fn emit_frame_grow(&mut self); // Emits a SUB
     fn emit_frame_shrink(&mut self); // Emits an ADD
+
+    // Used to pass a string that the assembler will interpret as an immediate argument
+    // (This is neccesary to support the use of ELF relocations like ':tprel_hi12:foo')
+    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str);
 
     // stack minimpulation
     fn emit_push_pair(&mut self, src1: Reg, src2: Reg, stack: Reg); // Emits a STP

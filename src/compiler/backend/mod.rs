@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 /// A instruction selection pass. Uses simple tree pattern matching.
 pub mod inst_sel;
 /// A register allocation pass. Graph coloring.
@@ -75,6 +89,20 @@ pub use compiler::backend::x86_64::is_callee_saved;
 
 /// emits code for a function version (the function needs to be compiled first)
 #[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::CALLEE_SAVED_COUNT;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::get_callee_saved_offset;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::get_previous_frame_pointer;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::get_return_address;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::set_previous_frame_pointer;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::set_return_address;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::get_previous_stack_pointer;
+#[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::emit_code;
 
 /// emits context (persisted VM/heap/etc), should only be called after
@@ -137,6 +165,20 @@ pub use compiler::backend::aarch64::pick_group_for_reg;
 pub use compiler::backend::aarch64::is_callee_saved;
 
 /// emits code for a function version (the function needs to be compiled first)
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::CALLEE_SAVED_COUNT ;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_callee_saved_offset;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_previous_frame_pointer;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_return_address;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::get_previous_stack_pointer;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::set_previous_frame_pointer;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::set_return_address;
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::emit_code;
 
@@ -243,7 +285,10 @@ impl BackendType {
                 gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
             },
             // tagref
-            MuType_::Tagref64 => unimplemented!(),
+            MuType_::Tagref64 => BackendType {
+                size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
+                gc_type: mm::add_gc_type(GCType::new_reftype())
+            },
             // floating point
             MuType_::Float => BackendType{
                 size: 4, alignment: 4, struct_layout: None, elem_padded_size: None,
@@ -467,5 +512,3 @@ impl RegGroup {
         RegGroup::get_from_ty(&val.ty)
     }
 }
-
-

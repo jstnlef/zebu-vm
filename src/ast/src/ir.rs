@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use ptr::P;
 use types::*;
 use inst::*;
@@ -781,10 +795,26 @@ impl Value {
         })
     }
 
+    pub fn is_int_ex_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(Constant::IntEx(_)) => true,
+            _ => false
+        }
+    }
+
+
     pub fn is_int_const(&self) -> bool {
         match self.v {
             Value_::Constant(Constant::Int(_)) => true,
             Value_::Constant(Constant::NullRef) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_fp_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(Constant::Float(_)) => true,
+            Value_::Constant(Constant::Double(_)) => true,
             _ => false
         }
     }
@@ -794,6 +824,13 @@ impl Value {
             Value_::Constant(Constant::Int(val)) => Some(val),
             Value_::Constant(Constant::NullRef)  => Some(0),
             _ => None
+        }
+    }
+
+    pub fn extract_int_ex_const(&self) -> Vec<u64> {
+        match self.v {
+            Value_::Constant(Constant::IntEx(ref val)) => val.clone(),
+            _ => panic!("expect int ex const")
         }
     }
 

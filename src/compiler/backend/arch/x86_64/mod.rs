@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #![allow(dead_code)]
 
 /// Tree pattern matching instruction selection.
@@ -21,6 +35,7 @@ pub use compiler::backend::x86_64::asm_backend::emit_context;
 pub use compiler::backend::x86_64::asm_backend::emit_context_with_reloc;
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
+use utils::Address;
 
 use ast::ptr::P;
 use ast::ir::*;
@@ -29,6 +44,9 @@ use compiler::backend::RegGroup;
 
 use utils::LinkedHashMap;
 use std::collections::HashMap;
+
+// number of normal callee saved registers (excluding RSP and RBP)
+pub const CALLEE_SAVED_COUNT : usize = 5;
 
 /// a macro to declare a set of general purpose registers that are aliased to the first one
 macro_rules! GPR_ALIAS {
@@ -499,6 +517,49 @@ pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
     RegGroup::get_from_value(reg)
 }
 
+/// gets the previouse frame pointer with respect to the current
+#[inline(always)]
+pub fn get_previous_frame_pointer(frame_pointer: Address) -> Address {
+    unsafe { frame_pointer.load::<Address>() }
+}
+
+/// gets the return address for the current frame pointer
+#[inline(always)]
+pub fn get_return_address(frame_pointer: Address) -> Address {
+    unsafe { frame_pointer.plus(8).load::<Address>() }
+}
+
+/// gets the stack pointer before the current frame was created
+#[inline(always)]
+pub fn get_previous_stack_pointer(frame_pointer: Address) -> Address {
+    frame_pointer.plus(16)
+}
+
+/// sets the stack point
+#[inline(always)]
+pub fn set_previous_frame_pointer(frame_pointer: Address, value: Address) {
+    unsafe { frame_pointer.store::<Address>(value) }
+}
+
+/// gets the return address for the current frame pointer
+#[inline(always)]
+pub fn set_return_address(frame_pointer: Address, value: Address) {
+    unsafe { frame_pointer.plus(8).store::<Address>(value) }
+}
+
+/// returns offset of callee saved register
+/// Reg should be a 64-bit callee saved GPR or FPR
+pub fn get_callee_saved_offset(reg: MuID) -> isize {
+    debug_assert!(is_callee_saved(reg) && reg != RBP.id());
+
+    let id = if reg == RBX.id() {
+        0
+    } else {
+        (reg - R12.id())/4 + 1
+    };
+    (id as isize + 1)*(-8)
+}
+
 /// is a machine register (by ID) callee saved?
 /// returns false if the ID is not a machine register
 pub fn is_callee_saved(reg_id: MuID) -> bool {
@@ -513,12 +574,17 @@ pub fn is_callee_saved(reg_id: MuID) -> bool {
 
 /// is a constant a valid x86_64 immediate number (32 bits integer)?
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
-    use std::u32;
-    match op.v {
-        Value_::Constant(Constant::Int(val)) if val <= u32::MAX as u64 => {
-            true
-        },
-        _ => false
+    use std::i32;
+
+    if op.ty.get_int_length().is_some() && op.ty.get_int_length().unwrap() <= 32 {
+        match op.v {
+            Value_::Constant(Constant::Int(val)) if val as i32 >= i32::MIN && val as i32 <= i32::MAX => {
+                true
+            },
+            _ => false
+        }
+    } else {
+        false
     }
 }
 
@@ -570,7 +636,8 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
         // others
         Move(_) => 0,
-        PrintHex(_) => 10,
+        PrintHex(_)  => 10,
+        SetRetval(_) => 10,
         ExnInstruction{ref inner, ..} => estimate_insts_for_ir(&inner)
     }
 }

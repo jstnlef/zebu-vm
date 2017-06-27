@@ -1,3 +1,17 @@
+# Copyright 2017 The Australian National University
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import subprocess as subp
 import os, sys
 import ctypes
@@ -5,7 +19,9 @@ import py
 from multiprocessing import Process
 
 CC = os.environ.get('CC', 'clang')
-proj_dir = py.path.local(__file__).join('..', '..', '..')
+# if $MU_ZEBU is defined, use that as the project directory, else define from file.
+MU_ZEBU = os.environ.get('MU_ZEBU', '')
+proj_dir = py.path.local(MU_ZEBU) if MU_ZEBU else py.path.local(__file__).join('..', '..', '..')
 test_jit_dir = proj_dir.join('tests', 'test_jit')
 testsuite_dir = test_jit_dir.join('suite')
 # testsuite_dir = py.path.local('/Users/johnz/Documents/Work/mu-client-pypy/rpython/translator/mu/test_impl')

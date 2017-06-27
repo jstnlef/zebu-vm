@@ -1,3 +1,17 @@
+// Copyright 2017 The Australian National University
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum BinOp {
     // BinOp Int(n) Int(n) -> Int(n)
@@ -83,7 +97,7 @@ impl CmpOp {
             FUGT => FULT,
             FULT => FUGT,
 
-            _ => self, // all other comparisons are reflexive
+            _ => self, // all other comparisons are symmetric
         }
     }
 
@@ -132,6 +146,18 @@ impl CmpOp {
         }
     }
 
+    // gets the unsigned version of the comparison
+    pub fn get_unsigned(self) -> CmpOp {
+        use op::CmpOp::*;
+        match self {
+            SGE => UGE,
+            SLT => ULT,
+            SGT => UGT,
+            SLE => ULE,
+            _   => self,
+        }
+    }
+
     pub fn is_signed(self) -> bool {
         use op::CmpOp::*;
         match self {
@@ -153,6 +179,14 @@ impl CmpOp {
             | UGT
             | ULE
             | ULT => true,
+            _ => false
+        }
+    }
+
+    pub fn is_symmetric(self) -> bool {
+        use op::CmpOp::*;
+        match self {
+            EQ | NE | FORD| FUNO| FUNE | FUEQ | FONE | FOEQ => true,
             _ => false
         }
     }
