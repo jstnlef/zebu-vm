@@ -19,7 +19,9 @@ import py
 from multiprocessing import Process
 
 CC = os.environ.get('CC', 'clang')
-proj_dir = py.path.local(__file__).join('..', '..', '..')
+# if $MU_ZEBU is defined, use that as the project directory, else define from file.
+MU_ZEBU = os.environ.get('MU_ZEBU', '')
+proj_dir = py.path.local(MU_ZEBU) if MU_ZEBU else py.path.local(__file__).join('..', '..', '..')
 test_jit_dir = proj_dir.join('tests', 'test_jit')
 testsuite_dir = test_jit_dir.join('suite')
 # testsuite_dir = py.path.local('/Users/johnz/Documents/Work/mu-client-pypy/rpython/translator/mu/test_impl')
