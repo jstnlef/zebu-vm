@@ -17,6 +17,7 @@ use ast::ptr::*;
 use ast::types::*;
 use compiler::backend::get_callee_saved_offset;
 
+use std;
 use std::fmt;
 use std::collections::HashMap;
 use vm::VM;
@@ -31,7 +32,8 @@ use vm::VM;
 // | alloca area
 
 
-#[derive(RustcEncodable, RustcDecodable, Clone)]
+rodal_struct!(Frame{func_ver_id, cur_offset, argument_by_reg, argument_by_stack, allocated, callee_saved});
+#[derive(Clone)]
 pub struct Frame {
     func_ver_id: MuID,
     cur_offset: isize, // offset to frame base pointer
@@ -96,7 +98,6 @@ impl Frame {
             (slot.make_memory_op(reg.ty.clone(), vm), slot.offset)
         };
         let o = get_callee_saved_offset(reg.id());
-        trace!("ISAAC: callee saved {} is at {}", reg, o);
         self.callee_saved.insert(o, off);
         mem
     }
@@ -152,7 +153,8 @@ impl Frame {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable, Clone)]
+rodal_struct!(FrameSlot{offset, value});
+#[derive(Clone)]
 pub struct FrameSlot {
     pub offset: isize,
     pub value: P<Value>,

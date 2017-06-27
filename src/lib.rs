@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate libc;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate rodal;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate stderrlog;
 #[macro_use]
 extern crate maplit;
@@ -28,6 +33,7 @@ extern crate extprim;
 pub extern crate ast;
 #[macro_use]
 pub extern crate utils;
+pub extern crate gc;
 pub mod vm;
 pub mod compiler;
 pub mod runtime;

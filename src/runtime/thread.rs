@@ -28,6 +28,7 @@ use utils::Word;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
+use std;
 use std::ptr;
 use std::thread;
 use std::thread::JoinHandle;
@@ -505,10 +506,10 @@ impl MuThread {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+rodal_struct!(MuPrimordialThread{func_id, args, has_const_args});
+#[derive(Debug)]
 pub struct MuPrimordialThread {
-    pub func_id: MuID,
-
-    pub has_const_args: bool,
-    pub args: Vec<Constant>
+    pub func_id: MuID, // +0
+    pub args: Vec<Constant>, // +8
+    pub has_const_args: bool, // +32
 }

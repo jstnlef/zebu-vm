@@ -21,6 +21,7 @@ use utils::vec_utils;
 use utils::LinkedHashMap;
 use utils::LinkedHashSet;
 
+use std;
 use std::fmt;
 use std::default;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
@@ -77,7 +78,8 @@ pub fn new_internal_id() -> MuID {
     ret
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+rodal_struct!(MuFunction{hdr, sig, cur_ver, all_vers});
+#[derive(Debug)]
 pub struct MuFunction {
     pub hdr: MuEntityHeader,
     
@@ -112,7 +114,6 @@ impl fmt::Display for MuFunction {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable)]
 pub struct MuFunctionVersion {
     pub hdr: MuEntityHeader,
          
@@ -315,7 +316,7 @@ impl MuFunctionVersion {
     }
 }
 
-#[derive(Clone, RustcEncodable, RustcDecodable)]
+#[derive(Clone)]
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: LinkedHashMap<MuID, Block>,
@@ -384,7 +385,7 @@ impl FunctionContent {
     }
 }
 
-#[derive(Default, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Default, Debug)]
 pub struct FunctionContext {
     pub values: LinkedHashMap<MuID, SSAVarEntry>
 }
@@ -427,7 +428,7 @@ impl FunctionContext {
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable, Clone)]
+#[derive(Clone)]
 pub struct Block {
     pub hdr: MuEntityHeader,
     pub content: Option<BlockContent>,
@@ -468,7 +469,7 @@ impl Block {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
+#[derive(Debug, Clone)]
 pub struct ControlFlow {
     pub preds : Vec<MuID>,
     pub succs : Vec<BlockEdge>
@@ -507,7 +508,7 @@ impl default::Default for ControlFlow {
     }
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub struct BlockEdge {
     pub target: MuID,
     pub kind: EdgeKind,
@@ -521,12 +522,12 @@ impl fmt::Display for BlockEdge {
     }
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum EdgeKind {
     Forward, Backward
 }
 
-#[derive(RustcEncodable, RustcDecodable, Clone)]
+#[derive(Clone)]
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
     pub exn_arg: Option<P<Value>>,
@@ -622,7 +623,7 @@ impl BlockContent {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
+#[derive(Debug, Clone)]
 /// always use with P<TreeNode>
 pub struct TreeNode {
     pub op: OpCode,
@@ -697,14 +698,15 @@ impl fmt::Display for TreeNode {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable, Clone)]
+#[derive(Debug, Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
     Instruction(Instruction)
 }
 
 /// always use with P<Value>
-#[derive(PartialEq, RustcEncodable, RustcDecodable)]
+rodal_struct!(Value{hdr, ty, v});
+#[derive(PartialEq)]
 pub struct Value {
     pub hdr: MuEntityHeader,
     pub ty: P<MuType>,
@@ -847,7 +849,8 @@ impl fmt::Display for Value {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
+rodal_enum!(Value_{(SSAVar: id), (Constant: val), (Global: ty), (Memory: location)});
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant),
@@ -868,41 +871,6 @@ pub struct SSAVarEntry {
 
     // some ssa vars (such as int128) needs to be split into smaller vars
     split: Option<Vec<P<Value>>>
-}
-
-impl Encodable for SSAVarEntry {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("SSAVarEntry", 3, |s| {
-            try!(s.emit_struct_field("val", 0, |s| self.val.encode(s)));
-            let count = self.use_count.load(Ordering::SeqCst);
-            try!(s.emit_struct_field("use_count", 1, |s| s.emit_usize(count)));
-            try!(s.emit_struct_field("expr", 2, |s| self.expr.encode(s)));
-            try!(s.emit_struct_field("split", 3, |s| self.split.encode(s)));
-            Ok(())
-        })
-    }
-}
-
-impl Decodable for SSAVarEntry {
-    fn decode<D: Decoder>(d: &mut D) -> Result<SSAVarEntry, D::Error> {
-        d.read_struct("SSAVarEntry", 3, |d| {
-            let val   = try!(d.read_struct_field("val", 0, |d| Decodable::decode(d)));
-            let count = try!(d.read_struct_field("use_count", 1, |d| d.read_usize()));
-            let expr  = try!(d.read_struct_field("expr", 2, |d| Decodable::decode(d)));
-            let split = try!(d.read_struct_field("split", 3, |d| Decodable::decode(d)));
-            
-            let ret = SSAVarEntry {
-                val: val,
-                use_count: ATOMIC_USIZE_INIT,
-                expr: expr,
-                split: split
-            };
-            
-            ret.use_count.store(count, Ordering::SeqCst);
-            
-            Ok(ret)
-        })
-    }
 }
 
 impl SSAVarEntry {
@@ -965,7 +933,9 @@ impl fmt::Display for SSAVarEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
+rodal_enum!(Constant{(Int: val), (IntEx: val), (Float: val), (Double: val), (FuncRef: val),
+    (Vector: val), NullRef, (ExternSym: val), (List: val)});
+#[derive(Debug, Clone, PartialEq)]
 pub enum Constant {
     Int(u64),
     IntEx(Vec<u64>),
@@ -1015,10 +985,12 @@ impl fmt::Display for Constant {
 }
 
 #[cfg(target_arch = "x86_64")]
-#[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
+rodal_enum!(MemoryLocation{{Address: scale, base, offset, index}, {Symbolic: is_global, base, label}});
+#[cfg(target_arch = "x86_64")]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
     Address{
-        base: P<Value>,
+        base: P<Value>, // +8
         offset: Option<P<Value>>,
         index: Option<P<Value>>,
         scale: Option<u8>
@@ -1059,17 +1031,19 @@ impl fmt::Display for MemoryLocation {
 }
 
 #[cfg(target_arch = "aarch64")]
-#[derive(Debug, Clone, PartialEq, RustcEncodable, RustcDecodable)]
+rodal_enum!(MemoryLocation{{VirtualAddress: signed, base, offset, scale}, {Address: base, offset, shift, signed}, {Symbolic: label, is_global}});
+#[cfg(target_arch = "aarch64")]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
     // Represents how an adress should be computed,
     // will need to be converted to a real Address before being used
     VirtualAddress{
         // Represents base + offset*scale
         // With offset being inerpreted as signed if 'signed' is true
-        base: P<Value>,
-        offset: Option<P<Value>>,
-        scale: u64,
-        signed: bool
+        base: P<Value>, //+8
+        offset: Option<P<Value>>, //+16
+        signed: bool, //+1
+        scale: u64 //+24
     },
     Address{
         base: P<Value>, // Must be a normal 64-bit register or SP
@@ -1119,6 +1093,7 @@ impl fmt::Display for MemoryLocation {
     }
 }
 
+rodal_struct!(MuEntityHeader{id, name});
 #[repr(C)]
 #[derive(Debug)] // Display, PartialEq, Clone
 pub struct MuEntityHeader {
@@ -1132,34 +1107,6 @@ impl Clone for MuEntityHeader {
             id: self.id,
             name: self.name.clone()
         }
-    }
-}
-
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-impl Encodable for MuEntityHeader {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("MuEntityHeader", 2, |s| {
-            try!(s.emit_struct_field("id", 0, |s| self.id.encode(s)));
-            
-            let name = &self.name;
-            try!(s.emit_struct_field("name", 1, |s| name.encode(s)));
-            
-            Ok(())
-        })
-    }
-}
-
-impl Decodable for MuEntityHeader {
-    fn decode<D: Decoder>(d: &mut D) -> Result<MuEntityHeader, D::Error> {
-        d.read_struct("MuEntityHeader", 2, |d| {
-            let id = try!(d.read_struct_field("id", 0, |d| {d.read_usize()}));
-            let name = try!(d.read_struct_field("name", 1, |d| Decodable::decode(d)));
-            
-            Ok(MuEntityHeader{
-                    id: id,
-                    name: name
-                })
-        })
     }
 }
 

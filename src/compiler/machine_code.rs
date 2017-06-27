@@ -17,11 +17,10 @@ use ast::ptr::*;
 use compiler::frame::*;
 use runtime::ValueLocation;
 
+use rodal;
 use std::ops;
 use std::collections::HashMap;
 use std::collections::HashSet;
-
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
 pub struct CompiledFunction {
     pub func_id: MuID,
@@ -40,83 +39,17 @@ pub struct CompiledFunction {
     pub start: ValueLocation,
     pub end: ValueLocation
 }
-
-const CF_SERIALIZE_FIELDS : usize = 6;
-
-impl Encodable for CompiledFunction {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |s| {
-            let mut i = 0;
-
-            try!(s.emit_struct_field("func_id",     i, |s| self.func_id.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("func_ver_id", i, |s| self.func_ver_id.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("temps",       i, |s| self.temps.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("consts",      i, |s| self.consts.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("const_mem",   i, |s| self.const_mem.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("frame",       i, |s| self.frame.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("start",       i, |s| self.start.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("end",         i, |s| self.end.encode(s)));
-            
-            Ok(())
-        })
-    }
-}
-
-impl Decodable for CompiledFunction {
-    fn decode<D: Decoder>(d: &mut D) -> Result<CompiledFunction, D::Error> {
-        d.read_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |d| {
-            let mut i = 0;
-
-            let func_id = 
-                try!(d.read_struct_field("func_id",     i, |d| Decodable::decode(d)));
-            i += 1;
-            let func_ver_id = 
-                try!(d.read_struct_field("func_ver_id", i, |d| Decodable::decode(d)));
-            i += 1;
-            let temps = 
-                try!(d.read_struct_field("temps",       i, |d| Decodable::decode(d)));
-            i += 1;
-            let consts =
-                try!(d.read_struct_field("consts",      i, |d| Decodable::decode(d)));
-            i += 1;
-            let const_mem =
-                try!(d.read_struct_field("const_mem",   i, |d| Decodable::decode(d)));
-            i += 1;
-            let frame = 
-                try!(d.read_struct_field("frame",       i, |d| Decodable::decode(d)));
-            i += 1;
-            let start = 
-                try!(d.read_struct_field("start",       i, |d| Decodable::decode(d)));
-            i += 1;
-            let end =
-                try!(d.read_struct_field("end",         i, |d| Decodable::decode(d)));
-            
-            Ok(CompiledFunction{
-                func_id: func_id,
-                func_ver_id: func_ver_id,
-                temps: temps,
-                consts: consts,
-                const_mem: const_mem,
-                mc: None,
-                frame: frame,
-                start: start,
-                end: end
-            })
-        })
+unsafe impl rodal::Dump for CompiledFunction {
+    fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
+        dumper.debug_record("CompiledFunction", "dump");
+        dumper.dump_object(&self.func_id);
+        dumper.dump_object(&self.func_ver_id);
+        dumper.dump_object(&self.temps);
+        dumper.dump_object(&self.consts);
+        dumper.dump_object(&self.const_mem);
+        dumper.dump_object(&self.frame);
+        dumper.dump_object(&self.start);
+        dumper.dump_object(&self.end);;
     }
 }
 

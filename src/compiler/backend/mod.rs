@@ -17,6 +17,7 @@ pub mod reg_alloc;
 pub mod peephole_opt;
 pub mod code_emission;
 
+use std;
 use utils::ByteSize;
 use utils::math::align_up;
 use runtime::mm;
@@ -344,7 +345,8 @@ pub fn sequetial_layout(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, ByteSize, V
     (ret.size, ret.alignment, ret.struct_layout.unwrap())
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+rodal_struct!(BackendTypeInfo{size, alignment, struct_layout, elem_padded_size, gc_type});
+#[derive(Clone, Debug)]
 pub struct BackendTypeInfo {
     pub size: ByteSize,
     pub alignment: ByteSize,
@@ -387,7 +389,8 @@ impl fmt::Display for BackendTypeInfo {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
+rodal_enum!(RegGroup{GPR, GPREX, FPR});
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RegGroup {GPR, GPREX, FPR}
 
 impl RegGroup {
