@@ -1632,9 +1632,7 @@ impl <'a> VM {
     
     // See: `tr64IsFP`
     pub fn handle_tr64_is_fp(&self, value:APIHandleArg) -> bool {
-        let opnd = value.v.as_tr64();
-        (opnd & 0x7ff0000000000001u64) != 0x7ff0000000000001u64 &&
-           (opnd & 0x7ff0000000000003u64) != 0x7ff0000000000002u64
+        (!self.handle_tr64_is_int(value)) && (!self.handle_tr64_is_ref(value))
     }
 
     // See: `tr64IsInt`
@@ -1681,9 +1679,8 @@ impl <'a> VM {
             id: handle_id,
             v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
                 unsafe { Address::from_usize(
-                        ((opnd & 0x7ffffffffff8u64) |
-                               (((!(((opnd & 0x8000000000000000u64) << 1) - 1)) >> 17) &
-                                    0xffff800000000000u64)) as usize
+                    ((opnd & 0x7ffffffffff8u64) |
+                        ((opnd & 0x8000000000000000u64) >> 16)) as usize
                 ) })
         })
     }
@@ -1704,13 +1701,17 @@ impl <'a> VM {
     // See: `fpToTr64`
     pub fn handle_tr64_from_fp(&self, value: APIHandleArg) -> APIHandleResult {
         let handle_id = self.next_id();
-        let mut bits = value.v.as_double() as u64;
-        if value.v.as_double().is_nan() {
-            bits = bits & 0xfff8000000000000u64 | 0x0000000000000008u64;
-        }
+        let doubleBits = value.v.as_double() as u64;
+        
+        let resultBits = if value.v.as_double().is_nan() {
+            doubleBits & 0xfff8000000000000u64 | 0x0000000000000008u64
+        } else {
+            doubleBits
+        };
+        
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64(bits)
+            v : APIHandleValue::TagRef64(resultBits)
         })
     }
 
