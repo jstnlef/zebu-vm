@@ -13,3 +13,4 @@
 // limitations under the License.
 
 mod test_vm_serialize;
+mod test_tr64;

@@ -1701,17 +1701,17 @@ impl <'a> VM {
     // See: `fpToTr64`
     pub fn handle_tr64_from_fp(&self, value: APIHandleArg) -> APIHandleResult {
         let handle_id = self.next_id();
-        let doubleBits = value.v.as_double() as u64;
+        let double_bits = value.v.as_double() as u64;
         
-        let resultBits = if value.v.as_double().is_nan() {
-            doubleBits & 0xfff8000000000000u64 | 0x0000000000000008u64
+        let result_bits = if value.v.as_double().is_nan() {
+            double_bits & 0xfff8000000000000u64 | 0x0000000000000008u64
         } else {
-            doubleBits
+            double_bits
         };
         
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64(resultBits)
+            v : APIHandleValue::TagRef64(result_bits)
         })
     }
 
@@ -1732,7 +1732,7 @@ impl <'a> VM {
     pub fn handle_tr64_from_ref(&self, reff: APIHandleArg, tag: APIHandleArg) -> APIHandleResult {
         let handle_id = self.next_id();
         let (_, addr) = reff.v.as_ref();
-        let addr_ = unsafe { addr.as_usize() as u64 };
+        let addr_ = addr.as_usize() as u64;
         let tag_  = tag.v.as_int();
         self.new_handle (APIHandle {
             id: handle_id,
