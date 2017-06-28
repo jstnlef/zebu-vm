@@ -30,11 +30,13 @@ use utils::LinkedHashMap;
 
 use ast::ptr::P;
 use ast::ir::*;
+use ast::types;
 
 use std::str;
 use std::usize;
 use std::ops;
 use std::collections::HashSet;
+use std::sync::RwLock;
 
 struct ASMCode {
     name: MuName,
@@ -2759,7 +2761,7 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
                 8  => f.write_fmt(format_args!(".byte {}\n", val as u8 )).unwrap(),
                 16 => f.write_fmt(format_args!(".word {}\n", val as u16)).unwrap(),
                 32 => f.write_fmt(format_args!(".long {}\n", val as u32)).unwrap(),
-                64 => f.write_fmt(format_args!(".quad {}\n", val as u64)).unwrap(),
+                64 => f.write_fmt(format_args!(".xword {}\n", val as u64)).unwrap(),
                 _  => panic!("unimplemented int length: {}", len)
             }
         }
@@ -2771,15 +2773,15 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         }
         &Constant::Double(val) => {
             let bytes: [u8; 8] = unsafe {mem::transmute(val)};
-            f.write(".quad ".as_bytes()).unwrap();
+            f.write(".xword ".as_bytes()).unwrap();
             f.write(&bytes).unwrap();
             f.write("\n".as_bytes()).unwrap();
         }
         &Constant::NullRef => {
-            f.write_fmt(format_args!(".quad 0\n")).unwrap()
+            f.write_fmt(format_args!(".xword 0\n")).unwrap()
         }
         &Constant::ExternSym(ref name) => {
-            f.write_fmt(format_args!(".quad {}\n", name)).unwrap()
+            f.write_fmt(format_args!(".xword {}\n", name)).unwrap()
         }
         &Constant::List(ref vals) => {
             for val in vals {
@@ -2797,7 +2799,6 @@ pub fn emit_context_with_reloc(vm: &VM,
                                fields : HashMap<Address, String>) {
     use std::path;
     use std::io::prelude::*;
-    use rustc_serialize::json;
 
     debug!("---Emit VM Context---");
     create_emit_directory(vm);
@@ -2810,9 +2811,6 @@ pub fn emit_context_with_reloc(vm: &VM,
         Err(why) => panic!("couldn't create context file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
     };
-
-    // bss
-    file.write_fmt(format_args!(".bss\n")).unwrap();
 
     // data
     file.write(".data\n".as_bytes()).unwrap();
@@ -2884,20 +2882,20 @@ pub fn emit_context_with_reloc(vm: &VM,
                     let load_ref = unsafe {cur_addr.load::<Address>()};
                     if load_ref.is_zero() {
                         // write 0
-                        file.write(".quad 0\n".as_bytes()).unwrap();
+                        file.write(".xword 0\n".as_bytes()).unwrap();
                     } else {
                         let label = match relocatable_refs.get(&load_ref) {
                             Some(label) => label,
                             None => panic!("cannot find label for address {}, it is not dumped by GC (why GC didn't trace to it)", load_ref)
                         };
 
-                        file.write_fmt(format_args!(".quad {}\n", label.clone())).unwrap();
+                        file.write_fmt(format_args!(".xword {}\n", label.clone())).unwrap();
                     }
                 } else if fields.contains_key(&cur_addr) {
                     // write uptr (or other relocatable value) with label
                     let label = fields.get(&cur_addr).unwrap();
 
-                    file.write_fmt(format_args!(".quad {}\n", label.clone())).unwrap();
+                    file.write_fmt(format_args!(".xword {}\n", label.clone())).unwrap();
                 } else {
                     // write plain word (as bytes)
                     let next_word_addr = cur_addr.plus(POINTER_SIZE);
@@ -2916,15 +2914,21 @@ pub fn emit_context_with_reloc(vm: &VM,
 
     // serialize vm
     trace!("start serializing vm");
-    {
-        let serialize_vm = json::encode(&vm).unwrap();
+    use rodal;
+    let mut dumper = rodal::AsmDumper::new(file);
 
-        let vm_symbol = "vm".to_string();
-        file.write_fmt(format_args!("{}\n", directive_globl(vm_symbol.clone()))).unwrap();
-        let escape_serialize_vm = serialize_vm.replace("\"", "\\\"");
-        file.write_fmt(format_args!("\t{}: .asciz \"{}\"", vm_symbol, escape_serialize_vm)).unwrap();
-        file.write("\n".as_bytes()).unwrap();
-    }
+    // Dump an Arc to the vm
+    let vm_arc = rodal::FakeArc::new(vm);
+    dumper.dump("vm", &vm_arc);
+
+    use std::ops::Deref;
+    let struct_tag_map: &RwLock<HashMap<types::StructTag, types::StructType_>> = types::STRUCT_TAG_MAP.deref();
+    dumper.dump("STRUCT_TAG_MAP", struct_tag_map);
+
+    let hybrid_tag_map: &RwLock<HashMap<types::HybridTag, types::HybridType_>> = types::HYBRID_TAG_MAP.deref();
+    dumper.dump("HYBRID_TAG_MAP", hybrid_tag_map);
+
+    dumper.finish(); // Dump everything the previously dumped objects referenced
 
     // main_thread
     //    let primordial = vm.primordial.read().unwrap();

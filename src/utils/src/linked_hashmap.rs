@@ -14,8 +14,7 @@
 
 // this implementation is copied from crate 'linked_hash_map'
 // copied it here, and added some necessary implementation
-// 1. RustcEncodable/Decodable
-// 2. values_mut()
+// 1. values_mut()
 
 // Copyright 2013 The Rust Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution and at
@@ -59,48 +58,9 @@ use std::mem;
 use std::ops::{Index, IndexMut};
 use std::ptr;
 
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-
-impl<K, V, S> Encodable for LinkedHashMap<K, V, S>
-    where K: Encodable + Eq + Hash,
-          V: Encodable,
-          S: BuildHasher
-{
-    fn encode<E: Encoder> (&self, s: &mut E) -> Result<(), E::Error> {
-        s.emit_map(self.len(), |s| {
-            let mut i = 0;
-            for (k, v) in self {
-                s.emit_map_elt_key(i, |s| k.encode(s)).ok();
-                s.emit_map_elt_val(i, |s| v.encode(s)).ok();
-                i += 1;
-            }
-            Ok(())
-        })
-    }
-}
-
-impl<K, V> Decodable for LinkedHashMap<K, V>
-    where K: Decodable + Eq + Hash,
-          V: Decodable
-{
-    fn decode<D: Decoder> (d: &mut D) -> Result<LinkedHashMap<K, V>, D::Error> {
-        d.read_map(|d, len| {
-            let mut map = LinkedHashMap::new();
-            for i in 0..len {
-                let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
-                let val = try!(d.read_map_elt_val(i, |d| Decodable::decode(d)));
-                map.insert(key, val);
-            }
-            Ok(map)
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustc_serialize::json;
-
     #[test]
     fn test_serialize() {
         let a : LinkedHashMap<usize, usize> = {

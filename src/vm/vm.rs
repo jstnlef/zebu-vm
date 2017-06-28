@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 
+use rodal;
 use ast::ptr::*;
 use ast::ir::*;
 use ast::inst::*;
@@ -34,7 +35,6 @@ use vm::handle::*;
 use vm::vm_options::VMOptions;
 use vm::vm_options::MuLogLevel;
 
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use log::LogLevel;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -45,367 +45,76 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_
 // besides fields in VM, there are some 'globals' we need to persist
 // such as STRUCT_TAG_MAP
 // possibly INTERNAL_ID in ir.rs, internal types, etc
-
-pub struct VM {
+pub struct VM { // The comments are the offset into the struct
     // ---serialize---
-    // 0
-    next_id: AtomicUsize,
-    // 1
-    id_name_map: RwLock<HashMap<MuID, MuName>>,
-    // 2
-    name_id_map: RwLock<HashMap<MuName, MuID>>,
-    // 3
-    types: RwLock<HashMap<MuID, P<MuType>>>,
-    // 4
-    backend_type_info: RwLock<HashMap<MuID, Box<BackendTypeInfo>>>,
-    // 5
-    constants: RwLock<HashMap<MuID, P<Value>>>,
-    // 6
-    globals: RwLock<HashMap<MuID, P<Value>>>,
-    pub global_locations: RwLock<HashMap<MuID, ValueLocation>>,
-    // 7
-    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
-    // 8
-    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,
-    // 9
-    func_vers: RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>>,
-    // 10
-    pub primordial: RwLock<Option<MuPrimordialThread>>,
-    // 11
-    is_running: AtomicBool,
-    // 12
-    pub vm_options: VMOptions,
-    
+    next_id: AtomicUsize, // +0
+    id_name_map: RwLock<HashMap<MuID, MuName>>, // +8
+    name_id_map: RwLock<HashMap<MuName, MuID>>, //+64
+    types: RwLock<HashMap<MuID, P<MuType>>>, //+120
+    backend_type_info: RwLock<HashMap<MuID, Box<BackendTypeInfo>>>, // +176
+    constants: RwLock<HashMap<MuID, P<Value>>>, // +232
+    globals: RwLock<HashMap<MuID, P<Value>>>, //+288
+    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>, // +400
+    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>, // +456
+    pub primordial: RwLock<Option<MuPrimordialThread>>, // +568
+    pub vm_options: VMOptions, // +624
+
+    // WARNING: It will segfault if you try to acquire a lock, after loading a dump,
+    // from one of the fields that aren't dumped
+
     // ---partially serialize---
-    // 13
-    compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>,
+    compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>, // +728
 
     // Maps each callsite to a tuple of the corresponding catch blocks label (or ""_
     // and the id of the containing function-version
-    // 14
-    exception_table: RwLock<HashMap<MuID, HashMap<MuName, MuName>>>,
+    exception_table: RwLock<HashMap<MuID, HashMap<MuName, MuName>>>, // +784
+    is_running: AtomicBool, // +952
 
     // ---do not serialize---
+    pub global_locations: RwLock<HashMap<MuID, ValueLocation>>,
+    func_vers: RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>>,
 
     // client may try to store funcref to the heap, so that they can load it later, and call it
     // however the store may happen before we have an actual address to the func (in AOT scenario)
     aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>,
 
-    // Table for excetions
-    // TODO: Have a table of these tables (one per bundle?)
-
-    // The exception table (before it has been written to disk)
-
-
-    // Same as above but once the everything have been resolved to addreses
-
     // TODO: What should the function version refer to? (It has to refer to something that has callee saved registers...)
     // TODO: probably we should remove the pointer (its unsafe), thats why we need Sync/Send for VM
     //       we can make a copy of callee_saved_register location
-    pub compiled_exception_table: RwLock<HashMap<Address, (Address, *const CompiledFunction)>>
+    pub compiled_exception_table: RwLock<HashMap<Address, (Address, *const CompiledFunction)>> // 896
 }
+unsafe impl rodal::Dump for VM {
+    fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
+        dumper.debug_record("VM", "dump");
+
+        dumper.dump_object(&self.next_id);
+        dumper.dump_object(&self.id_name_map);
+        dumper.dump_object(&self.name_id_map);
+        dumper.dump_object(&self.types);
+        dumper.dump_object(&self.backend_type_info);
+        dumper.dump_object(&self.constants);
+        dumper.dump_object(&self.globals);
+        dumper.dump_object(&self.func_sigs);
+        dumper.dump_object(&self.funcs);
+        dumper.dump_object(&self.primordial);
+        dumper.dump_object(&self.vm_options);
+        dumper.dump_object(&self.compiled_funcs);
+        dumper.dump_object(&self.exception_table);
+
+        // Dump an emepty hashmap for the compiled_exception_table
+        dumper.dump_padding(&self.compiled_exception_table);
+        dumper.dump_object_here(&RwLock::new(HashMap::<Address, (Address, *const CompiledFunction)>::new()));
+
+        // This field is actually stored at the end of the struct, the others all have the same allignment so are not reordered
+        dumper.dump_object(&self.is_running);
+    }
+}
+
 unsafe impl Sync for VM {}
 unsafe impl Send for VM {}
 
 use std::u64;
 const PENDING_FUNCREF : u64 = u64::MAX;
-
-const VM_SERIALIZE_FIELDS : usize = 14;
-
-impl Encodable for VM {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        let mut field_i = 0;
-
-        // serialize VM_SERIALIZE_FIELDS fields
-        // PLUS ONE extra global STRUCT_TAG_MAP
-        s.emit_struct("VM", VM_SERIALIZE_FIELDS + 2, |s| {
-            // next_id
-            trace!("...serializing next_id");
-            try!(s.emit_struct_field("next_id", field_i, |s| {
-                s.emit_usize(self.next_id.load(Ordering::SeqCst))
-            }));
-            field_i += 1;
-                
-            // id_name_map
-            trace!("...serializing id_name_map");
-            {
-                let map : &HashMap<MuID, MuName> = &self.id_name_map.read().unwrap();            
-                try!(s.emit_struct_field("id_name_map", field_i, |s| map.encode(s)));
-            }
-            field_i += 1;
-            
-            // name_id_map
-            trace!("...serializing name_id_map");
-            {
-                let map : &HashMap<MuName, MuID> = &self.name_id_map.read().unwrap(); 
-                try!(s.emit_struct_field("name_id_map", field_i, |s| map.encode(s)));
-            }
-            field_i += 1;
-            
-            // types
-            trace!("...serializing types");
-            {
-                let types = &self.types.read().unwrap();
-                try!(s.emit_struct_field("types", field_i, |s| types.encode(s)));
-            }
-            field_i += 1;
-
-            // STRUCT_TAG_MAP
-            trace!("...serializing struct_tag_map");
-            {
-                let struct_tag_map = types::STRUCT_TAG_MAP.read().unwrap();
-                try!(s.emit_struct_field("struct_tag_map", field_i, |s| struct_tag_map.encode(s)));
-            }
-            field_i += 1;
-
-            // HYBRID_TAG_MAP
-            trace!("...serializing hybrid_tag_map");
-            {
-                let hybrid_tag_map = types::HYBRID_TAG_MAP.read().unwrap();
-                try!(s.emit_struct_field("hybrid_tag_map", field_i, |s| hybrid_tag_map.encode(s)));
-            }
-            field_i += 1;
-            
-            // backend_type_info
-            trace!("...serializing backend_type_info");
-            {
-                let backend_type_info : &HashMap<_, _> = &self.backend_type_info.read().unwrap();
-                try!(s.emit_struct_field("backend_type_info", field_i, |s| backend_type_info.encode(s)));
-            }
-            field_i += 1;
-            
-            // constants
-            trace!("...serializing constants");
-            {
-                let constants : &HashMap<_, _> = &self.constants.read().unwrap();
-                try!(s.emit_struct_field("constants", field_i, |s| constants.encode(s)));
-            }
-            field_i += 1;
-            
-            // globals
-            trace!("...serializing globals");
-            {
-                let globals: &HashMap<_, _> = &self.globals.read().unwrap();
-                try!(s.emit_struct_field("globals", field_i, |s| globals.encode(s)));
-            }
-            field_i += 1;
-            
-            // func sigs
-            trace!("...serializing func_sigs");
-            {
-                let func_sigs: &HashMap<_, _> = &self.func_sigs.read().unwrap();
-                try!(s.emit_struct_field("func_sigs", field_i, |s| func_sigs.encode(s)));
-            }
-            field_i += 1;
-            
-            // funcs
-            trace!("...serializing funcs");
-            {
-                let funcs : &HashMap<_, _> = &self.funcs.read().unwrap();
-                try!(s.emit_struct_field("funcs", field_i, |s| {
-                    s.emit_map(funcs.len(), |s| {
-                        let mut i = 0;
-                        for (k,v) in funcs.iter() {
-                            s.emit_map_elt_key(i, |s| k.encode(s)).ok();
-                            let func : &MuFunction = &v.read().unwrap();
-                            s.emit_map_elt_val(i, |s| func.encode(s)).ok();
-                            i += 1;
-                        }
-                        Ok(())
-                    })
-                }));
-            }
-            field_i += 1;
-
-            // primordial
-            trace!("...serializing primordial");
-            {
-                let primordial = &self.primordial.read().unwrap();
-                try!(s.emit_struct_field("primordial", field_i, |s| primordial.encode(s)));
-            }
-            field_i += 1;
-            
-            // is_running
-            trace!("...serializing is_running");
-            {
-                try!(s.emit_struct_field("is_running", field_i, |s| self.is_running.load(Ordering::SeqCst).encode(s)));
-            }
-            field_i += 1;
-
-            // options
-            trace!("...serializing vm_options");
-            {
-                try!(s.emit_struct_field("vm_options", field_i, |s| self.vm_options.encode(s)));
-            }
-            field_i += 1;
-            
-            // compiled_funcs
-            trace!("...serializing compiled_funcs");
-            {
-                let compiled_funcs : &HashMap<_, _> = &self.compiled_funcs.read().unwrap();
-                try!(s.emit_struct_field("compiled_funcs", field_i, |s| {
-                    s.emit_map(compiled_funcs.len(), |s| {
-                        let mut i = 0;
-                        for (k, v) in compiled_funcs.iter() {
-                            try!(s.emit_map_elt_key(i, |s| k.encode(s)));
-                            let compiled_func : &CompiledFunction = &v.read().unwrap();
-                            try!(s.emit_map_elt_val(i, |s| compiled_func.encode(s)));
-                            i += 1;
-                        }
-                        Ok(())
-                    })
-                }));
-            }
-            field_i += 1;
-            trace!("...serializing exception_table");
-            {
-                let map : &HashMap<MuID, HashMap<MuName, MuName>> = &self.exception_table.read().unwrap();
-                try!(s.emit_struct_field("exception_table", field_i, |s| map.encode(s)));
-            }
-            field_i += 1;
-
-            trace!("serializing finished");
-            Ok(())
-        })
-    }
-}
-
-impl Decodable for VM {
-    fn decode<D: Decoder>(d: &mut D) -> Result<VM, D::Error> {
-        let mut field_i = 0;
-
-        d.read_struct("VM", VM_SERIALIZE_FIELDS + 2, |d| {
-            // next_id
-            let next_id = try!(d.read_struct_field("next_id", field_i, |d| {
-                d.read_usize()
-            }));
-            field_i += 1;
-            
-            // id_name_map
-            let id_name_map = try!(d.read_struct_field("id_name_map", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-
-            // name_id_map
-            let name_id_map = try!(d.read_struct_field("name_id_map", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-            
-            // types
-            let types = try!(d.read_struct_field("types", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-
-            // struct tag map
-            {
-                let mut struct_tag_map : HashMap<MuName, StructType_> = try!(d.read_struct_field("struct_tag_map", field_i, |d| Decodable::decode(d)));
-                
-                let mut map_guard = types::STRUCT_TAG_MAP.write().unwrap();
-                map_guard.clear();
-                for (k, v) in struct_tag_map.drain() {
-                    map_guard.insert(k, v);
-                }
-                field_i += 1;
-            }
-
-            // hybrid tag map
-            {
-                let mut hybrid_tag_map : HashMap<MuName, HybridType_> = try!(d.read_struct_field("hybrid_tag_map", field_i, |d| Decodable::decode(d)));
-
-                let mut map_guard = types::HYBRID_TAG_MAP.write().unwrap();
-                map_guard.clear();
-                for (k, v) in hybrid_tag_map.drain() {
-                    map_guard.insert(k, v);
-                }
-                field_i += 1;
-            }
-            
-            // backend_type_info
-            let backend_type_info = try!(d.read_struct_field("backend_type_info", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-            
-            // constants
-            let constants = try!(d.read_struct_field("constants", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-            
-            // globals
-            let globals = try!(d.read_struct_field("globals", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-            
-            // func sigs
-            let func_sigs = try!(d.read_struct_field("func_sigs", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-            
-            // funcs
-            let funcs = try!(d.read_struct_field("funcs", field_i, |d| {
-                d.read_map(|d, len| {
-                    let mut map = HashMap::new();
-                    for i in 0..len {
-                        let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
-                        let val = RwLock::new(try!(d.read_map_elt_val(i, |d| Decodable::decode(d))));
-                        map.insert(key, val);
-                    }
-                    Ok(map)
-                })
-            }));
-            field_i += 1;
-            
-            // primordial
-            let primordial = try!(d.read_struct_field("primordial", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-
-            // is_running
-            let is_running = try!(d.read_struct_field("is_running", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-
-            // vm_options
-            let vm_options = try!(d.read_struct_field("vm_options", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-            
-            // compiled funcs
-            let compiled_funcs = try!(d.read_struct_field("compiled_funcs", field_i, |d| {
-                d.read_map(|d, len| {
-                    let mut map = HashMap::new();
-                    for i in 0..len {
-                        let key = try!(d.read_map_elt_key(i, |d| Decodable::decode(d)));
-                        let val = RwLock::new(try!(d.read_map_elt_val(i, |d| Decodable::decode(d))));
-                        map.insert(key, val);
-                    }
-                    Ok(map)
-                })
-            }));
-            field_i += 1;
-
-            trace!("Deserialising exception table");
-            let exception_table = try!(d.read_struct_field("exception_table", field_i, |d| Decodable::decode(d)));
-            field_i += 1;
-
-
-            let vm = VM {
-                next_id: ATOMIC_USIZE_INIT,
-                id_name_map: RwLock::new(id_name_map),
-                name_id_map: RwLock::new(name_id_map),
-                types: RwLock::new(types),
-                backend_type_info: RwLock::new(backend_type_info),
-                constants: RwLock::new(constants),
-                globals: RwLock::new(globals),
-                global_locations: RwLock::new(hashmap!{}),
-                func_sigs: RwLock::new(func_sigs),
-                funcs: RwLock::new(funcs),
-                func_vers: RwLock::new(hashmap!{}),
-                primordial: RwLock::new(primordial),
-                is_running: ATOMIC_BOOL_INIT,
-                vm_options: vm_options,
-                compiled_funcs: RwLock::new(compiled_funcs),
-                exception_table: RwLock::new(exception_table),
-                aot_pending_funcref_store: RwLock::new(HashMap::new()),
-                compiled_exception_table: RwLock::new(HashMap::new()),
-            };
-            
-            vm.next_id.store(next_id, Ordering::SeqCst);
-            vm.is_running.store(is_running, Ordering::SeqCst);
-            
-            Ok(vm)
-        })
-    }
-}
 
 macro_rules! gen_handle_int {
     ($fn_from: ident, $fn_to: ident, $int_ty: ty) => {
@@ -502,6 +211,7 @@ impl <'a> VM {
     }
 
     fn start_logging(level: MuLogLevel) {
+        use std::env;
         match level {
             MuLogLevel::None  => {},
             MuLogLevel::Error => VM::start_logging_internal(LogLevel::Error),
@@ -509,11 +219,20 @@ impl <'a> VM {
             MuLogLevel::Info  => VM::start_logging_internal(LogLevel::Info),
             MuLogLevel::Debug => VM::start_logging_internal(LogLevel::Debug),
             MuLogLevel::Trace => VM::start_logging_internal(LogLevel::Trace),
+            MuLogLevel::Env => {
+                match env::var("MU_LOG_LEVEL") {
+                    Ok(s) => VM::start_logging(MuLogLevel::from_string(s)),
+                    _ => {} // Don't log
+                }
+            },
         }
     }
 
     pub fn start_logging_trace() {
         VM::start_logging_internal(LogLevel::Trace)
+    }
+    pub fn start_logging_env() {
+        VM::start_logging(MuLogLevel::Env)
     }
 
     fn start_logging_internal(level: LogLevel) {
@@ -546,11 +265,8 @@ impl <'a> VM {
         };
     }
 
-    pub fn resume_vm(serialized_vm: &str) -> VM {
-        use rustc_serialize::json;
-        
-        let vm : VM = json::decode(serialized_vm).unwrap();
-        
+    pub fn resume_vm(dumped_vm: *mut Arc<VM>) -> Arc<VM> {
+        let vm = unsafe{rodal::load_asm_pointer_move(dumped_vm)};
         vm.init_runtime();
 
         // restore gc types

@@ -19,13 +19,13 @@ use compiler::backend::Word;
 use compiler::backend::RegGroup;
 use utils::Address;
 
+use libc::*;
+use std;
 use std::fmt;
-use std::os::raw::c_int;
-use std::os::raw::c_char;
-use std::os::raw::c_void;
 use std::ffi::CString;
 use std::ffi::CStr;
 use std::sync::Arc;
+use rodal;
 
 pub mod mm;
 pub mod thread;
@@ -34,37 +34,12 @@ pub mod entrypoints;
 
 pub mod exception;
 
-// consider using libloading crate instead of the raw c functions for dynalic libraries
-// however i am not sure if libloading can load symbols from current process (not from an actual dylib)
-// so here i use dlopen/dlsym from C
-#[repr(C)]
-struct Dl_info {
-    dli_fname: *const c_char,
-    dli_fbase: *mut c_void,
-    dli_sname: *const c_char,
-    dli_saddr: *mut c_void,
-}
-
-#[link(name="dl")]
-extern "C" {
-    fn dlopen(filename: *const c_char, flags: isize) -> *const c_void;
-    fn dlsym(handle: *const c_void, symbol: *const c_char) -> *const c_void;
-    fn dladdr(addr: *mut c_void, info: *mut Dl_info) -> i32;
-    fn dlerror() -> *const c_char;
-}
 
 // TODO: this actually returns the name and address of the nearest symbol (of any type)
 // that starts before function_addr (instead we want the nearest function symbol)
 pub fn get_function_info(function_addr: Address) -> (CName, Address) {
-    use std::ptr;
-
-    // Rust requires this to be initialised
-    let mut info = Dl_info {
-        dli_fname: ptr::null::<c_char>(),
-        dli_fbase: ptr::null_mut::<c_void>(),
-        dli_sname: ptr::null::<c_char>(),
-        dli_saddr: ptr::null_mut::<c_void>(),
-    };
+    // dladdr will initialise this for us
+    let mut info = unsafe{std::mem::uninitialized::<Dl_info>()};
 
     unsafe {dladdr(function_addr.to_ptr_mut::<c_void>(), &mut info)};
 
@@ -88,10 +63,10 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
 pub fn resolve_symbol(symbol: String) -> Address {
     use std::ptr;
 
-    let symbol = name_check(symbol);
+    let c_symbol = CString::new(name_check(symbol.clone())).unwrap();
     
     let rtld_default = unsafe {dlopen(ptr::null(), 0)};
-    let ret = unsafe {dlsym(rtld_default, CString::new(symbol.clone()).unwrap().as_ptr())};
+    let ret = unsafe {dlsym(rtld_default, c_symbol.as_ptr())};
 
     let error = unsafe {dlerror()};
     if !error.is_null() {
@@ -105,16 +80,15 @@ pub fn resolve_symbol(symbol: String) -> Address {
     Address::from_ptr(ret)
 }
 
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-
+rodal_enum!(ValueLocation{(Register: group, id), (Constant: group, word), (Relocatable: group, name)});
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum ValueLocation {
-    Register(RegGroup, MuID),     // 0
-    Constant(RegGroup, Word),     // 1    
-    Relocatable(RegGroup, MuName),// 2
+    Register(RegGroup, MuID),
+    Constant(RegGroup, Word),
+    Relocatable(RegGroup, MuName),
     
-    Direct(RegGroup, Address),    // 3
-    Indirect(RegGroup, Address),  // 4
+    Direct(RegGroup, Address),    // Not dumped
+    Indirect(RegGroup, Address),  // Not dumped
 }
 
 impl fmt::Display for ValueLocation {
@@ -126,74 +100,6 @@ impl fmt::Display for ValueLocation {
             &ValueLocation::Direct(_, addr) => write!(f, "VL_Direct: 0x{:x}", addr),
             &ValueLocation::Indirect(_, addr) => write!(f, "VL_Indirect: 0x{:x}", addr)
         }
-    }
-}
-
-impl Encodable for ValueLocation {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_enum("ValueLocation", |s| {
-            match self {
-                &ValueLocation::Register(grp, id) => {
-                    s.emit_enum_variant("Register", 0, 2, |s| {
-                        try!(s.emit_enum_variant_arg(0, |s| grp.encode(s)));
-                        try!(s.emit_enum_variant_arg(1, |s| id.encode(s)));
-                        Ok(())
-                    })
-                }
-                &ValueLocation::Constant(grp, val) => {
-                    s.emit_enum_variant("Constant", 1, 2, |s| {
-                        try!(s.emit_enum_variant_arg(0, |s| grp.encode(s)));
-                        try!(s.emit_enum_variant_arg(1, |s| val.encode(s)));
-                        Ok(())
-                    })    
-                }                
-                &ValueLocation::Relocatable(grp, ref name) => {
-                    s.emit_enum_variant("Relocatable", 2, 2, |s| {
-                        try!(s.emit_enum_variant_arg(0, |s| grp.encode(s)));
-                        try!(s.emit_enum_variant_arg(1, |s| name.encode(s)));
-                        Ok(())
-                    })
-                }
-                &ValueLocation::Direct(_, _)
-                | &ValueLocation::Indirect(_, _) => {
-                    panic!("trying to encode an address location (not persistent)")
-                }
-            }
-        })
-    }
-}
-
-impl Decodable for ValueLocation {
-    fn decode<D: Decoder>(d: &mut D) -> Result<ValueLocation, D::Error> {
-        d.read_enum("ValueLocation", |d| {
-            d.read_enum_variant(
-                &vec!["Register", "Constant", "Relocatable"],
-                |d, idx| {
-                    match idx {
-                        0 => {
-                            // Register variant
-                            let grp = try!(d.read_enum_variant_arg(0, |d| Decodable::decode(d)));
-                            let id = try!(d.read_enum_variant_arg(1, |d| Decodable::decode(d)));
-                            
-                            Ok(ValueLocation::Register(grp, id))
-                        }
-                        1 => {
-                            // Constant
-                            let grp = try!(d.read_enum_variant_arg(0, |d| Decodable::decode(d)));
-                            let val = try!(d.read_enum_variant_arg(1, |d| Decodable::decode(d)));
-                            Ok(ValueLocation::Constant(grp, val))
-                        }
-                        2 => {
-                            // Relocatable
-                            let grp = try!(d.read_enum_variant_arg(0, |d| Decodable::decode(d)));
-                            let name = try!(d.read_enum_variant_arg(1, |d| Decodable::decode(d)));
-                            Ok(ValueLocation::Relocatable(grp, name))
-                        }
-                        _ => panic!("unexpected enum variant for ValueLocation: {}", idx)
-                    }
-                }
-             ) 
-        })
     }
 }
 
@@ -248,12 +154,12 @@ pub extern fn mu_trace_level_log() {
 }
 
 #[no_mangle]
-pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *const c_char) {
+pub extern fn mu_main(edata: *const(), dumped_vm : *mut Arc<VM>, argc: c_int, argv: *const *const c_char) {
+    VM::start_logging_env();
     debug!("mu_main() started...");
-    
-    let str_vm = unsafe{CStr::from_ptr(serialized_vm)}.to_str().unwrap();
-    
-    let vm : Arc<VM> = Arc::new(VM::resume_vm(str_vm));
+
+    unsafe{rodal::load_asm_bounds(rodal::Address::from_ptr(dumped_vm), rodal::Address::from_ptr(edata))};
+    let vm = VM::resume_vm(dumped_vm);
     
     let primordial = vm.primordial.read().unwrap();
     if primordial.is_none() {
