@@ -18,6 +18,7 @@ use mu::ast::types::*;
 use mu::utils::Address;
 
 use std::f64;
+use std::mem::transmute;
 
 /**
  * Helper functions to test VM:: methods with literal values
@@ -97,7 +98,7 @@ fn test_other_bit_pattern_is_double() {
     assert!(vm.handle_tr64_is_fp(&tr64(0x123456789abcdef0u64)));
     assert!(vm.handle_tr64_is_fp(&tr64(0x7ff123456789abccu64)));
     assert!(vm.handle_tr64_is_fp(&tr64(0xfffffffffffffffcu64)));
-    assert!(vm.handle_tr64_is_fp(&tr64(3.1415927f64 as u64)));
+    unsafe { assert!(vm.handle_tr64_is_fp(&tr64(transmute(3.1415927f64)))); }
 }
 
 #[test]
@@ -114,11 +115,13 @@ fn test_encode_int() {
 fn test_encode_double() {
     let vm = VM::new();
     
-    assert_eq!(vm.handle_tr64_from_fp(&double(3.14_f64)).v.as_tr64(), 3.14_f64 as u64);
-    assert_eq!(vm.handle_tr64_from_fp(&double(-3.14_f64)).v.as_tr64(), -3.14_f64 as u64);
-    assert_eq!(vm.handle_tr64_from_fp(&double(f64::INFINITY)).v.as_tr64(), 0x7ff0000000000000u64);
-    assert_eq!(vm.handle_tr64_from_fp(&double(0x7ff123456789abcdu64 as f64)).v.as_tr64(), 0x7ff0000000000008u64);
-    assert!((vm.handle_tr64_from_fp(&double(0x7ff123456789abcdu64 as f64)).v.as_tr64() as f64).is_nan());
+    unsafe {
+        assert_eq!(vm.handle_tr64_from_fp(&double(3.14_f64)).v.as_tr64(), transmute(3.14_f64));
+        assert_eq!(vm.handle_tr64_from_fp(&double(-3.14_f64)).v.as_tr64(), transmute(-3.14_f64));
+        assert_eq!(vm.handle_tr64_from_fp(&double(f64::INFINITY)).v.as_tr64(), 0x7ff0000000000000u64);
+        assert_eq!(vm.handle_tr64_from_fp(&double(transmute(0x7ff123456789abcdu64))).v.as_tr64(), 0x7ff0000000000008u64);
+        assert!(transmute::<u64, f64>((vm.handle_tr64_from_fp(&double(transmute(0x7ff123456789abcdu64))).v.as_tr64())).is_nan());
+    }
 }
 
 #[test]
@@ -156,7 +159,7 @@ fn test_decode_tagref() {
     let vm = VM::new();
 
     assert_eq!(vm.handle_tr64_to_ref(&tr64(0x7ff0555555555552u64)).v.as_ref().1.as_usize() as u64, 0x555555555550u64);
-    assert_eq!(vm.handle_tr64_to_ref(&tr64(0xfff02aaaaaaaaaaau64)).v.as_ref().1.as_usize() as u64, 0x555555555550u64);
+    assert_eq!(vm.handle_tr64_to_ref(&tr64(0xfff02aaaaaaaaaaau64)).v.as_ref().1.as_usize() as u64, 0xffffaaaaaaaaaaa8u64);
     assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7ff0555555555552u64)).v.as_int(), 0u64);
     assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7fff800000000006u64)).v.as_int(), 0x3fu64);
     assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7ffa800000000002u64)).v.as_int(), 0x2au64);

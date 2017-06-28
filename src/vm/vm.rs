@@ -41,6 +41,9 @@ use std::sync::RwLock;
 use std::sync::RwLockWriteGuard;
 use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
 
+use std;
+use utils::bit_utils::{bits_ones, u64_asr};
+
 // FIXME:
 // besides fields in VM, there are some 'globals' we need to persist
 // such as STRUCT_TAG_MAP
@@ -1410,14 +1413,12 @@ impl <'a> VM {
         unsafe {
             match val.v {
                 APIHandleValue::Int(ival, bits) => {
+                    let trunc: u64 = ival & bits_ones(bits);
                     match bits {
-                        1  => addr.store::<u8>((ival as u8) & 0b1u8),
-                        6  => addr.store::<u8>((ival as u8) & 0b111111u8),
-                        8  => addr.store::<u8>(ival as u8),
-                        16 => addr.store::<u16>(ival as u16),
-                        32 => addr.store::<u32>(ival as u32),
-                        52 => addr.store::<u64>(ival & ((1 << 51)-1)),
-                        64 => addr.store::<u64>(ival),
+                        1  ... 8   => addr.store::<u8>(trunc as u8),
+                        9  ... 16  => addr.store::<u16>(trunc as u16),
+                        17 ... 32  => addr.store::<u32>(trunc as u32),
+                        33 ... 64  => addr.store::<u64>(trunc as u64),
                         _  => panic!("unimplemented int length")
                     }
                 },
@@ -1653,7 +1654,7 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v : APIHandleValue::Double(
-                value.v.as_tr64() as f64
+                unsafe { std::mem::transmute(value.v.as_tr64()) }
             )
         })
     }
@@ -1680,7 +1681,7 @@ impl <'a> VM {
             v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
                 unsafe { Address::from_usize(
                     ((opnd & 0x7ffffffffff8u64) |
-                        ((opnd & 0x8000000000000000u64) >> 16)) as usize
+                        u64_asr((opnd & 0x8000000000000000u64), 16)) as usize
                 ) })
         })
     }
@@ -1692,7 +1693,7 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v : APIHandleValue::Int(
-                    (((opnd & 0x000f800000000000u64) >> 46) | ((opnd & 0x4) >> 2)),
+                    (u64_asr((opnd & 0x000f800000000000u64), 46) | (u64_asr((opnd & 0x4), 2))),
                 6
             )
         })
@@ -1701,7 +1702,7 @@ impl <'a> VM {
     // See: `fpToTr64`
     pub fn handle_tr64_from_fp(&self, value: APIHandleArg) -> APIHandleResult {
         let handle_id = self.next_id();
-        let double_bits = value.v.as_double() as u64;
+        let double_bits = unsafe { std::mem::transmute(value.v.as_double()) };
         
         let result_bits = if value.v.as_double().is_nan() {
             double_bits & 0xfff8000000000000u64 | 0x0000000000000008u64

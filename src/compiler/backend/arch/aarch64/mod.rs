@@ -22,6 +22,8 @@
 // TODO: Move architecture independent codes in here, inst_sel and asm_backend to somewhere else...
 pub mod inst_sel;
 
+use utils::bit_utils::bits_ones;
+
 mod codegen;
 pub use compiler::backend::aarch64::codegen::CodeGenerator;
 
@@ -1179,12 +1181,6 @@ fn hfa_length(t : P<MuType>) -> usize
     }
 }
 
-#[inline(always)]
-// Returns the number that has 'n' 1's in a row (i.e. 2^n-1)
-pub fn bits_ones(n: usize) -> u64 {
-    if n == 64 { (-(1 as i64)) as u64 }
-        else { (1 << n) - 1 }
-}
 // val is an unsigned multiple of n and val/n fits in 12 bits
 #[inline(always)]
 pub fn is_valid_immediate_offset(val: i64, n : usize) -> bool {
