@@ -1111,7 +1111,7 @@ impl Clone for MuEntityHeader {
 }
 
 pub fn name_check(name: MuName) -> MuName {
-    let name = name.replace('.', "_");
+    let name = name.replace('.', "$");
 
     if name.starts_with("@") || name.starts_with("%") {
         let (_, name) = name.split_at(1);
