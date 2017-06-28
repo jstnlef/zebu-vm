@@ -34,7 +34,6 @@ gcc = "*"
 ast = {path = "src/ast"}
 utils = {path = "src/utils"}
 gc = {path = "src/gc"}
-#rodal = {path = "rodal"}
 rodal = { git = "https://gitlab.anu.edu.au/mu/rodal" }
 libc="*"
 field-offset = "*"
