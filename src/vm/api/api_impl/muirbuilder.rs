@@ -624,7 +624,7 @@ struct FuncCtxBuilder {
     tree_nodes: IdPMap<TreeNode>,
 }
 
-const DEFAULT_TRUE_PROB: f32 = 0.6f32;
+const DEFAULT_TRUE_PROB: f32 = 0.4f32;
 
 impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
