@@ -18,7 +18,7 @@
 #include <string.h>
 
 extern void* vm;
-extern void* edata; // The compiler will set the addres of this to the end of the data segment
+extern void* RODAL_END;
 extern void mu_main(void*, void*, int, char**);
 extern void rodal_init_deallocate(void);
 extern void rodal_free(void*);
@@ -28,7 +28,7 @@ extern uint32_t mu_retval;
 
 int main(int argc, char** argv) {
     rodal_init_deallocate();
-    mu_main(&edata, &vm, argc, argv);
+    mu_main(&RODAL_END, &vm, argc, argv);
     return (int)mu_retval;
 }
 
