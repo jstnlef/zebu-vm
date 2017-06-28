@@ -3638,10 +3638,10 @@ pub fn emit_context_with_reloc(vm: &VM,
 
     use std::ops::Deref;
     let struct_tag_map: &RwLock<HashMap<types::StructTag, types::StructType_>> = types::STRUCT_TAG_MAP.deref();
-    dumper.dump("STRUCT_TAG_MAP", struct_tag_map).finish();
+    dumper.dump("STRUCT_TAG_MAP", struct_tag_map);
 
     let hybrid_tag_map: &RwLock<HashMap<types::HybridTag, types::HybridType_>> = types::HYBRID_TAG_MAP.deref();
-    dumper.dump("HYBRID_TAG_MAP", hybrid_tag_map).finish();
+    dumper.dump("HYBRID_TAG_MAP", hybrid_tag_map);
 
     dumper.finish();
 
