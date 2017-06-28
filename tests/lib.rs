@@ -24,6 +24,7 @@ mod ir_macros;
 mod test_ir;
 mod test_compiler;
 mod test_runtime;
+mod test_api;
 
 mod common {
     use std::fmt;
