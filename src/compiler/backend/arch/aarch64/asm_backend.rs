@@ -2758,10 +2758,10 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         &Constant::Int(val) => {
             let len = ty.get_int_length().unwrap();
             match len {
-                8  => f.write_fmt(format_args!(".byte {}\n", val as u8 )).unwrap(),
-                16 => f.write_fmt(format_args!(".word {}\n", val as u16)).unwrap(),
-                32 => f.write_fmt(format_args!(".long {}\n", val as u32)).unwrap(),
-                64 => f.write_fmt(format_args!(".xword {}\n", val as u64)).unwrap(),
+                1  ... 8  => f.write_fmt(format_args!(".byte {}\n", get_unsigned_value(val, len) as u8 )).unwrap(),
+                9  ... 16 => f.write_fmt(format_args!(".word {}\n", get_unsigned_value(val, len) as u16)).unwrap(),
+                17 ... 32 => f.write_fmt(format_args!(".long {}\n", get_unsigned_value(val, len) as u32)).unwrap(),
+                33 ... 64 => f.write_fmt(format_args!(".xword {}\n", get_unsigned_value(val, len) as u64)).unwrap(),
                 _  => panic!("unimplemented int length: {}", len)
             }
         }

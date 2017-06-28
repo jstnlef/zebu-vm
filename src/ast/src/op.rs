@@ -79,6 +79,17 @@ pub enum OpCode {
     CommonInst_Pin,
     CommonInst_Unpin,
 
+    CommonInst_Tr64IsFp,
+    CommonInst_Tr64IsInt,
+    CommonInst_Tr64IsRef,
+    CommonInst_Tr64FromFp,
+    CommonInst_Tr64FromInt,
+    CommonInst_Tr64FromRef,
+    CommonInst_Tr64ToFp,
+    CommonInst_Tr64ToInt,
+    CommonInst_Tr64ToRef,
+    CommonInst_Tr64ToTag,
+
     Move,
     PrintHex,
     SetRetval
@@ -391,8 +402,18 @@ pub fn pick_op_code_for_inst(inst: &Instruction) -> OpCode {
         Instruction_::CommonInst_SetThreadLocal(_)  => OpCode::CommonInst_SetThreadLocal,
         Instruction_::CommonInst_Pin(_)             => OpCode::CommonInst_Pin,
         Instruction_::CommonInst_Unpin(_)           => OpCode::CommonInst_Unpin,
-        Instruction_::Move(_)                    => OpCode::Move,
-        Instruction_::PrintHex(_)                => OpCode::PrintHex,
-        Instruction_::SetRetval(_)               => OpCode::SetRetval
+        Instruction_::CommonInst_Tr64IsFp(_)        => OpCode::CommonInst_Tr64IsFp,
+        Instruction_::CommonInst_Tr64IsInt(_)       => OpCode::CommonInst_Tr64IsInt,
+        Instruction_::CommonInst_Tr64IsRef(_)       => OpCode::CommonInst_Tr64IsRef,
+        Instruction_::CommonInst_Tr64FromFp(_)      => OpCode::CommonInst_Tr64FromFp,
+        Instruction_::CommonInst_Tr64FromInt(_)     => OpCode::CommonInst_Tr64FromInt,
+        Instruction_::CommonInst_Tr64FromRef(_, _)  => OpCode::CommonInst_Tr64FromRef,
+        Instruction_::CommonInst_Tr64ToFp(_)        => OpCode::CommonInst_Tr64ToFp,
+        Instruction_::CommonInst_Tr64ToInt(_)       => OpCode::CommonInst_Tr64ToInt,
+        Instruction_::CommonInst_Tr64ToRef(_)       => OpCode::CommonInst_Tr64ToRef,
+        Instruction_::CommonInst_Tr64ToTag(_)       => OpCode::CommonInst_Tr64ToTag,
+        Instruction_::Move(_)                       => OpCode::Move,
+        Instruction_::PrintHex(_)                   => OpCode::PrintHex,
+        Instruction_::SetRetval(_)                   => OpCode::SetRetval
     }
 }

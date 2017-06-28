@@ -67,46 +67,7 @@ impl Instruction {
                 Some(resume.exn_dest.target)
             },
 
-            BinOp(_, _, _)
-            | BinOpWithStatus(_, _, _, _)
-            | CmpOp(_, _, _)
-            | ConvOp{..}
-            | ExprCall{..}
-            | ExprCCall{..}
-            | Load{..}
-            | Store{..}
-            | CmpXchg{..}
-            | AtomicRMW{..}
-            | New(_)
-            | AllocA(_)
-            | NewHybrid(_, _)
-            | AllocAHybrid(_, _)
-            | NewStack(_)
-            | NewThread(_, _)
-            | NewThreadExn(_, _)
-            | NewFrameCursor(_)
-            | GetIRef(_)
-            | GetFieldIRef{..}
-            | GetElementIRef{..}
-            | ShiftIRef{..}
-            | GetVarPartIRef{..}
-            | Fence(_)
-            | Return(_)
-            | ThreadExit
-            | Throw(_)
-            | TailCall(_)
-            | Branch1(_)
-            | Branch2{..}
-            | Select{..}
-            | WPBranch{..}
-            | Switch{..}
-            | CommonInst_GetThreadLocal
-            | CommonInst_SetThreadLocal(_)
-            | CommonInst_Pin(_)
-            | CommonInst_Unpin(_)
-            | Move(_)
-            | PrintHex(_)
-            | SetRetval(_) => None
+            _ => None
         }
     }
 
@@ -315,8 +276,20 @@ pub enum Instruction_ {
     CommonInst_SetThreadLocal(OpIndex),
 
     // pin/unpin
-    CommonInst_Pin  (OpIndex),
+    CommonInst_Pin(OpIndex),
     CommonInst_Unpin(OpIndex),
+
+    // Tagref64 stuff
+    CommonInst_Tr64IsFp(OpIndex),
+    CommonInst_Tr64IsInt(OpIndex),
+    CommonInst_Tr64IsRef(OpIndex),
+    CommonInst_Tr64FromFp(OpIndex),
+    CommonInst_Tr64FromInt(OpIndex),
+    CommonInst_Tr64FromRef(OpIndex, OpIndex),
+    CommonInst_Tr64ToFp(OpIndex),
+    CommonInst_Tr64ToInt(OpIndex),
+    CommonInst_Tr64ToRef(OpIndex),
+    CommonInst_Tr64ToTag(OpIndex),
 
     // internal use: mov from ops[0] to value
     Move(OpIndex),
@@ -446,6 +419,18 @@ impl Instruction_ {
 
             &Instruction_::CommonInst_Pin(op)   => format!("COMMONINST Pin {}",   ops[op]),
             &Instruction_::CommonInst_Unpin(op) => format!("COMMONINST Unpin {}", ops[op]),
+
+            // Tagerf64
+            &Instruction_::CommonInst_Tr64IsFp(op) => format!("COMMONINST Tr64IsFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64IsInt(op) => format!("COMMONINST Tr64IsInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64IsRef(op) => format!("COMMONINST Tr64IsRef {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromFp(op) => format!("COMMONINST Tr64FromFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromInt(op) => format!("COMMONINST Tr64FromInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromRef(op1, op2) => format!("COMMONINST Tr64FromRet {} {}", ops[op1], ops[op2]),
+            &Instruction_::CommonInst_Tr64ToFp(op) => format!("COMMONINST Tr64ToFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToInt(op) => format!("COMMONINST Tr64ToInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToRef(op) => format!("COMMONINST Tr64ToRef {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToTag(op) => format!("COMMONINST Tr64ToTag {}", ops[op]),
 
             // move
             &Instruction_::Move(from) => format!("MOVE {}", ops[from]),
