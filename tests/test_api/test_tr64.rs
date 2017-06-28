@@ -17,6 +17,8 @@ use mu::vm::handle::*;
 use mu::ast::types::*;
 use mu::utils::Address;
 
+use std::f64;
+
 /**
  * Helper functions to test VM:: methods with literal values
  *
@@ -52,11 +54,11 @@ fn int52(val: u64) -> APIHandle {
     }
 }
 
-fn ref_void(val: usize) -> APIHandle {
+fn ref_void(val: u64) -> APIHandle {
     APIHandle {
         id: 0, // arbitrary
         v : APIHandleValue::Ref(REF_VOID_TYPE.clone(),
-            unsafe { Address::from_usize(val) })
+            unsafe { Address::from_usize(val as usize) })
     }
 }
 
@@ -78,65 +80,85 @@ fn test_nan_with_suffix_1_is_integer() {
     assert!(vm.handle_tr64_is_int(&tr64(0xffffffffffffffffu64)));
 }
 
-// FIXME: Convert the rest of these into Rust tests, as above
+#[test]
+fn test_nan_with_suffix_10_is_ref() {
+    let vm = VM::new();
 
-/*
-  it should "treat a NaN with suffix 10 as a double." in {
-    OpHelper.tr64IsRef(0x7ff0000000000002L) shouldBe true
-    OpHelper.tr64IsRef(0xfff0000000000002L) shouldBe true
-    OpHelper.tr64IsRef(0xfffffffffffffffeL) shouldBe true
-  }
+    assert!(vm.handle_tr64_is_ref(&tr64(0x7ff0000000000002u64)));
+    assert!(vm.handle_tr64_is_ref(&tr64(0xfff0000000000002u64)));
+    assert!(vm.handle_tr64_is_ref(&tr64(0xfffffffffffffffeu64)));
+}
 
-  it should "treat other bit patterns as double" in {
-    OpHelper.tr64IsFP(0x0L) shouldBe true
-    OpHelper.tr64IsFP(0x123456789abcdef0L) shouldBe true
-    OpHelper.tr64IsFP(0x7ff123456789abccL) shouldBe true
-    OpHelper.tr64IsFP(0xfffffffffffffffcL) shouldBe true
-    OpHelper.tr64IsFP(doubleToRawLongBits(3.1415927)) shouldBe true
-  }
+#[test]
+fn test_other_bit_pattern_is_double() {
+    let vm = VM::new();
 
-  it should "encode integers" in {
-    OpHelper.intToTr64(0x0000000000000L) shouldBe 0x7ff0000000000001L
-    OpHelper.intToTr64(0xfffffffffffffL) shouldBe 0xffffffffffffffffL
-    OpHelper.intToTr64(0x5555555555555L) shouldBe 0x7ffaaaaaaaaaaaabL
-    OpHelper.intToTr64(0xaaaaaaaaaaaaaL) shouldBe 0xfff5555555555555L
-  }
+    assert!(vm.handle_tr64_is_fp(&tr64(0x0u64)));
+    assert!(vm.handle_tr64_is_fp(&tr64(0x123456789abcdef0u64)));
+    assert!(vm.handle_tr64_is_fp(&tr64(0x7ff123456789abccu64)));
+    assert!(vm.handle_tr64_is_fp(&tr64(0xfffffffffffffffcu64)));
+    assert!(vm.handle_tr64_is_fp(&tr64(3.1415927f64 as u64)));
+}
 
-  it should "encode double" in {
-    OpHelper.fpToTr64(3.14) shouldBe java.lang.Double.doubleToRawLongBits(3.14)
-    OpHelper.fpToTr64(-3.14) shouldBe java.lang.Double.doubleToRawLongBits(-3.14)
-    OpHelper.fpToTr64(java.lang.Double.POSITIVE_INFINITY) shouldBe 0x7ff0000000000000L
-    OpHelper.fpToTr64(longBitsToDouble(0x7ff123456789abcdL)) shouldBe 0x7ff0000000000008L
-    isNaN(longBitsToDouble(OpHelper.fpToTr64(longBitsToDouble(0x7ff123456789abcdL)))) shouldBe true
-  }
+#[test]
+fn test_encode_int() {
+    let vm = VM::new();
+    
+    assert_eq!(vm.handle_tr64_from_int(&int52(0x0000000000000u64)).v.as_tr64(), 0x7ff0000000000001u64);
+    assert_eq!(vm.handle_tr64_from_int(&int52(0xfffffffffffffu64)).v.as_tr64(), 0xffffffffffffffffu64);
+    assert_eq!(vm.handle_tr64_from_int(&int52(0x5555555555555u64)).v.as_tr64(), 0x7ffaaaaaaaaaaaabu64);
+    assert_eq!(vm.handle_tr64_from_int(&int52(0xaaaaaaaaaaaaau64)).v.as_tr64(), 0xfff5555555555555u64);
+}
 
-  it should "encode ref and tag" in {
-    OpHelper.refToTr64(0x000000000000L, 0x00L) shouldBe 0x7ff0000000000002L
-    OpHelper.refToTr64(0x7ffffffffff8L, 0x00L) shouldBe 0x7ff07ffffffffffaL
-    OpHelper.refToTr64(0xfffffffffffffff8L, 0x00L) shouldBe 0xfff07ffffffffffaL
-    OpHelper.refToTr64(0x000000000000L, 0x3fL) shouldBe 0x7fff800000000006L
-  }
+#[test]
+fn test_encode_double() {
+    let vm = VM::new();
+    
+    assert_eq!(vm.handle_tr64_from_fp(&double(3.14_f64)).v.as_tr64(), 3.14_f64 as u64);
+    assert_eq!(vm.handle_tr64_from_fp(&double(-3.14_f64)).v.as_tr64(), -3.14_f64 as u64);
+    assert_eq!(vm.handle_tr64_from_fp(&double(f64::INFINITY)).v.as_tr64(), 0x7ff0000000000000u64);
+    assert_eq!(vm.handle_tr64_from_fp(&double(0x7ff123456789abcdu64 as f64)).v.as_tr64(), 0x7ff0000000000008u64);
+    assert!((vm.handle_tr64_from_fp(&double(0x7ff123456789abcdu64 as f64)).v.as_tr64() as f64).is_nan());
+}
 
-  it should "decode integer" in {
-    OpHelper.tr64ToInt(0x7ff0000000000001L) shouldBe 0
-    OpHelper.tr64ToInt(0xfff0000000000001L) shouldBe 0x8000000000000L
-    OpHelper.tr64ToInt(0xfff5555555555555L) shouldBe 0xaaaaaaaaaaaaaL
-    OpHelper.tr64ToInt(0x7ffaaaaaaaaaaaabL) shouldBe 0x5555555555555L
-  }
+#[test]
+fn test_encode_tagref() {
+    let vm = VM::new();
+    
+    assert_eq!(vm.handle_tr64_from_ref(&ref_void(0x000000000000u64), &tag(0x00u64)).v.as_tr64(), 0x7ff0000000000002u64);
+    assert_eq!(vm.handle_tr64_from_ref(&ref_void(0x7ffffffffff8u64), &tag(0x00u64)).v.as_tr64(), 0x7ff07ffffffffffau64);
+    assert_eq!(vm.handle_tr64_from_ref(&ref_void(0xfffffffffffffff8u64), &tag(0x00u64)).v.as_tr64(), 0xfff07ffffffffffau64);
+    assert_eq!(vm.handle_tr64_from_ref(&ref_void(0x000000000000u64), &tag(0x3fu64)).v.as_tr64(), 0x7fff800000000006u64);
+}
 
-  it should "decode double" in {
-    OpHelper.tr64ToFP(0x0000000000000000L) shouldBe +0.0
-    OpHelper.tr64ToFP(0x8000000000000000L) shouldBe -0.0
-    OpHelper.tr64ToFP(0x3ff0000000000000L) shouldBe 1.0
-    isNaN(OpHelper.tr64ToFP(0x7ff0000000000008L)) shouldBe true
-  }
-  
-  it should "decodde ref and tag" in {
-    OpHelper.tr64ToRef(0x7ff0555555555552L) shouldBe 0x555555555550L
-    OpHelper.tr64ToRef(0xfff02aaaaaaaaaaaL) shouldBe 0xffffaaaaaaaaaaa8L
-    OpHelper.tr64ToTag(0x7ff0555555555552L) shouldBe 0
-    OpHelper.tr64ToTag(0x7fff800000000006L) shouldBe 0x3f
-    OpHelper.tr64ToTag(0x7ffa800000000002L) shouldBe 0x2a
-    OpHelper.tr64ToTag(0x7ff5000000000006L) shouldBe 0x15
-  }
-  */
+#[test]
+fn test_decode_integer() {
+    let vm = VM::new();
+    
+    assert_eq!(vm.handle_tr64_to_int(&tr64(0x7ff0000000000001u64)).v.as_int(), 0u64);
+    assert_eq!(vm.handle_tr64_to_int(&tr64(0xfff0000000000001u64)).v.as_int(), 0x8000000000000u64);
+    assert_eq!(vm.handle_tr64_to_int(&tr64(0xfff5555555555555u64)).v.as_int(), 0xaaaaaaaaaaaaau64);
+    assert_eq!(vm.handle_tr64_to_int(&tr64(0x7ffaaaaaaaaaaaabu64)).v.as_int(), 0x5555555555555u64);
+}
+
+#[test]
+fn test_decode_double() {
+    let vm = VM::new();
+    
+    assert_eq!(vm.handle_tr64_to_fp(&tr64(0x0000000000000000u64)).v.as_double(),  0.0_f64);
+    assert_eq!(vm.handle_tr64_to_fp(&tr64(0x8000000000000000u64)).v.as_double(), -0.0_f64);
+    assert_eq!(vm.handle_tr64_to_fp(&tr64(0x3ff0000000000000u64)).v.as_double(),  1.0_f64);
+    assert!(vm.handle_tr64_to_fp(&tr64(0x7ff0000000000008)).v.as_double().is_nan());
+}
+
+#[test]
+fn test_decode_tagref() {
+    let vm = VM::new();
+
+    assert_eq!(vm.handle_tr64_to_ref(&tr64(0x7ff0555555555552u64)).v.as_ref().1.as_usize() as u64, 0x555555555550u64);
+    assert_eq!(vm.handle_tr64_to_ref(&tr64(0xfff02aaaaaaaaaaau64)).v.as_ref().1.as_usize() as u64, 0x555555555550u64);
+    assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7ff0555555555552u64)).v.as_int(), 0u64);
+    assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7fff800000000006u64)).v.as_int(), 0x3fu64);
+    assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7ffa800000000002u64)).v.as_int(), 0x2au64);
+    assert_eq!(vm.handle_tr64_to_tag(&tr64(0x7ff5000000000006u64)).v.as_int(), 0x15u64);
+}
