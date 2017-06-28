@@ -14,10 +14,12 @@
 
 #![allow(dead_code)]
 
+use std;
 use std::cmp;
 use std::fmt;
 use std::mem;
 
+rodal_struct!(Address{0});
 #[repr(C)]
 #[derive(Copy, Clone, Eq, Hash)]
 pub struct Address(usize);

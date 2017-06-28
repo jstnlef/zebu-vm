@@ -17,7 +17,7 @@ use types::*;
 use inst::*;
 use types::MuType_::*;
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum OpCode {
     // SSA
@@ -140,7 +140,7 @@ pub fn pick_op_code_for_value(ty: &P<MuType>) -> OpCode {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BinOp {
     // Int(n) BinOp Int(n) -> Int(n)
     Add,
@@ -167,7 +167,7 @@ pub enum BinOp {
     FRem
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CmpOp {
     // for Int comparison
     EQ,
@@ -300,7 +300,7 @@ impl CmpOp {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ConvOp {
     TRUNC,
     ZEXT,
@@ -316,7 +316,7 @@ pub enum ConvOp {
     PTRCAST
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AtomicRMWOp {
     XCHG,
     ADD,

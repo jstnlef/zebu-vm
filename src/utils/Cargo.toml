@@ -21,7 +21,9 @@ authors = ["qinsoon <qinsoon@gmail.com>"]
 crate-type = ["rlib"]
 
 [dependencies]
-memmap = "0.4.0"
+memmap = "*"
 memsec = "0.1.9"
-byteorder = "0.5.3"
-rustc-serialize = "*"
+byteorder = "*"
+#rodal = {path = "../../rodal"}
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal" }
+log = "*"

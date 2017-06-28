@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate log;
+#[macro_use]
+extern crate rodal;
 extern crate simple_logger;
 #[macro_use]
 extern crate lazy_static;
-extern crate rustc_serialize;
 extern crate utils;
 
 #[macro_export]

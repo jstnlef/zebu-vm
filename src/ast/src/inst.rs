@@ -23,7 +23,7 @@ use utils::vec_utils;
 use std::fmt;
 
 #[derive(Debug)]
-// this implements RustcEncodable, RustcDecodable, Clone and Display
+// this implements Clone and Display
 pub struct Instruction {
     pub hdr: MuEntityHeader,
     pub value : Option<Vec<P<Value>>>,
@@ -32,43 +32,6 @@ pub struct Instruction {
 }
 
 impl_mu_entity!(Instruction);
-
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-impl Encodable for Instruction {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("Instruction", 4, |s| {
-            try!(s.emit_struct_field("hdr", 0, |s| self.hdr.encode(s)));
-            try!(s.emit_struct_field("value", 1, |s| self.value.encode(s)));
-            
-            let ref ops = self.ops;
-            try!(s.emit_struct_field("ops", 2, |s| ops.encode(s)));
-            
-            try!(s.emit_struct_field("v", 3, |s| self.v.encode(s)));
-            
-            Ok(()) 
-        })        
-    }
-}
-
-impl Decodable for Instruction {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Instruction, D::Error> {
-        d.read_struct("Instruction", 4, |d| {
-            let hdr = try!(d.read_struct_field("hdr", 0, |d| Decodable::decode(d)));
-            let value = try!(d.read_struct_field("value", 1, |d| Decodable::decode(d)));
-            
-            let ops = try!(d.read_struct_field("ops", 2, |d| Decodable::decode(d)));
-            
-            let v = try!(d.read_struct_field("v", 3, |d| Decodable::decode(d)));
-            
-            Ok(Instruction{
-                hdr: hdr,
-                value: value,
-                ops: ops,
-                v: v
-            })
-        })
-    }
-}
 
 impl Clone for Instruction {
     fn clone(&self) -> Self {
@@ -164,7 +127,7 @@ impl fmt::Display for Instruction {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone)]
 pub enum Instruction_ {
     // non-terminal instruction
 
@@ -494,7 +457,7 @@ impl Instruction_ {
     }
 }
 
-#[derive(Copy, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone)]
 pub struct BinOpStatus {
     pub flag_n: bool,
     pub flag_z: bool,
@@ -542,7 +505,7 @@ impl fmt::Debug for BinOpStatus {
     }
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum MemoryOrder {
     NotAtomic,
     Relaxed,
@@ -553,18 +516,18 @@ pub enum MemoryOrder {
     SeqCst
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum CallConvention {
     Mu,
     Foreign(ForeignFFI)
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum ForeignFFI {
     C
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct CallData {
     pub func: OpIndex,
     pub args: Vec<OpIndex>,
@@ -581,7 +544,7 @@ impl CallData {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
     pub exn_dest: Destination
@@ -593,7 +556,7 @@ impl ResumptionData {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct Destination {
     pub target: MuID,
     pub args: Vec<DestArg>
@@ -636,7 +599,7 @@ impl Destination {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub enum DestArg {
     Normal(OpIndex),
     Freshbound(usize)

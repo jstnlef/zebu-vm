@@ -1084,6 +1084,16 @@ pub fn get_signed_value(val: u64, size: usize) -> i64 {
     }
 }
 
+// Returns the value of 'val' truncated to 'size', treated as a negative number
+// (i.e. the highest 64-size bits are set to 1)
+pub fn get_negative_value(val: u64, size: usize) -> i64 {
+    if size == 64 {
+        val as i64
+    } else {
+        (val | (bits_ones(64-size) << size)) as i64 // set the highest '64 - size' bits of val
+    }
+}
+
 fn invert_condition_code(cond: &str) -> &'static str {
     match cond {
         "EQ" => "NE",
@@ -1541,45 +1551,44 @@ fn emit_mov_f32(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut Fu
 pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
 {
     let n = dest.ty.get_int_length().unwrap();
+    let unsigned_value = get_unsigned_value(val, n);
+    let negative_value = get_negative_value(val, n) as u64;
     // Can use one instruction
     if n <= 16 {
         backend.emit_movz(&dest, val as u16, 0);
-    } else if val == 0 {
-        backend.emit_movz(&dest, 0, 0);
-    } else if val == (-1i64) as u64 {
-        backend.emit_movn(&dest, 0, 0);
+    } else if unsigned_value == 0 {
+        backend.emit_movz(&dest, 0, 0); // All zeros
+    } else if negative_value == bits_ones(64) {
+        backend.emit_movn(&dest, 0, 0); // All ones
     } else if val > 0xFF && is_valid_logical_imm(val, n) {
         // Value is more than 16 bits
         backend.emit_mov_imm(&dest, replicate_logical_imm(val, n));
 
         // Have to use more than one instruciton
     } else {
-        // Mask val so the higher (unused) bits are cleared
-        let val = if n < 64 {
-            val & (1 << n) - 1
-        } else {
-            val
-        };
-        // Note n > 16, so there are at least two halfwords in n
+        // Otherwise emmit a sequences of MOVZ, MOVN and MOVK, where:
+        //  MOVZ(dest, v, n) will set dest = (v << n)
+        //  MOVN(dest, v, n) will set dest = !(v << n)
+        //  MOVK(dest, v, n) will set dest = dest[63:16+n]:n:dest[(n-1):0];
 
-        // How many halfowrds are zero or one
-        let mut n_zeros = ((val & 0xFF == 0x00) as u64) + ((val & 0xFF00 == 0x0000) as u64);
-        let mut n_ones = ((val & 0xFF == 0xFF) as u64) + ((val & 0xFF00 == 0xFF00) as u64);
-        if n >= 32 {
-            n_zeros += (val & 0xFF0000 == 0xFF0000) as u64;
-            n_ones += (val & 0xFF0000 == 0xFF0000) as u64;
-            if n >= 48 {
-                n_zeros += (val & 0xFF000000 == 0xFF000000) as u64;
-                n_ones += (val & 0xFF000000 == 0xFF000000) as u64;
-            }
-        }
+        // How many halfowrds are all zeros
+        let n_zeros =
+            ((unsigned_value & bits_ones(16) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16)<<16) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16)<<32) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16)<<48) == 0) as u64);
 
-        let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(val);
+        // How many halfowrds are all ones
+        let n_ones =
+            ((negative_value & bits_ones(16) == bits_ones(16)) as u64) +
+            ((negative_value & (bits_ones(16)<<16) == (bits_ones(16)<<16)) as u64) +
+            ((negative_value & (bits_ones(16)<<32) == (bits_ones(16)<<32)) as u64) +
+            ((negative_value & (bits_ones(16)<<48) == (bits_ones(16)<<48)) as u64);
+
+
         let mut movzn = false; // whether a movz/movn has been emmited yet
-
-        if false /*n_ones > n_zeros*/ { // TODO: Fix this??
-            // It will take less instructions to use MOVN
-            // MOVN(dest, v, n) will set dest = !(v << n)
+        if n_ones > n_zeros { // It will take less instructions to use MOVN
+            let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(negative_value);
 
             if pv0 != 0xFF {
                 backend.emit_movn(&dest, !pv0, 0);
@@ -1593,7 +1602,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv1, 16);
                 }
             }
-            if n >= 32 && pv2 != 0xFF {
+            if pv2 != 0xFF {
                 if !movzn {
                     backend.emit_movn(&dest, !pv2, 32);
                     movzn = true;
@@ -1601,17 +1610,16 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv2, 32);
                 }
             }
-            if n >= 48 && pv3 != 0xFF {
+            if pv3 != 0xFF {
                 if !movzn {
                     backend.emit_movn(&dest, pv3, 48);
                 } else {
                     backend.emit_movk(&dest, pv3, 48);
                 }
             }
-        } else {
-            // It will take less instructions to use MOVZ
-            // MOVZ(dest, v, n) will set dest = (v << n)
-            // MOVK(dest, v, n) will set dest = dest[64-0]:[n];
+        } else { // It will take less instructions to use MOVZ
+            let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(unsigned_value);
+
             if pv0 != 0 {
                 backend.emit_movz(&dest, pv0, 0);
                 movzn = true;
@@ -1624,7 +1632,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv1, 16);
                 }
             }
-            if n >= 32 && pv2 != 0 {
+            if pv2 != 0 {
                 if !movzn {
                     backend.emit_movz(&dest, pv2, 32);
                     movzn = true;
@@ -1632,7 +1640,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv2, 32);
                 }
             }
-            if n >= 48 && pv3 != 0 {
+            if pv3 != 0 {
                 if !movzn {
                     backend.emit_movz(&dest, pv3, 48);
                 } else {
