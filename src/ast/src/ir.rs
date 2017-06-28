@@ -1164,7 +1164,7 @@ impl Decodable for MuEntityHeader {
 }
 
 pub fn name_check(name: MuName) -> MuName {
-    let name = name.replace('.', "$");
+    let name = name.replace('.', "_");
 
     if name.starts_with("@") || name.starts_with("%") {
         let (_, name) = name.split_at(1);
