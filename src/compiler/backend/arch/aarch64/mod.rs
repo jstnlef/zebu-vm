@@ -1591,11 +1591,11 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
         if n_ones > n_zeros { // It will take less instructions to use MOVN
             let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(negative_value);
 
-            if pv0 != 0xFF {
+            if pv0 != bits_ones(16) as u16 {
                 backend.emit_movn(&dest, !pv0, 0);
                 movzn = true;
             }
-            if pv1 != 0xFF {
+            if pv1 != bits_ones(16) as u16 {
                 if !movzn {
                     backend.emit_movn(&dest, !pv1, 16);
                     movzn = true;
@@ -1603,7 +1603,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv1, 16);
                 }
             }
-            if pv2 != 0xFF {
+            if pv2 != bits_ones(16) as u16 {
                 if !movzn {
                     backend.emit_movn(&dest, !pv2, 32);
                     movzn = true;
@@ -1611,7 +1611,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv2, 32);
                 }
             }
-            if pv3 != 0xFF {
+            if pv3 != bits_ones(16) as u16 {
                 if !movzn {
                     backend.emit_movn(&dest, pv3, 48);
                 } else {
