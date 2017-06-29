@@ -55,7 +55,7 @@ lazy_static! {
         jit: RwLock::new(None)
     };
     
-    // impl: swap_stack_x64_macos.s
+    // impl: runtime_asm_ARCH_OS.s
     // decl: thread.rs
     pub static ref SWAP_BACK_TO_NATIVE_STACK : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{

@@ -27,13 +27,20 @@ use std::ffi::CString;
 use std::ffi::CStr;
 use std::sync::Arc;
 
+/// memory management: allocation, reclamation
+/// (the actual code is in src/gc, which gets re-exported in mm module)
 pub mod mm;
+/// thread management: stack, thread
 pub mod thread;
+/// mathematics functions
 pub mod math;
+/// a list of all entrypoints used by compiler to generate calls into runtime
+/// (where generated code entries the runtime)
 pub mod entrypoints;
-
+/// exception handling
 pub mod exception;
 
+/// Dl_info used by dynamic loading functions
 // consider using libloading crate instead of the raw c functions for dynalic libraries
 // however i am not sure if libloading can load symbols from current process (not from an actual dylib)
 // so here i use dlopen/dlsym from C
@@ -53,8 +60,9 @@ extern "C" {
     fn dlerror() -> *const c_char;
 }
 
-// TODO: this actually returns the name and address of the nearest symbol (of any type)
-// that starts before function_addr (instead we want the nearest function symbol)
+/// returns name for a function address
+// FIXME: this actually returns the name and address of the nearest symbol (of any type)
+//        that starts before function_addr (instead we want the nearest function symbol)
 pub fn get_function_info(function_addr: Address) -> (CName, Address) {
     use std::ptr;
 
@@ -84,8 +92,8 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
 
 }
 
-
-pub fn resolve_symbol(symbol: String) -> Address {
+/// returns address for a given symbol, e.g. function name
+pub fn resolve_symbol(symbol: MuName) -> Address {
     use std::ptr;
 
     let symbol = name_check(symbol);
@@ -107,14 +115,22 @@ pub fn resolve_symbol(symbol: String) -> Address {
 
 use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 
+/// ValueLocation represents the runtime location for a value.
+/// The purpose of this data structure is to refer to a location in a unified way
+/// for both compile time (usually talking about symbols) and run time (talking about addresses)
+/// A ValueLocation could be:
+/// * a register (the register holds the value)
+/// * a Constant (the value itself)
+/// * a relocatable symbol (a relocatable symbol emitted by AOT compiler, which resides the value)
+/// * a direct memory address (the address contains the value)
+/// * a indirect memory address (the address contains a pointer to the value)
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum ValueLocation {
-    Register(RegGroup, MuID),     // 0
-    Constant(RegGroup, Word),     // 1    
-    Relocatable(RegGroup, MuName),// 2
-    
-    Direct(RegGroup, Address),    // 3
-    Indirect(RegGroup, Address),  // 4
+    Register    (RegGroup, MuID),     // 0
+    Constant    (RegGroup, Word),     // 1
+    Relocatable (RegGroup, MuName),   // 2
+    Direct      (RegGroup, Address),  // 3
+    Indirect    (RegGroup, Address),  // 4
 }
 
 impl fmt::Display for ValueLocation {
@@ -198,40 +214,51 @@ impl Decodable for ValueLocation {
 }
 
 impl ValueLocation {
+    /// loads value from a ValueLocation
     pub fn load_value(&self) -> (RegGroup, Word) {
         match self {
-            &ValueLocation::Register(_, _)
-            | &ValueLocation::Direct(_, _)
-            | &ValueLocation::Indirect(_, _) => unimplemented!(),
-            
+            &ValueLocation::Register(_, _)        => unimplemented!(),
+            &ValueLocation::Direct(group, addr)   => {
+                (group, unsafe {addr.load::<Word>()})
+            }
+            &ValueLocation::Indirect(group, addr) => {
+                unsafe {
+                    let ptr = addr.load::<Address>();
+                    (group, ptr.load::<Word>())
+                }
+            }
             &ValueLocation::Constant(group, word) => {
                 (group, word)
             }
-            &ValueLocation::Relocatable(_, _) => panic!("expect a runtime value")
-        }
-    }
-    
-    #[allow(unused_variables)]
-    pub fn from_constant(c: Constant) -> ValueLocation {
-        match c {
-            Constant::Int(int_val) => ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val)),
-            Constant::Float(f32_val) => ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val)),
-            Constant::Double(f64_val) => ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val)),
-            
-            _ => unimplemented!()
-        }
-    }
-    
-    pub fn to_address(&self) -> Address {
-        match self {
-            &ValueLocation::Register(_, _)
-            | &ValueLocation::Constant(_, _) => panic!("a register/constant cannot be turned into address"),
-            &ValueLocation::Direct(_, addr) => addr, 
-            &ValueLocation::Indirect(_, addr) => unsafe {addr.load::<Address>()},
-            &ValueLocation::Relocatable(_, ref symbol) => resolve_symbol(symbol.clone())
+            &ValueLocation::Relocatable(group, ref symbol) => {
+                let addr = resolve_symbol(symbol.clone());
+                (group, unsafe {addr.load::<Word>()})
+            }
         }
     }
 
+    /// creates a ValueLocation from a constant, panics if impossible
+    pub fn from_constant(c: Constant) -> ValueLocation {
+        match c {
+            Constant::Int(int_val)    => ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val)),
+            Constant::Float(f32_val)  => ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val)),
+            Constant::Double(f64_val) => ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val)),
+            _ => unimplemented!()
+        }
+    }
+
+    /// returns the address that contains the value
+    pub fn to_address(&self) -> Address {
+        match self {
+            &ValueLocation::Direct(_, addr)   => addr,
+            &ValueLocation::Indirect(_, addr) => unsafe {addr.load::<Address>()},
+            &ValueLocation::Relocatable(_, ref symbol) => resolve_symbol(symbol.clone()),
+            &ValueLocation::Register(_, _)
+            | &ValueLocation::Constant(_, _)  => panic!("a register/constant cannot be turned into address")
+        }
+    }
+
+    /// returns a relocatable symbol that contains the value, panics if impossible
     pub fn to_relocatable(&self) -> MuName {
         match self {
             &ValueLocation::Relocatable(_, ref name) => name.clone(),
@@ -240,21 +267,29 @@ impl ValueLocation {
     }
 }
 
+/// a C wrapper as main function for executable boot images"
+/// The C wrapper does:
+/// 1. loads the persisted VM
+/// 2. invokes mu_main() to hand the control to Rust code
+/// 3. returns the return value set by SetRetval
 pub const PRIMORDIAL_ENTRY : &'static str = "src/runtime/main.c";
 
+/// starts trace level logging, this function will be called from C
 #[no_mangle]
 pub extern fn mu_trace_level_log() {
     VM::start_logging_trace();
 }
 
+/// the main function for executable boot image, this function will be called from C
 #[no_mangle]
 pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *const c_char) {
     debug!("mu_main() started...");
-    
+
+    // load and resume the VM
     let str_vm = unsafe{CStr::from_ptr(serialized_vm)}.to_str().unwrap();
-    
     let vm : Arc<VM> = Arc::new(VM::resume_vm(str_vm));
-    
+
+    // find the primordial function as an entry
     let primordial = vm.primordial.read().unwrap();
     if primordial.is_none() {
         panic!("no primordial thread/stack/function. Client should provide an entry point");
@@ -280,16 +315,15 @@ pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *
             args
         };
         
-        // FIXME: currently assumes no user defined thread local
-        // will need to fix this after we can serialize heap object
+        // FIXME: currently assumes no user defined thread local - See Issue #48
         let thread = thread::MuThread::new_thread_normal(stack, unsafe{Address::zero()}, args, vm.clone());
         
         thread.join().unwrap();
     }
 }
 
+/// runtime function to print a hex value (for PRINTHEX instruction for debugging use)
 #[no_mangle]
-#[allow(unreachable_code)]
 pub extern fn muentry_print_hex(x: u64) {
     println!("PRINTHEX: 0x{:x}", x);
 }

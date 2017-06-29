@@ -80,11 +80,11 @@ begin_func muentry_swap_back_to_native_stack
           ret
 end_func muentry_swap_back_to_native_stack
 
-# _get_current_frame_rbp() -> Address
-begin_func get_current_frame_rbp
+# _get_current_frame_bp() -> Address
+begin_func get_current_frame_bp
           movq %rbp, %rax
           ret
-end_func get_current_frame_rbp
+end_func get_current_frame_bp
 
 # muentry_throw_exception(obj: Address)
 #                         %rdi
@@ -124,30 +124,3 @@ begin_func exception_restore
           movq %rdx, %rsp
           jmpq *%rdi
 end_func exception_restore
-
-# fake_swap_mu_thread(old_sp_loc: Address)
-#                     %rdi
-# (we do not actually swap stack, but we make the stack the same
-# as if they are native stack that have been swapped out, so that
-# when THREADEXIT (swap_back_to_native_stack) is called, we won't panic
-
-# this function is untested!!!
-begin_func fake_swap_mu_thread
-    # save return address
-    movq (%rsp), %rax
-
-    pushq %rbp
-    movq %rsp, %rbp
-
-    pushq %rbx
-    pushq %r12
-    pushq %r13
-    pushq %r14
-    pushq %r15
-
-    # save old sp to thread field
-    movq %rsp, 0(%rdi)
-
-    # return to caller, but preserve those pushed values (since THREADEXIT will pick them up)
-    pushq %rax
-    ret

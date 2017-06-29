@@ -50,74 +50,72 @@ pub mod x86_64;
 /// estimates how many machine instructions are needed for a Mu instruction
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::estimate_insts_for_ir;
-
 /// initializes machine registers in the function context
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::init_machine_regs_for_func;
-
 /// checks if two machine registers are alias (the same register)
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::is_aliased;
-
 /// gets color for a machine register (e.g. AH, AX, EAX all have color of RAX)
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::get_color_for_precolored;
-
 /// returns the number of registers in a given RegGroup
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::number_of_regs_in_group;
-
 /// returns the number of all machine registers
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::number_of_all_regs;
-
 /// returns a hashmap of all the machine registers
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::all_regs;
-
 /// returns all usable registers (machine registers that can be assigned to temporaries)
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::all_usable_regs;
-
 /// returns RegGroup for a machine register
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::pick_group_for_reg;
-
 /// checks if a register is callee saved
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::is_callee_saved;
-
-/// emits code for a function version (the function needs to be compiled first)
+/// number of callee saved registers
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::CALLEE_SAVED_COUNT;
+/// gets offset for callee saved registers (used for exception table)
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::get_callee_saved_offset;
+/// gets frame pointer for previous frame
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::get_previous_frame_pointer;
+/// gets return address for current frame
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::get_return_address;
+/// sets frame pointer for previous frame
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::set_previous_frame_pointer;
+/// sets return address for current frame
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::set_return_address;
+/// gets staci pointer for previous frame
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::get_previous_stack_pointer;
+/// emits code for a function version (the function needs to be compiled first)
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::emit_code;
-
 /// emits context (persisted VM/heap/etc), should only be called after
 /// finishing compilation for all functions
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::emit_context;
-
 /// emits context with consideration of relocation info
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::emit_context_with_reloc;
-
 /// rewrites a compiled Mu function with given spilling info
 /// (inserting load/store for spilled temporaries)
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::spill_rewrite;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::ARGUMENT_GPRS;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::ARGUMENT_FPRS;
 
 /// --- aarch64 backend ---
 #[cfg(target_arch = "aarch64")]
@@ -127,44 +125,33 @@ pub mod aarch64;
 /// estimates how many machine instructions are needed for a Mu instruction
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::estimate_insts_for_ir;
-
 /// initializes machine registers in the function context
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::init_machine_regs_for_func;
-
 /// checks if two machine registers are alias (the same register)
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::is_aliased;
-
 /// gets color for a machine register
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::get_color_for_precolored;
-
 /// returns the number of registers in a given RegGroup
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::number_of_regs_in_group;
-
 /// returns the number of all machine registers
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::number_of_all_regs;
-
 /// returns a hashmap of all the machine registers
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::all_regs;
-
 /// returns all usable registers (machine registers that can be assigned to temporaries)
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::all_usable_regs;
-
 /// returns RegGroup for a machine register
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::pick_group_for_reg;
-
 /// checks if a register is callee saved
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::is_callee_saved;
-
-/// emits code for a function version (the function needs to be compiled first)
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::CALLEE_SAVED_COUNT ;
 #[cfg(target_arch = "aarch64")]
@@ -179,22 +166,24 @@ pub use compiler::backend::aarch64::get_previous_stack_pointer;
 pub use compiler::backend::aarch64::set_previous_frame_pointer;
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::set_return_address;
+/// emits code for a function version (the function needs to be compiled first)
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::emit_code;
-
 /// emits context (persisted VM/heap/etc), should only be called after
 /// finishing compilation for all functions
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::emit_context;
-
 /// emits context with consideration of relocation info
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::emit_context_with_reloc;
-
 /// rewrites a compiled Mu function with given spilling info
 /// (inserting load/store for spilled temporaries)
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::spill_rewrite;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::x86_64::ARGUMENT_GPRS;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::x86_64::ARGUMENT_FPRS;
 
 use vm::VM;
 use ast::types::*;

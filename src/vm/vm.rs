@@ -70,7 +70,7 @@ pub struct VM {
     // 9
     func_vers: RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>>,
     // 10
-    pub primordial: RwLock<Option<MuPrimordialThread>>,
+    pub primordial: RwLock<Option<PrimordialThreadInfo>>,
     // 11
     is_running: AtomicBool,
     // 12
@@ -1037,9 +1037,9 @@ impl <'a> VM {
         Box::new(MuStack::new(self.next_id(), self.resolve_function_address(func_id), func))
     }
     
-    pub fn make_primordial_thread(&self, func_id: MuID, has_const_args: bool, args: Vec<Constant>) {
+    pub fn set_primordial_thread(&self, func_id: MuID, has_const_args: bool, args: Vec<Constant>) {
         let mut guard = self.primordial.write().unwrap();
-        *guard = Some(MuPrimordialThread{func_id: func_id, has_const_args: has_const_args, args: args});
+        *guard = Some(PrimordialThreadInfo {func_id: func_id, has_const_args: has_const_args, args: args});
     }
 
     pub fn make_boot_image(&self,
@@ -1117,7 +1117,7 @@ impl <'a> VM {
                 let func_id = primordial_func.unwrap().v.as_funcref();
 
                 // make primordial thread in vm
-                self.make_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
+                self.set_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
             } else {
                 warn!("no entry function is passed");
             }

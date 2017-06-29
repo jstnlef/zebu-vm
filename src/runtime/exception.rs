@@ -17,22 +17,24 @@ use utils::Address;
 use utils::POINTER_SIZE;
 use runtime::*;
 
-// muentry_throw_exception should call this function,
-// With the first argument being the address of the exception object,
-// And the second argument should be point to the base of the call frame of muentry_throw_exception,
-// which saves every callee saved register (note this frame will be modified by this function).
-// e.g. on aarch64 (where the values are the value of the registers immediatly before the first instruction in muentry_throw_exception is executed):
-//                  Return Address              (value of X30)
-// frame_cursor --> Frame Pointer               (value of X29)
-//                  First Callee Saved Register (value of X19)
-//                  .........
-//                  Last Callee Saved Register  (value of D15)
-// The actual offsets of the callee saved registers is determined by get_callee_saved_offset (relative to frame_cursor)
-// The location of Frame Pointer and Return address is architecture dependent
-// (and are accesed by get/set_return_address and get/set_previous_frame and may be passed real frame pointers or the frame cursor)
-
+/// runtime function to deal with exception (unwind stack, find catch block, and restore)
+/// This function is called by muentry_throw_exception() which gets emitted for THROW instruction
+/// With the first argument being the address of the exception object,
+/// And the second argument should be point to the base of the call frame of muentry_throw_exception,
+/// which saves every callee saved register (note this frame will be modified by this function).
+/// e.g. on aarch64 (where the values are the value of the registers immediately before the first
+/// instruction in muentry_throw_exception is executed):
+///                  Return Address              (value of X30)
+/// frame_cursor --> Frame Pointer               (value of X29)
+///                  First Callee Saved Register (value of X19)
+///                  .........
+///                  Last Callee Saved Register  (value of D15)
+/// The actual offsets of the callee saved registers is determined by get_callee_saved_offset
+/// (relative to frame_cursor)
+/// The location of Frame Pointer and Return address is architecture dependent
+/// (and are accessed by get/set_return_address and get/set_previous_frame and may be passed
+/// real frame pointers or the frame cursor)
 #[no_mangle]
-#[allow(unreachable_code)]
 pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Address) -> !  {
     trace!("throwing exception: {}", exception_obj);
 
@@ -42,13 +44,16 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
     }
 
     let ref mut cur_thread = thread::MuThread::current_mut();
-    // set exception object
-    cur_thread.exception_obj = exception_obj;
-    let ref vm = cur_thread.vm;
 
-    let mut current_frame_pointer = frame_cursor; // this will be 16 bytes bellow the bottom of the previous frame
+    // set exception object (the catch block will have a landing pad to fetch this object)
+    cur_thread.exception_obj = exception_obj;
+
+    let ref vm = cur_thread.vm;
+    // this will be 16 bytes bellow the bottom of the previous frame
+    let mut current_frame_pointer = frame_cursor;
     let mut callsite = get_return_address(current_frame_pointer);
-    let mut previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer); // thrower::fp, the starting point of the previous frame
+    // thrower's fp, the starting point of the previous frame
+    let mut previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer);
 
     // acquire lock for exception table
     let compiled_exception_table = vm.compiled_exception_table.read().unwrap();
@@ -63,9 +68,13 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
             let table_entry = compiled_exception_table.get(&callsite);
 
             if table_entry.is_none() {
-                error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
+                // we are not dealing with native frames for unwinding stack
+                // See Issue #42
+                error!("Cannot find Mu callsite (i.e. we have reached a native frame), \
+                    either there isn't a catch block to catch the exception or \
+                    your catch block is above a native function call");
                 print_backtrace(frame_cursor);
-                unreachable!(); // The above function will not return
+                // The above function will not return
             }
 
             table_entry.unwrap()
@@ -109,21 +118,22 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
     }
 }
 
-fn print_frame(base: Address) {
+/// prints current frame cursor
+fn print_frame(cursor: Address) {
     let top = 2;
     let bottom = -(CALLEE_SAVED_COUNT as isize);
     for i in (bottom .. top).rev() {
         unsafe {
-            let addr = base.offset(i * POINTER_SIZE as isize);
+            let addr = cursor.offset(i * POINTER_SIZE as isize);
             let val  = addr.load::<Word>();
-            trace!("\taddr: 0x{:x} | val: 0x{:x} {}", addr, val, {if addr == base {"<- base"} else {""}});
+            trace!("\taddr: 0x{:x} | val: 0x{:x} {}", addr, val, {if addr == cursor {"<- cursor"} else {""}});
         }
 
     }
 }
 
-// This function may segfault or panic when it reaches the bottom of the stack
-// (TODO: Determine where the bottom is without segfaulting)
+/// This function may segfault or panic when it reaches the bottom of the stack
+//  TODO: Determine where the bottom is without segfaulting
 fn print_backtrace(base: Address) -> !{
     error!("BACKTRACE: ");
 
