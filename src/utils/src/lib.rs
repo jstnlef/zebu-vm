@@ -72,6 +72,51 @@ macro_rules! linked_hashset {
     };
 }
 
+#[macro_export]
+macro_rules! trace_if {
+    ($cond: expr, $($arg:tt)*) => {
+        if $cond {
+            trace!($($arg)*)
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! info_if {
+    ($cond: expr, $($arg:tt)*) => {
+        if $cond {
+            info!($($arg)*)
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! debug_if {
+    ($cond: expr, $($arg:tt)*) => {
+        if $cond {
+            debug!($($arg)*)
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! warn_if {
+    ($cond: expr, $($arg:tt)*) => {
+        if $cond {
+            warn!($($arg)*)
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! error_if {
+    ($cond: expr, $($arg:tt)*) => {
+        if $cond {
+            error!($($arg)*)
+        }
+    }
+}
+
 pub mod math;
 
 mod address;

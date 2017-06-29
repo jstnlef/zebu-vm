@@ -394,9 +394,7 @@ impl ASMCode {
         let ref mut asm = self.code;
 
         for i in 0..n_insts {
-            if TRACE_CFA {
-                trace!("---inst {}---", i);
-            }
+            trace_if!(TRACE_CFA, "---inst {}---", i);
 
             // skip symbol
             if asm[i].is_symbol {
@@ -418,9 +416,7 @@ impl ASMCode {
                             ASMBranchTarget::None => {
                                 if !asm[i].preds.contains(&last_inst) {
                                     asm[i].preds.push(last_inst);
-                                    if TRACE_CFA {
-                                        trace!("inst {}: set PREDS as previous inst - fallthrough {}", i, last_inst);
-                                    }
+                                    trace_if!(TRACE_CFA, "inst {}: set PREDS as previous inst - fallthrough {}", i, last_inst);
                                 }
                             }
                             // otherwise do nothing
@@ -444,12 +440,10 @@ impl ASMCode {
                     // target's pred is cur
                     asm[target_n].preds.push(i);
 
-                    if TRACE_CFA {
-                        trace!("inst {}: is a branch to {}", i, target);
-                        trace!("inst {}: branch target index is {}", i, target_n);
-                        trace!("inst {}: set SUCCS as branch target {}", i, target_n);
-                        trace!("inst {}: set PREDS as branch source {}", target_n, i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is a branch to {}", i, target);
+                    trace_if!(TRACE_CFA, "inst {}: branch target index is {}", i, target_n);
+                    trace_if!(TRACE_CFA, "inst {}: set SUCCS as branch target {}", i, target_n);
+                    trace_if!(TRACE_CFA, "inst {}: set PREDS as branch source {}", target_n, i);
                 },
                 ASMBranchTarget::Conditional(ref target) => {
                     // branch-to target
@@ -458,17 +452,13 @@ impl ASMCode {
                     // cur insts' succ is target
                     asm[i].succs.push(target_n);
 
-                    if TRACE_CFA {
-                        trace!("inst {}: is a cond branch to {}", i, target);
-                        trace!("inst {}: branch target index is {}", i, target_n);
-                        trace!("inst {}: set SUCCS as branch target {}", i, target_n);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is a cond branch to {}", i, target);
+                    trace_if!(TRACE_CFA, "inst {}: branch target index is {}", i, target_n);
+                    trace_if!(TRACE_CFA, "inst {}: set SUCCS as branch target {}", i, target_n);
 
                     // target's pred is cur
                     asm[target_n].preds.push(i);
-                    if TRACE_CFA {
-                        trace!("inst {}: set PREDS as {}", target_n, i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: set PREDS as {}", target_n, i);
 
                     if let Some(next_inst) = ASMCode::find_next_inst(i, asm) {
                         // cur succ is next inst
@@ -477,9 +467,7 @@ impl ASMCode {
                         // next inst's pred is cur
                         asm[next_inst].preds.push(i);
 
-                        if TRACE_CFA {
-                            trace!("inst {}: SET SUCCS as c-branch fallthrough target {}", i, next_inst);
-                        }
+                        trace_if!(TRACE_CFA, "inst {}: SET SUCCS as c-branch fallthrough target {}", i, next_inst);
                     } else {
                         panic!("conditional branch does not have a fallthrough target");
                     }
@@ -491,11 +479,9 @@ impl ASMCode {
                     // cur inst's succ is target
                     asm[i].succs.push(target_n);
 
-                    if TRACE_CFA {
-                        trace!("inst {}: is potentially excepting to {}", i, target);
-                        trace!("inst {}: excepting target index is {}", i, target_n);
-                        trace!("inst {}: set SUCCS as excepting target {}", i, target_n);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is potentially excepting to {}", i, target);
+                    trace_if!(TRACE_CFA, "inst {}: excepting target index is {}", i, target_n);
+                    trace_if!(TRACE_CFA, "inst {}: set SUCCS as excepting target {}", i, target_n);
 
                     asm[target_n].preds.push(i);
 
@@ -506,28 +492,20 @@ impl ASMCode {
                         // next inst's pred is cur
                         asm[next_inst].preds.push(i);
 
-                        if TRACE_CFA {
-                            trace!("inst {}: SET SUCCS as PEI fallthrough target {}", i, next_inst);
-                        }
+                        trace_if!(TRACE_CFA, "inst {}: SET SUCCS as PEI fallthrough target {}", i, next_inst);
                     } else {
                         panic!("PEI does not have a fallthrough target");
                     }
                 },
                 ASMBranchTarget::Return => {
-                    if TRACE_CFA {
-                        trace!("inst {}: is a return", i);
-                        trace!("inst {}: has no successor", i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is a return", i);
+                    trace_if!(TRACE_CFA, "inst {}: has no successor", i);
                 }
                 ASMBranchTarget::None => {
                     // not branch nor cond branch, succ is next inst
-                    if TRACE_CFA {
-                        trace!("inst {}: not a branch inst", i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: not a branch inst", i);
                     if let Some(next_inst) = ASMCode::find_next_inst(i, asm) {
-                        if TRACE_CFA {
-                            trace!("inst {}: set SUCCS as next inst {}", i, next_inst);
-                        }
+                        trace_if!(TRACE_CFA, "inst {}: set SUCCS as next inst {}", i, next_inst);
                         asm[i].succs.push(next_inst);
                     }
                 }
