@@ -56,7 +56,7 @@ fn test_exception_throw_catch_simple() {
         }
     }
     
-    vm.make_primordial_thread(func_catch, true, vec![]);
+    vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
@@ -218,7 +218,7 @@ fn test_exception_throw_catch_dont_use_exception_arg() {
         }
     }
 
-    vm.make_primordial_thread(func_catch, true, vec![]);
+    vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
@@ -263,7 +263,7 @@ fn test_exception_throw_catch_and_add() {
         }
     }
 
-    vm.make_primordial_thread(func_catch, true, vec![]);
+    vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_and_add")], "throw_catch_and_add", &vm);
@@ -476,7 +476,7 @@ fn test_exception_throw_catch_twice() {
         }
     }
 
-    vm.make_primordial_thread(func_catch, true, vec![]);
+    vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_twice")], "throw_catch_twice", &vm);

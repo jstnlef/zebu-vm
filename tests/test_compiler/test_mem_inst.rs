@@ -354,7 +354,7 @@ fn test_struct() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["struct_insts".to_string()], "struct_insts_test", &vm);
@@ -609,7 +609,7 @@ fn test_hybrid_fix_part() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["hybrid_fix_part_insts".to_string()], "hybrid_fix_part_insts_test", &vm);
@@ -766,7 +766,7 @@ fn test_hybrid_var_part() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["hybrid_var_part_insts".to_string()], "hybrid_var_part_insts_test", &vm);

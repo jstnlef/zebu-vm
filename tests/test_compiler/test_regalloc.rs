@@ -953,7 +953,7 @@ fn test_preserve_caller_saved_simple() {
         }
     }
 
-    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
+    vm.set_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo"), Mu("preserve_caller_saved_simple")], "test_preserve_caller_saved_simple", &vm);
@@ -1161,7 +1161,7 @@ fn test_preserve_caller_saved_call_args() {
         }
     }
 
-    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
+    vm.set_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo6"), Mu("preserve_caller_saved_call_args")], "test_preserve_caller_saved_call_args", &vm);

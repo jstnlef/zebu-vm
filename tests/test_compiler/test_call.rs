@@ -47,7 +47,7 @@ fn test_ccall_exit() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["ccall_exit".to_string()], "ccall_exit_test", &vm);
@@ -140,7 +140,7 @@ fn test_pass_1arg_by_stack() {
         }
     }
 
-    vm.make_primordial_thread(func_main, true, vec![]);
+    vm.set_primordial_thread(func_main, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo7"), Mu("pass_1arg_by_stack")], "test_pass_1arg_by_stack", &vm);
@@ -383,7 +383,7 @@ fn test_pass_2args_by_stack() {
         }
     }
 
-    vm.make_primordial_thread(func_main, true, vec![]);
+    vm.set_primordial_thread(func_main, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_2args_by_stack")], "test_pass_2args_by_stack", &vm);
@@ -634,7 +634,7 @@ fn test_pass_2_int8_args_by_stack() {
         }
     }
 
-    vm.make_primordial_thread(func_main, true, vec![]);
+    vm.set_primordial_thread(func_main, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_2_int8_args_by_stack")], "test_pass_2_int8_args_by_stack", &vm);
@@ -902,7 +902,7 @@ fn test_pass_mixed_args_by_stack() {
         }
     }
 
-    vm.make_primordial_thread(func_main, true, vec![]);
+    vm.set_primordial_thread(func_main, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_mixed_args_by_stack")], "test_pass_mixed_args_by_stack", &vm);
@@ -1338,7 +1338,7 @@ fn test_call_int128_arg() {
         }
     }
 
-    vm.make_primordial_thread(func_call, true, vec![]);
+    vm.set_primordial_thread(func_call, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("add_u128"), Mu("call_add_u128")], "test_call_int128_arg", &vm);

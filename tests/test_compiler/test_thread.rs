@@ -46,7 +46,7 @@ fn test_thread_create() {
         compiler.compile(&mut func_ver);
     }
     
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec!["primordial_main".to_string()], "primordial_main_test", &vm);

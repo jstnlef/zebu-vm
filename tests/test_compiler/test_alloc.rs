@@ -47,7 +47,7 @@ fn test_allocation_fastpath() {
         compiler.compile(&mut func_ver);
     }
 
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["allocation_fastpath".to_string()], "allocation_fastpath_test", &vm);
@@ -121,7 +121,7 @@ fn test_instruction_new() {
         compiler.compile(&mut func_ver);
     }
     
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test", &vm);

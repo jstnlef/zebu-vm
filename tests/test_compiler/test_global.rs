@@ -91,7 +91,7 @@ fn test_set_global_by_api() {
     }
 
     // then emit context (global will be put into context.s
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     // link
@@ -280,7 +280,7 @@ fn test_persist_linked_list() {
     }
 
     // then emit context (global will be put into context.s
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
     // link
@@ -489,7 +489,7 @@ fn test_persist_hybrid() {
     }
 
     // then emit context (global will be put into context.s
-    vm.make_primordial_thread(func_id, true, vec![Constant::Int(HYBRID_LENGTH as u64)]);
+    vm.set_primordial_thread(func_id, true, vec![Constant::Int(HYBRID_LENGTH as u64)]);
     backend::emit_context(&vm);
 
     // link
