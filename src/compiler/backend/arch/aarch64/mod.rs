@@ -1260,7 +1260,7 @@ pub fn is_zero_register_id(id: MuID) -> bool {
     id == XZR.extract_ssa_id().unwrap() || id == WZR.extract_ssa_id().unwrap()
 }
 
-pub fn match_f32imm(op: &TreeNode) -> bool {
+pub fn match_node_f32imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match pv.v {
             Value_::Constant(Constant::Float(_)) => true,
@@ -1270,7 +1270,7 @@ pub fn match_f32imm(op: &TreeNode) -> bool {
     }
 }
 
-pub fn match_f64imm(op: &TreeNode) -> bool {
+pub fn match_node_f64imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match pv.v {
             Value_::Constant(Constant::Double(_)) => true,
@@ -1326,7 +1326,12 @@ pub fn match_value_int_imm(op: &P<Value>) -> bool {
         _ => false
     }
 }
-
+pub fn match_value_ref_imm(op: &P<Value>) -> bool {
+    match op.v {
+        Value_::Constant(Constant::NullRef) => true,
+        _ => false
+    }
+}
 pub fn match_node_value(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(_) => true,
@@ -1344,6 +1349,14 @@ pub fn get_node_value(op: &TreeNode) -> P<Value> {
 pub fn match_node_int_imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match_value_int_imm(pv),
+        _ => false
+    }
+}
+
+// The only valid ref immediate is a null ref
+pub fn match_node_ref_imm(op: &TreeNode) -> bool {
+    match op.v {
+        TreeNode_::Value(ref pv) => match_value_ref_imm(pv),
         _ => false
     }
 }
