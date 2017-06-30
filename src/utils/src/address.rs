@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(dead_code)]
-
 use std::cmp;
 use std::fmt;
 use std::mem;
 
+/// Address represents an arbitrary address. This is designed to represent
+/// address and do address arithmetic mostly in a safe way, and to allow
+/// mark some operations as unsafe. This type needs to be zero overhead
+/// (memory wise and time wise).
+/// The idea is from the paper High-level Low-level Programming (VEE09),
+/// and JikesRVM. 
 #[repr(C)]
 #[derive(Copy, Clone, Eq, Hash)]
 pub struct Address(usize);
