@@ -50,7 +50,7 @@ impl FreeListSpace {
             Err(_) => panic!("failed to call mmap")
         };
         let start : Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
-        let end   : Address = start.plus(space_size);
+        let end   : Address = start + space_size;
 
         let trace_map = AddressMap::new(start, end);
         let alloc_map = AddressMap::new(start, end);
@@ -102,7 +102,7 @@ impl FreeListSpace {
         if res.is_zero() {
             res
         } else {
-            res.offset(-objectmodel::OBJECT_HEADER_OFFSET)
+            res + (-objectmodel::OBJECT_HEADER_OFFSET)
         }
     }
 
@@ -259,7 +259,7 @@ struct Treadmill{
 
 impl Treadmill {
     fn new(start: Address, end: Address) -> Treadmill {
-        let half_space = start.plus(end.diff(start) / 2);
+        let half_space = start + ((end - start) / 2);
 
         let mut from_space = vec![];
         let mut to_space   = vec![];
@@ -268,12 +268,12 @@ impl Treadmill {
 
         while addr < half_space {
             from_space.push(TreadmillNode::new(addr));
-            addr = addr.plus(BLOCK_SIZE);
+            addr = addr + BLOCK_SIZE;
         }
 
         while addr < end {
             to_space.push(TreadmillNode::new(addr));
-            addr = addr.plus(BLOCK_SIZE);
+            addr = addr + BLOCK_SIZE;
         }
 
         Treadmill {
@@ -392,7 +392,7 @@ impl Treadmill {
             // we need to check if 7&8, 8&9 (cursor is 7, and 8)
             let mut cursor = start;
             while cursor < start + n_blocks - 1 {
-                if from_space[cursor].payload.plus(BLOCK_SIZE) != from_space[cursor + 1].payload {
+                if from_space[cursor].payload + BLOCK_SIZE != from_space[cursor + 1].payload {
                     return false;
                 }
 

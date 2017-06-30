@@ -18,6 +18,7 @@ use heap::immix::immix_space::ImmixBlock;
 use heap::gc;
 use objectmodel;
 use utils::Address;
+use utils::ByteSize;
 
 use std::*;
 use std::sync::Arc;
@@ -161,7 +162,7 @@ impl ImmixMutatorLocal {
         }
 
         let start = self.cursor.align_up(align);
-        let end = start.plus(size);
+        let end = start + size;
 
         if TRACE_ALLOC_FASTPATH {
             trace!("Mutator{}: fastpath alloc: start=0x{:x}, end=0x{:x}", self.id, start, end);
@@ -182,7 +183,7 @@ impl ImmixMutatorLocal {
             }
 
             // this offset should be removed as well (for performance)
-            ret.offset(-objectmodel::OBJECT_HEADER_OFFSET)
+            ret + (-objectmodel::OBJECT_HEADER_OFFSET)
         } else {
             if cfg!(debug_assertions) {
                 if !start.is_aligned_to(align) {
@@ -193,7 +194,7 @@ impl ImmixMutatorLocal {
             }
             self.cursor = end;
             
-            start.offset(-objectmodel::OBJECT_HEADER_OFFSET)
+            start + (-objectmodel::OBJECT_HEADER_OFFSET)
         } 
     }
     
@@ -211,7 +212,7 @@ impl ImmixMutatorLocal {
     #[cfg(not(feature = "use-sidemap"))]
     pub fn init_object(&mut self, addr: Address, encode: u64) {
         unsafe {
-            addr.offset(objectmodel::OBJECT_HEADER_OFFSET).store(encode);
+            (addr + objectmodel::OBJECT_HEADER_OFFSET).store(encode);
         }
     }
 
@@ -225,7 +226,7 @@ impl ImmixMutatorLocal {
     pub fn init_hybrid(&mut self, addr: Address, encode: u64, len: u64) {
         let encode = encode | ((len << objectmodel::SHR_HYBRID_LENGTH) & objectmodel::MASK_HYBRID_LENGTH);
         unsafe {
-            addr.offset(objectmodel::OBJECT_HEADER_OFFSET).store(encode);
+            (addr + objectmodel::OBJECT_HEADER_OFFSET).store(encode);
         }
     }
     
@@ -242,11 +243,11 @@ impl ImmixMutatorLocal {
                     // we can alloc from local blocks
                     let end_line = self.block().get_next_unavailable_line(next_available_line);
 
-                    self.cursor = self.block().start().plus(next_available_line << immix::LOG_BYTES_IN_LINE);
-                    self.limit  = self.block().start().plus(end_line << immix::LOG_BYTES_IN_LINE);
+                    self.cursor = self.block().start() + (next_available_line << immix::LOG_BYTES_IN_LINE);
+                    self.limit  = self.block().start() + (end_line << immix::LOG_BYTES_IN_LINE);
                     self.line   = end_line;
                     
-                    self.cursor.memset(0, self.limit.diff(self.cursor));
+                    unsafe {self.cursor.memset(0, self.limit - self.cursor);}
                     
                     for line in next_available_line..end_line {
                         self.block().line_mark_table_mut().set(line, immix::LineMark::FreshAlloc);
@@ -254,7 +255,7 @@ impl ImmixMutatorLocal {
 
                     // allocate fast path
                     let start = self.cursor.align_up(align);
-                    let end = start.plus(size);
+                    let end = start + size;
 
                     self.cursor = end;
                     start
@@ -344,9 +345,9 @@ impl ImmixMutatorLocal {
     pub fn print_object_static(obj: Address, length: usize) {
         debug!("===Object {:#X} size: {} bytes===", obj, length);
         let mut cur_addr = obj;
-        while cur_addr < obj.plus(length) {
+        while cur_addr < obj + length {
             debug!("Address: {:#X}   {:#X}", cur_addr, unsafe {cur_addr.load::<u64>()});
-            cur_addr = cur_addr.plus(8);
+            cur_addr = cur_addr + 8 as ByteSize;
         }
         debug!("----");
         debug!("=========");        

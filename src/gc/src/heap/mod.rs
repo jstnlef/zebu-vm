@@ -79,7 +79,7 @@ pub trait Space {
         }
 
         // use header
-        let hdr = unsafe {addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
+        let hdr = unsafe {(addr + objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
         if !objectmodel::header_is_object_start(hdr) {
             return false;
         }
@@ -100,5 +100,5 @@ pub trait Space {
 #[inline(always)]
 pub fn fill_alignment_gap(start : Address, end : Address) -> () {
     debug_assert!(end >= start);
-    start.memset(ALIGNMENT_VALUE, end.diff(start));
+    unsafe {start.memset(ALIGNMENT_VALUE, end - start);}
 }

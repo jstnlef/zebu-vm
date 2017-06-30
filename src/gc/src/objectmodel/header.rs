@@ -120,7 +120,7 @@ pub fn print_object(obj: Address) {
     let mut cursor = obj;
     trace!("OBJECT 0x{:x}", obj);
 
-    let hdr = unsafe {cursor.offset(OBJECT_HEADER_OFFSET).load::<u64>()};
+    let hdr = unsafe {(cursor + OBJECT_HEADER_OFFSET).load::<u64>()};
 
     trace!("- is object start? {}", header_is_object_start(hdr));
     trace!("- is traced? {}", header_is_traced(hdr, objectmodel::load_mark_state()));
@@ -137,23 +137,23 @@ pub fn print_object(obj: Address) {
 
     trace!("0x{:x} | val: 0x{:15x} | hdr: {:b}",
     cursor, unsafe{cursor.load::<u64>()}, hdr);
-    cursor = cursor.plus(POINTER_SIZE);
+    cursor = cursor + POINTER_SIZE;
     trace!("0x{:x} | val: 0x{:15x}",
     cursor, unsafe{cursor.load::<u64>()});
 
-    cursor = cursor.plus(POINTER_SIZE);
+    cursor = cursor + POINTER_SIZE;
     trace!("0x{:x} | val: 0x{:15x}",
     cursor, unsafe{cursor.load::<u64>()});
 
-    cursor = cursor.plus(POINTER_SIZE);
+    cursor = cursor + POINTER_SIZE;
     trace!("0x{:x} | val: 0x{:15x}",
     cursor, unsafe{cursor.load::<u64>()});
 
-    cursor = cursor.plus(POINTER_SIZE);
+    cursor = cursor + POINTER_SIZE;
     trace!("0x{:x} | val: 0x{:15x}",
     cursor, unsafe{cursor.load::<u64>()});
 
-    cursor = cursor.plus(POINTER_SIZE);
+    cursor = cursor + POINTER_SIZE;
     trace!("0x{:x} | val: 0x{:15x}",
     cursor, unsafe{cursor.load::<u64>()});
 }
@@ -161,7 +161,7 @@ pub fn print_object(obj: Address) {
 #[inline(always)]
 pub fn mark_as_traced(obj: ObjectReference, mark_state: u8) {
     unsafe {
-        let hdr_addr = obj.to_address().offset(OBJECT_HEADER_OFFSET);
+        let hdr_addr = obj.to_address() + OBJECT_HEADER_OFFSET;
         hdr_addr.store(bit_utils::set_nth_bit_u64(hdr_addr.load::<u64>(), BIT_IS_TRACED, mark_state));
     }
 }
@@ -169,7 +169,7 @@ pub fn mark_as_traced(obj: ObjectReference, mark_state: u8) {
 #[inline(always)]
 pub fn mark_as_untraced(addr: Address, mark_state: u8) {
     unsafe {
-        let hdr_addr = addr.offset(OBJECT_HEADER_OFFSET);
+        let hdr_addr = addr + OBJECT_HEADER_OFFSET;
         hdr_addr.store(bit_utils::set_nth_bit_u64(hdr_addr.load::<u64>(), BIT_IS_TRACED, mark_state ^ 1));
     }
 }
@@ -177,7 +177,7 @@ pub fn mark_as_untraced(addr: Address, mark_state: u8) {
 #[inline(always)]
 pub fn is_traced(obj: ObjectReference, mark_state: u8) -> bool {
     unsafe {
-        let hdr = obj.to_address().offset(OBJECT_HEADER_OFFSET).load::<u64>();
+        let hdr = (obj.to_address() + OBJECT_HEADER_OFFSET).load::<u64>();
         bit_utils::test_nth_bit_u64(hdr, BIT_IS_TRACED, mark_state)
     }
 }

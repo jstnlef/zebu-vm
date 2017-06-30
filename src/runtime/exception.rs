@@ -102,8 +102,8 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
             let ref callee_saved = cf.frame.callee_saved;
             for (target_offset, source_offset) in callee_saved {
                 // *(frame_cursor + target_offset) = *(frame_pointer + source_offset)
-                let val = previous_frame_pointer.offset(*source_offset).load::<Address>();
-                frame_cursor.offset(*target_offset).store::<Address>(val);
+                let val = (previous_frame_pointer + *source_offset).load::<Address>();
+                (frame_cursor + *target_offset).store::<Address>(val);
             }
         }
 
@@ -124,7 +124,7 @@ fn print_frame(cursor: Address) {
     let bottom = -(CALLEE_SAVED_COUNT as isize);
     for i in (bottom .. top).rev() {
         unsafe {
-            let addr = cursor.offset(i * POINTER_SIZE as isize);
+            let addr = cursor + (i * POINTER_SIZE as isize);
             let val  = addr.load::<Word>();
             trace!("\taddr: 0x{:x} | val: 0x{:x} {}", addr, val, {if addr == cursor {"<- cursor"} else {""}});
         }

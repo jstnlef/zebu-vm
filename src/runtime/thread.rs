@@ -118,8 +118,8 @@ impl MuStack {
 
         // calculate the addresses
         let overflow_guard = mmap_start;
-        let lower_bound = mmap_start.plus(PAGE_SIZE);
-        let upper_bound = lower_bound.plus(STACK_SIZE);
+        let lower_bound = mmap_start + PAGE_SIZE;
+        let upper_bound = lower_bound + STACK_SIZE;
         let underflow_guard = upper_bound;
 
         // protect the guard pages
@@ -185,7 +185,7 @@ impl MuStack {
         // store floating point argument registers
         let mut stack_ptr = self.sp;
         for i in 0..ARGUMENT_FPRS.len() {
-            stack_ptr = stack_ptr.sub(WORD_SIZE);
+            stack_ptr -= WORD_SIZE;
             let val = {
                 if i < fpr_used.len() {
                     fpr_used[i]
@@ -200,7 +200,7 @@ impl MuStack {
 
         // store general purpose argument registers
         for i in 0..ARGUMENT_GPRS.len() {
-            stack_ptr = stack_ptr.sub(WORD_SIZE);
+            stack_ptr -= WORD_SIZE;
             let val = {
                 if i < gpr_used.len() {
                     gpr_used[i]
@@ -227,7 +227,7 @@ impl MuStack {
         use utils::Word;
         use utils::WORD_SIZE;
         
-        let mut cursor = self.upper_bound.sub(WORD_SIZE);
+        let mut cursor = self.upper_bound - WORD_SIZE;
         let mut count = 0;
         
         debug!("0x{:x} | UPPER_BOUND", self.upper_bound);
@@ -240,7 +240,7 @@ impl MuStack {
                 debug!("0x{:x} | 0x{:x} ({})", cursor, val, val);
             }
             
-            cursor = cursor.sub(WORD_SIZE);
+            cursor -= WORD_SIZE;
             count += 1;
             
             if n_entries.is_some() && count > n_entries.unwrap() {
@@ -382,7 +382,7 @@ impl MuThread {
             unsafe {set_thread_local(muthread)};
 
             let addr = unsafe {muentry_get_thread_local()};
-            let sp_threadlocal_loc = addr.plus(*NATIVE_SP_LOC_OFFSET);
+            let sp_threadlocal_loc = addr + *NATIVE_SP_LOC_OFFSET;
             debug!("new sp: 0x{:x}", new_sp);
             debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
 

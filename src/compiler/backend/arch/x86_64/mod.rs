@@ -35,8 +35,9 @@ pub use compiler::backend::x86_64::asm_backend::emit_context;
 pub use compiler::backend::x86_64::asm_backend::emit_context_with_reloc;
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::spill_rewrite;
-use utils::Address;
 
+use utils::Address;
+use utils::ByteSize;
 use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
@@ -526,13 +527,13 @@ pub fn get_previous_frame_pointer(frame_pointer: Address) -> Address {
 /// gets the return address for the current frame pointer
 #[inline(always)]
 pub fn get_return_address(frame_pointer: Address) -> Address {
-    unsafe { frame_pointer.plus(8).load::<Address>() }
+    unsafe { (frame_pointer + 8 as ByteSize).load::<Address>() }
 }
 
 /// gets the stack pointer before the current frame was created
 #[inline(always)]
 pub fn get_previous_stack_pointer(frame_pointer: Address) -> Address {
-    frame_pointer.plus(16)
+    frame_pointer + 16 as ByteSize
 }
 
 /// sets the stack point
@@ -544,7 +545,7 @@ pub fn set_previous_frame_pointer(frame_pointer: Address, value: Address) {
 /// gets the return address for the current frame pointer
 #[inline(always)]
 pub fn set_return_address(frame_pointer: Address, value: Address) {
-    unsafe { frame_pointer.plus(8).store::<Address>(value) }
+    unsafe { (frame_pointer + 8 as ByteSize).store::<Address>(value) }
 }
 
 /// returns offset of callee saved register

@@ -1279,7 +1279,7 @@ impl <'a> VM {
 
         let offset_addr = {
             let backend_ty = self.get_backend_type_info(ty.id());
-            addr.plus(backend_ty.size * (offset as usize))
+            addr + (backend_ty.size * (offset as usize))
         };
 
         let ret = self.new_handle(APIHandle {
@@ -1303,7 +1303,7 @@ impl <'a> VM {
         };
         let elem_addr = {
             let backend_ty = self.get_backend_type_info(ele_ty.id());
-            addr.plus(backend_ty.size * (index as usize))
+            addr + (backend_ty.size * (index as usize))
         };
 
         let ret = self.new_handle(APIHandle {
@@ -1322,7 +1322,7 @@ impl <'a> VM {
 
         let varpart_addr = {
             let backend_ty = self.get_backend_type_info(ty.id());
-            addr.plus(backend_ty.size)
+            addr + backend_ty.size
         };
 
         let varpart_ty = match ty.get_hybrid_varpart_ty() {
@@ -1354,7 +1354,7 @@ impl <'a> VM {
         let field_addr = {
             let backend_ty = self.get_backend_type_info(ty.id());
             let field_offset = backend_ty.get_field_offset(field);
-            addr.plus(field_offset)
+            addr + field_offset
         };
 
         let ret = self.new_handle(APIHandle {
