@@ -12,25 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// u8
-
+/// returns true if the nth bit (count from least significant bit) is the same as val (as boolean)
+/// otherwise returns false
 #[inline(always)]
 pub fn test_nth_bit_u8(value: u8, index: usize, val: u8) -> bool {
     ((value >> index) & 1) as u8 == val
 }
 
+/// returns the lower n bits
 #[inline(always)]
 pub fn lower_bits_u8(value: u8, len: usize) -> u8 {
     value & ((1 << len) - 1)
 }
 
-// u64
-
+/// sets the nth bit (count from least significant bit) as val (treat the val as boolean, either 1 or 0)
 #[inline(always)]
 pub fn set_nth_bit_u64 (value: u64, index: usize, set_value: u8) -> u64 {
     value ^ (((-(set_value as i64) as u64) ^ value) & (1 << index))
 }
 
+/// returns true if the nth bit (count from least significant bit) is the same as val (as boolean)
+/// otherwise returns false
 #[inline(always)]
 pub fn test_nth_bit_u64(value: u64, index: usize, val: u8) -> bool {
     ((value >> index) & 1) as u8 == val

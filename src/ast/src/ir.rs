@@ -594,13 +594,13 @@ impl BlockContent {
                     }
                     Instruction_::Branch1(ref dest) => {
                         let mut live_outs = dest.get_arguments(&ops);
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Branch2{ref true_dest, ref false_dest, ..} => {
                         let mut live_outs = true_dest.get_arguments(&ops);
                         live_outs.append(&mut false_dest.get_arguments(&ops));
                         
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Watchpoint{ref disable_dest, ref resume, ..} => {
                         let mut live_outs = vec![];
@@ -611,13 +611,13 @@ impl BlockContent {
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
                         live_outs.append(&mut resume.exn_dest.get_arguments(&ops));
                         
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::WPBranch{ref disable_dest, ref enable_dest, ..} => {
                         let mut live_outs = vec![];
                         live_outs.append(&mut disable_dest.get_arguments(&ops));
                         live_outs.append(&mut enable_dest.get_arguments(&ops));
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Call{ref resume, ..}
                     | Instruction_::CCall{ref resume, ..}
@@ -626,7 +626,7 @@ impl BlockContent {
                         let mut live_outs = vec![];
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
                         live_outs.append(&mut resume.exn_dest.get_arguments(&ops));
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Switch{ref default, ref branches, ..} => {
                         let mut live_outs = vec![];
@@ -634,7 +634,7 @@ impl BlockContent {
                         for &(_, ref dest) in branches {
                             live_outs.append(&mut dest.get_arguments(&ops));
                         }
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     
                     _ => panic!("didn't expect last inst as {}", inst)
