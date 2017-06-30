@@ -32,7 +32,6 @@ use runtime::*;
 // (and are accesed by get/set_return_address and get/set_previous_frame and may be passed real frame pointers or the frame cursor)
 
 #[no_mangle]
-#[allow(unreachable_code)]
 pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Address) -> !  {
     trace!("throwing exception: {}", exception_obj);
 
@@ -65,7 +64,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
             if table_entry.is_none() {
                 error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
                 print_backtrace(frame_cursor);
-                unreachable!(); // The above function will not return
+                // The above function will not return
             }
 
             table_entry.unwrap()
