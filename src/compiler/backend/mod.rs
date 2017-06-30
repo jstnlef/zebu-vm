@@ -144,23 +144,19 @@ pub fn resolve_backend_type_info (ty: &MuType, vm: &VM) -> BackendTypeInfo {
         // integer
         MuType_::Int(size_in_bit) => {
             match size_in_bit {
-                1  => BackendTypeInfo{
+                1 ... 8  => BackendTypeInfo{
                     size: 1, alignment: 1, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
                 },
-                8  => BackendTypeInfo{
-                    size: 1, alignment: 1, struct_layout: None, elem_padded_size: None,
-                    gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
-                },
-                16 => BackendTypeInfo{
+                9 ... 16 => BackendTypeInfo{
                     size: 2, alignment: 2, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
                 },
-                32 => BackendTypeInfo{
+                17 ... 32 => BackendTypeInfo{
                     size: 4, alignment: 4, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
                 },
-                64 => BackendTypeInfo{
+                33 ... 64 => BackendTypeInfo{
                     size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
                     gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
                 },

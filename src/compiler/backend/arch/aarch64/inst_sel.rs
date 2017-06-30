@@ -41,7 +41,7 @@ use compiler::frame::Frame;
 
 use std::collections::HashMap;
 use std::collections::LinkedList;
-
+use std::mem;
 use std::any::Any;
 
 const INLINE_FASTPATH : bool = false;
@@ -433,7 +433,7 @@ impl <'a> InstructionSelection {
                                 let offset = self.get_field_offset(&ret_type, i, &vm);
 
                                 match ty.v {
-                                    MuType_::Vector(_, _) | MuType_::Tagref64 => unimplemented!(),
+                                    MuType_::Vector(_, _) => unimplemented!(),
                                     MuType_::Void => panic!("Unexpected void"),
                                     MuType_::Struct(_) | MuType_::Array(_, _) => unimplemented!(),
                                     MuType_::Hybrid(_) => panic!("Can't return a hybrid"),
@@ -550,6 +550,7 @@ impl <'a> InstructionSelection {
                                             Some(node), f_context, vm);
                                     }
                                 } else {
+                                    emit_zext(self.backend.as_mut(), &tmp_op);
                                     self.backend.emit_ucvtf(&tmp_res, &tmp_op);
                                 }
                             },
@@ -566,7 +567,9 @@ impl <'a> InstructionSelection {
                                             vec![tmp_op.clone()],
                                             Some(vec![tmp_res.clone()]),
                                             Some(node), f_context, vm);
-                                    }                                } else {
+                                    }
+                                } else {
+                                    emit_sext(self.backend.as_mut(), &tmp_op);
                                     self.backend.emit_scvtf(&tmp_res, &tmp_op);
                                 }
                             },
@@ -1197,7 +1200,217 @@ impl <'a> InstructionSelection {
                             None,
                             Some(node), f_context, vm
                         );
-                    }
+                    },
+
+                    Instruction_::CommonInst_Tr64IsInt(index)=> {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                        let tmp = cast_value(&tmp_res, &UINT64_TYPE);
+
+                        // res = (!op & 0x7ff0000000000001) == 0
+                        emit_mov_u64(self.backend.as_mut(), &tmp, 0x7ff0000000000001);
+                        self.backend.emit_bics(&XZR, &tmp, &tmp_op); // Compare
+                        self.backend.emit_cset(&tmp_res, "EQ");
+                    },
+
+                    Instruction_::CommonInst_Tr64IsRef(index)=> {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                        let tmp1 = cast_value(&tmp_res, &UINT64_TYPE);
+                        let tmp2 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                        // res = (op & 0x7ff0000000000003)  == 0x7ff0000000000002
+                        emit_mov_u64(self.backend.as_mut(), &tmp1, 0x7ff0000000000002);
+                        self.backend.emit_add_imm(&tmp2, &tmp1, 1, false);
+                        self.backend.emit_and(&tmp2, &tmp2, &tmp_op);
+                        self.backend.emit_cmp(&tmp2, &tmp1);
+                        self.backend.emit_cset(&tmp_res, "EQ");
+                    },
+
+                    Instruction_::CommonInst_Tr64IsFp(index)=> {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                        let tmp1 = cast_value(&tmp_res, &UINT64_TYPE);
+                        let tmp2 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                        let tmp3 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                        //res = (op & 0x7ff0000000000003 != 0x7ff0000000000002) & ((!op & 0x7ff0000000000001) != 0)
+                        emit_mov_u64(self.backend.as_mut(), &tmp1, 0x7ff0000000000001);
+                        self.backend.emit_add_imm(&tmp2, &tmp1, 2, false);
+                        self.backend.emit_add_imm(&tmp3, &tmp1, 1, false);
+                        self.backend.emit_and(&tmp2, &tmp_op, &tmp2);
+
+                        self.backend.emit_cmp(&tmp2, &tmp3);
+                        self.backend.emit_cset(&tmp2, "NE");
+
+                        self.backend.emit_bics(&XZR, &tmp1, &tmp_op);
+                        self.backend.emit_cset(&tmp1, "NE");
+
+                        self.backend.emit_and(&tmp_res, &tmp2, &tmp1);
+                    },
+
+                    Instruction_::CommonInst_Tr64FromFp(index) => {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        if match_node_f64imm(op) {
+                            let double_val = node_imm_to_f64(op);
+                            // This is actually totally safe, ignore the unsafe keyword
+                            // (since f64 on aaarch64 is an IEEE 754 double precision floating point number)
+                            let int_val: u64 = unsafe{mem::transmute(double_val)};
+
+                            emit_mov_u64(self.backend.as_mut(), &tmp_res,
+                                 if double_val.is_nan() {
+                                     (int_val & 0xfff8000000000000) | 0x0000000000000008
+                                 } else {
+                                    int_val
+                                 });
+                        } else {
+                            let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+
+                            // isNaN(op) ? (op & 0xfff8000000000000) | 0x0000000000000008 : op
+                            self.backend.emit_fmov(&tmp_res, &tmp_op);
+                            self.backend.emit_and_imm(&tmp_res, &tmp_res, 0xfff8000000000000);
+                            self.backend.emit_orr_imm(&tmp_res, &tmp_res, 0x0000000000000008);
+
+                            // Sets V flag if tmp_op is unordered with tmp_op (i.e. it is a NaN)
+                            self.backend.emit_fcmp(&tmp_op, &tmp_op);
+                            // sets tmp_res to tmp2 if V is set
+                            self.backend.emit_csel(&tmp_res, &tmp_res, &tmp_res, "VS");
+                        }
+                    },
+                        //(0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) | ((opnd & 0x8000000000000u64) << 12))
+                    Instruction_::CommonInst_Tr64FromInt(index) => {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        if match_node_int_imm(op) {
+                            let int_val: u64 = node_imm_to_u64(op);
+                            emit_mov_u64(self.backend.as_mut(), &tmp_res,
+                                         0x7FF0000000000001 | (((int_val & 0x8000000000000000) << 12) | (int_val & 0x7ffffffffffffu64) << 1));
+                        } else {
+                            let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+
+                            let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                            // res = 0x7FF0000000000001 | (((op & 0x8000000000000000) << 12) | (opnd & 0x7ffffffffffffu64) << 1)
+                            self.backend.emit_and_imm(&tmp_res, &tmp_res, 0x8000000000000);
+                            self.backend.emit_lsl_imm(&tmp_res, &tmp_op, 12);
+
+                            self.backend.emit_bfi(&tmp_res, &tmp_op, 1, 51);
+                            emit_mov_u64(self.backend.as_mut(), &tmp, 0x7FF0000000000001);
+                            self.backend.emit_orr(&tmp_res, &tmp_res, &tmp);
+                        }
+                    },
+
+                    Instruction_::CommonInst_Tr64FromRef(index1, index2)=> {
+                        let ref ops = inst.ops;
+                        let ref op1 = ops[index1];
+                        let ref op2 = ops[index2];
+                        let tmp_res = self.get_result_value(node, 0);
+
+
+                        if match_node_ref_imm(op1) &&  match_node_int_imm(op2) {
+                            let tag: u64 = node_imm_to_u64(op2);
+                            emit_mov_u64(self.backend.as_mut(), &tmp_res,
+                                 (0x7ff0000000000002u64 | ((tag & 0x3eu64) << 46) | ((tag & 0x1) << 2)));
+                        } else {
+                            let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                            let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+                            let tmp_op2_64 = cast_value(&tmp_op2, &UINT64_TYPE);
+
+                            let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                            // TODO: Explain what the code is doing
+                            if !match_node_ref_imm(op1) {
+                                self.backend.emit_and_imm(&tmp, &tmp_op1, 0x7ffffffffff8);
+                                self.backend.emit_lsr_imm(&tmp_res, &tmp_op1, 47);
+                                self.backend.emit_bfi(&tmp, &tmp_res, 63, 1);
+                            }
+
+                            if match_node_int_imm(op2) {
+                                let tag: u64 = node_imm_to_u64(op2);
+                                emit_mov_u64(self.backend.as_mut(), &tmp_res, tag & 0x3e >> 1);
+                            } else {
+                                self.backend.emit_and_imm(&tmp_res, &tmp_op2_64, 0x3e);
+                                self.backend.emit_lsr_imm(&tmp_res, &tmp_res, 1);
+                            }
+
+                            if match_node_ref_imm(op1) {
+                                self.backend.emit_ubfiz(&tmp, &tmp_res, 47, 5);
+                            } else {
+                                self.backend.emit_bfi(&tmp, &tmp_res, 47, 5);
+                            }
+
+                            if match_node_int_imm(op2) {
+                                let tag: u64 = node_imm_to_u64(op2);
+                                emit_mov_u64(self.backend.as_mut(), &tmp_res, (tag & 0x1) << 2);
+
+                            } else {
+                                self.backend.emit_ubfiz(&tmp_res, &tmp_op2_64, 2, 1);
+                            }
+
+                            self.backend.emit_orr(&tmp_res, &tmp, &tmp_res);
+                            emit_mov_u64(self.backend.as_mut(), &tmp, 0xFF0000000000002);
+                            self.backend.emit_orr(&tmp_res, &tmp_res, &tmp);
+                        }
+                    },
+
+                    Instruction_::CommonInst_Tr64ToFp(index)=> {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                        self.backend.emit_fmov(&tmp_res, &tmp_op);
+                    },
+
+                    Instruction_::CommonInst_Tr64ToInt(index)=> {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+
+                        //res = (op)[52+1:1] | ((op & 0x8000000000000000) >> 12)
+                        self.backend.emit_and_imm(&tmp_res, &tmp_op, 0x8000000000000000);
+                        self.backend.emit_lsr_imm(&tmp_res, &tmp_op, 12);
+                        self.backend.emit_bfxil(&tmp_res, &tmp_op, 1, 51);
+
+                    },
+                    Instruction_::CommonInst_Tr64ToRef(index)=> {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                        let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
+
+                        // ((op & 0x8000000000000000) ASR 16) | (op & 0x7ffffffffff8)
+                        self.backend.emit_and_imm(&tmp_res, &tmp_op, 0x8000000000000000);
+                        self.backend.emit_asr_imm(&tmp_res, &tmp_res, 16);
+                        self.backend.emit_and_imm(&tmp, &tmp_op, 0x7ffffffffff8);
+                        self.backend.emit_orr(&tmp_res, &tmp_res, &tmp);
+                    },
+                    Instruction_::CommonInst_Tr64ToTag(index)=> {
+                        let ref ops = inst.ops;
+                        let ref op = ops[index];
+                        let tmp_res = self.get_result_value(node, 0);
+                        let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
+                        let tmp_res64 = cast_value(&tmp_res, &UINT64_TYPE); // Same register as tmp_res
+                        let tmp_op8 = cast_value(&tmp_op, &UINT8_TYPE); // Same resgiters as tmp_op
+
+                        // ((op >> 46) & 0x3E) ¦ op[1+2:2]
+                        self.backend.emit_lsr_imm(&tmp_res64, &tmp_op, 46);
+                        self.backend.emit_and_imm(&tmp_res, &tmp_res, 0x3e);
+                        self.backend.emit_bfxil(&tmp_res, &tmp_op8, 2, 1);
+                    },
 
                     _ => unimplemented!()
                 } // main switch
@@ -1276,7 +1489,7 @@ impl <'a> InstructionSelection {
                         self.backend.emit_adds_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
 
                         if status.flag_v {
-                            if n < 32 {
+                            if n != 32 && n != 64 {
                                 // tmp_status[n-1] = 1 iff res and op1 have different signs
                                 self.backend.emit_eor(&tmp_status_v, &res, &reg_op1);
                                 // tmp[n-1] = 1 iff op1 and op2 have different signs
@@ -1300,7 +1513,7 @@ impl <'a> InstructionSelection {
                             }
                         }
                         if status.flag_c {
-                            if n < 32 {
+                            if n != 32 && n != 64 {
                                 // Test the carry bit of res
                                 self.backend.emit_tst_imm(&res, 1 << n);
                                 self.backend.emit_cset(&tmp_status_c, "NE");
@@ -1329,7 +1542,7 @@ impl <'a> InstructionSelection {
                         }
 
                         if status.flag_v {
-                            if n < 32 {
+                            if n != 32 && n != 64 {
                                 let tmp = make_temporary(f_context, UINT32_TYPE.clone(), vm);
 
                                 // tmp_status[n-1] = 1 iff res and op1 have different signs
@@ -1350,7 +1563,7 @@ impl <'a> InstructionSelection {
                         }
 
                         if status.flag_c {
-                            if n < 32 {
+                            if n != 32 && n != 64 {
                                 // Test the carry bit of res
                                 self.backend.emit_tst_imm(&res, 1 << n);
                                 self.backend.emit_cset(&tmp_status_c, "NE");
@@ -1427,7 +1640,7 @@ impl <'a> InstructionSelection {
 
                     // If this was true, then the immediate would need to be 1 extended,
                     // which would result in an immediate with too many bits
-                    !(status.flag_c && n < 32) {
+                    !(status.flag_c && n != 32 && n != 64) {
                     // Can't compute the carry but using a subs_imm instruction
                     trace!("emit sub-ireg-imm");
 
@@ -1441,7 +1654,7 @@ impl <'a> InstructionSelection {
                         self.backend.emit_subs_imm(&res, &reg_op1, imm_op2 as u16, imm_shift);
 
                         if status.flag_v {
-                            if n < 32 {
+                            if n != 32 && n != 64 {
                                 // tmp_status[n-1] = 1 iff res and op1 have different signs
                                 self.backend.emit_eor(&tmp_status_v, &res, &reg_op1);
                                 // tmp[n-1] = 1 iff op1 and op2 have different signs
@@ -1466,7 +1679,7 @@ impl <'a> InstructionSelection {
                         }
 
                         if status.flag_c {
-                            if n < 32 {
+                            if n != 32 && n != 64 {
                                 // Test the carry bit of res
                                 self.backend.emit_tst_imm(&res, 1 << n);
                                 self.backend.emit_cset(&tmp_status_c, "NE");
@@ -1504,7 +1717,7 @@ impl <'a> InstructionSelection {
 
 
                         if status.flag_v {
-                            if n < 32 {
+                            if n != 32 && n != 64 {
                                 let tmp = make_temporary(f_context, UINT32_TYPE.clone(), vm);
 
                                 // tmp_status[n-1] = 1 iff res and op1 have different signs
@@ -1525,7 +1738,7 @@ impl <'a> InstructionSelection {
                         }
 
                         if status.flag_c {
-                            if n < 32 {
+                            if n != 32 && n != 64 {
                                 // Test the carry bit of res
                                 self.backend.emit_tst_imm(&res, 1 << n);
                                 self.backend.emit_cset(&tmp_status_c, "NE");
@@ -1791,11 +2004,15 @@ impl <'a> InstructionSelection {
                             self.backend.emit_umull(&res_64, &reg_op1, &reg_op2);
                             // Test the upper n bits of the result
                             self.backend.emit_tst_imm(&res, 0xFFFFFFFF00000000);
-                        } else if n == 64 {
+                        } else if n <= 64 {
                             // Compute the upper 64-bits of the true product
                             self.backend.emit_umulh(&res, &reg_op1, &reg_op2);
                             // Test the 64-bits of res, equivalent to TST res, 0xFFFFFFFFFFFFFFFF
-                            self.backend.emit_cmp_imm(&res, 0, false);
+                            if n == 64 {
+                                self.backend.emit_cmp_imm(&res, 0, false);
+                            } else {
+                                self.backend.emit_tst_imm(&res, (bits_ones(n - 32)));
+                            }
                             // Get the lower 64-bits of the true product
                             self.backend.emit_mul(&res, &reg_op1, &reg_op2);
                         } else {
@@ -2308,7 +2525,7 @@ impl <'a> InstructionSelection {
             match op {
                 op::BinOp::Add | op::BinOp::Sub => {
                     if status.flag_n {
-                        if n < 32 {
+                        if n != 32 && n != 64 {
                             // Test the sign bit of res
                             self.backend.emit_tst_imm(&res, (1 << (n - 1)));
                             self.backend.emit_cset(&tmp_status_n, "NE");
@@ -2319,7 +2536,7 @@ impl <'a> InstructionSelection {
 
                     if status.flag_z {
                         // Need to calculate the sign bit through masking
-                        if n < 32 {
+                        if n != 32 && n != 64 {
                             // Test the lower 'n' bits of res
                             self.backend.emit_tst_imm(&res, bits_ones(n));
                             self.backend.emit_cset(&tmp_status_z, "EQ");
@@ -2333,7 +2550,7 @@ impl <'a> InstructionSelection {
                 op::BinOp::And => {
                     // sign extend result (so that we can compare it properly)
                     emit_sext(self.backend.as_mut(), &res);
-                    if n < 32 {
+                    if n != 32 && n != 64 {
                         // compare with zero to compute the status flags
                         self.backend.emit_cmp_imm(&res, 0, false)
                     }
@@ -2554,7 +2771,7 @@ impl <'a> InstructionSelection {
         use ast::types::MuType_::*;
         let size = round_up(vm.get_type_size(t.id()), 8);
         match t.v {
-            Vector(_, _) | Tagref64 => unimplemented!(),
+            Vector(_, _) => unimplemented!(),
             Float | Double => 0, // Can return in FPR
             Hybrid(_) => panic!("cant return a hybrid"), // don't know how much space to reserve for it
             Struct(_) | Array(_, _) => {
@@ -2567,8 +2784,7 @@ impl <'a> InstructionSelection {
 
             Void => 0, // Don't need to return anything
             // Integral or pointer type
-            Int(_) | Ref(_) | IRef(_) | WeakRef(_) | UPtr(_) |
-            ThreadRef | StackRef | FuncRef(_) | UFuncPtr(_) => 0, // can return in GPR
+            _ => 0, // can return in GPR
         }
     }
 
@@ -2578,7 +2794,7 @@ impl <'a> InstructionSelection {
         use ast::types::MuType_::*;
         let size = round_up(vm.get_type_size(t.id()), 8);
         match t.v {
-            Vector(_, _) | Tagref64 => unimplemented!(),
+            Vector(_, _) => unimplemented!(),
             Float | Double =>
                 vec![get_alias_for_length(RETURN_FPRs[0].id(), get_bit_size(&t, vm))],
 
@@ -2605,12 +2821,13 @@ impl <'a> InstructionSelection {
             }
 
             Void => vec![], // Nothing to return
-            // Integral or pointer type
+
             Int(128) => // Return in 2 GPRs
                 vec![RETURN_GPRs[0].clone(), RETURN_GPRs[0].clone()],
 
-            Int(_) | Ref(_) | IRef(_) | WeakRef(_) | UPtr(_) | ThreadRef | StackRef | FuncRef(_) | UFuncPtr(_) =>
-            // can return in GPR
+            // Integral or pointer type
+            _ =>
+            // can return in a single GPR
                 vec![get_alias_for_length(RETURN_GPRs[0].id(), get_bit_size(&t, vm))]
         }
     }
@@ -2620,7 +2837,7 @@ impl <'a> InstructionSelection {
         use ast::types::MuType_::*;
         let size = round_up(vm.get_type_size(t.id()), 8);
         match t.v {
-            Vector(_, _) | Tagref64 => unimplemented!(),
+            Vector(_, _) => unimplemented!(),
             Float | Double => get_alias_for_length(RETURN_FPRs[0].id(), get_bit_size(t, vm)),
             Hybrid(_) => panic!("cant return a hybrid"),
             Struct(_) | Array(_, _) => {
@@ -2642,9 +2859,9 @@ impl <'a> InstructionSelection {
 
             Void => panic!("Nothing to return"),
             // Integral or pointer type
-            Int(_) | Ref(_) | IRef(_) | WeakRef(_) | UPtr(_) | ThreadRef | StackRef | FuncRef(_) | UFuncPtr(_) =>
             // can return in GPR (or two if its a 128-bit integer)
-                get_alias_for_length(RETURN_GPRs[0].id(), get_bit_size(t, vm))
+            _ => get_alias_for_length(RETURN_GPRs[0].id(), get_bit_size(t, vm))
+
         }
     }
     // TODO: Thoroughly test this (compare with code generated by GCC with variouse different types???)
@@ -2671,7 +2888,7 @@ impl <'a> InstructionSelection {
                     match t.v {
                         Hybrid(_) => panic!("Hybrid argument not supported"), // size can't be statically determined
                         Struct(_) | Array(_, _) if vm.get_type_size(t.id()) > 16 => true, //  type is too large
-                        Vector(_, _) | Tagref64 => unimplemented!(),
+                        Vector(_, _)  => unimplemented!(),
                         _ => false
                     }
             );
@@ -2686,7 +2903,7 @@ impl <'a> InstructionSelection {
             match t.v {
                 Hybrid(_) => panic!("hybrid argument not supported"),
 
-                Vector(_, _) | Tagref64 => unimplemented!(),
+                Vector(_, _) => unimplemented!(),
                 Float | Double => {
                     if nsrn < 8 {
                         locations.push(get_alias_for_length(ARGUMENT_FPRs[nsrn].id(), get_bit_size(&t, vm)));
@@ -2733,8 +2950,7 @@ impl <'a> InstructionSelection {
                 Void =>  panic!("void argument not supported"),
 
                 // Integral or pointer type
-                Int(_) | Ref(_) | IRef(_) | WeakRef(_) |  UPtr(_) |
-                ThreadRef | StackRef | FuncRef(_) | UFuncPtr(_) => {
+                _ => {
                     if size <= 8 {
                         if ngrn < 8 {
                             locations.push(get_alias_for_length(ARGUMENT_GPRs[ngrn].id(), get_bit_size(&t, vm)));
@@ -2791,7 +3007,7 @@ impl <'a> InstructionSelection {
             match arg_val.ty.v {
                 MuType_::Hybrid(_) => panic!("hybrid argument not supported"),
 
-                MuType_::Vector(_, _) | MuType_::Tagref64 => unimplemented!(),
+                MuType_::Vector(_, _) => unimplemented!(),
 
                 MuType_::Struct(_) | MuType_::Array(_, _) => {
                     unimplemented!(); // Todo (note: these may be passed as IRef's)
@@ -2866,7 +3082,7 @@ impl <'a> InstructionSelection {
                 };
 
                 match ty.v {
-                    MuType_::Vector(_, _) | MuType_::Tagref64 => unimplemented!(),
+                    MuType_::Vector(_, _) => unimplemented!(),
                     MuType_::Void => panic!("Unexpected void"),
                     MuType_::Struct(_) | MuType_::Array(_, _) => unimplemented!(),
 
@@ -3330,7 +3546,7 @@ impl <'a> InstructionSelection {
             match arg_val.ty.v {
                 MuType_::Hybrid(_) =>  panic!("hybrid argument not supported"),
 
-                MuType_::Vector(_, _) | MuType_::Tagref64 => unimplemented!(),
+                MuType_::Vector(_, _) => unimplemented!(),
                 MuType_::Float | MuType_::Double => {
                     if is_fp_reg(&arg_loc) {
                         // Argument is passed in a floating point register
@@ -3581,9 +3797,9 @@ impl <'a> InstructionSelection {
             return op;
         } else {
             // Is one of the arguments 0
-            let emit_imm = if match_f32imm(&op2) {
+            let emit_imm = if match_node_f32imm(&op2) {
                 node_imm_to_f32(&op2) == 0.0
-            } else if match_f32imm(&op1) {
+            } else if match_node_f32imm(&op1) {
                 if node_imm_to_f32(&op1) == 0.0 {
                     std::mem::swap(&mut op1, &mut op2);
                     swap = true;
@@ -3591,9 +3807,9 @@ impl <'a> InstructionSelection {
                 } else {
                     false
                 }
-            } else if match_f64imm(&op2) {
+            } else if match_node_f64imm(&op2) {
                 node_imm_to_f64(&op2) == 0.0
-            } else if match_f64imm(&op1) {
+            } else if match_node_f64imm(&op1) {
                 if node_imm_to_f64(&op1) == 0.0 {
                     std::mem::swap(&mut op1, &mut op2);
                     swap = true;

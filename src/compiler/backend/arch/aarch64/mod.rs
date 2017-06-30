@@ -278,9 +278,8 @@ pub fn get_color_for_precolored(id: MuID) -> MuID {
 #[inline(always)]
 pub fn check_op_len(ty: &P<MuType>) -> usize {
     match ty.get_int_length() {
-        Some(64) => 64,
-        Some(32) => 32,
-        Some(n) if n < 32 => 32,
+        Some(n) if n <= 32 => 32,
+        Some(n) if n <= 64 => 64,
         Some(n) => panic!("unimplemented int size: {}", n),
         None => {
             match ty.v {
@@ -320,7 +319,7 @@ pub fn get_type_alignment(ty: &P<MuType>, vm: &VM) -> usize
 pub fn primitive_byte_size(ty : &P<MuType>) -> usize
 {
     match ty.get_int_length() {
-        Some(val) => round_up(val, 8)/8,
+        Some(val) => (round_up(val, 8)/8).next_power_of_two(),
         None => {
             match ty.v {
                 MuType_::Float => 4,
@@ -978,15 +977,12 @@ pub fn is_valid_arithmetic_imm(val : u64) -> bool {
 // this function will replicate the bit pattern so that it can be used
 // (the resulting value will be valid iff 'val' is valid, and the lower 'n' bits will equal val)
 pub fn replicate_logical_imm(val : u64, n : usize) -> u64 {
-    if n < 32 {
-        let mut val = val;
-        for i in 1..32/n {
-            val |= val << i*n;
-        }
-        val
-    } else {
-        val
+    let op_size = if n <= 32 { 32 } else { 64 };
+    let mut val = val;
+    for i in 1..op_size / n {
+        val |= val << i * n;
     }
+    val
 }
 
 
@@ -1260,7 +1256,7 @@ pub fn is_zero_register_id(id: MuID) -> bool {
     id == XZR.extract_ssa_id().unwrap() || id == WZR.extract_ssa_id().unwrap()
 }
 
-pub fn match_f32imm(op: &TreeNode) -> bool {
+pub fn match_node_f32imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match pv.v {
             Value_::Constant(Constant::Float(_)) => true,
@@ -1270,7 +1266,7 @@ pub fn match_f32imm(op: &TreeNode) -> bool {
     }
 }
 
-pub fn match_f64imm(op: &TreeNode) -> bool {
+pub fn match_node_f64imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match pv.v {
             Value_::Constant(Constant::Double(_)) => true,
@@ -1326,7 +1322,12 @@ pub fn match_value_int_imm(op: &P<Value>) -> bool {
         _ => false
     }
 }
-
+pub fn match_value_ref_imm(op: &P<Value>) -> bool {
+    match op.v {
+        Value_::Constant(Constant::NullRef) => true,
+        _ => false
+    }
+}
 pub fn match_node_value(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(_) => true,
@@ -1344,6 +1345,14 @@ pub fn get_node_value(op: &TreeNode) -> P<Value> {
 pub fn match_node_int_imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match_value_int_imm(pv),
+        _ => false
+    }
+}
+
+// The only valid ref immediate is a null ref
+pub fn match_node_ref_imm(op: &TreeNode) -> bool {
+    match op.v {
+        TreeNode_::Value(ref pv) => match_value_ref_imm(pv),
         _ => false
     }
 }
@@ -1814,8 +1823,8 @@ fn emit_shift_mask<'b>(backend: &mut CodeGenerator, dest: &'b P<Value>, src: &'b
 {
     let ndest = dest.ty.get_int_length().unwrap() as u64;
 
-    if ndest < 32 { // 16 or 8 bits (need to mask it)
-        backend.emit_and_imm(&dest, &src, ndest - 1);
+    if ndest != 32 && ndest != 64 { // Not a native integer size, need to mask
+        backend.emit_and_imm(&dest, &src, ndest.next_power_of_two() - 1);
         &dest
     } else {
         &src
