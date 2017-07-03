@@ -62,9 +62,6 @@ pub struct VM { // The comments are the offset into the struct
     pub primordial: RwLock<Option<MuPrimordialThread>>, // +568
     pub vm_options: VMOptions, // +624
 
-    // WARNING: It will segfault if you try to acquire a lock, after loading a dump,
-    // from one of the fields that aren't dumped
-
     // ---partially serialize---
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>, // +728
 
@@ -104,9 +101,19 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object(&self.compiled_funcs);
         dumper.dump_object(&self.exception_table);
 
-        // Dump an emepty hashmap for the compiled_exception_table
+        // Dump empty maps so that we can safely read and modify them once loaded
+        dumper.dump_padding(&self.global_locations);
+        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<MuID, ValueLocation>::new()));
+
+        dumper.dump_padding(&self.func_vers);
+        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<MuID, RwLock<MuFunctionVersion>>::new()));
+
+        dumper.dump_padding(&self.aot_pending_funcref_store);
+        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, ValueLocation>::new()));
+
+        // Dump an emepty hashmap for the other hashmaps
         dumper.dump_padding(&self.compiled_exception_table);
-        dumper.dump_object_here(&RwLock::new(HashMap::<Address, (Address, *const CompiledFunction)>::new()));
+        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, (Address, *const CompiledFunction)>::new()));
 
         // This field is actually stored at the end of the struct, the others all have the same allignment so are not reordered
         dumper.dump_object(&self.is_running);
