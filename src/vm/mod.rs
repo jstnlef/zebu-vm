@@ -26,4 +26,4 @@ mod vm_options;
 pub mod api;
 
 /// handle type for client. This handle type is opaque to the client
-mod handle;
+pub mod handle;
