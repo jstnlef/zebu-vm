@@ -84,10 +84,15 @@ impl VMOptions {
         info!("parsed as {:?}", ret);
 
         // at the moment disable collection for debugging
+        // also because currently GC is buggy, and we are going to rewrite the GC
+        // See Issue #12
         ret.flag_gc_disable_collection = true;
+
         // at the moment always emit debug info
         ret.flag_emit_debug_info = true;
+
         // always disable register validation
+        // register validation is buggy. See Issue #19
         ret.flag_disable_regalloc_validate = true;
 
         ret

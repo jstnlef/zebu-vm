@@ -46,8 +46,25 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_
 // such as STRUCT_TAG_MAP
 // possibly INTERNAL_ID in ir.rs, internal types, etc
 
+/// The VM struct. This stores metadata for the currently running Zebu instance.
+/// This struct gets persisted in the boot image, and when the boot image is loaded,
+/// everything should be back to the same status as before persisting.
+/// This struct is usually used as Arc<VM> so it can be shared among threads. The
+/// Arc<VM> is stored in every thread local of a Mu thread, so that they can refer
+/// to the VM easily.
+/// We are using fine-grained lock on VM to allow mutability on different fields in VM.
+/// Also we use two-level locks for some data structures such as MuFunction/
+/// MuFunctionVersion/CompiledFunction so that we can mutate on two
+/// different functions/funcvers/etc at the same time.
+//  FIXME: However, there are problems with this design, and we will need to rethink.
+//  See Issue #2.
+//  FIXME: besides fields in VM, there are some 'globals' we need to persist
+//  such as STRUCT_TAG_MAP, INTERNAL_ID and internal types from ir crate. The point is
+//  ir crate should be independent and self-contained. But when persisting the 'world',
+//  besides persisting VM struct (containing most of the 'world'), we also need to
+//  specifically persist those globals.
 pub struct VM {
-    // ---serialize---
+    // ---serialize these fields---
     // 0
     next_id: AtomicUsize,
     // 1
