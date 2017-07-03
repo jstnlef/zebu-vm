@@ -18,6 +18,7 @@ use ast::types::*;
 use compiler::backend::get_callee_saved_offset;
 use utils::ByteOffset;
 
+use std;
 use std::fmt;
 use std::collections::HashMap;
 use vm::VM;
@@ -39,7 +40,7 @@ use vm::VM;
 /// |---------------
 /// | alloca area (not implemented)
 
-#[derive(RustcEncodable, RustcDecodable, Clone)]
+#[derive(Clone)]
 pub struct Frame {
     /// function version for this frame
     func_ver_id: MuID,
@@ -55,6 +56,8 @@ pub struct Frame {
     /// and offset from the frame pointer
     pub callee_saved: HashMap<isize, ByteOffset>,
 }
+
+rodal_struct!(Frame{func_ver_id, cur_offset, argument_by_reg, argument_by_stack, allocated, callee_saved});
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -115,7 +118,6 @@ impl Frame {
             (slot.make_memory_op(reg.ty.clone(), vm), slot.offset)
         };
         let o = get_callee_saved_offset(reg.id());
-        trace!("ISAAC: callee saved {} is at {}", reg, o);
         self.callee_saved.insert(o, off);
         mem
     }
@@ -177,13 +179,15 @@ impl Frame {
 }
 
 /// FrameSlot presents a Value stored in a certain frame location
-#[derive(RustcEncodable, RustcDecodable, Clone)]
+#[derive(Clone)]
 pub struct FrameSlot {
     /// location offset from current base pointer
     pub offset: isize,
     /// Mu value that resides in this location
     pub value: P<Value>,
 }
+
+rodal_struct!(FrameSlot{offset, value});
 
 impl fmt::Display for FrameSlot {
     #[cfg(target_arch = "x86_64")]

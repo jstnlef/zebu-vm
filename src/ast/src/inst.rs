@@ -22,7 +22,7 @@ use utils::vec_utils;
 use std::fmt;
 
 /// Instruction represents a Mu instruction
-#[derive(Debug)] // RustcEncodable, RustcDecodable, Clone and Display
+#[derive(Debug)] // this implements Clone and Display
 pub struct Instruction {
     pub hdr: MuEntityHeader,
     /// the values this instruction holds
@@ -37,43 +37,6 @@ pub struct Instruction {
 
 // Instruction implements MuEntity
 impl_mu_entity!(Instruction);
-
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-impl Encodable for Instruction {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("Instruction", 4, |s| {
-            try!(s.emit_struct_field("hdr", 0, |s| self.hdr.encode(s)));
-            try!(s.emit_struct_field("value", 1, |s| self.value.encode(s)));
-            
-            let ref ops = self.ops;
-            try!(s.emit_struct_field("ops", 2, |s| ops.encode(s)));
-            
-            try!(s.emit_struct_field("v", 3, |s| self.v.encode(s)));
-            
-            Ok(()) 
-        })        
-    }
-}
-
-impl Decodable for Instruction {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Instruction, D::Error> {
-        d.read_struct("Instruction", 4, |d| {
-            let hdr = try!(d.read_struct_field("hdr", 0, |d| Decodable::decode(d)));
-            let value = try!(d.read_struct_field("value", 1, |d| Decodable::decode(d)));
-            
-            let ops = try!(d.read_struct_field("ops", 2, |d| Decodable::decode(d)));
-            
-            let v = try!(d.read_struct_field("v", 3, |d| Decodable::decode(d)));
-            
-            Ok(Instruction{
-                hdr: hdr,
-                value: value,
-                ops: ops,
-                v: v
-            })
-        })
-    }
-}
 
 impl Clone for Instruction {
     fn clone(&self) -> Self {
@@ -129,6 +92,16 @@ impl Instruction {
             | CommonInst_SetThreadLocal(_)
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
+            | CommonInst_Tr64IsFp(_)
+            | CommonInst_Tr64IsInt(_)
+            | CommonInst_Tr64IsRef(_)
+            | CommonInst_Tr64FromFp(_)
+            | CommonInst_Tr64FromInt(_)
+            | CommonInst_Tr64FromRef(_, _)
+            | CommonInst_Tr64ToFp(_)
+            | CommonInst_Tr64ToInt(_)
+            | CommonInst_Tr64ToRef(_)
+            | CommonInst_Tr64ToTag(_)
             | Move(_)
             | PrintHex(_)
             | SetRetval(_) => false,
@@ -203,6 +176,16 @@ impl Instruction {
             CommonInst_SetThreadLocal(_) => true,
             CommonInst_Pin(_) => true,
             CommonInst_Unpin(_) => true,
+            CommonInst_Tr64IsFp(_)
+            | CommonInst_Tr64IsInt(_)
+            | CommonInst_Tr64IsRef(_) => false,
+            CommonInst_Tr64FromFp(_)
+            | CommonInst_Tr64FromInt(_)
+            | CommonInst_Tr64FromRef(_, _) => false,
+            CommonInst_Tr64ToFp(_)
+            | CommonInst_Tr64ToInt(_)
+            | CommonInst_Tr64ToRef(_)
+            | CommonInst_Tr64ToTag(_) => false,
             Move(_) => false,
             PrintHex(_) => true,
             SetRetval(_) => true,
@@ -258,6 +241,16 @@ impl Instruction {
             | CommonInst_SetThreadLocal(_)
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
+            | CommonInst_Tr64IsFp(_)
+            | CommonInst_Tr64IsInt(_)
+            | CommonInst_Tr64IsRef(_)
+            | CommonInst_Tr64FromFp(_)
+            | CommonInst_Tr64FromInt(_)
+            | CommonInst_Tr64FromRef(_, _)
+            | CommonInst_Tr64ToFp(_)
+            | CommonInst_Tr64ToInt(_)
+            | CommonInst_Tr64ToRef(_)
+            | CommonInst_Tr64ToTag(_)
             | Move(_)
             | PrintHex(_)
             | SetRetval(_) => false
@@ -318,6 +311,16 @@ impl Instruction {
             | CommonInst_SetThreadLocal(_)
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
+            | CommonInst_Tr64IsFp(_)
+            | CommonInst_Tr64IsInt(_)
+            | CommonInst_Tr64IsRef(_)
+            | CommonInst_Tr64FromFp(_)
+            | CommonInst_Tr64FromInt(_)
+            | CommonInst_Tr64FromRef(_, _)
+            | CommonInst_Tr64ToFp(_)
+            | CommonInst_Tr64ToInt(_)
+            | CommonInst_Tr64ToRef(_)
+            | CommonInst_Tr64ToTag(_)
             | Move(_)
             | PrintHex(_)
             | SetRetval(_) => None
@@ -342,7 +345,7 @@ impl fmt::Display for Instruction {
 
 /// Instruction_ is used for pattern matching for Instruction
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone)]
 pub enum Instruction_ {
     // non-terminal instruction
 
@@ -570,6 +573,27 @@ pub enum Instruction_ {
     /// common inst: unpin an object (the object is automatically managed by GC)
     CommonInst_Unpin(OpIndex),
 
+    /// common inst: is the tagref a floating point?
+    CommonInst_Tr64IsFp(OpIndex),
+    /// common inst: is the tagref an int?
+    CommonInst_Tr64IsInt(OpIndex),
+    /// common inst: is the tagref a ref?
+    CommonInst_Tr64IsRef(OpIndex),
+    /// common inst: creates a tagref from floating point (double)
+    CommonInst_Tr64FromFp(OpIndex),
+    /// common inst: creates a tagref from int<52>
+    CommonInst_Tr64FromInt(OpIndex),
+    /// common inst: creates a tagref from reference (a ref-void typed ref, 6 bits tag)
+    CommonInst_Tr64FromRef(OpIndex, OpIndex),
+    /// common inst: converts a tagref to floating point (double)
+    CommonInst_Tr64ToFp(OpIndex),
+    /// common inst: converts a tagref to integer (int<52>)
+    CommonInst_Tr64ToInt(OpIndex),
+    /// common inst: converts a tagref to reference
+    CommonInst_Tr64ToRef(OpIndex),
+    /// common inst: converts a tagref to a tag (int<64>)
+    CommonInst_Tr64ToTag(OpIndex),
+
     /// internal use: move from value to value
     Move(OpIndex),
     /// internal use: print op as hex value
@@ -699,6 +723,18 @@ impl Instruction_ {
             &Instruction_::CommonInst_Pin(op)   => format!("COMMONINST Pin {}",   ops[op]),
             &Instruction_::CommonInst_Unpin(op) => format!("COMMONINST Unpin {}", ops[op]),
 
+            // Tagerf64
+            &Instruction_::CommonInst_Tr64IsFp   (op) => format!("COMMONINST Tr64IsFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64IsInt  (op) => format!("COMMONINST Tr64IsInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64IsRef  (op) => format!("COMMONINST Tr64IsRef {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromFp (op) => format!("COMMONINST Tr64FromFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromInt(op) => format!("COMMONINST Tr64FromInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromRef(op1, op2) => format!("COMMONINST Tr64FromRet {} {}", ops[op1], ops[op2]),
+            &Instruction_::CommonInst_Tr64ToFp (op) => format!("COMMONINST Tr64ToFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToInt(op) => format!("COMMONINST Tr64ToInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToRef(op) => format!("COMMONINST Tr64ToRef {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToTag(op) => format!("COMMONINST Tr64ToTag {}", ops[op]),
+
             // move
             &Instruction_::Move(from) => format!("MOVE {}", ops[from]),
             // print hex
@@ -710,7 +746,7 @@ impl Instruction_ {
 }
 
 /// BinOpStatus represents status flags from a binary operation
-#[derive(Copy, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone)]
 pub struct BinOpStatus {
     /// negative flag
     pub flag_n: bool,
@@ -762,7 +798,7 @@ impl fmt::Debug for BinOpStatus {
     }
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum MemoryOrder {
     NotAtomic,
     Relaxed,
@@ -773,18 +809,18 @@ pub enum MemoryOrder {
     SeqCst
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum CallConvention {
     Mu,
     Foreign(ForeignFFI)
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum ForeignFFI {
     C
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct CallData {
     pub func: OpIndex,
     pub args: Vec<OpIndex>,
@@ -801,7 +837,7 @@ impl CallData {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
     pub exn_dest: Destination
@@ -813,7 +849,7 @@ impl ResumptionData {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct Destination {
     pub target: MuID,
     pub args: Vec<DestArg>
@@ -856,7 +892,7 @@ impl Destination {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub enum DestArg {
     /// a normal destination argument is an SSA value (appears in the ops field of the instruction)
     Normal(OpIndex),

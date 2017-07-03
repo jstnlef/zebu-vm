@@ -26,6 +26,7 @@ use utils::Word;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
+use std;
 use std::ptr;
 use std::thread;
 use std::thread::JoinHandle;
@@ -510,7 +511,7 @@ impl MuThread {
 }
 
 /// PrimordialThreadInfo stores information about primordial thread/entry function for a boot image
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Debug)]
 pub struct PrimordialThreadInfo {
     /// entry function id
     pub func_id: MuID,
@@ -519,3 +520,5 @@ pub struct PrimordialThreadInfo {
     /// arguments
     pub args: Vec<Constant>
 }
+
+rodal_struct!(PrimordialThreadInfo{func_id, args, has_const_args});

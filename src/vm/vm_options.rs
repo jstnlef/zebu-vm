@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate rustc_serialize;
 extern crate docopt;
 
 use self::docopt::Docopt;
 
+use std;
 use std::default::Default;
 
 const USAGE: &'static str = "
@@ -26,7 +26,7 @@ Usage:
   init_mu [options]
 
 VM:
-  --log-level=<level>                   logging level: none, error, warn, info, debug, trace [default: trace]
+  --log-level=<level>                   logging level: none, error, warn, info, debug, trace, env [default: env]
 
 Compiler:
   --disable-inline                      disable compiler function inlining
@@ -46,31 +46,53 @@ Garbage Collection:
   --gc-nthreads=<n>                     number of threads for parallel gc [default: 8]
 ";
 
-#[derive(Debug, RustcDecodable, RustcEncodable)]
-pub struct VMOptions {
+#[derive(Debug, Deserialize)]
+pub struct VMOptions { // The comments here indicate the offset into the struct
     // VM
-    pub flag_log_level: MuLogLevel,
+    pub flag_log_level: MuLogLevel, // +96
 
     // Compiler
-    pub flag_disable_inline: bool,
-    pub flag_disable_regalloc_validate: bool,
-    pub flag_emit_debug_info: bool,
+    pub flag_disable_inline: bool, // +97
+    pub flag_disable_regalloc_validate: bool, // +98
+    pub flag_emit_debug_info: bool, // +99
 
     // AOT compiler
-    pub flag_aot_emit_dir: String,
-    pub flag_bootimage_external_lib: Vec<String>,
-    pub flag_bootimage_external_libpath: Vec<String>,
+    pub flag_aot_emit_dir: String,      // +0
+    pub flag_bootimage_external_lib: Vec<String>, // +24
+    pub flag_bootimage_external_libpath: Vec<String>, // +48
 
     // GC
-    pub flag_gc_disable_collection: bool,
-    pub flag_gc_immixspace_size: usize,
-    pub flag_gc_lospace_size: usize,
-    pub flag_gc_nthreads: usize
+    pub flag_gc_disable_collection: bool, // +100
+    pub flag_gc_immixspace_size: usize, // +72
+    pub flag_gc_lospace_size: usize, // +80
+    pub flag_gc_nthreads: usize // +88
 }
 
-#[derive(Debug, Clone, Copy, RustcDecodable, RustcEncodable)]
+// The fields need to be listed here in the order rust stores them in
+rodal_struct!(VMOptions{
+    flag_aot_emit_dir, flag_bootimage_external_lib, flag_bootimage_external_libpath,
+    flag_gc_immixspace_size, flag_gc_lospace_size, flag_gc_nthreads,
+    flag_log_level, flag_disable_inline, flag_disable_regalloc_validate, flag_emit_debug_info, flag_gc_disable_collection});
+
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub enum MuLogLevel {
-    None, Error, Warn, Info, Debug, Trace
+    None, Error, Warn, Info, Debug, Trace, Env
+}
+
+rodal_value!(MuLogLevel); // This enum has no fields with pointers, so just dump a strait value
+
+impl MuLogLevel {
+    pub fn from_string(s: String) -> MuLogLevel {
+        match s.as_str() {
+            "none" => MuLogLevel::None,
+            "error" => MuLogLevel::Error,
+            "warn" => MuLogLevel::Warn,
+            "info" => MuLogLevel::Info,
+            "debug" => MuLogLevel::Debug,
+            "trace" => MuLogLevel::Trace,
+            _ => panic!("Unrecognised log level {}", s),
+        }
+    }
 }
 
 impl VMOptions {
@@ -79,7 +101,7 @@ impl VMOptions {
 
         let mut ret : VMOptions = Docopt::new(USAGE)
             .and_then(|d| d.argv(str.split_whitespace().into_iter()).parse())
-            .unwrap_or_else(|e| e.exit()).decode().unwrap();
+            .unwrap_or_else(|e| e.exit()).deserialize().unwrap();
 
         info!("parsed as {:?}", ret);
 

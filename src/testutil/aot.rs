@@ -25,11 +25,6 @@ use std::process::Output;
 fn link_executable_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<String>, out: PathBuf) -> PathBuf {
     let mut cc = Command::new(get_test_clang_path());
 
-    for file in files {
-        info!("link with {:?}", file.as_path());
-        cc.arg(file.as_path());
-    }
-
     // external libs
     for path in libpath.iter() {
         cc.arg(format!("-L{}", path));
@@ -44,6 +39,12 @@ fn link_executable_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &V
         cc.arg("-lrt");
         cc.arg("-lm");
         cc.arg("-lpthread");
+    }
+
+    // This needs to be at the bottom due to the linkage of librodall_alloc.a
+    for file in files {
+        info!("link with {:?}", file.as_path());
+        cc.arg(file.as_path());
     }
 
     // so we can find symbols in itself
@@ -156,13 +157,18 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        let libmu_path = if cfg!(debug_assertions) {
+        ret.push(get_path_under_mu(if cfg!(debug_assertions) {
             "target/debug/libmu.a"
         } else {
             "target/release/libmu.a"
-        };
-        let libmu = get_path_under_mu(libmu_path);
-        ret.push(libmu);
+        }));
+
+        /*// include rodal alloc static lib (it overrides free and realloc so it should be the last thing linked)
+        ret.push(get_path_under_mu(if cfg!(debug_assertions) {
+            "target/debug/deps/librodal_alloc.a"
+        } else {
+            "target/release/deps/librodal_alloc.a"
+        }));*/
 
         ret
     };

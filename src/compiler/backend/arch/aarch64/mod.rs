@@ -22,6 +22,8 @@
 // TODO: Move architecture independent codes in here, inst_sel and asm_backend to somewhere else...
 pub mod inst_sel;
 
+use utils::bit_utils::bits_ones;
+
 mod codegen;
 pub use compiler::backend::aarch64::codegen::CodeGenerator;
 
@@ -276,9 +278,8 @@ pub fn get_color_for_precolored(id: MuID) -> MuID {
 #[inline(always)]
 pub fn check_op_len(ty: &P<MuType>) -> usize {
     match ty.get_int_length() {
-        Some(64) => 64,
-        Some(32) => 32,
-        Some(n) if n < 32 => 32,
+        Some(n) if n <= 32 => 32,
+        Some(n) if n <= 64 => 64,
         Some(n) => panic!("unimplemented int size: {}", n),
         None => {
             match ty.v {
@@ -318,7 +319,7 @@ pub fn get_type_alignment(ty: &P<MuType>, vm: &VM) -> usize
 pub fn primitive_byte_size(ty : &P<MuType>) -> usize
 {
     match ty.get_int_length() {
-        Some(val) => round_up(val, 8)/8,
+        Some(val) => (round_up(val, 8)/8).next_power_of_two(),
         None => {
             match ty.v {
                 MuType_::Float => 4,
@@ -896,7 +897,8 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         Move(_) => 0,
         PrintHex(_) => 10,
         SetRetval(_) => 10,
-        ExnInstruction{ref inner, ..} => estimate_insts_for_ir(&inner)
+        ExnInstruction{ref inner, ..} => estimate_insts_for_ir(&inner),
+        _ => unimplemented!(),
     }
 }
 
@@ -975,15 +977,12 @@ pub fn is_valid_arithmetic_imm(val : u64) -> bool {
 // this function will replicate the bit pattern so that it can be used
 // (the resulting value will be valid iff 'val' is valid, and the lower 'n' bits will equal val)
 pub fn replicate_logical_imm(val : u64, n : usize) -> u64 {
-    if n < 32 {
-        let mut val = val;
-        for i in 1..32/n {
-            val |= val << i*n;
-        }
-        val
-    } else {
-        val
+    let op_size = if n <= 32 { 32 } else { 64 };
+    let mut val = val;
+    for i in 1..op_size / n {
+        val |= val << i * n;
     }
+    val
 }
 
 
@@ -1079,6 +1078,16 @@ pub fn get_signed_value(val: u64, size: usize) -> i64 {
         } else {
             (val & bits_ones(size)) as i64 // clears all but the lowest 'size' bits of val
         }
+    }
+}
+
+// Returns the value of 'val' truncated to 'size', treated as a negative number
+// (i.e. the highest 64-size bits are set to 1)
+pub fn get_negative_value(val: u64, size: usize) -> i64 {
+    if size == 64 {
+        val as i64
+    } else {
+        (val | (bits_ones(64-size) << size)) as i64 // set the highest '64 - size' bits of val
     }
 }
 
@@ -1179,12 +1188,6 @@ fn hfa_length(t : P<MuType>) -> usize
     }
 }
 
-#[inline(always)]
-// Returns the number that has 'n' 1's in a row (i.e. 2^n-1)
-pub fn bits_ones(n: usize) -> u64 {
-    if n == 64 { (-(1 as i64)) as u64 }
-        else { (1 << n) - 1 }
-}
 // val is an unsigned multiple of n and val/n fits in 12 bits
 #[inline(always)]
 pub fn is_valid_immediate_offset(val: i64, n : usize) -> bool {
@@ -1253,7 +1256,7 @@ pub fn is_zero_register_id(id: MuID) -> bool {
     id == XZR.extract_ssa_id().unwrap() || id == WZR.extract_ssa_id().unwrap()
 }
 
-pub fn match_f32imm(op: &TreeNode) -> bool {
+pub fn match_node_f32imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match pv.v {
             Value_::Constant(Constant::Float(_)) => true,
@@ -1263,7 +1266,7 @@ pub fn match_f32imm(op: &TreeNode) -> bool {
     }
 }
 
-pub fn match_f64imm(op: &TreeNode) -> bool {
+pub fn match_node_f64imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match pv.v {
             Value_::Constant(Constant::Double(_)) => true,
@@ -1319,7 +1322,12 @@ pub fn match_value_int_imm(op: &P<Value>) -> bool {
         _ => false
     }
 }
-
+pub fn match_value_ref_imm(op: &P<Value>) -> bool {
+    match op.v {
+        Value_::Constant(Constant::NullRef) => true,
+        _ => false
+    }
+}
 pub fn match_node_value(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(_) => true,
@@ -1337,6 +1345,14 @@ pub fn get_node_value(op: &TreeNode) -> P<Value> {
 pub fn match_node_int_imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match_value_int_imm(pv),
+        _ => false
+    }
+}
+
+// The only valid ref immediate is a null ref
+pub fn match_node_ref_imm(op: &TreeNode) -> bool {
+    match op.v {
+        TreeNode_::Value(ref pv) => match_value_ref_imm(pv),
         _ => false
     }
 }
@@ -1545,51 +1561,50 @@ fn emit_mov_f32(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut Fu
 pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
 {
     let n = dest.ty.get_int_length().unwrap();
+    let unsigned_value = get_unsigned_value(val, n);
+    let negative_value = get_negative_value(val, n) as u64;
     // Can use one instruction
     if n <= 16 {
         backend.emit_movz(&dest, val as u16, 0);
-    } else if val == 0 {
-        backend.emit_movz(&dest, 0, 0);
-    } else if val == (-1i64) as u64 {
-        backend.emit_movn(&dest, 0, 0);
+    } else if unsigned_value == 0 {
+        backend.emit_movz(&dest, 0, 0); // All zeros
+    } else if negative_value == bits_ones(64) {
+        backend.emit_movn(&dest, 0, 0); // All ones
     } else if val > 0xFF && is_valid_logical_imm(val, n) {
         // Value is more than 16 bits
         backend.emit_mov_imm(&dest, replicate_logical_imm(val, n));
 
         // Have to use more than one instruciton
     } else {
-        // Mask val so the higher (unused) bits are cleared
-        let val = if n < 64 {
-            val & (1 << n) - 1
-        } else {
-            val
-        };
-        // Note n > 16, so there are at least two halfwords in n
+        // Otherwise emmit a sequences of MOVZ, MOVN and MOVK, where:
+        //  MOVZ(dest, v, n) will set dest = (v << n)
+        //  MOVN(dest, v, n) will set dest = !(v << n)
+        //  MOVK(dest, v, n) will set dest = dest[63:16+n]:n:dest[(n-1):0];
 
-        // How many halfowrds are zero or one
-        let mut n_zeros = ((val & 0xFF == 0x00) as u64) + ((val & 0xFF00 == 0x0000) as u64);
-        let mut n_ones = ((val & 0xFF == 0xFF) as u64) + ((val & 0xFF00 == 0xFF00) as u64);
-        if n >= 32 {
-            n_zeros += (val & 0xFF0000 == 0xFF0000) as u64;
-            n_ones += (val & 0xFF0000 == 0xFF0000) as u64;
-            if n >= 48 {
-                n_zeros += (val & 0xFF000000 == 0xFF000000) as u64;
-                n_ones += (val & 0xFF000000 == 0xFF000000) as u64;
-            }
-        }
+        // How many halfowrds are all zeros
+        let n_zeros =
+            ((unsigned_value & bits_ones(16) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16)<<16) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16)<<32) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16)<<48) == 0) as u64);
 
-        let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(val);
+        // How many halfowrds are all ones
+        let n_ones =
+            ((negative_value & bits_ones(16) == bits_ones(16)) as u64) +
+            ((negative_value & (bits_ones(16)<<16) == (bits_ones(16)<<16)) as u64) +
+            ((negative_value & (bits_ones(16)<<32) == (bits_ones(16)<<32)) as u64) +
+            ((negative_value & (bits_ones(16)<<48) == (bits_ones(16)<<48)) as u64);
+
+
         let mut movzn = false; // whether a movz/movn has been emmited yet
+        if n_ones > n_zeros { // It will take less instructions to use MOVN
+            let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(negative_value);
 
-        if false /*n_ones > n_zeros*/ { // TODO: Fix this??
-            // It will take less instructions to use MOVN
-            // MOVN(dest, v, n) will set dest = !(v << n)
-
-            if pv0 != 0xFF {
+            if pv0 != bits_ones(16) as u16 {
                 backend.emit_movn(&dest, !pv0, 0);
                 movzn = true;
             }
-            if pv1 != 0xFF {
+            if pv1 != bits_ones(16) as u16 {
                 if !movzn {
                     backend.emit_movn(&dest, !pv1, 16);
                     movzn = true;
@@ -1597,7 +1612,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv1, 16);
                 }
             }
-            if n >= 32 && pv2 != 0xFF {
+            if pv2 != bits_ones(16) as u16 {
                 if !movzn {
                     backend.emit_movn(&dest, !pv2, 32);
                     movzn = true;
@@ -1605,17 +1620,16 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv2, 32);
                 }
             }
-            if n >= 48 && pv3 != 0xFF {
+            if pv3 != bits_ones(16) as u16 {
                 if !movzn {
                     backend.emit_movn(&dest, pv3, 48);
                 } else {
                     backend.emit_movk(&dest, pv3, 48);
                 }
             }
-        } else {
-            // It will take less instructions to use MOVZ
-            // MOVZ(dest, v, n) will set dest = (v << n)
-            // MOVK(dest, v, n) will set dest = dest[64-0]:[n];
+        } else { // It will take less instructions to use MOVZ
+            let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(unsigned_value);
+
             if pv0 != 0 {
                 backend.emit_movz(&dest, pv0, 0);
                 movzn = true;
@@ -1628,7 +1642,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv1, 16);
                 }
             }
-            if n >= 32 && pv2 != 0 {
+            if pv2 != 0 {
                 if !movzn {
                     backend.emit_movz(&dest, pv2, 32);
                     movzn = true;
@@ -1636,7 +1650,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv2, 32);
                 }
             }
-            if n >= 48 && pv3 != 0 {
+            if pv3 != 0 {
                 if !movzn {
                     backend.emit_movz(&dest, pv3, 48);
                 } else {
@@ -1809,8 +1823,8 @@ fn emit_shift_mask<'b>(backend: &mut CodeGenerator, dest: &'b P<Value>, src: &'b
 {
     let ndest = dest.ty.get_int_length().unwrap() as u64;
 
-    if ndest < 32 { // 16 or 8 bits (need to mask it)
-        backend.emit_and_imm(&dest, &src, ndest - 1);
+    if ndest != 32 && ndest != 64 { // Not a native integer size, need to mask
+        backend.emit_and_imm(&dest, &src, ndest.next_power_of_two() - 1);
         &dest
     } else {
         &src

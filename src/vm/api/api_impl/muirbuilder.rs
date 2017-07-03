@@ -577,6 +577,11 @@ struct BundleLoader<'lb, 'lvm> {
     built_refi64: Option<P<MuType>>,
     built_i1: Option<P<MuType>>,
     built_i64: Option<P<MuType>>,
+    built_double: Option<P<MuType>>,
+    built_i52: Option<P<MuType>>,
+    built_i6: Option<P<MuType>>,
+    built_ref_void: Option<P<MuType>>,
+    built_tagref64: Option<P<MuType>>,
 
     built_funcref_of: IdPMap<MuType>,
     built_ref_of: IdPMap<MuType>,
@@ -608,6 +613,11 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_refi64: Default::default(),
         built_i1: Default::default(),
         built_i64: Default::default(),
+        built_double: Default::default(),
+        built_i52: Default::default(),
+        built_i6: Default::default(),
+        built_ref_void: Default::default(),
+        built_tagref64: Default::default(),
         built_funcref_of: Default::default(),
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
@@ -624,7 +634,7 @@ struct FuncCtxBuilder {
     tree_nodes: IdPMap<TreeNode>,
 }
 
-const DEFAULT_TRUE_PROB: f32 = 0.6f32;
+const DEFAULT_TRUE_PROB: f32 = 0.4f32;
 
 impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
@@ -720,6 +730,25 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         impl_ty
     }
 
+    fn ensure_i6(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_i6 {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Int(6),
+        });
+
+        trace!("Ensure i6 is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_i6 = Some(impl_ty.clone());
+
+        impl_ty
+    }
     fn ensure_i64(&mut self) -> P<MuType> {
         if let Some(ref impl_ty) = self.built_i64 {
             return impl_ty.clone();
@@ -736,6 +765,90 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         self.built_types.insert(id, impl_ty.clone());
         self.built_i64 = Some(impl_ty.clone());
+
+        impl_ty
+    }
+
+
+    fn ensure_tagref64(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_tagref64 {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Tagref64,
+        });
+
+        trace!("Ensure tagref64 is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_tagref64 = Some(impl_ty.clone());
+
+        impl_ty
+    }
+    fn ensure_i52(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_i52 {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Int(52),
+        });
+
+        trace!("Ensure i52 is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_i52 = Some(impl_ty.clone());
+
+        impl_ty
+    }
+    fn ensure_double(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_double {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Double,
+        });
+
+        trace!("Ensure double is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_double = Some(impl_ty.clone());
+
+        impl_ty
+    }
+
+    fn ensure_ref_void(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_ref_void {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_void_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Void
+        });
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Ref(impl_void_ty.clone()),
+        });
+
+        trace!("Ensure ref<void> is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_void_ty.clone());
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_ref_void = Some(impl_ty.clone());
 
         impl_ty
     }
@@ -2060,6 +2173,177 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     value: None,
                     ops: vec![],
                     v: Instruction_::ThreadExit
+                }
+            }
+            CMU_CI_UVM_TR64_IS_FP  => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // int<1>
+                let impl_i1 = self.ensure_i1();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64IsFp(0),
+                }
+            }
+            CMU_CI_UVM_TR64_IS_INT => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // int<1>
+                let impl_i1 = self.ensure_i1();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64IsInt(0),
+                }
+            }
+            CMU_CI_UVM_TR64_IS_REF => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // int<1>
+                let impl_i1 = self.ensure_i1();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64IsRef(0),
+                }
+            }
+            CMU_CI_UVM_TR64_FROM_FP => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_tagref64();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64FromFp(0),
+                }
+            }
+            CMU_CI_UVM_TR64_FROM_INT => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_tagref64();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64FromInt(0),
+                }
+            }
+            CMU_CI_UVM_TR64_FROM_REF => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 2);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_tagref64();
+                let impl_opnd1 = self.get_treenode(fcb, args[0]);
+                let impl_opnd2 = self.get_treenode(fcb, args[1]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd1, impl_opnd2],
+                    v: Instruction_::CommonInst_Tr64FromRef(0, 1),
+                }
+            }
+            CMU_CI_UVM_TR64_TO_FP => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_double();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64ToFp(0),
+                }
+            }
+            CMU_CI_UVM_TR64_TO_INT => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_i52();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64ToInt(0),
+                }
+            }
+            CMU_CI_UVM_TR64_TO_REF => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_ref_void();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64ToRef(0),
+                }
+            }
+            CMU_CI_UVM_TR64_TO_TAG => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_i6();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64ToTag(0),
                 }
             }
             _ => unimplemented!()

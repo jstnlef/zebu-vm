@@ -30,11 +30,11 @@
 //!
 //! Client should not create MuIR via this crate, use API instead.
 
-extern crate log;
+#[macro_use]
+extern crate rodal;
 extern crate simple_logger;
 #[macro_use]
 extern crate lazy_static;
-extern crate rustc_serialize;
 extern crate utils;
 
 /// all data structures for MuIR is an *MuEntity*

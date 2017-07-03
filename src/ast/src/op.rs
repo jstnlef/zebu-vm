@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BinOp {
     // BinOp Int(n) Int(n) -> Int(n)
     Add,
@@ -39,7 +39,7 @@ pub enum BinOp {
     FRem
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CmpOp {
     // for Int comparison
     EQ,
@@ -192,7 +192,7 @@ impl CmpOp {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ConvOp {
     TRUNC,
     ZEXT,
@@ -208,7 +208,7 @@ pub enum ConvOp {
     PTRCAST
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AtomicRMWOp {
     XCHG,
     ADD,

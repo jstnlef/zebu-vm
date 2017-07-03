@@ -18,8 +18,10 @@ use ir::*;
 use utils::POINTER_SIZE;
 use utils::vec_utils;
 
+use std;
+use rodal;
 use std::fmt;
-use utils::LinkedHashMap;
+use std::collections::HashMap;
 use std::sync::RwLock;
 
 // some common types that the compiler may use internally
@@ -98,11 +100,13 @@ pub fn init_types() {
 }
 
 /// MuType represents a Mu type
-#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
+#[derive(PartialEq, Debug)]
 pub struct MuType {
     pub hdr: MuEntityHeader,
     pub v: MuType_
 }
+
+rodal_struct!(MuType{hdr, v});
 
 impl MuType {
     /// creates a new Mu type
@@ -376,7 +380,7 @@ pub type StructTag = MuName;
 pub type HybridTag = MuName;
 
 /// MuType_ is used for pattern matching for MuType
-#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
+#[derive(PartialEq, Debug)]
 pub enum MuType_ {
     /// int <length>
     Int          (usize),
@@ -425,6 +429,10 @@ pub enum MuType_ {
     UFuncPtr     (P<MuFuncSig>),
 }
 
+rodal_enum!(MuType_{(Int: size), Float, Double, (Ref: ty), (IRef: ty), (WeakRef: ty), (UPtr: ty),
+    (Struct: tag), (Array: ty, size), (Hybrid: tag), Void, ThreadRef, StackRef, Tagref64,
+    (Vector: ty, size), (FuncRef: ty), (UFuncPtr: ty)});
+
 impl fmt::Display for MuType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.v)        
@@ -457,12 +465,15 @@ impl fmt::Display for MuType_ {
 
 lazy_static! {
     /// storing a map from MuName to StructType_
-    pub static ref STRUCT_TAG_MAP : RwLock<LinkedHashMap<StructTag, StructType_>> = RwLock::new(LinkedHashMap::new());
+    pub static ref STRUCT_TAG_MAP : RwLock<HashMap<StructTag, StructType_>> =
+        rodal::try_load_asm_name_move("STRUCT_TAG_MAP").unwrap_or(RwLock::new(HashMap::new()));
     /// storing a map from MuName to HybridType_
-    pub static ref HYBRID_TAG_MAP : RwLock<LinkedHashMap<HybridTag, HybridType_>> = RwLock::new(LinkedHashMap::new());
+    pub static ref HYBRID_TAG_MAP : RwLock<HashMap<HybridTag, HybridType_>> =
+        rodal::try_load_asm_name_move("HYBRID_TAG_MAP").unwrap_or(RwLock::new(HashMap::new()));
 }
 
-#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
+rodal_struct!(StructType_{tys});
+#[derive(PartialEq, Debug)]
 pub struct StructType_ {
     tys: Vec<P<MuType>>
 }
@@ -496,7 +507,8 @@ impl StructType_ {
     }
 }
 
-#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
+rodal_struct!(HybridType_{fix_tys, var_ty});
+#[derive(PartialEq, Debug)]
 pub struct HybridType_ {
     fix_tys: Vec<P<MuType>>,
     var_ty : P<MuType>
@@ -673,12 +685,14 @@ impl MuType_ {
 }
 
 /// MuFuncSig represents a Mu function signature
-#[derive(PartialEq, Debug, RustcEncodable, RustcDecodable)]
+#[derive(PartialEq, Debug)]
 pub struct MuFuncSig {
     pub hdr: MuEntityHeader,
     pub ret_tys : Vec<P<MuType>>,
     pub arg_tys: Vec<P<MuType>>
 }
+
+rodal_struct!(MuFuncSig{hdr, ret_tys, arg_tys});
 
 impl fmt::Display for MuFuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

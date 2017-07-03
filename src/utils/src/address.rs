@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std;
 use std::cmp;
 use std::fmt;
 use std::mem;
@@ -28,6 +29,8 @@ use {ByteOffset, ByteSize};
 #[repr(C)]
 #[derive(Copy, Clone, Eq, Hash)]
 pub struct Address(usize);
+
+rodal_struct!(Address{0});
 
 /// Address + ByteSize (positive)
 impl Add<ByteSize> for Address {

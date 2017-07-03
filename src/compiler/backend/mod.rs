@@ -21,6 +21,7 @@ pub mod peephole_opt;
 /// Code emission pass. May as well emit dot graph for IR and generated code.
 pub mod code_emission;
 
+use std;
 use utils::ByteSize;
 use utils::math::align_up;
 use runtime::mm;
@@ -197,7 +198,7 @@ use ast::ir::*;
 /// native without extra steps (though they need to be pinned first)
 ///
 //  GCType is a temporary design, we will rewrite GC (Issue#12)
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct BackendType {
     pub size: ByteSize,
     pub alignment: ByteSize,
@@ -211,6 +212,8 @@ pub struct BackendType {
     /// See Issue#12
     pub gc_type: P<GCType>
 }
+
+rodal_struct!(BackendType{size, alignment, struct_layout, elem_padded_size, gc_type});
 
 impl BackendType {
     /// gets field offset of a struct/hybrid type. Panics if this is not struct/hybrid type
@@ -230,23 +233,19 @@ impl BackendType {
             // integer
             MuType_::Int(size_in_bit) => {
                 match size_in_bit {
-                    1  => BackendType{
+                    1 ... 8   => BackendType{
                         size: 1, alignment: 1, struct_layout: None, elem_padded_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
                     },
-                    8  => BackendType{
-                        size: 1, alignment: 1, struct_layout: None, elem_padded_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
-                    },
-                    16 => BackendType{
+                    9 ... 16  => BackendType{
                         size: 2, alignment: 2, struct_layout: None, elem_padded_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
                     },
-                    32 => BackendType{
+                    17 ... 32 => BackendType{
                         size: 4, alignment: 4, struct_layout: None, elem_padded_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
                     },
-                    64 => BackendType{
+                    33 ... 64 => BackendType{
                         size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
                     },
@@ -457,7 +456,7 @@ impl fmt::Display for BackendType {
 }
 
 /// RegGroup describes register class
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RegGroup {
     /// general purpose register
     GPR,
@@ -467,16 +466,14 @@ pub enum RegGroup {
     FPR
 }
 
+rodal_enum!(RegGroup{GPR, GPREX, FPR});
+
 impl RegGroup {
     /// gets RegGroup from a MuType
     pub fn get_from_ty(ty: &P<MuType>) -> RegGroup {
         match ty.v {
             // for now, only use 64bits registers
-            MuType_::Int(len) if len == 1  => RegGroup::GPR,
-            MuType_::Int(len) if len == 8  => RegGroup::GPR,
-            MuType_::Int(len) if len == 16 => RegGroup::GPR,
-            MuType_::Int(len) if len == 32 => RegGroup::GPR,
-            MuType_::Int(len) if len == 64 => RegGroup::GPR,
+            MuType_::Int(len) if len <= 64 => RegGroup::GPR,
             MuType_::Int(len) if len == 128=> RegGroup::GPREX,
 
             MuType_::Ref(_)

@@ -33,12 +33,14 @@ use utils::LinkedHashMap;
 
 use ast::ptr::P;
 use ast::ir::*;
+use ast::types;
 
 use std::str;
 use std::usize;
 use std::slice::Iter;
 use std::ops;
 use std::collections::HashSet;
+use std::sync::RwLock;
 use std::any::Any;
 
 /// ASMCode represents a segment of assembly machine code. Usually it is machine code for
@@ -3570,7 +3572,6 @@ pub fn emit_context_with_reloc(vm: &VM,
                                fields : HashMap<Address, String>) {
     use std::path;
     use std::io::prelude::*;
-    use rustc_serialize::json;
 
     emit_mu_types(vm);
 
@@ -3700,15 +3701,21 @@ pub fn emit_context_with_reloc(vm: &VM,
     // currently using rustc_serialize to persist vm as json string.
     // Deserializing from this is extremely slow, we need to fix this. See Issue #41
     trace!("start serializing vm");
-    {
-        let serialize_vm = json::encode(&vm).unwrap();
+    use rodal;
+    let mut dumper = rodal::AsmDumper::new(file);
 
-        let vm_symbol = symbol("vm".to_string());
-        file.write_fmt(format_args!("{}\n", directive_globl(vm_symbol.clone()))).unwrap();
-        let escape_serialize_vm = serialize_vm.replace("\"", "\\\"");
-        file.write_fmt(format_args!("\t{}: .asciz \"{}\"", vm_symbol, escape_serialize_vm)).unwrap();
-        file.write("\n".as_bytes()).unwrap();
-    }
+    // Dump an Arc to the vm
+    let vm_arc = rodal::FakeArc::new(vm);
+    dumper.dump("vm", &vm_arc);
+
+    use std::ops::Deref;
+    let struct_tag_map: &RwLock<HashMap<types::StructTag, types::StructType_>> = types::STRUCT_TAG_MAP.deref();
+    dumper.dump("STRUCT_TAG_MAP", struct_tag_map);
+
+    let hybrid_tag_map: &RwLock<HashMap<types::HybridTag, types::HybridType_>> = types::HYBRID_TAG_MAP.deref();
+    dumper.dump("HYBRID_TAG_MAP", hybrid_tag_map);
+
+    dumper.finish();
 
     debug!("---finish---");
 }
@@ -3731,7 +3738,7 @@ fn write_data_bytes(f: &mut File, from: Address, to: Address) {
             let byte = unsafe {cursor.load::<u8>()};
             f.write_fmt(format_args!("0x{:x}", byte)).unwrap();
 
-            cursor = cursor + 1 as ByteSize;
+            cursor += 1 as ByteSize;
             if cursor != to {
                 f.write(",".as_bytes()).unwrap();
             }

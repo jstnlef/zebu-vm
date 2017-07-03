@@ -25,8 +25,9 @@
 //!   * mathematics
 //!   * bit operations
 
+#[macro_use]
+extern crate rodal;
 extern crate byteorder;
-extern crate rustc_serialize;
 extern crate doubly;
 
 // these type aliases make source code easier to read
