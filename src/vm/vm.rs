@@ -47,38 +47,52 @@ use utils::bit_utils::{bits_ones, u64_asr};
 /// The VM struct. This stores metadata for the currently running Zebu instance.
 /// This struct gets persisted in the boot image, and when the boot image is loaded,
 /// everything should be back to the same status as before persisting.
+///
 /// This struct is usually used as Arc<VM> so it can be shared among threads. The
 /// Arc<VM> is stored in every thread local of a Mu thread, so that they can refer
 /// to the VM easily.
+///
 /// We are using fine-grained lock on VM to allow mutability on different fields in VM.
 /// Also we use two-level locks for some data structures such as MuFunction/
 /// MuFunctionVersion/CompiledFunction so that we can mutate on two
 /// different functions/funcvers/etc at the same time.
-//  FIXME: However, there are problems with this design, and we will need to rethink.
-//  See Issue #2.
-//  FIXME: besides fields in VM, there are some 'globals' we need to persist
+
+//  FIXME: However, there are problems with fine-grained lock design,
+//  and we will need to rethink. See Issue #2.
+//  TODO: besides fields in VM, there are some 'globals' we need to persist
 //  such as STRUCT_TAG_MAP, INTERNAL_ID and internal types from ir crate. The point is
 //  ir crate should be independent and self-contained. But when persisting the 'world',
 //  besides persisting VM struct (containing most of the 'world'), we also need to
 //  specifically persist those globals.
 pub struct VM { // The comments are the offset into the struct
     // ---serialize---
-    next_id: AtomicUsize, // +0
-    id_name_map: RwLock<HashMap<MuID, MuName>>, // +8
-    name_id_map: RwLock<HashMap<MuName, MuID>>, //+64
-    types: RwLock<HashMap<MuID, P<MuType>>>, //+120
-    backend_type_info: RwLock<HashMap<MuID, Box<BackendType>>>, // +176
-    constants: RwLock<HashMap<MuID, P<Value>>>, // +232
-    globals: RwLock<HashMap<MuID, P<Value>>>, //+288
-    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>, // +400
-    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>, // +456
-    pub primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
-    pub vm_options: VMOptions, // +624
 
-    // WARNING: It will segfault if you try to acquire a lock, after loading a dump,
-    // from one of the fields that aren't dumped
+    /// next MuID to assign
+    next_id: AtomicUsize,                                       // +0
+    /// a map from MuID to MuName (for client to query)
+    id_name_map: RwLock<HashMap<MuID, MuName>>,                 // +8
+    /// a map from MuName to ID (for client to query)
+    name_id_map: RwLock<HashMap<MuName, MuID>>,                 // +64
+    /// types declared to the VM
+    types: RwLock<HashMap<MuID, P<MuType>>>,                    // +120
+    /// types that are resolved as BackendType
+    backend_type_info: RwLock<HashMap<MuID, Box<BackendType>>>, // +176
+    /// constants declared to the VM
+    constants: RwLock<HashMap<MuID, P<Value>>>,                 // +232
+    /// globals declared to the VM
+    globals: RwLock<HashMap<MuID, P<Value>>>,                   // +288
+    /// function signatures declared
+    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,             // +400
+    /// functions declared to the VM
+    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,           // +456
+    /// primordial function that is set to make boot image
+    pub primordial: RwLock<Option<PrimordialThreadInfo>>,       // +568
+    /// current options for this VM
+    pub vm_options: VMOptions,                                  // +624
 
     // ---partially serialize---
+    /// compiled functions
+    /// (we are not persisting generated code with compiled function)
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>, // +728
 
     // Maps each callsite to a tuple of the corresponding catch blocks label (or ""_
@@ -87,11 +101,15 @@ pub struct VM { // The comments are the offset into the struct
     is_running: AtomicBool, // +952
 
     // ---do not serialize---
+    // WARNING: It will segfault if you try to acquire a lock, after loading a dump,
+    // from one of the fields that aren't dumped
     pub global_locations: RwLock<HashMap<MuID, ValueLocation>>,
     func_vers: RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>>,
 
-    // client may try to store funcref to the heap, so that they can load it later, and call it
-    // however the store may happen before we have an actual address to the func (in AOT scenario)
+    /// all the funcref that clients want to store for AOT which are pending stores
+    /// For AOT scenario, when client tries to store funcref to the heap, the store
+    /// happens before we have an actual address for the function so we store a fake
+    /// funcref and when generating boot image, we fix the funcref with a relocatable symbol
     aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>,
 
     // TODO: What should the function version refer to? (It has to refer to something that has callee saved registers...)
@@ -126,12 +144,21 @@ unsafe impl rodal::Dump for VM {
     }
 }
 
+// *const CompiledFunction appears in compiled_exception_table makes
+// the VM unsafe to Sync/Send. We explicitly mark it safe
 unsafe impl Sync for VM {}
 unsafe impl Send for VM {}
 
-use std::u64;
-const PENDING_FUNCREF : u64 = u64::MAX;
+/// a fake funcref to store for AOT when client tries to store a funcref via API
+//  For AOT scenario, when client tries to store funcref to the heap, the store
+//  happens before we have an actual address for the function so we store a fake
+//  funcref and when generating boot image, we fix the funcref with a relocatable symbol
+const PENDING_FUNCREF : u64 = {
+    use std::u64;
+    u64::MAX
+};
 
+/// a macro to generate int8/16/32/64 from/to API calls
 macro_rules! gen_handle_int {
     ($fn_from: ident, $fn_to: ident, $int_ty: ty) => {
         pub fn $fn_from (&self, num: $int_ty, len: BitSize) -> APIHandleResult {
@@ -149,14 +176,17 @@ macro_rules! gen_handle_int {
 }
 
 impl <'a> VM {
+    /// creates a VM with default options
     pub fn new() -> VM {
         VM::new_internal(VMOptions::default())
     }
 
+    /// creates a VM with specified options
     pub fn new_with_opts(str: &str) -> VM {
         VM::new_internal(VMOptions::init(str))
     }
 
+    /// internal function to create a VM with options
     fn new_internal(options: VMOptions) -> VM {
         VM::start_logging(options.flag_log_level);
 
@@ -164,25 +194,19 @@ impl <'a> VM {
             next_id: ATOMIC_USIZE_INIT,
             is_running: ATOMIC_BOOL_INIT,
             vm_options: options,
-
             id_name_map: RwLock::new(HashMap::new()),
             name_id_map: RwLock::new(HashMap::new()),
-
             constants: RwLock::new(HashMap::new()),
-
             types: RwLock::new(HashMap::new()),
             backend_type_info: RwLock::new(HashMap::new()),
-
             globals: RwLock::new(HashMap::new()),
             global_locations: RwLock::new(hashmap!{}),
-
             func_sigs: RwLock::new(HashMap::new()),
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
             exception_table: RwLock::new(HashMap::new()),
             primordial: RwLock::new(None),
-
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_exception_table: RwLock::new(HashMap::new()),
         };
@@ -195,37 +219,34 @@ impl <'a> VM {
             }
         }
 
+        // we are not running vm
         ret.is_running.store(false, Ordering::SeqCst);
 
-        // Does not need SeqCst.
-        //
-        // If VM creates Mu threads and Mu threads calls traps, the trap handler still "happens
-        // after" the creation of the VM itself. Rust does not have a proper memory model, but this
-        // is how C++ works.
-        //
-        // If the client needs to create client-level threads, however, the client should properly
-        // synchronise at the time of inter-thread communication, rather than creation of the VM.
+        // starts allocating ID from USER_ID_START
         ret.next_id.store(USER_ID_START, Ordering::Relaxed);
 
         // init types
         types::init_types();
 
+        // init runtime
         ret.init_runtime();
 
         ret
     }
 
+    /// initializes runtime
     fn init_runtime(&self) {
-        // init log
-        VM::start_logging(self.vm_options.flag_log_level);
-
         // init gc
         {
             let ref options = self.vm_options;
-            gc::gc_init(options.flag_gc_immixspace_size, options.flag_gc_lospace_size, options.flag_gc_nthreads, !options.flag_gc_disable_collection);
+            gc::gc_init(options.flag_gc_immixspace_size,
+                        options.flag_gc_lospace_size,
+                        options.flag_gc_nthreads,
+                        !options.flag_gc_disable_collection);
         }
     }
 
+    /// starts logging based on MuLogLevel flag
     fn start_logging(level: MuLogLevel) {
         use std::env;
         match level {
@@ -244,13 +265,18 @@ impl <'a> VM {
         }
     }
 
+    /// starts trace-level logging
     pub fn start_logging_trace() {
         VM::start_logging_internal(LogLevel::Trace)
     }
+
+    /// starts logging based on MU_LOG_LEVEL environment variable
     pub fn start_logging_env() {
         VM::start_logging(MuLogLevel::Env)
     }
 
+    /// starts logging based on Rust's LogLevel
+    /// (this function actually initializes logger and deals with error)
     fn start_logging_internal(level: LogLevel) {
         use stderrlog;
 
@@ -268,6 +294,8 @@ impl <'a> VM {
         }
     }
 
+    /// adds an exception callsite and catch block
+    /// (later we will use this info to build an exception table for unwinding use)
     pub fn add_exception_callsite(&self, callsite: MuName, catch: MuName, fv: MuID) {
         let mut table = self.exception_table.write().unwrap();
 
@@ -281,9 +309,17 @@ impl <'a> VM {
         };
     }
 
+    /// resumes persisted VM. Ideally the VM should be back to the status when we start
+    /// persisting it except a few fields that we do not want to persist.
     pub fn resume_vm(dumped_vm: *mut Arc<VM>) -> Arc<VM> {
+        // load the vm back
         let vm = unsafe{rodal::load_asm_pointer_move(dumped_vm)};
+
+        // initialize runtime
         vm.init_runtime();
+
+        // construct exception table
+        vm.build_exception_table();
 
         // restore gc types
         {
@@ -316,12 +352,14 @@ impl <'a> VM {
             }
         }
 
-        // construct exception table
-        vm.build_exception_table();
-
         vm
     }
 
+    /// builds a succinct exception table for fast query during exception unwinding
+    /// We need this step because for AOT compilation, we do not know symbol address at compile,
+    /// and resolving symbol address during exception handling is expensive. Thus when boot image
+    /// gets executed, we first resolve symbols and store the results in another table for fast
+    /// query.
     pub fn build_exception_table(&self) {
         let exception_table = self.exception_table.read().unwrap();
         let compiled_funcs = self.compiled_funcs.read().unwrap();
@@ -341,14 +379,16 @@ impl <'a> VM {
             }
         }
     }
-    
+
+    /// returns a valid ID for use next
     pub fn next_id(&self) -> MuID {
         // This only needs to be atomic, and does not need to be a synchronisation operation. The
         // only requirement for IDs is that all IDs obtained from `next_id()` are different. So
         // `Ordering::Relaxed` is sufficient.
         self.next_id.fetch_add(1, Ordering::Relaxed)
     }
-    
+
+    /// informs the VM to start running
     pub fn run_vm(&self) {
         self.is_running.store(true, Ordering::SeqCst);
     }
