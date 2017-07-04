@@ -3013,7 +3013,7 @@ impl <'a> InstructionSelection {
         let sig = entry.sig.clone();
         
         let entry_name = {
-            if vm.is_running() {
+            if vm.is_doing_jit() {
                 unimplemented!()
             } else {
                 let ref entry_loc = entry.aot;
@@ -3271,7 +3271,7 @@ impl <'a> InstructionSelection {
         let stack_arg_size = self.emit_precall_convention(&args, f_context, vm);
         
         // make call
-        if vm.is_running() {
+        if vm.is_doing_jit() {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
@@ -3422,7 +3422,7 @@ impl <'a> InstructionSelection {
                 let funcs = vm.funcs().read().unwrap();
                 let target = funcs.get(&target_id).unwrap().read().unwrap();
                                             
-                if vm.is_running() {
+                if vm.is_doing_jit() {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
@@ -4275,7 +4275,7 @@ impl <'a> InstructionSelection {
                         })
                     }),
                     Value_::Global(_) => {
-                        if vm.is_running() {
+                        if vm.is_doing_jit() {
                             // get address from vm
                             unimplemented!()
                         } else {

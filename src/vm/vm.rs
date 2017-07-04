@@ -39,7 +39,7 @@ use log::LogLevel;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::RwLockWriteGuard;
-use std::sync::atomic::{AtomicUsize, AtomicBool, ATOMIC_BOOL_INIT, ATOMIC_USIZE_INIT, Ordering};
+use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
 use std;
 use utils::bit_utils::{bits_ones, u64_asr};
@@ -98,7 +98,6 @@ pub struct VM { // The comments are the offset into the struct
     // Maps each callsite to a tuple of the corresponding catch blocks label (or ""_
     // and the id of the containing function-version
     exception_table: RwLock<HashMap<MuID, HashMap<MuName, MuName>>>, // +784
-    is_running: AtomicBool, // +952
 
     // ---do not serialize---
     // WARNING: It will segfault if you try to acquire a lock, after loading a dump,
@@ -138,9 +137,6 @@ unsafe impl rodal::Dump for VM {
         // Dump an emepty hashmap for the compiled_exception_table
         dumper.dump_padding(&self.compiled_exception_table);
         dumper.dump_object_here(&RwLock::new(HashMap::<Address, (Address, *const CompiledFunction)>::new()));
-
-        // This field is actually stored at the end of the struct, the others all have the same allignment so are not reordered
-        dumper.dump_object(&self.is_running);
     }
 }
 
@@ -192,7 +188,6 @@ impl <'a> VM {
 
         let ret = VM {
             next_id: ATOMIC_USIZE_INIT,
-            is_running: ATOMIC_BOOL_INIT,
             vm_options: options,
             id_name_map: RwLock::new(HashMap::new()),
             name_id_map: RwLock::new(HashMap::new()),
@@ -218,9 +213,6 @@ impl <'a> VM {
                 types.insert(ty.id(), ty.clone());
             }
         }
-
-        // we are not running vm
-        ret.is_running.store(false, Ordering::SeqCst);
 
         // starts allocating ID from USER_ID_START
         ret.next_id.store(USER_ID_START, Ordering::Relaxed);
@@ -388,15 +380,17 @@ impl <'a> VM {
         self.next_id.fetch_add(1, Ordering::Relaxed)
     }
 
-    /// informs the VM to start running
-    pub fn run_vm(&self) {
-        self.is_running.store(true, Ordering::SeqCst);
+    /// are we doing AOT compilation? (feature = aot when building Zebu)
+    pub fn is_doing_aot(&self) -> bool {
+        return cfg!(feature = "aot")
     }
-    
-    pub fn is_running(&self) -> bool {
-        self.is_running.load(Ordering::Relaxed)
+
+    /// are we doing JIT compilation? (feature = jit when building Zebu)
+    pub fn is_doing_jit(&self) -> bool {
+        return cfg!(feature = "jit")
     }
-    
+
+    /// informs VM about a client-supplied name
     pub fn set_name(&self, entity: &MuEntity) {
         let id = entity.id();
         let name = entity.name().unwrap();
@@ -794,8 +788,8 @@ impl <'a> VM {
     pub fn resolve_function_address(&self, func_id: MuID) -> ValueLocation {
         let funcs = self.funcs.read().unwrap();
         let func : &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
-                
-        if self.is_running() {
+
+        if self.is_doing_jit() {
             unimplemented!()
         } else {
             ValueLocation::Relocatable(backend::RegGroup::GPR, func.name().unwrap())

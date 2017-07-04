@@ -69,7 +69,7 @@ impl <'vm> Compiler<'vm> {
         hprof_print_timing(hprof::profiler().root());
 
         func.set_compiled();
-        if self.vm.is_running() {
+        if self.vm.is_doing_jit() {
             // build exception table for this function
             unimplemented!()
         }
