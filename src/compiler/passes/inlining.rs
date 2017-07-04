@@ -177,7 +177,7 @@ impl Inlining {
                         // getting the function being inlined
                         let inlined_func = *call_edges.get(&inst.id()).unwrap();
                         trace!("function being inlined is {}", inlined_func);
-                        let inlined_fvid = match vm.get_cur_version_of(inlined_func) {
+                        let inlined_fvid = match vm.get_cur_version_for_func(inlined_func) {
                             Some(fvid) => fvid,
                             None => panic!("cannot resolve current version of Func {}, which is supposed to be inlined", inlined_func)
                         };

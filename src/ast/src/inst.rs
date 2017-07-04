@@ -92,6 +92,7 @@ impl Instruction {
             | CommonInst_SetThreadLocal(_)
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
+            | CommonInst_GetAddr(_)
             | CommonInst_Tr64IsFp(_)
             | CommonInst_Tr64IsInt(_)
             | CommonInst_Tr64IsRef(_)
@@ -174,8 +175,9 @@ impl Instruction {
             ExnInstruction{..} => true,
             CommonInst_GetThreadLocal => true,
             CommonInst_SetThreadLocal(_) => true,
-            CommonInst_Pin(_) => true,
-            CommonInst_Unpin(_) => true,
+            CommonInst_Pin(_)
+            | CommonInst_Unpin(_)
+            | CommonInst_GetAddr(_) => true,
             CommonInst_Tr64IsFp(_)
             | CommonInst_Tr64IsInt(_)
             | CommonInst_Tr64IsRef(_) => false,
@@ -241,6 +243,7 @@ impl Instruction {
             | CommonInst_SetThreadLocal(_)
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
+            | CommonInst_GetAddr(_)
             | CommonInst_Tr64IsFp(_)
             | CommonInst_Tr64IsInt(_)
             | CommonInst_Tr64IsRef(_)
@@ -311,6 +314,7 @@ impl Instruction {
             | CommonInst_SetThreadLocal(_)
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
+            | CommonInst_GetAddr(_)
             | CommonInst_Tr64IsFp(_)
             | CommonInst_Tr64IsInt(_)
             | CommonInst_Tr64IsRef(_)
@@ -572,6 +576,8 @@ pub enum Instruction_ {
     CommonInst_Pin  (OpIndex),
     /// common inst: unpin an object (the object is automatically managed by GC)
     CommonInst_Unpin(OpIndex),
+    /// common inst: get address of a global cell or a pinned object
+    CommonInst_GetAddr(OpIndex),
 
     /// common inst: is the tagref a floating point?
     CommonInst_Tr64IsFp(OpIndex),
@@ -720,9 +726,9 @@ impl Instruction_ {
             &Instruction_::CommonInst_GetThreadLocal => format!("COMMONINST GetThreadLocal"),
             &Instruction_::CommonInst_SetThreadLocal(op) => format!("COMMONINST SetThreadLocal {}", ops[op]),
 
-            &Instruction_::CommonInst_Pin(op)   => format!("COMMONINST Pin {}",   ops[op]),
-            &Instruction_::CommonInst_Unpin(op) => format!("COMMONINST Unpin {}", ops[op]),
-
+            &Instruction_::CommonInst_Pin(op)    => format!("COMMONINST Pin {}",   ops[op]),
+            &Instruction_::CommonInst_Unpin(op)  => format!("COMMONINST Unpin {}", ops[op]),
+            &Instruction_::CommonInst_GetAddr(op)=> format!("COMMONINST GetAddr {}", ops[op]),
             // Tagerf64
             &Instruction_::CommonInst_Tr64IsFp   (op) => format!("COMMONINST Tr64IsFp {}", ops[op]),
             &Instruction_::CommonInst_Tr64IsInt  (op) => format!("COMMONINST Tr64IsInt {}", ops[op]),

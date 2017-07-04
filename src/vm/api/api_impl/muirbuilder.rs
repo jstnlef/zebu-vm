@@ -1334,7 +1334,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         if let Some(impl_func) = self.built_funcs.get(&id) {
             impl_func.sig.clone()
         } else {
-            self.vm.get_func_sig_for_func(id)
+            self.vm.get_sig_for_func(id)
         }
     }
 

@@ -1118,7 +1118,7 @@ impl <'a> InstructionSelection {
                                 let hybrid_ty_ = map_lock.get(name).unwrap();
                                 let var_ty = hybrid_ty_.get_var_ty();
 
-                                vm.get_backend_type_info(var_ty.id()).size
+                                vm.get_backend_type_size((var_ty.id()))
                             },
                             _ => panic!("only expect HYBRID type here")
                         };
@@ -2769,7 +2769,7 @@ impl <'a> InstructionSelection {
     fn compute_return_allocation(&self, t: &P<MuType>, vm: &VM) -> usize
     {
         use ast::types::MuType_::*;
-        let size = round_up(vm.get_type_size(t.id()), 8);
+        let size = round_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
             Vector(_, _) => unimplemented!(),
             Float | Double => 0, // Can return in FPR
@@ -2792,7 +2792,7 @@ impl <'a> InstructionSelection {
     fn compute_return_registers(&mut self, t: &P<MuType>, vm: &VM) -> Vec<P<Value>>
     {
         use ast::types::MuType_::*;
-        let size = round_up(vm.get_type_size(t.id()), 8);
+        let size = round_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
             Vector(_, _) => unimplemented!(),
             Float | Double =>
@@ -2835,7 +2835,7 @@ impl <'a> InstructionSelection {
     fn compute_return_locations(&mut self, t: &P<MuType>, loc: &P<Value>, vm: &VM) -> P<Value>
     {
         use ast::types::MuType_::*;
-        let size = round_up(vm.get_type_size(t.id()), 8);
+        let size = round_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
             Vector(_, _) => unimplemented!(),
             Float | Double => get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(t, vm)),
@@ -2887,7 +2887,7 @@ impl <'a> InstructionSelection {
                 hfa_length(t.clone()) == 0 && // HFA's aren't converted to IRef's
                     match t.v {
                         Hybrid(_) => panic!("Hybrid argument not supported"), // size can't be statically determined
-                        Struct(_) | Array(_, _) if vm.get_type_size(t.id()) > 16 => true, //  type is too large
+                        Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true, //  type is too large
                         Vector(_, _)  => unimplemented!(),
                         _ => false
                     }
@@ -2898,7 +2898,7 @@ impl <'a> InstructionSelection {
         for i in 0..arg_types.len() {
             let i = i as usize;
             let t = if reference[i] { P(MuType::new(new_internal_id(), MuType_::IRef(arg_types[i].clone()))) } else { arg_types[i].clone() };
-            let size = round_up(vm.get_type_size(t.id()), 8);
+            let size = round_up(vm.get_backend_type_size(t.id()), 8);
             let align = get_type_alignment(&t, vm);
             match t.v {
                 Hybrid(_) => panic!("hybrid argument not supported"),
@@ -4078,20 +4078,20 @@ impl <'a> InstructionSelection {
                             Some(ty) => ty,
                             None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
-                        let fix_part_size = vm.get_backend_type_info(struct_ty.id()).size;
+                        let fix_part_size = vm.get_backend_type_size(struct_ty.id());
                         self.emit_offset_ref(&ops[base], fix_part_size as i64, f_content, f_context, vm)
                     }
 
                     // SHIFTIREF < T1 T2 > opnd offset = opnd + offset*size_of(T1)
                     Instruction_::ShiftIRef{base, offset, ..} => {
                         let element_type = ops[base].clone_value().ty.get_referent_ty().unwrap();
-                        let element_size = vm.get_backend_type_info(element_type.id()).size;
+                        let element_size = vm.get_backend_type_size(element_type.id());
                         self.emit_shift_ref(&ops[base], &ops[offset], element_size, f_content, f_context, vm)
                     }
                     // GETELEMIREF <T1 T2> opnd index = opnd + index*element_size(T1)
                     Instruction_::GetElementIRef{base, index, ..} => {
                         let element_type = ops[base].clone_value().ty.get_referent_ty().unwrap().get_elem_ty().unwrap();
-                        let element_size = vm.get_backend_type_info(element_type.id()).size;
+                        let element_size = vm.get_backend_type_size(element_type.id());
 
                         self.emit_shift_ref(&ops[base], &ops[index], element_size, f_content, f_context, vm)
                     }

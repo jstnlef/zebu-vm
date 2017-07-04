@@ -303,7 +303,7 @@ pub fn get_bit_size(ty : &P<MuType>, vm: &VM) -> usize
                 MuType_::Vector(ref t, n) => get_bit_size(t, vm)*n,
                 MuType_::Array(ref t, n) => get_bit_size(t, vm)*n,
                 MuType_::Void => 0,
-                _ => vm.get_type_size(ty.id())*8,
+                _ => vm.get_backend_type_size(ty.id())*8,
             }
         }
     }
@@ -1862,7 +1862,7 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem = make_value_symbolic(vm.get_func_name(func_id), true, &ADDRESS_TYPE, vm);
+                    let mem = make_value_symbolic(vm.get_func_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, f_context, vm);
                     tmp
                 },
@@ -1922,7 +1922,7 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem = make_value_symbolic(vm.get_func_name(func_id), true, &ADDRESS_TYPE, vm);
+                    let mem = make_value_symbolic(vm.get_func_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, f_context, vm);
                     tmp
                 },

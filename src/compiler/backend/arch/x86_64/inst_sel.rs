@@ -789,7 +789,7 @@ impl <'a> InstructionSelection {
                             // Truncate (from int to int)
                             op::ConvOp::TRUNC => {
                                 let tmp_res = self.get_result_value(node);
-                                let to_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
+                                let to_ty_size = vm.get_backend_type_size(tmp_res.ty.id());
 
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
@@ -821,8 +821,8 @@ impl <'a> InstructionSelection {
                                     let tmp_res = self.get_result_value(node);
 
                                     // movz op -> result
-                                    let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
-                                    let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
+                                    let from_ty_size = vm.get_backend_type_size(from_ty.id());
+                                    let to_ty_size   = vm.get_backend_type_size(to_ty.id());
 
                                     // we treat int1 as int8, so it is possible from_ty_size == to_ty_size == 1 byte
                                     assert!(from_ty_size <= to_ty_size);
@@ -866,8 +866,8 @@ impl <'a> InstructionSelection {
                                     let tmp_res = self.get_result_value(node);
 
                                     // movs op -> result
-                                    let from_ty_size = vm.get_backend_type_info(from_ty.id()).size;
-                                    let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
+                                    let from_ty_size = vm.get_backend_type_size(from_ty.id());
+                                    let to_ty_size   = vm.get_backend_type_size(to_ty.id());
 
                                     // we treat int1 as int8, so it is possible from_ty_size == to_ty_size == 1 byte
                                     assert!(from_ty_size <= to_ty_size);
@@ -944,7 +944,7 @@ impl <'a> InstructionSelection {
                                 assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
                                 let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
 
-                                let to_ty_size   = vm.get_backend_type_info(to_ty.id()).size;
+                                let to_ty_size   = vm.get_backend_type_size(to_ty.id());
                                 match to_ty_size {
                                     1 | 2 | 4 | 8 => {
                                         match from_ty.v {
@@ -967,7 +967,7 @@ impl <'a> InstructionSelection {
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                                    let op_ty_size = vm.get_backend_type_info(tmp_op.ty.id()).size;
+                                    let op_ty_size = vm.get_backend_type_size(tmp_op.ty.id());
 
                                     if to_ty.is_double() {
                                         match op_ty_size {
@@ -1082,7 +1082,7 @@ impl <'a> InstructionSelection {
 
                                 assert!(self.match_fpreg(op), "unexpected op (expected fpreg): {}", op);
                                 let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
-                                let res_ty_size = vm.get_backend_type_info(tmp_res.ty.id()).size;
+                                let res_ty_size = vm.get_backend_type_size(tmp_res.ty.id());
 
                                 if from_ty.is_double() {
                                     match res_ty_size {
@@ -1375,6 +1375,8 @@ impl <'a> InstructionSelection {
                         self.emit_store_base_offset(&tl, *thread::USER_TLS_OFFSET as i32, &tmp_op, vm);
                     }
 
+                    // FIXME: the semantic of Pin/Unpin is different from spec
+                    // See Issue #33
                     Instruction_::CommonInst_Pin(op) => {
                         trace!("instsel on PIN");
 
@@ -1407,6 +1409,20 @@ impl <'a> InstructionSelection {
                             vec![tmp_op.clone()],
                             None,
                             Some(node), f_content, f_context, vm);
+                    }
+                    Instruction_::CommonInst_GetAddr(op) => {
+                        use runtime::mm::objectmodel::GC_IREF_HAS_OFFSET;
+                        debug_assert!(!GC_IREF_HAS_OFFSET);
+
+                        trace!("instsel on GETADDR");
+
+                        // assume it is pinned
+                        let ref op = inst.ops[op];
+                        assert!(self.match_ireg(op));
+                        let tmp_op  = self.emit_ireg(op, f_content, f_context, vm);
+                        let tmp_res = self.get_result_value(node);
+
+                        self.emit_move_value_to_value(&tmp_res, &tmp_op);
                     }
 
                     Instruction_::Move(op) => {
@@ -1911,7 +1927,7 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                let op_size = vm.get_backend_type_info(op1.as_value().ty.id()).size;
+                let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
                     1 | 2 | 4 | 8 => {
@@ -1958,7 +1974,7 @@ impl <'a> InstructionSelection {
                         }
 
                         // mov rax -> result
-                        let res_size = vm.get_backend_type_info(res_tmp.ty.id()).size;
+                        let res_size = vm.get_backend_type_size(res_tmp.ty.id());
                         assert!(res_size == op_size, "op and res do not have matching type: {}", node);
 
                         match res_size {
@@ -2028,14 +2044,14 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                let op_size = vm.get_backend_type_info(op1.as_value().ty.id()).size;
+                let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
                     1 | 2 | 4 | 8 => {
                         self.emit_udiv(op1, op2, f_content, f_context, vm);
 
                         // mov rax -> result
-                        let res_size = vm.get_backend_type_info(res_tmp.ty.id()).size;
+                        let res_size = vm.get_backend_type_size(res_tmp.ty.id());
                         match res_size {
                             8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
@@ -2064,14 +2080,14 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                let op_size = vm.get_backend_type_info(op1.as_value().ty.id()).size;
+                let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
                     1 | 2 | 4 | 8 => {
                         self.emit_idiv(op1, op2, f_content, f_context, vm);
 
                         // mov rax -> result
-                        let res_size = vm.get_backend_type_info(res_tmp.ty.id()).size;
+                        let res_size = vm.get_backend_type_size(res_tmp.ty.id());
                         match res_size {
                             8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
@@ -2096,14 +2112,14 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                let op_size = vm.get_backend_type_info(op1.as_value().ty.id()).size;
+                let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
                     1 | 2 | 4 | 8 => {
                         self.emit_udiv(op1, op2, f_content, f_context, vm);
 
                         // mov rdx -> result
-                        let res_size = vm.get_backend_type_info(res_tmp.ty.id()).size;
+                        let res_size = vm.get_backend_type_size(res_tmp.ty.id());
                         match res_size {
                             8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX),
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX),
@@ -2128,14 +2144,14 @@ impl <'a> InstructionSelection {
                 let op1 = &ops[op1];
                 let op2 = &ops[op2];
 
-                let op_size = vm.get_backend_type_info(op1.as_value().ty.id()).size;
+                let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
                     1 | 2 | 4 | 8 => {
                         self.emit_idiv(op1, op2, f_content, f_context, vm);
 
                         // mov rdx -> result
-                        let res_size = vm.get_backend_type_info(res_tmp.ty.id()).size;
+                        let res_size = vm.get_backend_type_size(res_tmp.ty.id());
                         match res_size {
                             8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RDX),
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX),
@@ -2871,7 +2887,7 @@ impl <'a> InstructionSelection {
         assert!(self.match_ireg(op1));
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
 
-        let op1_size = vm.get_backend_type_info(reg_op1.ty.id()).size;
+        let op1_size = vm.get_backend_type_size(reg_op1.ty.id());
         match op1_size {
             8 => {
                 // div uses RDX and RAX
@@ -2933,7 +2949,7 @@ impl <'a> InstructionSelection {
         assert!(self.match_ireg(op1));
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
 
-        let op1_size = vm.get_backend_type_info(reg_op1.ty.id()).size;
+        let op1_size = vm.get_backend_type_size(reg_op1.ty.id());
         match op1_size {
             8 => {
                 // idiv uses RDX and RAX
@@ -4398,7 +4414,7 @@ impl <'a> InstructionSelection {
                             Some(ty) => ty,
                             None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
-                        let fix_part_size = vm.get_backend_type_info(struct_ty.id()).size;
+                        let fix_part_size = vm.get_backend_type_size(struct_ty.id());
 
                         match base.v {
                             // GETVARPARTIREF(GETIREF) -> add FIX_PART_SIZE to old offset
@@ -4990,7 +5006,7 @@ impl <'a> InstructionSelection {
     /// returns a memory location P<Value> for a function reference
     #[cfg(feature = "aot")]
     fn get_mem_for_funcref(&mut self, func_id: MuID, vm: &VM) -> P<Value> {
-        let func_name = vm.get_func_name(func_id);
+        let func_name = vm.get_name_for_func(func_id);
 
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),

@@ -15,6 +15,8 @@
 use std::sync::atomic;
 use utils::ByteSize;
 
+pub const GC_IREF_HAS_OFFSET : bool = false;
+
 #[cfg(feature = "use-sidemap")]
 mod sidemap;
 #[cfg(not(feature = "use-sidemap"))]

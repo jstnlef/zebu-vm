@@ -70,7 +70,7 @@ impl MuVM {
     }
 
     pub fn id_of(&self, name: MuName) -> MuID {
-        self.vm.id_of_by_refstring(&name)
+        self.vm.id_of(&name)
     }
 
     pub fn name_of(&self, id: MuID) -> CMuCString {
