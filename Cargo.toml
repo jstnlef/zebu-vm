@@ -34,7 +34,7 @@ gcc = "*"
 ast = {path = "src/ast"}
 utils = {path = "src/utils"}
 gc = {path = "src/gc"}
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal" }
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = "0.0.2" }
 libc="*"
 field-offset = "*"
 libloading = "*"

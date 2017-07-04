@@ -24,6 +24,6 @@ crate-type = ["rlib"]
 memmap = "*"
 memsec = "0.1.9"
 byteorder = "*"
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal" }
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = "0.0.2" }
 log = "*"
 doubly = "1.1.3"
