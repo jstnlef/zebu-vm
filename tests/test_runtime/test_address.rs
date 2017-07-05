@@ -26,6 +26,7 @@ fn test_is_aligned() {
     assert!(addr.is_aligned_to(8));
 }
 
+#[ignore]
 #[test]
 fn test_load_order_u64() {
     let mem = Box::new(42u64);
@@ -69,6 +70,7 @@ fn test_store_order_u64() {
     }
 }
 
+#[ignore]
 #[test]
 fn test_load_order_u32() {
     let mem = Box::new(-1isize);
@@ -89,6 +91,7 @@ fn test_load_order_u32() {
     }
 }
 
+#[ignore]
 #[test]
 fn test_load_order_f64() {
     let mem = Box::new(42.0f64);
@@ -107,6 +110,7 @@ fn test_load_order_f64() {
     }
 }
 
+#[ignore]
 #[test]
 fn test_load_order_f32() {
     let mem = Box::new(42.0f64);

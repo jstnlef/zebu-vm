@@ -1209,10 +1209,11 @@ impl <'a> VM {
     }
 
     /// performs LOAD
+    #[allow(unused_variables)]
     pub fn handle_load(&self, ord: MemoryOrder, loc: APIHandleArg) -> APIHandleResult {
         let (ty, addr) = loc.v.as_iref();
 
-        // pick rust memory order
+        // FIXME: not using memory order for load at the moment - See Issue #51
         let rust_memord = match ord {
             MemoryOrder::Relaxed   => Ordering::Relaxed,
             MemoryOrder::Acquire   => Ordering::Acquire,
@@ -1225,13 +1226,13 @@ impl <'a> VM {
         let handle_id = self.next_id();
         let handle_value = unsafe {
             match ty.v {
-                MuType_::Int(len)     => APIHandleValue::Int     (addr.load_order::<u64>(rust_memord), len),
-                MuType_::Float        => APIHandleValue::Float   (addr.load_order::<f32>(rust_memord)),
-                MuType_::Double       => APIHandleValue::Double  (addr.load_order::<f64>(rust_memord)),
-                MuType_::Ref(ref ty)  => APIHandleValue::Ref     (ty.clone(), addr.load_order::<Address>(rust_memord)),
-                MuType_::IRef(ref ty) => APIHandleValue::IRef    (ty.clone(), addr.load_order::<Address>(rust_memord)),
-                MuType_::UPtr(ref ty) => APIHandleValue::UPtr    (ty.clone(), addr.load_order::<Address>(rust_memord)),
-                MuType_::Tagref64     => APIHandleValue::TagRef64(addr.load_order::<u64>(rust_memord)),
+                MuType_::Int(len)     => APIHandleValue::Int     (addr.load::<u64>(), len),
+                MuType_::Float        => APIHandleValue::Float   (addr.load::<f32>()),
+                MuType_::Double       => APIHandleValue::Double  (addr.load::<f64>()),
+                MuType_::Ref(ref ty)  => APIHandleValue::Ref     (ty.clone(), addr.load::<Address>()),
+                MuType_::IRef(ref ty) => APIHandleValue::IRef    (ty.clone(), addr.load::<Address>()),
+                MuType_::UPtr(ref ty) => APIHandleValue::UPtr    (ty.clone(), addr.load::<Address>()),
+                MuType_::Tagref64     => APIHandleValue::TagRef64(addr.load::<u64>()),
 
                 _ => unimplemented!()
             }
