@@ -1239,23 +1239,23 @@ impl <'a> InstructionSelection {
                         let tmp_res = self.get_result_value(node, 0);
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                        let tmp1 = cast_value(&tmp_res, &UINT64_TYPE);
+                        let tmp_res_r64 = cast_value(&tmp_res, &UINT64_TYPE);
+                        let tmp1 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
                         let tmp2 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                        let tmp3 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
 
                         //res = (op & 0x7ff0000000000003 != 0x7ff0000000000002) & ((!op & 0x7ff0000000000001) != 0)
-                        emit_mov_u64(self.backend.as_mut(), &tmp1, 0x7ff0000000000001);
-                        self.backend.emit_add_imm(&tmp2, &tmp1, 2, false);
-                        self.backend.emit_add_imm(&tmp3, &tmp1, 1, false);
-                        self.backend.emit_and(&tmp2, &tmp_op, &tmp2);
+                        emit_mov_u64(self.backend.as_mut(), &tmp_res_r64, 0x7ff0000000000001);
+                        self.backend.emit_add_imm(&tmp1, &tmp_res_r64, 2, false);
+                        self.backend.emit_add_imm(&tmp2, &tmp_res_r64, 1, false);
+                        self.backend.emit_and(&tmp1, &tmp_op, &tmp1);
 
-                        self.backend.emit_cmp(&tmp2, &tmp3);
-                        self.backend.emit_cset(&tmp2, "NE");
-
-                        self.backend.emit_bics(&XZR, &tmp1, &tmp_op);
+                        self.backend.emit_cmp(&tmp1, &tmp2);
                         self.backend.emit_cset(&tmp1, "NE");
 
-                        self.backend.emit_and(&tmp_res, &tmp2, &tmp1);
+                        self.backend.emit_bics(&XZR, &tmp_res_r64, &tmp_op);
+                        self.backend.emit_cset(&tmp_res_r64, "NE");
+
+                        self.backend.emit_and(&tmp_res_r64, &tmp1, &tmp_res_r64);
                     },
 
                     Instruction_::CommonInst_Tr64FromFp(index) => {
@@ -1276,16 +1276,17 @@ impl <'a> InstructionSelection {
                                  });
                         } else {
                             let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                            let tmp1 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
 
                             // isNaN(op) ? (op & 0xfff8000000000000) | 0x0000000000000008 : op
                             self.backend.emit_fmov(&tmp_res, &tmp_op);
-                            self.backend.emit_and_imm(&tmp_res, &tmp_res, 0xfff8000000000000);
-                            self.backend.emit_orr_imm(&tmp_res, &tmp_res, 0x0000000000000008);
+                            self.backend.emit_and_imm(&tmp1, &tmp_res, 0xfff8000000000000);
+                            self.backend.emit_orr_imm(&tmp1, &tmp1, 0x0000000000000008);
 
                             // Sets V flag if tmp_op is unordered with tmp_op (i.e. it is a NaN)
                             self.backend.emit_fcmp(&tmp_op, &tmp_op);
-                            // sets tmp_res to tmp2 if V is set
-                            self.backend.emit_csel(&tmp_res, &tmp_res, &tmp_res, "VS");
+                            // sets tmp_res to tmp1 if V is set
+                            self.backend.emit_csel(&tmp_res, &tmp1, &tmp_res, "VS");
                         }
                     },
                         //(0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) | ((opnd & 0x8000000000000u64) << 12))
@@ -1296,13 +1297,15 @@ impl <'a> InstructionSelection {
                         if match_node_int_imm(op) {
                             let int_val: u64 = node_imm_to_u64(op);
                             emit_mov_u64(self.backend.as_mut(), &tmp_res,
-                                         0x7FF0000000000001 | (((int_val & 0x8000000000000000) << 12) | (int_val & 0x7ffffffffffffu64) << 1));
+                                0x7FF0000000000001 | (((int_val & 0x8000000000000) << 12) |
+                                         (int_val & 0x7ffffffffffffu64) << 1));
                         } else {
                             let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
 
                             let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
 
-                            // res = 0x7FF0000000000001 | (((op & 0x8000000000000000) << 12) | (opnd & 0x7ffffffffffffu64) << 1)
+                            // res = 0x7FF0000000000001 | (((op & 0x8000000000000000) << 12)
+                            //        | (opnd & 0x7ffffffffffffu64) << 1)
                             self.backend.emit_and_imm(&tmp_res, &tmp_res, 0x8000000000000);
                             self.backend.emit_lsl_imm(&tmp_res, &tmp_op, 12);
 
@@ -1317,8 +1320,6 @@ impl <'a> InstructionSelection {
                         let ref op1 = ops[index1];
                         let ref op2 = ops[index2];
                         let tmp_res = self.get_result_value(node, 0);
-
-
                         if match_node_ref_imm(op1) &&  match_node_int_imm(op2) {
                             let tag: u64 = node_imm_to_u64(op2);
                             emit_mov_u64(self.backend.as_mut(), &tmp_res,
@@ -1360,7 +1361,7 @@ impl <'a> InstructionSelection {
                             }
 
                             self.backend.emit_orr(&tmp_res, &tmp, &tmp_res);
-                            emit_mov_u64(self.backend.as_mut(), &tmp, 0xFF0000000000002);
+                            emit_mov_u64(self.backend.as_mut(), &tmp, 0x7ff0000000000002);
                             self.backend.emit_orr(&tmp_res, &tmp_res, &tmp);
                         }
                     },

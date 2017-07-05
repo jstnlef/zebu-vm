@@ -1388,8 +1388,8 @@ impl <'a> VM {
         let opnd = value.v.as_tr64();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Int(
-                (((opnd & 0xffffffffffffeu64) >> 1) | ((opnd & 0x8000000000000000u64) >> 12)),
+            v : APIHandleValue::Int(((opnd & 0xffffffffffffeu64) >> 1) |
+                    ((opnd & 0x8000000000000000u64) >> 12),
                 52
             )
         })
@@ -1402,10 +1402,9 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
-                unsafe { Address::from_usize(
-                    ((opnd & 0x7ffffffffff8u64) |
-                        u64_asr((opnd & 0x8000000000000000u64), 16)) as usize
-                ) })
+                unsafe { Address::from_usize(((opnd & 0x7ffffffffff8u64) |
+                        u64_asr((opnd & 0x8000000000000000u64), 16)) as usize)
+                })
         })
     }
 
@@ -1415,8 +1414,8 @@ impl <'a> VM {
         let opnd = value.v.as_tr64();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Int(
-                    (u64_asr((opnd & 0x000f800000000000u64), 46) | (u64_asr((opnd & 0x4), 2))),
+            v : APIHandleValue::Int(u64_asr((opnd & 0x000f800000000000u64), 46) |
+                    (u64_asr((opnd & 0x4), 2)),
                 6
             )
         })
@@ -1445,10 +1444,8 @@ impl <'a> VM {
         let opnd = value.v.as_int();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64(
-                (0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) |
-                    ((opnd & 0x8000000000000u64) << 12))
-            )
+            v : APIHandleValue::TagRef64(0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1)
+                | ((opnd & 0x8000000000000u64) << 12))
         })
     }
     
@@ -1460,9 +1457,8 @@ impl <'a> VM {
         let tag_  = tag.v.as_int();
         self.new_handle (APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64( 
-                (0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) | ((addr_ & 0x800000000000u64) << 16)
-                    | ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2))
+            v : APIHandleValue::TagRef64(0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) |
+                ((addr_ & 0x800000000000u64) << 16) | ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2)
             )
         })
     }

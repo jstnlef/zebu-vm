@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os, subprocess, ctypes;
-
+import os, subprocess, ctypes, sys;
+import struct;
 
 muc = os.environ.get('MUC', 'muc'); #type: str
 emit = os.environ.get('MU_EMIT_DIR', 'emit'); #type: str
+libext = '.dylib' if sys.platform.startswith('darwin') else \
+         '.so'    if sys.platform.startswith('linux') else sys.exit("Unsupported platform");
 
 prelude = """
     .funcsig exit_sig = (int<32>) -> ()
@@ -41,6 +43,7 @@ def get_output_file(name): # type: (str) -> str
     return os.path.join(emit, name);
 
 def execute_muc(bundle, name, primordial=None): # type: (str, str, Optional[str]) -> None
+    sys.stderr.write(bundle);
     muc_proc = subprocess.Popen([muc, "-r"]
         + (["-f", primordial] if primordial is not None else [])
         +  ["/dev/stdin", get_output_file(name)],
@@ -48,13 +51,15 @@ def execute_muc(bundle, name, primordial=None): # type: (str, str, Optional[str]
     muc_proc.communicate(bundle); # Send the bundle to muc
     assert (muc_proc.returncode == 0); # Check that muc worked
 
-def execute_bundle(bundle, name, args = [], main = None): # type: (str, str, Optional[List[str]], Optional[str]) -> int
+def compile_bundle(bundle, name, main = None): # type: (str, str, Optional[str]) -> None
     execute_muc(prelude + bundle + make_primordial(main if main is not None else name), name, "primordial");
+
+def execute(name, args = []): # type: (str, Optional[List[str]]) -> int
     return subprocess.call([get_output_file(name)] + args);
 
 def load_bundle(bundle, name): # type: (str, str) -> ctypes.CDLL
-    execute_muc(prelude + bundle, name);
-    return ctypes.CDLL(get_output_file(name));
+    execute_muc(prelude + bundle, name + libext);
+    return ctypes.CDLL(get_output_file(name + libext));
 
 def get_function(func, argtypes, restype): # type: (ctypes._FuncPtr) -> (ctypes._FuncPtr)
     func.argtypes = argtypes;
