@@ -16,7 +16,7 @@ use std;
 use std::cmp;
 use std::fmt;
 use std::mem;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::ops::*;
 
 use {ByteOffset, ByteSize};

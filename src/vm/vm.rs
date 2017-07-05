@@ -924,14 +924,8 @@ impl <'a> VM {
             unimplemented!()
         }
 
-        // make sure only one of primordial_func or primoridial_stack is set
         let has_primordial_func  = primordial_func.is_some();
         let has_primordial_stack = primordial_stack.is_some();
-
-        assert!(
-            (has_primordial_func && !has_primordial_stack)
-            || (!has_primordial_func && has_primordial_stack)
-        );
 
         // we assume client will start with a function (instead of a stack)
         if has_primordial_stack {
@@ -1255,10 +1249,12 @@ impl <'a> VM {
     }
 
     /// performs STORE
+    #[allow(unused_variables)]
     pub fn handle_store(&self, ord: MemoryOrder, loc: APIHandleArg, val: APIHandleArg) {
         // get address
         let (_, addr) = loc.v.as_iref();
 
+        // FIXME: not using memory order for store at the moment - See Issue #51
         let rust_memord = match ord {
             MemoryOrder::Relaxed => Ordering::Relaxed,
             MemoryOrder::Release => Ordering::Release,
@@ -1274,25 +1270,25 @@ impl <'a> VM {
                 APIHandleValue::Int(ival, bits) => {
                     let trunc: u64 = ival & bits_ones(bits);
                     match bits {
-                        1  ... 8   => addr.store_order::<u8> (trunc as u8 , rust_memord),
-                        9  ... 16  => addr.store_order::<u16>(trunc as u16, rust_memord),
-                        17 ... 32  => addr.store_order::<u32>(trunc as u32, rust_memord),
-                        33 ... 64  => addr.store_order::<u64>(trunc as u64, rust_memord),
+                        1  ... 8   => addr.store::<u8> (trunc as u8 ),
+                        9  ... 16  => addr.store::<u16>(trunc as u16),
+                        17 ... 32  => addr.store::<u32>(trunc as u32),
+                        33 ... 64  => addr.store::<u64>(trunc as u64),
                         _  => panic!("unimplemented int length")
                     }
                 },
-                APIHandleValue::TagRef64(val) => addr.store_order::<u64>(val , rust_memord),
-                APIHandleValue::Float(fval)   => addr.store_order::<f32>(fval, rust_memord),
-                APIHandleValue::Double(fval)  => addr.store_order::<f64>(fval, rust_memord),
-                APIHandleValue::UPtr(_, aval) => addr.store_order::<Address>(aval, rust_memord),
-                APIHandleValue::UFP(_, aval)  => addr.store_order::<Address>(aval, rust_memord),
+                APIHandleValue::TagRef64(val) => addr.store::<u64>(val ),
+                APIHandleValue::Float(fval)   => addr.store::<f32>(fval),
+                APIHandleValue::Double(fval)  => addr.store::<f64>(fval),
+                APIHandleValue::UPtr(_, aval) => addr.store::<Address>(aval),
+                APIHandleValue::UFP(_, aval)  => addr.store::<Address>(aval),
 
                 APIHandleValue::Struct(_)
                 | APIHandleValue::Array(_)
                 | APIHandleValue::Vector(_) => unimplemented!(),
 
                 APIHandleValue::Ref(_, aval)
-                | APIHandleValue::IRef(_, aval) => addr.store_order::<Address>(aval, rust_memord),
+                | APIHandleValue::IRef(_, aval) => addr.store::<Address>(aval),
 
                 // if we are JITing, we can store the address of the function
                 // but if we are doing AOT, we pend the store, and resolve the store when making boot image
