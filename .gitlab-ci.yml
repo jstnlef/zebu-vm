@@ -50,22 +50,22 @@ before_script:
 test:cargo:api:
   stage: test
   script:
-    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release test_api 2> /dev/null
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release test_api
 
 test:cargo:ir:
   stage: test
   script:
-    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release test_ir 2> /dev/null
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release test_ir
 
 test:cargo:compiler:
   stage: test
   script:
-    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release test_compiler 2> /dev/null
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release test_compiler
 
 test:cargo:runtime:
   stage: test
   script:
-    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release test_runtime 2> /dev/null
+    - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release test_runtime
 
 testjit:milestones:
   stage: test
