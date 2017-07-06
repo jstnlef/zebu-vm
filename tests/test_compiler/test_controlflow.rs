@@ -19,12 +19,12 @@ use mu::ast::ir::*;
 use mu::ast::inst::*;
 use mu::ast::op::*;
 use mu::vm::*;
-use mu::testutil;
+use mu::linkutils;
 use mu::utils::LinkedHashMap;
 
 #[test]
 fn test_switch() {
-    let lib = testutil::compile_fnc("switch", &switch);
+    let lib = linkutils::aot::compile_fnc("switch", &switch);
 
     unsafe {
         let switch : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"switch").unwrap();
@@ -152,7 +152,7 @@ fn switch() -> VM {
 
 #[test]
 fn test_select_eq_zero() {
-    let lib = testutil::compile_fnc("select_eq_zero", &select_eq_zero);
+    let lib = linkutils::aot::compile_fnc("select_eq_zero", &select_eq_zero);
 
     unsafe {
         let select_eq_zero : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"select_eq_zero").unwrap();
@@ -210,7 +210,7 @@ fn select_eq_zero() -> VM {
 
 #[test]
 fn test_select_u8_eq_zero() {
-    let lib = testutil::compile_fnc("select_u8_eq_zero", &select_u8_eq_zero);
+    let lib = linkutils::aot::compile_fnc("select_u8_eq_zero", &select_u8_eq_zero);
 
     unsafe {
         let select_eq_zero : libloading::Symbol<unsafe extern fn(u8) -> u8> = lib.get(b"select_u8_eq_zero").unwrap();
@@ -268,7 +268,7 @@ fn select_u8_eq_zero() -> VM {
 
 #[test]
 fn test_select_sge_zero() {
-    let lib = testutil::compile_fnc("select_sge_zero", &select_sge_zero);
+    let lib = linkutils::aot::compile_fnc("select_sge_zero", &select_sge_zero);
 
     unsafe {
         let select_sge_zero : libloading::Symbol<unsafe extern fn(i64) -> u64> = lib.get(b"select_sge_zero").unwrap();
@@ -330,7 +330,7 @@ fn select_sge_zero() -> VM {
 
 #[test]
 fn test_sgt_value() {
-    let lib = testutil::compile_fnc("sgt_value", &sgt_value);
+    let lib = linkutils::aot::compile_fnc("sgt_value", &sgt_value);
 
     unsafe {
         let sgt_value : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"sgt_value").unwrap();
@@ -386,7 +386,7 @@ fn sgt_value() -> VM {
 
 #[test]
 fn test_sgt_u8_value() {
-    let lib = testutil::compile_fnc("sgt_u8_value", &sgt_u8_value);
+    let lib = linkutils::aot::compile_fnc("sgt_u8_value", &sgt_u8_value);
 
     unsafe {
         let sgt_u8_value : libloading::Symbol<unsafe extern fn(i8, i8) -> u8> = lib.get(b"sgt_u8_value").unwrap();
@@ -454,7 +454,7 @@ fn sgt_u8_value() -> VM {
 
 #[test]
 fn test_sgt_i32_branch() {
-    let lib = testutil::compile_fnc("sgt_i32_branch", &sgt_i32_branch);
+    let lib = linkutils::aot::compile_fnc("sgt_i32_branch", &sgt_i32_branch);
 
     unsafe {
         let sgt_i32 : libloading::Symbol<unsafe extern fn(i32, i32) -> u32> = lib.get(b"sgt_i32_branch").unwrap();
@@ -565,7 +565,7 @@ fn sgt_i32_branch() -> VM {
 
 #[test]
 fn test_sge_i32_branch() {
-    let lib = testutil::compile_fnc("sge_i32_branch", &sge_i32_branch);
+    let lib = linkutils::aot::compile_fnc("sge_i32_branch", &sge_i32_branch);
 
     unsafe {
         let sge_i32 : libloading::Symbol<unsafe extern fn(i32, i32) -> u32> = lib.get(b"sge_i32_branch").unwrap();
@@ -676,7 +676,7 @@ fn sge_i32_branch() -> VM {
 
 #[test]
 fn test_branch2_eq_50p_1() {
-    let lib = testutil::compile_fnc("branch2_eq_50p_1", &branch2_eq_50p_1);
+    let lib = linkutils::aot::compile_fnc("branch2_eq_50p_1", &branch2_eq_50p_1);
 
     unsafe {
         let branch2_eq_50p : libloading::Symbol<unsafe extern fn(u8) -> (u64)> = lib.get(b"branch2_eq_50p_1").unwrap();
@@ -761,7 +761,7 @@ fn branch2_eq_50p_1() -> VM {
 
 #[test]
 fn test_branch2_eq_50p_2() {
-    let lib = testutil::compile_fnc("branch2_eq_50p_2", &branch2_eq_50p_2);
+    let lib = linkutils::aot::compile_fnc("branch2_eq_50p_2", &branch2_eq_50p_2);
 
     unsafe {
         let branch2_eq_50p : libloading::Symbol<unsafe extern fn(u8) -> (u64)> = lib.get(b"branch2_eq_50p_2").unwrap();
@@ -846,7 +846,7 @@ fn branch2_eq_50p_2() -> VM {
 
 #[test]
 fn test_branch2_high_prob_branch_cannot_fallthrough() {
-    let lib = testutil::compile_fnc("branch2", &branch2_high_prob_branch_cannot_fallthrough);
+    let lib = linkutils::aot::compile_fnc("branch2", &branch2_high_prob_branch_cannot_fallthrough);
 
     unsafe {
         let branch2 : libloading::Symbol<unsafe extern fn(u8) -> (u64)> = lib.get(b"branch2").unwrap();

@@ -23,8 +23,8 @@ use mu::vm::*;
 use mu::compiler::*;
 
 use std::sync::Arc;
-use mu::testutil;
-use mu::testutil::aot;
+use mu::linkutils;
+use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
 
 // NOTE: aarch64 has 2 more parameter registers than x86-64 so it needs different test cases for stack arguments
@@ -51,7 +51,7 @@ fn test_ccall_exit() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["ccall_exit".to_string()], "ccall_exit_test", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
 
@@ -144,7 +144,7 @@ fn test_pass_1arg_by_stack() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo7"), Mu("pass_1arg_by_stack")], "test_pass_1arg_by_stack", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (1)
     assert!(output.status.code().is_some());
@@ -387,7 +387,7 @@ fn test_pass_2args_by_stack() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_2args_by_stack")], "test_pass_2args_by_stack", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (2)
     assert!(output.status.code().is_some());
@@ -638,7 +638,7 @@ fn test_pass_2_int8_args_by_stack() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_2_int8_args_by_stack")], "test_pass_2_int8_args_by_stack", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (2)
     assert!(output.status.code().is_some());
@@ -906,7 +906,7 @@ fn test_pass_mixed_args_by_stack() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_mixed_args_by_stack")], "test_pass_mixed_args_by_stack", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (2)
     assert!(output.status.code().is_some());
@@ -1137,7 +1137,7 @@ fn pass_mixed_args_by_stack() -> VM {
 
 #[test]
 fn test_pass_fp_arg() {
-    let lib = testutil::compile_fncs("pass_fp_arg", vec!["pass_fp_arg", "foo"], &pass_fp_arg);
+    let lib = linkutils::aot::compile_fncs("pass_fp_arg", vec!["pass_fp_arg", "foo"], &pass_fp_arg);
 
     unsafe {
         let pass_fp_arg : libloading::Symbol<unsafe extern fn (f64) -> f64> = lib.get(b"pass_fp_arg").unwrap();
@@ -1214,7 +1214,7 @@ fn pass_fp_arg() -> VM {
 
 #[test]
 fn test_store_funcref() {
-    let lib = testutil::compile_fncs("store_funcref", vec!["store_funcref", "foo"], &store_funcref);
+    let lib = linkutils::aot::compile_fncs("store_funcref", vec!["store_funcref", "foo"], &store_funcref);
 
     unsafe {
         use mu::utils::mem::memsec::malloc;
@@ -1342,7 +1342,7 @@ fn test_call_int128_arg() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("add_u128"), Mu("call_add_u128")], "test_call_int128_arg", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (84)
     assert!(output.status.code().is_some());

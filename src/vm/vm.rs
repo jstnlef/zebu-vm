@@ -978,7 +978,7 @@ impl <'a> VM {
     /// has dylib extension, otherwise generates an executable)
     #[cfg(feature = "aot")]
     fn link_boot_image(&self, funcs: Vec<MuID>, extra_srcs: Vec<String>, output_file: String) {
-        use testutil;
+        use linkutils;
 
         info!("Linking boot image...");
 
@@ -993,13 +993,13 @@ impl <'a> VM {
 
         if output_file.ends_with("dylib") || output_file.ends_with("so") {
             // compile as dynamic library
-            testutil::aot::link_dylib_with_extra_srcs(func_names, extra_srcs, &output_file, self);
+            linkutils::aot::link_dylib_with_extra_srcs(func_names, extra_srcs, &output_file, self);
         } else {
             if extra_srcs.len() != 0 {
                 panic!("trying to create an executable with linking extern sources, unimplemented");
             }
             // compile as executable
-            testutil::aot::link_primordial(func_names, &output_file, self);
+            linkutils::aot::link_primordial(func_names, &output_file, self);
         }
 
         trace!("Done!");

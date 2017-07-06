@@ -92,7 +92,7 @@ impl MuVM {
         extern crate libloading as ll;
 
         use compiler::*;
-        use testutil::aot;
+        use linkutils::aot;
 
         let funcs : Vec<MuID> = {
             let funcs = self.vm.funcs().read().unwrap();

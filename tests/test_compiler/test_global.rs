@@ -27,9 +27,9 @@ use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use utils::Address;
 use utils::LinkedHashMap;
-use mu::testutil::aot;
+use mu::linkutils::aot;
 use mu::vm::handle;
-use mu::testutil;
+use mu::linkutils;
 
 use std::sync::Arc;
 
@@ -96,7 +96,7 @@ fn test_set_global_by_api() {
 
     // link
     let executable = aot::link_primordial(vec![Mu("set_global_by_api")], "set_global_by_api_test", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
 
@@ -176,8 +176,8 @@ fn test_get_global_in_dylib() {
     backend::emit_context(&vm);
 
     // link
-    let libname = &testutil::get_dylib_name("get_global_in_dylib");
-    let libpath = testutil::aot::link_dylib(vec![Mu("get_global_in_dylib")], libname, &vm);
+    let libname = &linkutils::get_dylib_name("get_global_in_dylib");
+    let libpath = linkutils::aot::link_dylib(vec![Mu("get_global_in_dylib")], libname, &vm);
     let lib     = libloading::Library::new(libpath.as_os_str()).unwrap();
 
     unsafe {
@@ -285,7 +285,7 @@ fn test_persist_linked_list() {
 
     // link
     let executable = aot::link_primordial(vec![Mu("persist_linked_list")], "persist_linked_list_test", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
 
@@ -494,7 +494,7 @@ fn test_persist_hybrid() {
 
     // link
     let executable = aot::link_primordial(vec![Mu("persist_hybrid")], "persist_hybrid_test", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
 
@@ -715,7 +715,7 @@ fn test_persist_funcref() {
         path.push("test_persist_funcref");
         path
     };
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
 

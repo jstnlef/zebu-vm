@@ -26,8 +26,8 @@ use self::mu::utils::Address;
 use self::mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
-use self::mu::testutil;
-use self::mu::testutil::aot;
+use self::mu::linkutils;
+use self::mu::linkutils::aot;
 
 #[test]
 fn test_allocation_fastpath() {
@@ -51,7 +51,7 @@ fn test_allocation_fastpath() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec!["allocation_fastpath".to_string()], "allocation_fastpath_test", &vm);
-    aot::execute(executable);
+    linkutils::exec_path(executable);
 }
 
 fn allocation_fastpath() -> VM {
@@ -125,7 +125,7 @@ fn test_instruction_new() {
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test", &vm);
-    aot::execute(executable);
+    linkutils::exec_path(executable);
 }
 
 #[allow(dead_code)]
@@ -153,7 +153,7 @@ fn test_instruction_new_on_cur_thread() {
     backend::emit_context(&vm);
 
     // link
-    let libname = &testutil::get_dylib_name("alloc_new_on_cur_thread");
+    let libname = &linkutils::get_dylib_name("alloc_new_on_cur_thread");
     let dylib = aot::link_dylib(vec![Mu("alloc_new")], libname, &vm);
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
 

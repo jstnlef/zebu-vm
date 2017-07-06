@@ -37,4 +37,4 @@ pub extern crate gc;
 pub mod vm;
 pub mod compiler;
 pub mod runtime;
-pub mod testutil;
+pub mod linkutils;
