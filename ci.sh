@@ -32,12 +32,25 @@ cargo test --release --no-run --color=always 2>&1 | tee build_out.txt
 
 /usr/bin/time -f "finished in %e secs" -a -o cargo_test_out.txt ./test-release --color=always 2>/dev/null | tee cargo_test_out.txt
 
-cd $MU_ZEBU/tests/test_jit/mu-client-pypy
-git pull
-
-cd $MU_ZEBU/tests/test_jit/RPySOM
-git pull
-
 cd $MU_ZEBU/tests/test_jit/
-ZEBU_BUILD=release LD_LIBRARY_PATH=. PYTHONPATH=mu-client-pypy:RPySOM/src pytest test_*.py -v --color=yes 2>&1 | tee $MU_ZEBU/pytest_out.txt
 
+if [ -d "./mu-client-pypy" ]
+then
+        git -C ./mu-client-pypy pull
+else
+        git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git
+        git -C ./mu-client-pypy checkout mu-rewrite
+        git -C ./mu-client-pypy apply pypy.patch
+fi
+
+
+if [ -d "./RPySOM" ]
+then
+        git -C ./RPySOM pull
+else
+        git clone https://github.com/microvm/RPySOM.git
+        git -C ./RPySOM submodule init
+        git -C ./RPySOM submodule update
+fi
+
+pytest test_*.py -v --color=yes 2>&1 | tee $MU_ZEBU/pytest_out.txt
