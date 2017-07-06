@@ -15,18 +15,16 @@
 #![allow(non_snake_case)]   // It's generated code.
 #![allow(dead_code)]        // Seems Rust do not consider "taking the function pointer" as "use"
 
-/**
- * This file contains the bridge between the C interface and the Rust implementation.
- *
- * This file contains the the functions in the C-API's `MuVM`, `MuCtx` and `MuIRBuilder` structs.
- * These functions will convert the low-level C-style argument types to the high-level Rust-level
- * argument types, and attempt to call the methods of the same name on the corresponding Rust
- * structs in api_impl.
- *
- * NOTE: Parts of this file (between GEN:BEGIN:* and GEN:END:*) are automatically generated. Do not
- * edit those parts manually because they will be overwritten. Instead, edit the muapi2rustapi.py
- * script to generate the desired code.
- */
+//! This file contains the bridge between the C interface and the Rust implementation.
+//! This file contains the the functions in the C-API's `MuVM`, `MuCtx` and `MuIRBuilder` structs.
+//! These functions will convert the low-level C-style argument types to the high-level Rust-level
+//! argument types, and attempt to call the methods of the same name on the corresponding Rust
+//! structs in api_impl.
+//!
+//! NOTE: Parts of this file (between GEN:BEGIN:* and GEN:END:*) are automatically generated.
+//! Do not edit those parts manually because they will be overwritten. Instead, edit the
+//! muapi2rustapi.py script to generate the desired code.
+
 use std::ptr;
 use std::os::raw::*;
 use std::ffi::CStr;

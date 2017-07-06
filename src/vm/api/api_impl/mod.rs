@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*!
- * This module contains the high-level implementation of the Mu API.
- *
- * Structs are written in idiomatic Rust code. The internal structures of these structs are
- * implementation-specific. Methods are defined using `impl`. 
- */
+//! This module contains the high-level implementation of the Mu API.
+//!
+//! Structs are written in idiomatic Rust code. The internal structures of these structs are
+//! implementation-specific. Methods are defined using `impl`.
 
 #![allow(unused_imports)]   // work in progress
 #![allow(unused_variables)] // stubs
