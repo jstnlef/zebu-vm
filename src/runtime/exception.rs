@@ -15,6 +15,9 @@
 use compiler::backend::*;
 use utils::Address;
 use utils::POINTER_SIZE;
+use std::collections::HashMap;
+use std::ops::Deref;
+use compiler::machine_code::CompiledCallsite;
 use runtime::*;
 
 // muentry_throw_exception should call this function,
@@ -50,30 +53,31 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
     let mut previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer); // thrower::fp, the starting point of the previous frame
 
     // acquire lock for exception table
-    let compiled_exception_table = vm.compiled_exception_table.read().unwrap();
+    let compiled_callsite_table = vm.compiled_callsite_table.read().unwrap();
 
     loop {
         // Lookup the table for the callsite
         trace!("Callsite: 0x{:x}", callsite);
         trace!("\tprevious_frame_pointer: 0x{:x}", previous_frame_pointer);
         trace!("\tcurrent_frame_pointer: 0x{:x}", current_frame_pointer);
-
-        let &(catch_address, compiled_func) = {
-            let table_entry = compiled_exception_table.get(&callsite);
+        //CompiledCallsite
+        let callsite_info = {
+            let table_entry = compiled_callsite_table.get(&callsite);
 
             if table_entry.is_none() {
                 error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
-                print_backtrace(frame_cursor);
-                // The above function will not return
+                print_backtrace(frame_cursor, compiled_callsite_table.deref()); // This function may segfault
+                panic!("Uncaught Mu Exception");
             }
 
             table_entry.unwrap()
         };
 
         // Check for a catch block at this callsite (there won't be one on the first iteration of this loop)
-        if !catch_address.is_zero() {
+        if callsite_info.exceptional_destination.is_some() {
+            let catch_address = callsite_info.exceptional_destination.unwrap();
             trace!("Found catch block: 0x{:x}", catch_address);
-            let sp = get_previous_stack_pointer(current_frame_pointer);
+            let sp = get_previous_stack_pointer(current_frame_pointer, callsite_info.stack_args_size);
             trace!("\tRestoring SP to: 0x{:x}", sp);
 
             if cfg!(debug_assertions) {
@@ -82,15 +86,13 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
             }
 
             // Found a catch block, branch to it
-            drop(compiled_exception_table);    // drop the lock first
+            // drop(compiled_callsite_table); // TODO: Work out how to make the borrow checker let me do this
             unsafe { thread::exception_restore(catch_address, frame_cursor.to_ptr(), sp); }
         }
 
         // Restore callee saved registers
         unsafe {
-            let ref cf = *compiled_func;
-            let ref callee_saved = cf.frame.callee_saved;
-            for (target_offset, source_offset) in callee_saved {
+            for (target_offset, source_offset) in callsite_info.callee_saved_registers.iter() {
                 // *(frame_cursor + target_offset) = *(frame_pointer + source_offset)
                 let val = previous_frame_pointer.offset(*source_offset).load::<Address>();
                 frame_cursor.offset(*target_offset).store::<Address>(val);
@@ -121,32 +123,28 @@ fn print_frame(base: Address) {
     }
 }
 
-// This function may segfault or panic when it reaches the bottom of the stack
+// This function may segfault when it reaches the bottom of the stack
 // (TODO: Determine where the bottom is without segfaulting)
-fn print_backtrace(base: Address) -> !{
+fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, CompiledCallsite>) {
     error!("BACKTRACE: ");
 
     let cur_thread = thread::MuThread::current();
     let ref vm = cur_thread.vm;
-
+    // compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>;
+    let compiled_funcs = vm.compiled_funcs().read().unwrap();
     let mut frame_pointer = base;
     let mut frame_count = 0;
-
-    let compiled_exception_table = vm.compiled_exception_table.read().unwrap();
 
     loop {
         let callsite = get_return_address(frame_pointer);
 
-        if compiled_exception_table.contains_key(&callsite) {
-            let &(_, compiled_func_ptr) = compiled_exception_table.get(&callsite).unwrap();
+        if compiled_callsite_table.contains_key(&callsite) {
+            let function_version = compiled_callsite_table.get(&callsite).unwrap().function_version;
+            let compiled_func = compiled_funcs.get(&function_version).unwrap().read().unwrap();
 
-            unsafe {
-                let ref compiled_func = *compiled_func_ptr;
-
-                error!("\tframe {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}", frame_count,
-                compiled_func.start.to_address(), vm.name_of(compiled_func.func_id),
-                compiled_func.func_id, compiled_func.func_ver_id, callsite);
-            }
+            error!("\tframe {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}", frame_count,
+            compiled_func.start.to_address(), vm.name_of(compiled_func.func_id),
+            compiled_func.func_id, compiled_func.func_ver_id, callsite);
         } else {
             let (func_name, func_start) = get_function_info(callsite);
             error!("\tframe {:2}: 0x{:x} - {} at 0x{:x}", frame_count, func_start, func_name, callsite);
@@ -154,7 +152,7 @@ fn print_backtrace(base: Address) -> !{
 
         frame_pointer = get_previous_frame_pointer(frame_pointer);
         if frame_pointer.is_zero() {
-            panic!("Uncaught Mu Exception");
+            return;
         }
         frame_count += 1;
     }

@@ -131,7 +131,17 @@ pub struct MuFunctionVersion {
 
     pub block_trace: Option<Vec<MuID>> // only available after Trace Generation Pass
 }
-
+rodal_struct!(Callsite{name, exception_destination, stack_arg_size});
+pub struct Callsite {
+    pub name: MuName,
+    pub exception_destination: Option<MuName>,
+    pub stack_arg_size: usize,
+}
+impl Callsite {
+    pub fn new(name: MuName, exception_destination: Option<MuName>, stack_arg_size: usize)->Callsite {
+        Callsite{name: name, exception_destination: exception_destination, stack_arg_size: stack_arg_size}
+    }
+}
 impl fmt::Display for MuFunctionVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "FuncVer {} of Func #{}", self.hdr, self.func_id)

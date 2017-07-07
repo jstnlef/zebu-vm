@@ -25,4 +25,4 @@ utils = {path = "../utils"}
 lazy_static = "*"
 log = "*"
 simple_logger = "*"
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = "0.0.2" }
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = "0.0.3" }

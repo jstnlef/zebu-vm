@@ -793,8 +793,8 @@ pub fn get_return_address(frame_pointer: Address) -> Address {
 
 // Gets the stack pointer before the current frame was created
 #[inline(always)]
-pub fn get_previous_stack_pointer(frame_pointer: Address) -> Address {
-    frame_pointer.plus(16)
+pub fn get_previous_stack_pointer(frame_pointer: Address, stack_arg_size: usize) -> Address {
+    frame_pointer.plus(16 + stack_arg_size)
 }
 
 #[inline(always)]

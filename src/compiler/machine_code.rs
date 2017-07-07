@@ -18,6 +18,9 @@ use compiler::frame::*;
 use runtime::ValueLocation;
 
 use rodal;
+use utils::Address;
+use std::sync::Arc;
+use runtime::resolve_symbol;
 use std::ops;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -83,6 +86,27 @@ impl CompiledFunction {
         match self.mc {
             Some(ref mut mc) => mc,
             None => panic!("no mc found from a compiled function")
+        }
+    }
+}
+
+// Contains information about a callsite (needed for exception handling)
+pub struct CompiledCallsite {
+    pub exceptional_destination: Option<Address>,
+    pub stack_args_size: usize,
+    pub callee_saved_registers: Arc<HashMap<isize, isize>>,
+    pub function_version: MuID
+}
+impl CompiledCallsite {
+    pub fn new(callsite: &Callsite, fv: MuID, callee_saved_registers: Arc<HashMap<isize, isize>>) -> CompiledCallsite {
+        CompiledCallsite {
+            exceptional_destination: match &callsite.exception_destination {
+                &Some(ref name) => Some(resolve_symbol(name.clone())),
+                &None => None
+            },
+            stack_args_size: callsite.stack_arg_size,
+            callee_saved_registers: callee_saved_registers,
+            function_version: fv,
         }
     }
 }

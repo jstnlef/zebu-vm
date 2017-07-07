@@ -394,8 +394,7 @@ impl MuThread {
     pub unsafe fn current_thread_as_mu_thread(threadlocal: Address, vm: Arc<VM>) -> bool {
         use std::usize;
 
-        // build exception table
-        vm.build_exception_table();
+        vm.build_callsite_table();
 
         if ! unsafe{muentry_get_thread_local()}.is_zero() {
             warn!("current thread has a thread local (has a muthread to it)");

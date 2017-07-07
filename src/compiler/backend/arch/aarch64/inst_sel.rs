@@ -61,7 +61,7 @@ pub struct InstructionSelection {
 
     // Technically this is a map in that each Key is unique, but we will never try and add duplicate
     // keys, or look things up, so a list of pairs is faster than a Map.
-    current_callsites: LinkedList<(MuName, MuID)>,
+    current_callsites: LinkedList<(MuName, MuID, usize)>,
     // key: block id, val: block location
     current_exn_blocks: HashMap<MuID, MuName>,
     current_xr_value: Option<P<Value>>, // A temporary that holds to saved XR value (if needed)
@@ -589,24 +589,79 @@ impl <'a> InstructionSelection {
                                     }
                                 } else {
                                     self.backend.emit_fcvtzu(&tmp_res, &tmp_op);
+
+                                    // We have to emmit code to handle the case when the real result
+                                    // overflows to_ty_size, but not to_ty_reg_size
+                                    let to_ty_reg_size = check_op_len(&tmp_res.ty); // The size of the aarch64 register
+                                    if to_ty_size != to_ty_reg_size {
+                                        // Compare the bits of the result after the lower
+                                        // to_ty_size bits
+                                        self.backend.emit_tst_imm(&tmp_res, bits_ones(to_ty_reg_size-to_ty_size) << to_ty_size);
+
+                                        // If the above condition is true, the an overflow occurred
+                                        // So set tmp_res to !0 (i.e. all ones, the maximum value)
+                                        self.backend.emit_csinv(&tmp_res, &tmp_res, &get_alias_for_length(XZR.id(), from_ty_size), "EQ");
+                                    }
                                 }
                             },
 
                             op::ConvOp::FPTOSI => {
                                 if to_ty_size == 128 {
                                     if from_ty_size == 64 {
-                                        self.emit_runtime_entry(&entrypoints::FPTOSI_DOUBLE_I128,
-                                            vec![tmp_op.clone()],
-                                            Some(vec![tmp_res.clone()]),
-                                            Some(node), f_context, vm);
+                                        self.emit_runtime_entry(&entrypoints::FPTOSI_DOUBLE_I128, vec![tmp_op.clone()],
+                                                                Some(vec![tmp_res.clone()]), Some(node), f_context, vm);
                                     } else {
-                                        self.emit_runtime_entry(&entrypoints::FPTOSI_FLOAT_I128,
-                                            vec![tmp_op.clone()],
-                                            Some(vec![tmp_res.clone()]),
-                                            Some(node), f_context, vm);
+                                        self.emit_runtime_entry(&entrypoints::FPTOSI_FLOAT_I128, vec![tmp_op.clone()],
+                                                                Some(vec![tmp_res.clone()]), Some(node), f_context, vm);
                                     }
                                 } else {
                                     self.backend.emit_fcvtzs(&tmp_res, &tmp_op);
+
+                                    // TODO This code is horrible and inefficient due to branches and duplication
+                                    // is there a better way?
+
+                                    // We have to emmit code to handle the case when the real result
+                                    // overflows to_ty_size, but not to_ty_reg_size
+                                    let to_ty_reg_size = check_op_len(&tmp_res.ty); // The size of the aarch64 register
+                                    if to_ty_size != to_ty_reg_size {
+                                        let blk_positive = format!("{}_positive", node.id());
+                                        let blk_negative = format!("{}_negative", node.id());
+                                        let blk_end      = format!("{}_end", node.id());
+                                        let tmp          = make_temporary(f_context, to_ty.clone(), vm);
+
+                                        self.backend.emit_tbnz(&tmp_res, (to_ty_size - 1) as u8, blk_negative.clone());
+                                        self.finish_block();
+
+                                        self.start_block(blk_positive.clone(), &vec![]);
+                                        {
+                                            // check to see if the higher bits are the same as the
+                                            // sign bit (which is 0), if their not there's an overflow
+                                            self.backend.emit_tst_imm(&tmp_res, bits_ones(to_ty_reg_size - to_ty_size) << to_ty_size);
+                                            self.backend.emit_mov_imm(&tmp, bits_ones(to_ty_size - 1));
+
+                                            // if the above test fails (i.e. results in zero)
+                                            // then set temp_res to tmp
+                                            self.backend.emit_csel(&tmp_res, &tmp, &tmp_res, "EQ");
+
+                                            self.backend.emit_b(blk_end.clone());
+                                            self.finish_block();
+                                        }
+                                        self.start_block(blk_negative.clone(), &vec![]);
+                                        {
+                                            self.backend.emit_mvn(&tmp, &tmp_res);
+                                            // check to see if the higher bits of temp are the same as the
+                                            // sign bit (which is 1), if their not there's an overflow
+                                            self.backend.emit_tst_imm(&tmp_res, bits_ones(to_ty_reg_size - to_ty_size) << to_ty_size);
+
+                                            // Set just the sign bit (this is smallest representable signed number)
+                                            self.backend.emit_mov_imm(&tmp, 1 << to_ty_size);
+
+                                            // if the above test fails (i.e. results in zero), then set temp_res to tmp
+                                            self.backend.emit_csel(&tmp_res, &tmp, &tmp_res, "EQ");
+                                            self.finish_block();
+                                        }
+                                        self.start_block(blk_end.clone(), &vec![]);
+                                    }
                                 }
                             },
 
@@ -856,7 +911,6 @@ impl <'a> InstructionSelection {
 
                         let res_value = self.get_result_value(node, 0);
                         let res_success = self.get_result_value(node, 1);
-
 
                         let blk_cmpxchg_start = format!("{}_cmpxchg_start", node.id());
                         let blk_cmpxchg_failed = format!("{}_cmpxchg_failed", node.id());
@@ -1533,13 +1587,13 @@ impl <'a> InstructionSelection {
 
                     if output_status {
                         emit_zext(self.backend.as_mut(), &reg_op1);
-                        if n == 1 {
-                            // adds_ext dosn't support extending 1 bit numbers
-                            emit_zext(self.backend.as_mut(), &reg_op2);
-                            self.backend.emit_adds(&res, &reg_op1, &reg_op2);
-                        } else {
+                        if n == 8 || n == 16 || n == 32 || n == 64 {
                             // Emit an adds that zero extends op2
                             self.backend.emit_adds_ext(&res, &reg_op1, &reg_op2, false, 0);
+                        } else {
+                            // adds_ext dosn't support extending other sizes
+                            emit_zext(self.backend.as_mut(), &reg_op2);
+                            self.backend.emit_adds(&res, &reg_op1, &reg_op2);
                         }
 
                         if status.flag_v {
@@ -1707,13 +1761,13 @@ impl <'a> InstructionSelection {
 
                             emit_oext(self.backend.as_mut(), &reg_op2);
                             self.backend.emit_subs(&res, &reg_op1, &reg_op2);
-                        } else if n == 1 {
+                        } else if n == 8 || n == 16 || n == 32 || n == 64 {
+                            // Emit an subs that zero extends op2
+                            self.backend.emit_subs_ext(&res, &reg_op1, &reg_op2, false, 0);
+                        } else {
                             // if the carry flag isn't been computed, just zero extend op2
                             emit_zext(self.backend.as_mut(), &reg_op2);
                             self.backend.emit_subs(&res, &reg_op1, &reg_op2);
-                        } else {
-                            // Emit an subs that zero extends op2
-                            self.backend.emit_subs_ext(&res, &reg_op1, &reg_op2, false, 0);
                         }
 
 
@@ -1993,27 +2047,38 @@ impl <'a> InstructionSelection {
                     emit_zext(self.backend.as_mut(), &reg_op2);
 
                     if status.flag_c || status.flag_v {
-                        if n < 32 {
+                        if n <= 16 {
                             // A normal multiply will give the correct upper 'n' bits
                             self.backend.emit_mul(&res, &reg_op1, &reg_op2);
                             // Test the upper 'n' bits of the result
-                            self.backend.emit_tst_imm(&res, (bits_ones(n) << n));
-                        } else if n == 32 {
+                            self.backend.emit_tst_imm(&res, bits_ones(n) << n);
+                        } else if n <= 32 {
                             // the 64-bit register version of res
                             let res_64 = cast_value(&res, &UINT64_TYPE);
                             // Compute the full 64-bit product of reg_op1 and reg_op2
                             self.backend.emit_umull(&res_64, &reg_op1, &reg_op2);
                             // Test the upper n bits of the result
-                            self.backend.emit_tst_imm(&res, 0xFFFFFFFF00000000);
-                        } else if n <= 64 {
+                            self.backend.emit_tst_imm(&res, bits_ones(n) << n);
+                        } else if n < 64 {
+                            // Compute the full 2n-bit product
+                            let tmp_upper = make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                            // res = the lower 64-bits of the product
+                            self.backend.emit_mul(&res, &reg_op1, &reg_op2);
+                            // tmp_upper = the upper (2n-64) bits of the product
+                            self.backend.emit_umulh(&tmp_upper, &reg_op1, &reg_op2);
+
+                            // Get the upper part of the product
+                            // (i.e. set tmp_upper to be the full 128-bit product right shifted by n)
+                            self.backend.emit_extr(&tmp_upper, &tmp_upper, &res, n as u8);
+
+                            // Compare the first n bits (i.e. the upper n bits of
+                            // the 2n-bits of the true product)
+                            self.backend.emit_tst_imm(&tmp_upper, bits_ones(n));
+                        } else if n == 64 {
                             // Compute the upper 64-bits of the true product
                             self.backend.emit_umulh(&res, &reg_op1, &reg_op2);
                             // Test the 64-bits of res, equivalent to TST res, 0xFFFFFFFFFFFFFFFF
-                            if n == 64 {
-                                self.backend.emit_cmp_imm(&res, 0, false);
-                            } else {
-                                self.backend.emit_tst_imm(&res, (bits_ones(n - 32)));
-                            }
+                            self.backend.emit_cmp_imm(&res, 0, false);
                             // Get the lower 64-bits of the true product
                             self.backend.emit_mul(&res, &reg_op1, &reg_op2);
                         } else {
@@ -3282,7 +3347,7 @@ impl <'a> InstructionSelection {
             self.backend.emit_bl(callsite.clone(), func_name, None); // assume ccall wont throw exception
 
             // TODO: What if theres an exception block?
-            self.current_callsites.push_back((callsite, 0));
+            self.current_callsites.push_back((callsite, 0, stack_arg_size));
 
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -3449,9 +3514,9 @@ impl <'a> InstructionSelection {
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
 
-            self.current_callsites.push_back((callsite.to_relocatable(), target_block));
+            self.current_callsites.push_back((callsite.to_relocatable(), target_block, stack_arg_size));
         } else {
-            self.current_callsites.push_back((callsite.to_relocatable(), 0));
+            self.current_callsites.push_back((callsite.to_relocatable(), 0, stack_arg_size));
         }
 
         // deal with ret vals
@@ -4303,6 +4368,7 @@ impl <'a> InstructionSelection {
         self.backend.end_block(cur_block.clone());
     }
 
+    // TODO: Do we need live_in
     fn start_block(&mut self, block: String, live_in: &Vec<P<Value>>) {
         self.current_block = Some(block.clone());
         self.backend.start_block(block.clone());
@@ -4428,14 +4494,14 @@ impl CompilerPass for InstructionSelection {
             None => panic!("no current_frame for function {} that is being compiled", func_name)
         };
 
-        for &(ref callsite, block_id) in self.current_callsites.iter() {
+        for &(ref callsite, block_id, stack_arg_size) in self.current_callsites.iter() {
             let block_loc = if block_id == 0 {
-                String::new()
+                None
             } else {
-                self.current_exn_blocks.get(&block_id).unwrap().clone()
+                Some(self.current_exn_blocks.get(&block_id).unwrap().clone())
             };
 
-            vm.add_exception_callsite(callsite.clone(), block_loc, self.current_fv_id);
+            vm.add_exception_callsite(Callsite::new(callsite.clone(), block_loc, stack_arg_size), self.current_fv_id);
         }
 
         let compiled_func = CompiledFunction::new(func.func_id, func.id(), mc,

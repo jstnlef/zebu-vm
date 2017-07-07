@@ -43,7 +43,6 @@ pub struct Frame {
     pub allocated: HashMap<MuID, FrameSlot>,
     // Maping from callee saved id (i.e. the position in the list of callee saved registers) and offset from the frame pointer
     pub callee_saved: HashMap<isize, isize>,
-    // (callsite, destination address)
 }
 
 impl fmt::Display for Frame {

@@ -23,7 +23,7 @@ use ast::types::*;
 use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
 use compiler::backend::BackendTypeInfo;
-use compiler::machine_code::CompiledFunction;
+use compiler::machine_code::{CompiledFunction, CompiledCallsite};
 
 use runtime::thread::*;
 use runtime::*;
@@ -65,9 +65,9 @@ pub struct VM { // The comments are the offset into the struct
     // ---partially serialize---
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>, // +728
 
-    // Maps each callsite to a tuple of the corresponding catch blocks label (or ""_
-    // and the id of the containing function-version
-    exception_table: RwLock<HashMap<MuID, HashMap<MuName, MuName>>>, // +784
+    // Match each functions version to a map, mapping each of it's containing callsites
+    // to the name of the catch block
+    callsite_table: RwLock<HashMap<MuID, Vec<Callsite>>>, // +784
     is_running: AtomicBool, // +952
 
     // ---do not serialize---
@@ -78,13 +78,10 @@ pub struct VM { // The comments are the offset into the struct
     // however the store may happen before we have an actual address to the func (in AOT scenario)
     aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>,
 
-    // TODO: What should the function version refer to? (It has to refer to something that has callee saved registers...)
-    // TODO: probably we should remove the pointer (its unsafe), thats why we need Sync/Send for VM
-    //       we can make a copy of callee_saved_register location
-    pub compiled_exception_table: RwLock<HashMap<Address, (Address, *const CompiledFunction)>> // 896
+    pub compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>> // 896
 }
 unsafe impl rodal::Dump for VM {
-    fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
+    fn dump<D: ? Sized + rodal::Dumper>(&self, dumper: &mut D) {
         dumper.debug_record("VM", "dump");
 
         dumper.dump_object(&self.next_id);
@@ -99,7 +96,7 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object(&self.primordial);
         dumper.dump_object(&self.vm_options);
         dumper.dump_object(&self.compiled_funcs);
-        dumper.dump_object(&self.exception_table);
+        dumper.dump_object(&self.callsite_table);
 
         // Dump empty maps so that we can safely read and modify them once loaded
         dumper.dump_padding(&self.global_locations);
@@ -112,16 +109,13 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, ValueLocation>::new()));
 
         // Dump an emepty hashmap for the other hashmaps
-        dumper.dump_padding(&self.compiled_exception_table);
-        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, (Address, *const CompiledFunction)>::new()));
+        dumper.dump_padding(&self.compiled_callsite_table);
+        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, CompiledCallsite>::new()));
 
         // This field is actually stored at the end of the struct, the others all have the same allignment so are not reordered
         dumper.dump_object(&self.is_running);
     }
 }
-
-unsafe impl Sync for VM {}
-unsafe impl Send for VM {}
 
 use std::u64;
 const PENDING_FUNCREF : u64 = u64::MAX;
@@ -174,11 +168,11 @@ impl <'a> VM {
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
-            exception_table: RwLock::new(HashMap::new()),
+            callsite_table: RwLock::new(HashMap::new()),
             primordial: RwLock::new(None),
 
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
-            compiled_exception_table: RwLock::new(HashMap::new()),
+            compiled_callsite_table: RwLock::new(HashMap::new()),
         };
 
         // insert all internal types
@@ -262,16 +256,13 @@ impl <'a> VM {
         }
     }
 
-    pub fn add_exception_callsite(&self, callsite: MuName, catch: MuName, fv: MuID) {
-        let mut table = self.exception_table.write().unwrap();
+    pub fn add_exception_callsite(&self, callsite: Callsite, fv: MuID) {
+        let mut table = self.callsite_table.write().unwrap();
 
         if table.contains_key(&fv) {
-            let mut map = table.get_mut(&fv).unwrap();
-            map.insert(callsite, catch);
+            table.get_mut(&fv).unwrap().push(callsite);
         } else {
-            let mut new_map = HashMap::new();
-            new_map.insert(callsite, catch);
-            table.insert(fv, new_map);
+            table.insert(fv, vec![callsite]);
         };
     }
 
@@ -311,27 +302,21 @@ impl <'a> VM {
         }
 
         // construct exception table
-        vm.build_exception_table();
+        vm.build_callsite_table();
 
         vm
     }
 
-    pub fn build_exception_table(&self) {
-        let exception_table = self.exception_table.read().unwrap();
+    pub fn build_callsite_table(&self) {
+        let callsite_table = self.callsite_table.read().unwrap();
         let compiled_funcs = self.compiled_funcs.read().unwrap();
-        let mut compiled_exception_table = self.compiled_exception_table.write().unwrap();
+        let mut compiled_callsite_table = self.compiled_callsite_table.write().unwrap();
 
-        for (fv, map) in exception_table.iter() {
-            let ref compiled_func = *compiled_funcs.get(fv).unwrap().read().unwrap();
-
-            for (callsite, catch_block) in map.iter() {
-                let catch_addr = if catch_block.is_empty() {
-                    unsafe {Address::zero()}
-                } else {
-                    resolve_symbol(catch_block.clone())
-                };
-
-                compiled_exception_table.insert(resolve_symbol(callsite.clone()), (catch_addr, &*compiled_func));
+        for (fv, callsite_list) in callsite_table.iter() {
+            let compiled_func = compiled_funcs.get(fv).unwrap().read().unwrap();
+            let callee_saved_table = Arc::new(compiled_func.frame.callee_saved.clone());
+            for callsite in callsite_list.iter() {
+                compiled_callsite_table.insert(resolve_symbol(callsite.name.clone()), CompiledCallsite::new(&callsite, compiled_func.func_ver_id, callee_saved_table.clone()));
             }
         }
     }

@@ -29,6 +29,7 @@ rm -rf $MU_ZEBU/tests/test_jit/emit
 
 #cargo clean
 cargo test --release --no-run --color=always 2>&1 | tee build_out.txt
+$(exit ${PIPESTATUS[0]}) # this command will exit the shell but only if the above cargo test failed
 
 /usr/bin/time -f "finished in %e secs" -a -o cargo_test_out.txt ./test-release --color=always 2>/dev/null | tee cargo_test_out.txt
 

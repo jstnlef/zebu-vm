@@ -125,9 +125,10 @@ pub struct InstructionSelection {
     current_block_in_ir: Option<MuName>,
     current_func_start: Option<ValueLocation>,
     // Technically this is a map in that each Key is unique, but we will never try and add duplicate
-    // keys, or look things up, so a list of pairs is faster than a Map.
-    // A list of pairs, the first is the name of a callsite the second
-    current_callsites: LinkedList<(MuName, MuID)>,
+    // keys, or look things up, so a list of tuples is faster than a Map.
+    // A list of tuples, the first is the name of a callsite, the next is the callsite destination, the last is the
+    // size of arguments pushed on the stack
+    current_callsites: LinkedList<(MuName, MuID, usize)>,
     // key: block id, val: block location
     current_exn_blocks: HashMap<MuID, MuName>,
 
@@ -3186,7 +3187,7 @@ impl <'a> InstructionSelection {
             self.backend.emit_call_near_rel32(callsite.clone(), func_name, None); // assume ccall wont throw exception
 
             // TODO: What if theres an exception block?
-            self.current_callsites.push_back((callsite, 0));
+            self.current_callsites.push_back((callsite, 0, stack_arg_size));
 
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -3368,7 +3369,7 @@ impl <'a> InstructionSelection {
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
 
-            self.current_callsites.push_back((callsite.to_relocatable(), target_block));
+            self.current_callsites.push_back((callsite.to_relocatable(), target_block, stack_arg_size));
 
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
@@ -3376,7 +3377,7 @@ impl <'a> InstructionSelection {
             let fv_id = self.current_fv_id;
             self.start_block(format!("normal_cont_for_call_{}_{}", fv_id, cur_node.id()));
         } else {
-            self.current_callsites.push_back((callsite.to_relocatable(), 0));
+            self.current_callsites.push_back((callsite.to_relocatable(), 0, stack_arg_size));
         }
         
         // deal with ret vals, collapse stack etc.
@@ -4937,14 +4938,14 @@ impl CompilerPass for InstructionSelection {
             Some(frame) => frame,
             None => panic!("no current_frame for function {} that is being compiled", func_name)
         };
-        for &(ref callsite, block_id) in self.current_callsites.iter() {
+        for &(ref callsite, block_id, stack_arg_size) in self.current_callsites.iter() {
             let block_loc = if block_id == 0 {
-                String::new()
+                None
             } else {
-                self.current_exn_blocks.get(&block_id).unwrap().clone()
+                Some(self.current_exn_blocks.get(&block_id).unwrap().clone())
             };
 
-            vm.add_exception_callsite(callsite.clone(), block_loc, self.current_fv_id);
+            vm.add_exception_callsite(Callsite::new(callsite.clone(), block_loc, stack_arg_size), self.current_fv_id);
         }
 
 
