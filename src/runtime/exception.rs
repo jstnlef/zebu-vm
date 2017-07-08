@@ -60,18 +60,17 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
         trace!("Callsite: 0x{:x}", callsite);
         trace!("\tprevious_frame_pointer: 0x{:x}", previous_frame_pointer);
         trace!("\tcurrent_frame_pointer: 0x{:x}", current_frame_pointer);
+
+        let table_entry = compiled_callsite_table.get(&callsite);
+
+        if table_entry.is_none() {
+            error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
+            print_backtrace(frame_cursor, compiled_callsite_table.deref()); // This function may segfault
+            panic!("Uncaught Mu Exception");
+        }
+
         //CompiledCallsite
-        let callsite_info = {
-            let table_entry = compiled_callsite_table.get(&callsite);
-
-            if table_entry.is_none() {
-                error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
-                print_backtrace(frame_cursor, compiled_callsite_table.deref()); // This function may segfault
-                panic!("Uncaught Mu Exception");
-            }
-
-            table_entry.unwrap()
-        };
+        let callsite_info = table_entry.unwrap();
 
         // Check for a catch block at this callsite (there won't be one on the first iteration of this loop)
         if callsite_info.exceptional_destination.is_some() {
@@ -86,7 +85,10 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
             }
 
             // Found a catch block, branch to it
-            // drop(compiled_callsite_table); // TODO: Work out how to make the borrow checker let me do this
+            drop(table_entry);
+            drop(callsite_info);
+            //drop(compiled_callsite_table); // TODO: Work out how to make the borrow checker let
+            // me do this
             unsafe { thread::exception_restore(catch_address, frame_cursor.to_ptr(), sp); }
         }
 
