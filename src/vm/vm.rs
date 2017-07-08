@@ -78,7 +78,8 @@ pub struct VM { // The comments are the offset into the struct
     // however the store may happen before we have an actual address to the func (in AOT scenario)
     aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>,
 
-    pub compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>> // 896
+    pub compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
+    pub callsite_count: AtomicUsize, //Number of callsites in the callsite tables
 }
 unsafe impl rodal::Dump for VM {
     fn dump<D: ? Sized + rodal::Dumper>(&self, dumper: &mut D) {
@@ -111,6 +112,7 @@ unsafe impl rodal::Dump for VM {
         // Dump an emepty hashmap for the other hashmaps
         dumper.dump_padding(&self.compiled_callsite_table);
         dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, CompiledCallsite>::new()));
+        dumper.dump_object(&self.callsite_count);
 
         // This field is actually stored at the end of the struct, the others all have the same allignment so are not reordered
         dumper.dump_object(&self.is_running);
@@ -173,6 +175,7 @@ impl <'a> VM {
 
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_callsite_table: RwLock::new(HashMap::new()),
+            callsite_count: ATOMIC_USIZE_INIT,
         };
 
         // insert all internal types
@@ -264,6 +267,8 @@ impl <'a> VM {
         } else {
             table.insert(fv, vec![callsite]);
         };
+        // TODO: do wee need a stronger ordering??
+        self.callsite_count.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn resume_vm(dumped_vm: *mut Arc<VM>) -> Arc<VM> {
@@ -300,10 +305,8 @@ impl <'a> VM {
                 expect_id += 1;
             }
         }
-
         // construct exception table
         vm.build_callsite_table();
-
         vm
     }
 
@@ -311,7 +314,8 @@ impl <'a> VM {
         let callsite_table = self.callsite_table.read().unwrap();
         let compiled_funcs = self.compiled_funcs.read().unwrap();
         let mut compiled_callsite_table = self.compiled_callsite_table.write().unwrap();
-
+        // TODO: Use a different ordering?
+        compiled_callsite_table.reserve(self.callsite_count.load(Ordering::Relaxed));
         for (fv, callsite_list) in callsite_table.iter() {
             let compiled_func = compiled_funcs.get(fv).unwrap().read().unwrap();
             let callee_saved_table = Arc::new(compiled_func.frame.callee_saved.clone());
@@ -338,7 +342,7 @@ impl <'a> VM {
     
     pub fn set_name(&self, entity: &MuEntity) {
         let id = entity.id();
-        let name = entity.name().unwrap();
+        let name = entity.name();
         
         let mut map = self.id_name_map.write().unwrap();
         map.insert(id, name.clone());
@@ -349,7 +353,7 @@ impl <'a> VM {
     
     pub fn id_of_by_refstring(&self, name: &String) -> MuID {
         let map = self.name_id_map.read().unwrap();
-        match map.get(name) {
+        match map.get(&name.clone()) {
             Some(id) => *id,
             None => panic!("cannot find id for name: {}", name)
         }
@@ -403,10 +407,7 @@ impl <'a> VM {
     #[cfg(feature = "aot")]
     pub fn allocate_const(&self, val: P<Value>) -> ValueLocation {
         let id = val.id();
-        let name = match val.name() {
-            Some(name) => format!("CONST_{}_{}", id, name),
-            None => format!("CONST_{}", id)
-        };
+        let name = format!("CONST_{}_{}", id, val.name());
 
         ValueLocation::Relocatable(backend::RegGroup::GPR, name)
     }
@@ -537,7 +538,7 @@ impl <'a> VM {
     pub fn get_func_name(&self, id: MuID) -> MuName {
         let funcs_lock = self.funcs.read().unwrap();
         match funcs_lock.get(&id) {
-            Some(func) => func.read().unwrap().name().unwrap(),
+            Some(func) => func.read().unwrap().name(),
             None => panic!("cannot find name for Mu function #{}")
         }
     }
@@ -737,7 +738,7 @@ impl <'a> VM {
         if self.is_running() {
             unimplemented!()
         } else {
-            ValueLocation::Relocatable(backend::RegGroup::GPR, func.name().unwrap())
+            ValueLocation::Relocatable(backend::RegGroup::GPR, mangle_name(func.name()))
         }
     }
     
@@ -839,7 +840,7 @@ impl <'a> VM {
                 let mut ret = hashmap!{};
                 for i in 0..sym_fields.len() {
                     let addr = sym_fields[i].v.as_address();
-                    ret.insert(addr, name_check(sym_strings[i].clone()));
+                    ret.insert(addr, sym_strings[i].clone());
                 }
                 ret
             };
@@ -851,14 +852,14 @@ impl <'a> VM {
                 // client supplied relocation fields
                 for i in 0..reloc_fields.len() {
                     let addr = reloc_fields[i].v.as_address();
-                    ret.insert(addr, name_check(reloc_strings[i].clone()));
+                    ret.insert(addr, reloc_strings[i].clone());
                 }
 
                 // pending funcrefs - we want to replace them as symbol
                 {
                     let mut pending_funcref = self.aot_pending_funcref_store.write().unwrap();
                     for (addr, vl) in pending_funcref.drain() {
-                        ret.insert(addr, name_check(vl.to_relocatable()));
+                        ret.insert(addr, demangle_name(vl.to_relocatable()));
                     }
                 }
 
@@ -881,7 +882,7 @@ impl <'a> VM {
 
         let func_names = {
             let funcs_guard = self.funcs().read().unwrap();
-            funcs.iter().map(|x| funcs_guard.get(x).unwrap().read().unwrap().name().unwrap()).collect()
+            funcs.iter().map(|x| funcs_guard.get(x).unwrap().read().unwrap().name()).collect()
         };
 
         trace!("functions: {:?}", func_names);
@@ -1163,7 +1164,7 @@ impl <'a> VM {
         let symbol = self.name_of(func_id);
 
         let mut pending_funcref_guard = self.aot_pending_funcref_store.write().unwrap();
-        pending_funcref_guard.insert(addr, ValueLocation::Relocatable(backend::RegGroup::GPR, symbol));
+        pending_funcref_guard.insert(addr, ValueLocation::Relocatable(backend::RegGroup::GPR, mangle_name(symbol)));
     }
 
     // this function and the following two make assumption that GC will not move object

@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <dlfcn.h>
 #include <pthread.h>
+#include <time.h>
 
 uint32_t mu_retval;
 void muentry_set_retval(uint32_t x) {

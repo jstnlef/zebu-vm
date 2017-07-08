@@ -16,7 +16,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-
+#include <time.h>
+#include <assert.h>
 extern void* vm;
 extern void* RODAL_END;
 extern void mu_main(void*, void*, int, char**);

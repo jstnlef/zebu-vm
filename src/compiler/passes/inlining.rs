@@ -187,7 +187,7 @@ impl Inlining {
 
                                 // finish current block
                                 new_blocks.push(cur_block.clone());
-                                let old_name = cur_block.name().unwrap();
+                                let old_name = cur_block.name();
 
                                 // start a new block
                                 let new_name = format!("{}_cont_after_inline_{}", old_name, inst_id);
@@ -334,7 +334,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
         let old_id = block.id();
         let new_id = *block_map.get(&block.id()).unwrap();
         let mut block = Block {
-            hdr: MuEntityHeader::named(new_id, format!("inlinedblock{}_for_{}", new_id, block.name().unwrap())),
+            hdr: MuEntityHeader::named(new_id, format!("{}:inlinedblock.#{}", new_id, block.name())),
             content: block.content.clone(),
             control_flow: ControlFlow::default()
         };

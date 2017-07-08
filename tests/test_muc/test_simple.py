@@ -16,6 +16,21 @@ from util import execute, compile_bundle, load_bundle, get_function;
 import pytest;
 import ctypes;
 
+# Tests that zebu can handle wierd, but valid mu names
+def test_name():
+    compile_bundle(
+            """
+            .global @-0.a5-1_5 <void>
+            .const @0 <int<32>> = 0
+            .funcdef @0-main.func <main_sig>
+            {
+                entry(<int<32>>%1.3 <uptr<uptr<char>>>%-):
+                     RET @0
+            }
+            """, "test_name", "0-main.func");
+    assert(execute("test_name") == 0);
+
+
 def test_argc():
     compile_bundle(
         """

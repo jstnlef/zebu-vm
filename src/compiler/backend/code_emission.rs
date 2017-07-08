@@ -103,13 +103,7 @@ pub fn emit_mu_types(vm: &VM) {
 
 #[allow(dead_code)]
 fn emit_muir(func: &MuFunctionVersion, vm: &VM) {
-    let func_name = match func.name() {
-        Some(name) => name,
-        None => {
-            // use func name
-            vm.name_of(func.func_id)
-        }
-    };
+    let func_name = func.name();
 
     // create emit directory
     create_emit_directory(vm);
@@ -149,13 +143,7 @@ fn emit_muir(func: &MuFunctionVersion, vm: &VM) {
 }
 
 fn emit_muir_dot(func: &MuFunctionVersion, vm: &VM) {
-    let func_name = match func.name() {
-        Some(name) => name,
-        None => {
-            // use func name
-            vm.name_of(func.func_id)
-        }
-    };
+    let func_name = func.name();
 
     // create emit directory
     create_emit_directory(vm);
@@ -164,7 +152,7 @@ fn emit_muir_dot(func: &MuFunctionVersion, vm: &VM) {
     {
         let mut file_path = path::PathBuf::new();
         file_path.push(&vm.vm_options.flag_aot_emit_dir);
-        file_path.push(func_name.clone() + "_orig.dot");
+        file_path.push(func_name.clone() + ".orig.dot");
         let mut file = match File::create(file_path.as_path()) {
             Err(why) => panic!("couldn't create muir dot {}: {}", file_path.to_str().unwrap(), why),
             Ok(file) => file
@@ -201,7 +189,7 @@ fn emit_muir_dot_inner(file: &mut File,
 
     // every graph node (basic block)
     for (id, block) in f_content.blocks.iter() {
-        let block_name = block.name().unwrap();
+        let block_name = block.name();
         // BBid [label = "name
         file.write_fmt(format_args!("BB{} [label = \"[{}]{} ", *id, *id, &block_name)).unwrap();
 
@@ -327,17 +315,11 @@ fn emit_muir_dot_inner(file: &mut File,
 }
 
 fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
-    let func_name = match func.name() {
-        Some(name) => name,
-        None => {
-            // use func name
-            vm.name_of(func.func_id)
-        }
-    };
+    let func_name = func.name();
 
     // create emit directory/file
     create_emit_directory(vm);
-    let mut file = create_emit_file(func_name.clone() + "_mc.dot", &vm);
+    let mut file = create_emit_file(func_name.clone() + ".mc.dot", &vm);
 
     // diagraph func {
     file.write_fmt(format_args!("digraph {} {{\n", func_name)).unwrap();
@@ -388,7 +370,7 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
                     file.write_fmt(format_args!("{} -> {};\n", source_id, target_id)).unwrap();
                 }
                 None => {
-                    panic!("cannot find block for inst {}", succ);
+                    panic!("cannot find succesor {} for block {}", succ, block_name);
                 }
             }
         }

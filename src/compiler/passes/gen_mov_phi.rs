@@ -32,6 +32,7 @@ impl GenMovPhi {
 
 struct IntermediateBlockInfo {
     blk_id: MuID,
+    blk_name: MuName,
     target: MuID,
     from_args : Vec<P<TreeNode>>
 }
@@ -72,11 +73,11 @@ impl CompilerPass for GenMovPhi {
                     match last_inst.v {
                         TreeNode_::Instruction(inst) => {
                             let ref ops = inst.ops;
-
+                            let inst_name = inst.name().clone();
                             match inst.v {
                                 Instruction_::Branch2{cond, true_dest, false_dest, true_prob} => {
-                                    let true_dest  = process_dest(true_dest,  &mut new_blocks_to_insert, &ops, vm);
-                                    let false_dest = process_dest(false_dest, &mut new_blocks_to_insert, &ops, vm);
+                                    let true_dest  = process_dest(true_dest,  &mut new_blocks_to_insert, &ops, vm, &inst_name, "true");
+                                    let false_dest = process_dest(false_dest, &mut new_blocks_to_insert, &ops, vm, &inst_name, "false");
 
                                     let new_inst = func.new_inst(Instruction{
                                         hdr: inst.hdr.clone(),
@@ -94,8 +95,8 @@ impl CompilerPass for GenMovPhi {
                                     new_body.push(new_inst);
                                 }
                                 Instruction_::Call{data, resume} => {
-                                    let norm_dest = process_dest(resume.normal_dest, &mut new_blocks_to_insert, &ops, vm);
-                                    let exn_dest  = process_dest(resume.exn_dest,    &mut new_blocks_to_insert, &ops, vm);
+                                    let norm_dest = process_dest(resume.normal_dest, &mut new_blocks_to_insert, &ops, vm, &inst_name, "norm");
+                                    let exn_dest  = process_dest(resume.exn_dest,    &mut new_blocks_to_insert, &ops, vm, &inst_name, "exc");
 
                                     let new_inst = func.new_inst(Instruction{
                                         hdr: inst.hdr.clone(),
@@ -114,8 +115,8 @@ impl CompilerPass for GenMovPhi {
                                     new_body.push(new_inst);
                                 }
                                 Instruction_::CCall{data, resume} => {
-                                    let norm_dest = process_dest(resume.normal_dest, &mut new_blocks_to_insert, &ops, vm);
-                                    let exn_dest  = process_dest(resume.exn_dest,    &mut new_blocks_to_insert, &ops, vm);
+                                    let norm_dest = process_dest(resume.normal_dest, &mut new_blocks_to_insert, &ops, vm, &inst_name, "norm");
+                                    let exn_dest  = process_dest(resume.exn_dest,    &mut new_blocks_to_insert, &ops, vm, &inst_name, "exc");
 
                                     let new_inst = func.new_inst(Instruction{
                                         hdr: inst.hdr.clone(),
@@ -134,10 +135,10 @@ impl CompilerPass for GenMovPhi {
                                     new_body.push(new_inst);
                                 },
                                 Instruction_::Switch{cond, default, mut branches} => {
-                                    let default_dest = process_dest(default, &mut new_blocks_to_insert, &ops, vm);
+                                    let default_dest = process_dest(default, &mut new_blocks_to_insert, &ops, vm, &inst_name, "default");
 
                                     let new_branches = branches.drain(..).map(|pair| {
-                                        let dest = process_dest(pair.1, &mut new_blocks_to_insert, &ops, vm);
+                                        let dest = process_dest(pair.1, &mut new_blocks_to_insert, &ops, vm, &inst_name, format!("case_{}", pair.0).as_str());
                                         (pair.0, dest)
                                     }).collect();
 
@@ -192,9 +193,7 @@ impl CompilerPass for GenMovPhi {
         for block_info in new_blocks_to_insert {
             let block = {
                 let target_id = block_info.target;
-                let name = format!("intermediate_block_{}_to_{}", block_info.blk_id, target_id);
-
-                let mut ret = Block::new(MuEntityHeader::named(block_info.blk_id, name));
+                let mut ret = Block::new(MuEntityHeader::named(block_info.blk_id, block_info.blk_name.clone()));
                 vm.set_name(ret.as_entity());
 
 
@@ -257,7 +256,7 @@ impl CompilerPass for GenMovPhi {
     }
 }
 
-fn process_dest(dest: Destination, blocks_to_insert: &mut Vec<IntermediateBlockInfo>, ops: &Vec<P<TreeNode>>, vm: &VM) -> Destination {
+fn process_dest(dest: Destination, blocks_to_insert: &mut Vec<IntermediateBlockInfo>, ops: &Vec<P<TreeNode>>, vm: &VM, inst: &MuName, label: &str) -> Destination {
     if dest.args.is_empty() {
         dest
     } else {
@@ -282,6 +281,7 @@ fn process_dest(dest: Destination, blocks_to_insert: &mut Vec<IntermediateBlockI
 
         blocks_to_insert.push(IntermediateBlockInfo {
             blk_id: new_blk_id,
+            blk_name: format!("{}:intermediate.{}", inst, label),
             target: target,
             from_args: from_args
         });

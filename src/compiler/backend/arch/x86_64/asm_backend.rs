@@ -548,7 +548,7 @@ impl MachineCode for ASMCode {
             Some(inst) if inst.code.starts_with("jmp") => {
                 let split : Vec<&str> = inst.code.split(' ').collect();
 
-                Some(ASMCodeGen::unmangle_block_label(self.name.clone(), String::from(split[1])))
+                Some(demangle_name(String::from(split[1])))
             }
             _ => None
         }
@@ -560,7 +560,7 @@ impl MachineCode for ASMCode {
             Some(inst) if inst.code.ends_with(':') => {
                 let split : Vec<&str> = inst.code.split(':').collect();
 
-                Some(ASMCodeGen::unmangle_block_label(self.name.clone(), String::from(split[0])))
+                Some(demangle_name(String::from(split[0])))
             }
             _ => None
         }
@@ -610,7 +610,7 @@ impl MachineCode for ASMCode {
 
             // pick the right reg based on length
             let to_reg = x86_64::get_alias_for_length(to, loc.oplen);
-            let to_reg_tag = to_reg.name().unwrap();
+            let to_reg_tag = to_reg.name();
             let to_reg_string = "%".to_string() + &to_reg_tag;
 
             string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
@@ -621,7 +621,7 @@ impl MachineCode for ASMCode {
 
             // pick the right reg based on length
             let to_reg = x86_64::get_alias_for_length(to, loc.oplen);
-            let to_reg_tag = to_reg.name().unwrap();
+            let to_reg_tag = to_reg.name();
             let to_reg_string = "%".to_string() + &to_reg_tag;
 
             string_utils::replace(&mut inst_to_patch.code, loc.index, &to_reg_string, to_reg_string.len());
@@ -1011,7 +1011,7 @@ impl ASMCodeGen {
         let l = self.line();
         self.cur_mut().code.push(ASMInst::symbolic(code));
     }
-    
+
     fn add_asm_symbolic(&mut self, code: String){
         self.cur_mut().code.push(ASMInst::symbolic(code));
     }
@@ -1322,22 +1322,11 @@ impl ASMCodeGen {
         let id = op.extract_ssa_id().unwrap();
         if id < MACHINE_ID_END {
             // machine reg
-            format!("%{}", op.name().unwrap())
+            format!("%{}", op.name())
         } else {
             // virtual register, use place holder
             REG_PLACEHOLDER.clone()
         }
-    }
-    
-    fn mangle_block_label(&self, label: MuName) -> String {
-        format!("{}_{}", self.cur().name, label)
-    }
-
-    fn unmangle_block_label(fn_name: MuName, label: String) -> MuName {
-        // input: _fn_name_BLOCK_NAME
-        // return BLOCK_NAME
-        let split : Vec<&str> = label.splitn(2, &(fn_name + "_")).collect();
-        String::from(split[1])
     }
 
     fn finish_code_sequence_asm(&mut self) -> Box<ASMCode> {
@@ -1505,7 +1494,7 @@ impl ASMCodeGen {
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
 
         let mreg = self.prepare_machine_reg(src);
-        let mreg_name = src.name().unwrap();
+        let mreg_name = src.name();
         let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + 1 + mreg_name.len() + 1);
 
         let asm = format!("{} %{},{}", inst, mreg_name, reg2);
@@ -1584,7 +1573,7 @@ impl ASMCodeGen {
         trace!("emit: {} {}, {}, {} -> {}", inst, dest, src1, src2, dest);
 
         let mreg = self.prepare_machine_reg(src2);
-        let mreg_name = src2.name().unwrap();
+        let mreg_name = src2.name();
 
         let (reg1, id1, loc1) = self.prepare_reg(src1, inst.len() + 1 + 1 + mreg_name.len() + 1);
         let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + 1 + mreg_name.len() + 1 + reg1.len() + 1);
@@ -2016,9 +2005,14 @@ impl CodeGenerator for ASMCodeGen {
         }));
 
         // to link with C sources via gcc
-        let func_symbol = symbol(func_name.clone());
+        let func_symbol = symbol(mangle_name(func_name.clone()));
         self.add_asm_symbolic(directive_globl(func_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
+        if is_valid_c_identifier(&func_name) {
+            let demangled_name = symbol(func_name.clone());
+            self.add_asm_symbolic(directive_globl(demangled_name.clone()));
+            self.add_asm_symbolic(directive_equiv(demangled_name, func_symbol.clone()));
+        }
 
         ValueLocation::Relocatable(RegGroup::GPR, func_name)
     }
@@ -2026,11 +2020,12 @@ impl CodeGenerator for ASMCodeGen {
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation) {
         let func_end = {
             let mut symbol = func_name.clone();
-            symbol.push_str("_end");
+            symbol.push_str(":end");
             symbol
         };
-        self.add_asm_symbolic(directive_globl(symbol(func_end.clone())));
-        self.add_asm_symbolic(format!("{}:", symbol(func_end.clone())));
+        let func_end_sym = symbol(mangle_name(func_end.clone()));
+        self.add_asm_symbolic(directive_globl(func_end_sym.clone()));
+        self.add_asm_symbolic(format!("{}:", func_end_sym));
 
         self.cur.as_mut().unwrap().control_flow_analysis();
 
@@ -2074,7 +2069,7 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     fn start_block(&mut self, block_name: MuName) {
-        let label = format!("{}:", symbol(self.mangle_block_label(block_name.clone())));
+        let label = format!("{}:", mangle_name(block_name.clone()));
         self.add_asm_block_label(label, block_name.clone());
 
         self.cur_mut().blocks.insert(block_name.clone(), ASMBlock::new());
@@ -2083,7 +2078,7 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation {
-        let mangled_name = self.mangle_block_label(block_name.clone());
+        let mangled_name = mangle_name(block_name.clone());
         self.add_asm_symbolic(directive_globl(symbol(mangled_name.clone())));
 
         self.start_block(block_name.clone());
@@ -2919,91 +2914,92 @@ impl CodeGenerator for ASMCodeGen {
         trace!("emit: jmp {}", dest_name);
         
         // symbolic label, we dont need to patch it
-        let asm = format!("jmp {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jmp {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch(asm, dest_name)
     }
     
     fn emit_je(&mut self, dest_name: MuName) {
         trace!("emit: je {}", dest_name);
         
-        let asm = format!("je {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("je {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jne(&mut self, dest_name: MuName) {
         trace!("emit: jne {}", dest_name);
         
-        let asm = format!("jne {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jne {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);
     }
     
     fn emit_ja(&mut self, dest_name: MuName) {
         trace!("emit: ja {}", dest_name);
         
-        let asm = format!("ja {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("ja {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);
     }
     
     fn emit_jae(&mut self, dest_name: MuName) {
         trace!("emit: jae {}", dest_name);
         
-        let asm = format!("jae {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jae {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jb(&mut self, dest_name: MuName) {
         trace!("emit: jb {}", dest_name);
         
-        let asm = format!("jb {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jb {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);
     }
     
     fn emit_jbe(&mut self, dest_name: MuName) {
         trace!("emit: jbe {}", dest_name);
         
-        let asm = format!("jbe {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jbe {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jg(&mut self, dest_name: MuName) {
         trace!("emit: jg {}", dest_name);
         
-        let asm = format!("jg {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jg {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jge(&mut self, dest_name: MuName) {
         trace!("emit: jge {}", dest_name);
         
-        let asm = format!("jge {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jge {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jl(&mut self, dest_name: MuName) {
         trace!("emit: jl {}", dest_name);
         
-        let asm = format!("jl {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jl {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
     
     fn emit_jle(&mut self, dest_name: MuName) {
         trace!("emit: jle {}", dest_name);
         
-        let asm = format!("jle {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("jle {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);        
     }
 
     fn emit_js(&mut self, dest_name: MuName) {
         trace!("emit: js {}", dest_name);
 
-        let asm = format!("js {}", symbol(self.mangle_block_label(dest_name.clone())));
+        let asm = format!("js {}", symbol(mangle_name(dest_name.clone())));
         self.add_asm_branch2(asm, dest_name);
     }
 
     #[cfg(target_os = "macos")]
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
-        
+
+        let callsite = mangle_name(callsite);
         let asm = format!("call {}", symbol(func));
         self.add_asm_call(asm, pe);
         
@@ -3019,9 +3015,8 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
 
-        let func = func + "@PLT";
-
-        let asm = format!("call {}", symbol(func));
+        let callsite = mangle_name(callsite);
+        let asm = format!("call {}@PLT", symbol(func));
         self.add_asm_call(asm, pe);
 
         let callsite_symbol = symbol(callsite.clone());
@@ -3033,7 +3028,7 @@ impl CodeGenerator for ASMCodeGen {
     
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
-
+        let callsite = mangle_name(callsite);
         let (reg, id, loc) = self.prepare_reg(func, 6);
 
         let asm = format!("call *{}", reg);
@@ -3378,7 +3373,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 
     let mut file_path = path::PathBuf::new();
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
-    file_path.push(func.name().unwrap().to_string() + ".s");
+    file_path.push(func.name() + ".s");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file
@@ -3574,9 +3569,16 @@ pub fn emit_context_with_reloc(vm: &VM,
 
                 // .globl global_cell_name
                 // global_cell_name:
-                let global_cell_name = symbol(global_value.name().unwrap());
-                file.write_fmt(format_args!("\t{}\n", directive_globl(global_cell_name.clone()))).unwrap();
-                file.write_fmt(format_args!("{}:\n", global_cell_name)).unwrap();
+                let demangled_name = global_value.name().clone();
+                let global_cell_name = symbol(mangle_name(demangled_name.clone()));
+                writeln!(file, "\t{}", directive_globl(global_cell_name.clone())).unwrap();
+                writeln!(file, "{}:", global_cell_name.clone()).unwrap();
+
+                if is_valid_c_identifier(&demangled_name) {
+                    let demangled_name = symbol(demangled_name);
+                    writeln!(file, "\t{}", directive_globl(demangled_name.clone())).unwrap();
+                    writeln!(file, "\t{}", directive_equiv(demangled_name, global_cell_name.clone())).unwrap();
+                }
             }
 
             // dump_label:
@@ -3683,6 +3685,9 @@ fn write_data_bytes(f: &mut File, from: Address, to: Address) {
 fn directive_globl(name: String) -> String {
     format!(".globl {}", name)
 }
+
+fn directive_equiv(name: String, target: String) -> String {
+    format!(".equiv {}, {}", name, target) }
 
 fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
     format!(".comm {},{},{}", name, size, align)

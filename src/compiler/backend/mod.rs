@@ -417,3 +417,7 @@ impl RegGroup {
         RegGroup::get_from_ty(&val.ty)
     }
 }
+
+fn make_block_name<T: MuEntity>(header: &T, label: &str) -> MuName {
+    format!("{}:{}", header.name(), label)
+}

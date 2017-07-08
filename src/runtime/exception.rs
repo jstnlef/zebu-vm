@@ -108,7 +108,7 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
             set_previous_frame_pointer(frame_cursor, previous_frame_pointer);
         }
     }
-    // The abov eloop will only except when a catch block is found, so restore to it
+    // The above loop will only except when a catch block is found, so restore to it
     unsafe { thread::exception_restore(catch_address, frame_cursor.to_ptr(), sp); }
 }
 

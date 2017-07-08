@@ -21,23 +21,28 @@ libext = '.dylib' if sys.platform.startswith('darwin') else \
          '.so'    if sys.platform.startswith('linux') else sys.exit("Unsupported platform");
 
 prelude = """
-    .funcsig exit_sig = (int<32>) -> ()
-    .typedef exit_type = ufuncptr<exit_sig>
-    .const exit <exit_type> = EXTERN "exit"
-    .typedef char = int<8>
-    .funcsig main_sig = (int<32> uptr<uptr<char>>)->(int<32>)
+        /*--------------------------------------------------------*/
+        .funcsig exit_sig = (int<32>) -> ()
+        .typedef exit_type = ufuncptr<exit_sig>
+        .const exit <exit_type> = EXTERN "exit"
+        .typedef char = int<8>
+        .funcsig main_sig = (int<32> uptr<uptr<char>>)->(int<32>)
+        /*--------------------------------------------------------*/
 """
 
 """ Makes a primordial function that calls the given 'main' function (which should have the same signature as a C main function) """
 def make_primordial(main): # type: (str) -> str
     return """
+        /*--------------------------------------------------------*/
         .funcdef primordial <(int<32> uptr<uptr<char>>)->()>
         {
             entry(<int<32>>argc <uptr<uptr<char>>>argv):
                 res = CALL <main_sig> """ + main + """(argc argv)
                 CCALL #DEFAULT <exit_type exit_sig> exit(res) 
                 RET // Unreachable
-        }""";
+        }
+        /*--------------------------------------------------------*/
+        """;
 
 def get_output_file(name): # type: (str) -> str
     return os.path.join(emit, name);

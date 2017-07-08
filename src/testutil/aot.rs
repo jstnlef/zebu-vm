@@ -41,7 +41,6 @@ fn link_executable_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &V
         cc.arg("-lpthread");
     }
 
-    // This needs to be at the bottom due to the linkage of librodall_alloc.a
     for file in files {
         info!("link with {:?}", file.as_path());
         cc.arg(file.as_path());
@@ -162,14 +161,6 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         } else {
             "target/release/libmu.a"
         }));
-
-        /*// include rodal alloc static lib (it overrides free and realloc so it should be the last thing linked)
-        ret.push(get_path_under_mu(if cfg!(debug_assertions) {
-            "target/debug/deps/librodal_alloc.a"
-        } else {
-            "target/release/deps/librodal_alloc.a"
-        }));*/
-
         ret
     };
 

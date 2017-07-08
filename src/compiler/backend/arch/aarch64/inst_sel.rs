@@ -130,7 +130,7 @@ impl <'a> InstructionSelection {
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
                         self.process_dest(&ops, branch_dest, f_content, f_context, vm);
 
-                        let branch_target = f_content.get_block(branch_dest.target).name().unwrap();
+                        let branch_target = f_content.get_block(branch_dest.target).name();
 
                         let ref cond = ops[cond];
 
@@ -189,7 +189,7 @@ impl <'a> InstructionSelection {
                         let fallthrough_temp_block = format!("{}_{}_branch_fallthrough", self.current_fv_id, node.id());
                         self.start_block(fallthrough_temp_block, &vec![]);
 
-                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name().unwrap();
+                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
                         self.backend.emit_b(fallthrough_target);
                     },
 
@@ -3481,7 +3481,7 @@ impl <'a> InstructionSelection {
         let potentially_excepting = {
             if resumption.is_some() {
                 let target_id = resumption.unwrap().exn_dest.target;
-                Some(f_content.get_block(target_id).name().unwrap())
+                Some(f_content.get_block(target_id).name().unwrap)
             } else {
                 None
             }
@@ -4395,7 +4395,7 @@ impl CompilerPass for InstructionSelection {
         self.current_func_start = Some({
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
-            let start_loc = self.backend.start_code(func.name().unwrap(), entry_block.name().unwrap());
+            let start_loc = self.backend.start_code(func.name(), entry_block.name());
             if vm.vm_options.flag_emit_debug_info {
                 self.backend.add_cfi_sections(".eh_frame, .debug_frame");
                 self.backend.add_cfi_startproc();
@@ -4424,7 +4424,7 @@ impl CompilerPass for InstructionSelection {
             let is_exception_block = f_content.exception_blocks.contains(&block_id);
 
             let block = f_content.get_block(*block_id);
-            let block_label = block.name().unwrap();
+            let block_label = block.name();
             self.current_block = Some(block_label.clone());
             self.current_block_in_ir = Some(block_label.clone());
 
@@ -4479,7 +4479,7 @@ impl CompilerPass for InstructionSelection {
         let func_name = {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func.func_id).unwrap().read().unwrap();
-            func.name().unwrap()
+            func.name()
         };
 
         // have to do this before 'finish_code()'

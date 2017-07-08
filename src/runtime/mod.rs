@@ -59,11 +59,10 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
 
 }
 
-
 pub fn resolve_symbol(symbol: String) -> Address {
     use std::ptr;
 
-    let c_symbol = CString::new(name_check(symbol.clone())).unwrap();
+    let c_symbol = CString::new(mangle_name(symbol.clone())).unwrap();
     
     let rtld_default = unsafe {dlopen(ptr::null(), 0)};
     let ret = unsafe {dlsym(rtld_default, c_symbol.as_ptr())};
@@ -71,10 +70,7 @@ pub fn resolve_symbol(symbol: String) -> Address {
     let error = unsafe {dlerror()};
     if !error.is_null() {
         let cstr = unsafe {CStr::from_ptr(error)};
-        error!("cannot find symbol: {}", symbol);
-        error!("{}", cstr.to_str().unwrap());
-
-        panic!("failed to resolve symbol");
+        panic!("failed to resolve symbol: {} ({})", symbol, cstr.to_str().unwrap());
     }
     
     Address::from_ptr(ret)
@@ -154,13 +150,16 @@ pub extern fn mu_trace_level_log() {
 }
 
 #[no_mangle]
+pub static mut LAST_TIME: c_ulong = 0;
+
+#[no_mangle]
 pub extern fn mu_main(edata: *const(), dumped_vm : *mut Arc<VM>, argc: c_int, argv: *const *const c_char) {
     VM::start_logging_env();
     debug!("mu_main() started...");
 
     unsafe{rodal::load_asm_bounds(rodal::Address::from_ptr(dumped_vm), rodal::Address::from_ptr(edata))};
     let vm = VM::resume_vm(dumped_vm);
-    
+
     let primordial = vm.primordial.read().unwrap();
     if primordial.is_none() {
         panic!("no primordial thread/stack/function. Client should provide an entry point");

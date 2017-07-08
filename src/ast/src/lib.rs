@@ -14,6 +14,8 @@
 
 #[macro_use]
 extern crate rodal;
+#[macro_use]
+extern crate log;
 extern crate simple_logger;
 #[macro_use]
 extern crate lazy_static;
@@ -26,7 +28,7 @@ macro_rules! impl_mu_entity {
             #[inline(always)]
             fn id(&self) -> MuID {self.hdr.id()}
             #[inline(always)]
-            fn name(&self) -> Option<MuName> {self.hdr.name()}
+            fn name(&self) -> MuName {self.hdr.name()}
             fn as_entity(&self) -> &MuEntity {
                 let ref_ty : &$entity = self;
                 ref_ty as &MuEntity

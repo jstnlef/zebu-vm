@@ -2682,7 +2682,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 
     let mut file_path = path::PathBuf::new();
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
-    file_path.push(func.name().unwrap().to_string() + ".s");
+    file_path.push(func.name().to_string() + ".s");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
         Ok(file) => file

@@ -30,15 +30,15 @@ pub struct MuIRBuilder {
     /// by one thread, so there is no need for locking.
     id_name_map: HashMap<MuID, MuName>,
 
-    /// The "trantient bundle" includes everything being built here.
-    bundle: TrantientBundle,
+    /// The "transient bundle" includes everything being built here.
+    bundle: TransientBundle,
 }
 
 pub type IdBMap<T> = HashMap<MuID, Box<T>>;
 
-/// A trantient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
+/// A transient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
 #[derive(Default)]
-pub struct TrantientBundle {
+pub struct TransientBundle {
     types: IdBMap<NodeType>,
     sigs: IdBMap<NodeFuncSig>,
     consts: IdBMap<NodeConst>,
@@ -951,39 +951,113 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
     }
 
-    fn name_from_id(id: MuID, hint: &str) -> String {
-        format!("@uvm.unnamed.{}{}", hint, id)
-    }
-
-    fn ensure_name(&mut self, id: MuID, hint: &str) {
+    fn ensure_name(&mut self, id: MuID, parent_id: Option<MuID>) {
+        let prefix = match parent_id {
+            Some(parent_id) => self.get_name(parent_id) + ".",
+            None => "".to_string()
+        };
         self.id_name_map.entry(id).or_insert_with(|| {
-            let name = BundleLoader::name_from_id(id, hint);
+            let name = format!("{}#{}", prefix, id);
             trace!("Making name for ID {} : {}", id, name);
             name
         });
     }
 
     fn ensure_names(&mut self) {
-        // Make sure structs and hybrids have names because names are used to resolve cyclic
-        // dependencies.
+        // Make names for all unnamed entities that have parents, to be relative to their parents name (this is not strictly neccesary, but will make reading stuff the compiler generates easier)
+
+        // Give each struct and hybrid type a name (this is needed when structs/hybrids refer to themselves)
         for (id, ty) in &self.b.bundle.types {
             match **ty {
-                NodeType::TypeStruct { id: _, fieldtys: _ } => { 
-                    self.ensure_name(*id, "struct");
-                },
-                NodeType::TypeHybrid { id: _, fixedtys: _, varty: _ } => { 
-                    self.ensure_name(*id, "struct");
-                },
+                NodeType::TypeHybrid{..} | NodeType::TypeStruct{..} => self.ensure_name(*id, None),
                 _ => {}
             }
         }
 
-        for id in self.b.bundle.funcvers.keys() {
-            self.ensure_name(*id, "funcver");
+        // A func can be a parent of a function version, so make sure each one has a name
+        for id in self.b.bundle.funcs.keys() {
+            self.ensure_name(*id, None);
         }
 
-        for id in self.b.bundle.bbs.keys() {
-            self.ensure_name(*id, "funcver");
+        // Make each unnamed function version have a name relative to its function
+        for (fv_id, fv) in &self.b.bundle.funcvers {
+            self.ensure_name(*fv_id, Some(fv.func));
+
+            // Make each unnamed basic block have a name relative to it's enclosing function version
+            for bb_id in &fv.bbs {
+                self.ensure_name(*bb_id, Some(*fv_id));
+            }
+        }
+
+        for (bb_id, bb) in &self.b.bundle.bbs {
+            // Make each of the basic blocks unnamed paremters have names relative to the block itself
+            for nor_id in &bb.nor_param_ids {
+                self.ensure_name(*nor_id, Some(*bb_id));
+            }
+            if bb.exc_param_id.is_some() {
+                self.ensure_name(bb.exc_param_id.unwrap(), Some(*bb_id));
+            }
+
+            // Make each of the blocks unnamed instructions have names relative to the block itself
+            for inst_id in &bb.insts {
+                self.ensure_name(*inst_id, Some(*bb_id));
+
+                // Make each unnamed instruction result have a name relative to the basic block
+                match self.b.bundle.insts.get(&inst_id) {
+                    Some(inst) => {
+                        match **inst {
+                            // Instructions with a single result
+                            NodeInst::NodeCmp{ref result_id, ..} |
+                            NodeInst::NodeConv{ref result_id, ..} |
+                            NodeInst::NodeSelect{ref result_id, ..} |
+                            NodeInst::NodeExtractValue{ref result_id, ..} |
+                            NodeInst::NodeInsertValue{ref result_id, ..} |
+                            NodeInst::NodeExtractElement{ref result_id, ..} |
+                            NodeInst::NodeInsertElement{ref result_id, ..} |
+                            NodeInst::NodeShuffleVector{ref result_id, ..} |
+                            NodeInst::NodeNew{ref result_id, ..} |
+                            NodeInst::NodeNewHybrid{ref result_id, ..} |
+                            NodeInst::NodeAlloca{ref result_id, ..} |
+                            NodeInst::NodeAllocaHybrid{ref result_id, ..} |
+                            NodeInst::NodeGetIRef{ref result_id, ..} |
+                            NodeInst::NodeGetFieldIRef{ref result_id, ..} |
+                            NodeInst::NodeGetElemIRef{ref result_id, ..} |
+                            NodeInst::NodeShiftIRef{ref result_id, ..} |
+                            NodeInst::NodeGetVarPartIRef{ref result_id, ..} |
+                            NodeInst::NodeLoad{ref result_id, ..} |
+                            NodeInst::NodeAtomicRMW{ref result_id, ..} |
+                            NodeInst::NodeNewThread{ref result_id, ..} =>
+                                self.ensure_name(*result_id, Some(*bb_id)),
+
+                            // Instructions with a variable list of results
+                            NodeInst::NodeCall{ref result_ids, ..} |
+                            NodeInst::NodeTrap{ref result_ids, ..} |
+                            NodeInst::NodeWatchPoint{ref result_ids, ..} |
+                            NodeInst::NodeCCall{ref result_ids, ..} |
+                            NodeInst::NodeSwapStack{ref result_ids, ..} |
+                            NodeInst::NodeCommInst{ref result_ids, ..} =>
+                                for result_id in result_ids {
+                                    self.ensure_name(*result_id, Some(*bb_id));
+                                },
+
+                            NodeInst::NodeBinOp{ref result_id, ref status_result_ids, ..} => {
+                                self.ensure_name(*result_id, Some(*bb_id));
+                                for status_result_id in status_result_ids {
+                                    self.ensure_name(*status_result_id, Some(*bb_id)); }
+                            },
+
+                            NodeInst::NodeCmpXchg{ref value_result_id, ref succ_result_id, ..} => {
+                                self.ensure_name(*value_result_id, Some(*bb_id));
+                                self.ensure_name(*succ_result_id, Some(*bb_id));
+                            },
+
+                            // Instructions has no results
+                            _ => {},
+                        }
+                    }
+                    None => panic!("Referenced instruction {} does not exist", inst_id)
+                }
+            }
         }
     }
 

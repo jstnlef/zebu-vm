@@ -493,9 +493,7 @@ impl MuThread {
             debug!("new sp: 0x{:x}", new_sp);
             debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
             
-            unsafe {
-                swap_to_mu_stack(new_sp, entry, sp_threadlocal_loc); 
-            }
+            unsafe { swap_to_mu_stack(new_sp, entry, sp_threadlocal_loc); }
             
             debug!("returned to Rust stack. Going to quit");
         }) {
