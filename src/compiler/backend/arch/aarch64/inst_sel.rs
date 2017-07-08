@@ -600,7 +600,7 @@ impl <'a> InstructionSelection {
 
                                         // If the above condition is true, the an overflow occurred
                                         // So set tmp_res to !0 (i.e. all ones, the maximum value)
-                                        self.backend.emit_csinv(&tmp_res, &tmp_res, &get_alias_for_length(XZR.id(), from_ty_size), "EQ");
+                                        self.backend.emit_csinv(&tmp_res, &tmp_res, &get_alias_for_length(XZR.id(), to_ty_size), "EQ");
                                     }
                                 }
                             },
