@@ -51,65 +51,65 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
     let mut current_frame_pointer = frame_cursor; // this will be 16 bytes bellow the bottom of the previous frame
     let mut callsite = get_return_address(current_frame_pointer);
     let mut previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer); // thrower::fp, the starting point of the previous frame
+    let catch_address; // The address of the catch block
+    let sp; // The stack pointer to restore to
+    {
+        // acquire lock for exception table
+        let compiled_callsite_table = vm.compiled_callsite_table.read().unwrap();
 
-    // acquire lock for exception table
-    let compiled_callsite_table = vm.compiled_callsite_table.read().unwrap();
+        loop {
+            // Lookup the table for the callsite
+            trace!("Callsite: 0x{:x}", callsite);
+            trace!("\tprevious_frame_pointer: 0x{:x}", previous_frame_pointer);
+            trace!("\tcurrent_frame_pointer: 0x{:x}", current_frame_pointer);
 
-    loop {
-        // Lookup the table for the callsite
-        trace!("Callsite: 0x{:x}", callsite);
-        trace!("\tprevious_frame_pointer: 0x{:x}", previous_frame_pointer);
-        trace!("\tcurrent_frame_pointer: 0x{:x}", current_frame_pointer);
+            let callsite_info = {
+                let table_entry = compiled_callsite_table.get(&callsite);
 
-        let table_entry = compiled_callsite_table.get(&callsite);
+                if table_entry.is_none() {
+                    error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
+                    print_backtrace(frame_cursor, compiled_callsite_table.deref()); // This function may segfault
+                    panic!("Uncaught Mu Exception");
+                }
+                table_entry.unwrap()
+            };
 
-        if table_entry.is_none() {
-            error!("Cannot find Mu callsite (i.e. we have reached a native frame), either there isn't a catch block to catch the exception or your catch block is above a native function call");
-            print_backtrace(frame_cursor, compiled_callsite_table.deref()); // This function may segfault
-            panic!("Uncaught Mu Exception");
-        }
+            // Check for a catch block at this callsite (there won't be one on the first iteration of this loop)
+            if callsite_info.exceptional_destination.is_some() {
+                catch_address = callsite_info.exceptional_destination.unwrap();
+                trace!("Found catch block: 0x{:x}", catch_address);
+                sp = get_previous_stack_pointer(current_frame_pointer, callsite_info.stack_args_size);
+                trace!("\tRestoring SP to: 0x{:x}", sp);
 
-        //CompiledCallsite
-        let callsite_info = table_entry.unwrap();
+                if cfg!(debug_assertions) {
+                    trace!("Restoring frame: ");
+                    print_frame(frame_cursor);
+                }
 
-        // Check for a catch block at this callsite (there won't be one on the first iteration of this loop)
-        if callsite_info.exceptional_destination.is_some() {
-            let catch_address = callsite_info.exceptional_destination.unwrap();
-            trace!("Found catch block: 0x{:x}", catch_address);
-            let sp = get_previous_stack_pointer(current_frame_pointer, callsite_info.stack_args_size);
-            trace!("\tRestoring SP to: 0x{:x}", sp);
-
-            if cfg!(debug_assertions) {
-                trace!("Restoring frame: ");
-                print_frame(frame_cursor);
+                break; // Found a catch block
             }
 
-            // Found a catch block, branch to it
-            drop(table_entry);
-            drop(callsite_info);
-            //drop(compiled_callsite_table); // TODO: Work out how to make the borrow checker let
-            // me do this
-            unsafe { thread::exception_restore(catch_address, frame_cursor.to_ptr(), sp); }
-        }
-
-        // Restore callee saved registers
-        unsafe {
-            for (target_offset, source_offset) in callsite_info.callee_saved_registers.iter() {
-                // *(frame_cursor + target_offset) = *(frame_pointer + source_offset)
-                let val = previous_frame_pointer.offset(*source_offset).load::<Address>();
-                frame_cursor.offset(*target_offset).store::<Address>(val);
+            // Restore callee saved registers
+            unsafe {
+                for (target_offset, source_offset) in callsite_info.callee_saved_registers.iter() {
+                    // *(frame_cursor + target_offset) = *(frame_pointer + source_offset)
+                    let val = previous_frame_pointer.offset(*source_offset).load::<Address>();
+                    frame_cursor.offset(*target_offset).store::<Address>(val);
+                }
             }
+
+            // Move up to the previous frame
+            current_frame_pointer = previous_frame_pointer;
+            previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer);
+
+            // Restore the callsite
+            callsite = get_return_address(current_frame_pointer);
+            set_return_address(frame_cursor, callsite);
+            set_previous_frame_pointer(frame_cursor, previous_frame_pointer);
         }
-
-        // Move up to the previous frame
-        current_frame_pointer = previous_frame_pointer;
-        previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer);
-
-        // Restore the callsite
-        callsite = get_return_address(current_frame_pointer);
-        set_return_address(frame_cursor, callsite);
-        set_previous_frame_pointer(frame_cursor, previous_frame_pointer);
     }
+    // The abov eloop will only except when a catch block is found, so restore to it
+    unsafe { thread::exception_restore(catch_address, frame_cursor.to_ptr(), sp); }
 }
 
 fn print_frame(base: Address) {
