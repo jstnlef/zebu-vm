@@ -771,11 +771,11 @@ impl MachineCode for ASMCode {
     }
     
     fn trace_inst(&self, i: usize) {
-        trace!("#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}", 
-            i, self.code[i].code, self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
+        trace!("#{}\t{:60}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}",
+            i, demangle_text(self.code[i].code.clone()), self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
             self.code[i].preds, self.code[i].succs);
     }
-    
+
     fn get_ir_block_livein(&self, block: &str) -> Option<&Vec<MuID>> {
         match self.blocks.get(block) {
             Some(ref block) => Some(&block.livein),
@@ -1117,7 +1117,7 @@ impl ASMCodeGen {
         spill_info: Option<SpillMemInfo>)
     {
         let line = self.line();
-        trace!("asm: {}", code);
+        trace!("asm: {}", demangle_text(code.clone()));
         trace!("     defines: {:?}", defines);
         trace!("     uses: {:?}", uses);
         let mc = self.cur_mut();
@@ -1259,7 +1259,8 @@ impl ASMCodeGen {
                 result_str.push(')');
                 loc_cursor += 1;
             },
-            Value_::Memory(MemoryLocation::Symbolic{ref base, ref label, is_global}) => {
+            Value_::Memory(MemoryLocation::Symbolic{ref base, ref label, is_global, is_native}) => {
+                let label = if is_native { "/*C*/".to_string() + label.as_str() } else { mangle_name(label.clone()) };
                 if base.is_some() && base.as_ref().unwrap().id() == x86_64::RIP.id() && is_global {
                     // pc relative address
                     let pic_symbol = pic_symbol(label.clone());
@@ -2995,37 +2996,35 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_branch2(asm, dest_name);
     }
 
-    #[cfg(target_os = "macos")]
-    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
-        trace!("emit: call {}", func);
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>, is_native: bool) -> ValueLocation {
+        if is_native {
+            trace!("emit: call {}", func);
+        } else {
+            trace!("emit: ccall {}", func);
+        }
 
         let callsite = mangle_name(callsite);
-        let asm = format!("call {}", symbol(func));
+        let func = if is_native {
+            "/*C*/".to_string() + func.as_str()
+        } else {
+            mangle_name(func)
+        };
+
+        let asm = if cfg!(target_os = "macos") {
+            format!("call {}", symbol(func))
+        } else {
+            format!("call {}@PLT", symbol(func))
+        };
+
         self.add_asm_call(asm, pe);
         
-        let callsite_symbol = symbol(callsite.clone());
-        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));            
-        
-        ValueLocation::Relocatable(RegGroup::GPR, callsite)
-    }
-
-    #[cfg(target_os = "linux")]
-    // generating Position-Independent Code using PLT
-    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
-        trace!("emit: call {}", func);
-
-        let callsite = mangle_name(callsite);
-        let asm = format!("call {}@PLT", symbol(func));
-        self.add_asm_call(asm, pe);
-
         let callsite_symbol = symbol(callsite.clone());
         self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
-
+        
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
-    
+
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
         let callsite = mangle_name(callsite);

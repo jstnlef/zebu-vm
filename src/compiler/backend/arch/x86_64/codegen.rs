@@ -213,7 +213,7 @@ pub trait CodeGenerator {
 
     fn emit_js(&mut self, dest: MuName);
     
-    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName,    pe: Option<MuName>) -> ValueLocation;
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName,    pe: Option<MuName>, is_native: bool) -> ValueLocation;
     fn emit_call_near_r64  (&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation;
     fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation;
     

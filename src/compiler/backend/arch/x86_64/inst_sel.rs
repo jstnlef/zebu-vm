@@ -3187,7 +3187,7 @@ impl <'a> InstructionSelection {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
-            self.backend.emit_call_near_rel32(callsite.clone(), func_name, None); // assume ccall wont throw exception
+            self.backend.emit_call_near_rel32(callsite.clone(), func_name, None, true); // assume ccall wont throw exception
 
             // TODO: What if theres an exception block?
             self.current_callsites.push_back((callsite, 0, stack_arg_size));
@@ -3350,7 +3350,7 @@ impl <'a> InstructionSelection {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend.emit_call_near_rel32(callsite, mangle_name(target.name()), potentially_excepting)
+                    self.backend.emit_call_near_rel32(callsite, target.name(), potentially_excepting, false)
                 }
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
@@ -3372,14 +3372,14 @@ impl <'a> InstructionSelection {
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
 
-            self.current_callsites.push_back((demangle_name(callsite.to_relocatable()), target_block, stack_arg_size));
+            self.current_callsites.push_back((callsite.to_relocatable(), target_block, stack_arg_size));
 
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
             self.start_block(make_block_name(cur_node, "normal_cont_for_call"));
         } else {
-            self.current_callsites.push_back((demangle_name(callsite.to_relocatable()), 0, stack_arg_size));
+            self.current_callsites.push_back((callsite.to_relocatable(), 0, stack_arg_size));
         }
         
         // deal with ret vals, collapse stack etc.
@@ -4126,8 +4126,9 @@ impl <'a> InstructionSelection {
                                     ty: types::get_referent_ty(&pv.ty).unwrap(),
                                     v: Value_::Memory(MemoryLocation::Symbolic {
                                         base: Some(x86_64::RIP.clone()),
-                                        label: mangle_name(pv.name()),
+                                        label: pv.name(),
                                         is_global: true,
+                                        is_native: false,
                                     })
                                 })
                             } else if cfg!(target_os = "linux") {
@@ -4139,8 +4140,9 @@ impl <'a> InstructionSelection {
                                     ty: pv.ty.clone(),
                                     v: Value_::Memory(MemoryLocation::Symbolic {
                                         base: Some(x86_64::RIP.clone()),
-                                        label: mangle_name(pv.name()),
-                                        is_global: true
+                                        label: pv.name(),
+                                        is_global: true,
+                                        is_native: false,
                                     })
                                 });
 
@@ -4758,8 +4760,9 @@ impl <'a> InstructionSelection {
                         ty : ADDRESS_TYPE.clone(),
                         v  : Value_::Memory(MemoryLocation::Symbolic {
                             base: Some(x86_64::RIP.clone()),
-                            label: mangle_name(name.clone()),
-                            is_global: false
+                            label: name.clone(),
+                            is_global: false,
+                            is_native: false,
                         })
                     })
                 }
@@ -4782,8 +4785,9 @@ impl <'a> InstructionSelection {
             ty : ADDRESS_TYPE.clone(),
             v  : Value_::Memory(MemoryLocation::Symbolic {
                 base: Some(x86_64::RIP.clone()),
-                label: mangle_name(func_name),
-                is_global: true
+                label: func_name,
+                is_global: true,
+                is_native: false,
             })
         })
     }
@@ -4876,7 +4880,7 @@ impl CompilerPass for InstructionSelection {
                 // we need to be aware of exception blocks so that we can emit information to catch exceptions
 
                 let loc = self.backend.start_exception_block(block_label.clone());
-                self.current_exn_blocks.insert(block.id(), demangle_name(loc.to_relocatable()));
+                self.current_exn_blocks.insert(block.id(), loc.to_relocatable());
             } else {
                 // normal block
                 self.backend.start_block(block_label.clone());

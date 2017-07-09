@@ -738,7 +738,7 @@ impl <'a> VM {
         if self.is_running() {
             unimplemented!()
         } else {
-            ValueLocation::Relocatable(backend::RegGroup::GPR, mangle_name(func.name()))
+            ValueLocation::Relocatable(backend::RegGroup::GPR, func.name())
         }
     }
     
@@ -859,7 +859,7 @@ impl <'a> VM {
                 {
                     let mut pending_funcref = self.aot_pending_funcref_store.write().unwrap();
                     for (addr, vl) in pending_funcref.drain() {
-                        ret.insert(addr, demangle_name(vl.to_relocatable()));
+                        ret.insert(addr, vl.to_relocatable());
                     }
                 }
 
@@ -1164,7 +1164,7 @@ impl <'a> VM {
         let symbol = self.name_of(func_id);
 
         let mut pending_funcref_guard = self.aot_pending_funcref_store.write().unwrap();
-        pending_funcref_guard.insert(addr, ValueLocation::Relocatable(backend::RegGroup::GPR, mangle_name(symbol)));
+        pending_funcref_guard.insert(addr, ValueLocation::Relocatable(backend::RegGroup::GPR, symbol));
     }
 
     // this function and the following two make assumption that GC will not move object

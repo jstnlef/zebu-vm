@@ -334,7 +334,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
         let old_id = block.id();
         let new_id = *block_map.get(&block.id()).unwrap();
         let mut block = Block {
-            hdr: MuEntityHeader::named(new_id, format!("{}:inlinedblock.#{}", new_id, block.name())),
+            hdr: MuEntityHeader::named(new_id, format!("{}:inlinedblock.#{}", block.name(), new_id)),
             content: block.content.clone(),
             control_flow: ControlFlow::default()
         };

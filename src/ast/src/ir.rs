@@ -995,7 +995,7 @@ impl fmt::Display for Constant {
 }
 
 #[cfg(target_arch = "x86_64")]
-rodal_enum!(MemoryLocation{{Address: scale, base, offset, index}, {Symbolic: is_global, base, label}});
+rodal_enum!(MemoryLocation{{Address: scale, base, offset, index}, {Symbolic: is_global, base, label, is_native}});
 #[cfg(target_arch = "x86_64")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
@@ -1008,7 +1008,8 @@ pub enum MemoryLocation {
     Symbolic{
         base: Option<P<Value>>,
         label: MuName,
-        is_global: bool
+        is_global: bool,
+        is_native: bool,
     }
 }
 
@@ -1041,7 +1042,7 @@ impl fmt::Display for MemoryLocation {
 }
 
 #[cfg(target_arch = "aarch64")]
-rodal_enum!(MemoryLocation{{VirtualAddress: signed, base, offset, scale}, {Address: base, offset, shift, signed}, {Symbolic: label, is_global}});
+rodal_enum!(MemoryLocation{{VirtualAddress: signed, base, offset, scale}, {Address: base, offset, shift, signed}, {Symbolic: label, is_global, is_native}});
 #[cfg(target_arch = "aarch64")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
@@ -1064,7 +1065,8 @@ pub enum MemoryLocation {
     },
     Symbolic{
         label: MuName,
-        is_global: bool
+        is_global: bool,
+        is_native: bool,
     }
 }
 
@@ -1170,6 +1172,57 @@ pub fn demangle_name(name: MuName) -> MuName {
     let name = name.split_at("__mu_".len()).1.to_string();
     let name = name.replace("Za", "#").replace("Zc", ":").replace("Zh", "-").replace("Zd", ".").replace("ZZ", "Z");
     name
+}
+
+// TODO: Why the hell isn't this working?
+pub fn demangle_text(text: String) -> String {
+    let text = text.as_bytes();
+    let n = text.len();
+    let mut output = String::new();
+
+    // We have a mangled name
+    let mut last_i = 0; // The last i value that we dumped to output
+    let mut i = 0;
+    // TODO: this should work for utf-8 stuff right? (sinces all mangled names are in ascii)
+    while i < n {
+        let c = text[i] as char;
+        // We're at the beginining of the string
+        // wait for a word boundry
+        if c.is_alphanumeric() || c == '_' {
+            // We just found a mangled name
+            if text[i..].starts_with("__mu_".as_bytes()) {
+                output += std::str::from_utf8(&text[last_i..i]).unwrap();
+                let start = i;
+                // Find the end of the name
+                while i < n {
+                    let c = text[i] as char;
+                    if !c.is_alphanumeric() && c != '_' {
+                        break; // We found the end!
+                    }
+                    i += 1;
+                }
+
+                output += demangle_name(String::from_utf8(text[start..i].to_vec()).unwrap()).as_str();
+                // Skip to the end of the name
+                last_i = i;
+                continue;
+            } else {
+                // Skip to the end of this alphanumeric sequence
+                while i < n {
+                    let c = text[i] as char;
+                    if !c.is_alphanumeric() && c != '_' {
+                        break; // We found the end!
+                    }
+                    i += 1;
+                }
+            }
+
+            continue;
+        }
+        // Not the start of mangled name, continue
+        i += 1;
+    }
+    output + std::str::from_utf8(&text[last_i..n]).unwrap() // Return output plus whatever is left of the string
 }
 
 

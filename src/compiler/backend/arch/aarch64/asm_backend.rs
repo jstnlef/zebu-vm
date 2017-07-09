@@ -756,7 +756,7 @@ impl MachineCode for ASMCode {
 
     fn trace_inst(&self, i: usize) {
         trace!("#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}",
-        i, self.code[i].code, self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
+        i, demangle_text(self.code[i].code), self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
         self.code[i].preds, self.code[i].succs);
     }
 

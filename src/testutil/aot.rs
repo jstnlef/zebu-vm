@@ -109,8 +109,7 @@ fn link_dylib_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<St
 
 fn get_path_for_mu_func (f: MuName, vm: &VM) -> PathBuf {
     let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
-    ret.push(f);
-    ret.set_extension("s");
+    ret.push(f + ".s");
 
     ret
 }

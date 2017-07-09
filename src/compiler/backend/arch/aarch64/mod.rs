@@ -2449,8 +2449,9 @@ fn make_value_symbolic(label: MuName, global: bool, ty: &P<MuType>, vm: &VM) -> 
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         ty : ty.clone(),
         v  : Value_::Memory(MemoryLocation::Symbolic {
-            label: mangle_name(label)),
-            is_global: global
+            label: label,
+            is_global: global,
+            is_native: false,
         })
     })
 }

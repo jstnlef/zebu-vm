@@ -81,8 +81,8 @@ rodal_enum!(ValueLocation{(Register: group, id), (Constant: group, word), (Reloc
 pub enum ValueLocation {
     Register(RegGroup, MuID),
     Constant(RegGroup, Word),
-    Relocatable(RegGroup, MuName),
-    
+    Relocatable(RegGroup, MuName), // TODO: This only works for mu entities (add a flag to indicate if its native or have a different variant?)
+
     Direct(RegGroup, Address),    // Not dumped
     Indirect(RegGroup, Address),  // Not dumped
 }
