@@ -1270,7 +1270,7 @@ impl MuEntityHeader {
     pub fn clone_with_id(&self, new_id: MuID) -> MuEntityHeader {
         let mut clone = self.clone();
         clone.id = new_id;
-
+        clone.name = format!("{}-#{}", clone.name, clone.id);
         clone
     }
 }

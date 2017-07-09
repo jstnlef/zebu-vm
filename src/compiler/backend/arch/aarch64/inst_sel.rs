@@ -448,7 +448,8 @@ impl <'a> InstructionSelection {
                             }
                         }
 
-                        self.backend.emit_b(EPILOGUE_BLOCK_NAME.to_string());
+                        let epilogue_block = format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME);
+                        self.backend.emit_b(epilogue_block);
                     },
 
                     Instruction_::BinOp(op, op1, op2) => {
