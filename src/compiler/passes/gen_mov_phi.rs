@@ -281,7 +281,7 @@ fn process_dest(dest: Destination, blocks_to_insert: &mut Vec<IntermediateBlockI
 
         blocks_to_insert.push(IntermediateBlockInfo {
             blk_id: new_blk_id,
-            blk_name: format!("{}:{}.#{}", inst, label, new_blk_id),
+            blk_name: format!("{}:{}:#{}-#{}", inst, label, new_blk_id, target),
             target: target,
             from_args: from_args
         });
