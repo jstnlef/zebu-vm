@@ -3690,10 +3690,12 @@ impl <'a> InstructionSelection {
             self.backend.emit_ldr_callee_saved(reg, &loc);
         }
 
-        // frame shrink
-        self.backend.emit_frame_shrink();
+        //self.backend.emit_frame_shrink();
 
         // Pop the link register and frame pointers
+
+        // Pop the frame record
+        self.backend.emit_mov(&SP, &FP);
         self.backend.emit_pop_pair(&FP, &LR, &SP);
 
         // Note: the stack pointer should now be what it was when the function was called

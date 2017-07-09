@@ -1961,7 +1961,7 @@ impl CodeGenerator for ASMCodeGen {
         let func_end_sym = mangle_name(func_end.clone());
         self.add_asm_symbolic(directive_globl(func_end_sym.clone()));
         self.add_asm_symbolic(format!("{}:", func_end_sym.clone()));
-        self.add_asm_symbolic(format!(".size {}, {}-{}", func_symbol.clone(), func_end.clone(), func_symbol.clone()));
+        self.add_asm_symbolic(format!(".size {}, {}-{}", func_symbol.clone(), func_end_sym.clone(), func_symbol.clone()));
 
         self.cur.as_mut().unwrap().control_flow_analysis();
 
