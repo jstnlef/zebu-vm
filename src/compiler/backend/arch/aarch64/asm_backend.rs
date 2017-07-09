@@ -756,7 +756,7 @@ impl MachineCode for ASMCode {
 
     fn trace_inst(&self, i: usize) {
         trace!("#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}",
-        i, demangle_text(self.code[i].code), self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
+        i, demangle_text(self.code[i].code.clone()), self.get_inst_reg_defines(i), self.get_inst_reg_uses(i),
         self.code[i].preds, self.code[i].succs);
     }
 
@@ -1062,7 +1062,7 @@ impl ASMCodeGen {
         target: ASMBranchTarget,
         spill_info: Option<SpillMemInfo>)
     {
-        trace!("asm: {}", demange_text(code));
+        trace!("asm: {}", demangle_text(code.clone()));
         trace!("     defines: {:?}", defines);
         trace!("     uses: {:?}", uses);
         let mc = self.cur_mut();
@@ -2014,7 +2014,6 @@ impl CodeGenerator for ASMCodeGen {
 
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation {
         self.add_asm_symbolic(directive_globl(mangle_name(block_name.clone())));
-        self.add_asm_symbolic(directive_globl(mangled_name.clone()));
 
         self.start_block(block_name.clone());
 
@@ -2684,10 +2683,10 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
             Ok(file) => file
         };
 
-        file.write(".arch armv8-a\n".as_bytes()).unwrap();
+        writeln!(file, ".arch armv8-a").unwrap();
 
         // constants in text section
-        file.write(".text\n".as_bytes()).unwrap();
+        writeln!(file, ".text").unwrap();
 
         write_const_min_align(&mut file);
 
@@ -2833,7 +2832,7 @@ pub fn emit_context_with_reloc(vm: &VM,
     };
 
     // data
-    file.write(".data\n".as_bytes()).unwrap();
+    writeln!(file, ".data").unwrap();
 
     {
         use runtime::mm;
@@ -2880,12 +2879,11 @@ pub fn emit_context_with_reloc(vm: &VM,
                 // .globl global_cell_name
                 // global_cell_name:
                 let demangled_name = global_value.name().clone();
-                let global_cell_name = symbol(mangle_name(demangled_name.clone()));
+                let global_cell_name = mangle_name(demangled_name.clone());
                 writeln!(file, "\t{}", directive_globl(global_cell_name.clone())).unwrap();
                 writeln!(file, "{}:", global_cell_name.clone()).unwrap();
 
                 if is_valid_c_identifier(&demangled_name) {
-                    let demangled_name = symbol(demangled_name);
                     writeln!(file, "\t{}", directive_globl(demangled_name.clone())).unwrap();
                     writeln!(file, "\t{}", directive_equiv(demangled_name, global_cell_name.clone())).unwrap();
                 }
@@ -2893,7 +2891,7 @@ pub fn emit_context_with_reloc(vm: &VM,
 
             // dump_label:
             let dump_label = relocatable_refs.get(&obj_dump.reference_addr).unwrap().clone();
-            writeln!("{}:", dump_label).unwrap();
+            writeln!(file, "{}:", dump_label).unwrap();
 
             let base = obj_dump.reference_addr;
             let end  = obj_dump.mem_start.plus(obj_dump.mem_size);
@@ -2909,7 +2907,7 @@ pub fn emit_context_with_reloc(vm: &VM,
                     let load_ref = unsafe {cur_addr.load::<Address>()};
                     if load_ref.is_zero() {
                         // write 0
-                        file.write(".xword 0\n".as_bytes()).unwrap();
+                        writeln!(file, ".xword 0").unwrap();
                     } else {
                         let label = match relocatable_refs.get(&load_ref) {
                             Some(label) => label,

@@ -295,7 +295,7 @@ impl <'a> InstructionSelection {
 
                         self.process_dest(&ops, dest, f_content, f_context, vm);
 
-                        let target = f_content.get_block(dest.target).name().unwrap();
+                        let target = f_content.get_block(dest.target).name();
 
                         trace!("emit branch1");
                         // jmp
@@ -319,7 +319,7 @@ impl <'a> InstructionSelection {
                                 // process dest
                                 self.process_dest(&ops, case_dest, f_content, f_context, vm);
 
-                                let target = f_content.get_block(case_dest.target).name().unwrap();
+                                let target = f_content.get_block(case_dest.target).name();
 
                                 let mut imm_val = 0 as u64;
                                 // Is one of the arguments a valid immediate?
@@ -349,7 +349,7 @@ impl <'a> InstructionSelection {
                             // emit default
                             self.process_dest(&ops, default, f_content, f_context, vm);
 
-                            let default_target = f_content.get_block(default.target).name().unwrap();
+                            let default_target = f_content.get_block(default.target).name();
                             self.backend.emit_b(default_target);
                         } else {
                             panic!("expecting cond in switch to be ireg: {}", cond);
@@ -915,9 +915,9 @@ impl <'a> InstructionSelection {
                         let res_value = self.get_result_value(node, 0);
                         let res_success = self.get_result_value(node, 1);
 
-                        let blk_cmpxchg_start =    make_block_name(node, "cmpxchg_start", node.id());
-                        let blk_cmpxchg_failed =   make_block_name(node, "cmpxchg_failed", node.id());
-                        let blk_cmpxchg_succeded = make_block_name(node, "cmpxchg_succeded", node.id());
+                        let blk_cmpxchg_start =    make_block_name(node, "cmpxchg_start");
+                        let blk_cmpxchg_failed =   make_block_name(node, "cmpxchg_failed");
+                        let blk_cmpxchg_succeded = make_block_name(node, "cmpxchg_succeded");
 
                         self.finish_block();
 
@@ -3484,7 +3484,7 @@ impl <'a> InstructionSelection {
         let potentially_excepting = {
             if resumption.is_some() {
                 let target_id = resumption.unwrap().exn_dest.target;
-                Some(f_content.get_block(target_id).name().unwrap)
+                Some(f_content.get_block(target_id).name())
             } else {
                 None
             }
@@ -3502,7 +3502,7 @@ impl <'a> InstructionSelection {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend.emit_bl(callsite, target.name().unwrap(), potentially_excepting, false)
+                    self.backend.emit_bl(callsite, target.name(), potentially_excepting, false)
                 }
             } else {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
@@ -3559,7 +3559,8 @@ impl <'a> InstructionSelection {
     }
 
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, sig: &P<CFuncSig>, f_context: &mut FunctionContext, vm: &VM) {
-        self.start_block(format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME), &vec![]);
+        let prologue_block = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
+        self.start_block(prologue_block, &vec![]);
 
         // Push the frame pointer and link register onto the stack
         self.backend.emit_push_pair(&LR, &FP, &SP);
@@ -3668,7 +3669,8 @@ impl <'a> InstructionSelection {
         // Live in are the registers that hold the return values
         // (if the value is returned through 'XR' than the caller is responsible for managing lifetime)
         let livein = self.compute_return_registers(&ret_type, vm);
-        self.start_block(format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME), &livein);
+        let epilogue_block = format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME);
+        self.start_block(epilogue_block, &livein);
 
         // pop all callee-saved registers
         for i in (0..CALLEE_SAVED_FPRs.len()).rev() {
@@ -4091,7 +4093,7 @@ impl <'a> InstructionSelection {
                             // get address from vm
                             unimplemented!()
                         } else {
-                            make_value_symbolic(pv.name().unwrap(), true, &pv.ty, vm)
+                            make_value_symbolic(pv.name(), true, &pv.ty, vm)
                         }
                     },
                     Value_::Memory(_) => pv.clone(),

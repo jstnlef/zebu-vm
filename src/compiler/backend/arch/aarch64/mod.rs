@@ -2178,7 +2178,7 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
     match src.v {
         Value_::Memory(ref mem) => {
             match mem {
-                &MemoryLocation::Symbolic{ref label, is_global} => {
+                &MemoryLocation::Symbolic{ref label, is_global, is_native} => {
                     if is_global {
                         // Set dest to be the page address of the entry for src in the GOT
                         backend.emit_adrp(&dest, &src);
@@ -2188,7 +2188,12 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
                         let offset = P(Value {
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             ty: UINT64_TYPE.clone(),
-                            v: Value_::Constant(Constant::ExternSym(format!(":got_lo12:{}", label)))
+                            v: Value_::Constant(Constant::ExternSym(
+                                if is_native {
+                                    format!("/*C*/:got_lo12:{}", label)
+                                } else {
+                                    format!(":got_lo12:{}", mangle_name(label.clone()))
+                                }))
                         });
 
                         // [dest + low 12 bits of the GOT entry for src]
