@@ -995,7 +995,7 @@ impl fmt::Display for Constant {
 }
 
 #[cfg(target_arch = "x86_64")]
-rodal_enum!(MemoryLocation{{Address: scale, base, offset, index}, {Symbolic: is_global, base, label, is_native}});
+rodal_enum!(MemoryLocation{{Address: scale, base, offset, index}, {Symbolic: is_global, is_native, base, label}});
 #[cfg(target_arch = "x86_64")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
@@ -1042,7 +1042,7 @@ impl fmt::Display for MemoryLocation {
 }
 
 #[cfg(target_arch = "aarch64")]
-rodal_enum!(MemoryLocation{{VirtualAddress: signed, base, offset, scale}, {Address: base, offset, shift, signed}, {Symbolic: label, is_global, is_native}});
+rodal_enum!(MemoryLocation{{VirtualAddress: signed, base, offset, scale}, {Address: base, offset, shift, signed}, {Symbolic: is_global, is_native, label}});
 #[cfg(target_arch = "aarch64")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {

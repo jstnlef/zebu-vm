@@ -109,7 +109,7 @@ pub trait CodeGenerator {
     // branching
 
     // calls
-    fn emit_bl(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation;
+    fn emit_bl(&mut self, callsite: String, func: MuName, pe: Option<MuName>, is_native: bool) -> ValueLocation;
     fn emit_blr(&mut self, callsite: String, func: Reg, pe: Option<MuName>) -> ValueLocation;
 
     // Branches

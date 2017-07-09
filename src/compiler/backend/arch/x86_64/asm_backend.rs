@@ -821,7 +821,6 @@ impl MachineCode for ASMCode {
                 return Some(name.clone());
             }
         }
-
         None
     }
 
@@ -1001,15 +1000,25 @@ impl ASMCodeGen {
     fn line(&self) -> usize {
         self.cur().code.len()
     }
-    
-    fn add_asm_label(&mut self, code: String) {
-        let l = self.line();
-        self.cur_mut().code.push(ASMInst::symbolic(code));
+
+    fn start_block_internal(&mut self, block_name: MuName) {
+        self.cur_mut().blocks.insert(block_name.clone(), ASMBlock::new());
+        let start = self.line();
+        self.cur_mut().blocks.get_mut(&block_name).unwrap().start_inst = start;
     }
-    
-    fn add_asm_block_label(&mut self, code: String, block_name: MuName) {
-        let l = self.line();
-        self.cur_mut().code.push(ASMInst::symbolic(code));
+
+    fn add_asm_global_label(&mut self, label: String) {
+        self.add_asm_symbolic(directive_globl(label.clone()));
+        self.add_asm_label(label);
+    }
+
+    fn add_asm_global_equiv(&mut self, name: String, target: String) {
+        self.add_asm_symbolic(directive_globl(name.clone()));
+        self.add_asm_symbolic(directive_equiv(name, target));
+    }
+
+    fn add_asm_label(&mut self, label: String) {
+        self.add_asm_symbolic(format!("{}:", label));
     }
 
     fn add_asm_symbolic(&mut self, code: String){
@@ -1328,6 +1337,17 @@ impl ASMCodeGen {
             // virtual register, use place holder
             REG_PLACEHOLDER.clone()
         }
+    }
+
+    fn mangle_block_label(&self, label: MuName) -> String {
+        format!("{}_{}", self.cur().name, label)
+    }
+
+    fn unmangle_block_label(fn_name: MuName, label: String) -> MuName {
+        // input: _fn_name_BLOCK_NAME
+        // return BLOCK_NAME
+        let split : Vec<&str> = label.splitn(2, &(fn_name + "_")).collect();
+        String::from(split[1])
     }
 
     fn finish_code_sequence_asm(&mut self) -> Box<ASMCode> {
@@ -2007,12 +2027,9 @@ impl CodeGenerator for ASMCodeGen {
 
         // to link with C sources via gcc
         let func_symbol = symbol(mangle_name(func_name.clone()));
-        self.add_asm_symbolic(directive_globl(func_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
+        self.add_asm_global_label(func_symbol.clone());
         if is_valid_c_identifier(&func_name) {
-            let demangled_name = symbol(func_name.clone());
-            self.add_asm_symbolic(directive_globl(demangled_name.clone()));
-            self.add_asm_symbolic(directive_equiv(demangled_name, func_symbol.clone()));
+            self.add_asm_global_equiv(symbol(func_name.clone()), func_symbol);
         }
 
         ValueLocation::Relocatable(RegGroup::GPR, func_name)
@@ -2024,9 +2041,7 @@ impl CodeGenerator for ASMCodeGen {
             symbol.push_str(":end");
             symbol
         };
-        let func_end_sym = symbol(mangle_name(func_end.clone()));
-        self.add_asm_symbolic(directive_globl(func_end_sym.clone()));
-        self.add_asm_symbolic(format!("{}:", func_end_sym));
+        self.add_asm_global_label(symbol(mangle_name(func_end.clone())));
 
         self.cur.as_mut().unwrap().control_flow_analysis();
 
@@ -2070,21 +2085,15 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     fn start_block(&mut self, block_name: MuName) {
-        let label = format!("{}:", mangle_name(block_name.clone()));
-        self.add_asm_block_label(label, block_name.clone());
-
-        self.cur_mut().blocks.insert(block_name.clone(), ASMBlock::new());
-        let start = self.line();
-        self.cur_mut().blocks.get_mut(&block_name).unwrap().start_inst = start;
+        self.add_asm_label(mangle_name(block_name.clone()));
+        self.start_block_internal(block_name);
     }
 
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation {
-        let mangled_name = mangle_name(block_name.clone());
-        self.add_asm_symbolic(directive_globl(symbol(mangled_name.clone())));
+        self.add_asm_global_label(mangle_name(block_name.clone()));
+        self.start_block_internal(block_name.clone());
 
-        self.start_block(block_name.clone());
-
-        ValueLocation::Relocatable(RegGroup::GPR, mangled_name)
+        ValueLocation::Relocatable(RegGroup::GPR, block_name)
     }
 
     fn end_block(&mut self, block_name: MuName) {
@@ -2998,46 +3007,38 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>, is_native: bool) -> ValueLocation {
         if is_native {
-            trace!("emit: call {}", func);
+            trace!("emit: call /*C*/ {}", func);
         } else {
-            trace!("emit: ccall {}", func);
+            trace!("emit: call {}", func);
         }
 
-        let callsite = mangle_name(callsite);
         let func = if is_native {
-            "/*C*/".to_string() + func.as_str()
+            "/*C*/".to_string() + symbol(func).as_str()
         } else {
-            mangle_name(func)
+            symbol(mangle_name(func))
         };
 
         let asm = if cfg!(target_os = "macos") {
-            format!("call {}", symbol(func))
+            format!("call {}", func)
         } else {
-            format!("call {}@PLT", symbol(func))
+            format!("call {}@PLT", func)
         };
 
         self.add_asm_call(asm, pe);
-        
-        let callsite_symbol = symbol(callsite.clone());
-        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
-        
+
+        self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
 
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
-        let callsite = mangle_name(callsite);
         let (reg, id, loc) = self.prepare_reg(func, 6);
 
         let asm = format!("call *{}", reg);
 
         self.add_asm_call_with_extra_uses(asm, linked_hashmap!{id => vec![loc]}, pe);
 
-        let callsite_symbol = symbol(callsite.clone());
-        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
-
+        self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
     
@@ -3360,7 +3361,7 @@ use std::fs::File;
 pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     use std::io::prelude::*;
     use std::path;
-    
+
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&fv.func_id).unwrap().read().unwrap();
 
@@ -3372,30 +3373,53 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
 
     let mut file_path = path::PathBuf::new();
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
-    file_path.push(func.name() + ".s");
-    let mut file = match File::create(file_path.as_path()) {
-        Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
-        Ok(file) => file
-    };
+    file_path.push(func.name() + ".S");
+    {
+        let mut file = match File::create(file_path.as_path()) {
+            Err(why) => panic!("couldn't create emission file {}: {}", file_path.to_str().unwrap(), why),
+            Ok(file) => file
+        };
+        // constants in text section
+        file.write("\t.text\n".as_bytes()).unwrap();
 
-    // constants in text section
-    file.write("\t.text\n".as_bytes()).unwrap();
+        // FIXME: need a more precise way to determine alignment
+        // (probably use alignment backend info, which require introducing int128 to zebu)
+        write_const_min_align(&mut file);
 
-    // FIXME: need a more precise way to determine alignment
-    // (probably use alignment backend info, which require introducing int128 to zebu)
-    write_const_min_align(&mut file);
+        for (id, constant) in cf.consts.iter() {
+            let mem = cf.const_mem.get(id).unwrap();
 
-    for (id, constant) in cf.consts.iter() {
-        let mem = cf.const_mem.get(id).unwrap();
+            write_const(&mut file, constant.clone(), mem.clone());
+        }
 
-        write_const(&mut file, constant.clone(), mem.clone());
+        // write code
+        let code = cf.mc.as_ref().unwrap().emit();
+        match file.write_all(code.as_slice()) {
+            Err(why) => panic!("couldn'd write to file {}: {}", file_path.to_str().unwrap(), why),
+            Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
+        }
     }
+    // Read the file we just wrote above an demangle it
+    {
+        let mut demangled_path = path::PathBuf::new();
+        demangled_path.push(&vm.vm_options.flag_aot_emit_dir);
+        demangled_path.push(func.name() + ".demangled.S");
 
-    // write code
-    let code = cf.mc.as_ref().unwrap().emit();
-    match file.write_all(code.as_slice()) {
-        Err(why) => panic!("couldn'd write to file {}: {}", file_path.to_str().unwrap(), why),
-        Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
+        let mut demangled_file = match File::create(demangled_path.as_path()) {
+            Err(why) => panic!("couldn't create demangled emission file {}: {}", demangled_path.to_str().unwrap(), why),
+            Ok(file) => file
+        };
+        let mut mangled_file = match File::open(file_path.as_path()) {
+            Err(why) => panic!("couldn't create demangled emission file {}: {}", demangled_path.to_str().unwrap(), why),
+            Ok(file) => file
+        };
+        let mut f = String::new();
+        mangled_file.read_to_string(&mut f).unwrap();
+        let d = demangle_text(f);
+        match demangled_file.write_all(d.as_bytes()) {
+            Err(why) => panic!("couldn'd write to file {}: {}", demangled_path.to_str().unwrap(), why),
+            Ok(_) => info!("emit demangled code to {}", demangled_path.to_str().unwrap())
+        }
     }
 }
 
@@ -3441,7 +3465,7 @@ fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
         Value_::Memory(MemoryLocation::Symbolic{ref label, ..}) => label.clone(),
         _ => panic!("expecing a symbolic memory location for constant {}, found {}", constant, loc)
     };
-    f.write_fmt(format_args!("{}:\n", symbol(label))).unwrap();
+    writeln!(f, "{}:", symbol(mangle_name(label))).unwrap();
 
     write_const_value(f, constant);
 }
@@ -3552,7 +3576,7 @@ pub fn emit_context_with_reloc(vm: &VM,
 
         // merge symbols with relocatable_refs
         for (addr, str) in symbols {
-            relocatable_refs.insert(addr, str);
+            relocatable_refs.insert(addr, mangle_name(str));
         }
 
         for obj_dump in objects.values() {
@@ -3611,7 +3635,7 @@ pub fn emit_context_with_reloc(vm: &VM,
                     // write uptr (or other relocatable value) with label
                     let label = fields.get(&cur_addr).unwrap();
 
-                    file.write_fmt(format_args!("\t.quad {}\n", symbol(label.clone()))).unwrap();
+                    file.write_fmt(format_args!("\t.quad {}\n", symbol(mangle_name(label.clone())))).unwrap();
                 } else {
                     // write plain word (as bytes)
                     let next_word_addr = cur_addr.plus(POINTER_SIZE);

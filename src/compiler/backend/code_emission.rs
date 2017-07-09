@@ -81,16 +81,16 @@ pub fn emit_mu_types(vm: &VM) {
 
             for ty in ty_guard.values() {
                 if ty.is_struct() {
-                    file.write_fmt(format_args!("{}", ty)).unwrap();
+                    write!(file, "{}", ty).unwrap();
 
                     let struct_ty = struct_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
-                    file.write_fmt(format_args!(" -> {}\n", struct_ty)).unwrap();
-                    file.write_fmt(format_args!("  {}\n", vm.get_backend_type_info(ty.id()))).unwrap();
+                    writeln!(file, " -> {}", struct_ty).unwrap();
+                    writeln!(file, "  {}", vm.get_backend_type_info(ty.id())).unwrap();
                 } else if ty.is_hybrid() {
-                    file.write_fmt(format_args!("{}", ty)).unwrap();
+                    write!(file, "{}", ty).unwrap();
                     let hybrid_ty = hybrid_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
-                    file.write_fmt(format_args!(" -> {}\n", hybrid_ty)).unwrap();
-                    file.write_fmt(format_args!("  {}\n", vm.get_backend_type_info(ty.id()))).unwrap();
+                    writeln!(file, " -> {}", hybrid_ty).unwrap();
+                    writeln!(file, "  {}", vm.get_backend_type_info(ty.id())).unwrap();
                 } else {
                     // we only care about struct
                 }
@@ -118,7 +118,7 @@ fn emit_muir(func: &MuFunctionVersion, vm: &VM) {
             Ok(file) => file
         };
 
-        file.write_fmt(format_args!("{:?}", func)).unwrap();
+        write!(file, "{:?}", func).unwrap();
     }
 
     // original IR (source/input)
@@ -131,13 +131,13 @@ fn emit_muir(func: &MuFunctionVersion, vm: &VM) {
             Ok(file) => file
         };
 
-        file.write_fmt(format_args!("FuncVer {} of Func #{}\n", func.hdr, func.func_id)).unwrap();
-        file.write_fmt(format_args!("Signature: {}\n", func.sig)).unwrap();
-        file.write_fmt(format_args!("IR:\n")).unwrap();
+        writeln!(file, "FuncVer {} of Func #{}", func.hdr, func.func_id).unwrap();
+        writeln!(file, "Signature: {}", func.sig).unwrap();
+        writeln!(file, "IR:").unwrap();
         if func.get_orig_ir().is_some() {
-            file.write_fmt(format_args!("{:?}\n", func.get_orig_ir().as_ref().unwrap())).unwrap();
+            writeln!(file, "{:?}", func.get_orig_ir().as_ref().unwrap()).unwrap();
         } else {
-            file.write_fmt(format_args!("Empty\n")).unwrap();
+            writeln!(file, "Empty").unwrap();
         }
     }
 }
@@ -182,35 +182,35 @@ fn emit_muir_dot_inner(file: &mut File,
     use utils::vec_utils;
 
     // digraph func {
-    file.write_fmt(format_args!("digraph {} {{\n", f_name)).unwrap();
+    writeln!(file, "digraph {} {{", mangle_name(f_name)).unwrap();
 
     // node shape: rect
-    file.write("node [shape=rect];\n".as_bytes()).unwrap();
+    writeln!(file, "node [shape=rect];").unwrap();
 
     // every graph node (basic block)
     for (id, block) in f_content.blocks.iter() {
         let block_name = block.name();
         // BBid [label = "name
-        file.write_fmt(format_args!("BB{} [label = \"[{}]{} ", *id, *id, &block_name)).unwrap();
+        write!(file, "BB{} [label = \"[{}]{} ", *id, *id, &block_name).unwrap();
 
         let block_content = block.content.as_ref().unwrap();
 
         // (args)
-        file.write_fmt(format_args!("{}", vec_utils::as_str(&block_content.args))).unwrap();
+        write!(file, "{}", vec_utils::as_str(&block_content.args)).unwrap();
         if block_content.exn_arg.is_some() {
             // [exc_arg]
-            file.write_fmt(format_args!("[{}]", block_content.exn_arg.as_ref().unwrap())).unwrap();
+            write!(file, "[{}]", block_content.exn_arg.as_ref().unwrap()).unwrap();
         }
-        // :\n\n
-        file.write(":\\l\\l".as_bytes()).unwrap();
+
+        write!(file, ":\\l\\l").unwrap();
 
         // all the instructions
         for inst in block_content.body.iter() {
-            file.write_fmt(format_args!("{}\\l", inst)).unwrap();
+            write!(file, "{}\\l", inst).unwrap();
         }
 
         // "];
-        file.write("\"];\n".as_bytes()).unwrap();
+        writeln!(file, "\"];").unwrap();
     }
 
     // every edge
@@ -228,28 +228,28 @@ fn emit_muir_dot_inner(file: &mut File,
 
                 match inst.v {
                     Branch1(ref dest) => {
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"{}\"];\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"{}\"];",
                             cur_block, dest.target, vec_utils::as_str(&dest.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
                     }
                     Branch2{ref true_dest, ref false_dest, ..} => {
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"true: {}\"]\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"true: {}\"]",
                             cur_block, true_dest.target, vec_utils::as_str(&true_dest.get_arguments(&ops))
-                        )).unwrap();
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"false: {}\"]\n",
+                        ).unwrap();
+                        writeln!(file, "BB{} -> BB{} [label = \"false: {}\"]",
                             cur_block, false_dest.target, vec_utils::as_str(&false_dest.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
                     }
                     Switch{ref default, ref branches, ..} => {
                         for &(op, ref dest) in branches.iter() {
-                            file.write_fmt(format_args!("BB{} -> BB{} [label = \"case {}: {}\"]\n",
+                            writeln!(file, "BB{} -> BB{} [label = \"case {}: {}\"]",
                                 cur_block, dest.target, ops[op], vec_utils::as_str(&dest.get_arguments(&ops))
-                            )).unwrap();
+                            ).unwrap();
                         }
 
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"default: {}\"]\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"default: {}\"]",
                             cur_block, default.target, vec_utils::as_str(&default.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
                     }
                     Call{ref resume, ..}
                     | CCall{ref resume, ..}
@@ -258,13 +258,13 @@ fn emit_muir_dot_inner(file: &mut File,
                         let ref normal = resume.normal_dest;
                         let ref exn    = resume.exn_dest;
 
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"normal: {}\"];\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"normal: {}\"];",
                             cur_block, normal.target, vec_utils::as_str(&normal.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
 
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"exception: {}\"];\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"exception: {}\"];",
                             cur_block, exn.target, vec_utils::as_str(&exn.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
                     }
                     Watchpoint{ref id, ref disable_dest, ref resume, ..} if id.is_some() => {
                         let ref normal = resume.normal_dest;
@@ -272,28 +272,28 @@ fn emit_muir_dot_inner(file: &mut File,
 
                         if id.is_some() {
                             let disable_dest = disable_dest.as_ref().unwrap();
-                            file.write_fmt(format_args!("BB{} -> {} [label = \"disabled: {}\"];\n",
+                            writeln!(file, "BB{} -> {} [label = \"disabled: {}\"];",
                                  cur_block, disable_dest.target, vec_utils::as_str(&disable_dest.get_arguments(&ops))
-                            )).unwrap();
+                            ).unwrap();
                         }
 
 
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"normal: {}\"];\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"normal: {}\"];",
                              cur_block, normal.target, vec_utils::as_str(&normal.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
 
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"exception: {}\"];\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"exception: {}\"];",
                              cur_block, exn.target, vec_utils::as_str(&exn.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
                     }
                     WPBranch{ref disable_dest, ref enable_dest, ..} => {
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"disabled: {}\"];\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"disabled: {}\"];",
                             cur_block, disable_dest.target, vec_utils::as_str(&disable_dest.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
 
-                        file.write_fmt(format_args!("BB{} -> BB{} [label = \"enabled: {}\"];\n",
+                        writeln!(file, "BB{} -> BB{} [label = \"enabled: {}\"];",
                             cur_block, enable_dest.target, vec_utils::as_str(&enable_dest.get_arguments(&ops))
-                        )).unwrap();
+                        ).unwrap();
                     }
                     Return(_)
                     | Throw(_)
@@ -311,7 +311,7 @@ fn emit_muir_dot_inner(file: &mut File,
         }
     }
 
-    file.write("}\n".as_bytes()).unwrap();
+    writeln!(file, "}}").unwrap();
 }
 
 fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
@@ -322,9 +322,9 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
     let mut file = create_emit_file(func_name.clone() + ".mc.dot", &vm);
 
     // diagraph func {
-    file.write_fmt(format_args!("digraph {} {{\n", func_name)).unwrap();
+    writeln!(file, "digraph {} {{", mangle_name(func_name)).unwrap();
     // node shape: rect
-    file.write("node [shape=rect];\n".as_bytes()).unwrap();
+    writeln!(file, "node [shape=rect];").unwrap();
 
     let compiled_funcs = vm.compiled_funcs().read().unwrap();
     let cf = compiled_funcs.get(&func.id()).unwrap().read().unwrap();
@@ -348,26 +348,26 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
 
     for block_name in blocks.iter() {
         // BB [label = "
-        file.write_fmt(format_args!("{} [label = \"{}:\\l\\l", id(block_name.clone()), block_name)).unwrap();
+        write!(file, "{} [label = \"{}:\\l\\l", id(block_name.clone()), block_name).unwrap();
 
         for inst in mc.get_block_range(&block_name).unwrap() {
-            file.write(&mc.emit_inst(inst)).unwrap();
-            file.write("\\l".as_bytes()).unwrap();
+            file.write_all(&mc.emit_inst(inst)).unwrap();
+            write!(file, "\\l").unwrap();
         }
 
         // "];
-        file.write("\"];\n".as_bytes()).unwrap();
+        writeln!(file, "\"];").unwrap();
     }
 
     for block_name in blocks.iter() {
         let end_inst = mc.get_block_range(block_name).unwrap().end;
 
         for succ in mc.get_succs(mc.get_last_inst(end_inst).unwrap()).into_iter() {
-            match mc.get_block_for_inst(*succ) {
+                match mc.get_block_for_inst(*succ) {
                 Some(target) => {
                     let source_id = id(block_name.clone());
                     let target_id = id(target.clone());
-                    file.write_fmt(format_args!("{} -> {};\n", source_id, target_id)).unwrap();
+                    writeln!(file, "{} -> {};", source_id, target_id).unwrap();
                 }
                 None => {
                     panic!("cannot find succesor {} for block {}", succ, block_name);
@@ -376,7 +376,7 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
         }
     }
 
-    file.write("}\n".as_bytes()).unwrap();
+    writeln!(file, "}}").unwrap();
 }
 
 impl CompilerPass for CodeEmission {

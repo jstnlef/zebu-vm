@@ -4955,7 +4955,6 @@ impl CompilerPass for InstructionSelection {
             vm.add_exception_callsite(Callsite::new(callsite.clone(), block_loc, stack_arg_size), self.current_fv_id);
         }
 
-
         let compiled_func = CompiledFunction::new(func.func_id, func.id(), mc,
                                                   self.current_constants.clone(), self.current_constants_locs.clone(),
                                                   frame, self.current_func_start.take().unwrap(), func_end);

@@ -26,7 +26,7 @@ use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern};
 pub type Word = usize;
 pub const WORD_SIZE : ByteSize = 8;
 
-pub const AOT_EMIT_CONTEXT_FILE : &'static str = "context.s";
+pub const AOT_EMIT_CONTEXT_FILE : &'static str = "context.S";
 
 // this is not full name, but pro/epilogue name is generated from this
 pub const PROLOGUE_BLOCK_NAME: &'static str = "prologue";

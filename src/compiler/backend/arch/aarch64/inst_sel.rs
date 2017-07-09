@@ -36,6 +36,7 @@ use compiler::backend::PROLOGUE_BLOCK_NAME;
 use compiler::backend::EPILOGUE_BLOCK_NAME;
 
 use compiler::backend::aarch64::*;
+use compiler::backend::make_block_name;
 use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
@@ -51,6 +52,7 @@ pub struct InstructionSelection {
     backend: Box<CodeGenerator>,
 
     current_fv_id: MuID,
+    current_fv_name: MuName,
     current_callsite_id: usize,
     current_frame: Option<Frame>,
     current_block: Option<MuName>,
@@ -78,6 +80,7 @@ impl <'a> InstructionSelection {
             backend: Box::new(ASMCodeGen::new()),
 
             current_fv_id: 0,
+            current_fv_name: String::new(),
             current_callsite_id: 0,
             current_frame: None,
             current_block: None,
@@ -186,7 +189,7 @@ impl <'a> InstructionSelection {
                         // it is possible that the fallthrough block is scheduled somewhere else
                         // we need to explicitly jump to it
                         self.finish_block();
-                        let fallthrough_temp_block = format!("{}_{}_branch_fallthrough", self.current_fv_id, node.id());
+                        let fallthrough_temp_block = make_block_name(node, "branch_fallthrough", );
                         self.start_block(fallthrough_temp_block, &vec![]);
 
                         let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
@@ -340,7 +343,7 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_b_cond("EQ", target);
 
                                 self.finish_block();
-                                self.start_block(format!("{}_switch_not_met_case_{}", node.id(), case_op_index), &vec![]);
+                                self.start_block(make_block_name(node, format!("switch_not_met_case_{}", case_op_index).as_str()), &vec![]);
                             }
 
                             // emit default
@@ -624,9 +627,9 @@ impl <'a> InstructionSelection {
                                     // overflows to_ty_size, but not to_ty_reg_size
                                     let to_ty_reg_size = check_op_len(&tmp_res.ty); // The size of the aarch64 register
                                     if to_ty_size != to_ty_reg_size {
-                                        let blk_positive = format!("{}_positive", node.id());
-                                        let blk_negative = format!("{}_negative", node.id());
-                                        let blk_end      = format!("{}_end", node.id());
+                                        let blk_positive = make_block_name(node, "positive");
+                                        let blk_negative = make_block_name(node, "negative");
+                                        let blk_end      = make_block_name(node, "end");
                                         let tmp          = make_temporary(f_context, to_ty.clone(), vm);
 
                                         self.backend.emit_tbnz(&tmp_res, (to_ty_size - 1) as u8, blk_negative.clone());
@@ -743,7 +746,7 @@ impl <'a> InstructionSelection {
 
                                     self.finish_block();
 
-                                    let blk_load_start = format!("{}_load_start", node.id());
+                                    let blk_load_start = make_block_name(node, "load_start");
 
                                     // load_start:
                                     self.start_block(blk_load_start.clone(), &vec![temp_loc.clone()]);
@@ -845,7 +848,7 @@ impl <'a> InstructionSelection {
 
                                     self.finish_block();
 
-                                    let blk_store_start = format!("{}_store_start", node.id());
+                                    let blk_store_start = make_block_name(node, "store_start");
 
                                     // store_start:
                                     self.start_block(blk_store_start.clone(), &vec![temp_loc.clone()]);
@@ -912,9 +915,9 @@ impl <'a> InstructionSelection {
                         let res_value = self.get_result_value(node, 0);
                         let res_success = self.get_result_value(node, 1);
 
-                        let blk_cmpxchg_start = format!("{}_cmpxchg_start", node.id());
-                        let blk_cmpxchg_failed = format!("{}_cmpxchg_failed", node.id());
-                        let blk_cmpxchg_succeded = format!("{}_cmpxchg_succeded", node.id());
+                        let blk_cmpxchg_start =    make_block_name(node, "cmpxchg_start", node.id());
+                        let blk_cmpxchg_failed =   make_block_name(node, "cmpxchg_failed", node.id());
+                        let blk_cmpxchg_succeded = make_block_name(node, "cmpxchg_succeded", node.id());
 
                         self.finish_block();
 
@@ -2702,8 +2705,8 @@ impl <'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = format!("{}_alloc_large", node.id());
-            let blk_alloc_large_end = format!("{}_alloc_large_end", node.id());
+            let blk_alloc_large = make_block_name(node, "alloc_large");
+            let blk_alloc_large_end = make_block_name(node, "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 let size_with_hdr = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -2715,7 +2718,7 @@ impl <'a> InstructionSelection {
             self.backend.emit_b_cond("GT", blk_alloc_large.clone());
             self.finish_block();
 
-            self.start_block(format!("{}_allocsmall", node.id()), &vec![]);
+            self.start_block(make_block_name(node, "allocsmall"), &vec![]);
             self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_context, vm);
             self.backend.emit_b(blk_alloc_large_end.clone());
 
@@ -2827,7 +2830,7 @@ impl <'a> InstructionSelection {
         } else if n == 1 {
             tys[0].clone()
         } else {
-            P(MuType::new(new_internal_id(), MuType_::mustruct(format!("return_type#{}", new_internal_id()), tys.to_vec())))
+            P(MuType::new(new_internal_id(), MuType_::mustruct(format!("#{}", new_internal_id()), tys.to_vec())))
         }
     }
 
@@ -3344,7 +3347,7 @@ impl <'a> InstructionSelection {
         } else {
             let callsite = self.new_callsite_label(cur_node);
 
-            self.backend.emit_bl(callsite.clone(), func_name, None); // assume ccall wont throw exception
+            self.backend.emit_bl(callsite.clone(), func_name, None, true); // assume ccall wont throw exception
 
             // TODO: What if theres an exception block?
             self.current_callsites.push_back((callsite, 0, stack_arg_size));
@@ -3499,7 +3502,7 @@ impl <'a> InstructionSelection {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend.emit_bl(callsite, target.name().unwrap(), potentially_excepting)
+                    self.backend.emit_bl(callsite, target.name().unwrap(), potentially_excepting, false)
                 }
             } else {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
@@ -3556,8 +3559,7 @@ impl <'a> InstructionSelection {
     }
 
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, sig: &P<CFuncSig>, f_context: &mut FunctionContext, vm: &VM) {
-        // no livein
-        self.start_block(PROLOGUE_BLOCK_NAME.to_string(), &vec![]);
+        self.start_block(format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME), &vec![]);
 
         // Push the frame pointer and link register onto the stack
         self.backend.emit_push_pair(&LR, &FP, &SP);
@@ -3666,7 +3668,7 @@ impl <'a> InstructionSelection {
         // Live in are the registers that hold the return values
         // (if the value is returned through 'XR' than the caller is responsible for managing lifetime)
         let livein = self.compute_return_registers(&ret_type, vm);
-        self.start_block(EPILOGUE_BLOCK_NAME.to_string(), &livein);
+        self.start_block(format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME), &livein);
 
         // pop all callee-saved registers
         for i in (0..CALLEE_SAVED_FPRs.len()).rev() {
@@ -4354,9 +4356,9 @@ impl <'a> InstructionSelection {
     fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
         let ret = {
             if cur_node.is_some() {
-                format!("callsite_{}_{}_{}", self.current_fv_id, cur_node.unwrap().id(), self.current_callsite_id)
+                make_block_name(cur_node.unwrap(), format!("callsite_{}", self.current_callsite_id).as_str())
             } else {
-                format!("callsite_{}_anon_{}", self.current_fv_id, self.current_callsite_id)
+                format!("{}:callsite_{}", self.current_fv_name, self.current_callsite_id)
             }
         };
         self.current_callsite_id += 1;
@@ -4391,6 +4393,7 @@ impl CompilerPass for InstructionSelection {
         let entry_block = func_ver.content.as_ref().unwrap().get_entry_block();
 
         self.current_fv_id = func_ver.id();
+        self.current_fv_name = func_ver.name();
         self.current_frame = Some(Frame::new(func_ver.id()));
         self.current_func_start = Some({
             let funcs = vm.funcs().read().unwrap();
