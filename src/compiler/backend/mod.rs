@@ -418,6 +418,6 @@ impl RegGroup {
     }
 }
 
-fn make_block_name<T: MuEntity>(entity: &T, label: &str) -> MuName {
-    format!("{}:{}", entity.name(), label)
+fn make_block_name(fv_name: &String, id: MuID, label: &str) -> MuName {
+    format!("{}.#{}:{}", fv_name, id, label)
 }

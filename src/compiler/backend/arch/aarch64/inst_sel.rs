@@ -189,7 +189,7 @@ impl <'a> InstructionSelection {
                         // it is possible that the fallthrough block is scheduled somewhere else
                         // we need to explicitly jump to it
                         self.finish_block();
-                        let fallthrough_temp_block = make_block_name(node, "branch_fallthrough", );
+                        let fallthrough_temp_block = make_block_name(&self.current_fv_name, node.id(), "branch_fallthrough", );
                         self.start_block(fallthrough_temp_block, &vec![]);
 
                         let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
@@ -343,7 +343,8 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_b_cond("EQ", target);
 
                                 self.finish_block();
-                                self.start_block(make_block_name(node, format!("switch_not_met_case_{}", case_op_index).as_str()), &vec![]);
+                                let block_name = make_block_name(&self.current_fv_name, node.id(), format!("switch_not_met_case_{}", case_op_index).as_str());
+                                self.start_block(block_name, &vec![]);
                             }
 
                             // emit default
@@ -628,9 +629,9 @@ impl <'a> InstructionSelection {
                                     // overflows to_ty_size, but not to_ty_reg_size
                                     let to_ty_reg_size = check_op_len(&tmp_res.ty); // The size of the aarch64 register
                                     if to_ty_size != to_ty_reg_size {
-                                        let blk_positive = make_block_name(node, "positive");
-                                        let blk_negative = make_block_name(node, "negative");
-                                        let blk_end      = make_block_name(node, "end");
+                                        let blk_positive = make_block_name(&self.current_fv_name, node.id(), "positive");
+                                        let blk_negative = make_block_name(&self.current_fv_name, node.id(), "negative");
+                                        let blk_end      = make_block_name(&self.current_fv_name, node.id(), "end");
                                         let tmp          = make_temporary(f_context, to_ty.clone(), vm);
 
                                         self.backend.emit_tbnz(&tmp_res, (to_ty_size - 1) as u8, blk_negative.clone());
@@ -747,7 +748,7 @@ impl <'a> InstructionSelection {
 
                                     self.finish_block();
 
-                                    let blk_load_start = make_block_name(node, "load_start");
+                                    let blk_load_start = make_block_name(&self.current_fv_name, node.id(), "load_start");
 
                                     // load_start:
                                     self.start_block(blk_load_start.clone(), &vec![temp_loc.clone()]);
@@ -849,7 +850,7 @@ impl <'a> InstructionSelection {
 
                                     self.finish_block();
 
-                                    let blk_store_start = make_block_name(node, "store_start");
+                                    let blk_store_start = make_block_name(&self.current_fv_name, node.id(), "store_start");
 
                                     // store_start:
                                     self.start_block(blk_store_start.clone(), &vec![temp_loc.clone()]);
@@ -916,9 +917,9 @@ impl <'a> InstructionSelection {
                         let res_value = self.get_result_value(node, 0);
                         let res_success = self.get_result_value(node, 1);
 
-                        let blk_cmpxchg_start =    make_block_name(node, "cmpxchg_start");
-                        let blk_cmpxchg_failed =   make_block_name(node, "cmpxchg_failed");
-                        let blk_cmpxchg_succeded = make_block_name(node, "cmpxchg_succeded");
+                        let blk_cmpxchg_start =    make_block_name(&self.current_fv_name, node.id(), "cmpxchg_start");
+                        let blk_cmpxchg_failed =   make_block_name(&self.current_fv_name, node.id(), "cmpxchg_failed");
+                        let blk_cmpxchg_succeded = make_block_name(&self.current_fv_name, node.id(), "cmpxchg_succeded");
 
                         self.finish_block();
 
@@ -1217,7 +1218,7 @@ impl <'a> InstructionSelection {
                             Some(node), f_context, vm
                         );
                     }
-
+                    
                     // Runtime Entry
                     Instruction_::Throw(op_index) => {
                         trace!("instsel on THROW");
@@ -2706,8 +2707,8 @@ impl <'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(node, "alloc_large");
-            let blk_alloc_large_end = make_block_name(node, "alloc_large_end");
+            let blk_alloc_large = make_block_name(&self.current_fv_name, node.id(), "alloc_large");
+            let blk_alloc_large_end = make_block_name(&self.current_fv_name, node.id(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 let size_with_hdr = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -2719,7 +2720,8 @@ impl <'a> InstructionSelection {
             self.backend.emit_b_cond("GT", blk_alloc_large.clone());
             self.finish_block();
 
-            self.start_block(make_block_name(node, "allocsmall"), &vec![]);
+            let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
+            self.start_block(block_name, &vec![]);
             self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_context, vm);
             self.backend.emit_b(blk_alloc_large_end.clone());
 
@@ -3690,10 +3692,6 @@ impl <'a> InstructionSelection {
             self.backend.emit_ldr_callee_saved(reg, &loc);
         }
 
-        //self.backend.emit_frame_shrink();
-
-        // Pop the link register and frame pointers
-
         // Pop the frame record
         self.backend.emit_mov(&SP, &FP);
         self.backend.emit_pop_pair(&FP, &LR, &SP);
@@ -4361,7 +4359,7 @@ impl <'a> InstructionSelection {
     fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
         let ret = {
             if cur_node.is_some() {
-                make_block_name(cur_node.unwrap(), format!("callsite_{}", self.current_callsite_id).as_str())
+                make_block_name(&self.current_fv_name, cur_node.unwrap().id(), format!("callsite_{}", self.current_callsite_id).as_str())
             } else {
                 format!("{}:callsite_{}", self.current_fv_name, self.current_callsite_id)
             }

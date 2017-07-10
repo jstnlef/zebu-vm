@@ -685,7 +685,7 @@ fn test_coalesce_branch_moves() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) == 1, "The function should not yield any mov instructions other than mov %rsp->%rbp (some possible coalescing failed)");
+        assert!(get_number_of_moves(fv_id, &vm) == 2, "The function should not yield any mov instructions other than mov %rsp->%rbp and mov %rbp->%rsp (some possible coalescing failed)");
     }
 }
 
@@ -752,7 +752,7 @@ fn test_coalesce_args() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) == 1, "The function should not yield any mov instructions other than mov %rsp->%rbp (or MOV SP -> FP on aarch64) (some possible coalescing failed)");
+        assert!(get_number_of_moves(fv_id, &vm) == 2, "The function should not yield any mov instructions other than mov %rsp->%rbp and mov %rbp->%rsp (or MOV SP -> FP on aarch64) (some possible coalescing failed)");
     }
 }
 
@@ -811,7 +811,7 @@ fn test_coalesce_branch2_moves() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) <= 3, "too many moves (some possible coalescing failed)");
+        assert!(get_number_of_moves(fv_id, &vm) <= 4, "too many moves (some possible coalescing failed)");
     }
 
     backend::emit_context(&vm);

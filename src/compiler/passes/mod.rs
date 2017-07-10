@@ -21,6 +21,7 @@ mod control_flow;
 mod trace_gen;
 mod gen_mov_phi;
 mod inlining;
+mod dot_gen;
 
 pub use compiler::passes::inlining::Inlining;
 pub use compiler::passes::def_use::DefUse;
@@ -28,6 +29,7 @@ pub use compiler::passes::tree_gen::TreeGen;
 pub use compiler::passes::control_flow::ControlFlowAnalysis;
 pub use compiler::passes::trace_gen::TraceGen;
 pub use compiler::passes::gen_mov_phi::GenMovPhi;
+pub use compiler::passes::dot_gen::DotGen;
 
 use std::any::Any;
 

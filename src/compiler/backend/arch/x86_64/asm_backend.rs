@@ -2194,22 +2194,6 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
-    fn emit_frame_shrink(&mut self) {
-        trace!("emit frame shrink");
-
-        let asm = format!("addq ${},%rsp", FRAME_SIZE_PLACEHOLDER.clone());
-
-        let line = self.line();
-        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 6, FRAME_SIZE_PLACEHOLDER_LEN, 0));
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{},
-            linked_hashmap!{},
-            false
-        )
-    }
-
     fn emit_nop(&mut self, bytes: usize) {
         trace!("emit: nop ({} bytes)", bytes);
 
@@ -3528,7 +3512,7 @@ pub fn emit_context_with_reloc(vm: &VM,
     use std::path;
     use std::io::prelude::*;
 
-    emit_mu_types(vm);
+    emit_mu_types("", vm);
 
     debug!("---Emit VM Context---");
     create_emit_directory(vm);

@@ -2127,22 +2127,6 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
-    fn emit_frame_shrink(&mut self) {
-        trace!("emit: \tframe shrink");
-
-        let asm = format!("ADD SP,SP,#{}", FRAME_SIZE_PLACEHOLDER.clone());
-
-        let line = self.line();
-        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 11, FRAME_SIZE_PLACEHOLDER_LEN, 0));
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{},
-            linked_hashmap!{},
-            false
-        )
-    }
-
     fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str) {self.internal_binop_str("ADD", dest, src1, src2)}
 
     // Pushes a pair of registers on the givne stack (uses the STP instruction)

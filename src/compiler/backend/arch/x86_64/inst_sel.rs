@@ -347,7 +347,7 @@ impl <'a> InstructionSelection {
                         // we need to explicitly jump to it
                         self.finish_block();
 
-                        let fallthrough_temp_block = make_block_name(node, "branch_fallthrough", );
+                        let fallthrough_temp_block = make_block_name(&self.current_fv_name, node.id(), "branch_fallthrough", );
                         self.start_block(fallthrough_temp_block);
 
                         let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
@@ -417,9 +417,9 @@ impl <'a> InstructionSelection {
                                 }
                                 // jcc
                                 _ => {
-                                    let blk_true  = make_block_name(node, "select_true");
-                                    let blk_false = make_block_name(node, "select_false");
-                                    let blk_end   = make_block_name(node, "select_end");
+                                    let blk_true  = make_block_name(&self.current_fv_name, node.id(), "select_true");
+                                    let blk_false = make_block_name(&self.current_fv_name, node.id(), "select_false");
+                                    let blk_end   = make_block_name(&self.current_fv_name, node.id(), "select_end");
 
                                     // jump to blk_true if true
                                     match cmpop {
@@ -470,9 +470,9 @@ impl <'a> InstructionSelection {
                         } else if self.match_fpreg(true_val) {
                             let tmp_res = self.get_result_value(node);
 
-                            let blk_true  = make_block_name(node, "select_true");
-                            let blk_false = make_block_name(node, "select_false");
-                            let blk_end   = make_block_name(node, "select_end");
+                            let blk_true  = make_block_name(&self.current_fv_name, node.id(), "select_true");
+                            let blk_false = make_block_name(&self.current_fv_name, node.id(), "select_false");
+                            let blk_end   = make_block_name(&self.current_fv_name, node.id(), "select_end");
 
                             // jump to blk_true if true
                             match cmpop {
@@ -610,7 +610,8 @@ impl <'a> InstructionSelection {
                                 }
 
                                 self.finish_block();
-                                self.start_block(make_block_name(node, format!("switch_not_met_case_{}", case_op_index).as_str()));
+                                let block_name = make_block_name(&self.current_fv_name, node.id(), format!("switch_not_met_case_{}", case_op_index).as_str());
+                                self.start_block(block_name);
                             }
 
                             // emit default
@@ -945,9 +946,9 @@ impl <'a> InstructionSelection {
                                             // testq %tmp_op %tmp_op
                                             self.backend.emit_test_r_r(&tmp_op, &tmp_op);
 
-                                            let blk_if_signed     = make_block_name(node, "uitofp_float_if_signed",);
-                                            let blk_if_not_signed = make_block_name(node, "uitofp_float_if_not_signed");
-                                            let blk_done          = make_block_name(node, "uitofp_float_done");
+                                            let blk_if_signed     = make_block_name(&self.current_fv_name, node.id(), "uitofp_float_if_signed",);
+                                            let blk_if_not_signed = make_block_name(&self.current_fv_name, node.id(), "uitofp_float_if_not_signed");
+                                            let blk_done          = make_block_name(&self.current_fv_name, node.id(), "uitofp_float_done");
 
                                             // js %if_signed
                                             self.backend.emit_js(blk_if_signed.clone());
@@ -1424,7 +1425,28 @@ impl <'a> InstructionSelection {
                             Some(node), f_content, f_context, vm
                         );
                     }
-                    
+
+                    /*Instruction_::AllocA(ref ty) => {
+                        trace!("instsel on AllocA");
+
+                        if cfg!(debug_assertions) {
+                            match ty.v {
+                                MuType_::Hybrid(_) => panic!("cannot use ALLOCA for hybrid, use ALLOCAHYBRID instead"),
+                                _ => {}
+                            }
+                        }
+
+                        let ty_info = vm.get_backend_type_info(ty.id());
+                        let size = ty_info.size;
+                        let ty_align= ty_info.alignment;
+                        if 16 % ty_align != 0 {
+                            // It's not trivial to allign this type...
+                            unimplemented!()
+                        }
+                        // Round size up to the nearest multiple of 16
+                        let size = ((size + 16 - 1)/16)*16;
+                    }*/
+
                     Instruction_::Throw(op_index) => {
                         trace!("instsel on THROW");
 
@@ -2534,8 +2556,8 @@ impl <'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(node, "alloc_large");
-            let blk_alloc_large_end = make_block_name(node, "alloc_large_end");
+            let blk_alloc_large = make_block_name(&self.current_fv_name, node.id(), "alloc_large");
+            let blk_alloc_large_end = make_block_name(&self.current_fv_name, node.id(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 let size_with_hdr = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -2549,7 +2571,8 @@ impl <'a> InstructionSelection {
             self.backend.emit_jg(blk_alloc_large.clone());
 
             self.finish_block();
-            self.start_block(make_block_name(node, "allocsmall"));
+            let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
+            self.start_block(block_name);
 
             // alloc small here
             self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
@@ -2652,12 +2675,13 @@ impl <'a> InstructionSelection {
 
             // branch to slow path if end > limit (end - limit > 0)
             // ASM: jg alloc_slow
-            let slowpath = make_block_name(node, "allocslow");
+            let slowpath = make_block_name(&self.current_fv_name, node.id(), "allocslow");
             self.backend.emit_jg(slowpath.clone());
 
             // finish current block
             self.finish_block();
-            self.start_block(make_block_name(node, "updatecursor"));
+            let block_name = make_block_name(&self.current_fv_name, node.id(), "updatecursor");
+            self.start_block(block_name);
 
             // update cursor
             // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
@@ -2674,7 +2698,7 @@ impl <'a> InstructionSelection {
             }
 
             // ASM jmp alloc_end
-            let allocend = make_block_name(node, "alloc_small_end");
+            let allocend = make_block_name(&self.current_fv_name, node.id(), "alloc_small_end");
             self.backend.emit_jmp(allocend.clone());
 
             // finishing current block
@@ -3377,7 +3401,8 @@ impl <'a> InstructionSelection {
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
-            self.start_block(make_block_name(cur_node, "normal_cont_for_call"));
+            let block_name = make_block_name(&self.current_fv_name, cur_node.id(), "normal_cont_for_call");
+            self.start_block(block_name);
         } else {
             self.current_callsites.push_back((callsite.to_relocatable(), 0, stack_arg_size));
         }
@@ -3643,7 +3668,8 @@ impl <'a> InstructionSelection {
             }
         }
         // frame shrink
-        self.backend.emit_frame_shrink();
+        // RBP -> RSP
+        self.backend.emit_mov_r_r(&x86_64::RSP, &x86_64::RBP);
 
         // pop rbp
         self.backend.emit_pop_r64(&x86_64::RBP);
@@ -4736,7 +4762,7 @@ impl <'a> InstructionSelection {
     fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
         let ret = {
             if cur_node.is_some() {
-                make_block_name(cur_node.unwrap(), format!("callsite_{}", self.current_callsite_id).as_str())
+                make_block_name(&self.current_fv_name, cur_node.unwrap().id(), format!("callsite_{}", self.current_callsite_id).as_str())
             } else {
                 format!("{}:callsite_{}", self.current_fv_name, self.current_callsite_id)
             }

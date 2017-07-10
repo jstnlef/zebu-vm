@@ -44,8 +44,7 @@ pub trait CodeGenerator {
 
     // emit code to adjust frame
     fn emit_frame_grow(&mut self);
-    fn emit_frame_shrink(&mut self);
-    
+
     fn emit_nop(&mut self, bytes: usize);
 
     // comparison
