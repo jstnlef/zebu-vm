@@ -2845,13 +2845,13 @@ pub fn emit_context_with_reloc(vm: &VM,
             file.write_fmt(format_args!("{}:\n", dump_label)).unwrap();
 
             let base = obj_dump.reference_addr;
-            let end  = obj_dump.mem_start.plus(obj_dump.mem_size);
+            let end  = obj_dump.mem_start + obj_dump.mem_size;
             assert!(base.is_aligned_to(POINTER_SIZE));
 
             let mut offset = 0;
 
             while offset < obj_dump.mem_size {
-                let cur_addr = base.plus(offset);
+                let cur_addr = base + offset;
 
                 if obj_dump.reference_offsets.contains(&offset) {
                     // write ref with label
@@ -2874,7 +2874,7 @@ pub fn emit_context_with_reloc(vm: &VM,
                     file.write_fmt(format_args!(".xword {}\n", label.clone())).unwrap();
                 } else {
                     // write plain word (as bytes)
-                    let next_word_addr = cur_addr.plus(POINTER_SIZE);
+                    let next_word_addr = cur_addr + POINTER_SIZE;
 
                     if next_word_addr <= end {
                         write_data_bytes(&mut file, cur_addr, next_word_addr);
@@ -2930,7 +2930,7 @@ fn write_data_bytes(f: &mut File, from: Address, to: Address) {
             let byte = unsafe {cursor.load::<u8>()};
             f.write_fmt(format_args!("0x{:x}", byte)).unwrap();
 
-            cursor = cursor.plus(1);
+            cursor = cursor + 1 as ByteSize;
 
             if cursor != to {
                 f.write(",".as_bytes()).unwrap();

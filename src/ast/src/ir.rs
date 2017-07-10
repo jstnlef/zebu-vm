@@ -1129,6 +1129,10 @@ pub enum MemoryLocation {
 }
 
 #[cfg(target_arch = "aarch64")]
+rodal_enum!(MemoryLocation{{VirtualAddress: base, offset, signed, scale}, 
+{Address: base, offset, shift, signed}, {Symbolic: label, is_global}});
+
+#[cfg(target_arch = "aarch64")]
 impl fmt::Display for MemoryLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

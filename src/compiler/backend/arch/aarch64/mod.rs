@@ -44,6 +44,7 @@ use ast::op;
 use compiler::backend::RegGroup;
 use vm::VM;
 
+use utils::ByteSize;
 use utils::LinkedHashMap;
 use std::collections::HashMap;
 
@@ -668,7 +669,7 @@ lazy_static! {
 
 
     // put caller saved regs first (they imposes no overhead if there is no call instruction)
-    pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
+    pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = vec![
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -788,13 +789,13 @@ pub fn get_previous_frame_pointer(frame_pointer: Address) -> Address {
 // Gets the return address for the current frame pointer
 #[inline(always)]
 pub fn get_return_address(frame_pointer: Address) -> Address {
-    unsafe { frame_pointer.plus(8).load::<Address>() }
+    unsafe { (frame_pointer + 8 as ByteSize).load::<Address>() }
 }
 
 // Gets the stack pointer before the current frame was created
 #[inline(always)]
 pub fn get_previous_stack_pointer(frame_pointer: Address) -> Address {
-    frame_pointer.plus(16)
+    frame_pointer + 16 as ByteSize
 }
 
 #[inline(always)]
@@ -805,16 +806,16 @@ pub fn set_previous_frame_pointer(frame_pointer: Address, value: Address) {
 // Gets the return address for the current frame pointer
 #[inline(always)]
 pub fn set_return_address(frame_pointer: Address, value: Address) {
-    unsafe { frame_pointer.plus(8).store::<Address>(value) }
+    unsafe { (frame_pointer + 8 as ByteSize).store::<Address>(value) }
 }
 
 // Reg should be a 64-bit callee saved GPR or FPR
 pub fn get_callee_saved_offset(reg: MuID) -> isize {
     debug_assert!(is_callee_saved(reg));
     let id = if reg < FPR_ID_START {
-        (reg - CALLEE_SAVED_GPRs[0].id())/2
+        (reg - CALLEE_SAVED_GPRS[0].id())/2
     } else {
-        (reg - CALLEE_SAVED_FPRs[0].id()) / 2 + CALLEE_SAVED_GPRs.len()
+        (reg - CALLEE_SAVED_FPRS[0].id()) / 2 + CALLEE_SAVED_GPRS.len()
     };
     (id as isize + 1)*(-8)
 }
@@ -1862,7 +1863,7 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem = make_value_symbolic(vm.get_func_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                    let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, f_context, vm);
                     tmp
                 },
@@ -1922,7 +1923,7 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem = make_value_symbolic(vm.get_func_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                    let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, f_context, vm);
                     tmp
                 },
@@ -2317,7 +2318,7 @@ fn memory_location_shift(backend: &mut CodeGenerator, mem: MemoryLocation, more_
                 if offset.is_some() {
                     let offset = offset.as_ref().unwrap();
                     if match_value_int_imm(&offset) {
-                        let offset = offset.extract_int_const()*scale + (more_offset as u64);
+                        let offset = offset.extract_int_const().unwrap() *scale + (more_offset as u64);
                         make_value_int_const(offset as u64, vm)
                     } else {
                         let offset = emit_ireg_value(backend, &offset, f_context, vm);
@@ -2372,7 +2373,7 @@ fn memory_location_shift_scale(backend: &mut CodeGenerator, mem: MemoryLocation,
                         let offset = offset.as_ref().unwrap();
                         if match_value_int_imm(&offset) {
                             let temp = make_temporary(f_context, offset.ty.clone(), vm);
-                            let offset_scaled = (offset.extract_int_const() as i64)*(scale as i64);
+                            let offset_scaled = (offset.extract_int_const().unwrap() as i64)*(scale as i64);
                             if offset_scaled % (new_scale as i64) == 0 {
                                 emit_add_u64(backend, &temp, &more_offset, f_context, vm, (offset_scaled / (new_scale as i64)) as u64);
                                 // new_scale*temp = (more_offset + (offset*scale)/new_scale)

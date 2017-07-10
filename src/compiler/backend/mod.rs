@@ -182,9 +182,9 @@ pub use compiler::backend::aarch64::emit_context_with_reloc;
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::spill_rewrite;
 #[cfg(target_arch = "aarch64")]
-pub use compiler::backend::x86_64::ARGUMENT_GPRS;
+pub use compiler::backend::aarch64::ARGUMENT_GPRS;
 #[cfg(target_arch = "aarch64")]
-pub use compiler::backend::x86_64::ARGUMENT_FPRS;
+pub use compiler::backend::aarch64::ARGUMENT_FPRS;
 
 use vm::VM;
 use ast::types::*;

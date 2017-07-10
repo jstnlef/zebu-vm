@@ -2617,7 +2617,7 @@ impl <'a> InstructionSelection {
     fn emit_alloc_sequence(&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
-            let size_i = size.extract_int_const();
+            let size_i = size.extract_int_const().unwrap();
 
             if size_i + OBJECT_HEADER_SIZE as u64 > mm::LARGE_OBJECT_THRESHOLD as u64 {
                 self.emit_alloc_sequence_large(tmp_allocator, size, align, node, f_context, vm)
@@ -2804,7 +2804,7 @@ impl <'a> InstructionSelection {
                 if hfa_n > 0 {
                     let mut res = vec![get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(&t, vm)/hfa_n)];
                     for i in 1..hfa_n {
-                        res.push(get_alias_for_length(RETURN_FPR[i].id(), get_bit_size(&t, vm)/hfa_n));
+                        res.push(get_alias_for_length(RETURN_FPRS[i].id(), get_bit_size(&t, vm)/hfa_n));
                     }
                     res
                 } else if size <= 8 {
@@ -2823,7 +2823,7 @@ impl <'a> InstructionSelection {
             Void => vec![], // Nothing to return
 
             Int(128) => // Return in 2 GPRs
-                vec![RETURN_GPRs[0].clone(), RETURN_GPRs[0].clone()],
+                vec![RETURN_GPRS[0].clone(), RETURN_GPRS[0].clone()],
 
             // Integral or pointer type
             _ =>
@@ -2965,7 +2965,7 @@ impl <'a> InstructionSelection {
                         ngrn = round_up(ngrn, 2); // align NGRN to the next even number
 
                         if ngrn < 7 {
-                            locations.push(ARGUMENT_GPRs[ngrn].clone());
+                            locations.push(ARGUMENT_GPRS[ngrn].clone());
                             ngrn += 2;
                         } else {
                             ngrn = 8;
@@ -3286,8 +3286,13 @@ impl <'a> InstructionSelection {
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
                 let cur_node = cur_node.unwrap();
-                if cur_node.op == OpCode::CCall {
-                    unimplemented!()
+                match cur_node.v {
+		    TreeNode_::Instruction(Instruction {v: Instruction_::CCall{..}, ..}) => {
+		        unimplemented!()
+		    }
+		    _ => {
+                        // wont have an exception branch, ignore
+                    }
                 }
             }
         }
@@ -3526,8 +3531,8 @@ impl <'a> InstructionSelection {
             let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
-        for i in 0..CALLEE_SAVED_FPRs.len() {
-            let ref reg = CALLEE_SAVED_FPRs[i];
+        for i in 0..CALLEE_SAVED_FPRS.len() {
+            let ref reg = CALLEE_SAVED_FPRS[i];
 
             trace!("allocate frame slot for reg {}", reg);
             let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(reg.clone(), vm);
@@ -3669,7 +3674,7 @@ impl <'a> InstructionSelection {
 
                 match inst.v {
                     Instruction_::CmpOp(op, op1, ..) => {
-                        if op::is_int_cmp(op) {
+                        if op.is_int_cmp() {
                             node_type(&ops[op1]).get_int_length().unwrap() == 128 &&
                                 !op.is_symmetric()
                         } else {
