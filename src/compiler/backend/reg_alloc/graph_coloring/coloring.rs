@@ -33,48 +33,73 @@ use compiler::backend::reg_alloc::graph_coloring::petgraph::graph::NodeIndex;
 
 const COALESCING : bool = true;
 
+/// GraphColoring algorithm
+/// based on Appel's book section 11.4
 pub struct GraphColoring<'a> {
+    // context
     pub func: &'a mut MuFunctionVersion,
     pub cf: &'a mut CompiledFunction,
     pub vm: &'a VM,
-
     pub ig: InterferenceGraph,
 
+    /// machine registers, preassigned a color
     precolored: LinkedHashSet<NodeIndex>,
+    /// all colors available
     colors: LinkedHashMap<backend::RegGroup, LinkedHashSet<MuID>>,
-    pub colored_nodes: Vec<NodeIndex>,
-    
+    /// temporaries, not precolored and not yet processed
     initial: Vec<NodeIndex>,
-    degree: LinkedHashMap<NodeIndex, usize>,
-    
-    worklist_moves: Vec<Move>,
-    movelist: LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>,
-    active_moves: LinkedHashSet<Move>,
-    coalesced_nodes: LinkedHashSet<NodeIndex>,
-    coalesced_moves: LinkedHashSet<Move>,
-    constrained_moves: LinkedHashSet<Move>,
-    alias: LinkedHashMap<NodeIndex, NodeIndex>,
-    
-    worklist_spill: Vec<NodeIndex>,
+    /// whether a temp is spillable
+    // FIXME: not used at the moment
     spillable: LinkedHashMap<MuID, bool>,
-    spilled_nodes: Vec<NodeIndex>,
 
-    // for validation
-    spill_history: LinkedHashMap<MuID, P<Value>>,   // we need to log all registers get spilled with their spill location
-    spill_scratch_temps: LinkedHashMap<MuID, MuID>, // we need to know the mapping between scratch temp -> original temp
-    
-    worklist_freeze: LinkedHashSet<NodeIndex>,
-    frozen_moves: LinkedHashSet<Move>,
-    
+    /// list of low-degree non-move-related nodes
     worklist_simplify: LinkedHashSet<NodeIndex>,
-    select_stack: Vec<NodeIndex>
+    /// low-degree move related nodes
+    worklist_freeze: LinkedHashSet<NodeIndex>,
+    /// nodes marked for spilling during this round
+    worklist_spill: Vec<NodeIndex>,
+    /// nodes marked for spilling during this round
+    spilled_nodes: Vec<NodeIndex>,
+    /// temps that have been coalesced
+    /// when u <- v is coalesced, v is added to this set and u put back on some work list
+    coalesced_nodes: LinkedHashSet<NodeIndex>,
+    /// nodes successfully colored
+    colored_nodes: Vec<NodeIndex>,
+    /// stack containing temporaries removed from the graph
+    select_stack: Vec<NodeIndex>,
+
+    /// moves that have been coalesced
+    coalesced_moves: LinkedHashSet<Move>,
+    /// moves whose source and target interfere
+    constrained_moves: LinkedHashSet<Move>,
+    /// moves that will no longer be considered for coalescing
+    frozen_moves: LinkedHashSet<Move>,
+    /// moves enabled for possible coalescing
+    worklist_moves: Vec<Move>,
+    /// moves not yet ready for coalescing
+    active_moves: LinkedHashSet<Move>,
+
+    /// degree of nodes
+    degree: LinkedHashMap<NodeIndex, usize>,
+    /// a mapping from a node to the list of moves it is associated with
+    movelist: LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>,
+    /// when a move (u, v) has been coalesced, and v put in coalescedNodes, then alias(v) = u
+    alias: LinkedHashMap<NodeIndex, NodeIndex>,
+
+    // for validation use
+    /// we need to log all registers get spilled with their spill location
+    spill_history: LinkedHashMap<MuID, P<Value>>,
+    /// we need to know the mapping between scratch temp -> original temp
+    spill_scratch_temps: LinkedHashMap<MuID, MuID>
 }
 
 impl <'a> GraphColoring<'a> {
+    /// starts coloring
     pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
         GraphColoring::start_with_spill_history(LinkedHashMap::new(), LinkedHashMap::new(), func, cf, vm)
     }
 
+    /// restarts coloring with spill history
     fn start_with_spill_history(spill_history: LinkedHashMap<MuID, P<Value>>,
                                 spill_scratch_temps: LinkedHashMap<MuID, MuID>,
                                 func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a>
@@ -88,9 +113,7 @@ impl <'a> GraphColoring<'a> {
             func: func,
             cf: cf,
             vm: vm,
-
             ig: ig,
-
             precolored: LinkedHashSet::new(),
             colors: {
                 let mut map = LinkedHashMap::new();
@@ -99,10 +122,8 @@ impl <'a> GraphColoring<'a> {
                 map
             },
             colored_nodes: Vec::new(),
-
             initial: Vec::new(),
             degree: LinkedHashMap::new(),
-
             worklist_moves: Vec::new(),
             movelist: LinkedHashMap::new(),
             active_moves: LinkedHashSet::new(),
@@ -110,17 +131,13 @@ impl <'a> GraphColoring<'a> {
             coalesced_moves: LinkedHashSet::new(),
             constrained_moves: LinkedHashSet::new(),
             alias: LinkedHashMap::new(),
-
             worklist_spill: Vec::new(),
             spillable: LinkedHashMap::new(),
             spilled_nodes: Vec::new(),
-
             spill_history: spill_history,
             spill_scratch_temps: spill_scratch_temps,
-
             worklist_freeze: LinkedHashSet::new(),
             frozen_moves: LinkedHashSet::new(),
-
             worklist_simplify: LinkedHashSet::new(),
             select_stack: Vec::new(),
         };
@@ -128,24 +145,29 @@ impl <'a> GraphColoring<'a> {
         coloring.regalloc()
     }
 
+    /// returns formatted string for a node
     fn display_node(&self, node: NodeIndex) -> String {
         let id = self.ig.get_temp_of(node);
         self.display_id(id)
     }
 
+    /// returns formatted string for an ID
     fn display_id(&self, id: MuID) -> String {
         self.func.context.get_temp_display(id)
     }
 
+    /// returns formatted string for a move
     fn display_move(&self, m: Move) -> String {
         format!("Move: {} -> {}", self.display_node(m.from), self.display_node(m.to))
     }
-    
+
+    /// does coloring register allocation
     fn regalloc(mut self) -> GraphColoring<'a> {
         trace!("---InterenceGraph---");
-        let _p = hprof::enter("regalloc: graph coloring");
-
         self.ig.print(&self.func.context);
+
+        // start timing for graph coloring
+        let _p = hprof::enter("regalloc: graph coloring");
         
         // precolor for all machine registers
         for reg in backend::all_regs().values() {
@@ -160,20 +182,22 @@ impl <'a> GraphColoring<'a> {
             let group = backend::pick_group_for_reg(reg_id);
             self.colors.get_mut(&group).unwrap().insert(reg_id);
         }
-        
+
+        // push uncolored nodes to initial work set
         for node in self.ig.nodes() {
             if !self.ig.is_colored(node) {
                 self.initial.push(node);
-                let outdegree = self.ig.outdegree_of(node);
-                self.degree.insert(node, outdegree);
-
-                trace!("{} has a degree of {}", self.display_node(node), outdegree);
+                let degree = self.ig.get_degree_of(node);
+                self.degree.insert(node, degree);
+                trace!("{} has a degree of {}", self.display_node(node), degree);
             }
         }
-        
+
+        // initialize work
         self.build();
         self.make_work_list();
-        
+
+        // main loop
         while {
             if !self.worklist_simplify.is_empty() {
                 self.simplify();
@@ -190,11 +214,14 @@ impl <'a> GraphColoring<'a> {
             && self.worklist_freeze.is_empty()
             && self.worklist_spill.is_empty())
         } {}
-        
+
+        // pick color for nodes
         self.assign_colors();
 
+        // finish
         drop(_p);
 
+        // if we need to spill
         if !self.spilled_nodes.is_empty() {
             trace!("spill required");
             if cfg!(debug_assertions) {
@@ -204,8 +231,10 @@ impl <'a> GraphColoring<'a> {
                 }
             }
 
+            // rewrite program to insert spilling code
             self.rewrite_program();
 
+            // recursively redo graph coloring
             return GraphColoring::start_with_spill_history(self.spill_history.clone(), self.spill_scratch_temps.clone(), self.func, self.cf, self.vm);
         }
 
@@ -232,10 +261,10 @@ impl <'a> GraphColoring<'a> {
         trace!("Making work list from initials...");
         while !self.initial.is_empty() {
             let node = self.initial.pop().unwrap();
-            
+
             if {
                 // condition: degree >= K
-                let degree = self.ig.degree_of(node); 
+                let degree = self.ig.get_degree_of(node);
                 let n_regs = self.n_regs_for_node(node);
                 
                 degree >= n_regs
@@ -310,7 +339,6 @@ impl <'a> GraphColoring<'a> {
         trace!("Simplifying {}", self.display_node(node));
         
         self.select_stack.push(node);
-        
         for m in self.adjacent(node).iter() {
             self.decrement_degree(*m);
         }
@@ -320,7 +348,7 @@ impl <'a> GraphColoring<'a> {
         let mut adj = LinkedHashSet::new();
         
         // add n's successors
-        for s in self.ig.outedges_of(n) {
+        for s in self.ig.get_edges_of(n) {
             adj.insert(s);
         }
         
@@ -640,7 +668,7 @@ impl <'a> GraphColoring<'a> {
 
             trace!("all the colors for this temp: {:?}", ok_colors);
 
-            for w in self.ig.outedges_of(n) {
+            for w in self.ig.get_edges_of(n) {
                 let w_alias = self.get_alias(w);
                 match self.ig.get_color_of(w_alias) {
                     None => {}, // do nothing
@@ -740,25 +768,7 @@ impl <'a> GraphColoring<'a> {
         ret
     }
 
-    pub fn get_spill_history(&self) -> LinkedHashMap<MuID, P<Value>> {
-        self.spill_history.clone()
-    }
-
     pub fn get_spill_scratch_temps(&self) -> LinkedHashMap<MuID, MuID> {
         self.spill_scratch_temps.clone()
-    }
-
-    pub fn get_coalesced(&self) -> LinkedHashMap<MuID, MuID> {
-        let mut ret = LinkedHashMap::new();
-
-        for mov in self.coalesced_moves.iter() {
-            let from = self.ig.get_temp_of(mov.from);
-            let to   = self.ig.get_temp_of(mov.to);
-
-            ret.insert(from, to);
-            ret.insert(to  , from);
-        }
-
-        ret
     }
 }

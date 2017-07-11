@@ -23,7 +23,8 @@ use mu::vm::*;
 use mu::compiler::*;
 use mu::utils::LinkedHashMap;
 
-use mu::testutil::aot;
+use mu::linkutils;
+use mu::linkutils::aot;
 
 use test_compiler::test_call::gen_ccall_exit;
 
@@ -56,11 +57,11 @@ fn test_exception_throw_catch_simple() {
         }
     }
     
-    vm.make_primordial_thread(func_catch, true, vec![]);
+    vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
-    aot::execute(executable);
+    linkutils::exec_path(executable);
 }
 
 fn declare_commons(vm: &VM) {
@@ -218,11 +219,11 @@ fn test_exception_throw_catch_dont_use_exception_arg() {
         }
     }
 
-    vm.make_primordial_thread(func_catch, true, vec![]);
+    vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
-    aot::execute(executable);
+    linkutils::exec_path(executable);
 }
 
 fn throw_catch_dont_use_exception_arg() -> VM {
@@ -263,11 +264,11 @@ fn test_exception_throw_catch_and_add() {
         }
     }
 
-    vm.make_primordial_thread(func_catch, true, vec![]);
+    vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_and_add")], "throw_catch_and_add", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // throw 1, add 0, 1, 2, 3, 4
     assert!(output.status.code().is_some());
@@ -476,11 +477,11 @@ fn test_exception_throw_catch_twice() {
         }
     }
 
-    vm.make_primordial_thread(func_catch, true, vec![]);
+    vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_twice")], "throw_catch_twice", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // throw 1 twice, add 1 and 1 (equals 2)
     assert!(output.status.code().is_some());

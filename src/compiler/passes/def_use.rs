@@ -29,25 +29,6 @@ impl DefUse {
     }
 }
 
-fn use_op(op: &P<TreeNode>, func_context: &mut FunctionContext) {
-    match op.v {
-        TreeNode_::Value(ref val) => {
-            use_value(val, func_context);
-        },
-        _ => {} // dont worry about instruction
-    }
-}
-
-fn use_value(val: &P<Value>, func_context: &mut FunctionContext) {
-        match val.v {
-            Value_::SSAVar(ref id) => {
-                let entry = func_context.values.get_mut(id).unwrap();
-                entry.increase_use_count();
-            },
-            _ => {} // dont worry about constants
-        }    
-}
-
 impl CompilerPass for DefUse {
     fn name(&self) -> &'static str {
         self.name
@@ -56,7 +37,7 @@ impl CompilerPass for DefUse {
     fn as_any(&self) -> &Any {
         self
     }
-    
+
     #[allow(unused_variables)]
     fn start_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {
         // if an SSA appears in keepalives, its use count increases
@@ -67,7 +48,7 @@ impl CompilerPass for DefUse {
             }
         }
     }
-    
+
     #[allow(unused_variables)]
     fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &TreeNode) {
         // if an SSA appears in operands of instrs, its use count increases
@@ -87,13 +68,32 @@ impl CompilerPass for DefUse {
             entry.reset_use_count();
         }
     }
-    
+
     #[allow(unused_variables)]
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("check use count for variables");
-        
+
         for entry in func.context.values.values() {
             debug!("{}: {}", entry, entry.use_count())
         }
     }
+}
+
+fn use_op(op: &P<TreeNode>, func_context: &mut FunctionContext) {
+    match op.v {
+        TreeNode_::Value(ref val) => {
+            use_value(val, func_context);
+        },
+        _ => {} // dont worry about instruction
+    }
+}
+
+fn use_value(val: &P<Value>, func_context: &mut FunctionContext) {
+        match val.v {
+            Value_::SSAVar(ref id) => {
+                let entry = func_context.values.get_mut(id).unwrap();
+                entry.increase_use_count();
+            },
+            _ => {} // dont worry about constants
+        }    
 }

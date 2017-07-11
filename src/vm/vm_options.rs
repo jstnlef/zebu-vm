@@ -46,11 +46,6 @@ Garbage Collection:
   --gc-nthreads=<n>                     number of threads for parallel gc [default: 8]
 ";
 
-// The fields need to be listed here in the order rust stores them in
-rodal_struct!(VMOptions{
-    flag_aot_emit_dir, flag_bootimage_external_lib, flag_bootimage_external_libpath,
-    flag_gc_immixspace_size, flag_gc_lospace_size, flag_gc_nthreads,
-    flag_log_level, flag_disable_inline, flag_disable_regalloc_validate, flag_emit_debug_info, flag_gc_disable_collection});
 #[derive(Debug, Deserialize)]
 pub struct VMOptions { // The comments here indicate the offset into the struct
     // VM
@@ -73,12 +68,19 @@ pub struct VMOptions { // The comments here indicate the offset into the struct
     pub flag_gc_nthreads: usize // +88
 }
 
-//rodal_enum!(MuLogLevel{None, Error, Warn, Info, Debug, Trace, Env});
-rodal_value!(MuLogLevel); // This enum has no fields with pointers, so just dump a strait value
+// The fields need to be listed here in the order rust stores them in
+rodal_struct!(VMOptions{
+    flag_aot_emit_dir, flag_bootimage_external_lib, flag_bootimage_external_libpath,
+    flag_gc_immixspace_size, flag_gc_lospace_size, flag_gc_nthreads,
+    flag_log_level, flag_disable_inline, flag_disable_regalloc_validate, flag_emit_debug_info, flag_gc_disable_collection});
+
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub enum MuLogLevel {
     None, Error, Warn, Info, Debug, Trace, Env
 }
+
+rodal_value!(MuLogLevel); // This enum has no fields with pointers, so just dump a strait value
+
 impl MuLogLevel {
     pub fn from_string(s: String) -> MuLogLevel {
         match s.as_str() {
@@ -104,10 +106,15 @@ impl VMOptions {
         info!("parsed as {:?}", ret);
 
         // at the moment disable collection for debugging
+        // also because currently GC is buggy, and we are going to rewrite the GC
+        // See Issue #12
         ret.flag_gc_disable_collection = true;
+
         // at the moment always emit debug info
         ret.flag_emit_debug_info = true;
+
         // always disable register validation
+        // register validation is buggy. See Issue #19
         ret.flag_disable_regalloc_validate = true;
 
         ret

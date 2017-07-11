@@ -38,10 +38,6 @@ pub fn load_mark_state() -> u8 {
     MARK_STATE.load(atomic::Ordering::SeqCst) as u8
 }
 
-pub fn flip(mark: u8) -> u8 {
-    mark ^ 1
-}
-
 #[inline(always)]
 pub fn check_alignment(align: ByteSize) -> ByteSize {
     if align < MINIMAL_ALIGNMENT {

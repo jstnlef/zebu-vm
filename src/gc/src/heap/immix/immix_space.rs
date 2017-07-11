@@ -45,7 +45,7 @@ pub struct LineMarkTableSlice {
 
 impl LineMarkTable {
     pub fn new(space_start: Address, space_end: Address) -> LineMarkTable {
-        let line_mark_table_len = space_end.diff(space_start) / immix::BYTES_IN_LINE;
+        let line_mark_table_len = (space_end - space_start) / immix::BYTES_IN_LINE;
         let line_mark_table = {
             let ret = unsafe {malloc_zero(mem::size_of::<immix::LineMark>() * line_mark_table_len)} as *mut immix::LineMark;
             let mut cursor = ret;
@@ -79,12 +79,12 @@ impl LineMarkTable {
     }
 
     pub fn index_to_address(&self, index: usize) -> Address {
-        self.space_start.plus(index << immix::LOG_BYTES_IN_LINE)
+        self.space_start + (index << immix::LOG_BYTES_IN_LINE)
     }
     
     #[inline(always)]
     pub fn mark_line_live(&self, addr: Address) {
-        let line_table_index = addr.diff(self.space_start) >> immix::LOG_BYTES_IN_LINE;
+        let line_table_index = (addr - self.space_start) >> immix::LOG_BYTES_IN_LINE;
         
         self.set(line_table_index, immix::LineMark::Live);
         
@@ -95,7 +95,7 @@ impl LineMarkTable {
 
     #[inline(always)]
     pub fn mark_line_live2(&self, space_start: Address, addr: Address) {
-        let line_table_index = addr.diff(space_start) >> immix::LOG_BYTES_IN_LINE;
+        let line_table_index = (addr - space_start) >> immix::LOG_BYTES_IN_LINE;
 
         self.set(line_table_index, immix::LineMark::Live);
 
@@ -165,7 +165,7 @@ impl ImmixSpace {
             Err(_) => panic!("failed to call mmap"),
         };
         let start : Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
-        let end   : Address = start.plus(space_size);
+        let end   : Address = start + space_size;
         
         let line_mark_table = LineMarkTable::new(start, end);
         
@@ -204,7 +204,7 @@ impl ImmixSpace {
         
         let mut usable_blocks_lock = self.usable_blocks.lock().unwrap();
         
-        while block_start.plus(immix::BYTES_IN_BLOCK) <= self.end {
+        while block_start + immix::BYTES_IN_BLOCK <= self.end {
             usable_blocks_lock.push_back(Box::new(ImmixBlock {
                 id : id,
                 state: immix::BlockMark::Usable,
@@ -213,7 +213,7 @@ impl ImmixSpace {
             }));
             
             id += 1;
-            block_start = block_start.plus(immix::BYTES_IN_BLOCK);
+            block_start = block_start + immix::BYTES_IN_BLOCK;
             line += immix::LINES_IN_BLOCK;
         }
         
@@ -372,7 +372,7 @@ impl ImmixBlock {
         let line_mark_table = self.line_mark_table();
         for i in 0..line_mark_table.len {
             if line_mark_table.get(i) == immix::LineMark::Free {
-                let line_start : Address = self.start.plus(i << immix::LOG_BYTES_IN_LINE);
+                let line_start : Address = self.start + (i << immix::LOG_BYTES_IN_LINE);
 
                 // zero the line
                 unsafe {

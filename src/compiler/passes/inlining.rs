@@ -28,6 +28,28 @@ pub struct Inlining {
     should_inline: HashMap<MuID, bool>
 }
 
+impl CompilerPass for Inlining {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
+    }
+
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        if vm.vm_options.flag_disable_inline {
+            info!("inlining is disabled");
+            return;
+        }
+
+        if self.check(vm, func) {
+            self.inline(vm, func);
+            debug!("after inlining: {:?}", func);
+        }
+    }
+}
+
 impl Inlining {
     pub fn new() -> Inlining {
         Inlining{
@@ -36,22 +58,28 @@ impl Inlining {
         }
     }
 
+    /// checks whether we need to rewrite the function because of inlining
     fn check(&mut self, vm: &VM, func: &mut MuFunctionVersion) -> bool {
         debug!("check inline");
+
+        // should_inline will store all the calls from this function,
+        // and whether they should be inlined
         self.should_inline.clear();
 
         let mut inline_something = false;
 
+        // check each call from this function
         for func_id in func.get_static_call_edges().values() {
+            // check a single callsite, whether it should be inlined
+            // the result is returned as boolean, and also written into 'should_inline'
             let should_inline_this = self.check_should_inline_func(*func_id, func.func_id, vm);
-
             inline_something = inline_something || should_inline_this;
         }
 
         inline_something
     }
 
-    #[allow(unused_variables)]
+    /// checks whether we should inline the caller into the callee
     fn check_should_inline_func(&mut self, callee: MuID, caller: MuID, vm: &VM) -> bool {
         // recursive call, do not inline
         if callee == caller {
@@ -63,7 +91,6 @@ impl Inlining {
             Some(func) => func.read().unwrap(),
             None => panic!("callee {} is undeclared", callee)
         };
-
         let fv_id = match func.cur_ver {
             Some(fv_id) => fv_id,
             None => {
@@ -73,6 +100,10 @@ impl Inlining {
             }
         };
 
+        // if we have checked this callee before, we use the same result
+        // (this is not optimal though. The inline criteria we use at the moment
+        // do not take caller size growth into consideration, so we will
+        // get the same result anyway. )
         match self.should_inline.get(&fv_id) {
             Some(flag) => {
                 trace!("func {} should be inlined (checked before)", callee);
@@ -84,21 +115,21 @@ impl Inlining {
         let fv_guard = vm.func_vers().read().unwrap();
         let fv = fv_guard.get(&fv_id).unwrap().read().unwrap();
 
-        // if the function is forced inline, then we inline it
+        // if the function is forced inline, we inline it
         if fv.force_inline {
             trace!("func {} is forced as inline function", callee);
             return true;
         }
 
         // some heuristics here to decide if we should inline the function
-        // to be more precise. we should be target specific
-        let n_params = fv.sig.arg_tys.len();
         let n_insts  = estimate_insts(&fv);
         let out_calls = fv.get_static_call_edges();
         let has_throw = fv.has_throw();
 
-        // now we use a simple heuristic here:
-        // insts fewer than 10, no static out calls, no throw
+        // simple heuristic here:
+        // * estimated machine insts are fewer than 10 insts
+        // * leaf in call graph (no out calls)
+        // * no throw (otherwise we will need to rearrange catch)
         let should_inline = n_insts <= 25 && out_calls.len() == 0 && !has_throw;
 
         trace!("func {} has {} insts (estimated)", callee, n_insts);
@@ -111,6 +142,7 @@ impl Inlining {
         should_inline
     }
 
+    /// inlines the callee that are marked as 'should inline'
     fn inline(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("inlining for Function {}", func);
 
@@ -135,35 +167,32 @@ impl Inlining {
                 if call_edges.contains_key(&inst_id) {
                     let call_target = call_edges.get(&inst_id).unwrap();
                     if self.should_inline.contains_key(call_target) && *self.should_inline.get(call_target).unwrap() {
-
                         trace!("inserting inlined function at {}", inst);
 
                         // from TreeNode into Inst (we do not need old TreeNode)
                         let inst = inst.into_inst().unwrap();
 
-                        // (inline expansion)
+                        // inline expansion starts here
 
+                        // getting the function being inlined
                         let inlined_func = *call_edges.get(&inst.id()).unwrap();
                         trace!("function being inlined is {}", inlined_func);
-
-                        let inlined_fvid = match vm.get_cur_version_of(inlined_func) {
+                        let inlined_fvid = match vm.get_cur_version_for_func(inlined_func) {
                             Some(fvid) => fvid,
                             None => panic!("cannot resolve current version of Func {}, which is supposed to be inlined", inlined_func)
                         };
-
                         let inlined_fvs_guard = vm.func_vers().read().unwrap();
                         let inlined_fv_lock   = inlined_fvs_guard.get(&inlined_fvid).unwrap();
                         let inlined_fv_guard  = inlined_fv_lock.read().unwrap();
-
                         trace!("orig_content: {:?}", inlined_fv_guard.get_orig_ir().unwrap());
                         trace!("content     : {:?}", inlined_fv_guard.content.as_ref().unwrap());
 
+                        // creates a new block ID which will be the entry block for the inlined function
                         let new_inlined_entry_id = vm.next_id();
 
-                        // change current call insts to a branch
+                        // change current call instruction to a branch
                         trace!("turning CALL instruction into a branch");
                         let ref ops = inst.ops;
-
                         match inst.v {
                             Instruction_::ExprCall {ref data, ..} => {
                                 let arg_nodes  : Vec<P<TreeNode>> = data.args.iter().map(|x| ops[*x].clone()).collect();
@@ -174,12 +203,11 @@ impl Inlining {
                                     value: None,
                                     ops: arg_nodes.clone(),
                                     v: Instruction_::Branch1(Destination{
-                                        // this block doesnt exist yet, we will fix it later
+                                        // this block doesnt exist yet, we will create it later
                                         target: new_inlined_entry_id,
                                         args: arg_indices.iter().map(|x| DestArg::Normal(*x)).collect()
                                     })
                                 });
-
                                 trace!("branch inst: {}", branch);
 
                                 // add branch to current block
@@ -187,12 +215,12 @@ impl Inlining {
 
                                 // finish current block
                                 new_blocks.push(cur_block.clone());
-                                let old_name = cur_block.name();
 
-                                // start a new block
+                                // creates a new block after inlined part,
+                                // which will receive results from inlined function
+                                let old_name = cur_block.name();
                                 let new_name = format!("{}_cont_after_inline_{}", old_name, inst_id);
                                 trace!("create continue block for EXPRCALL/CCALL: {}", &new_name);
-
                                 cur_block = Block::new(MuEntityHeader::named(vm.next_id(), new_name));
                                 cur_block.content = Some(BlockContent{
                                     args: {
@@ -302,6 +330,7 @@ impl Inlining {
     }
 }
 
+/// copies blocks from callee to caller, with specified entry block and return block
 fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &FunctionContent, entry_block: MuID, vm: &VM) {
     trace!("trying to copy inlined function blocks to caller");
 
@@ -472,6 +501,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
     }
 }
 
+/// copies inlined function context into caller
 fn copy_inline_context(caller: &mut FunctionContext, callee: &FunctionContext) {
     trace!("trying to copy inlined function context to caller");
     for (id, entry) in callee.values.iter() {
@@ -479,6 +509,7 @@ fn copy_inline_context(caller: &mut FunctionContext, callee: &FunctionContext) {
     }
 }
 
+/// calculate estimate machine instruction for a Mu function
 fn estimate_insts(fv: &MuFunctionVersion) -> usize {
     let f_content = fv.content.as_ref().unwrap();
 
@@ -498,27 +529,4 @@ fn estimate_insts(fv: &MuFunctionVersion) -> usize {
     }
 
     insts
-}
-
-impl CompilerPass for Inlining {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn as_any(&self) -> &Any {
-        self
-    }
-
-    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        if vm.vm_options.flag_disable_inline {
-            info!("inlining is disabled");
-            return;
-        }
-
-        if self.check(vm, func) {
-            self.inline(vm, func);
-
-            debug!("after inlining: {:?}", func);
-        }
-    }
 }

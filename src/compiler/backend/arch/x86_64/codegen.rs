@@ -19,30 +19,40 @@ use runtime::ValueLocation;
 use compiler::machine_code::MachineCode;
 use compiler::backend::{Reg, Mem};
 
+/// CodeGenerator provides an interface to emit x86_64 code for instruction selection.
+/// This allows us to implement the other parts of the compiler (mostly instruction selection)
+/// without assuming code generator. Currently there is only an assembly backend
+/// that implements this interface for ahead-of-time compilation. We plan to add
+/// a binary backend for just-in-time compilation.
 pub trait CodeGenerator {
+    /// starts code for a function
     fn start_code(&mut self, func_name: MuName, entry: MuName) -> ValueLocation;
+    /// finishes code for a function
     fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
 
-    // generate unnamed sequence of linear code (no branch)
+    /// starts a sequence of linear code (no branch)
     fn start_code_sequence(&mut self);
+    /// finishes code for a sequence
     fn finish_code_sequence(&mut self) -> Box<MachineCode + Sync + Send>;
-    
+
+    /// outputs current code (via debug! log)
     fn print_cur_code(&self);
-    
+
+    /// starts a block
     fn start_block(&mut self, block_name: MuName);
+    /// starts an exceptional block, and returns its code address
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation;
-    fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>);
-    fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
+    /// finishes a block (must have called start_block() or start_excpetion_block() first)
     fn end_block(&mut self, block_name: MuName);
 
-    // add CFI info
+    // adds CFI info
     fn add_cfi_startproc(&mut self);
     fn add_cfi_endproc(&mut self);
     fn add_cfi_def_cfa_register(&mut self, reg: Reg);
     fn add_cfi_def_cfa_offset(&mut self, offset: i32);
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32);
 
-    // emit code to adjust frame
+    // emit code to adjust frame size
     fn emit_frame_grow(&mut self);
 
     fn emit_nop(&mut self, bytes: usize);
@@ -72,7 +82,6 @@ pub trait CodeGenerator {
 
     fn emit_mov_mem_r_callee_saved  (&mut self, dest: Mem, src: Reg); // store callee saved register
     fn emit_mov_r_mem_callee_saved  (&mut self, dest: Reg, src: Mem); // load callee saved register
-
 
     // zero/sign extend mov
     fn emit_movs_r_r   (&mut self, dest: Reg, src: Reg);
@@ -183,12 +192,10 @@ pub trait CodeGenerator {
     // shl
     fn emit_shl_r_cl    (&mut self, dest: Reg);
     fn emit_shl_r_imm8  (&mut self, dest: Reg, src: i8);
-
     fn emit_shld_r_r_cl (&mut self, dest: Reg, src: Reg);
 
     fn emit_shr_r_cl    (&mut self, dest: &P<Value>);
     fn emit_shr_r_imm8  (&mut self, dest: &P<Value>, src: i8);
-
     fn emit_shrd_r_r_cl (&mut self, dest: Reg, src: Reg);
 
     fn emit_sar_r_cl    (&mut self, dest: &P<Value>);
@@ -197,7 +204,8 @@ pub trait CodeGenerator {
     fn emit_cqo(&mut self); // sign extend rax to rdx:rax
     fn emit_cdq(&mut self); // sign extend eax to edx:eax
     fn emit_cwd(&mut self); // sign extend ax  to dx:ax
-    
+
+    // jump, conditional jump
     fn emit_jmp(&mut self, dest: MuName);
     fn emit_je (&mut self, dest: MuName);
     fn emit_jne(&mut self, dest: MuName);
@@ -209,15 +217,16 @@ pub trait CodeGenerator {
     fn emit_jge(&mut self, dest: MuName);
     fn emit_jl (&mut self, dest: MuName);
     fn emit_jle(&mut self, dest: MuName);
-
     fn emit_js(&mut self, dest: MuName);
-    
+
+    // call
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName,    pe: Option<MuName>, is_native: bool) -> ValueLocation;
     fn emit_call_near_r64  (&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation;
     fn emit_call_near_mem64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation;
     
     fn emit_ret(&mut self);
 
+    // push/pop
     fn emit_push_r64(&mut self, src: &P<Value>);
     fn emit_push_imm32(&mut self, src: i32);
     fn emit_pop_r64(&mut self, dest: &P<Value>);
@@ -290,4 +299,7 @@ pub trait CodeGenerator {
     fn emit_movapd_f64_f64   (&mut self, dest: Reg, src: Mem);
 
     fn emit_movaps_f32_f32   (&mut self, dest: Reg, src: Reg);
+
+    // memory fence
+    fn emit_mfence(&mut self);
 }

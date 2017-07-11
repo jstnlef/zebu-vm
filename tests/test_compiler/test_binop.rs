@@ -21,12 +21,12 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
-use self::mu::testutil;
+use self::mu::linkutils;
 use mu::utils::LinkedHashMap;
 
 #[test]
 fn test_udiv() {
-    let lib = testutil::compile_fnc("udiv", &udiv);
+    let lib = linkutils::aot::compile_fnc("udiv", &udiv);
 
     unsafe {
         let udiv : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"udiv").unwrap();
@@ -76,7 +76,7 @@ fn udiv() -> VM {
 
 #[test]
 fn test_sdiv() {
-    let lib = testutil::compile_fnc("sdiv", &sdiv);
+    let lib = linkutils::aot::compile_fnc("sdiv", &sdiv);
 
     unsafe {
         let sdiv : libloading::Symbol<unsafe extern fn(i64, i64) -> i64> = lib.get(b"sdiv").unwrap();
@@ -130,7 +130,7 @@ fn sdiv() -> VM {
 
 #[test]
 fn test_shl() {
-    let lib = testutil::compile_fnc("shl", &shl);
+    let lib = linkutils::aot::compile_fnc("shl", &shl);
 
     unsafe {
         let shl : libloading::Symbol<unsafe extern fn(u64, u8) -> u64> = lib.get(b"shl").unwrap();
@@ -184,7 +184,7 @@ fn shl() -> VM {
 
 #[test]
 fn test_lshr() {
-    let lib = testutil::compile_fnc("lshr", &lshr);
+    let lib = linkutils::aot::compile_fnc("lshr", &lshr);
 
     unsafe {
         let lshr : libloading::Symbol<unsafe extern fn(u64, u8) -> u64> = lib.get(b"lshr").unwrap();
@@ -234,7 +234,7 @@ fn lshr() -> VM {
 
 #[test]
 fn test_add_simple() {
-    let lib = testutil::compile_fnc("add", &add);
+    let lib = linkutils::aot::compile_fnc("add", &add);
 
     unsafe {
         let add : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"add").unwrap();
@@ -279,7 +279,7 @@ fn add() -> VM {
 
 #[test]
 fn test_add_int64_n() {
-    let lib = testutil::compile_fnc("add_int64_n", &add_int64_n);
+    let lib = linkutils::aot::compile_fnc("add_int64_n", &add_int64_n);
 
     unsafe {
         let add_int64_n : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_n").unwrap();
@@ -338,7 +338,7 @@ fn add_int64_n() -> VM {
 
 #[test]
 fn test_add_int64_z() {
-    let lib = testutil::compile_fnc("add_int64_z", &add_int64_z);
+    let lib = linkutils::aot::compile_fnc("add_int64_z", &add_int64_z);
 
     unsafe {
         let add_int64_z : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_z").unwrap();
@@ -395,7 +395,7 @@ fn add_int64_z() -> VM {
 fn test_add_int64_c() {
     use std::u64;
 
-    let lib = testutil::compile_fnc("add_int64_c", &add_int64_c);
+    let lib = linkutils::aot::compile_fnc("add_int64_c", &add_int64_c);
 
     unsafe {
         let add_int64_c : libloading::Symbol<unsafe extern fn(u64, u64) -> u8> = lib.get(b"add_int64_c").unwrap();
@@ -448,7 +448,7 @@ fn add_int64_c() -> VM {
 fn test_add_int64_v() {
     use std::i64;
 
-    let lib = testutil::compile_fnc("add_int64_v", &add_int64_v);
+    let lib = linkutils::aot::compile_fnc("add_int64_v", &add_int64_v);
 
     unsafe {
         let add_int64_v : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_v").unwrap();
@@ -509,7 +509,7 @@ fn add_int64_v() -> VM {
 fn test_add_int64_nzc() {
     use std::u64;
 
-    let lib = testutil::compile_fnc("add_int64_nzc", &add_int64_nzc);
+    let lib = linkutils::aot::compile_fnc("add_int64_nzc", &add_int64_nzc);
 
     unsafe {
         let add_int64_nzc : libloading::Symbol<unsafe extern fn(u64, u64) -> u8> = lib.get(b"add_int64_nzc").unwrap();

@@ -19,12 +19,12 @@ use mu::ast::ir::*;
 use mu::ast::inst::*;
 use mu::ast::op::*;
 use mu::vm::*;
-use mu::testutil;
+use mu::linkutils;
 use mu::utils::LinkedHashMap;
 
 #[test]
 fn test_inline_add_simple() {
-    let lib = testutil::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
+    let lib = linkutils::aot::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
 
     unsafe {
         let inline_add : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"add_trampoline").unwrap();
@@ -96,7 +96,7 @@ fn inline_add() -> VM {
 
 #[test]
 fn test_inline_add_twice() {
-    let lib = testutil::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
+    let lib = linkutils::aot::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
 
     unsafe {
         let add_twice : libloading::Symbol<unsafe extern fn(u64, u64, u64) -> u64> = lib.get(b"add_twice").unwrap();
@@ -176,7 +176,7 @@ fn inline_add_twice() -> VM {
 
 #[test]
 fn test_inline_add_with_extra_norm_args() {
-    let lib = testutil::compile_fncs("inline_add_with_extra_norm_args", vec!["add_with_extra_norm_args", "add"], &inline_add_with_extra_norm_args);
+    let lib = linkutils::aot::compile_fncs("inline_add_with_extra_norm_args", vec!["add_with_extra_norm_args", "add"], &inline_add_with_extra_norm_args);
 
     unsafe {
         let add_twice : libloading::Symbol<unsafe extern fn(u64, u64, u64) -> u64> = lib.get(b"add_with_extra_norm_args").unwrap();

@@ -26,7 +26,7 @@ pub struct AddressBitmap {
 
 impl AddressBitmap {
     pub fn new(start: Address, end: Address) -> AddressBitmap {
-        let bitmap_len = end.diff(start) >> LOG_POINTER_SIZE;
+        let bitmap_len = (end - start) >> LOG_POINTER_SIZE;
         let bitmap = Bitmap::new(bitmap_len);
         
         AddressBitmap{start: start, end: end, bitmap: bitmap}
@@ -37,7 +37,7 @@ impl AddressBitmap {
     pub unsafe fn set_bit(&self, addr: Address) {
         use std::mem;
         let mutable_bitmap : &mut Bitmap = mem::transmute(&self.bitmap);
-        mutable_bitmap.set_bit(addr.diff(self.start) >> LOG_POINTER_SIZE);
+        mutable_bitmap.set_bit((addr - self.start) >> LOG_POINTER_SIZE);
     }
     
     #[inline(always)]
@@ -45,17 +45,17 @@ impl AddressBitmap {
     pub unsafe fn clear_bit(&self, addr: Address) {
         use std::mem;
         let mutable_bitmap : &mut Bitmap = mem::transmute(&self.bitmap);        
-        mutable_bitmap.clear_bit(addr.diff(self.start) >> LOG_POINTER_SIZE);
+        mutable_bitmap.clear_bit((addr - self.start) >> LOG_POINTER_SIZE);
     }
     
     #[inline(always)]
     pub fn test_bit(&self, addr: Address) -> bool {
-        self.bitmap.test_bit(addr.diff(self.start) >> LOG_POINTER_SIZE)
+        self.bitmap.test_bit((addr - self.start) >> LOG_POINTER_SIZE)
     }
         
     #[inline(always)]
     pub fn length_until_next_bit(&self, addr: Address) -> usize {
-        self.bitmap.length_until_next_bit(addr.diff(self.start) >> LOG_POINTER_SIZE)
+        self.bitmap.length_until_next_bit((addr - self.start) >> LOG_POINTER_SIZE)
     }
     
     #[inline(always)]
@@ -67,7 +67,7 @@ impl AddressBitmap {
             assert!(addr >= self.start && addr <= self.end);
         }
         
-        let index = addr.diff(self.start) >> LOG_POINTER_SIZE;
+        let index = (addr - self.start) >> LOG_POINTER_SIZE;
         let mutable_bitmap : &mut Bitmap = mem::transmute(&self.bitmap);
         mutable_bitmap.set(index, value, length);
     }
@@ -78,7 +78,7 @@ impl AddressBitmap {
             assert!(addr >= self.start && addr <= self.end);
         }
         
-        let index = addr.diff(self.start) >> LOG_POINTER_SIZE;
+        let index = (addr - self.start) >> LOG_POINTER_SIZE;
         self.bitmap.get(index, length)
     }
 

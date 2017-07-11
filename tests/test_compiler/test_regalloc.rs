@@ -15,8 +15,8 @@
 extern crate mu;
 extern crate libloading;
 
-use mu::testutil;
-use mu::testutil::aot;
+use mu::linkutils;
+use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
 use test_compiler::test_call::gen_ccall_exit;
 use self::mu::compiler::*;
@@ -67,7 +67,7 @@ fn test_spill1() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("spill1")], &testutil::get_dylib_name("spill1"), &vm);
+    let dylib = aot::link_dylib(vec![Mu("spill1")], &linkutils::get_dylib_name("spill1"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
@@ -281,7 +281,7 @@ fn test_simple_spill() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("simple_spill")], &testutil::get_dylib_name("simple_spill"), &vm);
+    let dylib = aot::link_dylib(vec![Mu("simple_spill")], &linkutils::get_dylib_name("simple_spill"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
@@ -816,7 +816,7 @@ fn test_coalesce_branch2_moves() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("coalesce_branch2_moves")], &testutil::get_dylib_name("coalesce_branch2_moves"), &vm);
+    let dylib = aot::link_dylib(vec![Mu("coalesce_branch2_moves")], &linkutils::get_dylib_name("coalesce_branch2_moves"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
@@ -953,11 +953,11 @@ fn test_preserve_caller_saved_simple() {
         }
     }
 
-    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
+    vm.set_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo"), Mu("preserve_caller_saved_simple")], "test_preserve_caller_saved_simple", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // add from 0 to 9
     assert!(output.status.code().is_some());
@@ -1161,11 +1161,11 @@ fn test_preserve_caller_saved_call_args() {
         }
     }
 
-    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
+    vm.set_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(vec![Mu("foo6"), Mu("preserve_caller_saved_call_args")], "test_preserve_caller_saved_call_args", &vm);
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     // add from 0 to 9
     assert!(output.status.code().is_some());
@@ -1367,7 +1367,7 @@ fn test_spill_int8() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("spill_int8")], &testutil::get_dylib_name("spill_int8"), &vm);
+    let dylib = aot::link_dylib(vec![Mu("spill_int8")], &linkutils::get_dylib_name("spill_int8"), &vm);
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {

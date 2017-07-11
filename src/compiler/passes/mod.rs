@@ -14,25 +14,57 @@
 
 use ast::ir::*;
 use vm::VM;
-
-mod def_use;
-mod tree_gen;
-mod control_flow;
-mod trace_gen;
-mod gen_mov_phi;
-mod inlining;
-mod dot_gen;
-
-pub use compiler::passes::inlining::Inlining;
-pub use compiler::passes::def_use::DefUse;
-pub use compiler::passes::tree_gen::TreeGen;
-pub use compiler::passes::control_flow::ControlFlowAnalysis;
-pub use compiler::passes::trace_gen::TraceGen;
-pub use compiler::passes::gen_mov_phi::GenMovPhi;
-pub use compiler::passes::dot_gen::DotGen;
-
 use std::any::Any;
 
+/// An inlining pass. Based on a certain criteria, the compiler chooses certain functions to be
+/// inlined in their callsite by rewriting the call into a branch with several copied blocks from
+/// the inlined function
+mod inlining;
+pub use compiler::passes::inlining::Inlining;
+
+/// A Def-Use pass. Getting use info and count for SSA variables in the IR (we are not collecting
+/// define info)
+mod def_use;
+pub use compiler::passes::def_use::DefUse;
+
+/// A tree generation pass. Mu IR is a flat IR instruction sequence, this pass turns it into a
+/// depth tree which is easier for instruction selection.
+mod tree_gen;
+pub use compiler::passes::tree_gen::TreeGen;
+
+/// A phi node eliminating pass. Mu IR is SSA based with goto-with-values variants, it still has
+/// phi node (implicitly). We get out of SSA form at this pass by removing phi nodes, and inserting
+/// intermediate blocks for moving values around.
+mod gen_mov_phi;
+pub use compiler::passes::gen_mov_phi::GenMovPhi;
+
+/// A control flow analysis pass at IR level.
+mod control_flow;
+pub use compiler::passes::control_flow::ControlFlowAnalysis;
+
+/// A trace scheduling pass. It uses the CFA result from last pass, to schedule blocks that
+/// favors hot path execution.
+mod trace_gen;
+pub use compiler::passes::trace_gen::TraceGen;
+
+/// A pass to generate dot graph for current IR.
+mod dot_gen;
+pub use compiler::passes::dot_gen::DotGen;
+
+/// A trait for implementing compiler passes.
+///
+/// A Mu function is supposed to be travelled in the following order:
+/// * start_function()
+/// * visit_function()
+///   for each block
+///   * start_block()
+///   * visit_block()
+///     for each instruction
+///     * visit_inst()
+///   * finish_block()
+/// * finish_function()
+///
+/// functions can be overridden for each pass' own purpose.
 #[allow(unused_variables)]
 pub trait CompilerPass {
     fn name(&self) -> &'static str;

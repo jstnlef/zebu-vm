@@ -29,7 +29,7 @@ pub struct AddressMap<T: Copy> {
 
 impl <T> AddressMap<T> where T: Copy{
     pub fn new(start: Address, end: Address) -> AddressMap<T> {
-        let len = end.diff(start) >> LOG_POINTER_SIZE;
+        let len = (end - start) >> LOG_POINTER_SIZE;
         let ptr = unsafe{malloc_zero(mem::size_of::<T>() * len)} as *mut T;
         
         AddressMap{start: start, end: end, ptr: ptr, len: len}
@@ -40,19 +40,19 @@ impl <T> AddressMap<T> where T: Copy{
         
         while cursor < self.end {
             self.set(cursor, init);
-            cursor = cursor.plus(POINTER_SIZE);	
+            cursor = cursor + POINTER_SIZE;
         }
     }
     
     #[inline(always)]
     pub fn set(&self, addr: Address, value: T) {
-        let index = (addr.diff(self.start) >> LOG_POINTER_SIZE) as isize;
+        let index = ((addr - self.start) >> LOG_POINTER_SIZE) as isize;
         unsafe{*self.ptr.offset(index) = value};
     }
 
     #[inline(always)]
     pub fn get(&self, addr: Address) -> T {
-        let index = (addr.diff(self.start) >> LOG_POINTER_SIZE) as isize;
+        let index = ((addr - self.start) >> LOG_POINTER_SIZE) as isize;
         unsafe {*self.ptr.offset(index)}
     }
 }

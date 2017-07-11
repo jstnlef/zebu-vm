@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,7 +23,7 @@ use ast::op::*;
 use ast::types::*;
 use vm::VM;
 use runtime::mm;
-use runtime::mm::objectmodel::OBJECT_HEADER_SIZE;
+use runtime::mm::OBJECT_HEADER_SIZE;
 
 use runtime::ValueLocation;
 use runtime::thread;
@@ -1177,7 +1177,7 @@ impl <'a> InstructionSelection {
                                 let hybrid_ty_ = map_lock.get(name).unwrap();
                                 let var_ty = hybrid_ty_.get_var_ty();
 
-                                vm.get_backend_type_info(var_ty.id()).size
+                                vm.get_backend_type_size((var_ty.id()))
                             },
                             _ => panic!("only expect HYBRID type here")
                         };
@@ -2778,7 +2778,7 @@ impl <'a> InstructionSelection {
     fn emit_alloc_sequence(&mut self, tmp_allocator: P<Value>, size: P<Value>, align: usize, node: &TreeNode, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
-            let size_i = size.extract_int_const();
+            let size_i = size.extract_int_const().unwrap();
 
             if size_i + OBJECT_HEADER_SIZE as u64 > mm::LARGE_OBJECT_THRESHOLD as u64 {
                 self.emit_alloc_sequence_large(tmp_allocator, size, align, node, f_context, vm)
@@ -2898,7 +2898,7 @@ impl <'a> InstructionSelection {
         let sig = entry.sig.clone();
 
         let entry_name = {
-            if vm.is_running() {
+            if vm.is_doing_jit() {
                 unimplemented!()
             } else {
                 let ref entry_loc = entry.aot;
@@ -2931,7 +2931,7 @@ impl <'a> InstructionSelection {
     fn compute_return_allocation(&self, t: &P<MuType>, vm: &VM) -> usize
     {
         use ast::types::MuType_::*;
-        let size = round_up(vm.get_type_size(t.id()), 8);
+        let size = round_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
             Vector(_, _) => unimplemented!(),
             Float | Double => 0, // Can return in FPR
@@ -2953,22 +2953,22 @@ impl <'a> InstructionSelection {
     fn compute_return_locations(&mut self, t: &P<MuType>, loc: &P<Value>, vm: &VM) -> P<Value>
     {
         use ast::types::MuType_::*;
-        let size = round_up(vm.get_type_size(t.id()), 8);
+        let size = round_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
             Vector(_, _) => unimplemented!(),
-            Float | Double => get_alias_for_length(RETURN_FPRs[0].id(), get_bit_size(t, vm)),
+            Float | Double => get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(t, vm)),
             Hybrid(_) => panic!("cant return a hybrid"),
             Struct(_) | Array(_, _) => {
                 let hfa_n = hfa_length(t.clone());
                 if hfa_n > 0 {
                     // Return in a sequence of FPRs
-                    get_alias_for_length(RETURN_FPRs[0].id(), get_bit_size(t, vm)/hfa_n)
+                    get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(t, vm)/hfa_n)
                 } else if size <= 8 {
                     // Return in a singe GRPs
-                    get_alias_for_length(RETURN_GPRs[0].id(), get_bit_size(t, vm))
+                    get_alias_for_length(RETURN_GPRS[0].id(), get_bit_size(t, vm))
                 } else if size <= 16 {
                     // Return in 2 GPRS
-                    RETURN_GPRs[0].clone()
+                    RETURN_GPRS[0].clone()
                 } else {
                     // Return at the location pointed to by loc
                     make_value_base_offset(&loc, 0, &t, vm)
@@ -2978,7 +2978,7 @@ impl <'a> InstructionSelection {
             Void => panic!("Nothing to return"),
             // Integral or pointer type
             // can return in GPR (or two if its a 128-bit integer)
-            _ => get_alias_for_length(RETURN_GPRs[0].id(), get_bit_size(t, vm))
+            _ => get_alias_for_length(RETURN_GPRS[0].id(), get_bit_size(t, vm))
 
         }
     }
@@ -3005,7 +3005,7 @@ impl <'a> InstructionSelection {
                 hfa_length(t.clone()) == 0 && // HFA's aren't converted to IRef's
                     match t.v {
                         Hybrid(_) => panic!("Hybrid argument not supported"), // size can't be statically determined
-                        Struct(_) | Array(_, _) if vm.get_type_size(t.id()) > 16 => true, //  type is too large
+                        Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true, //  type is too large
                         Vector(_, _)  => unimplemented!(),
                         _ => false
                     }
@@ -3016,7 +3016,7 @@ impl <'a> InstructionSelection {
         for i in 0..arg_types.len() {
             let i = i as usize;
             let t = if reference[i] { P(MuType::new(new_internal_id(), MuType_::IRef(arg_types[i].clone()))) } else { arg_types[i].clone() };
-            let size = round_up(vm.get_type_size(t.id()), 8);
+            let size = round_up(vm.get_backend_type_size(t.id()), 8);
             let align = get_type_alignment(&t, vm);
             match t.v {
                 Hybrid(_) => panic!("hybrid argument not supported"),
@@ -3024,7 +3024,7 @@ impl <'a> InstructionSelection {
                 Vector(_, _) => unimplemented!(),
                 Float | Double => {
                     if nsrn < 8 {
-                        locations.push(get_alias_for_length(ARGUMENT_FPRs[nsrn].id(), get_bit_size(&t, vm)));
+                        locations.push(get_alias_for_length(ARGUMENT_FPRS[nsrn].id(), get_bit_size(&t, vm)));
                         nsrn += 1;
                     } else {
                         nsrn = 8;
@@ -3037,7 +3037,7 @@ impl <'a> InstructionSelection {
                     if hfa_n > 0 {
                         if nsrn + hfa_n <= 8 {
                             // Note: the argument will occupy succesiv registers (one for each element)
-                            locations.push(get_alias_for_length(ARGUMENT_FPRs[nsrn].id(), get_bit_size(&t, vm)/hfa_n));
+                            locations.push(get_alias_for_length(ARGUMENT_FPRS[nsrn].id(), get_bit_size(&t, vm)/hfa_n));
                             nsrn += hfa_n;
                         } else {
                             nsrn = 8;
@@ -3053,7 +3053,7 @@ impl <'a> InstructionSelection {
                             // The struct should be packed, starting here
                             // (note: this may result in multiple struct fields in the same regsiter
                             // or even floating points in a GPR)
-                            locations.push(ARGUMENT_GPRs[ngrn].clone());
+                            locations.push(ARGUMENT_GPRS[ngrn].clone());
                             // How many GPRS are taken up by t
                             ngrn += if size % 8 != 0 { size/8 + 1 } else { size/8 };
                         } else {
@@ -3071,7 +3071,7 @@ impl <'a> InstructionSelection {
                 _ => {
                     if size <= 8 {
                         if ngrn < 8 {
-                            locations.push(get_alias_for_length(ARGUMENT_GPRs[ngrn].id(), get_bit_size(&t, vm)));
+                            locations.push(get_alias_for_length(ARGUMENT_GPRS[ngrn].id(), get_bit_size(&t, vm)));
                             ngrn += 1;
                         } else {
                             nsaa = round_up(nsaa, round_up(align, 8));
@@ -3083,7 +3083,7 @@ impl <'a> InstructionSelection {
                         ngrn = round_up(ngrn, 2); // align NGRN to the next even number
 
                         if ngrn < 7 {
-                            locations.push(ARGUMENT_GPRs[ngrn].clone());
+                            locations.push(ARGUMENT_GPRS[ngrn].clone());
                             ngrn += 2;
                         } else {
                             ngrn = 8;
@@ -3391,7 +3391,7 @@ impl <'a> InstructionSelection {
         let stack_arg_size = self.emit_precall_convention(&args, &sig.arg_tys, return_size, f_context, vm);
 
         // make call
-        if vm.is_running() {
+        if vm.is_doing_jit() {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
@@ -3404,8 +3404,13 @@ impl <'a> InstructionSelection {
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
                 let cur_node = cur_node.unwrap();
-                if cur_node.op == OpCode::CCall {
-                    unimplemented!()
+                match cur_node.v {
+		    TreeNode_::Instruction(Instruction {v: Instruction_::CCall{..}, ..}) => {
+		        unimplemented!()
+		    }
+		    _ => {
+                        // wont have an exception branch, ignore
+                    }
                 }
             }
         }
@@ -3547,7 +3552,7 @@ impl <'a> InstructionSelection {
                 let funcs = vm.funcs().read().unwrap();
                 let target = funcs.get(&target_id).unwrap().read().unwrap();
 
-                if vm.is_running() {
+                if vm.is_doing_jit() {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
@@ -3636,16 +3641,16 @@ impl <'a> InstructionSelection {
         }
 
         // push all callee-saved registers
-        for i in 0..CALLEE_SAVED_GPRs.len() {
-            let ref reg = CALLEE_SAVED_GPRs[i];
+        for i in 0..CALLEE_SAVED_GPRS.len() {
+            let ref reg = CALLEE_SAVED_GPRS[i];
             trace!("allocate frame slot for regs {}", reg);
 
             let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(reg.clone(), vm);
             let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
-        for i in 0..CALLEE_SAVED_FPRs.len() {
-            let ref reg = CALLEE_SAVED_FPRs[i];
+        for i in 0..CALLEE_SAVED_FPRS.len() {
+            let ref reg = CALLEE_SAVED_FPRS[i];
 
             trace!("allocate frame slot for reg {}", reg);
             let loc = self.current_frame.as_mut().unwrap().alloc_slot_for_callee_saved_reg(reg.clone(), vm);
@@ -3717,16 +3722,16 @@ impl <'a> InstructionSelection {
         self.start_block(epilogue_block);
 
         // pop all callee-saved registers
-        for i in (0..CALLEE_SAVED_FPRs.len()).rev() {
-            let ref reg = CALLEE_SAVED_FPRs[i];
+        for i in (0..CALLEE_SAVED_FPRS.len()).rev() {
+            let ref reg = CALLEE_SAVED_FPRS[i];
 
             let reg_id = reg.extract_ssa_id().unwrap();
             let loc = self.current_frame.as_mut().unwrap().allocated.get(&reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);
             let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
             self.backend.emit_ldr_callee_saved(reg, &loc);
         }
-        for i in (0..CALLEE_SAVED_GPRs.len()).rev() {
-            let ref reg = CALLEE_SAVED_GPRs[i];
+        for i in (0..CALLEE_SAVED_GPRS.len()).rev() {
+            let ref reg = CALLEE_SAVED_GPRS[i];
             let reg_id = reg.extract_ssa_id().unwrap();
             let loc = self.current_frame.as_mut().unwrap().allocated.get(   &reg_id).unwrap().make_memory_op(reg.ty.clone(), vm);
             let loc = emit_mem(self.backend.as_mut(), &loc, get_type_alignment(&reg.ty, vm), f_context, vm);
@@ -3782,7 +3787,7 @@ impl <'a> InstructionSelection {
 
                 match inst.v {
                     Instruction_::CmpOp(op, op1, ..) => {
-                        if op::is_int_cmp(op) {
+                        if op.is_int_cmp() {
                             node_type(&ops[op1]).get_int_length().unwrap() == 128 &&
                                 !op.is_symmetric()
                         } else {
@@ -3806,7 +3811,7 @@ impl <'a> InstructionSelection {
         }
         use std;
         let mut swap = false; // Whether op1 and op2 have been swapped
-        if op::is_int_cmp(op) {
+        if op.is_int_cmp() {
             let n = node_type(op1).get_int_length().unwrap();
 
             let mut imm_val = 0 as u64;
@@ -4132,7 +4137,7 @@ impl <'a> InstructionSelection {
                         })
                     }),
                     Value_::Global(_) => {
-                        if vm.is_running() {
+                        if vm.is_doing_jit() {
                             // get address from vm
                             unimplemented!()
                         } else {
@@ -4187,24 +4192,24 @@ impl <'a> InstructionSelection {
 
                     // GETVARPARTIREF < T1 > opnd = opnd + offset_of(T1.var_part)
                     Instruction_::GetVarPartIRef{base, ..} => {
-                        let struct_ty = match ops[base].clone_value().ty.get_referenced_ty() {
+                        let struct_ty = match ops[base].clone_value().ty.get_referent_ty() {
                             Some(ty) => ty,
                             None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
-                        let fix_part_size = vm.get_backend_type_info(struct_ty.id()).size;
+                        let fix_part_size = vm.get_backend_type_size(struct_ty.id());
                         self.emit_offset_ref(&ops[base], fix_part_size as i64, f_content, f_context, vm)
                     }
 
                     // SHIFTIREF < T1 T2 > opnd offset = opnd + offset*size_of(T1)
                     Instruction_::ShiftIRef{base, offset, ..} => {
-                        let element_type = ops[base].clone_value().ty.get_referenced_ty().unwrap();
-                        let element_size = vm.get_backend_type_info(element_type.id()).size;
+                        let element_type = ops[base].clone_value().ty.get_referent_ty().unwrap();
+                        let element_size = vm.get_backend_type_size(element_type.id());
                         self.emit_shift_ref(&ops[base], &ops[offset], element_size, f_content, f_context, vm)
                     }
                     // GETELEMIREF <T1 T2> opnd index = opnd + index*element_size(T1)
                     Instruction_::GetElementIRef{base, index, ..} => {
-                        let element_type = ops[base].clone_value().ty.get_referenced_ty().unwrap().get_elem_ty().unwrap();
-                        let element_size = vm.get_backend_type_info(element_type.id()).size;
+                        let element_type = ops[base].clone_value().ty.get_referent_ty().unwrap().get_elem_ty().unwrap();
+                        let element_size = vm.get_backend_type_size(element_type.id());
 
                         self.emit_shift_ref(&ops[base], &ops[index], element_size, f_content, f_context, vm)
                     }

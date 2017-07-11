@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -44,6 +44,7 @@ use ast::op;
 use compiler::backend::RegGroup;
 use vm::VM;
 
+use utils::ByteSize;
 use utils::LinkedHashMap;
 use std::collections::HashMap;
 
@@ -303,7 +304,7 @@ pub fn get_bit_size(ty : &P<MuType>, vm: &VM) -> usize
                 MuType_::Vector(ref t, n) => get_bit_size(t, vm)*n,
                 MuType_::Array(ref t, n) => get_bit_size(t, vm)*n,
                 MuType_::Void => 0,
-                _ => vm.get_type_size(ty.id())*8,
+                _ => vm.get_backend_type_size(ty.id())*8,
             }
         }
     }
@@ -332,8 +333,8 @@ pub fn primitive_byte_size(ty : &P<MuType>) -> usize
 }
 
 lazy_static! {
-    // Note: these are the same as the ARGUMENT_GPRs
-    pub static ref RETURN_GPRs : [P<Value>; 8] = [
+    // Note: these are the same as the ARGUMENT_GPRS
+    pub static ref RETURN_GPRS : [P<Value>; 8] = [
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -344,7 +345,7 @@ lazy_static! {
         X7.clone()
     ];
 
-    pub static ref ARGUMENT_GPRs : [P<Value>; 8] = [
+    pub static ref ARGUMENT_GPRS : [P<Value>; 8] = [
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -355,7 +356,7 @@ lazy_static! {
         X7.clone()
     ];
 
-    pub static ref CALLEE_SAVED_GPRs : [P<Value>; 10] = [
+    pub static ref CALLEE_SAVED_GPRS : [P<Value>; 10] = [
         X19.clone(),
         X20.clone(),
         X21.clone(),
@@ -372,7 +373,7 @@ lazy_static! {
         //X30.clone() // Link Register
     ];
 
-    pub static ref CALLER_SAVED_GPRs : [P<Value>; 18] = [
+    pub static ref CALLER_SAVED_GPRS : [P<Value>; 18] = [
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -394,7 +395,7 @@ lazy_static! {
         //X18.clone(), // Platform Register
     ];
 
-    static ref ALL_GPRs : [P<Value>; 30] = [
+    static ref ALL_GPRS : [P<Value>; 30] = [
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -521,8 +522,8 @@ lazy_static! {
 }
 
 lazy_static!{
-    // Same as ARGUMENT_FPRs
-    pub static ref RETURN_FPRs : [P<Value>; 8] = [
+    // Same as ARGUMENT_FPRS
+    pub static ref RETURN_FPRS : [P<Value>; 8] = [
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -533,7 +534,7 @@ lazy_static!{
         D7.clone()
     ];
 
-    pub static ref ARGUMENT_FPRs : [P<Value>; 8] = [
+    pub static ref ARGUMENT_FPRS : [P<Value>; 8] = [
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -544,7 +545,7 @@ lazy_static!{
         D7.clone(),
     ];
 
-    pub static ref CALLEE_SAVED_FPRs : [P<Value>; 8] = [
+    pub static ref CALLEE_SAVED_FPRS : [P<Value>; 8] = [
         D8.clone(),
         D9.clone(),
         D10.clone(),
@@ -555,7 +556,7 @@ lazy_static!{
         D15.clone()
     ];
 
-    pub static ref CALLER_SAVED_FPRs : [P<Value>; 24] = [
+    pub static ref CALLER_SAVED_FPRS : [P<Value>; 24] = [
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -583,7 +584,7 @@ lazy_static!{
         D31.clone()
     ];
 
-    static ref ALL_FPRs : [P<Value>; 32] = [
+    static ref ALL_FPRS : [P<Value>; 32] = [
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -622,7 +623,7 @@ lazy_static!{
 }
 
 lazy_static! {
-    pub static ref ALL_MACHINE_REGs : LinkedHashMap<MuID, P<Value>> = {
+    pub static ref ALL_MACHINE_REGS : LinkedHashMap<MuID, P<Value>> = {
         let mut map = LinkedHashMap::new();
 
         for vec in GPR_ALIAS_TABLE.values() {
@@ -640,7 +641,7 @@ lazy_static! {
         map
     };
 
-    pub static ref CALLEE_SAVED_REGs : [P<Value>; 18] = [
+    pub static ref CALLEE_SAVED_REGS : [P<Value>; 18] = [
         X19.clone(),
         X20.clone(),
         X21.clone(),
@@ -668,7 +669,7 @@ lazy_static! {
 
 
     // put caller saved regs first (they imposes no overhead if there is no call instruction)
-    pub static ref ALL_USABLE_MACHINE_REGs : Vec<P<Value>> = vec![
+    pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = vec![
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -740,7 +741,7 @@ lazy_static! {
 }
 
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
-    for reg in ALL_MACHINE_REGs.values() {
+    for reg in ALL_MACHINE_REGS.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let entry = SSAVarEntry::new(reg.clone());
 
@@ -750,22 +751,22 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
 
 pub fn number_of_regs_in_group(group: RegGroup) -> usize {
     match group {
-        RegGroup::GPR => ALL_GPRs.len(),
-        RegGroup::FPR => ALL_FPRs.len(),
+        RegGroup::GPR => ALL_GPRS.len(),
+        RegGroup::FPR => ALL_FPRS.len(),
         RegGroup::GPREX => unimplemented!(),
     }
 }
 
 pub fn number_of_all_regs() -> usize {
-    ALL_MACHINE_REGs.len()
+    ALL_MACHINE_REGS.len()
 }
 
 pub fn all_regs() -> &'static LinkedHashMap<MuID, P<Value>> {
-    &ALL_MACHINE_REGs
+    &ALL_MACHINE_REGS
 }
 
 pub fn all_usable_regs() -> &'static Vec<P<Value>> {
-    &ALL_USABLE_MACHINE_REGs
+    &ALL_USABLE_MACHINE_REGS
 }
 
 pub fn pick_group_for_reg(reg_id: MuID) -> RegGroup {
@@ -788,13 +789,13 @@ pub fn get_previous_frame_pointer(frame_pointer: Address) -> Address {
 // Gets the return address for the current frame pointer
 #[inline(always)]
 pub fn get_return_address(frame_pointer: Address) -> Address {
-    unsafe { frame_pointer.plus(8).load::<Address>() }
+    unsafe { (frame_pointer + 8 as ByteSize).load::<Address>() }
 }
 
 // Gets the stack pointer before the current frame was created
 #[inline(always)]
 pub fn get_previous_stack_pointer(frame_pointer: Address, stack_arg_size: usize) -> Address {
-    frame_pointer.plus(16 + stack_arg_size)
+    frame_pointer + 16 as ByteSize + stack_arg_size
 }
 
 #[inline(always)]
@@ -805,16 +806,16 @@ pub fn set_previous_frame_pointer(frame_pointer: Address, value: Address) {
 // Gets the return address for the current frame pointer
 #[inline(always)]
 pub fn set_return_address(frame_pointer: Address, value: Address) {
-    unsafe { frame_pointer.plus(8).store::<Address>(value) }
+    unsafe { (frame_pointer + 8 as ByteSize).store::<Address>(value) }
 }
 
 // Reg should be a 64-bit callee saved GPR or FPR
 pub fn get_callee_saved_offset(reg: MuID) -> isize {
     debug_assert!(is_callee_saved(reg));
     let id = if reg < FPR_ID_START {
-        (reg - CALLEE_SAVED_GPRs[0].id())/2
+        (reg - CALLEE_SAVED_GPRS[0].id())/2
     } else {
-        (reg - CALLEE_SAVED_FPRs[0].id()) / 2 + CALLEE_SAVED_GPRs.len()
+        (reg - CALLEE_SAVED_FPRS[0].id()) / 2 + CALLEE_SAVED_GPRS.len()
     };
     (id as isize + 1)*(-8)
 }
@@ -834,13 +835,13 @@ pub fn get_callee_saved_offset(reg: MuID) -> isize {
 
 pub fn is_callee_saved(reg_id: MuID) -> bool {
 
-    for reg in CALLEE_SAVED_GPRs.iter() {
+    for reg in CALLEE_SAVED_GPRS.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {
             return true;
         }
     }
 
-    for reg in CALLEE_SAVED_FPRs.iter() {
+    for reg in CALLEE_SAVED_FPRS.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {
             return true;
         }
@@ -1891,7 +1892,7 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem = make_value_symbolic(vm.get_func_name(func_id), true, &ADDRESS_TYPE, vm);
+                    let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
                 },
@@ -1951,8 +1952,13 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
+<<<<<<< HEAD
                     let mem = make_value_symbolic(vm.get_func_name(func_id), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, vm);
+=======
+                    let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                    emit_calculate_address(backend, &tmp, &mem, f_context, vm);
+>>>>>>> 5aad05d054e79db08724c0bcba77d78d71174f08
                     tmp
                 },
                 &Constant::NullRef => {
@@ -2351,7 +2357,7 @@ fn memory_location_shift(backend: &mut CodeGenerator, mem: MemoryLocation, more_
                 if offset.is_some() {
                     let offset = offset.as_ref().unwrap();
                     if match_value_int_imm(&offset) {
-                        let offset = offset.extract_int_const()*scale + (more_offset as u64);
+                        let offset = offset.extract_int_const().unwrap() *scale + (more_offset as u64);
                         make_value_int_const(offset as u64, vm)
                     } else {
                         let offset = emit_ireg_value(backend, &offset, f_context, vm);
@@ -2406,7 +2412,7 @@ fn memory_location_shift_scale(backend: &mut CodeGenerator, mem: MemoryLocation,
                         let offset = offset.as_ref().unwrap();
                         if match_value_int_imm(&offset) {
                             let temp = make_temporary(f_context, offset.ty.clone(), vm);
-                            let offset_scaled = (offset.extract_int_const() as i64)*(scale as i64);
+                            let offset_scaled = (offset.extract_int_const().unwrap() as i64)*(scale as i64);
                             if offset_scaled % (new_scale as i64) == 0 {
                                 emit_add_u64(backend, &temp, &more_offset, (offset_scaled / (new_scale as i64)) as u64);
                                 // new_scale*temp = (more_offset + (offset*scale)/new_scale)

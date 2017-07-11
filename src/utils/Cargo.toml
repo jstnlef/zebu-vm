@@ -26,3 +26,4 @@ memsec = "0.1.9"
 byteorder = "*"
 rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = ">= 0.0.5" }
 log = "*"
+doubly = "1.1.3"
