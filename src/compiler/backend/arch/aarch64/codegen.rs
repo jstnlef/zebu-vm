@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ptr::P;
 use ast::ir::*;
 use runtime::ValueLocation;
 
@@ -32,8 +31,6 @@ pub trait CodeGenerator {
     fn start_block(&mut self, block_name: MuName);
     fn block_exists(&self, block_name: MuName) -> bool;
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation;
-    fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>);
-    fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
     fn end_block(&mut self, block_name: MuName);
 
     // add CFI info
@@ -49,6 +46,7 @@ pub trait CodeGenerator {
 
     // emit code to adjust frame
     fn emit_frame_grow(&mut self); // Emits a SUB
+    fn emit_frame_shrink(&mut self); // Emits an ADD
 
     // Used to pass a string that the assembler will interpret as an immediate argument
     // (This is neccesary to support the use of ELF relocations like ':tprel_hi12:foo')
