@@ -22,11 +22,11 @@ use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::utils::LinkedHashMap;
 
-use mu::testutil;
+use mu::linkutils;
 
 #[test]
 fn test_add_u8() {
-    let lib = testutil::compile_fnc("add_u8", &add_u8);
+    let lib = linkutils::aot::compile_fnc("add_u8", &add_u8);
 
     unsafe {
         let add_u8 : libloading::Symbol<unsafe extern fn(u8, u8) -> u8> = lib.get(b"add_u8").unwrap();
@@ -80,7 +80,7 @@ fn add_u8() -> VM {
 
 #[test]
 fn test_truncate() {
-    let lib = testutil::compile_fnc("truncate", &truncate);
+    let lib = linkutils::aot::compile_fnc("truncate", &truncate);
 
     unsafe {
         let truncate : libloading::Symbol<unsafe extern fn(u64) -> u8> = lib.get(b"truncate").unwrap();
@@ -131,7 +131,7 @@ fn truncate() -> VM {
 
 #[test]
 fn test_sext() {
-    let lib = testutil::compile_fnc("sext", &sext);
+    let lib = linkutils::aot::compile_fnc("sext", &sext);
 
     unsafe {
         let sext : libloading::Symbol<unsafe extern fn(i8) -> i64> = lib.get(b"sext").unwrap();
@@ -180,7 +180,7 @@ fn sext() -> VM {
 
 #[test]
 fn test_add_9f() {
-    let lib = testutil::compile_fnc("add_9f", &add_9f);
+    let lib = linkutils::aot::compile_fnc("add_9f", &add_9f);
 
     unsafe {
         let add_9f : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"add_9f").unwrap();

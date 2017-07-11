@@ -276,9 +276,7 @@ impl ASMCode {
         let ref mut asm = self.code;
 
         for i in 0..n_insts {
-            if TRACE_CFA {
-                trace!("---inst {}---", i);
-            }
+            trace_if!(TRACE_CFA, "---inst {}---", i);
 
             // skip symbol
             if asm[i].is_symbol {
@@ -300,9 +298,7 @@ impl ASMCode {
                                 if !asm[i].preds.contains(&last_inst) {
                                     asm[i].preds.push(last_inst);
 
-                                    if TRACE_CFA {
-                                        trace!("inst {}: set PREDS as previous inst - fallthrough {}", i, last_inst);
-                                    }
+                                    trace_if!(TRACE_CFA, "inst {}: set PREDS as previous inst - fallthrough {}", i, last_inst);
                                 }
                             }
                             // otherwise do nothing
@@ -326,12 +322,10 @@ impl ASMCode {
                     // target's pred is cur
                     asm[target_n].preds.push(i);
 
-                    if TRACE_CFA {
-                        trace!("inst {}: is a branch to {}", i, target);
-                        trace!("inst {}: branch target index is {}", i, target_n);
-                        trace!("inst {}: set SUCCS as branch target {}", i, target_n);
-                        trace!("inst {}: set PREDS as branch source {}", target_n, i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is a branch to {}", i, target);
+                    trace_if!(TRACE_CFA, "inst {}: branch target index is {}", i, target_n);
+                    trace_if!(TRACE_CFA, "inst {}: set SUCCS as branch target {}", i, target_n);
+                    trace_if!(TRACE_CFA, "inst {}: set PREDS as branch source {}", target_n, i);
                 },
                 ASMBranchTarget::Conditional(ref target) => {
                     // branch to target
@@ -340,17 +334,13 @@ impl ASMCode {
                     // cur insts' succ is target
                     asm[i].succs.push(target_n);
 
-                    if TRACE_CFA {
-                        trace!("inst {}: is a cond branch to {}", i, target);
-                        trace!("inst {}: branch target index is {}", i, target_n);
-                        trace!("inst {}: set SUCCS as branch target {}", i, target_n);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is a cond branch to {}", i, target);
+                    trace_if!(TRACE_CFA, "inst {}: branch target index is {}", i, target_n);
+                    trace_if!(TRACE_CFA, "inst {}: set SUCCS as branch target {}", i, target_n);
 
                     // target's pred is cur
                     asm[target_n].preds.push(i);
-                    if TRACE_CFA {
-                        trace!("inst {}: set PREDS as {}", target_n, i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: set PREDS as {}", target_n, i);
 
                     if let Some(next_inst) = ASMCode::find_next_inst(i, asm) {
                         // cur succ is next inst
@@ -359,9 +349,7 @@ impl ASMCode {
                         // next inst's pred is cur
                         asm[next_inst].preds.push(i);
 
-                        if TRACE_CFA {
-                            trace!("inst {}: SET SUCCS as c-branch fallthrough target {}", i, next_inst);
-                        }
+                        trace_if!(TRACE_CFA, "inst {}: SET SUCCS as c-branch fallthrough target {}", i, next_inst);
                     } else {
                         panic!("conditional branch does not have a fallthrough target");
                     }
@@ -373,11 +361,9 @@ impl ASMCode {
                     // cur inst's succ is target
                     asm[i].succs.push(target_n);
 
-                    if TRACE_CFA {
-                        trace!("inst {}: is potentially excepting to {}", i, target);
-                        trace!("inst {}: excepting target index is {}", i, target_n);
-                        trace!("inst {}: set SUCCS as excepting target {}", i, target_n);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is potentially excepting to {}", i, target);
+                    trace_if!(TRACE_CFA, "inst {}: excepting target index is {}", i, target_n);
+                    trace_if!(TRACE_CFA, "inst {}: set SUCCS as excepting target {}", i, target_n);
 
                     asm[target_n].preds.push(i);
 
@@ -388,36 +374,26 @@ impl ASMCode {
                         // next inst's pred is cur
                         asm[next_inst].preds.push(i);
 
-                        if TRACE_CFA {
-                            trace!("inst {}: SET SUCCS as PEI fallthrough target {}", i, next_inst);
-                        }
+                        trace_if!(TRACE_CFA, "inst {}: SET SUCCS as PEI fallthrough target {}", i, next_inst);
                     } else {
                         panic!("PEI does not have a fallthrough target");
                     }
                 },
                 ASMBranchTarget::Return => {
-                    if TRACE_CFA {
-                        trace!("inst {}: is a return", i);
-                        trace!("inst {}: has no successor", i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is a return", i);
+                    trace_if!(TRACE_CFA, "inst {}: has no successor", i);
                 }
                 ASMBranchTarget::None => {
                     // not branch nor cond branch, succ is next inst
-                    if TRACE_CFA {
-                        trace!("inst {}: not a branch inst", i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: not a branch inst", i);
                     if let Some(next_inst) = ASMCode::find_next_inst(i, asm) {
-                        if TRACE_CFA {
-                            trace!("inst {}: set SUCCS as next inst {}", i, next_inst);
-                        }
+                        trace_if!(TRACE_CFA, "inst {}: set SUCCS as next inst {}", i, next_inst);
                         asm[i].succs.push(next_inst);
                     }
                 }
                 ASMBranchTarget::UnconditionalReg(id) => {
-                    if TRACE_CFA {
-                        trace!("inst {}: is an unconditional branch to reg {}", i, id);
-                        trace!("inst {}: has no successor", i);
-                    }
+                    trace_if!(TRACE_CFA, "inst {}: is an unconditional branch to reg {}", i, id);
+                    trace_if!(TRACE_CFA, "inst {}: has no successor", i);
                 }
             }
         }
@@ -987,27 +963,27 @@ impl ASMCodeGen {
             let (id, loc) = target.unwrap();
             uses.insert(id, vec![loc]);
         }
-        //        for reg in ARGUMENT_GPRs.iter() {
+        //        for reg in ARGUMENT_GPRS.iter() {
         //            uses.insert(reg.id(), vec![]);
         //        }
-        //        for reg in ARGUMENT_FPRs.iter() {
+        //        for reg in ARGUMENT_FPRS.iter() {
         //            uses.insert(reg.id(), vec![]);
         //        }
 
         // defines: return registers
         let mut defines: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for reg in RETURN_GPRs.iter() {
+        for reg in RETURN_GPRS.iter() {
             defines.insert(reg.id(), vec![]);
         }
-        for reg in RETURN_FPRs.iter() {
+        for reg in RETURN_FPRS.iter() {
             defines.insert(reg.id(), vec![]);
         }
-        for reg in CALLER_SAVED_GPRs.iter() {
+        for reg in CALLER_SAVED_GPRS.iter() {
             if !defines.contains_key(&reg.id()) {
                 defines.insert(reg.id(), vec![]);
             }
         }
-        for reg in CALLER_SAVED_FPRs.iter() {
+        for reg in CALLER_SAVED_FPRS.iter() {
             if !defines.contains_key(&reg.id()) {
                 defines.insert(reg.id(), vec![]);
             }
@@ -2842,13 +2818,13 @@ pub fn emit_context_with_reloc(vm: &VM,
             writeln!(file, "{}:", dump_label).unwrap();
 
             let base = obj_dump.reference_addr;
-            let end  = obj_dump.mem_start.plus(obj_dump.mem_size);
+            let end  = obj_dump.mem_start + obj_dump.mem_size;
             assert!(base.is_aligned_to(POINTER_SIZE));
 
             let mut offset = 0;
 
             while offset < obj_dump.mem_size {
-                let cur_addr = base.plus(offset);
+                let cur_addr = base + offset;
 
                 if obj_dump.reference_offsets.contains(&offset) {
                     // write ref with label
@@ -2871,7 +2847,7 @@ pub fn emit_context_with_reloc(vm: &VM,
                     writeln!(file, ".xword {}", mangle_name(label.clone())).unwrap();
                 } else {
                     // write plain word (as bytes)
-                    let next_word_addr = cur_addr.plus(POINTER_SIZE);
+                    let next_word_addr = cur_addr + POINTER_SIZE;
 
                     if next_word_addr <= end {
                         write_data_bytes(&mut file, cur_addr, next_word_addr);
@@ -2927,7 +2903,7 @@ fn write_data_bytes(f: &mut File, from: Address, to: Address) {
             let byte = unsafe {cursor.load::<u8>()};
             write!(f, "0x{:x}", byte).unwrap();
 
-            cursor = cursor.plus(1);
+            cursor = cursor + 1 as ByteSize;
 
             if cursor != to {
                 f.write(",".as_bytes()).unwrap();

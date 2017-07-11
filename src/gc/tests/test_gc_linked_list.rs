@@ -164,7 +164,7 @@ fn create_linked_list() {
     start_logging();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1, true);
-    gc::gc_stats();
+    gc::print_gc_context();
 
     let mut mutator = gc::new_mutator();
 
@@ -192,7 +192,7 @@ fn linked_list_heap_dump() {
     start_logging();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1, true);
-    gc::gc_stats();
+    gc::print_gc_context();
 
     let mut mutator = gc::new_mutator();
 
@@ -229,7 +229,7 @@ fn linked_list_survive_gc() {
     start_logging();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1, true);
-    gc::gc_stats();
+    gc::print_gc_context();
 
     let mut mutator = gc::new_mutator();
 

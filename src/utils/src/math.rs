@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// returns the exponent if the given number is power of two, otherwise return None
 pub fn is_power_of_two(x: usize) -> Option<u8> {
     use std::u8;
 
@@ -29,10 +30,8 @@ pub fn is_power_of_two(x: usize) -> Option<u8> {
     }
 }
 
+/// aligns up a number
+/// (returns the nearest multiply of the align value that is larger than the given value)
 pub fn align_up(x: usize, align: usize) -> usize {
-    if x % align == 0 {
-        x
-    } else {
-        (x / align + 1) * align
-    }
+    (x + align - 1) & !(align  - 1)
 }

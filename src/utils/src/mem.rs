@@ -12,21 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// cross-platform mmap crate
 pub extern crate memmap;
+/// secured memory operations: memset, memzero, etc.
 pub extern crate memsec;
 
 use Word;
-#[allow(unused_imports)]
+#[allow(unused_imports)]    // import both endianness (we may not use big endian though)
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 
+/// returns bit representations for u64
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub fn u64_to_raw(val: u64) -> Word {
     let mut ret = vec![];
     ret.write_u64::<LittleEndian>(val).unwrap();
-    
     as_word(ret)
 }
 
+/// returns bit representations for f32
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub fn f32_to_raw(val: f32) -> Word {
     let mut ret = vec![];
@@ -34,6 +37,7 @@ pub fn f32_to_raw(val: f32) -> Word {
     as_word(ret)
 }
 
+/// returns bit representations for f64
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub fn f64_to_raw(val: f64) -> Word {
     let mut ret = vec![];
@@ -41,6 +45,7 @@ pub fn f64_to_raw(val: f64) -> Word {
     as_word(ret)
 }
 
+/// returns bit representations for Vec<u8>
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub fn as_word(mut u8_array: Vec<u8>) -> Word {
     LittleEndian::read_uint(&mut u8_array, 8) as Word

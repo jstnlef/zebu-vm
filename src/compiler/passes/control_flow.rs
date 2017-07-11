@@ -31,6 +31,50 @@ impl ControlFlowAnalysis {
     }
 }
 
+impl CompilerPass for ControlFlowAnalysis {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
+    }
+
+    #[allow(unused_variables)]
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        let mut stack   : Vec<MuID> = vec![];
+        let mut visited : Vec<MuID> = vec![];
+
+        // depth-first search
+        dfs(func.content.as_ref().unwrap().entry, &mut stack, &mut visited, func);
+    }
+
+    #[allow(unused_variables)]
+    fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        // after CFA, we will know all the exceptional edges, and exception blocks
+        {
+            let mut exception_blocks = LinkedHashSet::new();
+
+            for block in func.content.as_ref().unwrap().blocks.iter() {
+                let ref control_flow = block.1.control_flow;
+                for edge in control_flow.succs.iter() {
+                    if edge.is_exception {
+                        exception_blocks.insert(edge.target);
+                    }
+                }
+            }
+            func.content.as_mut().unwrap().exception_blocks.add_all(exception_blocks);
+        }
+
+        debug!("check control flow for {}", func);
+        for entry in func.content.as_ref().unwrap().blocks.iter() {
+            debug!("block {}", entry.0);
+            debug!("{}", entry.1.control_flow);
+        }
+    }
+}
+
+/// if an edge target already appears in the stack, it is a backedge, otherwise forward edge
 fn check_edge_kind(target: MuID, stack: &Vec<MuID>) -> EdgeKind {
     if stack.contains(&target) {
         EdgeKind::Backward
@@ -39,6 +83,7 @@ fn check_edge_kind(target: MuID, stack: &Vec<MuID>) -> EdgeKind {
     }
 }
 
+/// creates info for a new edge (set predecessor, successors, and recursively do dfs
 fn new_edge(cur: MuID, edge: BlockEdge, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuFunctionVersion) {
     // add current block to target's predecessors
     {
@@ -52,17 +97,19 @@ fn new_edge(cur: MuID, edge: BlockEdge, stack: &mut Vec<MuID>, visited: &mut Vec
         let cur = func.content.as_mut().unwrap().get_block_mut(cur);
         cur.control_flow.succs.push(edge);
     }
+
+    // if we havent visited the successor, visit it
     if !visited.contains(&succ) {
         dfs(succ, stack, visited, func);
     }
-
 }
 
+// some random number for edge probability
 const WATCHPOINT_DISABLED_CHANCE : f32 = 0.9f32;
-
 const NORMAL_RESUME_CHANCE       : f32 = 0.6f32;
 const EXN_RESUME_CHANCE          : f32 = 1f32 - NORMAL_RESUME_CHANCE;
 
+/// depth first traversal
 fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuFunctionVersion) {
     trace!("dfs visiting block {}", cur);
     trace!("current stack: {:?}", stack);
@@ -128,17 +175,14 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
 
                             for &(_, ref dest) in branches.iter() {
                                 let target = dest.target;
-
                                 check_add_edge(&mut ret, target, switch_prob);
                             }
 
                             check_add_edge(&mut ret, default.target, BRANCH_DEFAULT_PROB);
-
                             ret
                         };
 
                         let mut ret = vec![];
-
                         for edge in map.values() {
                             ret.push(*edge);
                         }
@@ -241,55 +285,9 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
     };
 
     trace!("out edges for {}: {}", cur, vector_as_str(&out_edges));
-
     for edge in out_edges {
         new_edge(cur, edge, stack, visited, func);
     }
 
     stack.pop();
-}
-
-impl CompilerPass for ControlFlowAnalysis {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn as_any(&self) -> &Any {
-        self
-    }
-
-    #[allow(unused_variables)]
-    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        let mut stack   : Vec<MuID> = vec![];
-        let mut visited : Vec<MuID> = vec![];
-
-        dfs(func.content.as_ref().unwrap().entry, &mut stack, &mut visited, func);
-    }
-
-    #[allow(unused_variables)]
-    fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        {
-            let mut exception_blocks = LinkedHashSet::new();
-
-            for block in func.content.as_ref().unwrap().blocks.iter() {
-                let ref control_flow = block.1.control_flow;
-
-                for edge in control_flow.succs.iter() {
-                    if edge.is_exception {
-                        exception_blocks.insert(edge.target);
-                    }
-                }
-            }
-
-            func.content.as_mut().unwrap().exception_blocks.add_all(exception_blocks);
-        }
-
-        debug!("check control flow for {}", func);
-
-        for entry in func.content.as_ref().unwrap().blocks.iter() {
-            debug!("block {}", entry.0);
-
-            debug!("{}", entry.1.control_flow);
-        }
-    }
 }

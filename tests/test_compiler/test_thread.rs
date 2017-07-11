@@ -23,7 +23,8 @@ use self::mu::ast::op::*;
 use self::mu::vm::*;
 use self::mu::compiler::*;
 use self::mu::utils::LinkedHashMap;
-use self::mu::testutil::aot;
+use self::mu::linkutils;
+use self::mu::linkutils::aot;
 
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -46,11 +47,11 @@ fn test_thread_create() {
         compiler.compile(&mut func_ver);
     }
     
-    vm.make_primordial_thread(func_id, true, vec![]);
+    vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
     
     let executable = aot::link_primordial(vec!["primordial_main".to_string()], "primordial_main_test", &vm);
-    aot::execute(executable);
+    linkutils::exec_path(executable);
 }
 
 fn primordial_main() -> VM {
@@ -99,7 +100,7 @@ fn test_main_with_retval() {
         path.push("test_main_with_retval");
         path
     };
-    let output = aot::execute_nocheck(executable);
+    let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
 

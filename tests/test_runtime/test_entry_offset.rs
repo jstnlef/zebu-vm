@@ -35,18 +35,18 @@ fn test_muthread_entry_offset() {
     assert_eq!(tl_addr, Address::from_ptr(tl_ptr));
 
     let allocator_ptr  = &tl.allocator as *const mm::Mutator;
-    let allocator_addr = tl_addr.plus(*thread::ALLOCATOR_OFFSET);
+    let allocator_addr = tl_addr + *thread::ALLOCATOR_OFFSET;
     assert_eq!(allocator_addr, Address::from_ptr(allocator_ptr));
 
     let native_sp_ptr  = &tl.native_sp_loc as *const Address;
-    let native_sp_addr = tl_addr.plus(*thread::NATIVE_SP_LOC_OFFSET);
+    let native_sp_addr = tl_addr + *thread::NATIVE_SP_LOC_OFFSET;
     assert_eq!(native_sp_addr, Address::from_ptr(native_sp_ptr));
 
     let user_tls_ptr   = &tl.user_tls as *const Address;
-    let user_tls_addr  = tl_addr.plus(*thread::USER_TLS_OFFSET);
+    let user_tls_addr  = tl_addr + *thread::USER_TLS_OFFSET;
     assert_eq!(user_tls_addr, Address::from_ptr(user_tls_ptr));
 
     let exc_obj_ptr    = &tl.exception_obj as *const Address;
-    let exc_obj_addr   = tl_addr.plus(*thread::EXCEPTION_OBJ_OFFSET);
+    let exc_obj_addr   = tl_addr + *thread::EXCEPTION_OBJ_OFFSET;
     assert_eq!(exc_obj_addr, Address::from_ptr(exc_obj_ptr));
 }

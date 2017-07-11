@@ -1408,7 +1408,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         if let Some(impl_func) = self.built_funcs.get(&id) {
             impl_func.sig.clone()
         } else {
-            self.vm.get_func_sig_for_func(id)
+            self.vm.get_sig_for_func(id)
         }
     }
 
@@ -1457,7 +1457,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb.ctx.values.insert(id, SSAVarEntry::new(val.clone()));
 
         let tn = P(TreeNode {
-            op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         });
 
@@ -1468,14 +1467,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
     pub fn new_inst(&self, v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }
 
     pub fn new_global(&self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
@@ -2215,7 +2212,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let op_ty = self.ensure_type_rec(tys[0]);
                 let op = self.get_treenode(fcb, args[0]);
 
-                let referent_ty = match op_ty.get_referenced_ty() {
+                let referent_ty = match op_ty.get_referent_ty() {
                     Some(ty) => ty,
                     _ => panic!("expected ty in PIN to be ref/iref, found {}", op_ty)
                 };

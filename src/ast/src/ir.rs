@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,7 +15,6 @@
 use ptr::P;
 use types::*;
 use inst::*;
-use op::*;
 
 use utils::vec_utils;
 use utils::LinkedHashMap;
@@ -49,19 +48,21 @@ lazy_static! {
         a.store(INTERNAL_ID_START, Ordering::SeqCst);
         a
     };
-} 
+}
+/// MuID reserved for machine registers
 pub const  MACHINE_ID_START : usize = 0;
 pub const  MACHINE_ID_END   : usize = 200;
 
+/// MuID reserved for internal types, etc.
 pub const  INTERNAL_ID_START: usize = 201;
 pub const  INTERNAL_ID_END  : usize = 500;
 pub const  USER_ID_START    : usize = 1001;
 
 #[deprecated]
 #[allow(dead_code)]
-/// it could happen that one same machine register get different IDs
-/// during serialization and restoring
-/// currently I hand-write fixed ID for each machine register
+// it could happen that one same machine register get different IDs
+// during serialization and restoring
+// currently I hand-write fixed ID for each machine register
 pub fn new_machine_id() -> MuID {
     let ret = MACHINE_ID.fetch_add(1, Ordering::SeqCst);
     if ret >= MACHINE_ID_END {
@@ -78,7 +79,9 @@ pub fn new_internal_id() -> MuID {
     ret
 }
 
-rodal_struct!(MuFunction{hdr, sig, cur_ver, all_vers});
+/// MuFunction represents a Mu function (not a specific definition of a function)
+/// This stores function signature, and a list of all versions of this function (as ID),
+/// and its current version (as ID)
 #[derive(Debug)]
 pub struct MuFunction {
     pub hdr: MuEntityHeader,
@@ -87,6 +90,8 @@ pub struct MuFunction {
     pub cur_ver: Option<MuID>,
     pub all_vers: Vec<MuID>
 }
+
+rodal_struct!(MuFunction{hdr, sig, cur_ver, all_vers});
 
 impl MuFunction {
     pub fn new(entity: MuEntityHeader, sig: P<MuFuncSig>) -> MuFunction {
@@ -97,7 +102,8 @@ impl MuFunction {
             all_vers: vec![]
         }
     }
-    
+
+    /// adds a new version to this function, and it becomes the current version
     pub fn new_version(&mut self, fv: MuID) {
         if self.cur_ver.is_some() {
             let obsolete_ver = self.cur_ver.unwrap();
@@ -114,21 +120,22 @@ impl fmt::Display for MuFunction {
     }
 }
 
+/// MuFunctionVersion represents a specific definition of a Mu function
+/// It owns the tree structure of MuIRs for the function version
+
+// FIXME: currently part of compilation information is also stored in this data structure
+// we should move them (see Issue #18)
 pub struct MuFunctionVersion {
     pub hdr: MuEntityHeader,
-         
+
     pub func_id: MuID,
     pub sig: P<MuFuncSig>,
-
-    orig_content: Option<FunctionContent>,
-    pub content: Option<FunctionContent>,
+    orig_content: Option<FunctionContent>,      // original IR
+    pub content: Option<FunctionContent>,       // IR that may have been rewritten during compilation
     is_defined: bool,
     is_compiled: bool,
-
     pub context: FunctionContext,
-
     pub force_inline: bool,
-
     pub block_trace: Option<Vec<MuID>> // only available after Trace Generation Pass
 }
 rodal_struct!(Callsite{name, exception_destination, stack_arg_size});
@@ -167,6 +174,7 @@ impl fmt::Debug for MuFunctionVersion {
 }
 
 impl MuFunctionVersion {
+    /// creates an empty function version
     pub fn new(entity: MuEntityHeader, func: MuID, sig: P<MuFuncSig>) -> MuFunctionVersion {
         MuFunctionVersion{
             hdr: entity,
@@ -182,6 +190,7 @@ impl MuFunctionVersion {
         }
     }
 
+    /// creates a complete function version
     pub fn new_(hdr: MuEntityHeader, id: MuID, sig: P<MuFuncSig>, content: FunctionContent, context: FunctionContext) -> MuFunctionVersion {
         MuFunctionVersion {
             hdr: hdr,
@@ -201,6 +210,7 @@ impl MuFunctionVersion {
         self.orig_content.as_ref()
     }
 
+    /// defines function content
     pub fn define(&mut self, content: FunctionContent) {
         if self.is_defined {
             panic!("alread defined the function: {}", self);
@@ -214,6 +224,7 @@ impl MuFunctionVersion {
     pub fn is_compiled(&self) -> bool {
         self.is_compiled
     }
+
     pub fn set_compiled(&mut self) {
         self.is_compiled = true;
     }
@@ -229,33 +240,30 @@ impl MuFunctionVersion {
         self.context.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         })
     }
 
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
     
     pub fn new_global(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
 
     pub fn new_inst(&mut self, v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }
 
-    /// get Map(CallSiteID -> FuncID) that are called by this function
+    /// gets call outedges in this function
+    /// returns Map(CallSiteID -> FuncID)
     pub fn get_static_call_edges(&self) -> LinkedHashMap<MuID, MuID> {
         let mut ret = LinkedHashMap::new();
 
@@ -326,13 +334,12 @@ impl MuFunctionVersion {
     }
 }
 
+/// FunctionContent contains all blocks (which include all instructions) for the function
 #[derive(Clone)]
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: LinkedHashMap<MuID, Block>,
-
-    // this field only valid after control flow analysis
-    pub exception_blocks: LinkedHashSet<MuID>
+    pub exception_blocks: LinkedHashSet<MuID> // this field only valid after control flow analysis
 }
 
 impl fmt::Debug for FunctionContent {
@@ -395,6 +402,9 @@ impl FunctionContent {
     }
 }
 
+/// FunctionContext contains compilation information about the function
+
+// FIXME: should move this out of ast crate and bind its lifetime with compilation (Issue #18)
 #[derive(Default, Debug)]
 pub struct FunctionContext {
     pub values: LinkedHashMap<MuID, SSAVarEntry>
@@ -406,7 +416,8 @@ impl FunctionContext {
             values: LinkedHashMap::new()
         }
     }
-    
+
+    /// makes a TreeNode of an SSA variable
     pub fn make_temporary(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
         let val = P(Value{
             hdr: MuEntityHeader::unnamed(id),
@@ -417,11 +428,11 @@ impl FunctionContext {
         self.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         })
     }
 
+    /// shows the name for an SSA by ID
     pub fn get_temp_display(&self, id: MuID) -> String {
         match self.get_value(id) {
             Some(entry) => format!("{}", entry.value()),
@@ -429,15 +440,20 @@ impl FunctionContext {
         }
     }
 
+    /// returns a &SSAVarEntry for the given ID
     pub fn get_value(&self, id: MuID) -> Option<&SSAVarEntry> {
         self.values.get(&id)
     }
 
+    /// returns a &mut SSAVarEntry for the given ID
     pub fn get_value_mut(&mut self, id: MuID) -> Option<&mut SSAVarEntry> {
         self.values.get_mut(&id)
     }
 }
 
+/// Block contains BlockContent, which includes all the instructions for the block
+
+// FIXME: control_flow field should be moved out of ast crate (Issue #18)
 #[derive(Clone)]
 pub struct Block {
     pub hdr: MuEntityHeader,
@@ -463,11 +479,13 @@ impl Block {
     pub fn new(entity: MuEntityHeader) -> Block {
         Block{hdr: entity, content: None, control_flow: ControlFlow::default()}
     }
-    
+
+    /// does this block have an exception arguments?
     pub fn is_receiving_exception_arg(&self) -> bool {
         return self.content.as_ref().unwrap().exn_arg.is_some()
     }
 
+    /// how many IR instruction does this block have?
     pub fn number_of_irs(&self) -> usize {
         if self.content.is_none() {
             0
@@ -479,6 +497,9 @@ impl Block {
     }
 }
 
+/// ControlFlow stores compilation info about control flows of a block
+
+// FIXME: Issue #18
 #[derive(Debug, Clone)]
 pub struct ControlFlow {
     pub preds : Vec<MuID>,
@@ -486,6 +507,8 @@ pub struct ControlFlow {
 }
 
 impl ControlFlow {
+    /// returns the successor with highest branching probability
+    /// (in case of tie, returns first met successor)
     pub fn get_hottest_succ(&self) -> Option<MuID> {
         if self.succs.len() == 0 {
             None
@@ -518,6 +541,7 @@ impl default::Default for ControlFlow {
     }
 }
 
+/// BlockEdge represents an edge in control flow graph
 #[derive(Copy, Clone, Debug)]
 pub struct BlockEdge {
     pub target: MuID,
@@ -537,6 +561,7 @@ pub enum EdgeKind {
     Forward, Backward
 }
 
+/// BlockContent describes arguments to this block, and owns all the IR instructions
 #[derive(Clone)]
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
@@ -562,6 +587,7 @@ impl fmt::Debug for BlockContent {
 }
 
 impl BlockContent {
+    /// returns all the arguments passed to its successors
     pub fn get_out_arguments(&self) -> Vec<P<Value>> {
         let n_insts = self.body.len();
         let ref last_inst = self.body[n_insts - 1];
@@ -580,13 +606,13 @@ impl BlockContent {
                     }
                     Instruction_::Branch1(ref dest) => {
                         let mut live_outs = dest.get_arguments(&ops);
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Branch2{ref true_dest, ref false_dest, ..} => {
                         let mut live_outs = true_dest.get_arguments(&ops);
                         live_outs.append(&mut false_dest.get_arguments(&ops));
                         
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Watchpoint{ref disable_dest, ref resume, ..} => {
                         let mut live_outs = vec![];
@@ -597,13 +623,13 @@ impl BlockContent {
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
                         live_outs.append(&mut resume.exn_dest.get_arguments(&ops));
                         
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::WPBranch{ref disable_dest, ref enable_dest, ..} => {
                         let mut live_outs = vec![];
                         live_outs.append(&mut disable_dest.get_arguments(&ops));
                         live_outs.append(&mut enable_dest.get_arguments(&ops));
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Call{ref resume, ..}
                     | Instruction_::CCall{ref resume, ..}
@@ -612,7 +638,7 @@ impl BlockContent {
                         let mut live_outs = vec![];
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
                         live_outs.append(&mut resume.exn_dest.get_arguments(&ops));
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     Instruction_::Switch{ref default, ref branches, ..} => {
                         let mut live_outs = vec![];
@@ -620,7 +646,7 @@ impl BlockContent {
                         for &(_, ref dest) in branches {
                             live_outs.append(&mut dest.get_arguments(&ops));
                         }
-                        vec_utils::append_unique(&mut ret, &mut live_outs);
+                        vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
                     
                     _ => panic!("didn't expect last inst as {}", inst)
@@ -633,29 +659,30 @@ impl BlockContent {
     }
 }
 
+/// TreeNode represents a node in the AST, it could either be an instruction,
+/// or an value (SSA, constant, global, etc)
 #[derive(Debug, Clone)]
-/// always use with P<TreeNode>
 pub struct TreeNode {
-    pub op: OpCode,
     pub v: TreeNode_,
 }
 
 impl TreeNode {
-    // this is a hack to allow creating TreeNode without using a &mut MuFunctionVersion
+    /// creates a sharable Instruction TreeNode
     pub fn new_inst(v: Instruction) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }
 
+    /// creates an owned Instruction TreeNode
     pub fn new_boxed_inst(v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }
 
+    /// extracts the MuID of an SSA TreeNode
+    /// if the node is not an SSA, returns None
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             TreeNode_::Value(ref pv) => {
@@ -668,19 +695,30 @@ impl TreeNode {
         }
     }
 
+    /// clones the value from the TreeNode
+    /// * if this is a Instruction TreeNode, returns its first result value
+    /// * if this is a value, returns a clone of it
     pub fn clone_value(&self) -> P<Value> {
+        self.as_value().clone()
+    }
+
+    /// returns the value from the TreeNode
+    /// * if this is a Instruction TreeNode, returns its first result value
+    /// * if this is a value, returns a clone of it
+    pub fn as_value(&self) -> &P<Value> {
         match self.v {
-            TreeNode_::Value(ref val) => val.clone(),
+            TreeNode_::Value(ref val) => val,
             TreeNode_::Instruction(ref inst) => {
                 let vals = inst.value.as_ref().unwrap();
                 if vals.len() != 1 {
                     panic!("we expect an inst with 1 value, but found multiple or zero (it should not be here - folded as a child)");
                 }
-                vals[0].clone()
+                &vals[0]
             }
         }
     }
 
+    /// consumes the TreeNode, returns the value in it (or None if it is not a value)
     pub fn into_value(self) -> Option<P<Value>> {
         match self.v {
             TreeNode_::Value(val) => Some(val),
@@ -688,6 +726,7 @@ impl TreeNode {
         }
     }
 
+    /// consumes the TreeNode, returns the instruction in it (or None if it is not an instruction)
     pub fn into_inst(self) -> Option<Instruction> {
         match self.v {
             TreeNode_::Instruction(inst) => Some(inst),
@@ -696,7 +735,6 @@ impl TreeNode {
     }
 }
 
-/// use +() to display a node
 impl fmt::Display for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.v {
@@ -708,14 +746,18 @@ impl fmt::Display for TreeNode {
     }
 }
 
+/// TreeNode_ is used for pattern matching for TreeNode
 #[derive(Debug, Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
     Instruction(Instruction)
 }
 
-/// always use with P<Value>
-rodal_struct!(Value{hdr, ty, v});
+/// Value represents a value in the tree, it could be SSA variables, constants, globals,
+/// which all will appear in Mu IR. Value may also represent a memory (as in transformed tree,
+/// we need to represent memory as well)
+///
+/// Value should always be used with P<Value> (sharable)
 #[derive(PartialEq)]
 pub struct Value {
     pub hdr: MuEntityHeader,
@@ -723,7 +765,10 @@ pub struct Value {
     pub v: Value_
 }
 
+rodal_struct!(Value{hdr, ty, v});
+
 impl Value {
+    /// creates an int constant value
     pub fn make_int_const(id: MuID, val: u64) -> P<Value> {
         P(Value{
             hdr: MuEntityHeader::unnamed(id),
@@ -753,6 +798,9 @@ impl Value {
         }
     }
 
+    /// disguises a value as another type.
+    /// This is usually used for treat an integer type as an integer of a different length
+    /// This method is unsafe
     pub unsafe fn as_type(&self, ty: P<MuType>) -> P<Value> {
         P(Value{
             hdr: self.hdr.clone(),
@@ -776,6 +824,7 @@ impl Value {
             _ => false
         }
     }
+
     pub fn is_fp_const(&self) -> bool {
         match self.v {
             Value_::Constant(Constant::Float(_)) => true,
@@ -783,11 +832,12 @@ impl Value {
             _ => false
         }
     }
-    pub fn extract_int_const(&self) -> u64 {
+
+    pub fn extract_int_const(&self) -> Option<u64> {
         match self.v {
-            Value_::Constant(Constant::Int(val)) => val,
-            Value_::Constant(Constant::NullRef)  => 0,
-            _ => panic!("expect int const")
+            Value_::Constant(Constant::Int(val)) => Some(val),
+            Value_::Constant(Constant::NullRef)  => Some(0),
+            _ => None
         }
     }
 
@@ -859,7 +909,7 @@ impl fmt::Display for Value {
     }
 }
 
-rodal_enum!(Value_{(SSAVar: id), (Constant: val), (Global: ty), (Memory: location)});
+/// Value_ is used for pattern matching for Value
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value_ {
     SSAVar(MuID),
@@ -868,12 +918,16 @@ pub enum Value_ {
     Memory(MemoryLocation)
 }
 
+rodal_enum!(Value_{(SSAVar: id), (Constant: val), (Global: ty), (Memory: location)});
+
+/// SSAVarEntry represent compilation info for an SSA variable
+//  FIXME: Issue#18
 #[derive(Debug)]
 pub struct SSAVarEntry {
     val: P<Value>,
 
     // how many times this entry is used
-    // availalbe after DefUse pass
+    // available after DefUse pass
     use_count: AtomicUsize,
 
     // this field is only used during TreeGeneration pass
@@ -943,23 +997,30 @@ impl fmt::Display for SSAVarEntry {
     }
 }
 
-rodal_enum!(Constant{(Int: val), (IntEx: val), (Float: val), (Double: val), (FuncRef: val),
-    (Vector: val), NullRef, (ExternSym: val), (List: val)});
+/// Constant presents all kinds of constant that can appear in MuIR
 #[derive(Debug, Clone, PartialEq)]
 pub enum Constant {
+    /// all integer constants are stored as u64
     Int(u64),
     IntEx(Vec<u64>),
+    /// float constants
     Float(f32),
+    /// double constants
     Double(f64),
-//    IRef(Address),
+    /// function reference
     FuncRef(MuID),
+    /// vector constant (currently not used)
     Vector(Vec<Constant>),
-    //Pointer(Address),
+    /// null reference
     NullRef,
+    /// external symbol
     ExternSym(CName),
-
-    List(Vec<P<Value>>) // a composite type of several constants
+    /// a composite type of several constants (currently not used)
+    List(Vec<P<Value>>)
 }
+
+rodal_enum!(Constant{(Int: val), (IntEx: val), (Float: val), (Double: val), (FuncRef: val),
+    (Vector: val), NullRef, (ExternSym: val), (List: val)});
 
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -994,17 +1055,19 @@ impl fmt::Display for Constant {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
-rodal_enum!(MemoryLocation{{Address: scale, base, offset, index}, {Symbolic: is_global, is_native, base, label}});
+/// MemoryLocation represents a memory value
+/// This enumerate type is target dependent
 #[cfg(target_arch = "x86_64")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
+    /// addr = base + offset + index * scale
     Address{
         base: P<Value>, // +8
         offset: Option<P<Value>>,
         index: Option<P<Value>>,
         scale: Option<u8>
     },
+    /// addr = base + label(offset)
     Symbolic{
         base: Option<P<Value>>,
         label: MuName,
@@ -1012,6 +1075,9 @@ pub enum MemoryLocation {
         is_native: bool,
     }
 }
+
+#[cfg(target_arch = "x86_64")]
+rodal_enum!(MemoryLocation{{Address: scale, base, offset, index}, {Symbolic: is_global, is_native, base, label}});
 
 #[cfg(target_arch = "x86_64")]
 impl fmt::Display for MemoryLocation {
@@ -1041,27 +1107,31 @@ impl fmt::Display for MemoryLocation {
     }
 }
 
-#[cfg(target_arch = "aarch64")]
-rodal_enum!(MemoryLocation{{VirtualAddress: signed, base, offset, scale}, {Address: base, offset, shift, signed}, {Symbolic: is_global, is_native, label}});
+/// MemoryLocation represents a memory value
+/// This enumerate type is target dependent
 #[cfg(target_arch = "aarch64")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
-    // Represents how an adress should be computed,
-    // will need to be converted to a real Address before being used
+    /// Represents how an address should be computed,
+    /// will need to be converted to a real Address before being used
     VirtualAddress{
-        // Represents base + offset*scale
-        // With offset being inerpreted as signed if 'signed' is true
+        /// Represents base + offset*scale
+        /// With offset being interpreted as signed if 'signed' is true
         base: P<Value>, //+8
         offset: Option<P<Value>>, //+16
         signed: bool, //+1
         scale: u64 //+24
     },
     Address{
-        base: P<Value>, // Must be a normal 64-bit register or SP
-        offset: Option<P<Value>>, // Can be any GPR or a 12-bit unsigned immediate << n
-        shift: u8, // valid values are 0, log2(n)
-        signed: bool, // Whether offset is signed or not (only set this if offset is a register)
-        // Note: n is the number of bytes the adress refers two
+        /// Must be a normal 64-bit register or SP
+        base: P<Value>,
+        /// Can be any GPR or a 12-bit unsigned immediate << n
+        offset: Option<P<Value>>,
+        /// valid values are 0, log2(n)
+        shift: u8,
+        /// Whether offset is signed or not (only set this if offset is a register)
+        /// Note: n is the number of bytes the adress refers two
+        signed: bool,
     },
     Symbolic{
         label: MuName,
@@ -1069,6 +1139,13 @@ pub enum MemoryLocation {
         is_native: bool,
     }
 }
+
+#[cfg(target_arch = "aarch64")]
+rodal_enum!(MemoryLocation{
+    {VirtualAddress: signed, base, offset, scale},
+    {Address: base, offset, shift, signed},
+    {Symbolic: is_global, is_native, label}}
+);
 
 #[cfg(target_arch = "aarch64")]
 impl fmt::Display for MemoryLocation {
@@ -1105,13 +1182,15 @@ impl fmt::Display for MemoryLocation {
     }
 }
 
-rodal_struct!(MuEntityHeader{id, name});
+/// MuEntityHeader is a prefix struct for all Mu Entities (who have an Mu ID, and possibly a name)
 #[repr(C)]
 #[derive(Debug)] // Display, PartialEq, Clone
 pub struct MuEntityHeader {
     id: MuID,
     name: MuName
 }
+
+rodal_struct!(MuEntityHeader{id, name});
 
 impl Clone for MuEntityHeader {
     fn clone(&self) -> Self {
@@ -1122,7 +1201,7 @@ impl Clone for MuEntityHeader {
     }
 }
 
-/// Returns true if name is a valid_c identifier
+/// returns true if name is a valid_c identifier
 /// (i.e. it contains only ASCII letters, digits and underscores
 /// and does not start with "__" or an digit.
 pub fn is_valid_c_identifier(name: &MuName) -> bool {
@@ -1144,8 +1223,9 @@ pub fn is_valid_c_identifier(name: &MuName) -> bool {
     }
     return true;
 }
-// change mangle_name to mangle name
-// This will always return a valid C identifier
+
+/// changes name to mangled name
+/// This will always return a valid C identifier
 pub fn mangle_name(name: MuName) -> MuName {
     let name = name.replace('@', "");
     if name.starts_with("__mu_") {
@@ -1162,7 +1242,13 @@ pub fn mangle_name(name: MuName) -> MuName {
 }
 
 // WARNING: This only reverses mangle_name above when no warning is issued)
-pub fn demangle_name(name: MuName) -> MuName {
+pub fn demangle_name(mut name: MuName) -> MuName {
+    let name = if cfg!(target_os = "macos") && name.starts_with("___mu_") {
+        name.split_off(1)
+    } else {
+        name
+    };
+
     if name.starts_with("%") {
         panic!("The name '{}'' is local", name);
     }
@@ -1249,6 +1335,7 @@ impl MuEntityHeader {
         self.name.clone()
     }
 
+    /// an abbreviate (easy reading) version of the name
     fn abbreviate_name(&self) -> MuName {
         let split: Vec<&str> = self.name.split('.').collect();
 
@@ -1299,11 +1386,15 @@ impl fmt::Display for MuEntityHeader {
     }
 }
 
+/// MuEntity trait allows accessing id and name on AST data structures
 pub trait MuEntity {
     fn id(&self) -> MuID;
     fn name(&self) -> MuName;
     fn as_entity(&self) -> &MuEntity;
 }
+
+// The following structs defined in this module implement MuEntity
+// TreeNode implements MuEntity in a different way
 
 impl_mu_entity!(MuFunction);
 impl_mu_entity!(MuFunctionVersion);
@@ -1333,16 +1424,4 @@ impl MuEntity for TreeNode {
             TreeNode_::Value(ref pv) => pv.as_entity()
         }
     }
-}
-
-pub fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
-    let mut ret = String::new();
-    for i in 0..vec.len() {
-        let index = vec[i];
-        ret.push_str(format!("{}", ops[index]).as_str());
-        if i != vec.len() - 1 {
-            ret.push_str(", ");
-        }
-    }
-    ret
 }

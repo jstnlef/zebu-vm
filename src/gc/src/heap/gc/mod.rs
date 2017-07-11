@@ -117,7 +117,7 @@ pub fn stack_scan() -> Vec<ObjectReference> {
             ret.push(unsafe {value.to_object_reference()});
         }
         
-        cursor = cursor.plus(POINTER_SIZE);
+        cursor = cursor + POINTER_SIZE;
     }
     
     let roots_from_stack = ret.len();
@@ -281,8 +281,6 @@ fn gc() {
     objectmodel::flip_mark_state();
     trace!("GC finishes");
 }
-
-pub const MULTI_THREAD_TRACE_THRESHOLD : usize = 10;
 
 pub const PUSH_BACK_THRESHOLD : usize = 50;
 pub static GC_THREADS : atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
@@ -473,7 +471,7 @@ pub fn steal_trace_object(obj: ObjectReference, local_queue: &mut Vec<ObjectRefe
     // this part of code has some duplication with code in objectdump
     // FIXME: remove the duplicate code - use 'Tracer' trait
 
-    let hdr = unsafe {addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
+    let hdr = unsafe {(addr + objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
 
     if objectmodel::header_is_fix_size(hdr) {
         // fix sized type
@@ -589,7 +587,7 @@ pub fn steal_process_edge(base: Address, offset: usize, local_queue:&mut Vec<Obj
 #[inline(always)]
 #[cfg(not(feature = "use-sidemap"))]
 pub fn steal_process_edge(base: Address, offset: usize, local_queue:&mut Vec<ObjectReference>, job_sender: &mpsc::Sender<ObjectReference>, mark_state: u8, immix_space: &ImmixSpace, lo_space: &FreeListSpace) {
-    let field_addr = base.plus(offset);
+    let field_addr = base + offset;
     let edge = unsafe {field_addr.load::<ObjectReference>()};
 
     if cfg!(debug_assertions) {
