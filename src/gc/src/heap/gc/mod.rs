@@ -282,8 +282,6 @@ fn gc() {
     trace!("GC finishes");
 }
 
-pub const MULTI_THREAD_TRACE_THRESHOLD : usize = 10;
-
 pub const PUSH_BACK_THRESHOLD : usize = 50;
 pub static GC_THREADS : atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 

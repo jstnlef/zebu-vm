@@ -1088,12 +1088,9 @@ impl <'a> VM {
 
     /// performs GETIREF
     pub fn handle_get_iref(&self, handle_ref: APIHandleArg) -> APIHandleResult {
-        use runtime::mm::objectmodel::GC_IREF_HAS_OFFSET;
-
         let (ty, addr) = handle_ref.v.as_ref();
 
         // assume iref has the same address as ref
-        debug_assert!(!GC_IREF_HAS_OFFSET);
         let ret = self.new_handle(APIHandle {
             id: self.next_id(),
             v : APIHandleValue::IRef(ty, addr)

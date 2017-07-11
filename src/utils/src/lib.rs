@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Utility crate that serves Zebu includes:
+//! # Utility crate that serves Zebu
+//!
+//! It includes:
 //! * data structures
 //!   * double linked list
 //!   * linked hashmap/set

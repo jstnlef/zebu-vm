@@ -472,9 +472,6 @@ mod tests {
 
     #[test]
     fn test_treadmill_alloc_spanblock() {
-        use simple_logger;
-        simple_logger::init().unwrap();
-
         let space = FreeListSpace::new(BLOCK_SIZE * 20);
 
         for i in 0..5 {
@@ -486,9 +483,6 @@ mod tests {
 
     #[test]
     fn test_treadmill_sweep() {
-        use simple_logger;
-        simple_logger::init().unwrap();
-
         let space = FreeListSpace::new(BLOCK_SIZE * 20);
 
         for i in 0..5 {

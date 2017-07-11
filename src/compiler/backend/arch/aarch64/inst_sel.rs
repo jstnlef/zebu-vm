@@ -23,7 +23,7 @@ use ast::op::*;
 use ast::types::*;
 use vm::VM;
 use runtime::mm;
-use runtime::mm::objectmodel::OBJECT_HEADER_SIZE;
+use runtime::mm::OBJECT_HEADER_SIZE;
 
 use runtime::ValueLocation;
 use runtime::thread;

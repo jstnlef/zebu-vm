@@ -15,8 +15,6 @@
 use std::sync::atomic;
 use utils::ByteSize;
 
-pub const GC_IREF_HAS_OFFSET : bool = false;
-
 #[cfg(feature = "use-sidemap")]
 mod sidemap;
 #[cfg(not(feature = "use-sidemap"))]
@@ -38,10 +36,6 @@ pub fn flip_mark_state() {
 
 pub fn load_mark_state() -> u8 {
     MARK_STATE.load(atomic::Ordering::SeqCst) as u8
-}
-
-pub fn flip(mark: u8) -> u8 {
-    mark ^ 1
 }
 
 #[inline(always)]

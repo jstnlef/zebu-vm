@@ -20,8 +20,8 @@ use ast::op::*;
 use ast::types::*;
 use vm::VM;
 use runtime::mm;
-use runtime::mm::objectmodel::OBJECT_HEADER_SIZE;
-use runtime::mm::objectmodel::OBJECT_HEADER_OFFSET;
+use runtime::mm::OBJECT_HEADER_SIZE;
+use runtime::mm::OBJECT_HEADER_OFFSET;
 use runtime::ValueLocation;
 use runtime::thread;
 use runtime::entrypoints;
@@ -1411,9 +1411,6 @@ impl <'a> InstructionSelection {
                             Some(node), f_content, f_context, vm);
                     }
                     Instruction_::CommonInst_GetAddr(op) => {
-                        use runtime::mm::objectmodel::GC_IREF_HAS_OFFSET;
-                        debug_assert!(!GC_IREF_HAS_OFFSET);
-
                         trace!("instsel on GETADDR");
 
                         // assume it is pinned

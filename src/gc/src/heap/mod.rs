@@ -22,8 +22,6 @@ pub mod immix;
 pub mod freelist;
 pub mod gc;
 
-pub const ALIGNMENT_VALUE : u8 = 1;
-
 pub const IMMIX_SPACE_RATIO : f64 = 1.0 - LO_SPACE_RATIO;
 pub const LO_SPACE_RATIO : f64 = 0.2;
 pub const DEFAULT_HEAP_SIZE : usize = 500 << 20;
@@ -97,7 +95,11 @@ pub trait Space {
     }
 }
 
+#[allow(dead_code)]
+pub const ALIGNMENT_VALUE : u8 = 1;
+
 #[inline(always)]
+#[allow(dead_code)]
 pub fn fill_alignment_gap(start : Address, end : Address) -> () {
     debug_assert!(end >= start);
     unsafe {start.memset(ALIGNMENT_VALUE, end - start);}
