@@ -47,7 +47,8 @@ pub fn is_terminal_inst(inst: &Instruction_) -> bool {
         | &CommonInst_Pin(_)
         | &CommonInst_Unpin(_)
         | &Move(_)
-        | &PrintHex(_) => false,
+        | &PrintHex(_)
+        | &SetRetval(_) => false,
         &Return(_)
         | &ThreadExit
         | &Throw(_)
@@ -114,7 +115,8 @@ pub fn has_side_effect(inst: &Instruction_) -> bool {
         &CommonInst_Pin(_) => true,
         &CommonInst_Unpin(_) => true,
         &Move(_) => false,
-        &PrintHex(_) => true
+        &PrintHex(_) => true,
+        &SetRetval(_) => true
     }
 }
 
@@ -164,6 +166,7 @@ pub fn is_potentially_excepting_instruction(inst: &Instruction_) -> bool {
         | &CommonInst_Pin(_)
         | &CommonInst_Unpin(_)
         | &Move(_)
-        | &PrintHex(_) => false
+        | &PrintHex(_)
+        | &SetRetval(_) => false
     }
 }

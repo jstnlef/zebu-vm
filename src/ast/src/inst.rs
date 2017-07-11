@@ -142,7 +142,8 @@ impl Instruction {
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
             | Move(_)
-            | PrintHex(_) => None
+            | PrintHex(_)
+            | SetRetval(_) => None
         }
     }
 
@@ -357,7 +358,8 @@ pub enum Instruction_ {
     // internal use: mov from ops[0] to value
     Move(OpIndex),
     // internal use: print op as hex value
-    PrintHex(OpIndex)
+    PrintHex(OpIndex),
+    SetRetval(OpIndex)
 }
 
 impl Instruction_ {
@@ -484,7 +486,9 @@ impl Instruction_ {
             // move
             &Instruction_::Move(from) => format!("MOVE {}", ops[from]),
             // print hex
-            &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i])
+            &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i]),
+            // set retval
+            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val])
         }
     }
 }

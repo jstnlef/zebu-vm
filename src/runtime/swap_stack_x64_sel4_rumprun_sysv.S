@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#include "asm_common_x64.S.inc"
+#include "asm_common_x64_sel4_rumprun.S.inc"
 
 # swap_stack_to(new_sp: Address, entry: Address, old_sp_loc: Address)
 #               %rdi             %rsi            %rdx
@@ -100,13 +100,7 @@ begin_func muentry_throw_exception
          # %rsp points to %rbx, pass this as 2nd argument
          movq  %rsp, %rsi
 
-#if defined (__linux__)
          jmp CNAME(throw_exception_internal@PLT)
-#elif defined (__APPLE__)
-         jmp CNAME(throw_exception_internal)
-#else
-         #error "Only Linux and OSX are supported. "
-#endif
          # won't return
 
 # _exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !

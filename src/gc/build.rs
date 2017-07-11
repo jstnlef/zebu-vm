@@ -32,3 +32,14 @@ fn main() {
 fn main() {
     gcc::compile_library("libgc_clib_aarch64.a", &["src/heap/gc/clib_aarch64.S"]);
 }
+
+#[cfg(feature = "sel4-rumprun")]
+#[cfg(target_arch = "x86_64")]
+fn main() {
+    let mut compiler_name = String::new();
+    compiler_name.push_str("x86_64-rumprun-netbsd-gcc");
+    gcc::Config::new().flag("-O3").flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("src/heap/gc/clib_x64_sel4_rumprun.c")
+        .compile("libgc_clib_x64_sel4_rumprun.a");
+}

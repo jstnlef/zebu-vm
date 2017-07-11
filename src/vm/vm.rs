@@ -431,6 +431,7 @@ impl <'a> VM {
         VM::new_internal(VMOptions::init(str))
     }
 
+    #[cfg(not(feature = "sel4-rumprun"))]
     fn new_internal(options: VMOptions) -> VM {
         VM::start_logging(options.flag_log_level);
 
@@ -459,6 +460,69 @@ impl <'a> VM {
 
             aot_pending_funcref_store: RwLock::new(HashMap::new())
         };
+
+        // insert all intenral types
+        {
+            let mut types = ret.types.write().unwrap();
+            for ty in INTERNAL_TYPES.iter() {
+                types.insert(ty.id(), ty.clone());
+            }
+        }
+
+        ret.is_running.store(false, Ordering::SeqCst);
+
+        // Does not need SeqCst.
+        //
+        // If VM creates Mu threads and Mu threads calls traps, the trap handler still "happens
+        // after" the creation of the VM itself. Rust does not have a proper memory model, but this
+        // is how C++ works.
+        //
+        // If the client needs to create client-level threads, however, the client should properly
+        // synchronise at the time of inter-thread communication, rather than creation of the VM.
+        ret.next_id.store(USER_ID_START, Ordering::Relaxed);
+
+        // init types
+        types::init_types();
+
+        ret.init_runtime();
+
+        ret
+    }
+
+    #[cfg(feature = "sel4-rumprun")]
+    fn new_internal(options: VMOptions) -> VM {
+        VM::start_logging(options.flag_log_level);
+
+        let ret = VM {
+            next_id: ATOMIC_USIZE_INIT,
+            is_running: ATOMIC_BOOL_INIT,
+            vm_options: options,
+
+            id_name_map: RwLock::new(HashMap::new()),
+            name_id_map: RwLock::new(HashMap::new()),
+
+            constants: RwLock::new(HashMap::new()),
+
+            types: RwLock::new(HashMap::new()),
+            backend_type_info: RwLock::new(HashMap::new()),
+
+            globals: RwLock::new(HashMap::new()),
+            global_locations: RwLock::new(hashmap!{}),
+
+            func_sigs: RwLock::new(HashMap::new()),
+            func_vers: RwLock::new(HashMap::new()),
+            funcs: RwLock::new(HashMap::new()),
+            compiled_funcs: RwLock::new(HashMap::new()),
+
+            primordial: RwLock::new(None),
+
+            aot_pending_funcref_store: RwLock::new(HashMap::new())
+        };
+
+        // currently, the default sizes don't work on sel4-rumprun platform
+        // this is due to memory allocation size limitations
+        ret.vm_options.flag_gc_immixspace_size = 1<<19;
+        ret.vm_options.flag_gc_lospace_size = 1<<19;
 
         // insert all intenral types
         {

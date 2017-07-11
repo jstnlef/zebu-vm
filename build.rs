@@ -44,3 +44,22 @@ fn main() {
         .file("src/runtime/swap_stack_aarch64_sysv.S")
         .compile("libswap_stack.a");
 }
+
+#[cfg(feature = "sel4-rumprun")]
+#[cfg(target_arch = "x86_64")]
+fn main() {
+    let mut compiler_name = String::new();
+    compiler_name.push_str("x86_64-rumprun-netbsd-gcc");
+    gcc::Config::new().flag("-O3").flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("src/runtime/runtime_x64_sel4_rumprun_sysv.c")
+        .compile("libruntime.a");
+    gcc::Config::new().flag("-O3").flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("src/runtime/swap_stack_x64_sysv.S")
+        .compile("libswap_stack.a");
+    gcc::Config::new().flag("-O3").flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("c_helpers.c")
+        .compile("libc_helpers.a");
+}

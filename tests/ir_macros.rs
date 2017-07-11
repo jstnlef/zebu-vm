@@ -587,5 +587,138 @@ macro_rules! inst {
             ops: vec![$val.clone()],
             v: Instruction_::PrintHex(0)
         });
-    }
+    };
+    // SET_RETVAL
+    (($vm: expr, $fv: ident) $name: ident: SET_RETVAL $val: ident) => {
+        let $name = $fv.new_inst(Instruction{
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: None,
+            ops: vec![$val.clone()],
+            v: Instruction_::SetRetval(0)
+        });
+    };
+}
+
+/**************************************
+This macro is used as follows:
+1- for a test like add_simple(int, int) -> int,
+the following syntax should be used (each I  means an int):
+      emit_test! ((vm) (add test1 III (sig, int64(1), int64(1), int64(2))));
+2- for a test like add_double(double, double) -> double,
+the following syntax should be used (each I  means an int):
+      emit_test! ((vm) (double_add test1 FFF (sig, f64(1f64), f64(1f64), f64(2f64))));
+
+0- other test types may be manually added using the same approach
+***************************************
+Macro limitations and points to use:
+1 - Macro assumes that the test function signature is named "sig" \
+    as currently is.
+
+****************************************/
+macro_rules! emit_test {
+    (($vm: expr) ($name: ident $test_name: ident III ($test_sig: ident, $ty1: ident($in1: expr), $ty2: ident($in2: expr), $ty3: ident($out: expr)))) => {
+        typedef!    (($vm) int1  = mu_int(1));
+        constdef!   (($vm) <$ty1> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <$ty1> int64_fail = Constant::Int(1));
+        constdef!   (($vm) <$ty1> int64_0 = Constant::Int($in1));
+        constdef!   (($vm) <$ty2> int64_1 = Constant::Int($in2));
+        constdef!   (($vm) <$ty3> int64_2 = Constant::Int($out));
+
+        funcsig!    (($vm) tester_sig = () -> ());
+        funcdecl!   (($vm) <tester_sig> $test_name);
+        funcdef!    (($vm) <tester_sig> $test_name VERSION tester_mu_v1);
+
+        ssa!    (($vm, tester_mu_v1) <$ty1> a);
+        ssa!    (($vm, tester_mu_v1) <$ty1> b);
+
+        typedef!    (($vm) type_funcref = mu_funcref($test_sig));
+        constdef!   (($vm) <type_funcref> const_funcref = Constant::FuncRef($vm.id_of(stringify!($name))));
+
+        // blk_entry
+        consta!     (($vm, tester_mu_v1) int64_0_local = int64_0);
+        consta!     (($vm, tester_mu_v1) int64_1_local = int64_1);
+
+        block!      (($vm, tester_mu_v1) blk_entry);
+
+        consta!     (($vm, tester_mu_v1) const_funcref_local = const_funcref);
+        ssa!    (($vm, tester_mu_v1) <$ty3> result);
+        inst!   (($vm, tester_mu_v1) blk_entry_call:
+            result = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_local (int64_0_local, int64_1_local)
+        );
+
+        consta!     (($vm, tester_mu_v1) int64_2_local = int64_2);
+        consta!     (($vm, tester_mu_v1) int64_pass_local = int64_pass);
+        consta!     (($vm, tester_mu_v1) int64_fail_local = int64_fail);
+        ssa!    (($vm, tester_mu_v1) <int1> cmp_res);
+        inst!   (($vm, tester_mu_v1) blk_entry_cmp:
+            cmp_res = CMPOP (CmpOp::EQ) result int64_2_local
+        );
+
+        ssa!    (($vm, tester_mu_v1) <$ty1> blk_entry_ret);
+        inst!   (($vm, tester_mu_v1) blk_entry_inst_select:
+            blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
+        );
+
+        inst!   (($vm, tester_mu_v1) blk_entry_inst_ret:
+             SET_RETVAL blk_entry_ret
+        );
+        inst!   (($vm, tester_mu_v1) blk_entry_inst_exit:
+            THREADEXIT
+        );
+
+        define_block!   (($vm, tester_mu_v1) blk_entry(a, b) {
+             blk_entry_call,
+             blk_entry_cmp,
+             blk_entry_inst_select,
+             blk_entry_inst_ret,
+             blk_entry_inst_exit
+        });
+
+        define_func_ver!    (($vm) tester_mu_v1 (entry: blk_entry) {
+            blk_entry
+        });
+
+    };
+}
+
+/*
+This macro is used as follows:
+1 - for add_simple:
+    compile_and_run_test! (add, tester_mu);
+*/
+macro_rules! build_and_run_test {
+    ($test_name: ident, $tester_name: ident) => {
+        VM::start_logging_trace();
+
+        let vm = Arc::new($test_name());
+
+        let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+        let func_id = vm.id_of(stringify!($tester_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+
+        vm.make_primordial_thread(func_id, true, vec![]);
+
+        let func_id = vm.id_of(stringify!($test_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+
+        backend::emit_context(&vm);
+        let output_name = stringify!($test_name).to_string()+"_"+stringify!($tester_name);
+        let executable = aot::link_test_primordial(vec![stringify!($test_name).to_string(), stringify!($tester_name).to_string()], output_name.as_str(), &vm);
+        aot::execute(executable);
+    };
 }

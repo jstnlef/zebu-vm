@@ -176,6 +176,61 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
                              out_path)
 }
 
+pub fn link_test_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
+    let emit_dir = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+
+    let files : Vec<PathBuf> = {
+        use std::fs;
+
+        let mut ret = vec![];
+
+        // all interested mu funcs
+        for func in funcs {
+            ret.push(get_path_for_mu_func(func, vm));
+        }
+
+        // mu context
+        ret.push(get_path_for_mu_context(vm));
+
+        // copy primoridal entry
+        let source   = get_path_under_mu(runtime::TEST_PRIMORDIAL_ENTRY);
+        let dest = {
+            let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
+            ret.push("main_test.c");
+
+            ret
+        };
+
+        trace!("copying from {:?} to {:?}", source, dest);
+        match fs::copy(source.as_path(), dest.as_path()) {
+            Ok(_)  => {},
+            Err(e) => panic!("failed to copy: {}", e)
+        }
+
+        // include the primordial C main
+        ret.push(dest);
+
+        // include mu static lib
+        let libmu_path = if cfg!(debug_assertions) {
+            "target/debug/libmu.a"
+        } else {
+            "target/release/libmu.a"
+        };
+        let libmu = get_path_under_mu(libmu_path);
+        ret.push(libmu);
+
+        ret
+    };
+
+    let mut out_path = emit_dir.clone();
+    out_path.push(out);
+
+    link_executable_internal(files,
+                             &vm.vm_options.flag_bootimage_external_lib,
+                             &vm.vm_options.flag_bootimage_external_libpath,
+                             out_path)
+}
+
 pub fn execute(executable: PathBuf) -> Output {
     let run = Command::new(executable.as_os_str());
     exec(run)

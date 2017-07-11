@@ -34,7 +34,13 @@ use std::thread::JoinHandle;
 use std::sync::Arc;
 use std::fmt;
 
+use std::os::raw::c_int;
+
+#[cfg(not(feature = "sel4-rumprun"))]
 pub const STACK_SIZE : ByteSize = (4 << 20); // 4mb
+
+#[cfg(feature = "sel4-rumprun")]
+pub const STACK_SIZE : ByteSize = (4 << 16); // 256kb
 
 #[cfg(target_arch = "aarch64")]
 pub const PAGE_SIZE  : ByteSize = (4 << 10); // 4kb
@@ -330,6 +336,7 @@ extern "C" {
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
     pub fn muentry_get_thread_local() -> Address;
+    fn c_check_result() -> c_int;
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -338,6 +345,7 @@ extern "C" {
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
     pub fn muentry_get_thread_local() -> Address;
+    fn c_check_result() -> c_int;
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -349,6 +357,31 @@ extern "C" {
     fn muentry_swap_back_to_native_stack(sp_loc: Address);
     pub fn get_current_frame_rbp() -> Address;
     pub fn exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !;
+}
+
+#[cfg(target_arch = "x86_64")]
+#[cfg(feature = "sel4-rumprun")]
+#[link(name = "runtime")]
+extern "C" {
+    pub fn set_thread_local(thread: *mut MuThread);
+    pub fn muentry_get_thread_local() -> Address;
+    fn c_check_result() -> c_int;
+}
+
+#[cfg(target_arch = "x86_64")]
+#[cfg(feature = "sel4-rumprun")]
+#[link(name = "swap_stack")]
+extern "C" {
+    fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
+    fn fake_swap_mu_thread(old_sp_loc: Address);
+    fn muentry_swap_back_to_native_stack(sp_loc: Address);
+    pub fn get_current_frame_rbp() -> Address;
+    pub fn exception_restore(dest: Address, callee_saved: *const Word, rsp: Address) -> !;
+}
+
+pub fn check_result() -> c_int {
+    let result = unsafe { c_check_result() };
+    result
 }
 
 impl MuThread {

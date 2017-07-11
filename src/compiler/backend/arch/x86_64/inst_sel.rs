@@ -1444,7 +1444,24 @@ impl <'a> InstructionSelection {
                             Some(node), f_content, f_context, vm
                         );
                     }
-    
+
+                    Instruction_::SetRetval(index) => {
+                        trace!("instsel on SETRETVAL");
+
+                        let ref ops = inst.ops;
+                        let ref op  = ops[index];
+
+                        assert!(self.match_ireg(op));
+                        let retval = self.emit_ireg(op, f_content, f_context, vm);
+
+                        self.emit_runtime_entry(
+                            &entrypoints::SET_RETVAL,
+                            vec![op.clone_value()],
+                            None,
+                            Some(node), f_content, f_context, vm
+                        );
+                    }
+
                     _ => unimplemented!()
                 } // main switch
             },
@@ -3932,6 +3949,9 @@ impl <'a> InstructionSelection {
                                 } else if cfg!(target_os = "linux") {
                                     let mem = self.get_mem_for_funcref(func_id, vm);
                                     self.backend.emit_mov_r_mem(&tmp, &mem);
+                                } else if cfg!(feature = "sel4-rumprun") {
+                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    self.backend.emit_mov_r_mem(&tmp, &mem);
                                 } else {
                                     unimplemented!()
                                 }
@@ -4108,6 +4128,25 @@ impl <'a> InstructionSelection {
                                     })
                                 })
                             } else if cfg!(target_os = "linux") {
+                                // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
+                                // then load from the address.
+                                // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
+                                let got_loc = P(Value {
+                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                    ty: pv.ty.clone(),
+                                    v: Value_::Memory(MemoryLocation::Symbolic {
+                                        base: Some(x86_64::RIP.clone()),
+                                        label: pv.name().unwrap(),
+                                        is_global: true
+                                    })
+                                });
+
+                                // mov (got_loc) -> actual_loc
+                                let actual_loc = self.make_temporary(f_context, pv.ty.clone(), vm);
+                                self.emit_move_value_to_value(&actual_loc, &got_loc);
+
+                                self.make_memory_op_base_offset(&actual_loc, 0, types::get_referent_ty(&pv.ty).unwrap(), vm)
+                            } else if cfg!(feature = "sel4-rumprun") {
                                 // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
                                 // then load from the address.
                                 // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
@@ -4695,7 +4734,9 @@ impl <'a> InstructionSelection {
 
         layout[index] as i32
     }
-    
+
+    // Primordial function name was added as part of the callsite label \
+    // because it avoids conflicts between labels of different tests
     fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
         let ret = {
             if cur_node.is_some() {

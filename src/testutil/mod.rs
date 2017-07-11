@@ -86,6 +86,12 @@ pub fn get_dylib_name(name: &'static str) -> String {
     format!("lib{}.so", name)
 }
 
+#[cfg(feature = "sel4-rumprun")]
+pub fn get_dylib_name(name: &'static str) -> String {
+    panic!("get_dylib_name: Dynamic Library is not supported in seL4-rumprun");
+    format!("lib{}.so", name)
+}
+
 pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll::Library {
     VM::start_logging_trace();
 

@@ -21,6 +21,7 @@ use utils::Address;
 
 use std::fmt;
 use std::os::raw::c_int;
+use std::os::raw::c_long;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::ffi::CString;
@@ -43,6 +44,7 @@ pub mod exception;
 // consider using libloading crate instead of the raw c functions for dynalic libraries
 // however i am not sure if libloading can load symbols from current process (not from an actual dylib)
 // so here i use dlopen/dlsym from C
+#[cfg(not(feature = "sel4-rumprun"))]
 #[link(name="dl")]
 extern "C" {
     fn dlopen(filename: *const c_char, flags: isize) -> *const c_void;
@@ -50,6 +52,7 @@ extern "C" {
     fn dlerror() -> *const c_char;
 }
 
+#[cfg(not(feature = "sel4-rumprun"))]
 pub fn resolve_symbol(symbol: String) -> Address {
     use std::ptr;
 
@@ -67,6 +70,45 @@ pub fn resolve_symbol(symbol: String) -> Address {
         panic!("failed to resolve symbol");
     }
     
+    Address::from_ptr(ret)
+}
+
+// This function is specific to sel4-rumprun platform
+// it replaces the resolve_symbol function provided by Linux and Mac
+// all other platforms (except sel4-rumprun) already provide this function
+#[cfg(feature = "sel4-rumprun")]
+#[link(name="c_helpers")]
+extern "C" {
+    fn c_resolve_symbol(symbol: *const c_char) -> *const c_void;
+}
+
+// Although it is possible to directly \
+// compile, call and check results of Mu test functions \
+// in Linux and Mac, but in-order to unify testing styles \
+// I will use this C function to check the correctness of results
+// *************************************************
+// #[link(name="runtime")]
+// extern "C" {
+//    fn c_check_result() -> c_long;
+// }
+//
+// pub fn check_result() -> c_long {
+//     let result = unsafe { c_check_result() };
+//     result
+// }
+// *************************************************
+// This code has been moved to thread.rs \
+// due to the linkage with libruntime.a happenning there once
+
+// TODO
+// resolve symbol is different from the one used for Linux and Mac
+#[cfg(feature = "sel4-rumprun")]
+pub fn resolve_symbol(symbol: String) -> Address {
+    let ret = unsafe { c_resolve_symbol(CString::new(symbol.clone()).unwrap().as_ptr()) };
+    if ret.is_null() {
+        panic!("failed to resolve symbol: {}", symbol.clone());
+    }
+    debug!("Symbol -{}- resolved", symbol);
     Address::from_ptr(ret)
 }
 
@@ -206,6 +248,7 @@ impl ValueLocation {
 }
 
 pub const PRIMORDIAL_ENTRY : &'static str = "src/runtime/main.c";
+pub const TEST_PRIMORDIAL_ENTRY : &'static str = "src/runtime/main_test.c";
 
 #[no_mangle]
 pub extern fn mu_trace_level_log() {

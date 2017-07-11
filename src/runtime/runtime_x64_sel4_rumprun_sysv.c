@@ -21,24 +21,40 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <dlfcn.h>
 #include <pthread.h>
 
-__thread void* mu_tls;
+int tls_initialized = 0;
+
+static pthread_key_t mu_tls;
 
 void set_thread_local(void* thread) {
-    // printf("Thread%p: setting mu_tls to %p\n", (void*) pthread_self(), thread);
-    mu_tls = thread;
+    if(tls_initialized == 0){
+        tls_initialized = 1;
+        int result = pthread_key_create(&mu_tls, NULL);
+        if(result != 0){
+            printf("Set_Thread_Local(): PThread key create failed with error code = %d\n", result);
+            assert(0);
+        }
+    }
+    int result = pthread_setspecific(mu_tls, thread);
+    if(result != 0){
+        printf("Set_Thread_Local(): PThread set specific failed with error code = %d\n", result);
+        assert(0);
+    }
 }
 
 void* muentry_get_thread_local() {
-//    printf("Thread%p: getting mu_tls as %p\n", (void*) pthread_self(), mu_tls);
-    return mu_tls;
-}
+    if(tls_initialized == 0){
+        printf("Get_Thread_Local(): PThread key MUST be initialized before first use!!\n");
+        assert(0);
+    }
+    void * result = pthread_getspecific(mu_tls);
+    if(result == NULL){
+        printf("Get_Thread_Local(): NO pthread key found for current thread!!\n");
+        assert(0);
+    }
 
-void* resolve_symbol(const char* sym) {
-    // printf("%s\n", sym);
-    return dlsym(RTLD_DEFAULT, sym);
+    return result;
 }
 
 int32_t mu_retval;

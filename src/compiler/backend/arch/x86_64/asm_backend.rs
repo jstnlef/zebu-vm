@@ -3028,7 +3028,25 @@ impl CodeGenerator for ASMCodeGen {
 
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
-    
+
+    #[cfg(feature = "sel4-rumprun")]
+    // exactly the same as Linux:
+    // generating Position-Independent Code using PLT
+    fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
+        trace!("emit: call {}", func);
+
+        let func = func + "@PLT";
+
+        let asm = format!("call {}", symbol(func));
+        self.add_asm_call(asm, pe);
+
+        let callsite_symbol = symbol(callsite.clone());
+        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
+        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
+
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+    }
+
     fn emit_call_near_r64(&mut self, callsite: String, func: &P<Value>, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
 
@@ -3437,6 +3455,13 @@ fn write_align(f: &mut File, align: ByteSize) {
     f.write_fmt(format_args!("\t.align {}\n", n)).unwrap();
 }
 
+// The alignment is exactly the same as Linux
+#[cfg(feature = "sel4-rumprun")]
+fn write_align(f: &mut File, align: ByteSize) {
+    use std::io::Write;
+    f.write_fmt(format_args!("\t.align {}\n", check_min_align(align))).unwrap();
+}
+
 fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
     use std::io::Write;
 
@@ -3689,6 +3714,12 @@ pub fn symbol(name: String) -> String {
 pub fn symbol(name: String) -> String {
     format!("_{}", name)
 }
+// same as Linux
+#[cfg(feature = "sel4-rumprun")]
+pub fn symbol(name: String) -> String {
+    name
+}
+
 
 #[allow(dead_code)]
 #[cfg(target_os = "linux")]
@@ -3699,6 +3730,12 @@ pub fn pic_symbol(name: String) -> String {
 #[cfg(target_os = "macos")]
 pub fn pic_symbol(name: String) -> String {
     symbol(name)
+}
+// same as Linux
+#[allow(dead_code)]
+#[cfg(feature = "sel4-rumprun")]
+pub fn pic_symbol(name: String) -> String {
+    format!("{}@GOTPCREL", name)
 }
 
 use compiler::machine_code::CompiledFunction;
