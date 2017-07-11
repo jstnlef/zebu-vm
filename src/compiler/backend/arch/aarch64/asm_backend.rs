@@ -2011,59 +2011,6 @@ impl CodeGenerator for ASMCodeGen {
         self.cur().blocks.contains_key(&block_name)
     }
 
-    fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>) {
-        let cur = self.cur_mut();
-
-        match cur.blocks.get_mut(&block_name) {
-            Some(ref mut block) => {
-                if block.livein.is_empty() {
-                    let mut live_in = {
-                        let mut ret = vec![];
-                        for p in live_in {
-                            match p.extract_ssa_id() {
-                                Some(id) => ret.push(id),
-                                // this should not happen
-                                None => error!("{} as live-in of block {} is not SSA", p, block_name)
-                            }
-                        }
-                        ret
-                    };
-                    block.livein.append(&mut live_in);
-                } else {
-                    panic!("seems we are inserting livein to block {} twice", block_name);
-                }
-            }
-            None => panic!("haven't created ASMBlock for {}", block_name)
-        }
-    }
-
-    fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>) {
-        let cur = self.cur_mut();
-
-        match cur.blocks.get_mut(&block_name) {
-            Some(ref mut block) => {
-                if block.liveout.is_empty() {
-                    let mut live_out = {
-                        let mut ret = vec![];
-                        for p in live_out {
-                            match p.extract_ssa_id() {
-                                Some(id) => ret.push(id),
-                                // the liveout are actually args out of this block
-                                // (they can be constants)
-                                None => trace!("{} as live-out of block {} is not SSA", p, block_name)
-                            }
-                        }
-                        ret
-                    };
-                    block.liveout.append(&mut live_out);
-                } else {
-                    panic!("seems we are inserting liveout to block {} twice", block_name);
-                }
-            }
-            None => panic!("haven't created ASMBlock for {}", block_name)
-        }
-    }
-
     fn add_cfi_sections(&mut self, arg: &str) { self.add_asm_symbolic(format!(".cfi_sections {}", arg)); }
     fn add_cfi_startproc(&mut self) {
         self.add_asm_symbolic(".cfi_startproc".to_string());
@@ -2098,6 +2045,22 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_inst(
             asm,
             linked_hashmap!{}, // let reg alloc ignore this instruction
+            linked_hashmap!{},
+            false
+        )
+    }
+
+    fn emit_frame_shrink(&mut self) {
+        trace!("emit: \tframe shrink");
+
+        let asm = format!("ADD SP,SP,#{}", FRAME_SIZE_PLACEHOLDER.clone());
+
+        let line = self.line();
+        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 11, FRAME_SIZE_PLACEHOLDER_LEN, 0));
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{},
             linked_hashmap!{},
             false
         )

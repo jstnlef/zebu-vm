@@ -190,7 +190,7 @@ impl <'a> InstructionSelection {
                         // we need to explicitly jump to it
                         self.finish_block();
                         let fallthrough_temp_block = make_block_name(&self.current_fv_name, node.id(), "branch_fallthrough", );
-                        self.start_block(fallthrough_temp_block, &vec![]);
+                        self.start_block(fallthrough_temp_block);
 
                         let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
                         self.backend.emit_b(fallthrough_target);
@@ -344,7 +344,7 @@ impl <'a> InstructionSelection {
 
                                 self.finish_block();
                                 let block_name = make_block_name(&self.current_fv_name, node.id(), format!("switch_not_met_case_{}", case_op_index).as_str());
-                                self.start_block(block_name, &vec![]);
+                                self.start_block(block_name);
                             }
 
                             // emit default
@@ -637,7 +637,7 @@ impl <'a> InstructionSelection {
                                         self.backend.emit_tbnz(&tmp_res, (to_ty_size - 1) as u8, blk_negative.clone());
                                         self.finish_block();
 
-                                        self.start_block(blk_positive.clone(), &vec![]);
+                                        self.start_block(blk_positive.clone());
                                         {
                                             // check to see if the higher bits are the same as the
                                             // sign bit (which is 0), if their not there's an overflow
@@ -651,7 +651,7 @@ impl <'a> InstructionSelection {
                                             self.backend.emit_b(blk_end.clone());
                                             self.finish_block();
                                         }
-                                        self.start_block(blk_negative.clone(), &vec![]);
+                                        self.start_block(blk_negative.clone());
                                         {
                                             self.backend.emit_mvn(&tmp, &tmp_res);
                                             // check to see if the higher bits of temp are the same as the
@@ -665,7 +665,7 @@ impl <'a> InstructionSelection {
                                             self.backend.emit_csel(&tmp_res, &tmp, &tmp_res, "EQ");
                                             self.finish_block();
                                         }
-                                        self.start_block(blk_end.clone(), &vec![]);
+                                        self.start_block(blk_end.clone());
                                     }
                                 }
                             },
@@ -751,7 +751,7 @@ impl <'a> InstructionSelection {
                                     let blk_load_start = make_block_name(&self.current_fv_name, node.id(), "load_start");
 
                                     // load_start:
-                                    self.start_block(blk_load_start.clone(), &vec![temp_loc.clone()]);
+                                    self.start_block(blk_load_start.clone());
 
 
                                     // Load the value:
@@ -853,7 +853,7 @@ impl <'a> InstructionSelection {
                                     let blk_store_start = make_block_name(&self.current_fv_name, node.id(), "store_start");
 
                                     // store_start:
-                                    self.start_block(blk_store_start.clone(), &vec![temp_loc.clone()]);
+                                    self.start_block(blk_store_start.clone());
 
                                     let success = make_temporary(f_context, UINT1_TYPE.clone(), vm);
                                     let discard_reg = cast_value(&success, &UINT64_TYPE);
@@ -924,7 +924,7 @@ impl <'a> InstructionSelection {
                         self.finish_block();
 
                         // cmpxchg_start:
-                        self.start_block(blk_cmpxchg_start.clone(), &vec![loc.clone(),expected.clone(), desired.clone()]);
+                        self.start_block(blk_cmpxchg_start.clone());
 
                         if use_acquire {
                             match res_value.ty.v {
@@ -1011,7 +1011,7 @@ impl <'a> InstructionSelection {
                         self.finish_block();
 
                         // cmpxchg_failed:
-                        self.start_block(blk_cmpxchg_failed.clone(), &vec![res_success.clone(), res_value.clone()]);
+                        self.start_block(blk_cmpxchg_failed.clone());
 
                         self.backend.emit_clrex();
                         // Set res_success to 1 (the same value STXR/STLXR uses to indicate failure)
@@ -1020,7 +1020,7 @@ impl <'a> InstructionSelection {
                         self.finish_block();
 
                         // cmpxchg_succeded:
-                        self.start_block(blk_cmpxchg_succeded.clone(), &vec![res_success.clone(), res_value.clone()]);
+                        self.start_block(blk_cmpxchg_succeded.clone());
                         // this NOT is needed as STXR/STLXR returns sucess as '0', wheras the Mu spec says it should be 1
                         self.backend.emit_eor_imm(&res_success, &res_success, 1);
                     }
@@ -1218,7 +1218,7 @@ impl <'a> InstructionSelection {
                             Some(node), f_context, vm
                         );
                     }
-                    
+
                     // Runtime Entry
                     Instruction_::Throw(op_index) => {
                         trace!("instsel on THROW");
@@ -2721,19 +2721,19 @@ impl <'a> InstructionSelection {
             self.finish_block();
 
             let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
-            self.start_block(block_name, &vec![]);
+            self.start_block(block_name);
             self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_context, vm);
             self.backend.emit_b(blk_alloc_large_end.clone());
 
             self.finish_block();
 
             // alloc_large:
-            self.start_block(blk_alloc_large.clone(), &vec![size.clone()]);
+            self.start_block(blk_alloc_large.clone());
             self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_context, vm);
             self.finish_block();
 
             // alloc_large_end:
-            self.start_block(blk_alloc_large_end.clone(), &vec![]);
+            self.start_block(blk_alloc_large_end.clone());
 
             self.get_result_value(node, 0)
         }
@@ -2857,50 +2857,6 @@ impl <'a> InstructionSelection {
             Void => 0, // Don't need to return anything
             // Integral or pointer type
             _ => 0, // can return in GPR
-        }
-    }
-
-    // Returns a list of registers used for return values (used to set the 'livein' for the epilogue block)
-    fn compute_return_registers(&mut self, t: &P<MuType>, vm: &VM) -> Vec<P<Value>>
-    {
-        use ast::types::MuType_::*;
-        let size = round_up(vm.get_backend_type_size(t.id()), 8);
-        match t.v {
-            Vector(_, _) => unimplemented!(),
-            Float | Double =>
-                vec![get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(&t, vm))],
-
-            Hybrid(_) => panic!("cant return a hybrid"),
-            Struct(_) | Array(_, _) => {
-                let hfa_n = hfa_length(t.clone());
-                if hfa_n > 0 {
-                    let mut res = vec![get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(&t, vm)/hfa_n)];
-                    for i in 1..hfa_n {
-                        res.push(get_alias_for_length(RETURN_FPRS[i].id(), get_bit_size(&t, vm)/hfa_n));
-                    }
-                    res
-                } else if size <= 8 {
-                    // Return in a single GRP
-                    vec![get_alias_for_length(RETURN_GPRS[0].id(), get_bit_size(&t, vm))]
-                } else if size <= 16 {
-                    // Return in 2 GPRs
-                    vec![RETURN_GPRS[0].clone(), RETURN_GPRS[0].clone()]
-
-                } else {
-                    // Returned on the stack
-                    vec![]
-                }
-            }
-
-            Void => vec![], // Nothing to return
-
-            Int(128) => // Return in 2 GPRs
-                vec![RETURN_GPRS[0].clone(), RETURN_GPRS[0].clone()],
-
-            // Integral or pointer type
-            _ =>
-            // can return in a single GPR
-                vec![get_alias_for_length(RETURN_GPRS[0].id(), get_bit_size(&t, vm))]
         }
     }
 
@@ -3568,7 +3524,7 @@ impl <'a> InstructionSelection {
 
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, sig: &P<CFuncSig>, f_context: &mut FunctionContext, vm: &VM) {
         let prologue_block = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
-        self.start_block(prologue_block, &vec![]);
+        self.start_block(prologue_block);
 
         // Push the frame pointer and link register onto the stack
         self.backend.emit_push_pair(&LR, &FP, &SP);
@@ -3671,14 +3627,9 @@ impl <'a> InstructionSelection {
     }
 
     // Todo: Don't emit this if the function never returns
-    fn emit_common_epilogue(&mut self, ret_tys: &Vec<P<MuType>>, f_context: &mut FunctionContext, vm: &VM) {
-        let ret_type = self.combine_return_types(&ret_tys);
-
-        // Live in are the registers that hold the return values
-        // (if the value is returned through 'XR' than the caller is responsible for managing lifetime)
-        let livein = self.compute_return_registers(&ret_type, vm);
+    fn emit_common_epilogue(&mut self, f_context: &mut FunctionContext, vm: &VM) {
         let epilogue_block = format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME);
-        self.start_block(epilogue_block, &livein);
+        self.start_block(epilogue_block);
 
         // pop all callee-saved registers
         for i in (0..CALLEE_SAVED_FPRS.len()).rev() {
@@ -3698,7 +3649,9 @@ impl <'a> InstructionSelection {
         }
 
         // Pop the frame record
-        self.backend.emit_mov(&SP, &FP);
+        self.backend.emit_frame_shrink();
+
+        //self.backend.emit_mov(&SP, &FP);
         self.backend.emit_pop_pair(&FP, &LR, &SP);
 
         // Note: the stack pointer should now be what it was when the function was called
@@ -4378,11 +4331,9 @@ impl <'a> InstructionSelection {
         self.backend.end_block(cur_block.clone());
     }
 
-    // TODO: Do we need live_in
-    fn start_block(&mut self, block: String, live_in: &Vec<P<Value>>) {
+    fn start_block(&mut self, block: String) {
         self.current_block = Some(block.clone());
         self.backend.start_block(block.clone());
-        self.backend.set_block_livein(block, &live_in);
     }
 }
 
@@ -4454,20 +4405,11 @@ impl CompilerPass for InstructionSelection {
 
             if block.is_receiving_exception_arg() {
                 // this block uses exception arguments
-                // we need to add it to livein, and also emit landingpad for it
 
                 let exception_arg = block_content.exn_arg.as_ref().unwrap();
 
-                // live in is args of the block + exception arg
-                let mut livein = block_content.args.to_vec();
-                livein.push(exception_arg.clone());
-                self.backend.set_block_livein(block_label.clone(), &livein);
-
                 // need to insert a landing pad
                 self.emit_landingpad(&exception_arg, &mut func.context, vm);
-            } else {
-                // live in is args of the block
-                self.backend.set_block_livein(block_label.clone(), &block_content.args);
             }
 
             // doing the actual instruction selection
@@ -4483,7 +4425,7 @@ impl CompilerPass for InstructionSelection {
     }
 
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        self.emit_common_epilogue(&func.sig.ret_tys, &mut func.context, vm);
+        self.emit_common_epilogue( &mut func.context, vm);
 
         self.backend.print_cur_code();
 
