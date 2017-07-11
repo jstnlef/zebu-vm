@@ -88,7 +88,6 @@ lazy_static! {
         VOID_TYPE.clone(),
         REF_VOID_TYPE.clone(),
         IREF_VOID_TYPE.clone(),
-    ];    
     ];
 }
 

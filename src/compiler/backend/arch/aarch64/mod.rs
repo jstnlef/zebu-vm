@@ -1952,13 +1952,8 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-<<<<<<< HEAD
-                    let mem = make_value_symbolic(vm.get_func_name(func_id), true, &ADDRESS_TYPE, vm);
-                    emit_calculate_address(backend, &tmp, &mem, vm);
-=======
                     let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
-                    emit_calculate_address(backend, &tmp, &mem, f_context, vm);
->>>>>>> 5aad05d054e79db08724c0bcba77d78d71174f08
+                    emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
                 },
                 &Constant::NullRef => {
