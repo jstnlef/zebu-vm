@@ -30,7 +30,7 @@ use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern};
 /// for ahead-of-time compilation (boot image making), the file contains a persisted VM, a persisted
 /// heap, constants. This allows the VM to resume execution with the same status as before persisting.
 #[cfg(feature = "aot")]
-pub const AOT_EMIT_CONTEXT_FILE : &'static str = "context.s";
+pub const AOT_EMIT_CONTEXT_FILE : &'static str = "context.S";
 
 /// name for prologue (this is not full name, but prologue name is generated from this)
 pub const PROLOGUE_BLOCK_NAME: &'static str = "prologue";
@@ -497,4 +497,8 @@ impl RegGroup {
     pub fn get_from_value(val: &P<Value>) -> RegGroup {
         RegGroup::get_from_ty(&val.ty)
     }
+}
+
+fn make_block_name(fv_name: &String, id: MuID, label: &str) -> MuName {
+    format!("{}.#{}:{}", fv_name, id, label)
 }

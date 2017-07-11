@@ -34,6 +34,7 @@ use compiler::backend::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::x86_64::ASMCodeGen;
+use compiler::backend::make_block_name;
 use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
@@ -132,6 +133,8 @@ pub struct InstructionSelection {
 
     /// ID of current function version being compiled
     current_fv_id: MuID,
+    /// name of current function version being compiled
+    current_fv_name: MuName,
     /// used to create a unique callsite ID for current function
     current_callsite_id: usize,
     /// frame for current function
@@ -145,11 +148,11 @@ pub struct InstructionSelection {
     /// start location of current function
     current_func_start: Option<ValueLocation>,
     /// technically this is a map in that each Key is unique, but we will never try and add duplicate
-    /// keys, or look things up, so a list of pairs is faster than a Map.
-    /// A list of pairs, the first is the name of a callsite the second
-    current_callsites: LinkedList<(MuName, MuID)>,
-    /// a map of exception blocks
-    /// key: block id, val: block location
+    /// keys, or look things up, so a list of tuples is faster than a Map.
+    /// A list of tuples, the first is the name of a callsite, the next is the callsite destination, the last is the
+    /// size of arguments pushed on the stack
+    current_callsites: LinkedList<(MuName, MuID, usize)>,
+    // key: block id, val: block location
     current_exn_blocks: HashMap<MuID, MuName>,
     /// constants used in this function that are put to memory
     /// key: value id, val: constant value
@@ -167,6 +170,7 @@ impl <'a> InstructionSelection {
             backend: Box::new(ASMCodeGen::new()),
 
             current_fv_id: 0,
+            current_fv_name: String::new(),
             current_callsite_id: 0,
             current_frame: None,
             current_block: None,        // which block we are generating code for
@@ -220,7 +224,7 @@ impl <'a> InstructionSelection {
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
                         self.process_dest(&ops, branch_dest, f_content, f_context, vm);
                         
-                        let branch_target = f_content.get_block(branch_dest.target).name().unwrap();
+                        let branch_target = f_content.get_block(branch_dest.target).name();
     
                         let ref cond = ops[cond];
                         if self.match_cmp_res(cond) {
@@ -369,10 +373,10 @@ impl <'a> InstructionSelection {
                         // peephole pass if the fallthrough block immediate follows the jump)
                         self.finish_block();
 
-                        let fallthrough_temp_block = format!("{}_{}_branch_fallthrough", self.current_fv_id, node.id());
+                        let fallthrough_temp_block = make_block_name(&self.current_fv_name, node.id(), "branch_fallthrough", );
                         self.start_block(fallthrough_temp_block);
 
-                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name().unwrap();
+                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
                         self.backend.emit_jmp(fallthrough_target);
                     },
 
@@ -441,9 +445,9 @@ impl <'a> InstructionSelection {
                                 }
                                 // jcc - for 8-bits integer
                                 _ => {
-                                    let blk_true  = format!("{}_{}_select_true",  self.current_fv_id, node.id());
-                                    let blk_false = format!("{}_{}_select_false", self.current_fv_id, node.id());
-                                    let blk_end   = format!("{}_{}_select_end",   self.current_fv_id, node.id());
+                                    let blk_true  = make_block_name(&self.current_fv_name, node.id(), "select_true");
+                                    let blk_false = make_block_name(&self.current_fv_name, node.id(), "select_false");
+                                    let blk_end   = make_block_name(&self.current_fv_name, node.id(), "select_end");
 
                                     // jump to blk_true if true
                                     match cmpop {
@@ -494,9 +498,9 @@ impl <'a> InstructionSelection {
                         } else if self.match_fpreg(true_val) {
                             let tmp_res = self.get_result_value(node);
 
-                            let blk_true  = format!("{}_{}_select_true",  self.current_fv_id, node.id());
-                            let blk_false = format!("{}_{}_select_false", self.current_fv_id, node.id());
-                            let blk_end   = format!("{}_{}_select_end",   self.current_fv_id, node.id());
+                            let blk_true  = make_block_name(&self.current_fv_name, node.id(), "select_true");
+                            let blk_false = make_block_name(&self.current_fv_name, node.id(), "select_false");
+                            let blk_end   = make_block_name(&self.current_fv_name, node.id(), "select_end");
 
                             // jump to blk_true if true
                             match cmpop {
@@ -586,7 +590,7 @@ impl <'a> InstructionSelection {
                                             
                         self.process_dest(&ops, dest, f_content, f_context, vm);
                         
-                        let target = f_content.get_block(dest.target).name().unwrap();
+                        let target = f_content.get_block(dest.target).name();
                         // jmp
                         self.backend.emit_jmp(target);
                     },
@@ -610,7 +614,7 @@ impl <'a> InstructionSelection {
                                 // process dest
                                 self.process_dest(&ops, case_dest, f_content, f_context, vm);
 
-                                let target = f_content.get_block(case_dest.target).name().unwrap();
+                                let target = f_content.get_block(case_dest.target).name();
 
                                 if self.match_iimm(case_op) {
                                     let imm = self.node_iimm_to_i32(case_op);
@@ -631,13 +635,14 @@ impl <'a> InstructionSelection {
                                 }
 
                                 self.finish_block();
-                                self.start_block(format!("{}_switch_not_met_case_{}", node.id(), case_op_index));
+                                let block_name = make_block_name(&self.current_fv_name, node.id(), format!("switch_not_met_case_{}", case_op_index).as_str());
+                                self.start_block(block_name);
                             }
 
                             // emit default
                             self.process_dest(&ops, default, f_content, f_context, vm);
                             
-                            let default_target = f_content.get_block(default.target).name().unwrap();
+                            let default_target = f_content.get_block(default.target).name();
                             self.backend.emit_jmp(default_target);
                         } else {
                             // other EQ-comparable types, e.g. floating point
@@ -1016,9 +1021,9 @@ impl <'a> InstructionSelection {
                                                 // testq %tmp_op %tmp_op
                                                 self.backend.emit_test_r_r(&tmp_op, &tmp_op);
 
-                                                let blk_if_signed     = format!("{}_{}_uitofp_float_if_signed", self.current_fv_id, node.id());
-                                                let blk_if_not_signed = format!("{}_{}_uitofp_float_if_not_signed", self.current_fv_id, node.id());
-                                                let blk_done          = format!("{}_{}_uitofp_float_done", self.current_fv_id, node.id());
+                                                let blk_if_signed     = make_block_name(&self.current_fv_name, node.id(), "uitofp_float_if_signed",);
+                                                let blk_if_not_signed = make_block_name(&self.current_fv_name, node.id(), "uitofp_float_if_not_signed");
+                                                let blk_done          = make_block_name(&self.current_fv_name, node.id(), "uitofp_float_done");
 
                                                 // js %if_signed
                                                 self.backend.emit_js(blk_if_signed.clone());
@@ -1535,7 +1540,28 @@ impl <'a> InstructionSelection {
                             Some(node), f_content, f_context, vm
                         );
                     }
-                    
+
+                    /*Instruction_::AllocA(ref ty) => {
+                        trace!("instsel on AllocA");
+
+                        if cfg!(debug_assertions) {
+                            match ty.v {
+                                MuType_::Hybrid(_) => panic!("cannot use ALLOCA for hybrid, use ALLOCAHYBRID instead"),
+                                _ => {}
+                            }
+                        }
+
+                        let ty_info = vm.get_backend_type_info(ty.id());
+                        let size = ty_info.size;
+                        let ty_align= ty_info.alignment;
+                        if 16 % ty_align != 0 {
+                            // It's not trivial to allign this type...
+                            unimplemented!()
+                        }
+                        // Round size up to the nearest multiple of 16
+                        let size = ((size + 16 - 1)/16)*16;
+                    }*/
+
                     Instruction_::Throw(op_index) => {
                         trace!("instsel on THROW");
 
@@ -2640,8 +2666,8 @@ impl <'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = format!("{}_alloc_large", node.id());
-            let blk_alloc_large_end = format!("{}_alloc_large_end", node.id());
+            let blk_alloc_large = make_block_name(&self.current_fv_name, node.id(), "alloc_large");
+            let blk_alloc_large_end = make_block_name(&self.current_fv_name, node.id(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 // if the header size is not zero, we need to calculate a total size to alloc
@@ -2655,7 +2681,8 @@ impl <'a> InstructionSelection {
             self.backend.emit_jg(blk_alloc_large.clone());
 
             self.finish_block();
-            self.start_block(format!("{}_allocsmall", node.id()));
+            let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
+            self.start_block(block_name);
 
             // alloc small here
             self.emit_alloc_sequence_small(tmp_allocator.clone(), size.clone(), align, node, f_content, f_context, vm);
@@ -2761,12 +2788,13 @@ impl <'a> InstructionSelection {
 
             // branch to slow path if end > limit (end - limit > 0)
             // ASM: jg alloc_slow
-            let slowpath = format!("{}_allocslow", node.id());
+            let slowpath = make_block_name(&self.current_fv_name, node.id(), "allocslow");
             self.backend.emit_jg(slowpath.clone());
 
             // finish current block
             self.finish_block();
-            self.start_block(format!("{}_updatecursor", node.id()));
+            let block_name = make_block_name(&self.current_fv_name, node.id(), "updatecursor");
+            self.start_block(block_name);
 
             // update cursor
             // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
@@ -2783,7 +2811,7 @@ impl <'a> InstructionSelection {
             }
 
             // ASM jmp alloc_end
-            let allocend = format!("{}_alloc_small_end", node.id());
+            let allocend = make_block_name(&self.current_fv_name, node.id(), "alloc_small_end");
             self.backend.emit_jmp(allocend.clone());
 
             // finishing current block
@@ -3288,10 +3316,10 @@ impl <'a> InstructionSelection {
             unimplemented!()
         } else {
             let callsite = self.new_callsite_label(cur_node);
-            self.backend.emit_call_near_rel32(callsite.clone(), func_name, None); // assume ccall wont throw exception
+            self.backend.emit_call_near_rel32(callsite.clone(), func_name, None, true); // assume ccall wont throw exception
 
             // TODO: What if theres an exception block?
-            self.current_callsites.push_back((callsite, 0));
+            self.current_callsites.push_back((callsite, 0, stack_arg_size));
 
             // record exception block (CCall may have an exception block)
             // FIXME: unimplemented for now (see Issue #42)
@@ -3421,7 +3449,7 @@ impl <'a> InstructionSelection {
         let potentially_excepting = {
             if resumption.is_some() {
                 let target_id = resumption.unwrap().exn_dest.target;
-                Some(f_content.get_block(target_id).name().unwrap())
+                Some(f_content.get_block(target_id).name())
             } else {
                 None
             }
@@ -3439,7 +3467,7 @@ impl <'a> InstructionSelection {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend.emit_call_near_rel32(callsite, target.name().unwrap(), potentially_excepting)
+                    self.backend.emit_call_near_rel32(callsite, target.name(), potentially_excepting, false)
                 }
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
@@ -3461,15 +3489,15 @@ impl <'a> InstructionSelection {
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
 
-            self.current_callsites.push_back((callsite.to_relocatable(), target_block));
+            self.current_callsites.push_back((callsite.to_relocatable(), target_block, stack_arg_size));
 
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
-            let fv_id = self.current_fv_id;
-            self.start_block(format!("normal_cont_for_call_{}_{}", fv_id, cur_node.id()));
+            let block_name = make_block_name(&self.current_fv_name, cur_node.id(), "normal_cont_for_call");
+            self.start_block(block_name);
         } else {
-            self.current_callsites.push_back((callsite.to_relocatable(), 0));
+            self.current_callsites.push_back((callsite.to_relocatable(), 0, stack_arg_size));
         }
         
         // deal with ret vals, collapse stack etc.
@@ -3480,7 +3508,7 @@ impl <'a> InstructionSelection {
         // jump to target block
         if resumption.is_some() {
             let ref normal_dest = resumption.as_ref().unwrap().normal_dest;
-            let normal_target_name = f_content.get_block(normal_dest.target).name().unwrap();
+            let normal_target_name = f_content.get_block(normal_dest.target).name();
 
             self.backend.emit_jmp(normal_target_name);
         }
@@ -3547,7 +3575,7 @@ impl <'a> InstructionSelection {
     ///    callee saved for this function)
     /// 4. marshalls arguments (from argument register/stack to temporaries)
     fn emit_common_prologue(&mut self, args: &Vec<P<Value>>, f_context: &mut FunctionContext, vm: &VM) {
-        let block_name = PROLOGUE_BLOCK_NAME.to_string();
+        let block_name = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
         self.backend.start_block(block_name.clone());
 
         // push rbp
@@ -3761,7 +3789,8 @@ impl <'a> InstructionSelection {
         }
 
         // frame shrink
-        self.backend.emit_frame_shrink();
+        // RBP -> RSP
+        self.backend.emit_mov_r_r(&x86_64::RSP, &x86_64::RBP);
 
         // pop rbp
         self.backend.emit_pop_r64(&x86_64::RBP);
@@ -4299,8 +4328,9 @@ impl <'a> InstructionSelection {
                                     ty: pv.ty.get_referent_ty().unwrap(),
                                     v: Value_::Memory(MemoryLocation::Symbolic {
                                         base: Some(x86_64::RIP.clone()),
-                                        label: pv.name().unwrap(),
+                                        label: pv.name(),
                                         is_global: true,
+                                        is_native: false,
                                     })
                                 })
                             } else if cfg!(target_os = "linux") {
@@ -4312,8 +4342,9 @@ impl <'a> InstructionSelection {
                                     ty: pv.ty.clone(),
                                     v: Value_::Memory(MemoryLocation::Symbolic {
                                         base: Some(x86_64::RIP.clone()),
-                                        label: pv.name().unwrap(),
-                                        is_global: true
+                                        label: pv.name(),
+                                        is_global: true,
+                                        is_native: false,
                                     })
                                 });
 
@@ -4961,9 +4992,9 @@ impl <'a> InstructionSelection {
     fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
         let ret = {
             if cur_node.is_some() {
-                format!("callsite_{}_{}_{}", self.current_fv_id, cur_node.unwrap().id(), self.current_callsite_id)
+                make_block_name(&self.current_fv_name, cur_node.unwrap().id(), format!("callsite_{}", self.current_callsite_id).as_str())
             } else {
-                format!("callsite_{}_anon_{}", self.current_fv_id, self.current_callsite_id)
+                format!("{}:callsite_{}", self.current_fv_name, self.current_callsite_id)
             }
         };
         self.current_callsite_id += 1;
@@ -4986,7 +5017,8 @@ impl <'a> InstructionSelection {
                         v  : Value_::Memory(MemoryLocation::Symbolic {
                             base: Some(x86_64::RIP.clone()),
                             label: name.clone(),
-                            is_global: false
+                            is_global: false,
+                            is_native: false,
                         })
                     })
                 }
@@ -5011,7 +5043,8 @@ impl <'a> InstructionSelection {
             v  : Value_::Memory(MemoryLocation::Symbolic {
                 base: Some(x86_64::RIP.clone()),
                 label: func_name,
-                is_global: true
+                is_global: true,
+                is_native: false,
             })
         })
     }
@@ -5063,11 +5096,12 @@ impl CompilerPass for InstructionSelection {
 
         // set up some context
         self.current_fv_id = func_ver.id();
+        self.current_fv_name = func_ver.name();
         self.current_frame = Some(Frame::new(func_ver.id()));
         self.current_func_start = Some({
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func_ver.func_id).unwrap().read().unwrap();
-            let start_loc = self.backend.start_code(func.name().unwrap(), entry_block.name().unwrap());
+            let start_loc = self.backend.start_code(func.name(), entry_block.name());
             if vm.vm_options.flag_emit_debug_info {
                 self.backend.add_cfi_startproc();
             }
@@ -5094,7 +5128,7 @@ impl CompilerPass for InstructionSelection {
             let is_exception_block = f_content.exception_blocks.contains(&block_id);
 
             let block = f_content.get_block(*block_id);
-            let block_label = block.name().unwrap();
+            let block_label = block.name();
             self.current_block = Some(block_label.clone());
             self.current_block_in_ir = Some(block_label.clone());
             let block_content = block.content.as_ref().unwrap();
@@ -5141,7 +5175,7 @@ impl CompilerPass for InstructionSelection {
         let func_name = {
             let funcs = vm.funcs().read().unwrap();
             let func = funcs.get(&func.func_id).unwrap().read().unwrap();
-            func.name().unwrap()
+            func.name()
         };
 
         // have to do this before 'finish_code()'
@@ -5155,16 +5189,15 @@ impl CompilerPass for InstructionSelection {
             Some(frame) => frame,
             None => panic!("no current_frame for function {} that is being compiled", func_name)
         };
-        for &(ref callsite, block_id) in self.current_callsites.iter() {
+        for &(ref callsite, block_id, stack_arg_size) in self.current_callsites.iter() {
             let block_loc = if block_id == 0 {
-                String::new()
+                None
             } else {
-                self.current_exn_blocks.get(&block_id).unwrap().clone()
+                Some(self.current_exn_blocks.get(&block_id).unwrap().clone())
             };
 
-            vm.add_exception_callsite(callsite.clone(), block_loc, self.current_fv_id);
+            vm.add_exception_callsite(Callsite::new(callsite.clone(), block_loc, stack_arg_size), self.current_fv_id);
         }
-
 
         let compiled_func = CompiledFunction::new(func.func_id, func.id(), mc,
                                                   self.current_constants.clone(), self.current_constants_locs.clone(),

@@ -216,8 +216,9 @@ impl Inlining {
                                 // finish current block
                                 new_blocks.push(cur_block.clone());
 
-                                // creates a new block after inlined part, which will receive results from inlined function
-                                let old_name = cur_block.name().unwrap();
+                                // creates a new block after inlined part,
+                                // which will receive results from inlined function
+                                let old_name = cur_block.name();
                                 let new_name = format!("{}_cont_after_inline_{}", old_name, inst_id);
                                 trace!("create continue block for EXPRCALL/CCALL: {}", &new_name);
                                 cur_block = Block::new(MuEntityHeader::named(vm.next_id(), new_name));
@@ -362,7 +363,7 @@ fn copy_inline_blocks(caller: &mut Vec<Block>, ret_block: MuID, callee: &Functio
         let old_id = block.id();
         let new_id = *block_map.get(&block.id()).unwrap();
         let mut block = Block {
-            hdr: MuEntityHeader::named(new_id, format!("inlinedblock{}_for_{}", new_id, block.name().unwrap())),
+            hdr: MuEntityHeader::named(new_id, format!("{}:inlinedblock.#{}", block.name(), new_id)),
             content: block.content.clone(),
             control_flow: ControlFlow::default()
         };

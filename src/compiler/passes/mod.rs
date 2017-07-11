@@ -47,6 +47,10 @@ pub use compiler::passes::control_flow::ControlFlowAnalysis;
 mod trace_gen;
 pub use compiler::passes::trace_gen::TraceGen;
 
+/// A pass to generate dot graph for current IR.
+mod dot_gen;
+pub use compiler::passes::dot_gen::DotGen;
+
 /// A trait for implementing compiler passes.
 ///
 /// A Mu function is supposed to be travelled in the following order:

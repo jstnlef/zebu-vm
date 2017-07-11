@@ -794,8 +794,8 @@ pub fn get_return_address(frame_pointer: Address) -> Address {
 
 // Gets the stack pointer before the current frame was created
 #[inline(always)]
-pub fn get_previous_stack_pointer(frame_pointer: Address) -> Address {
-    frame_pointer + 16 as ByteSize
+pub fn get_previous_stack_pointer(frame_pointer: Address, stack_arg_size: usize) -> Address {
+    frame_pointer + 16 as ByteSize + stack_arg_size
 }
 
 #[inline(always)]
@@ -2179,7 +2179,7 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
     match src.v {
         Value_::Memory(ref mem) => {
             match mem {
-                &MemoryLocation::Symbolic{ref label, is_global} => {
+                &MemoryLocation::Symbolic{ref label, is_global, is_native} => {
                     if is_global {
                         // Set dest to be the page address of the entry for src in the GOT
                         backend.emit_adrp(&dest, &src);
@@ -2189,7 +2189,12 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
                         let offset = P(Value {
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             ty: UINT64_TYPE.clone(),
-                            v: Value_::Constant(Constant::ExternSym(format!(":got_lo12:{}", label)))
+                            v: Value_::Constant(Constant::ExternSym(
+                                if is_native {
+                                    format!("/*C*/:got_lo12:{}", label)
+                                } else {
+                                    format!(":got_lo12:{}", mangle_name(label.clone()))
+                                }))
                         });
 
                         // [dest + low 12 bits of the GOT entry for src]
@@ -2451,7 +2456,8 @@ fn make_value_symbolic(label: MuName, global: bool, ty: &P<MuType>, vm: &VM) -> 
         ty : ty.clone(),
         v  : Value_::Memory(MemoryLocation::Symbolic {
             label: label,
-            is_global: global
+            is_global: global,
+            is_native: false,
         })
     })
 }

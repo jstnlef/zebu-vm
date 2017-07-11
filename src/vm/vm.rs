@@ -23,7 +23,7 @@ use ast::types::*;
 use compiler::{Compiler, CompilerPolicy};
 use compiler::backend;
 use compiler::backend::BackendType;
-use compiler::machine_code::CompiledFunction;
+use compiler::machine_code::{CompiledFunction, CompiledCallsite};
 
 use runtime::thread::*;
 use runtime::*;
@@ -95,8 +95,9 @@ pub struct VM { // The comments are the offset into the struct
     /// (we are not persisting generated code with compiled function)
     compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>, // +728
 
-    /// (callsite, catch block) pair for function versions
-    exception_table: RwLock<HashMap<MuID, HashMap<MuName, MuName>>>, // +784
+    /// match each functions version to a map, mapping each of it's containing callsites
+    /// to the name of the catch block
+    callsite_table: RwLock<HashMap<MuID, Vec<Callsite>>>, // +784
 
     // ---do not serialize---
     /// global cell locations. We use this map to create handles for global cells,
@@ -111,14 +112,16 @@ pub struct VM { // The comments are the offset into the struct
     /// funcref and when generating boot image, we fix the funcref with a relocatable symbol
     aot_pending_funcref_store: RwLock<HashMap<Address, ValueLocation>>,
 
-    /// runtime exception table for exception handling
-    /// a map from callsite address to (catch block address, CompiledFunction ptr) pair
-    //  TODO: probably we should remove the pointer (its unsafe), thats why we need Sync/Send for VM
-    pub compiled_exception_table: RwLock<HashMap<Address, (Address, *const CompiledFunction)>> // 896
+    /// runtime callsite table for exception handling
+    /// a map from callsite address to CompiledCallsite
+    pub compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
+
+    /// Nnmber of callsites in the callsite tables
+    pub callsite_count: AtomicUsize,
 }
 
 unsafe impl rodal::Dump for VM {
-    fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
+    fn dump<D: ? Sized + rodal::Dumper>(&self, dumper: &mut D) {
         dumper.debug_record("VM", "dump");
 
         dumper.dump_object(&self.next_id);
@@ -133,7 +136,7 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object(&self.primordial);
         dumper.dump_object(&self.vm_options);
         dumper.dump_object(&self.compiled_funcs);
-        dumper.dump_object(&self.exception_table);
+        dumper.dump_object(&self.callsite_table);
 
         // Dump empty maps so that we can safely read and modify them once loaded
         dumper.dump_padding(&self.global_locations);
@@ -146,15 +149,11 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, ValueLocation>::new()));
 
         // Dump an emepty hashmap for the other hashmaps
-        dumper.dump_padding(&self.compiled_exception_table);
-        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, (Address, *const CompiledFunction)>::new()));
+        dumper.dump_padding(&self.compiled_callsite_table);
+        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, CompiledCallsite>::new()));
+        dumper.dump_object(&self.callsite_count);
     }
 }
-
-// *const CompiledFunction appears in compiled_exception_table makes
-// the VM unsafe to Sync/Send. We explicitly mark it safe
-unsafe impl Sync for VM {}
-unsafe impl Send for VM {}
 
 /// a fake funcref to store for AOT when client tries to store a funcref via API
 //  For AOT scenario, when client tries to store funcref to the heap, the store
@@ -211,10 +210,11 @@ impl <'a> VM {
             func_vers: RwLock::new(HashMap::new()),
             funcs: RwLock::new(HashMap::new()),
             compiled_funcs: RwLock::new(HashMap::new()),
-            exception_table: RwLock::new(HashMap::new()),
+            callsite_table: RwLock::new(HashMap::new()),
             primordial: RwLock::new(None),
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
-            compiled_exception_table: RwLock::new(HashMap::new()),
+            compiled_callsite_table: RwLock::new(HashMap::new()),
+            callsite_count: ATOMIC_USIZE_INIT,
         };
 
         // insert all internal types
@@ -299,17 +299,16 @@ impl <'a> VM {
 
     /// adds an exception callsite and catch block
     /// (later we will use this info to build an exception table for unwinding use)
-    pub fn add_exception_callsite(&self, callsite: MuName, catch: MuName, fv: MuID) {
-        let mut table = self.exception_table.write().unwrap();
+    pub fn add_exception_callsite(&self, callsite: Callsite, fv: MuID) {
+        let mut table = self.callsite_table.write().unwrap();
 
         if table.contains_key(&fv) {
-            let mut map = table.get_mut(&fv).unwrap();
-            map.insert(callsite, catch);
+            table.get_mut(&fv).unwrap().push(callsite);
         } else {
-            let mut new_map = HashMap::new();
-            new_map.insert(callsite, catch);
-            table.insert(fv, new_map);
+            table.insert(fv, vec![callsite]);
         };
+        // TODO: do wee need a stronger ordering??
+        self.callsite_count.fetch_add(1, Ordering::Relaxed);
     }
 
     /// resumes persisted VM. Ideally the VM should be back to the status when we start
@@ -322,7 +321,7 @@ impl <'a> VM {
         vm.init_runtime();
 
         // construct exception table
-        vm.build_exception_table();
+        vm.build_callsite_table();
 
         // restore gc types
         {
@@ -354,7 +353,8 @@ impl <'a> VM {
                 expect_id += 1;
             }
         }
-
+        // construct exception table
+        vm.build_callsite_table();
         vm
     }
 
@@ -363,22 +363,17 @@ impl <'a> VM {
     /// and resolving symbol address during exception handling is expensive. Thus when boot image
     /// gets executed, we first resolve symbols and store the results in another table for fast
     /// query.
-    pub fn build_exception_table(&self) {
-        let exception_table = self.exception_table.read().unwrap();
+    pub fn build_callsite_table(&self) {
+        let callsite_table = self.callsite_table.read().unwrap();
         let compiled_funcs = self.compiled_funcs.read().unwrap();
-        let mut compiled_exception_table = self.compiled_exception_table.write().unwrap();
-
-        for (fv, map) in exception_table.iter() {
-            let ref compiled_func = *compiled_funcs.get(fv).unwrap().read().unwrap();
-
-            for (callsite, catch_block) in map.iter() {
-                let catch_addr = if catch_block.is_empty() {
-                    unsafe {Address::zero()}
-                } else {
-                    resolve_symbol(catch_block.clone())
-                };
-
-                compiled_exception_table.insert(resolve_symbol(callsite.clone()), (catch_addr, &*compiled_func));
+        let mut compiled_callsite_table = self.compiled_callsite_table.write().unwrap();
+        // TODO: Use a different ordering?
+        compiled_callsite_table.reserve(self.callsite_count.load(Ordering::Relaxed));
+        for (fv, callsite_list) in callsite_table.iter() {
+            let compiled_func = compiled_funcs.get(fv).unwrap().read().unwrap();
+            let callee_saved_table = Arc::new(compiled_func.frame.callee_saved.clone());
+            for callsite in callsite_list.iter() {
+                compiled_callsite_table.insert(resolve_symbol(callsite.name.clone()), CompiledCallsite::new(&callsite, compiled_func.func_ver_id, callee_saved_table.clone()));
             }
         }
     }
@@ -404,7 +399,7 @@ impl <'a> VM {
     /// informs VM about a client-supplied name
     pub fn set_name(&self, entity: &MuEntity) {
         let id = entity.id();
-        let name = entity.name().unwrap();
+        let name = entity.name();
         
         let mut map = self.id_name_map.write().unwrap();
         map.insert(id, name.clone());
@@ -464,10 +459,7 @@ impl <'a> VM {
     #[cfg(feature = "aot")]
     pub fn allocate_const(&self, val: P<Value>) -> ValueLocation {
         let id = val.id();
-        let name = match val.name() {
-            Some(name) => format!("CONST_{}_{}", id, name),
-            None => format!("CONST_{}", id)
-        };
+        let name = format!("CONST_{}_{}", id, val.name());
 
         ValueLocation::Relocatable(backend::RegGroup::GPR, name)
     }
@@ -613,7 +605,7 @@ impl <'a> VM {
     pub fn get_name_for_func(&self, id: MuID) -> MuName {
         let funcs_lock = self.funcs.read().unwrap();
         match funcs_lock.get(&id) {
-            Some(func) => func.read().unwrap().name().unwrap(),
+            Some(func) => func.read().unwrap().name(),
             None => panic!("cannot find name for Mu function #{}")
         }
     }
@@ -648,7 +640,7 @@ impl <'a> VM {
         if self.is_doing_jit() {
             unimplemented!()
         } else {
-            ValueLocation::Relocatable(backend::RegGroup::GPR, func.name().unwrap())
+            ValueLocation::Relocatable(backend::RegGroup::GPR, func.name())
         }
     }
 
@@ -833,6 +825,17 @@ impl <'a> VM {
     pub fn func_sigs(&self) -> &RwLock<HashMap<MuID, P<MuFuncSig>>> {
         &self.func_sigs
     }
+    
+    pub fn resolve_function_address(&self, func_id: MuID) -> ValueLocation {
+        let funcs = self.funcs.read().unwrap();
+        let func : &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
+                
+        if self.is_doing_jit() {
+            unimplemented!()
+        } else {
+            ValueLocation::Relocatable(backend::RegGroup::GPR, func.name())
+        }
+    }
 
     /// set info (entry function, arguments) for primordial thread for boot image
     pub fn set_primordial_thread(&self, func_id: MuID, has_const_args: bool, args: Vec<Constant>) {
@@ -944,7 +947,7 @@ impl <'a> VM {
             // deal with relocation symbols, zip the two vectors into a hashmap
             assert_eq!(sym_fields.len(), sym_strings.len());
             let symbols : HashMap<Address, MuName> = sym_fields.into_iter().map(|handle| handle.v.as_address())
-                .zip(sym_strings.into_iter().map(|name| name_check(name.clone()))).collect();
+                .zip(sym_strings.into_iter()).collect();
 
             // deal with relocation fields
             // zip the two vectors into a hashmap, and add fields for pending funcref stores
@@ -953,13 +956,13 @@ impl <'a> VM {
                 // init reloc fields with client-supplied field/symbol pair
                 let mut reloc_fields : HashMap<Address, MuName> = reloc_fields.into_iter()
                     .map(|handle| handle.v.as_address())
-                    .zip(reloc_strings.into_iter().map(|name| name_check(name.clone()))).collect();
+                    .zip(reloc_strings.into_iter()).collect();
 
                 // pending funcrefs - we want to replace them as symbol
                 {
                     let mut pending_funcref = self.aot_pending_funcref_store.write().unwrap();
                     for (addr, vl) in pending_funcref.drain() {
-                        reloc_fields.insert(addr, name_check(vl.to_relocatable()));
+                        reloc_fields.insert(addr, vl.to_relocatable());
                     }
                 }
 
@@ -984,7 +987,7 @@ impl <'a> VM {
 
         let func_names = {
             let funcs_guard = self.funcs().read().unwrap();
-            funcs.iter().map(|x| funcs_guard.get(x).unwrap().read().unwrap().name().unwrap()).collect()
+            funcs.iter().map(|x| funcs_guard.get(x).unwrap().read().unwrap().name()).collect()
         };
 
         trace!("functions: {:?}", func_names);
@@ -1544,8 +1547,8 @@ impl <'a> VM {
         let opnd = value.v.as_tr64();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Int(
-                (((opnd & 0xffffffffffffeu64) >> 1) | ((opnd & 0x8000000000000000u64) >> 12)),
+            v : APIHandleValue::Int(((opnd & 0xffffffffffffeu64) >> 1) |
+                    ((opnd & 0x8000000000000000u64) >> 12),
                 52
             )
         })
@@ -1558,10 +1561,9 @@ impl <'a> VM {
         self.new_handle(APIHandle {
             id: handle_id,
             v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
-                unsafe { Address::from_usize(
-                    ((opnd & 0x7ffffffffff8u64) |
-                        u64_asr((opnd & 0x8000000000000000u64), 16)) as usize
-                ) })
+                unsafe { Address::from_usize(((opnd & 0x7ffffffffff8u64) |
+                        u64_asr((opnd & 0x8000000000000000u64), 16)) as usize)
+                })
         })
     }
 
@@ -1571,8 +1573,8 @@ impl <'a> VM {
         let opnd = value.v.as_tr64();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Int(
-                    (u64_asr((opnd & 0x000f800000000000u64), 46) | (u64_asr((opnd & 0x4), 2))),
+            v : APIHandleValue::Int(u64_asr((opnd & 0x000f800000000000u64), 46) |
+                    (u64_asr((opnd & 0x4), 2)),
                 6
             )
         })
@@ -1601,10 +1603,8 @@ impl <'a> VM {
         let opnd = value.v.as_int();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64(
-                (0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) |
-                    ((opnd & 0x8000000000000u64) << 12))
-            )
+            v : APIHandleValue::TagRef64(0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1)
+                | ((opnd & 0x8000000000000u64) << 12))
         })
     }
 
@@ -1616,9 +1616,8 @@ impl <'a> VM {
         let tag_  = tag.v.as_int();
         self.new_handle (APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64( 
-                (0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) | ((addr_ & 0x800000000000u64) << 16)
-                    | ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2))
+            v : APIHandleValue::TagRef64(0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) |
+                ((addr_ & 0x800000000000u64) << 16) | ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2)
             )
         })
     }

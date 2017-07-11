@@ -274,8 +274,7 @@ pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build
 /// gets the path for the generated code of a Mu function
 fn get_path_for_mu_func (f: MuName, vm: &VM) -> PathBuf {
     let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
-    ret.push(f);
-    ret.set_extension("s");
+    ret.push(f + ".S");
 
     ret
 }

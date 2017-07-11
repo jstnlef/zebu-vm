@@ -66,11 +66,12 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
 
 }
 
-/// returns address for a given symbol, e.g. function name
+
+/// returns address for a given symbol, e.g. function namepub fn resolve_symbol(symbol: MuName) -> Address {
 pub fn resolve_symbol(symbol: MuName) -> Address {
     use std::ptr;
 
-    let c_symbol = CString::new(name_check(symbol.clone())).unwrap();
+    let c_symbol = CString::new(mangle_name(symbol.clone())).unwrap();
     
     let rtld_default = unsafe {dlopen(ptr::null(), 0)};
     let ret = unsafe {dlsym(rtld_default, c_symbol.as_ptr())};
@@ -78,10 +79,7 @@ pub fn resolve_symbol(symbol: MuName) -> Address {
     let error = unsafe {dlerror()};
     if !error.is_null() {
         let cstr = unsafe {CStr::from_ptr(error)};
-        error!("cannot find symbol: {}", symbol);
-        error!("{}", cstr.to_str().unwrap());
-
-        panic!("failed to resolve symbol");
+        panic!("failed to resolve symbol: {} ({})", symbol, cstr.to_str().unwrap());
     }
     
     Address::from_ptr(ret)
@@ -98,11 +96,12 @@ pub fn resolve_symbol(symbol: MuName) -> Address {
 /// * a indirect memory address (the address contains a pointer to the value)
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub enum ValueLocation {
-    Register    (RegGroup, MuID),
-    Constant    (RegGroup, Word),
-    Relocatable (RegGroup, MuName),
-    Direct      (RegGroup, Address),  // Not dumped
-    Indirect    (RegGroup, Address),  // Not dumped
+    Register(RegGroup, MuID),
+    Constant(RegGroup, Word),
+    Relocatable(RegGroup, MuName),// TODO: This only works for mu entities (add a flag to indicate if its native or have a different variant?)
+    
+    Direct(RegGroup, Address),    // Not dumped
+    Indirect(RegGroup, Address),  // Not dumped
 }
 
 rodal_enum!(ValueLocation{(Register: group, id), (Constant: group, word), (Relocatable: group, name)});
@@ -186,6 +185,9 @@ pub extern fn mu_trace_level_log() {
     VM::start_logging_trace();
 }
 
+#[no_mangle]
+pub static mut LAST_TIME: c_ulong = 0;
+
 /// the main function for executable boot image, this function will be called from C
 #[no_mangle]
 pub extern fn mu_main(edata: *const(), dumped_vm : *mut Arc<VM>, argc: c_int, argv: *const *const c_char) {
@@ -195,7 +197,6 @@ pub extern fn mu_main(edata: *const(), dumped_vm : *mut Arc<VM>, argc: c_int, ar
     // load and resume the VM
     unsafe{rodal::load_asm_bounds(rodal::Address::from_ptr(dumped_vm), rodal::Address::from_ptr(edata))};
     let vm = VM::resume_vm(dumped_vm);
-
     // find the primordial function as an entry
     let primordial = vm.primordial.read().unwrap();
     if primordial.is_none() {

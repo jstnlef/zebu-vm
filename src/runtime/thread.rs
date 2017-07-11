@@ -440,7 +440,7 @@ impl MuThread {
         use std::usize;
 
         // build exception table as we may execute mu function
-        vm.build_exception_table();
+        vm.build_callsite_table();
 
         if !muentry_get_thread_local().is_zero() {
             warn!("current thread has a thread local (has a muthread to it)");
