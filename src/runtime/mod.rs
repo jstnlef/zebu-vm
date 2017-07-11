@@ -198,3 +198,8 @@ pub extern fn mu_main(edata: *const(), dumped_vm : *mut Arc<VM>, argc: c_int, ar
 pub extern fn muentry_print_hex(x: u64) {
     println!("PRINTHEX: 0x{:x}", x);
 }
+
+#[no_mangle]
+pub unsafe extern fn muentry_mem_zero(dest: *mut u8, size: usize) {
+    std::ptr::write_bytes(dest, 0, size);
+}

@@ -284,4 +284,16 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_print_hex")),
         jit: RwLock::new(None)
     };
+
+    // impl/decl: mod.rs
+    pub static ref MEM_ZERO : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![IREF_VOID_TYPE.clone(), UINT64_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_mem_zero")),
+        jit: RwLock::new(None)
+    };
+
 }

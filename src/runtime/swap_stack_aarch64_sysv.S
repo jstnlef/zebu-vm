@@ -137,3 +137,9 @@ begin_func fake_swap_mu_thread
     # return to caller, but preserve those pushed values (since THREADEXIT will pick them up)
     RET
 end_func fake_swap_mu_thread
+
+begin_func muentry_return
+          MOV SP, FP
+          pop_pair FP, LR
+          RET LR
+end_func muentry_return

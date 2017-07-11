@@ -69,6 +69,10 @@ lazy_static! {
         MuType::new(new_internal_id(), MuType_::muref(VOID_TYPE.clone()))
     );
 
+    pub static ref IREF_VOID_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::iref(VOID_TYPE.clone()))
+    );
+
     pub static ref INTERNAL_TYPES : Vec<P<MuType>> = vec![
         ADDRESS_TYPE.clone(),
         UINT1_TYPE.clone(),
@@ -82,6 +86,7 @@ lazy_static! {
         FLOAT_TYPE.clone(),
         VOID_TYPE.clone(),
         REF_VOID_TYPE.clone(),
+        IREF_VOID_TYPE.clone(),
     ];    
 }
 

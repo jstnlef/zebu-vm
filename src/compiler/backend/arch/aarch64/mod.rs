@@ -1662,7 +1662,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
 }
 
 // TODO: Will this be correct if src is treated as signed (i think so...)
-pub fn emit_mul_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64)
+pub fn emit_mul_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64)
 {
     if val == 0 {
         // dest = 0
@@ -1677,17 +1677,16 @@ pub fn emit_mul_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>
         backend.emit_lsl_imm(&dest, &src, log2(val as u64) as u8);
     } else {
         // dest = src * val
-        let temp_mul = make_temporary(f_context, src.ty.clone(), vm);
-        emit_mov_u64(backend, &temp_mul, val as u64);
-        backend.emit_mul(&dest, &src, &temp_mul);
+        emit_mov_u64(backend, &dest, val as u64);
+        backend.emit_mul(&dest, &src, &dest);
     }
 }
 
 // Decrement the register by an immediate value
-fn emit_sub_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64)
+fn emit_sub_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64)
 {
     if (val as i64) < 0 {
-        emit_add_u64(backend, &dest, &src, f_context, vm, (-(val as i64) as u64));
+        emit_add_u64(backend, &dest, &src, (-(val as i64) as u64));
     } else if val == 0 {
         if dest.id() != src.id() {
             backend.emit_mov(&dest, &src);
@@ -1697,17 +1696,16 @@ fn emit_sub_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_
         let imm_val = if imm_shift { val >> 12 } else { val };
         backend.emit_sub_imm(&dest, &src, imm_val as u16, imm_shift);
     } else {
-        let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
-        emit_mov_u64(backend, &tmp, val);
-        backend.emit_sub(&dest, &src, &tmp);
+        emit_mov_u64(backend, &dest, val);
+        backend.emit_sub(&dest, &src, &dest);
     }
 }
 
 // Increment the register by an immediate value
-fn emit_add_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64)
+fn emit_add_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64)
 {
     if (val as i64) < 0 {
-        emit_sub_u64(backend, &dest, &src, f_context, vm, (-(val as i64) as u64));
+        emit_sub_u64(backend, &dest, &src, (-(val as i64) as u64));
     } else if val == 0 {
         if dest.id() != src.id() {
             backend.emit_mov(&dest, &src);
@@ -1717,14 +1715,13 @@ fn emit_add_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_
         let imm_val = if imm_shift { val >> 12 } else { val };
         backend.emit_add_imm(&dest, &src, imm_val as u16, imm_shift);
     } else {
-        let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
-        emit_mov_u64(backend, &tmp, val);
-        backend.emit_add(&dest, &src, &tmp);
+        emit_mov_u64(backend, &dest, val);
+        backend.emit_add(&dest, &src, &dest);
     }
 }
 
 // dest = src1*val + src2
-fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64, src2: &P<Value>)
+fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, val: u64, src2: &P<Value>)
 {
     if val == 0 {
         // dest = src2
@@ -1732,17 +1729,49 @@ fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, 
     } else if val == 1 {
         // dest = src1 + src2
         backend.emit_add(&dest, &src1, &src2);
+    } else if val == !0 {
+        // dest = src2 - src1
+        backend.emit_sub(&dest, &src2, &src1);
     } else if val.is_power_of_two() {
         // dest = src1 << log2(val) + src2
         backend.emit_lsl_imm(&dest, &src1, log2(val as u64) as u8);
         backend.emit_add(&dest, &dest, &src2);
     } else {
         // dest = src1 * val + src2
-        let temp_mul = make_temporary(f_context, src1.ty.clone(), vm);
-        emit_mov_u64(backend, &temp_mul, val as u64);
-        backend.emit_madd(&dest, &src1, &temp_mul, &src2);
+        emit_mov_u64(backend, &dest, val as u64);
+        backend.emit_madd(&dest, &src1, &dest, &src2);
     }
 }
+
+// dest = src*val1 + val2
+fn emit_madd_u64_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val1: u64, val2: u64)
+{
+    if val2 == 0 {
+        // dest = src*val
+        emit_mul_u64(backend, &dest, &src, val1);
+    } else if val1 == 0 {
+        // dest = val2
+        emit_mov_u64(backend, &dest, val2);
+    } else if val1 == 1 {
+        // dest = src1 + val2
+        emit_add_u64(backend, &dest, &src, val2);
+    } else if val1 == !0 {
+        // dest = val2 - src1
+        emit_mov_u64(backend, &dest, val2);
+        backend.emit_sub(&dest, &dest, &src);
+    } else if val1.is_power_of_two() {
+        // dest = src << log2(val1) + val2
+        backend.emit_lsl_imm(&dest, &src, log2(val1 as u64) as u8);
+        emit_add_u64(backend, &dest, &src, val2);
+    } else {
+        // dest = src * val1 + val2
+        let tmp = make_temporary(f_context, src.ty.clone(), vm);
+        emit_mov_u64(backend, &dest, val1 as u64);
+        emit_mov_u64(backend, &tmp, val2 as u64);
+        backend.emit_madd(&dest, &src, &dest, &tmp);
+    }
+}
+
 // Compare register with value
 fn emit_cmp_u64(backend: &mut CodeGenerator, src1: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64)
 {
@@ -1863,7 +1892,7 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
                     let mem = make_value_symbolic(vm.get_func_name(func_id), true, &ADDRESS_TYPE, vm);
-                    emit_calculate_address(backend, &tmp, &mem, f_context, vm);
+                    emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
                 },
                 &Constant::NullRef => {
@@ -1923,7 +1952,7 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
                     let mem = make_value_symbolic(vm.get_func_name(func_id), true, &ADDRESS_TYPE, vm);
-                    emit_calculate_address(backend, &tmp, &mem, f_context, vm);
+                    emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
                 },
                 &Constant::NullRef => {
@@ -2021,7 +2050,7 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, alignment: usize, f_
                                 if !is_valid_immediate_scale(scale, alignment) {
                                     let temp = make_temporary(f_context, offset.ty.clone(), vm);
 
-                                    emit_mul_u64(backend, &temp, &offset, f_context, vm, scale);
+                                    emit_mul_u64(backend, &temp, &offset, scale);
                                     Some(temp)
                                 } else {
                                     shift = log2(scale) as u8;
@@ -2089,7 +2118,7 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
                                 base.clone() // trivial
                             } else {
                                 let temp = make_temporary(f_context, pv.ty.clone(), vm);
-                                emit_add_u64(backend, &temp, &base, f_context, vm, (offset_val * scale as i64) as u64);
+                                emit_add_u64(backend, &temp, &base, (offset_val * scale as i64) as u64);
                                 temp
                             }
                         } else {
@@ -2106,7 +2135,7 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
                                 let temp_offset = make_temporary(f_context, offset.ty.clone(), vm);
 
                                 // temp_offset = offset * scale
-                                emit_mul_u64(backend, &temp_offset, &offset, f_context, vm, scale);
+                                emit_mul_u64(backend, &temp_offset, &offset, scale);
 
                                 // Don't need to create a new register, just overwrite temp_offset
                                 let temp = cast_value(&temp_offset, &pv.ty);
@@ -2131,7 +2160,7 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
                                 base.clone()
                             } else {
                                 let temp = make_temporary(f_context, pv.ty.clone(), vm);
-                                emit_add_u64(backend, &temp, &base, f_context, vm, offset as u64);
+                                emit_add_u64(backend, &temp, &base, offset as u64);
                                 temp
                             }
                         } else if RegGroup::get_from_value(&offset) == RegGroup::GPR && offset.is_reg() {
@@ -2224,16 +2253,16 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
     }
 }
 
-fn emit_calculate_address(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
+fn emit_calculate_address(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, vm: &VM) {
     match src.v {
         Value_::Memory(MemoryLocation::VirtualAddress{ref base, ref offset, scale, signed}) => {
             if offset.is_some() {
                 let offset = offset.as_ref().unwrap();
                 if match_value_int_imm(offset) {
-                    emit_add_u64(backend, &dest, &base, f_context, vm, ((value_imm_to_i64(offset, signed) as i64)*(scale as i64)) as u64);
+                    emit_add_u64(backend, &dest, &base, ((value_imm_to_i64(offset, signed) as i64)*(scale as i64)) as u64);
                 } else {
                     // dest = offset * scale + base
-                    emit_madd_u64(backend, &dest, &offset, f_context, vm, scale as u64, &base);
+                    emit_madd_u64(backend, &dest, &offset, scale as u64, &base);
                 }
             } else {
                 backend.emit_mov(&dest, &base)
@@ -2250,7 +2279,7 @@ fn emit_calculate_address(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<
                         // Offset is 0, address calculation is trivial
                         backend.emit_mov(&dest, &base);
                     } else {
-                        emit_add_u64(backend, &dest, &base, f_context, vm, offset as u64);
+                        emit_add_u64(backend, &dest, &base, offset as u64);
                     }
                 } else if is_int_reg(&offset) {
                     backend.emit_add_ext(&dest, &base, &offset, signed, shift);
@@ -2330,12 +2359,12 @@ fn memory_location_shift(backend: &mut CodeGenerator, mem: MemoryLocation, more_
 
                         if more_offset % (scale as i64) == 0 {
                             // temp = offset + more_offset/scale
-                            emit_add_u64(backend, &temp, &offset, f_context, vm, (more_offset/(scale as i64)) as u64);
+                            emit_add_u64(backend, &temp, &offset, (more_offset/(scale as i64)) as u64);
                             new_scale = scale;
                         } else {
                             // temp = offset*scale + more_offset
-                            emit_mul_u64(backend, &temp, &offset, f_context, vm, scale);
-                            emit_add_u64(backend, &temp, &temp, f_context, vm, more_offset as u64);
+                            emit_mul_u64(backend, &temp, &offset, scale);
+                            emit_add_u64(backend, &temp, &temp,  more_offset as u64);
                         }
 
                         temp
@@ -2379,13 +2408,13 @@ fn memory_location_shift_scale(backend: &mut CodeGenerator, mem: MemoryLocation,
                             let temp = make_temporary(f_context, offset.ty.clone(), vm);
                             let offset_scaled = (offset.extract_int_const() as i64)*(scale as i64);
                             if offset_scaled % (new_scale as i64) == 0 {
-                                emit_add_u64(backend, &temp, &more_offset, f_context, vm, (offset_scaled / (new_scale as i64)) as u64);
+                                emit_add_u64(backend, &temp, &more_offset, (offset_scaled / (new_scale as i64)) as u64);
                                 // new_scale*temp = (more_offset + (offset*scale)/new_scale)
                                 //                = more_offset*new_scale + offset*scale
                             } else {
                                 // temp = more_offset*new_scale + offset*scale
-                                emit_mul_u64(backend, &temp, &more_offset, f_context, vm, new_scale);
-                                emit_add_u64(backend, &temp, &temp, f_context, vm, offset_scaled as u64);
+                                emit_mul_u64(backend, &temp, &more_offset, new_scale);
+                                emit_add_u64(backend, &temp, &temp, offset_scaled as u64);
                                 new_scale = 1;
                             }
                             temp
@@ -2398,7 +2427,7 @@ fn memory_location_shift_scale(backend: &mut CodeGenerator, mem: MemoryLocation,
                                 backend.emit_add_ext(&temp, &more_offset, &temp, signed, 0);
                             }  else {
                                 // temp = offset * scale
-                                emit_mul_u64(backend, &temp, &offset, f_context, vm, scale);
+                                emit_mul_u64(backend, &temp, &offset, scale);
 
                                 if new_scale.is_power_of_two() && is_valid_immediate_extension(log2(new_scale)) {
                                     // temp = (offset * scale) + more_offset << log2(new_scale)
@@ -2406,7 +2435,7 @@ fn memory_location_shift_scale(backend: &mut CodeGenerator, mem: MemoryLocation,
                                 } else {
                                     // temp_more = more_offset * new_scale
                                     let temp_more = make_temporary(f_context, offset.ty.clone(), vm);
-                                    emit_mul_u64(backend, &temp_more, &more_offset, f_context, vm, new_scale);
+                                    emit_mul_u64(backend, &temp_more, &more_offset, new_scale);
 
                                     // temp = (offset * scale) + (more_offset * new_scale);
                                     backend.emit_add_ext(&temp, &temp_more, &temp, signed, 0);
