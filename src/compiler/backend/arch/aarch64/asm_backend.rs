@@ -2053,7 +2053,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_frame_shrink(&mut self) {
         trace!("emit: \tframe shrink");
 
-        let asm = format!("ADD SP,SP,#{}", FRAME_SIZE_PLACEHOLDER.clone());
+        let asm = format!("ADD SP,SP,#{}; MOV SP, X29", FRAME_SIZE_PLACEHOLDER.clone());
 
         let line = self.line();
         self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 11, FRAME_SIZE_PLACEHOLDER_LEN, 0));
@@ -2115,7 +2115,7 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_fake_ret(&mut self) {
         trace!("emit: \tFAKE RET");
-        let asm = format!("B muentry_return");
+        let asm = format!("\tMOV SP, X29\n\tLDP X29, X30,[SP],#16 \n\tRET X30\n");
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return, None);
     }
 
