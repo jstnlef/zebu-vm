@@ -395,6 +395,7 @@ lazy_static! {
         //X18.clone(), // Platform Register
     ];
 
+    #[allow(dead_code)]
     static ref ALL_GPRS : [P<Value>; 30] = [
         X0.clone(),
         X1.clone(),
@@ -584,6 +585,7 @@ lazy_static!{
         D31.clone()
     ];
 
+    #[allow(dead_code)]
     static ref ALL_FPRS : [P<Value>; 32] = [
         D0.clone(),
         D1.clone(),
@@ -759,8 +761,8 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
 
 pub fn number_of_usable_regs_in_group(group: RegGroup) -> usize {
     match group {
-        RegGroup::GPR => ALL_GPRS.len(),
-        RegGroup::FPR => ALL_FPRS.len(),
+        RegGroup::GPR => ALL_USABLE_GPRS.len(),
+        RegGroup::FPR => ALL_USABLE_FPRS.len(),
         RegGroup::GPREX => unimplemented!(),
     }
 }
