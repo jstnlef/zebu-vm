@@ -44,6 +44,7 @@ use std::collections::HashMap;
 use std::collections::LinkedList;
 use std::mem;
 use std::any::Any;
+use num::integer::lcm;
 
 const INLINE_FASTPATH : bool = false;
 
@@ -1171,16 +1172,7 @@ impl <'a> InstructionSelection {
                         let ty_info = vm.get_backend_type_info(ty.id());
                         let ty_align = ty_info.alignment;
                         let fix_part_size = ty_info.size;
-                        let var_ty_size = match ty.v {
-                            MuType_::Hybrid(ref name) => {
-                                let map_lock = HYBRID_TAG_MAP.read().unwrap();
-                                let hybrid_ty_ = map_lock.get(name).unwrap();
-                                let var_ty = hybrid_ty_.get_var_ty();
-
-                                vm.get_backend_type_size((var_ty.id()))
-                            },
-                            _ => panic!("only expect HYBRID type here")
-                        };
+                        let var_ty_size = ty_info.elem_size.unwrap();
 
                         // actual size = fix_part_size + var_ty_size * len
                         let (actual_size, length) = {
@@ -1256,7 +1248,6 @@ impl <'a> InstructionSelection {
                             },
                             _ => panic!("only expect HYBRID type here")
                         };
-
                         let res = self.get_result_value(node, 0);
 
                         let ref ops = inst.ops;
@@ -1265,15 +1256,19 @@ impl <'a> InstructionSelection {
                             let var_len = node_imm_to_u64(var_len) as usize;
                             self.emit_alloca_const(&res, var_ty_size*var_len + fix_part_size, ty_align, f_context, vm, node);
                         } else {
-                            assert!(ty_align % 16 == 0);
+                            let align = lcm(ty_align, 16) as u64; // This is always going to be 16
+                            assert!(align.is_power_of_two());
                             let var_len = self.emit_ireg(var_len, f_content, f_context, vm);
                             // set res to the total size of the object (i.e. var_ty_size*var_len + fix_part_size)
                             emit_madd_u64_u64(self.backend.as_mut(), &res, &var_len, f_context, vm, var_ty_size as u64, fix_part_size as u64);
 
                             // Grow the stack by 'res' bytes
-                            self.backend.emit_sub(&SP, &SP, &res);
-                            // Align the stack pointer down to the nearest multiple of 16
-                            self.backend.emit_and_imm(&SP, &SP, !(16 - 1));
+                            // Note: the SP can't be used as the source of the emit_and so we have to make a temporary
+                            let tmp_sp = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+                            self.backend.emit_sub(&tmp_sp, &SP, &res);
+
+                            // Align the stack pointer down to the nearest multiple of align (which should be a power of two)
+                            self.backend.emit_and_imm(&SP, &tmp_sp, !(align - 1));
 
                             // Zero out 'res' bytes starting at the stack pointer
                             self.emit_runtime_entry(&entrypoints::MEM_ZERO, vec![SP.clone(), res.clone()], None, Some(node), f_context, vm);
@@ -2751,28 +2746,33 @@ impl <'a> InstructionSelection {
     }
 
     fn emit_alloca_const(&mut self, res: &P<Value>, size: usize, align: usize, f_context: &mut FunctionContext, vm: &VM, node: &TreeNode) {
-        assert!(16 % align == 0);
+        let align = lcm(align, 16); // This is always going to be 16
 
         // The stack pointer has to be 16 bytes aligned
-        let size = round_up(size, 16) as u64;
+        let alloc_size = round_up(size, align) as u64;
         if size <= 64 {
             // Note: this is the same threshold clang -O3 uses to decide whether to call memset
 
-            // Allocate 'size' bytes on the stack
-            emit_sub_u64(self.backend.as_mut(), &SP, &SP, size);
+            // Allocate 'alloc_size' bytes on the stack
+            emit_sub_u64(self.backend.as_mut(), &SP, &SP, alloc_size);
 
             // Just push pairs of the zero register to the stack
-            // TODO: Optimise for the case where we don't need to zero initilise a multiple of 16-bytes
             for i in 0..size/16 {
                 // Push pairs of 0's on the stack
                 let dest = make_value_base_offset(&SP, (16*i) as i64, &UINT128_TYPE, vm);
                 let dest = emit_mem(self.backend.as_mut(), &dest, get_type_alignment(&UINT128_TYPE, vm), f_context, vm);
                 self.backend.emit_stp(&dest, &XZR, &XZR);
             }
+            let leftover = size % 16;
+            if  leftover != 0 {  // Push the remaining bytes we need to
+                let offset = 16*(size/16);
+                let src = cast_value(&XZR, &get_alignment_type(leftover.next_power_of_two()));
+                emit_store_base_offset(self.backend.as_mut(), &SP, offset as i64, &src, f_context, vm);
+            }
             self.backend.emit_mov(&res, &SP);
         } else {
-            // Allocate 'size' bytes on the stack
-            emit_sub_u64(self.backend.as_mut(), &res, &SP, size);
+            // Allocate 'alloc_size' bytes on the stack
+            emit_sub_u64(self.backend.as_mut(), &res, &SP, alloc_size);
             self.emit_runtime_entry(&entrypoints::MEM_ZERO, vec![res.clone(), make_value_int_const(size as u64, vm)], None, Some(node), f_context, vm);
             self.backend.emit_mov(&SP, &res);
         };
@@ -4210,8 +4210,8 @@ impl <'a> InstructionSelection {
                     }
                     // GETELEMIREF <T1 T2> opnd index = opnd + index*element_size(T1)
                     Instruction_::GetElementIRef{base, index, ..} => {
-                        let element_type = ops[base].clone_value().ty.get_referent_ty().unwrap().get_elem_ty().unwrap();
-                        let element_size = vm.get_backend_type_size(element_type.id());
+                        let array_type = ops[base].clone_value().ty.get_referent_ty().unwrap();
+                        let element_size = vm.get_backend_type_info(array_type.id()).elem_size.unwrap();
 
                         self.emit_shift_ref(&ops[base], &ops[index], element_size, f_content, f_context, vm)
                     }

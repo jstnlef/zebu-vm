@@ -1467,9 +1467,9 @@ impl <'a> InstructionSelection {
                         let ty_info = vm.get_backend_type_info(ty.id());
                         let ty_align = ty_info.alignment;
                         let fix_part_size = ty_info.size;
-                        let var_ty_size = match ty_info.elem_padded_size {
+                        let var_ty_size = match ty_info.elem_size {
                             Some(sz) => sz,
-                            None => panic!("expect HYBRID type here with elem_padded_size, found {}", ty_info)
+                            None => panic!("expect HYBRID type here with elem_size, found {}", ty_info)
                         };
 
                         // compute actual size (size = fix_part_size + var_ty_size * len)
@@ -4580,9 +4580,9 @@ impl <'a> InstructionSelection {
                             Some(ty) => ty,
                             None => panic!("expected base in GetElemIRef to be type IRef, found {}", iref_array_ty)
                         };
-                        let ele_ty_size = match vm.get_backend_type_info(array_ty.id()).elem_padded_size {
+                        let ele_ty_size = match vm.get_backend_type_info(array_ty.id()).elem_size {
                             Some(sz) => sz,
-                            None => panic!("array backend type should have a elem_padded_size, found {}", array_ty)
+                            None => panic!("array backend type should have a elem_size, found {}", array_ty)
                         };
 
                         if self.match_iimm(index) {

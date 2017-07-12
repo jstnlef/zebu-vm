@@ -2165,6 +2165,13 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("B {}", mangle_name(dest_name.clone()));
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Unconditional(dest_name), None);
     }
+    fn emit_b_func(&mut self, dest_name: MuName)
+    {
+        trace!("emit: \tB {}",  dest_name);
+
+        let asm = format!("B {}", mangle_name(dest_name.clone()));
+        self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return, None);
+    }
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName)
     {
         trace!("emit: \tB.{} {}", cond, dest_name);
@@ -2180,6 +2187,14 @@ impl CodeGenerator for ASMCodeGen {
         let (reg1, id1, loc1) = self.prepare_reg(dest_address, 2 + 1);
         let asm = format!("BR {}", reg1);
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{id1 => vec![loc1]}, false, ASMBranchTarget::UnconditionalReg(id1), None);
+    }
+    fn emit_br_func(&mut self, func_address: Reg)
+    {
+        trace!("emit: \tBR {}", dest_address);
+
+        let (reg1, id1, loc1) = self.prepare_reg(dest_address, 2 + 1);
+        let asm = format!("BR {}", reg1);
+        self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return, None);
     }
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName) { self.internal_branch_op("CBNZ", src, dest_name); }
     fn emit_cbz(&mut self, src: Reg, dest_name: MuName) { self.internal_branch_op("CBZ", src, dest_name); }

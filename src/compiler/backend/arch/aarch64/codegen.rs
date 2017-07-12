@@ -110,8 +110,11 @@ pub trait CodeGenerator {
 
     // Branches
     fn emit_b(&mut self, dest_name: MuName);
+    fn emit_b_func(&mut self, func: MuName);
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName);
     fn emit_br(&mut self, dest_address: Reg);
+    fn emit_br_func(&mut self, func_address: Reg);
+
     fn emit_ret(&mut self, src: Reg);
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName);
     fn emit_cbz(&mut self, src: Reg, dest_name: MuName);

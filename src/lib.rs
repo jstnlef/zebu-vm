@@ -28,6 +28,7 @@ extern crate maplit;
 #[macro_use]
 extern crate field_offset;
 extern crate extprim;
+extern crate num;
 
 #[macro_use]
 pub extern crate ast;

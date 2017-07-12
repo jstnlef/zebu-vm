@@ -26,6 +26,7 @@ use utils::ByteSize;
 use utils::math::align_up;
 use runtime::mm;
 use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern};
+use num::integer::lcm;
 
 /// for ahead-of-time compilation (boot image making), the file contains a persisted VM, a persisted
 /// heap, constants. This allows the VM to resume execution with the same status as before persisting.
@@ -204,16 +205,14 @@ pub struct BackendType {
     pub alignment: ByteSize,
     /// struct layout of the type, None if this is not a struct/hybrid type
     pub struct_layout: Option<Vec<ByteSize>>,
-    /// element padded size for hybrid/array type
-    /// for hybrid/array, every element needs to be properly aligned
-    /// thus it may take more space than it actually needs
-    pub elem_padded_size: Option<ByteSize>,
+    /// element size for hybrid/array type
+    pub elem_size: Option<ByteSize>,
     /// GC type, containing information for GC (this is a temporary design)
     /// See Issue#12
     pub gc_type: P<GCType>
 }
 
-rodal_struct!(BackendType{size, alignment, struct_layout, elem_padded_size, gc_type});
+rodal_struct!(BackendType{size, alignment, struct_layout, elem_size, gc_type});
 
 impl BackendType {
     /// gets field offset of a struct/hybrid type. Panics if this is not struct/hybrid type
@@ -234,23 +233,23 @@ impl BackendType {
             MuType_::Int(size_in_bit) => {
                 match size_in_bit {
                     1 ... 8   => BackendType{
-                        size: 1, alignment: 1, struct_layout: None, elem_padded_size: None,
+                        size: 1, alignment: 1, struct_layout: None, elem_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
                     },
                     9 ... 16  => BackendType{
-                        size: 2, alignment: 2, struct_layout: None, elem_padded_size: None,
+                        size: 2, alignment: 2, struct_layout: None, elem_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
                     },
                     17 ... 32 => BackendType{
-                        size: 4, alignment: 4, struct_layout: None, elem_padded_size: None,
+                        size: 4, alignment: 4, struct_layout: None, elem_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
                     },
                     33 ... 64 => BackendType{
-                        size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
+                        size: 8, alignment: 8, struct_layout: None, elem_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
                     },
                     128 => BackendType {
-                        size: 16, alignment: 16, struct_layout: None, elem_padded_size: None,
+                        size: 16, alignment: 16, struct_layout: None, elem_size: None,
                         gc_type: mm::add_gc_type(GCType::new_noreftype(16, 16))
                     },
                     _ => unimplemented!()
@@ -260,7 +259,7 @@ impl BackendType {
             MuType_::Ref(_)
             | MuType_::IRef(_)
             | MuType_::WeakRef(_) => BackendType{
-                size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
+                size: 8, alignment: 8, struct_layout: None, elem_size: None,
                 gc_type: mm::add_gc_type(GCType::new_reftype())
             },
             // pointer/opque ref
@@ -269,36 +268,46 @@ impl BackendType {
             | MuType_::FuncRef(_)
             | MuType_::ThreadRef
             | MuType_::StackRef => BackendType{
-                size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
+                size: 8, alignment: 8, struct_layout: None, elem_size: None,
                 gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
             },
             // tagref
             MuType_::Tagref64 => BackendType {
-                size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
+                size: 8, alignment: 8, struct_layout: None, elem_size: None,
                 gc_type: mm::add_gc_type(GCType::new_reftype())
             },
             // floating point
             MuType_::Float => BackendType{
-                size: 4, alignment: 4, struct_layout: None, elem_padded_size: None,
+                size: 4, alignment: 4, struct_layout: None, elem_size: None,
                 gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
             },
             MuType_::Double => BackendType {
-                size: 8, alignment: 8, struct_layout: None, elem_padded_size: None,
+                size: 8, alignment: 8, struct_layout: None, elem_size: None,
                 gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
             },
             // array
             MuType_::Array(ref ty, len) => {
                 let ele_ty = vm.get_backend_type_info(ty.id());
-                let ele_padded_size = align_up(ele_ty.size, ele_ty.alignment);
+                let elem_size = ele_ty.size;
+                let mut size = ele_ty.size*len;
+                let mut align = ele_ty.alignment;
+
+                if cfg!(target_arch = "x86_64") && size >= 16 {
+                    // Acording to the AMD64 SYSV ABI Version 0.99.8,
+                    // a 'local or global array variable of at least 16 bytes ... always has alignment of at least 16 bytes'
+                    // An array may be allocated in different ways, and whether it is possible for one to count as local
+                    // or global variables is unknown.
+                    // So to be safe, we assume this rule always applies for all array allocations.
+                    align = lcm(align, 16);
+                    size = align_up(size, align);
+                }
 
                 BackendType{
-                    size         : ele_padded_size * len,
-                    alignment    : ele_ty.alignment,
+                    size         : size,
+                    alignment    : align,
                     struct_layout: None,
-                    elem_padded_size : Some(ele_padded_size),
-                    gc_type      : mm::add_gc_type(GCType::new_fix(GCTYPE_INIT_ID,
-                                                                   ele_padded_size * len,
-                                                                   ele_ty.alignment,
+                    elem_size : Some(elem_size),
+                    gc_type      : mm::add_gc_type(GCType::new_fix(GCTYPE_INIT_ID, size, align,
                                                                    Some(RefPattern::Repeat{
                                                                        pattern: Box::new(RefPattern::NestedType(vec![ele_ty.gc_type])),
                                                                        count  : len
@@ -331,27 +340,32 @@ impl BackendType {
 
                 // treat var_ty as array (getting its alignment)
                 let var_ele_ty = vm.get_backend_type_info(var_ty.id());
-                let var_align = var_ele_ty.alignment;
-                let var_padded_size = align_up(var_ele_ty.size, var_ele_ty.alignment);
-                ret.elem_padded_size = Some(var_padded_size);
+                let var_size = var_ele_ty.size;
+                ret.elem_size = Some(var_size);
 
-                // fix type info as hybrid
-                // 1. check alignment
-                if ret.alignment < var_align {
-                    ret.alignment = var_align;
-                }
-                // 2. fix gc type
+                let var_align = if cfg!(target_arch = "x86_64") {
+                    // Acording to the AMD64 SYSV ABI Version 0.99.8,
+                    // a 'a C99 variable-length array variable always has alignment of at least 16 bytes'
+                    // Whether the var part of hybrid counts as a variable-length array is unknown,
+                    // so to be safe, we assume this rule always applies to the hybrids var part
+                    lcm(var_ele_ty.alignment, 16)
+                } else {
+                    var_ele_ty.alignment
+                };
+
+                ret.alignment = lcm(ret.alignment, var_align);
+                ret.size = align_up(ret.size, ret.alignment);
                 let mut gctype = ret.gc_type.as_ref().clone();
                 gctype.var_refs = Some(RefPattern::NestedType(vec![var_ele_ty.gc_type.clone()]));
-                gctype.var_size = Some(var_padded_size);
+                gctype.var_size = Some(var_size);
                 ret.gc_type = mm::add_gc_type(gctype);
 
                 ret
             }
             // void
             MuType_::Void => BackendType{
-                size: 0, alignment: 8, struct_layout: None, elem_padded_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(0, 8))
+                size: 0, alignment: 1, struct_layout: None, elem_size: None,
+                gc_type: mm::add_gc_type(GCType::new_noreftype(0, 1))
             },
             // vector
             MuType_::Vector(_, _) => unimplemented!()
@@ -375,15 +389,8 @@ impl BackendType {
             trace!("examining field: {}, {:?}", ty, ty_info);
 
             let align = ty_info.alignment;
-            if struct_align < align {
-                struct_align = align;
-            }
-
-            if cur % align != 0 {
-                // move cursor to next aligned offset
-                cur = (cur / align + 1) * align;
-            }
-
+            struct_align = lcm(struct_align, align);
+            cur = align_up(cur, align);
             offsets.push(cur);
             trace!("aligned to {}", cur);
 
@@ -405,17 +412,13 @@ impl BackendType {
         }
 
         // if we need padding at the end
-        let size = if cur % struct_align != 0 {
-            (cur / struct_align + 1) * struct_align
-        } else {
-            cur
-        };
+        let size = align_up(cur, struct_align);
 
         BackendType {
             size         : size,
             alignment    : struct_align,
             struct_layout: Some(offsets),
-            elem_padded_size: None,
+            elem_size: None,
             gc_type      : mm::add_gc_type(GCType::new_fix(GCTYPE_INIT_ID,
                                                            size,
                                                            struct_align,
