@@ -3747,7 +3747,6 @@ impl <'a> InstructionSelection {
 
         // Note: the stack pointer should now be what it was when the function was called
         self.backend.emit_ret(&LR); // return to the Link Register
-        //self.backend.emit_fake_ret();
         self.finish_block();
     }
 

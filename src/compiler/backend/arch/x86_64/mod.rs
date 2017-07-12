@@ -436,11 +436,11 @@ lazy_static! {
         map
     };
 
-    /// all the usable registers for register allocators to assign
+    /// all the usable general purpose registers for reg allocator to assign
     //  order matters here (since register allocator will prioritize assigning temporaries
     //  to a register that appears early)
     //  we put caller saved regs first (they imposes no overhead if there is no call instruction)
-    pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = vec![
+    pub static ref ALL_USABLE_GPRS : Vec<P<Value>> = vec![
         // caller saved registers
         RAX.clone(),
         RCX.clone(),
@@ -457,6 +457,13 @@ lazy_static! {
         R13.clone(),
         R14.clone(),
         R15.clone(),
+    ];
+
+    /// all the usable floating point registers for reg allocator to assign
+    //  order matters here (since register allocator will prioritize assigning temporaries
+    //  to a register that appears early)
+    //  we put caller saved regs first (they imposes no overhead if there is no call instruction)
+    pub static ref ALL_USABLE_FPRS : Vec<P<Value>> = vec![
         // floating point registers
         XMM0.clone(),
         XMM1.clone(),
@@ -475,6 +482,17 @@ lazy_static! {
         XMM14.clone(),
         XMM15.clone()
     ];
+
+    /// all the usable registers for register allocators to assign
+    //  order matters here (since register allocator will prioritize assigning temporaries
+    //  to a register that appears early)
+    //  we put caller saved regs first (they imposes no overhead if there is no call instruction)
+    pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = {
+        let mut ret = vec![];
+        ret.extend_from_slice(&ALL_USABLE_GPRS);
+        ret.extend_from_slice(&ALL_USABLE_FPRS);
+        ret
+    };
 }
 
 /// creates context for each machine register in FunctionContext
@@ -488,11 +506,11 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
 }
 
 /// gets the number of registers in a certain register group
-pub fn number_of_regs_in_group(group: RegGroup) -> usize {
+pub fn number_of_usable_regs_in_group(group: RegGroup) -> usize {
     match group {
-        RegGroup::GPR   => ALL_GPRS.len(),
-        RegGroup::GPREX => ALL_GPRS.len(),
-        RegGroup::FPR   => ALL_FPRS.len()
+        RegGroup::GPR   => ALL_USABLE_GPRS.len(),
+        RegGroup::GPREX => ALL_USABLE_GPRS.len(),
+        RegGroup::FPR   => ALL_USABLE_FPRS.len()
     }
 }
 
