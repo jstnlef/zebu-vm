@@ -2756,12 +2756,14 @@ impl <'a> InstructionSelection {
         // The stack pointer has to be 16 bytes aligned
         let size = round_up(size, 16) as u64;
         if size <= 64 {
+            // Note: this is the same threshold clang -O3 uses to decide whether to call memset
+
             // Allocate 'size' bytes on the stack
             emit_sub_u64(self.backend.as_mut(), &SP, &SP, size);
 
-            // Note: this is the same threshold clang -O3 uses to decide whether to call memset
             // Just push pairs of the zero register to the stack
-            for i in 0..size/2 {
+            // TODO: Optimise for the case where we don't need to zero initilise a multiple of 16-bytes
+            for i in 0..size/16 {
                 // Push pairs of 0's on the stack
                 let dest = make_value_base_offset(&SP, (16*i) as i64, &UINT128_TYPE, vm);
                 let dest = emit_mem(self.backend.as_mut(), &dest, get_type_alignment(&UINT128_TYPE, vm), f_context, vm);
