@@ -1259,6 +1259,8 @@ impl <'a> InstructionSelection {
                             let align = lcm(ty_align, 16) as u64; // This is always going to be 16
                             assert!(align.is_power_of_two());
                             let var_len = self.emit_ireg(var_len, f_content, f_context, vm);
+                            emit_zext(self.backend.as_mut(), &var_len);
+                            let var_len = cast_value(&var_len, &UINT64_TYPE.clone());
                             // set res to the total size of the object (i.e. var_ty_size*var_len + fix_part_size)
                             emit_madd_u64_u64(self.backend.as_mut(), &res, &var_len, f_context, vm, var_ty_size as u64, fix_part_size as u64);
 
@@ -3741,8 +3743,7 @@ impl <'a> InstructionSelection {
         }
 
         // Pop the frame record
-        self.backend.emit_frame_shrink();
-        //self.backend.emit_mov(&SP, &FP);
+        self.backend.emit_mov(&SP, &FP);
         self.backend.emit_pop_pair(&FP, &LR, &SP);
 
         // Note: the stack pointer should now be what it was when the function was called

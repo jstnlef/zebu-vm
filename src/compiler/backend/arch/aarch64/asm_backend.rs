@@ -2050,22 +2050,6 @@ impl CodeGenerator for ASMCodeGen {
         )
     }
 
-    fn emit_frame_shrink(&mut self) {
-        trace!("emit: \tframe shrink");
-
-        let asm = format!("ADD SP,SP,#{}; MOV SP, X29", FRAME_SIZE_PLACEHOLDER.clone());
-
-        let line = self.line();
-        self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 11, FRAME_SIZE_PLACEHOLDER_LEN, 0));
-
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{},
-            linked_hashmap!{},
-            false
-        )
-    }
-
     fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str) {self.internal_binop_str("ADD", dest, src1, src2)}
 
     // Pushes a pair of registers on the givne stack (uses the STP instruction)
@@ -2111,12 +2095,6 @@ impl CodeGenerator for ASMCodeGen {
         let (reg1, id1, loc1) = self.prepare_reg(src, 3 + 1);
         let asm = format!("RET {}", reg1);
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{id1 => vec![loc1]}, false, ASMBranchTarget::Return, None);
-    }
-
-    fn emit_fake_ret(&mut self) {
-        trace!("emit: \tFAKE RET");
-        let asm = format!("\tMOV SP, X29\n\tLDP X29, X30,[SP],#16 \n\tRET X30\n");
-        self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return, None);
     }
 
     fn emit_bl(&mut self, callsite: String, func: MuName, pe: Option<MuName>, is_native: bool) -> ValueLocation {
@@ -2165,11 +2143,11 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("B {}", mangle_name(dest_name.clone()));
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Unconditional(dest_name), None);
     }
-    fn emit_b_func(&mut self, dest_name: MuName)
+    fn emit_b_func(&mut self, func_name: MuName)
     {
-        trace!("emit: \tB {}",  dest_name);
+        trace!("emit: \tB {}",  func_name);
 
-        let asm = format!("B {}", mangle_name(dest_name.clone()));
+        let asm = format!("B {}", mangle_name(func_name.clone()));
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return, None);
     }
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName)
@@ -2190,11 +2168,11 @@ impl CodeGenerator for ASMCodeGen {
     }
     fn emit_br_func(&mut self, func_address: Reg)
     {
-        trace!("emit: \tBR {}", dest_address);
+        trace!("emit: \tBR {}", func_address);
 
-        let (reg1, id1, loc1) = self.prepare_reg(dest_address, 2 + 1);
+        let (reg1, id1, loc1) = self.prepare_reg(func_address, 2 + 1);
         let asm = format!("BR {}", reg1);
-        self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return, None);
+        self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{id1 => vec![loc1]}, false, ASMBranchTarget::Return, None);
     }
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName) { self.internal_branch_op("CBNZ", src, dest_name); }
     fn emit_cbz(&mut self, src: Reg, dest_name: MuName) { self.internal_branch_op("CBZ", src, dest_name); }
