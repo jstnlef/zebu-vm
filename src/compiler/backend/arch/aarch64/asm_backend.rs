@@ -2053,7 +2053,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_frame_shrink(&mut self) {
         trace!("emit: \tframe shrink");
 
-        let asm = format!("ADD SP,SP,#{}", FRAME_SIZE_PLACEHOLDER.clone());
+        let asm = format!("ADD SP,SP,#{}; MOV SP, X29", FRAME_SIZE_PLACEHOLDER.clone());
 
         let line = self.line();
         self.cur_mut().add_frame_size_patchpoint(ASMLocation::new(line, 11, FRAME_SIZE_PLACEHOLDER_LEN, 0));

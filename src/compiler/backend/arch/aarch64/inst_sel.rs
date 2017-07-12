@@ -3739,13 +3739,13 @@ impl <'a> InstructionSelection {
         }
 
         // Pop the frame record
-        //self.backend.emit_frame_shrink();
+        self.backend.emit_frame_shrink();
         //self.backend.emit_mov(&SP, &FP);
-        //self.backend.emit_pop_pair(&FP, &LR, &SP);
+        self.backend.emit_pop_pair(&FP, &LR, &SP);
 
         // Note: the stack pointer should now be what it was when the function was called
-        //self.backend.emit_ret(&LR); // return to the Link Register
-        self.backend.emit_fake_ret();
+        self.backend.emit_ret(&LR); // return to the Link Register
+        //self.backend.emit_fake_ret();
         self.finish_block();
     }
 
