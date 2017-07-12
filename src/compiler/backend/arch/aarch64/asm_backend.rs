@@ -2115,7 +2115,7 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_fake_ret(&mut self) {
         trace!("emit: \tFAKE RET");
-        let asm = format!("B muentry_return");
+        let asm = format!("\tMOV SP, X29\n\tLDP X29, X30,[SP],#16 \n\tRET X30\n");
         self.add_asm_inst_internal(asm, linked_hashmap!{}, linked_hashmap!{}, false, ASMBranchTarget::Return, None);
     }
 
