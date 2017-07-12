@@ -63,7 +63,7 @@ pub use compiler::backend::x86_64::is_aliased;
 pub use compiler::backend::x86_64::get_color_for_precolored;
 /// returns the number of registers in a given RegGroup
 #[cfg(target_arch = "x86_64")]
-pub use compiler::backend::x86_64::number_of_regs_in_group;
+pub use compiler::backend::x86_64::number_of_usable_regs_in_group;
 /// returns the number of all machine registers
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::number_of_all_regs;
@@ -138,7 +138,7 @@ pub use compiler::backend::aarch64::is_aliased;
 pub use compiler::backend::aarch64::get_color_for_precolored;
 /// returns the number of registers in a given RegGroup
 #[cfg(target_arch = "aarch64")]
-pub use compiler::backend::aarch64::number_of_regs_in_group;
+pub use compiler::backend::aarch64::number_of_usable_regs_in_group;
 /// returns the number of all machine registers
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::number_of_all_regs;

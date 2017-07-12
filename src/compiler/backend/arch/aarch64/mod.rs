@@ -667,9 +667,7 @@ lazy_static! {
         D15.clone()
     ];
 
-
-    // put caller saved regs first (they imposes no overhead if there is no call instruction)
-    pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = vec![
+    pub static ref ALL_USABLE_GPRS : Vec<P<Value>> = vec![
         X0.clone(),
         X1.clone(),
         X2.clone(),
@@ -702,7 +700,9 @@ lazy_static! {
         X28.clone(),
         //X29.clone(), // Frame Pointer
         //X30.clone(), // Link Register
+    ];
 
+    pub static ref ALL_USABLE_FPRS : Vec<P<Value>> = vec![
         D0.clone(),
         D1.clone(),
         D2.clone(),
@@ -738,6 +738,14 @@ lazy_static! {
         D14.clone(),
         D15.clone(),
     ];
+
+    // put caller saved regs first (they imposes no overhead if there is no call instruction)
+    pub static ref ALL_USABLE_MACHINE_REGS : Vec<P<Value>> = {
+        let mut ret = vec![];
+        ret.extend_from_slice(&ALL_USABLE_GPRS);
+        ret.extend_from_slice(&ALL_USABLE_FPRS);
+        ret
+    };
 }
 
 pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
@@ -749,7 +757,7 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
     }
 }
 
-pub fn number_of_regs_in_group(group: RegGroup) -> usize {
+pub fn number_of_usable_regs_in_group(group: RegGroup) -> usize {
     match group {
         RegGroup::GPR => ALL_GPRS.len(),
         RegGroup::FPR => ALL_FPRS.len(),

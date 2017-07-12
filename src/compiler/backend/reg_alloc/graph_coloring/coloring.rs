@@ -32,6 +32,7 @@ use compiler::backend::reg_alloc::graph_coloring::liveness::Move;
 use compiler::backend::reg_alloc::graph_coloring::petgraph::graph::NodeIndex;
 
 const COALESCING : bool = true;
+const MAX_REWRITE_ITERATIONS_ALLOWED : usize = 10;
 
 /// GraphColoring algorithm
 /// based on Appel's book section 11.4
@@ -42,15 +43,16 @@ pub struct GraphColoring<'a> {
     pub vm: &'a VM,
     pub ig: InterferenceGraph,
 
+    /// how many coloring iteration have we done?
+    /// In case that a bug may trigger the coloring iterate endlessly, we use this count to stop
+    iteration_count: usize,
+
     /// machine registers, preassigned a color
     precolored: LinkedHashSet<NodeIndex>,
     /// all colors available
     colors: LinkedHashMap<backend::RegGroup, LinkedHashSet<MuID>>,
     /// temporaries, not precolored and not yet processed
     initial: Vec<NodeIndex>,
-    /// whether a temp is spillable
-    // FIXME: not used at the moment
-    spillable: LinkedHashMap<MuID, bool>,
 
     /// list of low-degree non-move-related nodes
     worklist_simplify: LinkedHashSet<NodeIndex>,
@@ -96,14 +98,20 @@ pub struct GraphColoring<'a> {
 impl <'a> GraphColoring<'a> {
     /// starts coloring
     pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
-        GraphColoring::start_with_spill_history(LinkedHashMap::new(), LinkedHashMap::new(), func, cf, vm)
+        GraphColoring::start_with_spill_history(LinkedHashMap::new(), LinkedHashMap::new(), 0, func, cf, vm)
     }
 
     /// restarts coloring with spill history
     fn start_with_spill_history(spill_history: LinkedHashMap<MuID, P<Value>>,
                                 spill_scratch_temps: LinkedHashMap<MuID, MuID>,
+                                iteration_count: usize,
                                 func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a>
     {
+        assert!(iteration_count < MAX_REWRITE_ITERATIONS_ALLOWED,
+            "reach graph coloring max rewrite iterations ({}), probably something is going wrong",
+            MAX_REWRITE_ITERATIONS_ALLOWED);
+        let iteration_count = iteration_count + 1;
+
         trace!("Initializing coloring allocator...");
         cf.mc().trace_mc();
 
@@ -114,6 +122,7 @@ impl <'a> GraphColoring<'a> {
             cf: cf,
             vm: vm,
             ig: ig,
+            iteration_count: iteration_count,
             precolored: LinkedHashSet::new(),
             colors: {
                 let mut map = LinkedHashMap::new();
@@ -132,7 +141,6 @@ impl <'a> GraphColoring<'a> {
             constrained_moves: LinkedHashSet::new(),
             alias: LinkedHashMap::new(),
             worklist_spill: Vec::new(),
-            spillable: LinkedHashMap::new(),
             spilled_nodes: Vec::new(),
             spill_history: spill_history,
             spill_scratch_temps: spill_scratch_temps,
@@ -235,7 +243,7 @@ impl <'a> GraphColoring<'a> {
             self.rewrite_program();
 
             // recursively redo graph coloring
-            return GraphColoring::start_with_spill_history(self.spill_history.clone(), self.spill_scratch_temps.clone(), self.func, self.cf, self.vm);
+            return GraphColoring::start_with_spill_history(self.spill_history.clone(), self.spill_scratch_temps.clone(), self.iteration_count, self.func, self.cf, self.vm);
         }
 
         self
@@ -282,11 +290,21 @@ impl <'a> GraphColoring<'a> {
     }
     
     fn n_regs_for_node(&self, node: NodeIndex) -> usize {
-        backend::number_of_regs_in_group(self.ig.get_group_of(node))
+        backend::number_of_usable_regs_in_group(self.ig.get_group_of(node))
     }
     
     fn is_move_related(&mut self, node: NodeIndex) -> bool {
         !self.node_moves(node).is_empty()
+    }
+
+    fn is_spillable(&self, temp: MuID) -> bool {
+        // if a temporary is created as scratch temp for a spilled temporary, we
+        // should not spill it again (infinite loop otherwise)
+        if self.spill_scratch_temps.contains_key(&temp) {
+            false
+        } else {
+            true
+        }
     }
     
     fn node_moves(&mut self, node: NodeIndex) -> LinkedHashSet<Move> {
@@ -632,15 +650,7 @@ impl <'a> GraphColoring<'a> {
             } else if {
                 // m is not none
                 let temp = self.ig.get_temp_of(m.unwrap());
-                let spillable = {match self.spillable.get(&temp) {
-                    None => {
-                        //by default, its spillable
-                        true
-                    },
-                    Some(b) => *b
-                }};
-                
-                !spillable
+                !self.is_spillable(temp)
             } {
                 m = Some(n);
             } else if (self.ig.get_spill_cost(n) / (self.degree(n) as f32)) 
