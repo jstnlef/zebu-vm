@@ -28,7 +28,6 @@ def test_alloca_simple():
         """, "test_alloca_simple");
     assert(execute("test_alloca_simple") == 0);
 
-
 def test_alloca():
     lib = load_bundle(
         """
@@ -57,18 +56,16 @@ def test_alloca():
                 STORE <type> ai_ref arg
                 argc_int = LOAD <int<64>> ai_ref
                                     
-                // sum all the *_int values togterh 
-                res_0 = ADD <int<64>> ai_int ad_int
-                res_1 = ADD <int<64>> res_0 ar_int
-                res_2 = ADD <int<64>> res_1 argc_int
+                // or all the *_int values together
+                res_0 = OR <int<64>> ai_int ad_int
+                res_1 = OR <int<64>> res_0 ar_int
+                res_2 = OR <int<64>> res_1 argc_int
                 RET res_2
         }
         """, "test_alloca");
 
     alloca = get_function(lib.alloca, [ctypes.c_int64], ctypes.c_int64);
     assert(alloca(-56) == -56);
-
-
 
 def test_allocahybrid_simple():
     compile_bundle(
@@ -87,9 +84,46 @@ def test_allocahybrid():
     lib = load_bundle(
         """
         .typedef type = hybrid<int<1> int<64>>
-        .funcdef allocahybrid <(int<64>)->(int<64>)>
+        .funcdef allocahybrid <(int<8>)->(int<64>)>
         {
-            entry(<int<64>>n):
+            entry(<int<8>>n):
+                a = ALLOCAHYBRID <type int<64>> n 
+
+                // Load the int<1> field to ai_int (as a 64-bit integer)
+                ai_ref = GETFIELDIREF <type 0> a
+                ai     = LOAD <int<64>> ai_ref
+                ai_int = ZEXT <int<1> int<64>> ai
+
+                a_var = GETVARPARTIREF <type> a
+                n_zero = EQ <int<8>> n <int<8>>0
+                // If the hybrid is non empty, sum all of it's variable elements
+                BRANCH2 n_zero exit(ai_int) sum(a_var n ai_int)
+
+            // Sum 'sum' and the n elements of pos
+            // branch to exit with sum once finished
+            sum(<iref<int<64>>>pos <int<8>>n <int<64>>sum):
+                val     = LOAD <int<64>> pos
+                new_pos = SHIFTIREF <int<64> int<1>> pos <int<1>>1
+                new_sum = OR <int<64>> sum val
+                new_n   = SUB <int<8>> n <int<8>>1
+                n_zero  = EQ <int<8>> n <int<8>>1
+                BRANCH2 n_zero exit(new_sum) sum(new_pos new_n new_sum)
+                
+            exit(<int<64>> sum):
+                RET sum
+        }
+        """, "test_allocahybrid");
+
+    allocahybrid = get_function(lib.allocahybrid, [ctypes.c_uint8], ctypes.c_uint64);
+    assert(allocahybrid(56) == 0);
+
+def test_allocahybrid_imm():
+    bundle_template = """
+        .typedef type = hybrid<int<1> int<64>>
+        .const n <int<64>> = {}
+        .funcdef allocahybrid_imm <(int<64>)->(int<64>)>
+        {{
+            entry():
                 a = ALLOCAHYBRID <type int<64>> n 
 
                 // Load the int<1> field to ai_int (as a 64-bit integer)
@@ -107,45 +141,9 @@ def test_allocahybrid():
             sum(<iref<int<64>>>pos <int<64>>n <int<64>>sum):
                 val     = LOAD <int<64>> pos
                 new_pos = SHIFTIREF <int<64> int<1>> pos <int<1>>1
-                new_sum = ADD <int<64>> sum val
+                new_sum = OR <int<64>> sum val
                 new_n   = SUB <int<64>> n <int<64>>1
-                n_zero  = EQ <int<64>> n <int<64>>0
-                BRANCH2 n_zero exit(new_sum) sum(new_pos new_n new_sum)
-                
-            exit(<int<64>> sum):
-                RET sum
-        }
-        """, "test_alloca");
-
-    allocahybrid = get_function(lib.allocahybrid, [ctypes.c_int64], ctypes.c_int64);
-    assert(allocahybrid(57) == 0);
-
-def test_allocahybrid_imm():
-    bundle_template = """
-        .typedef type = hybrid<int<1> int<64>>
-        .funcdef allocahybrid_imm <(int<64>)->(int<64>)>
-        {{
-            entry(<int<64>>n):
-                a = ALLOCAHYBRID <type int<64>> <int<64>>{} 
-
-                // Load the int<1> field to ai_int (as a 64-bit integer)
-                ai_ref = GETFIELDIREF <type 0> a
-                ai     = LOAD <int<64>> ai_ref
-                ai_int = ZEXT <int<1> int<64>> ai
-
-                a_var = GETVARPARTIREF <type> a
-                n_zero = EQ <int<64>> n <int<64>>0
-                // If the hybrid is non empty, sum all of it's variable elements
-                BRANCH2 n_zero exit(ai_int) sum(a_var n ai_int)
-
-            // Sum 'sum' and the n elements of pos
-            // branch to exit with sum once finished
-            sum(<iref<int<64>>>pos <int<64>>n <int<64>>sum):
-                val     = LOAD <int<64>> pos
-                new_pos = SHIFTIREF <int<64> int<1>> pos <int<1>>1
-                new_sum = ADD <int<64>> sum val
-                new_n   = SUB <int<64>> n <int<64>>1
-                n_zero  = EQ <int<64>> n <int<64>>0
+                n_zero  = EQ <int<64>> n <int<64>>1
                 BRANCH2 n_zero exit(new_sum) sum(new_pos new_n new_sum)
                 
             exit(<int<64>> sum):

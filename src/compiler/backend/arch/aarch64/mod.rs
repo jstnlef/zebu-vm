@@ -332,6 +332,7 @@ pub fn primitive_byte_size(ty : &P<MuType>) -> usize
     }
 }
 
+#[allow(dead_code)]
 lazy_static! {
     // Note: these are the same as the ARGUMENT_GPRS
     pub static ref RETURN_GPRS : [P<Value>; 8] = [
@@ -1744,9 +1745,14 @@ fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, 
         // dest = src2 - src1
         backend.emit_sub(&dest, &src2, &src1);
     } else if val.is_power_of_two() {
+        let shift = log2(val as u64) as u8;
         // dest = src1 << log2(val) + src2
-        backend.emit_lsl_imm(&dest, &src1, log2(val as u64) as u8);
-        backend.emit_add(&dest, &dest, &src2);
+        if shift <= 4 {
+            backend.emit_add_ext(&dest, &dest, &src2, false, shift);
+        } else {
+            backend.emit_lsl_imm(&dest, &src1, shift);
+            backend.emit_add(&dest, &dest, &src2);
+        }
     } else {
         // dest = src1 * val + src2
         emit_mov_u64(backend, &dest, val as u64);
@@ -1771,9 +1777,10 @@ fn emit_madd_u64_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
         emit_mov_u64(backend, &dest, val2);
         backend.emit_sub(&dest, &dest, &src);
     } else if val1.is_power_of_two() {
+        let shift = log2(val1 as u64) as u8;
         // dest = src << log2(val1) + val2
-        backend.emit_lsl_imm(&dest, &src, log2(val1 as u64) as u8);
-        emit_add_u64(backend, &dest, &src, val2);
+        backend.emit_lsl_imm(&dest, &src, shift);
+        emit_add_u64(backend, &dest, &dest, val2);
     } else {
         // dest = src * val1 + val2
         let tmp = make_temporary(f_context, src.ty.clone(), vm);
