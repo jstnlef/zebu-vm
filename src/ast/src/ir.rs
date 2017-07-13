@@ -681,6 +681,13 @@ impl TreeNode {
         })
     }
 
+    /// creates a sharable Value TreeNode
+    pub fn new_value(v: P<Value>) -> P<TreeNode> {
+        P(TreeNode {
+            v: TreeNode_::Value(v)
+        })
+    }
+
     /// extracts the MuID of an SSA TreeNode
     /// if the node is not an SSA, returns None
     pub fn extract_ssa_id(&self) -> Option<MuID> {

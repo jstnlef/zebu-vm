@@ -92,8 +92,10 @@ impl Default for CompilerPolicy {
     fn default() -> Self {
         let mut passes : Vec<Box<CompilerPass>> = vec![];
         passes.push(Box::new(passes::DotGen::new(".orig")));
-        passes.push(Box::new(passes::Inlining::new()));
+
         // ir level passes
+        passes.push(Box::new(passes::RetSink::new()));
+        passes.push(Box::new(passes::Inlining::new()));
         passes.push(Box::new(passes::DefUse::new()));
         passes.push(Box::new(passes::TreeGen::new()));
         passes.push(Box::new(passes::GenMovPhi::new()));
