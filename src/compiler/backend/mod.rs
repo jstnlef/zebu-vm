@@ -289,18 +289,15 @@ impl BackendType {
             MuType_::Array(ref ty, len) => {
                 let ele_ty = vm.get_backend_type_info(ty.id());
                 let elem_size = ele_ty.size;
-                let mut size = ele_ty.size*len;
-                let mut align = ele_ty.alignment;
+                let size = ele_ty.size*len;
+                let align = ele_ty.alignment;
 
-                if cfg!(target_arch = "x86_64") && size >= 16 {
-                    // Acording to the AMD64 SYSV ABI Version 0.99.8,
-                    // a 'local or global array variable of at least 16 bytes ... always has alignment of at least 16 bytes'
-                    // An array may be allocated in different ways, and whether it is possible for one to count as local
-                    // or global variables is unknown.
-                    // So to be safe, we assume this rule always applies for all array allocations.
-                    align = lcm(align, 16);
-                    size = align_up(size, align);
-                }
+                // Acording to the AMD64 SYSV ABI Version 0.99.8,
+                // a 'local or global array variable of at least 16 bytes ... always has alignment of at least 16 bytes'
+                // However, if we apply this rule, it will break 'Mu's array rule, hopefully C programs
+                // won't care if we allocate a local or global which is incorrectly alligned
+                // (A c function can't be sure a pointer to array that is passed to it is a local or global
+                // so this is unlikley to break anything).
 
                 BackendType{
                     size         : size,
@@ -341,17 +338,8 @@ impl BackendType {
                 // treat var_ty as array (getting its alignment)
                 let var_ele_ty = vm.get_backend_type_info(var_ty.id());
                 let var_size = var_ele_ty.size;
+                let var_align = var_ele_ty.alignmen;
                 ret.elem_size = Some(var_size);
-
-                let var_align = if cfg!(target_arch = "x86_64") {
-                    // Acording to the AMD64 SYSV ABI Version 0.99.8,
-                    // a 'a C99 variable-length array variable always has alignment of at least 16 bytes'
-                    // Whether the var part of hybrid counts as a variable-length array is unknown,
-                    // so to be safe, we assume this rule always applies to the hybrids var part
-                    lcm(var_ele_ty.alignment, 16)
-                } else {
-                    var_ele_ty.alignment
-                };
 
                 ret.alignment = lcm(ret.alignment, var_align);
                 ret.size = align_up(ret.size, ret.alignment);

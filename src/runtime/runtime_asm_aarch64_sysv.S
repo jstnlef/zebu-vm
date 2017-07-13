@@ -117,9 +117,3 @@ begin_func exception_restore
           MOV SP, X2
           BR X0
 end_func exception_restore
-
-begin_func muentry_return
-          MOV SP, FP
-          pop_pair FP, LR
-          RET LR
-end_func muentry_return
