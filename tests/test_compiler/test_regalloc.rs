@@ -843,7 +843,7 @@ fn coalesce_branch2_moves() -> VM {
     typedef! ((vm) int64 = mu_int(64));
     typedef! ((vm) int1  = mu_int(1));
 
-    funcsig! ((vm) sig = (int64, int64, int64, int64, int64, int64) -> ());
+    funcsig! ((vm) sig = (int64, int64, int64, int64, int64, int64) -> (int64));
     funcdecl!((vm) <sig> coalesce_branch2_moves);
     funcdef! ((vm) <sig> coalesce_branch2_moves VERSION coalesce_branch2_moves_v1);
 

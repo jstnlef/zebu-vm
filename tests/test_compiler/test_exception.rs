@@ -421,7 +421,7 @@ fn create_catch_exception_and_add(vm: &VM) {
     let blk_exception_exit = gen_ccall_exit(res4.clone(), &mut catch_and_add_v1, &vm);
 
     inst!       ((vm, catch_and_add_v1) blk_exception_ret:
-        RET (res4)
+        RET
     );
 
     define_block!   ((vm, catch_and_add_v1) blk_exception(ev0, ev1, ev2, ev3, ev4) [exc_arg] {
@@ -579,7 +579,7 @@ fn create_catch_twice(vm: &VM) {
     let blk_exception2_exit = gen_ccall_exit(res.clone(), &mut catch_twice_v1, &vm);
 
     inst!       ((vm, catch_twice_v1) blk_exception2_ret:
-        RET (res)
+        RET
     );
 
     define_block!   ((vm, catch_twice_v1) blk_exception2(blk_exception2_exc_arg1) [exc_arg2] {

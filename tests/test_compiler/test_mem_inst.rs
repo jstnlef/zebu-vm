@@ -453,7 +453,7 @@ pub fn struct_insts_macro() -> VM {
     let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut struct_insts_v1, &vm);
 
     inst!   ((vm, struct_insts_v1) blk_check_ret:
-                RET (blk_check_res)
+                RET
     );
 
     define_block! ((vm, struct_insts_v1) blk_check(blk_check_a) {
@@ -723,10 +723,9 @@ pub fn hybrid_fix_part_insts() -> VM {
     // CCALL exit(%res)
     let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut hybrid_fix_part_insts_v1, &vm);
 
-    // RET <@int64> 0
-    consta!         ((vm, hybrid_fix_part_insts_v1) int64_0_local = int64_0);
+    // RET
     inst!           ((vm, hybrid_fix_part_insts_v1) blk_check_ret:
-        RET (int64_0_local)
+        RET
     );
 
     define_block!   ((vm, hybrid_fix_part_insts_v1) blk_check(blk_check_a) {
@@ -967,9 +966,9 @@ pub fn hybrid_var_part_insts() -> VM {
 
     let blk_exit_exit = gen_ccall_exit(blk_exit_sum.clone(), &mut hybrid_var_part_insts_v1, &vm);
 
-    // RET @int64_0
+    // RET
     inst!           ((vm, hybrid_var_part_insts_v1) blk_exit_ret:
-        RET (int64_0_local)
+        RET
     );
 
     define_block!   ((vm, hybrid_var_part_insts_v1) blk_exit(blk_exit_sum) {

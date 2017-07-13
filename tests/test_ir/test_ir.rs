@@ -260,7 +260,7 @@ pub fn global_access(vm: &VM) {
     );
 
     inst!       ((vm, global_access_v1) blk_0_ret:
-        RET (blk_0_x)
+        RET
     );
 
     define_block!((vm, global_access_v1) blk_0() {

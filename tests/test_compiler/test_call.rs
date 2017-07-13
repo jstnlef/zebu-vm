@@ -95,10 +95,9 @@ fn ccall_exit() -> VM {
     consta!     ((vm, ccall_exit_v1) int32_10_local = int32_10);
     let blk_entry_ccall = gen_ccall_exit(int32_10_local.clone(), &mut ccall_exit_v1, &vm);
 
-    // RET %const_int32_0
-    consta!     ((vm, ccall_exit_v1) int32_0_local = int32_0);
+    // RET
     inst!       ((vm, ccall_exit_v1) blk_entry_ret:
-        RET (int32_0_local)
+        RET
     );
 
     define_block!((vm, ccall_exit_v1) blk_entry() {
