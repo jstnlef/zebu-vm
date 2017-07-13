@@ -17,110 +17,58 @@ use ast::ptr::*;
 use compiler::frame::*;
 use runtime::ValueLocation;
 
+use rodal;
+use utils::Address;
+use std::sync::Arc;
+use runtime::resolve_symbol;
 use std::ops;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-
+/// CompiledFunction store all information (including code) for a function that is compiled
 pub struct CompiledFunction {
+    /// Mu function ID
     pub func_id: MuID,
+    /// Mu function version ID
     pub func_ver_id: MuID,
 
-    // assumes one temporary maps to one register
+    /// a map between temporaries and their assigned machine registers
+    // FIXME: assumes one temporary maps to one register
     pub temps : HashMap<MuID, MuID>,
 
+    /// constants used in this function
     pub consts: HashMap<MuID, P<Value>>,
+    /// if the constants needs to be put in memory, this stores their location
     pub const_mem: HashMap<MuID, P<Value>>,
     
-    // not emitting this
+    /// the machine code representation
+    /// when making boot image, this field does not get persisted
     pub mc: Option<Box<MachineCode + Send + Sync>>,
-    
+
+    /// frame info for this compiled function
     pub frame: Frame,
+
+    /// start location of this compiled function
     pub start: ValueLocation,
+    /// end location of this compiled function
     pub end: ValueLocation
 }
-
-const CF_SERIALIZE_FIELDS : usize = 6;
-
-impl Encodable for CompiledFunction {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |s| {
-            let mut i = 0;
-
-            try!(s.emit_struct_field("func_id",     i, |s| self.func_id.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("func_ver_id", i, |s| self.func_ver_id.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("temps",       i, |s| self.temps.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("consts",      i, |s| self.consts.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("const_mem",   i, |s| self.const_mem.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("frame",       i, |s| self.frame.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("start",       i, |s| self.start.encode(s)));
-            i += 1;
-
-            try!(s.emit_struct_field("end",         i, |s| self.end.encode(s)));
-            
-            Ok(())
-        })
-    }
-}
-
-impl Decodable for CompiledFunction {
-    fn decode<D: Decoder>(d: &mut D) -> Result<CompiledFunction, D::Error> {
-        d.read_struct("CompiledFunction", CF_SERIALIZE_FIELDS, |d| {
-            let mut i = 0;
-
-            let func_id = 
-                try!(d.read_struct_field("func_id",     i, |d| Decodable::decode(d)));
-            i += 1;
-            let func_ver_id = 
-                try!(d.read_struct_field("func_ver_id", i, |d| Decodable::decode(d)));
-            i += 1;
-            let temps = 
-                try!(d.read_struct_field("temps",       i, |d| Decodable::decode(d)));
-            i += 1;
-            let consts =
-                try!(d.read_struct_field("consts",      i, |d| Decodable::decode(d)));
-            i += 1;
-            let const_mem =
-                try!(d.read_struct_field("const_mem",   i, |d| Decodable::decode(d)));
-            i += 1;
-            let frame = 
-                try!(d.read_struct_field("frame",       i, |d| Decodable::decode(d)));
-            i += 1;
-            let start = 
-                try!(d.read_struct_field("start",       i, |d| Decodable::decode(d)));
-            i += 1;
-            let end =
-                try!(d.read_struct_field("end",         i, |d| Decodable::decode(d)));
-            
-            Ok(CompiledFunction{
-                func_id: func_id,
-                func_ver_id: func_ver_id,
-                temps: temps,
-                consts: consts,
-                const_mem: const_mem,
-                mc: None,
-                frame: frame,
-                start: start,
-                end: end
-            })
-        })
+unsafe impl rodal::Dump for CompiledFunction {
+    fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
+        dumper.debug_record("CompiledFunction", "dump");
+        dumper.dump_object(&self.func_id);
+        dumper.dump_object(&self.func_ver_id);
+        dumper.dump_object(&self.temps);
+        dumper.dump_object(&self.consts);
+        dumper.dump_object(&self.const_mem);
+        dumper.dump_object(&self.frame);
+        dumper.dump_object(&self.start);
+        dumper.dump_object(&self.end);;
     }
 }
 
 impl CompiledFunction {
+    /// creates a new compiled function
     pub fn new(func_id: MuID, fv_id: MuID, mc: Box<MachineCode + Send + Sync>,
                constants: HashMap<MuID, P<Value>>, constant_locs: HashMap<MuID, P<Value>>,
                frame: Frame, start_loc: ValueLocation, end_loc: ValueLocation) -> CompiledFunction {
@@ -137,6 +85,7 @@ impl CompiledFunction {
         }
     }
 
+    /// gets a reference to the machine code representation of this compiled function
     pub fn mc(&self) -> &Box<MachineCode + Send + Sync> {
         match self.mc {
             Some(ref mc) => mc,
@@ -145,7 +94,8 @@ impl CompiledFunction {
                 boot image and mc is thrown away)")
         }
     }
-    
+
+    /// gets a mutable reference to the machine code representation of this compiled function
     pub fn mc_mut(&mut self) -> &mut Box<MachineCode + Send + Sync> {
         match self.mc {
             Some(ref mut mc) => mc,
@@ -154,43 +104,100 @@ impl CompiledFunction {
     }
 }
 
+// Contains information about a callsite (needed for exception handling)
+pub struct CompiledCallsite {
+    pub exceptional_destination: Option<Address>,
+    pub stack_args_size: usize,
+    pub callee_saved_registers: Arc<HashMap<isize, isize>>,
+    pub function_version: MuID
+}
+impl CompiledCallsite {
+    pub fn new(callsite: &Callsite, fv: MuID, callee_saved_registers: Arc<HashMap<isize, isize>>) -> CompiledCallsite {
+        CompiledCallsite {
+            exceptional_destination: match &callsite.exception_destination {
+                &Some(ref name) => Some(resolve_symbol(name.clone())),
+                &None => None
+            },
+            stack_args_size: callsite.stack_arg_size,
+            callee_saved_registers: callee_saved_registers,
+            function_version: fv,
+        }
+    }
+}
+
 use std::any::Any;
 
+/// MachineCode allows the compiler manipulate machine code in a target independent way
+///
+/// In this trait:
+/// * the machine instructions/labels/asm directives are referred by an index
+/// * block are referred by &str
+/// * temporaries and registers are referred by MuID
+///
+/// This trait is designed greatly to favor the idea of in-place code generation (once
+/// the machine code is generated, it will not get moved). However, as discussed in Issue#13,
+/// we are uncertain whether in-place code generation is feasible. This trait may change
+/// once we decide.
 pub trait MachineCode {
+    /// print the whole machine code by trace level log
     fn trace_mc(&self);
+    /// print an inst for the given index
     fn trace_inst(&self, index: usize);
-    
-    fn emit(&self) -> Vec<u8>;
-    fn emit_inst(&self, index: usize) -> Vec<u8>;
-    
-    fn number_of_insts(&self) -> usize;
-    
-    fn is_move(&self, index: usize) -> bool;
-    fn is_using_mem_op(&self, index: usize) -> bool;
-    fn is_jmp(&self, index: usize) -> Option<MuName>;
-    fn is_label(&self, index: usize) -> Option<MuName>;
 
+    /// emit the machine code as a byte array
+    fn emit(&self) -> Vec<u8>;
+    /// emit the machine instruction at the given index as a byte array
+    fn emit_inst(&self, index: usize) -> Vec<u8>;
+    /// returns the count of instructions in this machine code
+    fn number_of_insts(&self) -> usize;
+
+    /// is the specified index a move instruction?
+    fn is_move(&self, index: usize) -> bool;
+    /// is the specified index using memory operands?
+    fn is_using_mem_op(&self, index: usize) -> bool;
+    /// is the specified index a jump instruction? (unconditional jump)
+    /// returns an Option for target block
+    fn is_jmp(&self, index: usize) -> Option<MuName>;
+    /// is the specified index a label? returns an Option for the label
+    fn is_label(&self, index: usize) -> Option<MuName>;
+    /// is the specified index loading a spilled register?
+    /// returns an Option for the register that is loaded into
     fn is_spill_load(&self, index: usize) -> Option<P<Value>>;
+    /// is the specified index storing a spilled register?
+    /// returns an Option for the register that is stored
     fn is_spill_store(&self, index: usize) -> Option<P<Value>>;
-    
+
+    /// gets successors of a specified index
     fn get_succs(&self, index: usize) -> &Vec<usize>;
+    /// gets predecessors of a specified index
     fn get_preds(&self, index: usize) -> &Vec<usize>;
 
+    /// gets the next instruction of a specified index (labels are not instructions)
     fn get_next_inst(&self, index: usize) -> Option<usize>;
+    /// gets the previous instruction of a specified index (labels are not instructions)
     fn get_last_inst(&self, index: usize) -> Option<usize>;
-    
+
+    /// gets the register uses of a specified index
     fn get_inst_reg_uses(&self, index: usize) -> Vec<MuID>;
+    /// gets the register defines of a specified index
     fn get_inst_reg_defines(&self, index: usize) -> Vec<MuID>;
-    
+
+    /// gets block livein
     fn get_ir_block_livein(&self, block: &str) -> Option<&Vec<MuID>>;
+    /// gets block liveout
     fn get_ir_block_liveout(&self, block: &str) -> Option<&Vec<MuID>>;
+    /// sets block livein
     fn set_ir_block_livein(&mut self, block: &str, set: Vec<MuID>);
+    /// sets block liveout
     fn set_ir_block_liveout(&mut self, block: &str, set: Vec<MuID>);
-    
+
+    /// gets all the blocks
     fn get_all_blocks(&self) -> Vec<MuName>;
+    /// gets the entry block
     fn get_entry_block(&self) -> MuName;
-    // returns [start_inst, end_inst) // end_inst not included
+    /// gets the range of a given block, returns [start_inst, end_inst) (end_inst not included)
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
+    /// gets the block for a given index, returns an Option for the block
     fn get_block_for_inst(&self, index: usize) -> Option<MuName>;
 
     // functions for rewrite
@@ -211,8 +218,4 @@ pub trait MachineCode {
     fn patch_frame_size(&mut self, size: usize);
 
     fn as_any(&self) -> &Any;
-}
-
-pub trait MachineInst {
-
 }

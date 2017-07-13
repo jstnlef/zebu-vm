@@ -1,3 +1,4 @@
+.gitignore
 **/target/*
 **/__pycache__/*
 **/.cache/*
@@ -18,3 +19,5 @@ cmake-build-debug/*
 Notes/*
 CMakeLists.txt
 *.iml
+.rsync-filter
+*.so

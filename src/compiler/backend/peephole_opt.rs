@@ -24,6 +24,31 @@ pub struct PeepholeOptimization {
     name: &'static str
 }
 
+impl CompilerPass for PeepholeOptimization {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn as_any(&self) -> &Any {
+        self
+    }
+
+    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        let compiled_funcs = vm.compiled_funcs().read().unwrap();
+        let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
+
+        for i in 0..cf.mc().number_of_insts() {
+            // if two sides of a move instruction are the same, it is redundant, and can be eliminated
+            self.remove_redundant_move(i, &mut cf);
+            // if a branch targets a block that immediately follow it, it can be eliminated
+            self.remove_unnecessary_jump(i, &mut cf);
+        }
+
+        trace!("after peephole optimization:");
+        cf.mc().trace_mc();
+    }
+}
+
 impl PeepholeOptimization {
     pub fn new() -> PeepholeOptimization {
         PeepholeOptimization {
@@ -31,10 +56,12 @@ impl PeepholeOptimization {
         }
     }
     
-    pub fn remove_redundant_move(&mut self, inst: usize, cf: &mut CompiledFunction) {
+    fn remove_redundant_move(&mut self, inst: usize, cf: &mut CompiledFunction) {
+        // if this instruction is a move, and move from register to register (no memory operands)
         if cf.mc().is_move(inst) && !cf.mc().is_using_mem_op(inst) {
             cf.mc().trace_inst(inst);
-            
+
+            // get source reg/temp ID
             let src : MuID = {
                 let uses = cf.mc().get_inst_reg_uses(inst);
                 if uses.len() == 0 {
@@ -43,8 +70,11 @@ impl PeepholeOptimization {
                 }                
                 uses[0]
             };
+
+            // get dest reg/temp ID
             let dst : MuID = cf.mc().get_inst_reg_defines(inst)[0];
-            
+
+            // turning temp into machine reg
             let src_machine_reg : MuID = {
                 match cf.temps.get(&src) {
                     Some(reg) => *reg,
@@ -57,7 +87,8 @@ impl PeepholeOptimization {
                     None => dst
                 }
             };
-            
+
+            // check if two registers are aliased
             if backend::is_aliased(src_machine_reg, dst_machine_reg) {
                 trace!("move between {} and {} is redundant! removed", src_machine_reg, dst_machine_reg);
                 // redundant, remove this move
@@ -68,7 +99,7 @@ impl PeepholeOptimization {
         }
     }
 
-    pub fn remove_unnecessary_jump(&mut self, inst: usize, cf: &mut CompiledFunction) {
+    fn remove_unnecessary_jump(&mut self, inst: usize, cf: &mut CompiledFunction) {
         let mut mc = cf.mc_mut();
 
         // if this is last instruction, return
@@ -95,28 +126,5 @@ impl PeepholeOptimization {
                 // do nothing
             }
         }
-    }
-}
-
-impl CompilerPass for PeepholeOptimization {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn as_any(&self) -> &Any {
-        self
-    }
-    
-    fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        let compiled_funcs = vm.compiled_funcs().read().unwrap();
-        let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
-        
-        for i in 0..cf.mc().number_of_insts() {
-            self.remove_redundant_move(i, &mut cf);
-            self.remove_unnecessary_jump(i, &mut cf);
-        }
-        
-        trace!("after peephole optimization:");
-        cf.mc().trace_mc();
     }
 }

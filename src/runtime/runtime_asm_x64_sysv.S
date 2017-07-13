@@ -51,7 +51,9 @@ begin_func swap_to_mu_stack
           movsd 24(%rsp), %xmm4
           movsd 32(%rsp), %xmm3
           movsd 40(%rsp), %xmm2
-          add $48, %rsp
+          movsd 48(%rsp), %xmm1
+          movsd 56(%rsp), %xmm0
+          add $64, %rsp
           # at this point new stack is clean (no intermediate values)
 
           movq %rsp, %rbp
@@ -78,25 +80,26 @@ begin_func muentry_swap_back_to_native_stack
           ret
 end_func muentry_swap_back_to_native_stack
 
-# _get_current_frame_rbp() -> Address
-begin_func get_current_frame_rbp
+# _get_current_frame_bp() -> Address
+begin_func get_current_frame_bp
           movq %rbp, %rax
           ret
-end_func get_current_frame_rbp
+end_func get_current_frame_bp
 
 # muentry_throw_exception(obj: Address)
 #                         %rdi
 begin_func muentry_throw_exception
          # save all callee-saved
-         pushq %r15
-         pushq %r14
-         pushq %r13
-         pushq %r12
          pushq %rbp
+         movq %rsp, %rbp
          pushq %rbx
+         pushq %r12
+         pushq %r13
+         pushq %r14
+         pushq %r15
 
          # %rsp points to %rbx, pass this as 2nd argument
-         movq  %rsp, %rsi
+         movq  %rbp, %rsi
 
 #if defined (__linux__)
          jmp CNAME(throw_exception_internal@PLT)
@@ -111,40 +114,13 @@ begin_func muentry_throw_exception
 #                    %rdi           %rsi                       %rdx
 # callee_saved: [rbx, rbp, r12, r13, r14, r15]
 begin_func exception_restore
-          movq 0(%rsi), %rbx
-          movq 8(%rsi), %rbp
-          movq 16(%rsi),%r12
-          movq 24(%rsi),%r13
-          movq 32(%rsi),%r14
-          movq 40(%rsi),%r15
+          movq 0(%rsi), %rbp
+          movq -8(%rsi),%rbx
+          movq -16(%rsi),%r12
+          movq -24(%rsi),%r13
+          movq -32(%rsi),%r14
+          movq -40(%rsi),%r15
 
           movq %rdx, %rsp
           jmpq *%rdi
 end_func exception_restore
-
-# fake_swap_mu_thread(old_sp_loc: Address)
-#                     %rdi
-# (we do not actually swap stack, but we make the stack the same
-# as if they are native stack that have been swapped out, so that
-# when THREADEXIT (swap_back_to_native_stack) is called, we won't panic
-
-# this function is untested!!!
-begin_func fake_swap_mu_thread
-    # save return address
-    movq (%rsp), %rax
-
-    pushq %rbp
-    movq %rsp, %rbp
-
-    pushq %rbx
-    pushq %r12
-    pushq %r13
-    pushq %r14
-    pushq %r15
-
-    # save old sp to thread field
-    movq %rsp, 0(%rdi)
-
-    # return to caller, but preserve those pushed values (since THREADEXIT will pick them up)
-    pushq %rax
-    ret

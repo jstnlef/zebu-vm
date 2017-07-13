@@ -30,15 +30,15 @@ pub struct MuIRBuilder {
     /// by one thread, so there is no need for locking.
     id_name_map: HashMap<MuID, MuName>,
 
-    /// The "trantient bundle" includes everything being built here.
-    bundle: TrantientBundle,
+    /// The "transient bundle" includes everything being built here.
+    bundle: TransientBundle,
 }
 
 pub type IdBMap<T> = HashMap<MuID, Box<T>>;
 
-/// A trantient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
+/// A transient bundle, i.e. the bundle being built, but not yet loaded into the MuVM.
 #[derive(Default)]
-pub struct TrantientBundle {
+pub struct TransientBundle {
     types: IdBMap<NodeType>,
     sigs: IdBMap<NodeFuncSig>,
     consts: IdBMap<NodeConst>,
@@ -577,6 +577,11 @@ struct BundleLoader<'lb, 'lvm> {
     built_refi64: Option<P<MuType>>,
     built_i1: Option<P<MuType>>,
     built_i64: Option<P<MuType>>,
+    built_double: Option<P<MuType>>,
+    built_i52: Option<P<MuType>>,
+    built_i6: Option<P<MuType>>,
+    built_ref_void: Option<P<MuType>>,
+    built_tagref64: Option<P<MuType>>,
 
     built_funcref_of: IdPMap<MuType>,
     built_ref_of: IdPMap<MuType>,
@@ -608,6 +613,11 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_refi64: Default::default(),
         built_i1: Default::default(),
         built_i64: Default::default(),
+        built_double: Default::default(),
+        built_i52: Default::default(),
+        built_i6: Default::default(),
+        built_ref_void: Default::default(),
+        built_tagref64: Default::default(),
         built_funcref_of: Default::default(),
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
@@ -624,7 +634,7 @@ struct FuncCtxBuilder {
     tree_nodes: IdPMap<TreeNode>,
 }
 
-const DEFAULT_TRUE_PROB: f32 = 0.6f32;
+const DEFAULT_TRUE_PROB: f32 = 0.4f32;
 
 impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn load_bundle(&mut self) {
@@ -720,6 +730,25 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         impl_ty
     }
 
+    fn ensure_i6(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_i6 {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Int(6),
+        });
+
+        trace!("Ensure i6 is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_i6 = Some(impl_ty.clone());
+
+        impl_ty
+    }
     fn ensure_i64(&mut self) -> P<MuType> {
         if let Some(ref impl_ty) = self.built_i64 {
             return impl_ty.clone();
@@ -736,6 +765,90 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         self.built_types.insert(id, impl_ty.clone());
         self.built_i64 = Some(impl_ty.clone());
+
+        impl_ty
+    }
+
+
+    fn ensure_tagref64(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_tagref64 {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Tagref64,
+        });
+
+        trace!("Ensure tagref64 is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_tagref64 = Some(impl_ty.clone());
+
+        impl_ty
+    }
+    fn ensure_i52(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_i52 {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Int(52),
+        });
+
+        trace!("Ensure i52 is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_i52 = Some(impl_ty.clone());
+
+        impl_ty
+    }
+    fn ensure_double(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_double {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Double,
+        });
+
+        trace!("Ensure double is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_double = Some(impl_ty.clone());
+
+        impl_ty
+    }
+
+    fn ensure_ref_void(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_ref_void {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_void_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Void
+        });
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::Ref(impl_void_ty.clone()),
+        });
+
+        trace!("Ensure ref<void> is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_void_ty.clone());
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_ref_void = Some(impl_ty.clone());
 
         impl_ty
     }
@@ -838,39 +951,113 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
     }
 
-    fn name_from_id(id: MuID, hint: &str) -> String {
-        format!("@uvm.unnamed.{}{}", hint, id)
-    }
-
-    fn ensure_name(&mut self, id: MuID, hint: &str) {
+    fn ensure_name(&mut self, id: MuID, parent_id: Option<MuID>) {
+        let prefix = match parent_id {
+            Some(parent_id) => self.get_name(parent_id) + ".",
+            None => "".to_string()
+        };
         self.id_name_map.entry(id).or_insert_with(|| {
-            let name = BundleLoader::name_from_id(id, hint);
+            let name = format!("{}#{}", prefix, id);
             trace!("Making name for ID {} : {}", id, name);
             name
         });
     }
 
     fn ensure_names(&mut self) {
-        // Make sure structs and hybrids have names because names are used to resolve cyclic
-        // dependencies.
+        // Make names for all unnamed entities that have parents, to be relative to their parents name (this is not strictly neccesary, but will make reading stuff the compiler generates easier)
+
+        // Give each struct and hybrid type a name (this is needed when structs/hybrids refer to themselves)
         for (id, ty) in &self.b.bundle.types {
             match **ty {
-                NodeType::TypeStruct { id: _, fieldtys: _ } => { 
-                    self.ensure_name(*id, "struct");
-                },
-                NodeType::TypeHybrid { id: _, fixedtys: _, varty: _ } => { 
-                    self.ensure_name(*id, "struct");
-                },
+                NodeType::TypeHybrid{..} | NodeType::TypeStruct{..} => self.ensure_name(*id, None),
                 _ => {}
             }
         }
 
-        for id in self.b.bundle.funcvers.keys() {
-            self.ensure_name(*id, "funcver");
+        // A func can be a parent of a function version, so make sure each one has a name
+        for id in self.b.bundle.funcs.keys() {
+            self.ensure_name(*id, None);
         }
 
-        for id in self.b.bundle.bbs.keys() {
-            self.ensure_name(*id, "funcver");
+        // Make each unnamed function version have a name relative to its function
+        for (fv_id, fv) in &self.b.bundle.funcvers {
+            self.ensure_name(*fv_id, Some(fv.func));
+
+            // Make each unnamed basic block have a name relative to it's enclosing function version
+            for bb_id in &fv.bbs {
+                self.ensure_name(*bb_id, Some(*fv_id));
+            }
+        }
+
+        for (bb_id, bb) in &self.b.bundle.bbs {
+            // Make each of the basic blocks unnamed paremters have names relative to the block itself
+            for nor_id in &bb.nor_param_ids {
+                self.ensure_name(*nor_id, Some(*bb_id));
+            }
+            if bb.exc_param_id.is_some() {
+                self.ensure_name(bb.exc_param_id.unwrap(), Some(*bb_id));
+            }
+
+            // Make each of the blocks unnamed instructions have names relative to the block itself
+            for inst_id in &bb.insts {
+                self.ensure_name(*inst_id, Some(*bb_id));
+
+                // Make each unnamed instruction result have a name relative to the basic block
+                match self.b.bundle.insts.get(&inst_id) {
+                    Some(inst) => {
+                        match **inst {
+                            // Instructions with a single result
+                            NodeInst::NodeCmp{ref result_id, ..} |
+                            NodeInst::NodeConv{ref result_id, ..} |
+                            NodeInst::NodeSelect{ref result_id, ..} |
+                            NodeInst::NodeExtractValue{ref result_id, ..} |
+                            NodeInst::NodeInsertValue{ref result_id, ..} |
+                            NodeInst::NodeExtractElement{ref result_id, ..} |
+                            NodeInst::NodeInsertElement{ref result_id, ..} |
+                            NodeInst::NodeShuffleVector{ref result_id, ..} |
+                            NodeInst::NodeNew{ref result_id, ..} |
+                            NodeInst::NodeNewHybrid{ref result_id, ..} |
+                            NodeInst::NodeAlloca{ref result_id, ..} |
+                            NodeInst::NodeAllocaHybrid{ref result_id, ..} |
+                            NodeInst::NodeGetIRef{ref result_id, ..} |
+                            NodeInst::NodeGetFieldIRef{ref result_id, ..} |
+                            NodeInst::NodeGetElemIRef{ref result_id, ..} |
+                            NodeInst::NodeShiftIRef{ref result_id, ..} |
+                            NodeInst::NodeGetVarPartIRef{ref result_id, ..} |
+                            NodeInst::NodeLoad{ref result_id, ..} |
+                            NodeInst::NodeAtomicRMW{ref result_id, ..} |
+                            NodeInst::NodeNewThread{ref result_id, ..} =>
+                                self.ensure_name(*result_id, Some(*bb_id)),
+
+                            // Instructions with a variable list of results
+                            NodeInst::NodeCall{ref result_ids, ..} |
+                            NodeInst::NodeTrap{ref result_ids, ..} |
+                            NodeInst::NodeWatchPoint{ref result_ids, ..} |
+                            NodeInst::NodeCCall{ref result_ids, ..} |
+                            NodeInst::NodeSwapStack{ref result_ids, ..} |
+                            NodeInst::NodeCommInst{ref result_ids, ..} =>
+                                for result_id in result_ids {
+                                    self.ensure_name(*result_id, Some(*bb_id));
+                                },
+
+                            NodeInst::NodeBinOp{ref result_id, ref status_result_ids, ..} => {
+                                self.ensure_name(*result_id, Some(*bb_id));
+                                for status_result_id in status_result_ids {
+                                    self.ensure_name(*status_result_id, Some(*bb_id)); }
+                            },
+
+                            NodeInst::NodeCmpXchg{ref value_result_id, ref succ_result_id, ..} => {
+                                self.ensure_name(*value_result_id, Some(*bb_id));
+                                self.ensure_name(*succ_result_id, Some(*bb_id));
+                            },
+
+                            // Instructions has no results
+                            _ => {},
+                        }
+                    }
+                    None => panic!("Referenced instruction {} does not exist", inst_id)
+                }
+            }
         }
     }
 
@@ -1221,7 +1408,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         if let Some(impl_func) = self.built_funcs.get(&id) {
             impl_func.sig.clone()
         } else {
-            self.vm.get_func_sig_for_func(id)
+            self.vm.get_sig_for_func(id)
         }
     }
 
@@ -1270,7 +1457,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb.ctx.values.insert(id, SSAVarEntry::new(val.clone()));
 
         let tn = P(TreeNode {
-            op: pick_op_code_for_ssa(&val.ty),
             v: TreeNode_::Value(val)
         });
 
@@ -1281,14 +1467,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
     pub fn new_inst(&self, v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode{
-            op: pick_op_code_for_inst(&v),
             v: TreeNode_::Instruction(v),
         })
     }
 
     pub fn new_global(&self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode{
-            op: pick_op_code_for_value(&v.ty),
             v: TreeNode_::Value(v)
         })
     }
@@ -2028,7 +2212,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let op_ty = self.ensure_type_rec(tys[0]);
                 let op = self.get_treenode(fcb, args[0]);
 
-                let referent_ty = match op_ty.get_referenced_ty() {
+                let referent_ty = match op_ty.get_referent_ty() {
                     Some(ty) => ty,
                     _ => panic!("expected ty in PIN to be ref/iref, found {}", op_ty)
                 };
@@ -2063,6 +2247,177 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     value: None,
                     ops: vec![],
                     v: Instruction_::ThreadExit
+                }
+            }
+            CMU_CI_UVM_TR64_IS_FP  => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // int<1>
+                let impl_i1 = self.ensure_i1();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64IsFp(0),
+                }
+            }
+            CMU_CI_UVM_TR64_IS_INT => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // int<1>
+                let impl_i1 = self.ensure_i1();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64IsInt(0),
+                }
+            }
+            CMU_CI_UVM_TR64_IS_REF => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // int<1>
+                let impl_i1 = self.ensure_i1();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64IsRef(0),
+                }
+            }
+            CMU_CI_UVM_TR64_FROM_FP => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_tagref64();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64FromFp(0),
+                }
+            }
+            CMU_CI_UVM_TR64_FROM_INT => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_tagref64();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64FromInt(0),
+                }
+            }
+            CMU_CI_UVM_TR64_FROM_REF => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 2);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_tagref64();
+                let impl_opnd1 = self.get_treenode(fcb, args[0]);
+                let impl_opnd2 = self.get_treenode(fcb, args[1]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd1, impl_opnd2],
+                    v: Instruction_::CommonInst_Tr64FromRef(0, 1),
+                }
+            }
+            CMU_CI_UVM_TR64_TO_FP => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_double();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64ToFp(0),
+                }
+            }
+            CMU_CI_UVM_TR64_TO_INT => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_i52();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64ToInt(0),
+                }
+            }
+            CMU_CI_UVM_TR64_TO_REF => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_ref_void();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64ToRef(0),
+                }
+            }
+            CMU_CI_UVM_TR64_TO_TAG => {
+                assert!(result_ids.len() == 1);
+                assert!(args.len() == 1);
+                assert!(tys.len()  == 0);
+
+                // tagref64
+                let impl_tagref64 = self.ensure_i6();
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::CommonInst_Tr64ToTag(0),
                 }
             }
             _ => unimplemented!()

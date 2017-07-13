@@ -21,12 +21,12 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
-use self::mu::testutil;
+use self::mu::linkutils;
 use mu::utils::LinkedHashMap;
 
 #[test]
 fn test_truncate_then_call() {
-    let lib = testutil::compile_fncs("truncate_then_call", vec!["truncate_then_call", "dummy_call"], &truncate_then_call);
+    let lib = linkutils::aot::compile_fncs("truncate_then_call", vec!["truncate_then_call", "dummy_call"], &truncate_then_call);
 
     unsafe {
         let truncate_then_call : libloading::Symbol<unsafe extern fn(u64) -> u32> = lib.get(b"truncate_then_call").unwrap();

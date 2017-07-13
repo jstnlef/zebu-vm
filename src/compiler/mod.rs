@@ -18,19 +18,27 @@ use ast::ir::*;
 use vm::VM;
 use std::cell::RefCell;
 
+/// compiler passes
 pub mod passes;
+/// compiler backends, include target description, and target dependent passes
 pub mod backend;
+/// a frame layout for a compiled function
 pub mod frame;
+/// machine code representation
 pub mod machine_code;
 
 pub use compiler::passes::CompilerPass;
 
+/// Zebu compiler
 pub struct Compiler<'vm> {
+    /// policy decides what passes to be executed
     policy: RefCell<CompilerPolicy>,
+    /// a reference to vm, for compiler to query VM-wide info
     vm: &'vm VM
 }
 
 impl <'vm> Compiler<'vm> {
+    /// creates a new compiler
     pub fn new(policy: CompilerPolicy, vm: &VM) -> Compiler {
         Compiler{
             policy: RefCell::new(policy),
@@ -38,6 +46,7 @@ impl <'vm> Compiler<'vm> {
         }
     }
 
+    /// compiles a certain function version
     pub fn compile(&self, func: &mut MuFunctionVersion) {
         info!("");
         info!("Start compiling {}", func);
@@ -48,7 +57,6 @@ impl <'vm> Compiler<'vm> {
         let _p = hprof::enter("Function Compilation");
 
         let ref mut passes = self.policy.borrow_mut().passes;
-
         for pass in passes.iter_mut() {
             let _p = hprof::enter(pass.name());
 
@@ -58,17 +66,18 @@ impl <'vm> Compiler<'vm> {
         }
 
         drop(_p);
-
         hprof_print_timing(hprof::profiler().root());
 
         func.set_compiled();
-    }
-
-    pub fn get_policy(&self) -> &RefCell<CompilerPolicy> {
-        &self.policy
+        if self.vm.is_doing_jit() {
+            // build exception table for this function
+            unimplemented!()
+        }
     }
 }
 
+/// CompilerPolicy specifies a list of ordered CompilerPasses
+/// the compiler will follow the list to compile each function
 pub struct CompilerPolicy {
     pub passes: Vec<Box<CompilerPass>>
 }
@@ -82,6 +91,7 @@ impl CompilerPolicy {
 impl Default for CompilerPolicy {
     fn default() -> Self {
         let mut passes : Vec<Box<CompilerPass>> = vec![];
+        passes.push(Box::new(passes::DotGen::new(".orig")));
         passes.push(Box::new(passes::Inlining::new()));
         // ir level passes
         passes.push(Box::new(passes::DefUse::new()));
@@ -89,6 +99,7 @@ impl Default for CompilerPolicy {
         passes.push(Box::new(passes::GenMovPhi::new()));
         passes.push(Box::new(passes::ControlFlowAnalysis::new()));
         passes.push(Box::new(passes::TraceGen::new()));
+        passes.push(Box::new(passes::DotGen::new(".transformed")));
 
         // compilation
         passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));

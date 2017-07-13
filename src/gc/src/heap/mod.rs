@@ -22,8 +22,6 @@ pub mod immix;
 pub mod freelist;
 pub mod gc;
 
-pub const ALIGNMENT_VALUE : u8 = 1;
-
 pub const IMMIX_SPACE_RATIO : f64 = 1.0 - LO_SPACE_RATIO;
 pub const LO_SPACE_RATIO : f64 = 0.2;
 pub const DEFAULT_HEAP_SIZE : usize = 500 << 20;
@@ -79,7 +77,7 @@ pub trait Space {
         }
 
         // use header
-        let hdr = unsafe {addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
+        let hdr = unsafe {(addr + objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
         if !objectmodel::header_is_object_start(hdr) {
             return false;
         }
@@ -97,8 +95,12 @@ pub trait Space {
     }
 }
 
+#[allow(dead_code)]
+pub const ALIGNMENT_VALUE : u8 = 1;
+
 #[inline(always)]
+#[allow(dead_code)]
 pub fn fill_alignment_gap(start : Address, end : Address) -> () {
     debug_assert!(end >= start);
-    start.memset(ALIGNMENT_VALUE, end.diff(start));
+    unsafe {start.memset(ALIGNMENT_VALUE, end - start);}
 }

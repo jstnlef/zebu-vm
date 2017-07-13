@@ -64,7 +64,7 @@ impl HeapDump {
 
     fn persist_object(&self, obj: Address) -> ObjectDump {
         trace!("dump object: {}", obj);
-        let hdr_addr = obj.offset(objectmodel::OBJECT_HEADER_OFFSET);
+        let hdr_addr = obj + objectmodel::OBJECT_HEADER_OFFSET;
         let hdr = unsafe {hdr_addr.load::<u64>()};
 
         if objectmodel::header_is_fix_size(hdr) {
@@ -132,7 +132,7 @@ impl HeapDump {
         let base = obj_dump.reference_addr;
 
         for offset in obj_dump.reference_offsets.iter() {
-            let field_addr = base.plus(*offset);
+            let field_addr = base + *offset;
             let edge = unsafe {field_addr.load::<Address>()};
 
             if !edge.is_zero() && !self.objects.contains_key(&edge) {

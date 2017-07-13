@@ -22,11 +22,11 @@ use mu::ast::op::*;
 use mu::vm::*;
 
 use mu::utils::LinkedHashMap;
-use mu::testutil;
+use mu::linkutils;
 
 #[test]
 fn test_add_u128() {
-    let lib = testutil::compile_fnc("add_u128", &add_u128);
+    let lib = linkutils::aot::compile_fnc("add_u128", &add_u128);
 
     unsafe {
         use std::u64;
@@ -77,7 +77,7 @@ pub fn add_u128() -> VM {
 
 #[test]
 fn test_sub_u128() {
-    let lib = testutil::compile_fnc("sub_u128", &sub_u128);
+    let lib = linkutils::aot::compile_fnc("sub_u128", &sub_u128);
 
     unsafe {
         use std::u64;
@@ -127,7 +127,7 @@ fn sub_u128() -> VM {
 }
 #[test]
 fn test_add_const_u128() {
-    let lib = testutil::compile_fnc("add_const_u128", &add_const_u128);
+    let lib = linkutils::aot::compile_fnc("add_const_u128", &add_const_u128);
 
     unsafe {
         use std::u64;
@@ -180,7 +180,7 @@ fn add_const_u128() -> VM {
 
 #[test]
 fn test_mul_u128() {
-    let lib = testutil::compile_fnc("mul_u128", &mul_u128);
+    let lib = linkutils::aot::compile_fnc("mul_u128", &mul_u128);
 
     unsafe {
         use std::u64;
@@ -232,7 +232,7 @@ fn mul_u128() -> VM {
 #[ignore]   // this test uses runtime function, should run it as bootimage
 #[test]
 fn test_udiv_u128() {
-    let lib = testutil::compile_fnc("udiv_u128", &udiv_u128);
+    let lib = linkutils::aot::compile_fnc("udiv_u128", &udiv_u128);
 
     unsafe {
         use self::extprim::u128::u128;
@@ -288,7 +288,7 @@ fn udiv_u128() -> VM {
 
 #[test]
 fn test_shl_u128() {
-    let lib = testutil::compile_fnc("shl_u128", &shl_u128);
+    let lib = linkutils::aot::compile_fnc("shl_u128", &shl_u128);
 
     unsafe {
         let shl_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"shl_u128").unwrap();
@@ -337,7 +337,7 @@ fn shl_u128() -> VM {
 
 #[test]
 fn test_lshr_u128() {
-    let lib = testutil::compile_fnc("lshr_u128", &lshr_u128);
+    let lib = linkutils::aot::compile_fnc("lshr_u128", &lshr_u128);
 
     unsafe {
         let lshr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"lshr_u128").unwrap();
@@ -386,7 +386,7 @@ fn lshr_u128() -> VM {
 
 #[test]
 fn test_ashr_u128() {
-    let lib = testutil::compile_fnc("ashr_u128", &ashr_u128);
+    let lib = linkutils::aot::compile_fnc("ashr_u128", &ashr_u128);
 
     unsafe {
         let ashr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"ashr_u128").unwrap();
@@ -431,7 +431,7 @@ fn ashr_u128() -> VM {
 
 #[test]
 fn test_store_load_u128() {
-    let lib = testutil::compile_fnc("store_load_u128", &store_load_u128);
+    let lib = linkutils::aot::compile_fnc("store_load_u128", &store_load_u128);
 
     unsafe {
         use mu::utils::mem::memsec::malloc;
@@ -493,7 +493,7 @@ fn store_load_u128() -> VM {
 
 #[test]
 fn test_ugt_u128() {
-    let lib = testutil::compile_fnc("ugt_u128", &ugt_u128);
+    let lib = linkutils::aot::compile_fnc("ugt_u128", &ugt_u128);
 
     unsafe {
         let ugt_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> u64> = lib.get(b"ugt_u128").unwrap();
@@ -584,7 +584,7 @@ fn ugt_u128() -> VM {
 
 #[test]
 fn test_sgt_i128() {
-    let lib = testutil::compile_fnc("sgt_i128", &sgt_i128);
+    let lib = linkutils::aot::compile_fnc("sgt_i128", &sgt_i128);
 
     unsafe {
         use self::extprim::i128::i128;
@@ -673,7 +673,7 @@ fn sgt_i128() -> VM {
 
 #[test]
 fn test_ult_u128() {
-    let lib = testutil::compile_fnc("ult_u128", &ult_u128);
+    let lib = linkutils::aot::compile_fnc("ult_u128", &ult_u128);
 
     unsafe {
         let ult_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> u64> = lib.get(b"ult_u128").unwrap();
@@ -764,7 +764,7 @@ fn ult_u128() -> VM {
 
 #[test]
 fn test_slt_i128() {
-    let lib = testutil::compile_fnc("slt_i128", &slt_i128);
+    let lib = linkutils::aot::compile_fnc("slt_i128", &slt_i128);
 
     unsafe {
         use self::extprim::i128::i128;

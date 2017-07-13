@@ -19,41 +19,15 @@ use std::borrow::Borrow;
 use linked_hashmap::LinkedHashMap;
 use linked_hashmap::Keys;
 
+/// A LinkedHashSet based on LinkedHashMap implementation
 pub struct LinkedHashSet<K, S = RandomState>(LinkedHashMap<K, (), S>);
-
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-
-impl<K, S> Encodable for LinkedHashSet<K, S>
-    where K: Encodable + Eq + Hash,
-          S: BuildHasher
-{
-    fn encode<E: Encoder> (&self, s: &mut E) -> Result<(), E::Error> {
-        self.0.encode(s)
-    }
-}
-
-impl<K> Decodable for LinkedHashSet<K>
-    where K: Decodable + Eq + Hash
-{
-    fn decode<D: Decoder> (d: &mut D) -> Result<LinkedHashSet<K>, D::Error> {
-        match Decodable::decode(d) {
-            Ok(map) => Ok(LinkedHashSet(map)),
-            Err(e) => Err(e)
-        }
-    }
-}
 
 impl<K: Hash + Eq> LinkedHashSet<K> {
     pub fn new() -> Self {
         LinkedHashSet(LinkedHashMap::new())
     }
 
-    pub fn new1(val: K) -> Self {
-        let mut ret = LinkedHashSet::new();
-        ret.insert(val);
-        ret
-    }
-    
+    /// consumes a vector to a LinkedHashSet (removes duplicated elements)
     pub fn from_vec(from: Vec<K>) -> Self {
         let mut ret = LinkedHashSet::new();
         
@@ -64,6 +38,7 @@ impl<K: Hash + Eq> LinkedHashSet<K> {
         ret
     }
 
+    /// consumes the LinkedHashSet to a vector
     pub fn to_vec(mut self) -> Vec<K> {
         let mut ret = vec![];
 
@@ -74,16 +49,19 @@ impl<K: Hash + Eq> LinkedHashSet<K> {
         ret
     }
 
+    /// clears the set
     pub fn clear(&mut self) {
         self.0.clear();
     }
 }
 
 impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
+    /// returns size
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// returns the first element from the set
     pub fn pop_front(&mut self) -> Option<K> {
         match self.0.pop_front() {
             Some((k, _)) => Some(k),
@@ -91,6 +69,7 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
         }
     }
 
+    /// returns the last element from the set
     pub fn pop_back(&mut self) -> Option<K> {
         match self.0.pop_back() {
             Some((k, _)) => Some(k),
@@ -98,10 +77,12 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
         }
     }
 
+    /// inserts an element at the back
     pub fn insert(&mut self, k: K) -> Option<()> {
         self.0.insert(k, ())
     }
 
+    /// returns true if the set contains the element, otherwise returns false
     pub fn contains<Q: ?Sized>(&self, k: &Q) -> bool
         where K: Borrow<Q>,
               Q: Eq + Hash
@@ -109,21 +90,25 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
         self.0.contains_key(k)
     }
 
-    pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<()>
+    /// removes an element from the set, do nothing if the set does not contain the element
+    pub fn remove<Q: ?Sized>(&mut self, k: &Q)
         where K: Borrow<Q>,
               Q: Eq + Hash
     {
-        self.0.remove(k)
+        self.0.remove(k);
     }
 
+    /// gets an Keys iterator for the set
     pub fn iter(&self) -> Keys<K, ()> {
         self.0.keys()
     }
-    
+
+    /// returns true if the set is empty
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-    
+
+    /// pops all elements from the other LinkedHashSet, and adds to this LinkedHashSet
     pub fn add_all(&mut self, mut other: Self) {
         while !other.is_empty() {
             let entry = other.pop_front().unwrap();
@@ -131,12 +116,14 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
         }
     }
 
+    /// pops all elements from a vector, and adds to this LinkedHashSet
     pub fn add_from_vec(&mut self, mut vec: Vec<K>) {
         while !vec.is_empty() {
             self.insert(vec.pop().unwrap());
         }
     }
 
+    /// returns true if two LinkedHashSets have same elements (ignore order)
     pub fn equals(&self, other: &Self) -> bool {
         if self.len() != other.len() {
             return false;

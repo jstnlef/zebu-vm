@@ -1,18 +1,17 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ast::ptr::P;
 use ast::ir::*;
 use runtime::ValueLocation;
 
@@ -32,8 +31,6 @@ pub trait CodeGenerator {
     fn start_block(&mut self, block_name: MuName);
     fn block_exists(&self, block_name: MuName) -> bool;
     fn start_exception_block(&mut self, block_name: MuName) -> ValueLocation;
-    fn set_block_livein(&mut self, block_name: MuName, live_in: &Vec<P<Value>>);
-    fn set_block_liveout(&mut self, block_name: MuName, live_out: &Vec<P<Value>>);
     fn end_block(&mut self, block_name: MuName);
 
     // add CFI info
@@ -49,7 +46,6 @@ pub trait CodeGenerator {
 
     // emit code to adjust frame
     fn emit_frame_grow(&mut self); // Emits a SUB
-    fn emit_frame_shrink(&mut self); // Emits an ADD
 
     // Used to pass a string that the assembler will interpret as an immediate argument
     // (This is neccesary to support the use of ELF relocations like ':tprel_hi12:foo')
@@ -92,7 +88,6 @@ pub trait CodeGenerator {
     fn emit_ldaxp(&mut self, dest1: Reg, dest2: Reg, src: Mem); // [base]
     fn emit_ldnp(&mut self, dest1: Reg/*GPR or FPR*/, dest2: Reg/*GPR or FPR*/, src: Mem); // [base, #simm7]
 
-
     // Stores
     fn emit_str(&mut self, dest: Mem, src: Reg/*GPR or FPR*/); // supports the full full range of addressing modes
     fn emit_sttr(&mut self, dest: Mem, src: Reg); // [base, #simm9]
@@ -106,16 +101,17 @@ pub trait CodeGenerator {
     fn emit_stlxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg); // [base]
     fn emit_stnp(&mut self, dest: Mem, src1: Reg/*GPR or FPR*/, src2: Reg/*GPR or FPR*/); // [base, #simm7]
 
-    // branching
-
-    // calls
-    fn emit_bl(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation;
+    // Calls
+    fn emit_bl(&mut self, callsite: String, func: MuName, pe: Option<MuName>, is_native: bool) -> ValueLocation;
     fn emit_blr(&mut self, callsite: String, func: Reg, pe: Option<MuName>) -> ValueLocation;
 
     // Branches
     fn emit_b(&mut self, dest_name: MuName);
+    fn emit_b_func(&mut self, func: MuName);
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName);
     fn emit_br(&mut self, dest_address: Reg);
+    fn emit_br_func(&mut self, func_address: Reg);
+
     fn emit_ret(&mut self, src: Reg);
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName);
     fn emit_cbz(&mut self, src: Reg, dest_name: MuName);
@@ -131,7 +127,7 @@ pub trait CodeGenerator {
     fn emit_adrp(&mut self, dest: Reg, src: Reg);
 
     // Unary ops
-    fn emit_mov(&mut self, dest: Reg, src: Reg);
+    fn emit_mov(&mut self, dest: Reg/*GPR or SP or ZR*/, src: Reg/*GPR or SP or ZR*/); // The SP and ZR cannot both be used
     fn emit_mvn(&mut self, dest: Reg, src: Reg);
     fn emit_neg(&mut self, dest: Reg, src: Reg);
     fn emit_negs(&mut self, dest: Reg, src: Reg);
@@ -149,7 +145,7 @@ pub trait CodeGenerator {
     fn emit_rev16(&mut self, dest: Reg, src: Reg);
     fn emit_rev32(&mut self, dest: Reg/*64*/, src: Reg);
     fn emit_rev64(&mut self, dest: Reg/*64*/, src: Reg); // alias of REV
-    fn emit_fabs(&mut self, dest: Reg, src: Reg/*Must have different size*/);
+    fn emit_fabs(&mut self, dest: Reg, src: Reg);
     fn emit_fcvt(&mut self, dest: Reg, src: Reg/*Must have different size*/);
     fn emit_fcvtas(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
     fn emit_fcvtau(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);

@@ -15,20 +15,27 @@
 use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
-
 use utils::BitSize;
 use utils::Address;
-
 use std::fmt;
 
-pub type APIHandleResult = Box<APIHandle>;
-pub type APIHandleArg<'a>    = &'a APIHandle;
-
+/// APIHandle represents the opaque handle type that the client uses to
+/// communicate with Mu. Handles can refer to values, functions, signatures,
+/// etc that client can inspect/query from the VM.
 #[derive(Clone)]
 pub struct APIHandle {
     pub id: MuID,
     pub v: APIHandleValue
 }
+
+/// when we returning an API handle to the client, we create a Box<APIHandle>,
+/// then api_impl will turn it into a raw pointer, and pass the pointer the the client.
+/// Thus Rust allocates the handle, but will not reclaim it. When the client explicitly
+/// deletes a value, we turn the pointer back to a box type, and let Rust drop it.
+pub type APIHandleResult = Box<APIHandle>;
+/// when client pass a handle (*const APIHandle) to the VM, we treat it as a reference
+/// to APIHandle.
+pub type APIHandleArg<'a>    = &'a APIHandle;
 
 impl fmt::Display for APIHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -44,43 +51,76 @@ impl fmt::Debug for APIHandle {
 
 #[derive(Clone)]
 pub enum APIHandleValue {
+    /// (int value, bit length)
     Int(u64, BitSize),
+    /// float value
     Float(f32),
+    /// double value
     Double(f64),
+    /// unsafe pointer (type, address)
     UPtr(P<MuType>, Address),  // uptr<T>
+    /// unsafe function pointer (type, address)
     UFP (P<MuType>, Address),  // ufuncptr<sig>
 
     // SeqValue
+    /// struct value (a vector of field values)
     Struct(Vec<APIHandleValue>),
+    /// array value  (a vector of element values)
     Array (Vec<APIHandleValue>),
+    /// vector value (a vector of element values)
     Vector(Vec<APIHandleValue>),
 
     // GenRef
-    Ref (P<MuType>, Address),   // referenced type
+    /// reference value (type, address)
+    Ref (P<MuType>, Address),
+    /// internal reference value (type, address)
     IRef(P<MuType>, Address),
+    /// tagref value (stored as 64-bit integers)
     TagRef64(u64),
+    /// function reference (as ID)
     FuncRef(MuID),
+    /// Mu thread reference
     ThreadRef,
+    /// Mu stack reference
     StackRef,
-    FCRef, // frame cursor ref
+    /// frame cursor reference
+    FCRef,
 
     // GenRef->IR
+    /// Mu bundle
+    //  TODO: unused
     Bundle,
 
     // GenRef->IR->Child
+    /// Mu type (as ID)
     Type(MuID),
+    /// Mu signature (as ID)
     FuncSig(MuID),
+    /// Mu function version (as ID)
     FuncVer(MuID),
+    /// basic block
+    //  TODO: unused
     BB,
+    /// instruction
+    //  TODO: unused
     Inst,
 
     // GenRef->IR->Child->Var->Global
+    /// global cell (as ID)
     Global(MuID),
+    /// exposed function
+    //  TODO: unused
     ExpFunc,
 
     // GenRef->IR->Child->Var->Local
+    /// normal parameter
+    //  TODO: unused
     NorParam,
+    /// exceptional parameter
+    //  TODO: unused
     ExcParam,
+    /// instruction result value
+    //  TODO: unused
     InstRes,
 }
 
@@ -125,6 +165,7 @@ impl fmt::Debug for APIHandleValue {
 }
 
 impl APIHandleValue {
+    /// matches the handle as ref or iref
     pub fn as_ref_or_iref(&self) -> (P<MuType>, Address) {
         match self {
             &APIHandleValue::Ref(ref ty, addr)
@@ -133,6 +174,7 @@ impl APIHandleValue {
         }
     }
 
+    /// matches the handle as ref
     pub fn as_ref(&self) -> (P<MuType>, Address) {
         match self {
             &APIHandleValue::Ref(ref ty, addr) => (ty.clone(), addr),
@@ -140,6 +182,7 @@ impl APIHandleValue {
         }
     }
 
+    /// matches the handle as iref
     pub fn as_iref(&self) -> (P<MuType>, Address) {
         match self {
             &APIHandleValue::IRef(ref ty, addr) => (ty.clone(), addr),
@@ -147,6 +190,7 @@ impl APIHandleValue {
         }
     }
 
+    /// matches iref/ref/uptr/ufp handles and extracts address
     pub fn as_address(&self) -> Address {
         match self {
             &APIHandleValue::IRef  (_, addr)
@@ -157,6 +201,7 @@ impl APIHandleValue {
         }
     }
 
+    /// matches the handle as int
     pub fn as_int(&self) -> u64 {
         match self {
             &APIHandleValue::Int(val, _) => val,
@@ -164,6 +209,7 @@ impl APIHandleValue {
         }
     }
 
+    /// matches the handle as float
     pub fn as_float(&self) -> f32 {
         match self {
             &APIHandleValue::Float(val) => val,
@@ -171,6 +217,7 @@ impl APIHandleValue {
         }
     }
 
+    /// matches the handle as double
     pub fn as_double(&self) -> f64 {
         match self {
             &APIHandleValue::Double(val) => val,
@@ -178,6 +225,7 @@ impl APIHandleValue {
         }
     }
 
+    /// matches the handle as unsafe pointer
     pub fn as_uptr(&self) -> (P<MuType>, Address) {
         match self {
             &APIHandleValue::UPtr(ref ty, addr) => (ty.clone(), addr),
@@ -185,6 +233,7 @@ impl APIHandleValue {
         }
     }
 
+    /// matches the handle as unsafe function pointer
     pub fn as_ufp(&self) -> (P<MuType>, Address) {
         match self {
             &APIHandleValue::UFP(ref ty, addr) => (ty.clone(), addr),
@@ -192,10 +241,19 @@ impl APIHandleValue {
         }
     }
 
+    /// matches the handle as function reference
     pub fn as_funcref(&self) -> MuID {
         match self {
             &APIHandleValue::FuncRef(id) => id,
             _ => panic!("expected FuncRef")
+        }
+    }
+
+    /// matches the handle as tag reference's value)
+    pub fn as_tr64(&self) -> u64 {
+        match self {
+            &APIHandleValue::TagRef64(val) => val,
+            _ => panic!("expected TagRef64 handle")
         }
     }
 }

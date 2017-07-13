@@ -42,8 +42,20 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_get_thread_local")),
         jit: RwLock::new(None),
     };
+
+    // impl: runtime_x64_sysv.c
+    // decl: thread.rs
+    pub static ref SET_RETVAL : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![UINT32_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_set_retval")),
+        jit: RwLock::new(None)
+    };
     
-    // impl: swap_stack_x64_macos.s
+    // impl: runtime_asm_ARCH_OS.s
     // decl: thread.rs
     pub static ref SWAP_BACK_TO_NATIVE_STACK : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{
@@ -107,6 +119,28 @@ lazy_static! {
             arg_tys: vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()]
         }),
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_init_hybrid")),
+        jit: RwLock::new(None)
+    };
+
+    // impl/decl: gc/lib.rs
+    pub static ref PIN_OBJECT : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![ADDRESS_TYPE.clone()],
+            arg_tys: vec![ADDRESS_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_pin_object")),
+        jit: RwLock::new(None)
+    };
+
+    // impl/decl: gc/lib.rs
+    pub static ref UNPIN_OBJECT : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![ADDRESS_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_unpin_object")),
         jit: RwLock::new(None)
     };
     
@@ -272,4 +306,16 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_print_hex")),
         jit: RwLock::new(None)
     };
+
+    // impl/decl: mod.rs
+    pub static ref MEM_ZERO : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![IREF_VOID_TYPE.clone(), UINT64_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_mem_zero")),
+        jit: RwLock::new(None)
+    };
+
 }

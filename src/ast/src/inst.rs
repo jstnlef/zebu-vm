@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,59 +16,27 @@ use ir::*;
 use ptr::*;
 use types::*;
 use op::*;
-use ir_semantics;
 
 use utils::vec_utils;
 
 use std::fmt;
 
-#[derive(Debug)]
-// this implements RustcEncodable, RustcDecodable, Clone and Display
+/// Instruction represents a Mu instruction
+#[derive(Debug)] // this implements Clone and Display
 pub struct Instruction {
     pub hdr: MuEntityHeader,
+    /// the values this instruction holds
     pub value : Option<Vec<P<Value>>>,
+    /// ops field list all the children nodes,
+    /// and in Instruction_, the children nodes are referred by indices
+    /// This design makes it easy for the compiler to iterate through all the children
     pub ops : Vec<P<TreeNode>>,
+    /// used for pattern matching
     pub v: Instruction_
 }
 
+// Instruction implements MuEntity
 impl_mu_entity!(Instruction);
-
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
-impl Encodable for Instruction {
-    fn encode<S: Encoder> (&self, s: &mut S) -> Result<(), S::Error> {
-        s.emit_struct("Instruction", 4, |s| {
-            try!(s.emit_struct_field("hdr", 0, |s| self.hdr.encode(s)));
-            try!(s.emit_struct_field("value", 1, |s| self.value.encode(s)));
-            
-            let ref ops = self.ops;
-            try!(s.emit_struct_field("ops", 2, |s| ops.encode(s)));
-            
-            try!(s.emit_struct_field("v", 3, |s| self.v.encode(s)));
-            
-            Ok(()) 
-        })        
-    }
-}
-
-impl Decodable for Instruction {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Instruction, D::Error> {
-        d.read_struct("Instruction", 4, |d| {
-            let hdr = try!(d.read_struct_field("hdr", 0, |d| Decodable::decode(d)));
-            let value = try!(d.read_struct_field("value", 1, |d| Decodable::decode(d)));
-            
-            let ops = try!(d.read_struct_field("ops", 2, |d| Decodable::decode(d)));
-            
-            let v = try!(d.read_struct_field("v", 3, |d| Decodable::decode(d)));
-            
-            Ok(Instruction{
-                hdr: hdr,
-                value: value,
-                ops: ops,
-                v: v
-            })
-        })
-    }
-}
 
 impl Clone for Instruction {
     fn clone(&self) -> Self {
@@ -89,10 +57,215 @@ impl Instruction {
         clone
     }
 
-    pub fn has_exception_clause(&self) -> bool {
-        ir_semantics::is_potentially_excepting_instruction(&self.v)
+    /// is this instruction the terminal inst of its block?
+    /// Terminal instructions end Mu blocks, and Mu block ends with a terminal instruction.
+    pub fn is_terminal_inst(&self) -> bool {
+        use inst::Instruction_::*;
+
+        match self.v {
+            BinOp(_, _, _)
+            | BinOpWithStatus(_, _, _, _)
+            | CmpOp(_, _, _)
+            | ConvOp{..}
+            | ExprCall{..}
+            | ExprCCall{..}
+            | Load{..}
+            | Store{..}
+            | CmpXchg{..}
+            | AtomicRMW{..}
+            | New(_)
+            | AllocA(_)
+            | NewHybrid(_, _)
+            | AllocAHybrid(_, _)
+            | NewStack(_)
+            | NewThread(_, _)
+            | NewThreadExn(_, _)
+            | NewFrameCursor(_)
+            | GetIRef(_)
+            | GetFieldIRef{..}
+            | GetElementIRef{..}
+            | ShiftIRef{..}
+            | GetVarPartIRef{..}
+            | Select{..}
+            | Fence(_)
+            | CommonInst_GetThreadLocal
+            | CommonInst_SetThreadLocal(_)
+            | CommonInst_Pin(_)
+            | CommonInst_Unpin(_)
+            | CommonInst_GetAddr(_)
+            | CommonInst_Tr64IsFp(_)
+            | CommonInst_Tr64IsInt(_)
+            | CommonInst_Tr64IsRef(_)
+            | CommonInst_Tr64FromFp(_)
+            | CommonInst_Tr64FromInt(_)
+            | CommonInst_Tr64FromRef(_, _)
+            | CommonInst_Tr64ToFp(_)
+            | CommonInst_Tr64ToInt(_)
+            | CommonInst_Tr64ToRef(_)
+            | CommonInst_Tr64ToTag(_)
+            | Move(_)
+            | PrintHex(_)
+            | SetRetval(_) => false,
+            Return(_)
+            | ThreadExit
+            | Throw(_)
+            | TailCall(_)
+            | Branch1(_)
+            | Branch2{..}
+            | Watchpoint{..}
+            | WPBranch{..}
+            | Call{..}
+            | CCall{..}
+            | SwapStack{..}
+            | Switch{..}
+            | ExnInstruction{..} => true
+        }
     }
 
+    /// is this instruction a non-terminal instruction of its block?
+    pub fn is_non_terminal_inst(&self) -> bool {
+        !self.is_terminal_inst()
+    }
+
+    /// does this instruction has side effect?
+    /// An instruction has side effect if it affects something other than its result operands.
+    /// e.g. affecting memory, stack, thread, etc.
+    // FIXME: need to check correctness
+    pub fn has_side_effect(&self) -> bool {
+        use inst::Instruction_::*;
+
+        match self.v {
+            BinOp(_, _, _) => false,
+            BinOpWithStatus(_, _, _, _) => false,
+            CmpOp(_, _, _) => false,
+            ConvOp{..} => false,
+            ExprCall{..} => true,
+            ExprCCall{..} => true,
+            Load{..} => true,
+            Store{..} => true,
+            CmpXchg{..} => true,
+            AtomicRMW{..} => true,
+            New(_) => true,
+            AllocA(_) => true,
+            NewHybrid(_, _) => true,
+            AllocAHybrid(_, _) => true,
+            NewStack(_) => true,
+            NewThread(_, _) => true,
+            NewThreadExn(_, _) => true,
+            NewFrameCursor(_) => true,
+            GetIRef(_) => false,
+            GetFieldIRef{..} => false,
+            GetElementIRef{..} => false,
+            ShiftIRef{..} => false,
+            GetVarPartIRef{..} => false,
+            Fence(_) => true,
+            Return(_) => true,
+            ThreadExit => true,
+            Throw(_) => true,
+            TailCall(_) => true,
+            Branch1(_) => true,
+            Branch2{..} => true,
+            Select{..} => false,
+            Watchpoint{..} => true,
+            WPBranch{..} => true,
+            Call{..} => true,
+            CCall{..} => true,
+            SwapStack{..} => true,
+            Switch{..} => true,
+            ExnInstruction{..} => true,
+            CommonInst_GetThreadLocal => true,
+            CommonInst_SetThreadLocal(_) => true,
+            CommonInst_Pin(_)
+            | CommonInst_Unpin(_)
+            | CommonInst_GetAddr(_) => true,
+            CommonInst_Tr64IsFp(_)
+            | CommonInst_Tr64IsInt(_)
+            | CommonInst_Tr64IsRef(_) => false,
+            CommonInst_Tr64FromFp(_)
+            | CommonInst_Tr64FromInt(_)
+            | CommonInst_Tr64FromRef(_, _) => false,
+            CommonInst_Tr64ToFp(_)
+            | CommonInst_Tr64ToInt(_)
+            | CommonInst_Tr64ToRef(_)
+            | CommonInst_Tr64ToTag(_) => false,
+            Move(_) => false,
+            PrintHex(_) => true,
+            SetRetval(_) => true,
+        }
+    }
+
+    /// can this instruction throw exception?
+    /// an instruction with an exceptional branch can throw exception
+    pub fn is_potentially_excepting_instruction(&self) -> bool {
+        use inst::Instruction_::*;
+
+        match self.v {
+            Watchpoint{..}
+            | Call{..}
+            | CCall{..}
+            | SwapStack{..}
+            | ExnInstruction{..} => true,
+
+            BinOp(_, _, _)
+            | BinOpWithStatus(_, _, _, _)
+            | CmpOp(_, _, _)
+            | ConvOp{..}
+            | ExprCall{..}
+            | ExprCCall{..}
+            | Load{..}
+            | Store{..}
+            | CmpXchg{..}
+            | AtomicRMW{..}
+            | New(_)
+            | AllocA(_)
+            | NewHybrid(_, _)
+            | AllocAHybrid(_, _)
+            | NewStack(_)
+            | NewThread(_, _)
+            | NewThreadExn(_, _)
+            | NewFrameCursor(_)
+            | GetIRef(_)
+            | GetFieldIRef{..}
+            | GetElementIRef{..}
+            | ShiftIRef{..}
+            | GetVarPartIRef{..}
+            | Fence(_)
+            | Return(_)
+            | ThreadExit
+            | Throw(_)
+            | TailCall(_)
+            | Branch1(_)
+            | Branch2{..}
+            | Select{..}
+            | WPBranch{..}
+            | Switch{..}
+            | CommonInst_GetThreadLocal
+            | CommonInst_SetThreadLocal(_)
+            | CommonInst_Pin(_)
+            | CommonInst_Unpin(_)
+            | CommonInst_GetAddr(_)
+            | CommonInst_Tr64IsFp(_)
+            | CommonInst_Tr64IsInt(_)
+            | CommonInst_Tr64IsRef(_)
+            | CommonInst_Tr64FromFp(_)
+            | CommonInst_Tr64FromInt(_)
+            | CommonInst_Tr64FromRef(_, _)
+            | CommonInst_Tr64ToFp(_)
+            | CommonInst_Tr64ToInt(_)
+            | CommonInst_Tr64ToRef(_)
+            | CommonInst_Tr64ToTag(_)
+            | Move(_)
+            | PrintHex(_)
+            | SetRetval(_) => false
+        }
+    }
+
+    /// does this instruction have an exceptional clause/branch?
+    pub fn has_exception_clause(&self) -> bool {
+        self.is_potentially_excepting_instruction()
+    }
+
+    /// returns exception target(block ID), returns None if this instruction does not have exceptional branch
     pub fn get_exception_target(&self) -> Option<MuID> {
         use inst::Instruction_::*;
         match self.v {
@@ -141,8 +314,20 @@ impl Instruction {
             | CommonInst_SetThreadLocal(_)
             | CommonInst_Pin(_)
             | CommonInst_Unpin(_)
+            | CommonInst_GetAddr(_)
+            | CommonInst_Tr64IsFp(_)
+            | CommonInst_Tr64IsInt(_)
+            | CommonInst_Tr64IsRef(_)
+            | CommonInst_Tr64FromFp(_)
+            | CommonInst_Tr64FromInt(_)
+            | CommonInst_Tr64FromRef(_, _)
+            | CommonInst_Tr64ToFp(_)
+            | CommonInst_Tr64ToInt(_)
+            | CommonInst_Tr64ToRef(_)
+            | CommonInst_Tr64ToTag(_)
             | Move(_)
-            | PrintHex(_) => None
+            | PrintHex(_)
+            | SetRetval(_) => None
         }
     }
 
@@ -162,17 +347,21 @@ impl fmt::Display for Instruction {
     }
 }
 
+/// Instruction_ is used for pattern matching for Instruction
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone)]
 pub enum Instruction_ {
     // non-terminal instruction
 
-    // expressions
-
+    /// binary operations
     BinOp(BinOp, OpIndex, OpIndex),
+    /// binary operations with status flag (overflow, sign, etc. )
     BinOpWithStatus(BinOp, BinOpStatus, OpIndex, OpIndex),
 
+    /// comparison operations
     CmpOp(CmpOp, OpIndex, OpIndex),
+
+    /// conversion operations (casting)
     ConvOp{
         operation: ConvOp,
         from_ty: P<MuType>,
@@ -180,25 +369,28 @@ pub enum Instruction_ {
         operand: OpIndex
     },
 
-    // yields a tuple of results from the call
+    /// a non-terminating Call instruction (the call does not have an exceptional branch)
+    /// This instruction is not in the Mu spec, but is documented in the HOL formal spec
     ExprCall{
         data: CallData,
-        is_abort: bool, // T to abort, F to rethrow - FIXME: current, always rethrow for now
+        is_abort: bool, // T to abort, F to rethrow
     },
 
+    /// a non-terminating CCall instruction (the call does not have an exceptional branch)
+    /// This instruction is not in the Mu spec, but is documented in the HOL formal spec
     ExprCCall{
         data: CallData,
         is_abort: bool
     },
 
-    // yields the memory value
+    /// load instruction
     Load{
         is_ptr: bool,
         order: MemoryOrder,
         mem_loc: OpIndex
     },
 
-    // yields nothing
+    /// store instruction
     Store{
         is_ptr: bool,
         order: MemoryOrder,
@@ -206,7 +398,7 @@ pub enum Instruction_ {
         value: OpIndex
     },
 
-    // yields pair (oldvalue, boolean (T = success, F = failure))
+    /// compare and exchange, yields a pair value (oldvalue, boolean (T = success, F = failure))
     CmpXchg{
         is_ptr: bool,
         is_weak: bool,
@@ -217,7 +409,7 @@ pub enum Instruction_ {
         desired_value: OpIndex
     },
 
-    // yields old memory value
+    /// atomic read-modify-write, yields old memory value
     AtomicRMW{
         is_ptr: bool, // T for iref, F for ptr
         order: MemoryOrder,
@@ -226,138 +418,194 @@ pub enum Instruction_ {
         value: OpIndex // operand for op
     },
 
-    // yields a reference of the type
+    /// allocate an object (non hybrid type) in the heap, yields a reference of the type
     New(P<MuType>),
 
-    // yields an iref of the type
+    /// allocate an object (non hybrid type) on the stack, yields an iref of the type
     AllocA(P<MuType>),
 
-    // yields ref
+    /// allocate a hybrid type object in the heap, yields ref
+    /// args: the type of the hybrid, hybrid part length
     NewHybrid(P<MuType>, OpIndex),
 
-    // yields iref
+    /// allocate a hybrid type object on the stack, yields iref
+    /// args: the type of the hybrid, hybrid part length
     AllocAHybrid(P<MuType>, OpIndex),
 
-    // yields stack ref
-    NewStack(OpIndex), // func
-                           // TODO: common inst
+    /// create a new Mu stack, yields stack ref
+    /// args: functionref of the entry function
+    NewStack(OpIndex),
 
-    // yields thread reference
+    /// create a new Mu thread, yields thread reference
+    /// args: stackref of a Mu stack, a list of arguments
     NewThread(OpIndex, Vec<OpIndex>), // stack, args
 
-    // yields thread reference (thread resumes with exceptional value)
+    /// create a new Mu thread, yields thread reference (thread resumes with exceptional value)
+    /// args: stackref of a Mu stack, an exceptional value
     NewThreadExn(OpIndex, OpIndex), // stack, exception
 
-    // yields frame cursor
+    /// create a frame cursor reference
+    /// args: stackref of a Mu stack
     NewFrameCursor(OpIndex), // stack
 
-    // ref<T> -> iref<T>
+    /// get internal reference of a reference
+    /// args: a reference
     GetIRef(OpIndex),
 
-    // iref|uptr<struct|hybrid<T>> int<M> -> iref|uptr<U>
+    /// get internal reference of an iref (or uptr) to a struct/hybrid fix part
     GetFieldIRef{
         is_ptr: bool,
         base: OpIndex, // iref or uptr
         index: usize // constant
     },
 
-    // iref|uptr<array<T N>> int<M> -> iref|uptr<T>
+    /// get internal reference of an element of an iref (or uptr) to an array
     GetElementIRef{
         is_ptr: bool,
         base: OpIndex,
         index: OpIndex // can be constant or ssa var
     },
 
-    // iref|uptr<T> int<M> -> iref|uptr<T>
+    /// offset an iref (or uptr) (offset is an index)
     ShiftIRef{
         is_ptr: bool,
         base: OpIndex,
         offset: OpIndex
     },
 
-    // iref|uptr<hybrid<T U>> -> iref|uptr<U>
+    /// get internal reference to an element in hybrid var part
     GetVarPartIRef{
         is_ptr: bool,
         base: OpIndex
     },
 
-//    PushFrame{
-//        stack: P<Value>,
-//        func: P<Value>
-//    },
-//    PopFrame{
-//        stack: P<Value>
-//    }
-
+    /// a fence of certain memory order
     Fence(MemoryOrder),
 
     // terminal instruction
+
+    /// return instruction
+    /// args: a list of return values
     Return(Vec<OpIndex>),
-    ThreadExit, // TODO:  common inst
+
+    /// thread exit
+    ThreadExit,
+
+    /// throw an exception
     Throw(OpIndex),
+
+    /// tail call a function (reuse current frame)
     TailCall(CallData),
+
+    /// unconditional branch
     Branch1(Destination),
+
+    /// conditional branch
     Branch2{
         cond: OpIndex,
         true_dest: Destination,
         false_dest: Destination,
         true_prob: f32
     },
+
+    /// returns value1 if condition is true, otherwise returns value2
     Select{
         cond: OpIndex,
         true_val: OpIndex,
         false_val: OpIndex
     },
-    Watchpoint{ // Watchpoint NONE ResumptionData
-                //   serves as an unconditional trap. Trap to client, and resume with ResumptionData
-                // Watchpoint (WPID dest) ResumptionData
-                //   when disabled, jump to dest
-                //   when enabled, trap to client and resume
+
+    /// a watchpoint
+    /// * Watchpoint NONE ResumptionData: serves as an unconditional trap. Trap to client, and resume with ResumptionData
+    /// * Watchpoint (WPID dest) ResumptionData:
+    ///   * when disabled, jump to dest
+    ///   * when enabled, trap to client and resume
+    Watchpoint{
         id: Option<WPID>,
         disable_dest: Option<Destination>,
         resume: ResumptionData
     },
+
+    /// a watchpoint branch, branch to different destinations based on enabled/disabled
     WPBranch{
         wp: WPID,
         disable_dest: Destination,
         enable_dest: Destination
     },
+
+    /// a call instruction that may throw an exception
     Call{
         data: CallData,
         resume: ResumptionData
     },
+
+    /// a ccall instruction that may throw an exception
     CCall{
         data: CallData,
         resume: ResumptionData
     },
+
+    /// swapstack. swap current Mu stack with the named Mu stack, and continue with specified resumption
     SwapStack{
         stack: OpIndex,
         is_exception: bool,
         args: Vec<OpIndex>,
         resume: ResumptionData
     },
+
+    /// a multiway branch
     Switch{
         cond: OpIndex,
         default: Destination,
         branches: Vec<(OpIndex, Destination)>
     },
+
+    /// a wrapper for any instruction that may throw an exception
+    //  This is not used at the moment
     ExnInstruction{
         inner: Box<Instruction>,
         resume: ResumptionData
     },
 
-    // common inst
+    /// common inst: get thread local
     CommonInst_GetThreadLocal,
+    /// common inst: set thread local
     CommonInst_SetThreadLocal(OpIndex),
 
-    // pin/unpin
+    /// common inst: pin an object (prevent it being moved and reclaimed by GC), yields a uptr
     CommonInst_Pin  (OpIndex),
+    /// common inst: unpin an object (the object is automatically managed by GC)
     CommonInst_Unpin(OpIndex),
+    /// common inst: get address of a global cell or a pinned object
+    CommonInst_GetAddr(OpIndex),
 
-    // internal use: mov from ops[0] to value
+    /// common inst: is the tagref a floating point?
+    CommonInst_Tr64IsFp(OpIndex),
+    /// common inst: is the tagref an int?
+    CommonInst_Tr64IsInt(OpIndex),
+    /// common inst: is the tagref a ref?
+    CommonInst_Tr64IsRef(OpIndex),
+    /// common inst: creates a tagref from floating point (double)
+    CommonInst_Tr64FromFp(OpIndex),
+    /// common inst: creates a tagref from int<52>
+    CommonInst_Tr64FromInt(OpIndex),
+    /// common inst: creates a tagref from reference (a ref-void typed ref, 6 bits tag)
+    CommonInst_Tr64FromRef(OpIndex, OpIndex),
+    /// common inst: converts a tagref to floating point (double)
+    CommonInst_Tr64ToFp(OpIndex),
+    /// common inst: converts a tagref to integer (int<52>)
+    CommonInst_Tr64ToInt(OpIndex),
+    /// common inst: converts a tagref to reference
+    CommonInst_Tr64ToRef(OpIndex),
+    /// common inst: converts a tagref to a tag (int<64>)
+    CommonInst_Tr64ToTag(OpIndex),
+
+    /// internal use: move from value to value
     Move(OpIndex),
-    // internal use: print op as hex value
-    PrintHex(OpIndex)
+    /// internal use: print op as hex value
+    PrintHex(OpIndex),
+    /// internal use: set return value for main
+    SetRetval(OpIndex)
 }
 
 impl Instruction_ {
@@ -478,22 +726,41 @@ impl Instruction_ {
             &Instruction_::CommonInst_GetThreadLocal => format!("COMMONINST GetThreadLocal"),
             &Instruction_::CommonInst_SetThreadLocal(op) => format!("COMMONINST SetThreadLocal {}", ops[op]),
 
-            &Instruction_::CommonInst_Pin(op)   => format!("COMMONINST Pin {}",   ops[op]),
-            &Instruction_::CommonInst_Unpin(op) => format!("COMMONINST Unpin {}", ops[op]),
+            &Instruction_::CommonInst_Pin(op)    => format!("COMMONINST Pin {}",   ops[op]),
+            &Instruction_::CommonInst_Unpin(op)  => format!("COMMONINST Unpin {}", ops[op]),
+            &Instruction_::CommonInst_GetAddr(op)=> format!("COMMONINST GetAddr {}", ops[op]),
+            // Tagerf64
+            &Instruction_::CommonInst_Tr64IsFp   (op) => format!("COMMONINST Tr64IsFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64IsInt  (op) => format!("COMMONINST Tr64IsInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64IsRef  (op) => format!("COMMONINST Tr64IsRef {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromFp (op) => format!("COMMONINST Tr64FromFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromInt(op) => format!("COMMONINST Tr64FromInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64FromRef(op1, op2) => format!("COMMONINST Tr64FromRet {} {}", ops[op1], ops[op2]),
+            &Instruction_::CommonInst_Tr64ToFp (op) => format!("COMMONINST Tr64ToFp {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToInt(op) => format!("COMMONINST Tr64ToInt {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToRef(op) => format!("COMMONINST Tr64ToRef {}", ops[op]),
+            &Instruction_::CommonInst_Tr64ToTag(op) => format!("COMMONINST Tr64ToTag {}", ops[op]),
 
             // move
             &Instruction_::Move(from) => format!("MOVE {}", ops[from]),
             // print hex
-            &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i])
+            &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i]),
+            // set retval
+            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val]),
         }
     }
 }
 
-#[derive(Copy, Clone, RustcEncodable, RustcDecodable)]
+/// BinOpStatus represents status flags from a binary operation
+#[derive(Copy, Clone)]
 pub struct BinOpStatus {
+    /// negative flag
     pub flag_n: bool,
+    /// zero flag
     pub flag_z: bool,
+    /// carry flag
     pub flag_c: bool,
+    /// overflow flag
     pub flag_v: bool
 }
 
@@ -537,7 +804,7 @@ impl fmt::Debug for BinOpStatus {
     }
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum MemoryOrder {
     NotAtomic,
     Relaxed,
@@ -548,18 +815,18 @@ pub enum MemoryOrder {
     SeqCst
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum CallConvention {
     Mu,
     Foreign(ForeignFFI)
 }
 
-#[derive(Copy, Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Copy, Clone, Debug)]
 pub enum ForeignFFI {
     C
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct CallData {
     pub func: OpIndex,
     pub args: Vec<OpIndex>,
@@ -568,15 +835,12 @@ pub struct CallData {
 
 impl CallData {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        let func_name = match ops[self.func].name() {
-            Some(name) => name,
-            None => "Anonymous Function".to_string()
-        };
+        let func_name = ops[self.func].name();
         format!("{:?} {} [{}]", self.convention, func_name, op_vector_str(&self.args, ops))
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
     pub exn_dest: Destination
@@ -588,7 +852,7 @@ impl ResumptionData {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub struct Destination {
     pub target: MuID,
     pub args: Vec<DestArg>
@@ -631,9 +895,11 @@ impl Destination {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug)]
 pub enum DestArg {
+    /// a normal destination argument is an SSA value (appears in the ops field of the instruction)
     Normal(OpIndex),
+    /// a freshbound argument is an undeclared/anonymous value (currently not support this)
     Freshbound(usize)
 }
 
@@ -644,4 +910,16 @@ impl DestArg {
             &DestArg::Freshbound(n) => format!("${}", n)
         }
     }
+}
+
+fn op_vector_str(vec: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
+    let mut ret = String::new();
+    for i in 0..vec.len() {
+        let index = vec[i];
+        ret.push_str(format!("{}", ops[index]).as_str());
+        if i != vec.len() - 1 {
+            ret.push_str(", ");
+        }
+    }
+    ret
 }

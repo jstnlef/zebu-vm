@@ -153,7 +153,7 @@ fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
 
     if cfg!(debug_assertions) {
         unsafe {
-            let hdr = addr.offset(objectmodel::OBJECT_HEADER_OFFSET).load::<u64>();
+            let hdr = (addr + objectmodel::OBJECT_HEADER_OFFSET).load::<u64>();
             assert!(objectmodel::header_is_object_start(hdr));
         }
     }
@@ -168,7 +168,7 @@ fn start() {
     start_logging();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1, true);
-    gc::gc_stats();
+    gc::print_gc_context();
 
     let mut mutator = gc::new_mutator();
 

@@ -36,7 +36,7 @@ fn test_access_exception_obj() {
 
     // set exception obj using offset
     let tl_addr = unsafe {thread::muentry_get_thread_local()};
-    let exc_obj_addr = tl_addr.plus(*thread::EXCEPTION_OBJ_OFFSET);
+    let exc_obj_addr = tl_addr + *thread::EXCEPTION_OBJ_OFFSET;
     println!("storing exception obj Address::max() to {}", exc_obj_addr);
     unsafe {exc_obj_addr.store(usize::MAX)};
 

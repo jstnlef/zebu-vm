@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,25 +13,26 @@
 // limitations under the License.
 
 #![allow(dead_code)]
-
+use std;
 use std::sync::Arc;
 use utils::POINTER_SIZE;
 use utils::ByteSize;
 use objectmodel;
-
 use std::u32;
 pub const GCTYPE_INIT_ID: u32 = u32::MAX;
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+// Id has size less than the alignment of the others so it needs to go at the end
+rodal_struct!(GCType{alignment, fix_size, fix_refs, var_refs, var_size, id});
+#[derive(Debug, Clone)] // size 136, align 8
 pub struct GCType {
-    pub id: u32,
-    pub alignment: ByteSize,
+    pub id: u32, // +128
+    pub alignment: ByteSize, // +0
 
-    pub fix_size: ByteSize,
-    pub fix_refs: Option<RefPattern>,
+    pub fix_size: ByteSize, // +8
+    pub fix_refs: Option<RefPattern>, //+16
 
-    pub var_refs: Option<RefPattern>,
-    pub var_size: Option<ByteSize>
+    pub var_refs: Option<RefPattern>,//+64
+    pub var_size: Option<ByteSize>//+112
 }
 
 impl GCType {
@@ -148,16 +149,18 @@ impl GCType {
     }
 }
 
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
-pub enum RefPattern {
+rodal_enum!(RefPattern{{Map: offsets, size}, (NestedType: vec), {Repeat: pattern, count}});
+#[derive(Clone, Debug)]
+pub enum RefPattern { // size 40, alignment 8
+    // discriminat 8 bytes
     Map{
-        offsets: Vec<ByteSize>,
-        size : usize
+        offsets: Vec<ByteSize>, // +8
+        size : usize // +32
     },
-    NestedType(Vec<Arc<GCType>>),
+    NestedType(Vec<Arc<GCType>>), // +8
     Repeat{
-        pattern: Box<RefPattern>,
-        count: usize
+        pattern: Box<RefPattern>, // +8
+        count: usize // +16
     }
 }
 

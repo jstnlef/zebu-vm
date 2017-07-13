@@ -14,7 +14,6 @@
 
 use ast::ir::*;
 use ast::inst::*;
-use ast::ir_semantics::*;
 
 use vm::VM;
 use compiler::CompilerPass;
@@ -31,8 +30,8 @@ impl TreeGen {
     }
 }
 
-fn is_movable(expr: &Instruction_) -> bool {
-    !has_side_effect(expr)
+fn is_movable(inst: &Instruction) -> bool {
+    !inst.has_side_effect()
 }
 
 impl CompilerPass for TreeGen {
@@ -45,6 +44,16 @@ impl CompilerPass for TreeGen {
     }
     
     fn execute(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        // We are trying to generate a depth tree from the original AST.
+        // If an SSA variable is used only once, and the instruction that generates it is movable,
+        // then we replace the use of the SSA with the actual variable
+
+        // we are doing it in two steps
+        // 1. if we see an expression that generates an SSA which is used only once, we take out
+        //    the expression node
+        // 2. if we see an SSA that is used only once (and it is this place for sure), we replace it
+        //    with the expression node
+        // because of SSA form,  it is guaranteed to see 1 before 2 for SSA variables.
         debug!("---CompilerPass {} for {}---", self.name(), func);
         
         {
@@ -64,7 +73,7 @@ impl CompilerPass for TreeGen {
                     trace!("check inst: {}", node);
                     match &mut node.v {
                         &mut TreeNode_::Instruction(ref mut inst) => {
-                            // check if any operands can be replaced by expression
+                            // check whether any operands (SSA) can be replaced by expression
                             {
                                 trace!("check if we can replace any operand with inst");
                                 
@@ -86,8 +95,12 @@ impl CompilerPass for TreeGen {
                                     } 
                                 }
                             }
-                            
-                            // check if left hand side of an assignment has a single use
+
+                            // check whether the instruction generates an SSA that is used only once
+                            // An instruction can replace its value if
+                            // * it generates only one value
+                            // * the value is used only once
+                            // * the instruction is movable
                             trace!("check if we should fold the inst");
                             if inst.value.is_some() {
                                 let left = inst.value.as_ref().unwrap();
@@ -97,7 +110,7 @@ impl CompilerPass for TreeGen {
                                 if left.len() == 1 {
                                     let lhs = context.get_value_mut(left[0].extract_ssa_id().unwrap()).unwrap(); 
                                     if lhs.use_count() == 1{
-                                        if is_movable(&inst.v) {
+                                        if is_movable(&inst) {
                                             lhs.assign_expr(inst.clone()); // FIXME: should be able to move the inst here
                                             
                                             trace!("yes");
@@ -143,7 +156,7 @@ impl CompilerPass for TreeGen {
         debug!("check depth tree for {}", func);
         
         for entry in func.content.as_ref().unwrap().blocks.iter() {
-            debug!("block {}", entry.1.name().unwrap());
+            debug!("block {}", entry.1.name());
             
             for inst in entry.1.content.as_ref().unwrap().body.iter() {
                 debug!("{}", inst);
