@@ -338,7 +338,7 @@ impl BackendType {
                 // treat var_ty as array (getting its alignment)
                 let var_ele_ty = vm.get_backend_type_info(var_ty.id());
                 let var_size = var_ele_ty.size;
-                let var_align = var_ele_ty.alignmen;
+                let var_align = var_ele_ty.alignment;
                 ret.elem_size = Some(var_size);
 
                 ret.alignment = lcm(ret.alignment, var_align);
