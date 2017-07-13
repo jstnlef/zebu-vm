@@ -18,8 +18,10 @@ import struct;
 muc = os.environ.get('MUC', 'muc'); #type: str
 emit = os.environ.get('MU_EMIT_DIR', 'emit'); #type: str
 libext = '.dylib' if sys.platform.startswith('darwin') else \
-         '.so'    if sys.platform.startswith('linux') else sys.exit("Unsupported platform");
-
+         '.so'    if sys.platform.startswith('linux') else sys.exit("Unsupported platform"); #type: str
+libmu = os.path.join(os.environ.get('MU_ZEBU', os.path.dirname(os.path.dirname(os.getcwd()))),
+                     'target', os.environ.get('ZEBU_BUILD', 'debug'),
+                     "libmu" + libext); #type: str
 prelude = """
         /*--------------------------------------------------------*/
         .funcsig exit_sig = (int<32>) -> ()
@@ -63,8 +65,9 @@ def execute(name, args = []): # type: (str, Optional[List[str]]) -> int
     return subprocess.call([get_output_file(name)] + args);
 
 def load_bundle(bundle, name): # type: (str, str) -> ctypes.CDLL
+    ctypes.CDLL(libmu, ctypes.RTLD_GLOBAL);
     execute_muc(prelude + bundle, name + libext);
-    return ctypes.CDLL(get_output_file(name + libext));
+    return ctypes.CDLL(get_output_file(name + libext), ctypes.RTLD_GLOBAL);
 
 def get_function(func, argtypes, restype): # type: (ctypes._FuncPtr) -> (ctypes._FuncPtr)
     func.argtypes = argtypes;
