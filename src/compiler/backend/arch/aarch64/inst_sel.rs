@@ -424,7 +424,7 @@ impl <'a> InstructionSelection {
                         // TODO: Are vals in the same order as the return types in the functions signature?
 
                         let ret_tys = vals.iter().map(|i| node_type(&ops[*i])).collect();
-                        let ret_type = self.combine_return_types(&ret_tys);
+                        let ret_type = self.combine_return_types(&ret_tys, vm);
 
                         let n = ret_tys.len(); // number of return values
                         let xr_value = self.current_xr_value.as_ref().unwrap().clone();
@@ -2936,14 +2936,18 @@ impl <'a> InstructionSelection {
 
     // Note: if tys has more than 1 element, then this will return a new struct type
     // , but each call will generate a different name for this struct type (but the layout will be identical)
-    fn combine_return_types(&self, tys: &Vec<P<MuType>>) -> P<MuType>{
+    fn combine_return_types(&self, tys: &Vec<P<MuType>>, vm: &VM) -> P<MuType>{
         let n = tys.len();
         if n == 0 {
             VOID_TYPE.clone()
         } else if n == 1 {
             tys[0].clone()
         } else {
-            P(MuType::new(new_internal_id(), MuType_::mustruct(format!("#{}", new_internal_id()), tys.to_vec())))
+            //declare_type(&self, entity: MuEntityHeader, ty: MuType_)
+            let id = new_internal_id();
+            let name = format!("return_type:#{}", id);
+            let header = MuEntityHeader::named(new_internal_id(), name.clone());
+            vm.declare_type(header, MuType_::mustruct(name, tys.to_vec()))
         }
     }
 
@@ -3428,7 +3432,7 @@ impl <'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM) -> Vec<P<Value>>
     {
-        let return_type = self.combine_return_types(&sig.ret_tys);
+        let return_type = self.combine_return_types(&sig.ret_tys, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) = self.emit_precall_convention(false, &args, &sig.arg_tys, return_size, f_context, vm);
 
@@ -3573,7 +3577,7 @@ impl <'a> InstructionSelection {
                 unimplemented!();
             }
         }
-        let return_type = self.combine_return_types(&func_sig.ret_tys);
+        let return_type = self.combine_return_types(&func_sig.ret_tys, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) = self.emit_precall_convention(is_tail, &arg_values, &func_sig.arg_tys, return_size, f_context, vm,);
 
@@ -3692,7 +3696,7 @@ impl <'a> InstructionSelection {
         self.backend.emit_frame_grow(); // will include space for callee saved registers
 
         // We need to return arguments in the memory area pointed to by XR, so we need to save it
-        let ret_ty = self.combine_return_types(&sig.ret_tys);
+        let ret_ty = self.combine_return_types(&sig.ret_tys, vm);
 
         // This should impose no overhead if it's never used
         self.current_xr_value = Some(make_temporary(f_context, ADDRESS_TYPE.clone(), vm));
