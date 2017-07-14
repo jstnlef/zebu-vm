@@ -2091,8 +2091,8 @@ impl CodeGenerator for ASMCodeGen {
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
 
-    fn emit_blr(&mut self, callsite: String, func: Reg, pe: Option<MuName>, args: Vec<P<Value>>) -> ValueLocation {
-        trace_emit!("\tBLR {}({:?})", func, args);
+    fn emit_blr(&mut self, callsite: String, func: Reg, pe: Option<MuName>) -> ValueLocation {
+        trace_emit!("\tBLR {}", func);
 
         let (reg1, id1, loc1) = self.prepare_reg(func, 3 + 1);
         let asm = format!("BLR {}", reg1);
