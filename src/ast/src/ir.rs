@@ -453,11 +453,16 @@ impl FunctionContext {
 
 /// Block contains BlockContent, which includes all the instructions for the block
 
-// FIXME: control_flow field should be moved out of ast crate (Issue #18)
+//  FIXME: control_flow field should be moved out of ast crate (Issue #18)
+//  FIXME: trace_hint should also be moved
 #[derive(Clone)]
 pub struct Block {
     pub hdr: MuEntityHeader,
+    /// the actual content of this block
     pub content: Option<BlockContent>,
+    /// a trace scheduling hint about where to layout this block
+    pub trace_hint: TraceHint,
+    /// control flow info about this block (predecessors, successors, etc)
     pub control_flow: ControlFlow
 }
 
@@ -477,7 +482,7 @@ impl fmt::Debug for Block {
 
 impl Block {
     pub fn new(entity: MuEntityHeader) -> Block {
-        Block{hdr: entity, content: None, control_flow: ControlFlow::default()}
+        Block{hdr: entity, content: None, trace_hint: TraceHint::None, control_flow: ControlFlow::default()}
     }
 
     /// does this block have an exception arguments?
@@ -495,6 +500,19 @@ impl Block {
             content.body.len()
         }
     }
+}
+
+/// TraceHint is a hint for the compiler to generate better trace for this block
+#[derive(Clone)]
+pub enum TraceHint {
+    /// no hint provided. Trace scheduler should use its own heuristics to decide
+    None,
+    /// this block is fast path, and should be put in straightline code where possible
+    FastPath,
+    /// this block is slow path, and should be kept out of hot loops
+    SlowPath,
+    /// this block is return sink, and should be put at the end of a function
+    ReturnSink
 }
 
 /// ControlFlow stores compilation info about control flows of a block

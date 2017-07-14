@@ -1521,6 +1521,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         Block {
             hdr: hdr,
             content: Some(ctn),
+            trace_hint: TraceHint::None,
             control_flow: Default::default(),
         }
     }

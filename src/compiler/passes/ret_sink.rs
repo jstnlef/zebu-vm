@@ -54,6 +54,8 @@ impl CompilerPass for RetSink {
             trace!("created return sink {}", block_name);
 
             let mut block = Block::new(MuEntityHeader::named(vm.next_id(), block_name));
+            // tell the compiler this is the return sink
+            block.trace_hint = TraceHint::ReturnSink;
             vm.set_name(block.as_entity());
 
             let sig = func.sig.clone();
