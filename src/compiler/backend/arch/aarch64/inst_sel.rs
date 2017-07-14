@@ -77,7 +77,7 @@ impl <'a> InstructionSelection {
     #[cfg(feature = "aot")]
     pub fn new() -> InstructionSelection {
         InstructionSelection {
-            name: "Instruction Selection (x64)",
+            name: "Instruction Selection (aarch64)",
             backend: Box::new(ASMCodeGen::new()),
 
             current_fv_id: 0,
@@ -450,8 +450,7 @@ impl <'a> InstructionSelection {
                             }
                         }
 
-                        let epilogue_block = format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME);
-                        self.backend.emit_b(epilogue_block);
+                        self.emit_common_epilogue(f_context, vm);
                     },
 
                     Instruction_::BinOp(op, op1, op2) => {
@@ -3722,9 +3721,6 @@ impl <'a> InstructionSelection {
 
     // Todo: Don't emit this if the function never returns
     fn emit_common_epilogue(&mut self, f_context: &mut FunctionContext, vm: &VM) {
-        let epilogue_block = format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME);
-        self.start_block(epilogue_block);
-
         // pop all callee-saved registers
         for i in (0..CALLEE_SAVED_FPRS.len()).rev() {
             let ref reg = CALLEE_SAVED_FPRS[i];
@@ -3748,7 +3744,6 @@ impl <'a> InstructionSelection {
 
         // Note: the stack pointer should now be what it was when the function was called
         self.backend.emit_ret(&LR); // return to the Link Register
-        self.finish_block();
     }
 
     fn match_cmp_res(&mut self, op: &TreeNode) -> bool {
@@ -4516,8 +4511,6 @@ impl CompilerPass for InstructionSelection {
     }
 
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        self.emit_common_epilogue( &mut func.context, vm);
-
         self.backend.print_cur_code();
 
         let func_name = {

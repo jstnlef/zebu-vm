@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(dead_code)]
+
 // TODO: CHECK THAT THE TYPE OF EVERY MEMORY LOCATION HAS THE CORRECT SIZE
 // (the size should be size of the area in memory that it is referring to, and will indicate
 // how much data any load/store instructions that uses it will operate on
 // (so it should be [1], 8, 16, 32, 64, or 128 bits in size (when using emit_mem, it can have other sizes before this))
-
 
 #![allow(non_upper_case_globals)]
 // TODO: Move architecture independent codes in here, inst_sel and asm_backend to somewhere else...
@@ -332,7 +333,6 @@ pub fn primitive_byte_size(ty : &P<MuType>) -> usize
     }
 }
 
-#[allow(dead_code)]
 lazy_static! {
     // Note: these are the same as the ARGUMENT_GPRS
     pub static ref RETURN_GPRS : [P<Value>; 8] = [
@@ -396,7 +396,6 @@ lazy_static! {
         //X18.clone(), // Platform Register
     ];
 
-    #[allow(dead_code)]
     static ref ALL_GPRS : [P<Value>; 30] = [
         X0.clone(),
         X1.clone(),
@@ -586,7 +585,6 @@ lazy_static!{
         D31.clone()
     ];
 
-    #[allow(dead_code)]
     static ref ALL_FPRS : [P<Value>; 32] = [
         D0.clone(),
         D1.clone(),
