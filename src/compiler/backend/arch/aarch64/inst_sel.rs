@@ -32,8 +32,8 @@ use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 
-use compiler::backend::PROLOGUE_BLOCK_NAME;
-use compiler::backend::EPILOGUE_BLOCK_NAME;
+use compiler::PROLOGUE_BLOCK_NAME;
+use compiler::EPILOGUE_BLOCK_NAME;
 
 use compiler::backend::aarch64::*;
 use compiler::backend::make_block_name;

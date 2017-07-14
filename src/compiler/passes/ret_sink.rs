@@ -17,6 +17,7 @@ use ast::inst::*;
 use ast::ptr::*;
 use vm::VM;
 use compiler::CompilerPass;
+use compiler::EPILOGUE_BLOCK_NAME;
 use std::any::Any;
 
 /// Mu IR the client gives us may contain several RET instructions. However,
@@ -49,7 +50,7 @@ impl CompilerPass for RetSink {
 
         // create a return sink
         let return_sink = {
-            let block_name = format!("{}:epilogue", func.name());
+            let block_name = format!("{}:{}", func.name(), EPILOGUE_BLOCK_NAME);
             trace!("created return sink {}", block_name);
 
             let mut block = Block::new(MuEntityHeader::named(vm.next_id(), block_name));

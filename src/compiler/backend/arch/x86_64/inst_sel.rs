@@ -30,7 +30,7 @@ use runtime::entrypoints::RuntimeEntrypoint;
 use compiler::CompilerPass;
 use compiler::backend::BackendType;
 use compiler::backend::RegGroup;
-use compiler::backend::PROLOGUE_BLOCK_NAME;
+use compiler::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::x86_64::ASMCodeGen;

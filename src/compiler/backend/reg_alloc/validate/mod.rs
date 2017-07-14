@@ -24,7 +24,7 @@ use ast::ir::*;
 use ast::ptr::*;
 use compiler::machine_code::CompiledFunction;
 use compiler::backend::get_color_for_precolored as alias;
-use compiler::backend::PROLOGUE_BLOCK_NAME;
+use compiler::PROLOGUE_BLOCK_NAME;
 
 mod alive_entry;
 use compiler::backend::reg_alloc::validate::alive_entry::*;
