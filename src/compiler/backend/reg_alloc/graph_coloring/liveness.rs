@@ -362,9 +362,13 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
             };
             trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: src={:?}", block, i, src);
 
-            // for every definition D in I
             let defines = cf.mc().get_inst_reg_defines(i);
-            for d in defines.clone() {
+            for d in defines.iter() {
+                current_live.insert(*d);
+            }
+
+            // for every definition D in I
+            for d in defines {
                 trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: for definition {}",
                     block, i, func.context.get_temp_display(d));
                 // add an interference from D to every element E in Current_Live - {D}
@@ -392,22 +396,6 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
                                 ig.add_interference_edge(to, from);
                             }
                         }
-                    }
-                }
-
-                // D also interferes with other definition D_ in I
-                for d_ in defines.iter() {
-                    let node1 = ig.get_node(d);
-                    let node2 = ig.get_node(*d_);
-
-                    // if D and D_ are not the same node, not already interfered, and in the same reg group
-                    // we add an intereference edge between them
-                    if !ig.is_same_node(node1, node2) && ig.is_same_group(node1, node2) && !ig.is_adj(node1, node2){
-                        trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: add intereference between {} and {}",
-                            block, i,
-                            func.context.get_temp_display(d),
-                            func.context.get_temp_display(*d_));
-                        ig.add_interference_edge(node1, node2);
                     }
                 }
             }
