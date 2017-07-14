@@ -3123,9 +3123,12 @@ impl <'a> InstructionSelection {
 
 
     // returns the stack arg offset - we will need this to collapse stack after the call
-    fn emit_precall_convention(&mut self, is_tail: bool, args: &Vec<P<Value>>, arg_tys: &Vec<P<MuType>>, return_size: usize, f_context: &mut FunctionContext, vm: &VM) -> usize
+    // as well as a list of argument registers
+    fn emit_precall_convention(&mut self, is_tail: bool, args: &Vec<P<Value>>, arg_tys: &Vec<P<MuType>>, return_size: usize, f_context: &mut FunctionContext, vm: &VM)
+        -> (usize, Vec<P<Value>>)
     {
         // If we're tail calling, use the current frame's argument location instead
+        let mut reg_args = Vec::<P<Value>>::new();
         let (arg_base, arg_offset) = if is_tail { (&*FP, 16) } else { (&*SP, 0) };
         let (_, locations, stack_size) = self.compute_argument_locations(&arg_tys, arg_base, arg_offset, &vm);
 
@@ -3175,17 +3178,22 @@ impl <'a> InstructionSelection {
                         let arg_val = emit_reg_value(self.backend.as_mut(), &arg_val, f_context, vm);
                         let (val_l, val_h) = split_int128(&arg_val, f_context, vm);
                         let arg_loc_h = get_register_from_id(arg_loc.id() + 2);
+                        reg_args.push(arg_loc.clone());
+                        reg_args.push(arg_loc_h.clone());
 
                         emit_move_value_to_value(self.backend.as_mut(), &arg_loc, &val_l, f_context, vm);
                         emit_move_value_to_value(self.backend.as_mut(), &arg_loc_h, &val_h, f_context, vm);
                     } else {
+                        if arg_loc.is_reg() {
+                            reg_args.push(arg_loc.clone());
+                        }
                         emit_move_value_to_value(self.backend.as_mut(), &arg_loc, &arg_val, f_context, vm)
                     }
                 }
             }
         }
 
-        stack_size
+        (stack_size, reg_args)
     }
 
     fn emit_postcall_convention(&mut self, ret_tys: &Vec<P<MuType>>, rets: &Option<Vec<P<Value>>>, ret_type: &P<MuType>, arg_size: usize, ret_size: usize, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> {
@@ -3422,7 +3430,7 @@ impl <'a> InstructionSelection {
     {
         let return_type = self.combine_return_types(&sig.ret_tys);
         let return_size = self.compute_return_allocation(&return_type, &vm);
-        let stack_arg_size = self.emit_precall_convention(false, &args, &sig.arg_tys, return_size, f_context, vm);
+        let (stack_arg_size, arg_regs) = self.emit_precall_convention(false, &args, &sig.arg_tys, return_size, f_context, vm);
 
         // make call
         if vm.is_doing_jit() {
@@ -3430,7 +3438,7 @@ impl <'a> InstructionSelection {
         } else {
             let callsite = self.new_callsite_label(cur_node);
 
-            self.backend.emit_bl(callsite.clone(), func_name, None, true); // assume ccall wont throw exception
+            self.backend.emit_bl(callsite.clone(), func_name, None, arg_regs, true); // assume ccall wont throw exception
 
             // TODO: What if theres an exception block?
             self.current_callsites.push_back((callsite, 0, stack_arg_size));
@@ -3567,7 +3575,7 @@ impl <'a> InstructionSelection {
         }
         let return_type = self.combine_return_types(&func_sig.ret_tys);
         let return_size = self.compute_return_allocation(&return_type, &vm);
-        let stack_arg_size = self.emit_precall_convention(is_tail, &arg_values, &func_sig.arg_tys, return_size, f_context, vm,);
+        let (stack_arg_size, arg_regs) = self.emit_precall_convention(is_tail, &arg_values, &func_sig.arg_tys, return_size, f_context, vm,);
 
         // check if this call has exception clause - need to tell backend about this
         let potentially_excepting = {
@@ -3592,10 +3600,10 @@ impl <'a> InstructionSelection {
                 let target_id = self.node_funcref_const_to_id(func);
                 let funcs = vm.funcs().read().unwrap();
                 let target = funcs.get(&target_id).unwrap().read().unwrap();
-                self.backend.emit_b_func(target.name());
+                self.backend.emit_b_func(target.name(), arg_regs);
             } else {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
-                self.backend.emit_br_func(&target);
+                self.backend.emit_br_func(&target, arg_regs);
             }
         } else {
             // Emit a branch with link (i.e. a call)
@@ -3609,12 +3617,12 @@ impl <'a> InstructionSelection {
                         unimplemented!()
                     } else {
                         let callsite = self.new_callsite_label(Some(cur_node));
-                        self.backend.emit_bl(callsite, target.name(), potentially_excepting, false)
+                        self.backend.emit_bl(callsite, target.name(), potentially_excepting, arg_regs, false)
                     }
                 } else {
                     let target = self.emit_ireg(func, f_content, f_context, vm);
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend.emit_blr(callsite, &target, potentially_excepting)
+                    self.backend.emit_blr(callsite, &target, potentially_excepting, arg_regs)
                 }
             };
 

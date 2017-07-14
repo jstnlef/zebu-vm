@@ -1748,7 +1748,7 @@ fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, 
         let shift = log2(val as u64) as u8;
         // dest = src1 << log2(val) + src2
         if shift <= 4 {
-            backend.emit_add_ext(&dest, &dest, &src2, false, shift);
+            backend.emit_add_ext(&dest, &src2, &src1, false, shift);
         } else {
             backend.emit_lsl_imm(&dest, &src1, shift);
             backend.emit_add(&dest, &dest, &src2);
@@ -2005,10 +2005,8 @@ fn emit_fpreg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut 
 }
 
 fn split_int128(int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>) {
-    trace!("ISAAC split_int128({})...", int128);
     if f_context.get_value(int128.id()).unwrap().has_split() {
         let vec = f_context.get_value(int128.id()).unwrap().get_split().as_ref().unwrap();
-        trace!("ISAAC <- get value ({}, {})", &vec[0], &vec[1]);
         (vec[0].clone(), vec[1].clone())
     } else {
         let arg_l = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -2022,7 +2020,6 @@ fn split_int128(int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> 
 }
 
 pub fn emit_ireg_ex_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>)  {
-    trace!("ISAAC emit_ireg_ex_value({})", pv);
     match pv.v {
         Value_::SSAVar(_) => {
             split_int128(pv, f_context, vm)
