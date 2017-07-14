@@ -307,6 +307,8 @@ impl MuFunctionVersion {
         ret
     }
 
+    // TODO: It may be more efficient to compute this when the instructions
+    // are added to the function version and store the result in a field
     pub fn has_throw(&self) -> bool {
         let f_content = self.content.as_ref().unwrap();
 
@@ -318,6 +320,32 @@ impl MuFunctionVersion {
                     TreeNode_::Instruction(ref inst) => {
                         match inst.v {
                             Instruction_::Throw(_) => {return true;}
+                            _ => {
+                                // do nothing
+                            }
+                        }
+                    },
+                    _ => {
+                        unreachable!()
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    pub fn has_tailcall(&self) -> bool {
+        let f_content = self.content.as_ref().unwrap();
+
+        for (_, block) in f_content.blocks.iter() {
+            let block_content = block.content.as_ref().unwrap();
+
+            for inst in block_content.body.iter() {
+                match inst.v {
+                    TreeNode_::Instruction(ref inst) => {
+                        match inst.v {
+                            Instruction_::TailCall(_) => {return true;}
                             _ => {
                                 // do nothing
                             }

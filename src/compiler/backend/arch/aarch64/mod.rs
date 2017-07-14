@@ -396,7 +396,7 @@ lazy_static! {
         //X18.clone(), // Platform Register
     ];
 
-    #[allow(dead_code)]
+    /*#[allow(dead_code)]
     static ref ALL_GPRS : [P<Value>; 30] = [
         X0.clone(),
         X1.clone(),
@@ -429,7 +429,7 @@ lazy_static! {
         X28.clone(),
         X29.clone(), // Frame Pointer
         X30.clone() // Link Register
-    ];
+    ];*/
 }
 
 pub const FPR_ID_START : usize = 100;
@@ -586,7 +586,7 @@ lazy_static!{
         D31.clone()
     ];
 
-    #[allow(dead_code)]
+    /*#[allow(dead_code)]
     static ref ALL_FPRS : [P<Value>; 32] = [
         D0.clone(),
         D1.clone(),
@@ -622,7 +622,7 @@ lazy_static!{
         D29.clone(),
         D30.clone(),
         D31.clone()
-    ];
+    ];*/
 }
 
 lazy_static! {
@@ -2005,8 +2005,10 @@ fn emit_fpreg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut 
 }
 
 fn split_int128(int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>) {
+    trace!("ISAAC split_int128({})...", int128);
     if f_context.get_value(int128.id()).unwrap().has_split() {
         let vec = f_context.get_value(int128.id()).unwrap().get_split().as_ref().unwrap();
+        trace!("ISAAC <- get value ({}, {})", &vec[0], &vec[1]);
         (vec[0].clone(), vec[1].clone())
     } else {
         let arg_l = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -2014,11 +2016,13 @@ fn split_int128(int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> 
 
         f_context.get_value_mut(int128.id()).unwrap().set_split(vec![arg_l.clone(), arg_h.clone()]);
 
+        trace!("ISAAC <- make temporary ({}, {})", &arg_l, &arg_h);
         (arg_l, arg_h)
     }
 }
 
 pub fn emit_ireg_ex_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>)  {
+    trace!("ISAAC emit_ireg_ex_value({})", pv);
     match pv.v {
         Value_::SSAVar(_) => {
             split_int128(pv, f_context, vm)
@@ -2032,6 +2036,7 @@ pub fn emit_ireg_ex_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context:
             emit_mov_u64(backend, &tmp_l, val[0]);
             emit_mov_u64(backend, &tmp_h, val[1]);
 
+            trace!("ISAAC <- ({}, {}) = ({}, {})", &tmp_l, &tmp_h, val[0], val[1]);
             (tmp_l, tmp_h)
         },
         _ => panic!("expected ireg_ex")

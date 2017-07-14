@@ -1310,23 +1310,6 @@ impl ASMCodeGen {
         )
     }
 
-    fn internal_binop_str(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &str) {
-        let inst = inst.to_string();
-        trace!("emit: \t{} {}, {} -> {}", inst, src1, src2, dest);
-
-        let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1);
-        let (reg2, id2, loc2) = self.prepare_reg(src1, inst.len() + 1 + reg1.len() + 1);
-
-        let asm = format!("{} {},{},#{}", inst, reg1, reg2, src2);
-
-        self.add_asm_inst(
-            asm,
-            ignore_zero_register(id1, vec![loc1]),
-            ignore_zero_register(id2, vec![loc2]),
-            false
-        )
-    }
-
     // dest <= inst(src1, src2)
     fn internal_unop_shift(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>, shift: &str, amount: u8) {
         let inst = inst.to_string();
@@ -1717,7 +1700,7 @@ impl ASMCodeGen {
     // TODO: What to do when src1/src2/stack are the same???
     fn internal_load_pair(&mut self, inst: &str, dest1: &P<Value>, dest2: &P<Value>, src: &P<Value>) {
         let inst = inst.to_string();
-        trace!("emit: \t{} {} -> {},{}", inst, src, dest1, dest2);
+        trace!("emit: \t{} {} -> {},    {}", inst, src, dest1, dest2);
 
         let (reg1, id1, loc1) = self.prepare_reg(dest1, inst.len() + 1);
         let (reg2, id2, loc2) = self.prepare_reg(dest2, inst.len() + 1 + reg1.len() + 1);
@@ -2049,8 +2032,6 @@ impl CodeGenerator for ASMCodeGen {
             false
         )
     }
-
-    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str) {self.internal_binop_str("ADD", dest, src1, src2)}
 
     // Pushes a pair of registers on the givne stack (uses the STP instruction)
     fn emit_push_pair(&mut self, src1: &P<Value>, src2: &P<Value>, stack: &P<Value>) {
