@@ -480,6 +480,12 @@ impl fmt::Debug for Block {
     }
 }
 
+impl fmt::Display for Block {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 impl Block {
     pub fn new(entity: MuEntityHeader) -> Block {
         Block{hdr: entity, content: None, trace_hint: TraceHint::None, control_flow: ControlFlow::default()}
@@ -503,7 +509,12 @@ impl Block {
 }
 
 /// TraceHint is a hint for the compiler to generate better trace for this block
-#[derive(Clone)]
+//  Note: for a sequence of blocks that are supposed to be fast/slow path, only mark the
+//  first block with TraceHint, and let the trace scheduler to normally layout other
+//  blocks. Otherwise, the scheduler will take every TraceHint into consideration,
+//  and may not generate the trace as expected.
+//  FIXME: Issue #18
+#[derive(Clone, PartialEq)]
 pub enum TraceHint {
     /// no hint provided. Trace scheduler should use its own heuristics to decide
     None,
@@ -516,8 +527,7 @@ pub enum TraceHint {
 }
 
 /// ControlFlow stores compilation info about control flows of a block
-
-// FIXME: Issue #18
+//  FIXME: Issue #18
 #[derive(Debug, Clone)]
 pub struct ControlFlow {
     pub preds : Vec<MuID>,

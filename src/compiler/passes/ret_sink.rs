@@ -90,6 +90,7 @@ impl CompilerPass for RetSink {
             let mut new_body = vec![];
 
             for node in block_content.body.iter() {
+                trace!("{}", node);
                 match node.v {
                     TreeNode_::Instruction(Instruction {ref ops, v: Instruction_::Return(ref arg_index), ..}) => {
                         let branch_to_sink = func.new_inst(Instruction {
@@ -101,6 +102,7 @@ impl CompilerPass for RetSink {
                                 args: arg_index.iter().map(|i| DestArg::Normal(*i)).collect()
                             })
                         });
+                        trace!(">> rewrite ret to {}", branch_to_sink);
                         new_body.push(branch_to_sink);
                     }
                     _ => new_body.push(node.clone())
