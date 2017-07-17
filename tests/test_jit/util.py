@@ -1,11 +1,11 @@
 # Copyright 2017 The Australian National University
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,7 +25,9 @@ proj_dir = py.path.local(MU_ZEBU) if MU_ZEBU else py.path.local(__file__).join('
 test_jit_dir = proj_dir.join('tests', 'test_jit')
 testsuite_dir = test_jit_dir.join('suite')
 # testsuite_dir = py.path.local('/Users/johnz/Documents/Work/mu-client-pypy/rpython/translator/mu/test_impl')
-bin_dir = py.path.local('/tmp')
+bin_dir = py.path.local('emit')     # put everything under emit
+if not bin_dir.exists():
+    bin_dir.mkdir()
 
 if sys.platform.startswith('darwin'):
     libext = '.dylib'
