@@ -1746,7 +1746,7 @@ fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, 
         let shift = log2(val as u64) as u8;
         // dest = src1 << log2(val) + src2
         if shift <= 4 {
-            backend.emit_add_ext(&dest, &dest, &src2, false, shift);
+            backend.emit_add_ext(&dest, &src2, &src1, false, shift);
         } else {
             backend.emit_lsl_imm(&dest, &src1, shift);
             backend.emit_add(&dest, &dest, &src2);
@@ -2012,6 +2012,7 @@ fn split_int128(int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> 
 
         f_context.get_value_mut(int128.id()).unwrap().set_split(vec![arg_l.clone(), arg_h.clone()]);
 
+        trace!("ISAAC <- make temporary ({}, {})", &arg_l, &arg_h);
         (arg_l, arg_h)
     }
 }
@@ -2030,6 +2031,7 @@ pub fn emit_ireg_ex_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context:
             emit_mov_u64(backend, &tmp_l, val[0]);
             emit_mov_u64(backend, &tmp_h, val[1]);
 
+            trace!("ISAAC <- ({}, {}) = ({}, {})", &tmp_l, &tmp_h, val[0], val[1]);
             (tmp_l, tmp_h)
         },
         _ => panic!("expected ireg_ex")

@@ -78,16 +78,16 @@ def test_add():
 def test_except_stack_args():
     compile_bundle(
         """
-        .funcsig stack_sig = (int<64> int<64> int<64> int<64> int<64> int<64> int<64>)->()
+        .funcsig stack_sig = (int<64> int<64> int<64> int<64> int<64> int<64> int<64> int<64> int<64>)->()
         .funcdef stack_args <stack_sig>
         {
-            entry(<int<64>> v0 <int<64>> v1 <int<64>> v2 <int<64>> v3 <int<64>> v4 <int<64>> v5 <int<64>> v6):
+            entry(<int<64>> v0 <int<64>> v1 <int<64>> v2 <int<64>> v3 <int<64>> v4 <int<64>> v5 <int<64>> v6 <int<64>> v7 <int<64>> v8):
                 THROW <ref<void>> NULL
         }
         .funcdef test_except_stack_args <main_sig>
         {
             entry(<int<32>>argc <uptr<uptr<char>>>argv):
-                CALL <stack_sig> stack_args(<int<32>>0 <int<32>>1 <int<32>>2 <int<32>>3 <int<32>>4 <int<32>>5 <int<32>>6)
+                CALL <stack_sig> stack_args(<int<32>>0 <int<32>>1 <int<32>>2 <int<32>>3 <int<32>>4 <int<32>>5 <int<32>>6 <int<32>>7 <int<32>>8)
                     EXC (exit(<int<32>> 0) exit(<int<32>> 1))
 
             exit(<int<32>> status):
@@ -96,3 +96,15 @@ def test_except_stack_args():
         """,
         "test_except_stack_args");
     assert(execute("test_except_stack_args") == 1);
+
+
+def test_ldp_bug():
+    compile_bundle(
+        """
+        .funcdef foo <(int<128> int<128> int<128> int<128> int<128> int<128>)->(int<128>)>
+        {
+            entry(<int<128>>a0 <int<128>>a1 <int<128>>a2 <int<128>>a3 <int<128>>a4 <int<128>>a5):
+                RET a5
+        }
+        """, "test_taillcall_smaller_stack");
+assert(execute("test_taillcall_smaller_stack") == 12);

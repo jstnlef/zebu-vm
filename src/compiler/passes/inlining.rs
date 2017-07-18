@@ -125,12 +125,13 @@ impl Inlining {
         let n_insts  = estimate_insts(&fv);
         let out_calls = fv.get_static_call_edges();
         let has_throw = fv.has_throw();
+        let has_tailcall = fv.has_tailcall();
 
         // simple heuristic here:
         // * estimated machine insts are fewer than 10 insts
         // * leaf in call graph (no out calls)
         // * no throw (otherwise we will need to rearrange catch)
-        let should_inline = n_insts <= 25 && out_calls.len() == 0 && !has_throw;
+        let should_inline = n_insts <= 25 && out_calls.len() == 0 && !has_throw && !has_tailcall;
 
         trace!("func {} has {} insts (estimated)", callee, n_insts);
         trace!("     has {} out calls", out_calls.len());

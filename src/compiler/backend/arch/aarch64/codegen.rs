@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use ast::ir::*;
+use ast::ptr::P;
 use runtime::ValueLocation;
 
 use compiler::machine_code::MachineCode;
@@ -47,10 +48,6 @@ pub trait CodeGenerator {
     // emit code to adjust frame
     fn emit_frame_grow(&mut self); // Emits a SUB
 
-    // Used to pass a string that the assembler will interpret as an immediate argument
-    // (This is neccesary to support the use of ELF relocations like ':tprel_hi12:foo')
-    fn emit_add_str(&mut self, dest: Reg, src1: Reg, src2: &str);
-
     // stack minimpulation
     fn emit_push_pair(&mut self, src1: Reg, src2: Reg, stack: Reg); // Emits a STP
     fn emit_pop_pair(&mut self, dest1: Reg, dest2: Reg, stack: Reg); // Emits a LDP
@@ -58,6 +55,8 @@ pub trait CodeGenerator {
     // For callee saved loads and stores (flags them so that only they are removed)
     fn emit_ldr_callee_saved(&mut self, dest: Reg, src: Mem);
     fn emit_str_callee_saved(&mut self, dest: Mem, src: Reg);
+
+    //==================================================================================================
 
     /* Bellow ar all ARMv8-A Aarch64 instruction menmonics (with all operand modes) except:
         PRFM, PRFUM, CRC32*
@@ -102,15 +101,15 @@ pub trait CodeGenerator {
     fn emit_stnp(&mut self, dest: Mem, src1: Reg/*GPR or FPR*/, src2: Reg/*GPR or FPR*/); // [base, #simm7]
 
     // Calls
-    fn emit_bl(&mut self, callsite: String, func: MuName, pe: Option<MuName>, is_native: bool) -> ValueLocation;
-    fn emit_blr(&mut self, callsite: String, func: Reg, pe: Option<MuName>) -> ValueLocation;
+    fn emit_bl(&mut self, callsite: String, func: MuName, pe: Option<MuName>, args: Vec<P<Value>>, is_native: bool) -> ValueLocation;
+    fn emit_blr(&mut self, callsite: String, func: Reg, pe: Option<MuName>, args: Vec<P<Value>>) -> ValueLocation;
 
     // Branches
     fn emit_b(&mut self, dest_name: MuName);
-    fn emit_b_func(&mut self, func: MuName);
+    fn emit_b_func(&mut self, func: MuName, args: Vec<P<Value>>); // For tail calls
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName);
     fn emit_br(&mut self, dest_address: Reg);
-    fn emit_br_func(&mut self, func_address: Reg);
+    fn emit_br_func(&mut self, func_address: Reg, args: Vec<P<Value>>);  // For tail calls
 
     fn emit_ret(&mut self, src: Reg);
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName);
@@ -123,8 +122,8 @@ pub trait CodeGenerator {
     fn emit_mrs(&mut self, dest: Reg, src: &str);
 
     // Address calculation
-    fn emit_adr(&mut self, dest: Reg, src: Reg);
-    fn emit_adrp(&mut self, dest: Reg, src: Reg);
+    fn emit_adr(&mut self, dest: Reg, src: Mem);
+    fn emit_adrp(&mut self, dest: Reg, src: Mem);
 
     // Unary ops
     fn emit_mov(&mut self, dest: Reg/*GPR or SP or ZR*/, src: Reg/*GPR or SP or ZR*/); // The SP and ZR cannot both be used

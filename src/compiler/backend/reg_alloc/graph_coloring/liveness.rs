@@ -362,8 +362,13 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
             };
             trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: src={:?}", block, i, src);
 
+            let defines = cf.mc().get_inst_reg_defines(i);
+            for d in defines.iter() {
+                current_live.insert(*d);
+            }
+
             // for every definition D in I
-            for d in cf.mc().get_inst_reg_defines(i) {
+            for d in defines {
                 trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: for definition {}",
                     block, i, func.context.get_temp_display(d));
                 // add an interference from D to every element E in Current_Live - {D}
