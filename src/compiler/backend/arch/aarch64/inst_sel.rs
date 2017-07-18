@@ -118,16 +118,7 @@ impl <'a> InstructionSelection {
                     // TODO: Optimise if cond is a flag from a binary operation?
                     Instruction_::Branch2 { cond, ref true_dest, ref false_dest, .. } => {
                         trace!("instsel on BRANCH2");
-                        let (fallthrough_dest, branch_dest, branch_if_true) = {
-                            let cur_block = f_content.get_block_by_name(self.current_block_in_ir.as_ref().unwrap().clone());
-                            let next_block_in_trace = cur_block.control_flow.get_hottest_succ().unwrap();
-
-                            if next_block_in_trace == true_dest.target {
-                                (true_dest, false_dest, false)
-                            } else {
-                                (false_dest, true_dest, true)
-                            }
-                        };
+                        let (fallthrough_dest, branch_dest, branch_if_true) = (false_dest, true_dest);
 
                         let ref ops = inst.ops;
 
@@ -152,17 +143,8 @@ impl <'a> InstructionSelection {
                             let mut cmpop = self.emit_cmp_res(cond, cond_box, f_content, f_context, vm);
 
                             if use_cbnz {
-                                if !branch_if_true {
-                                    self.backend.emit_cbz(tmp_cond.as_ref().unwrap(), branch_target);
-                                } else {
-                                    self.backend.emit_cbnz(tmp_cond.as_ref().unwrap(), branch_target);
-                                }
-
+                                self.backend.emit_cbnz(tmp_cond.as_ref().unwrap(), branch_target);
                             } else {
-                                if !branch_if_true {
-                                    cmpop = cmpop.invert();
-                                }
-
                                 let cond = get_condition_codes(cmpop);
 
                                 if cmpop == op::CmpOp::FFALSE {
@@ -179,22 +161,8 @@ impl <'a> InstructionSelection {
                             }
                         } else {
                             let cond_reg = self.emit_ireg(cond, f_content, f_context, vm);
-
-                            if branch_if_true {
-                                self.backend.emit_tbnz(&cond_reg, 0, branch_target.clone());
-                            } else {
-                                self.backend.emit_tbz(&cond_reg, 0, branch_target.clone());
-                            }
+                            self.backend.emit_tbnz(&cond_reg, 0, branch_target.clone());
                         };
-
-                        // it is possible that the fallthrough block is scheduled somewhere else
-                        // we need to explicitly jump to it
-                        self.finish_block();
-                        let fallthrough_temp_block = make_block_name(&self.current_fv_name, node.id(), "branch_fallthrough", );
-                        self.start_block(fallthrough_temp_block);
-
-                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
-                        self.backend.emit_b(fallthrough_target);
                     },
 
                     Instruction_::Select { cond, true_val, false_val } => {
