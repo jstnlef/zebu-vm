@@ -33,7 +33,6 @@ use runtime::entrypoints::RuntimeEntrypoint;
 use compiler::CompilerPass;
 
 use compiler::PROLOGUE_BLOCK_NAME;
-use compiler::EPILOGUE_BLOCK_NAME;
 
 use compiler::backend::aarch64::*;
 use compiler::backend::make_block_name;
@@ -142,7 +141,7 @@ impl <'a> InstructionSelection {
                                 if use_cbnz { Some(Box::new(tmp_cond.as_ref().unwrap().clone())) }
                                 else { None };
 
-                            let mut cmpop = self.emit_cmp_res(cond, cond_box, f_content, f_context, vm);
+                            let cmpop = self.emit_cmp_res(cond, cond_box, f_content, f_context, vm);
 
                             if use_cbnz {
                                 self.backend.emit_cbnz(tmp_cond.as_ref().unwrap(), branch_target);
@@ -434,7 +433,8 @@ impl <'a> InstructionSelection {
                             }
                         }
 
-                        self.emit_common_epilogue(f_context, vm);
+                        self.emit_epilogue(f_context, vm);
+                        self.backend.emit_ret(&LR);
                     },
 
                     Instruction_::BinOp(op, op1, op2) => {
@@ -4538,13 +4538,6 @@ impl CompilerPass for InstructionSelection {
     }
 
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        // Todo: Don't emit this if the function never returns
-        let epilogue_block = format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME);
-        self.start_block(epilogue_block);
-        self.emit_epilogue(&mut func.context, vm);
-        self.backend.emit_ret(&LR); // return to the Link Register
-        self.finish_block();
-
         self.backend.print_cur_code();
 
         let func_name = {
