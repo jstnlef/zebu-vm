@@ -204,21 +204,7 @@ impl <'a> InstructionSelection {
                 match inst.v {
                     Instruction_::Branch2{cond, ref true_dest, ref false_dest, ..} => {
                         trace!("instsel on BRANCH2");
-                        // 'branch_if_true' == true, we emit cjmp the same as CmpOp  (je  for EQ, jne for NE)
-                        // 'branch_if_true' == false, we emit opposite cjmp as CmpOp (jne for EQ, je  for NE)
-                        // FIXME: we should move this to machine independent code
-                        // e.g. as a subpass after trace scheduling, see Issue#27
-                        let (fallthrough_dest, branch_dest, branch_if_true) = {
-                            // get current block and next block in trace (fallthrough block)
-                            let cur_block = f_content.get_block_by_name(self.current_block_in_ir.as_ref().unwrap().clone());
-                            let next_block_in_trace = cur_block.control_flow.get_hottest_succ().unwrap();
-
-                            if next_block_in_trace == true_dest.target {
-                                (true_dest, false_dest, false)
-                            } else {
-                                (false_dest, true_dest, true)
-                            }
-                        };
+                        let (fallthrough_dest, branch_dest) = (false_dest, true_dest);
                         
                         let ref ops = inst.ops;
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
@@ -231,121 +217,25 @@ impl <'a> InstructionSelection {
                             // this branch2's cond is from a comparison result
                             trace!("emit cmp_res-branch2");
                             match self.emit_cmp_res(cond, f_content, f_context, vm) {
-                                op::CmpOp::EQ => {
-                                    if branch_if_true {
-                                        self.backend.emit_je(branch_target);
-                                    } else {
-                                        self.backend.emit_jne(branch_target);
-                                    }
-                                },
-                                op::CmpOp::NE => {
-                                    if branch_if_true {
-                                        self.backend.emit_jne(branch_target);
-                                    } else {
-                                        self.backend.emit_je(branch_target);
-                                    }
-                                },
-                                op::CmpOp::UGE => {
-                                    if branch_if_true {
-                                        self.backend.emit_jae(branch_target);
-                                    } else {
-                                        self.backend.emit_jb(branch_target);
-                                    }
-                                },
-                                op::CmpOp::UGT => {
-                                    if branch_if_true {
-                                        self.backend.emit_ja(branch_target);
-                                    } else {
-                                        self.backend.emit_jbe(branch_target);
-                                    }
-                                },
-                                op::CmpOp::ULE => {
-                                    if branch_if_true {
-                                        self.backend.emit_jbe(branch_target);
-                                    } else {
-                                        self.backend.emit_ja(branch_target);
-                                    }
-                                },
-                                op::CmpOp::ULT => {
-                                    if branch_if_true {
-                                        self.backend.emit_jb(branch_target);
-                                    } else {
-                                        self.backend.emit_jae(branch_target);
-                                    }
-                                },
-                                op::CmpOp::SGE => {
-                                    if branch_if_true {
-                                        self.backend.emit_jge(branch_target);
-                                    } else {
-                                        self.backend.emit_jl(branch_target);
-                                    }
-                                },
-                                op::CmpOp::SGT => {
-                                    if branch_if_true {
-                                        self.backend.emit_jg(branch_target);
-                                    } else {
-                                        self.backend.emit_jle(branch_target);
-                                    }
-                                },
-                                op::CmpOp::SLE => {
-                                    if branch_if_true {
-                                        self.backend.emit_jle(branch_target);
-                                    } else {
-                                        self.backend.emit_jg(branch_target);
-                                    }
-                                },
-                                op::CmpOp::SLT => {
-                                    if branch_if_true {
-                                        self.backend.emit_jl(branch_target);
-                                    } else {
-                                        self.backend.emit_jge(branch_target);
-                                    }
-                                },
+                                op::CmpOp::EQ  => self.backend.emit_je(branch_target),
+                                op::CmpOp::NE  => self.backend.emit_jne(branch_target),
+                                op::CmpOp::UGE => self.backend.emit_jae(branch_target),
+                                op::CmpOp::UGT => self.backend.emit_ja(branch_target),
+                                op::CmpOp::ULE => self.backend.emit_jbe(branch_target),
+                                op::CmpOp::ULT => self.backend.emit_jb(branch_target),
+                                op::CmpOp::SGE => self.backend.emit_jge(branch_target),
+                                op::CmpOp::SGT => self.backend.emit_jg(branch_target),
+                                op::CmpOp::SLE => self.backend.emit_jle(branch_target),
+                                op::CmpOp::SLT => self.backend.emit_jl(branch_target),
 
                                 // floating point
 
-                                op::CmpOp::FOEQ | op::CmpOp::FUEQ => {
-                                    if branch_if_true {
-                                        self.backend.emit_je(branch_target);
-                                    } else {
-                                        self.backend.emit_jne(branch_target);
-                                    }
-                                },
-                                op::CmpOp::FONE | op::CmpOp::FUNE => {
-                                    if branch_if_true {
-                                        self.backend.emit_jne(branch_target);
-                                    } else {
-                                        self.backend.emit_je(branch_target);
-                                    }
-                                },
-                                op::CmpOp::FOGT | op::CmpOp::FUGT => {
-                                    if branch_if_true {
-                                        self.backend.emit_ja(branch_target);
-                                    } else {
-                                        self.backend.emit_jbe(branch_target);
-                                    }
-                                },
-                                op::CmpOp::FOGE | op::CmpOp::FUGE => {
-                                    if branch_if_true {
-                                        self.backend.emit_jae(branch_target);
-                                    } else {
-                                        self.backend.emit_jb(branch_target);
-                                    }
-                                },
-                                op::CmpOp::FOLT | op::CmpOp::FULT => {
-                                    if branch_if_true {
-                                        self.backend.emit_jb(branch_target);
-                                    } else {
-                                        self.backend.emit_jae(branch_target);
-                                    }
-                                },
-                                op::CmpOp::FOLE | op::CmpOp::FULE => {
-                                    if branch_if_true {
-                                        self.backend.emit_jbe(branch_target);
-                                    } else {
-                                        self.backend.emit_ja(branch_target);
-                                    }
-                                },
+                                op::CmpOp::FOEQ | op::CmpOp::FUEQ => self.backend.emit_je(branch_target),
+                                op::CmpOp::FONE | op::CmpOp::FUNE => self.backend.emit_jne(branch_target),
+                                op::CmpOp::FOGT | op::CmpOp::FUGT => self.backend.emit_ja(branch_target),
+                                op::CmpOp::FOGE | op::CmpOp::FUGE => self.backend.emit_jae(branch_target),
+                                op::CmpOp::FOLT | op::CmpOp::FULT => self.backend.emit_jb(branch_target),
+                                op::CmpOp::FOLE | op::CmpOp::FULE => self.backend.emit_jbe(branch_target),
 
                                 _ => unimplemented!()
                             }
@@ -359,25 +249,10 @@ impl <'a> InstructionSelection {
                             // emit: cmp cond_reg 1
                             self.backend.emit_cmp_imm_r(1, &cond_reg);
                             // emit: je #branch_dest
-                            if branch_if_true {
-                                self.backend.emit_je(branch_target);
-                            } else {
-                                self.backend.emit_jne(branch_target);
-                            }
+                            self.backend.emit_je(branch_target);
                         } else {
                             panic!("unexpected cond in BRANCH2: {}", cond)
                         }
-
-                        // it is possible that the fallthrough block is scheduled somewhere else
-                        // we need to explicitly jump to it (this jump will get eliminated in
-                        // peephole pass if the fallthrough block immediate follows the jump)
-                        self.finish_block();
-
-                        let fallthrough_temp_block = make_block_name(&self.current_fv_name, node.id(), "branch_fallthrough", );
-                        self.start_block(fallthrough_temp_block);
-
-                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
-                        self.backend.emit_jmp(fallthrough_target);
                     },
 
                     Instruction_::Select{cond, true_val, false_val} => {

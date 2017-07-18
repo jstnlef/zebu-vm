@@ -81,6 +81,7 @@ impl CompilerPass for RetSink {
 
         // rewrite existing RET instruction to a BRANCH
         // use RET values as BRANCH's goto values
+        let mut has_ret : bool = false;
         for (blk_id, mut block) in f_content.blocks.iter_mut() {
             trace!("block: {}", blk_id);
 
@@ -104,6 +105,7 @@ impl CompilerPass for RetSink {
                         });
                         trace!(">> rewrite ret to {}", branch_to_sink);
                         new_body.push(branch_to_sink);
+                        has_ret = true;
                     }
                     _ => new_body.push(node.clone())
                 }
@@ -118,7 +120,9 @@ impl CompilerPass for RetSink {
         }
 
         // insert return sink
-        f_content.blocks.insert(return_sink.id(), return_sink);
+        if has_ret {
+            f_content.blocks.insert(return_sink.id(), return_sink);
+        }
 
         // put back the function content
         func.content = Some(f_content);

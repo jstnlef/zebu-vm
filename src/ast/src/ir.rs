@@ -506,6 +506,38 @@ impl Block {
             content.body.len()
         }
     }
+
+    /// is this block ends with a conditional branch?
+    pub fn ends_with_cond_branch(&self) -> bool {
+        let block : &BlockContent = self.content.as_ref().unwrap();
+        match block.body.last() {
+            Some(node) => {
+                match node.v {
+                    TreeNode_::Instruction(Instruction {v: Instruction_::Branch2{..}, ..}) => {
+                        true
+                    }
+                    _ => false
+                }
+            }
+            None => false
+        }
+    }
+
+    /// is this block ends with a return?
+    pub fn ends_with_return(&self) -> bool {
+        let block : &BlockContent = self.content.as_ref().unwrap();
+        match block.body.last() {
+            Some(node) => {
+                match node.v {
+                    TreeNode_::Instruction(Instruction {v: Instruction_::Return(_), ..}) => {
+                        true
+                    }
+                    _ => false
+                }
+            }
+            None => false
+        }
+    }
 }
 
 /// TraceHint is a hint for the compiler to generate better trace for this block
@@ -805,9 +837,13 @@ rodal_struct!(Value{hdr, ty, v});
 impl Value {
     /// creates an int constant value
     pub fn make_int_const(id: MuID, val: u64) -> P<Value> {
+        Value::make_int_const_ty(id, UINT32_TYPE.clone(), val)
+    }
+
+    pub fn make_int_const_ty(id: MuID, ty: P<MuType>, val: u64) -> P<Value> {
         P(Value{
             hdr: MuEntityHeader::unnamed(id),
-            ty: UINT32_TYPE.clone(),
+            ty: ty,
             v: Value_::Constant(Constant::Int(val))
         })
     }

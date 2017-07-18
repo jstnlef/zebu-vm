@@ -13,6 +13,10 @@
 // limitations under the License.
 
 use ast::ir::*;
+use ast::types::*;
+use ast::inst::*;
+use ast::ptr::*;
+use ast::op::CmpOp;
 use vm::VM;
 use compiler::CompilerPass;
 use utils::LinkedHashSet;
@@ -68,65 +72,78 @@ impl CompilerPass for TraceGen {
                     };
                     f_content.get_block(ret)
                 };
-                trace_if!(LOG_TRACE_SCHEDULE, "---check block {}---", cur_block);
+                trace_if!(LOG_TRACE_SCHEDULE, "---check block {} #{}---", cur_block, cur_block.id());
 
                 // append current block to the trace
-                trace_if!(LOG_TRACE_SCHEDULE, "add {} to trace", cur_block);
-                trace.push(cur_block.id());
+                if !trace.contains(&cur_block.id()) {
+                    trace_if!(LOG_TRACE_SCHEDULE, "add {} #{} to trace", cur_block, cur_block.id());
+                    trace.push(cur_block.id());
 
-                // trying to find next block
-                let next_block : MuID = match find_next_block(cur_block, func) {
-                    Some(id) => id,
-                    None => continue
-                };
-                trace_if!(LOG_TRACE_SCHEDULE, "find next block as {}", f_content.get_block(next_block));
+                    // trying to find next block
+                    let next_block: Option<MuID> = match find_next_block(cur_block, func) {
+                        Some(id) => Some(id),
+                        None => None
+                    };
+                    trace_if!(LOG_TRACE_SCHEDULE && next_block.is_some(),
+                    "find next block as {} #{}", f_content.get_block(next_block.unwrap()), next_block.unwrap());
 
-                // put other succeeding blocks to different work stacks
-                let mut all_successors : LinkedHashSet<MuID> =
-                    LinkedHashSet::from_vec(cur_block.control_flow.succs.iter().map(|x| x.target).collect());
-                // remove next block from it
-                all_successors.remove(&next_block);
+                    // put other succeeding blocks to different work stacks
+                    let mut all_successors: LinkedHashSet<MuID> =
+                        LinkedHashSet::from_vec(cur_block.control_flow.succs.iter().map(|x| x.target).collect());
+                    // remove next block from it
+                    if next_block.is_some() {
+                        all_successors.remove(&next_block.unwrap());
+                    }
 
-                // push other successors to different work queues
-                for succ_id in all_successors.iter() {
-                    let succ = f_content.get_block(*succ_id);
-                    match succ.trace_hint {
-                        TraceHint::None => {
-                            trace_if!(LOG_TRACE_SCHEDULE, "push {} to work stack", succ);
-                            work_stack.insert(*succ_id);
-                        }
-                        TraceHint::SlowPath => {
-                            trace_if!(LOG_TRACE_SCHEDULE, "push {} to slow path", succ);
-                            slowpath_queue.insert(*succ_id);
-                        }
-                        TraceHint::ReturnSink => {
-                            assert!(ret_sink.is_none(), "cannot have more than one return sink");
-                            trace_if!(LOG_TRACE_SCHEDULE, "set {} as return sink", succ);
-                            ret_sink = Some(*succ_id);
-                        }
-                        TraceHint::FastPath => {
-                            panic!("trying to delay the insertion of a block with fastpath hint: {}. \
+                    // push other successors to different work queues
+                    for succ_id in all_successors.iter() {
+                        let succ = f_content.get_block(*succ_id);
+                        match succ.trace_hint {
+                            TraceHint::None => {
+                                trace_if!(LOG_TRACE_SCHEDULE, "push {} #{} to work stack", succ, succ_id);
+                                work_stack.insert(*succ_id);
+                            }
+                            TraceHint::SlowPath => {
+                                trace_if!(LOG_TRACE_SCHEDULE, "push {} #{} to slow path", succ, succ_id);
+                                slowpath_queue.insert(*succ_id);
+                            }
+                            TraceHint::ReturnSink => {
+                                assert!(ret_sink.is_none() ||
+                                    (ret_sink.is_some() && ret_sink.unwrap() == *succ_id),
+                                "cannot have more than one return sink");
+                                trace_if!(LOG_TRACE_SCHEDULE, "set {} #{} as return sink", succ, succ_id);
+                                ret_sink = Some(*succ_id);
+                            }
+                            TraceHint::FastPath => {
+                                panic!("trying to delay the insertion of a block with fastpath hint: {} #{}. \
                                 Either we missed to pick it as next block, or the current checking \
                                 block has several succeeding blocks with fastpath hint which is \
-                                not reasonable", succ);
+                                not reasonable", succ, succ_id);
+                            }
                         }
                     }
-                }
 
-                // if hot edge is not in the trace, push it to the trace
-                if !trace.contains(&next_block) && !work_stack.contains(&next_block) {
-                    trace_if!(LOG_TRACE_SCHEDULE, "push hot edge {:?} to work stack", next_block);
-                    work_stack.insert(next_block);
+                    // push next block to work stack - this comes after the pushes above, so it gets
+                    // popped earlier (and scheduled before those)
+                    if next_block.is_some() {
+                        let next_block = next_block.unwrap();
+                        trace_if!(LOG_TRACE_SCHEDULE, "push hot edge {} #{} to work stack",
+                            f_content.get_block(next_block), next_block);
+                        work_stack.insert(next_block);
+                    }
+
+                    trace_if!(LOG_TRACE_SCHEDULE, "");
                 } else {
-                    trace_if!(LOG_TRACE_SCHEDULE, "hot edge {:?} already in trace, ignore", next_block);
+                    trace_if!(LOG_TRACE_SCHEDULE, "block already in trace, ignore");
+                    continue;
                 }
-
-                trace_if!(LOG_TRACE_SCHEDULE, "");
             }
 
             // add return sink
             if let Some(ret_sink) = ret_sink {
                 assert!(!trace.contains(&ret_sink), "return sink should not already be scheduled");
+                trace_if!(LOG_TRACE_SCHEDULE, "push return sink {} #{} to the trace",
+                    f_content.get_block(ret_sink), ret_sink);
                 trace.push(ret_sink);
             }
 
@@ -138,6 +155,12 @@ impl CompilerPass for TraceGen {
     
     #[allow(unused_variables)] // vm is not used here
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
+        debug!("trace for {}", func);
+        debug!("{:?}", func.block_trace.as_ref().unwrap());
+
+        info!("doing branch adjustment...");
+        branch_adjustment(func, vm);
+
         debug!("trace for {}", func);
         debug!("{:?}", func.block_trace.as_ref().unwrap());
     }
@@ -161,17 +184,259 @@ fn find_next_block(cur_block: &Block, func: &MuFunctionVersion) -> Option<MuID> 
         if succs.len() == 0 {
             None
         } else {
-            let mut hot_blk = succs[0].target;
-            let mut hot_prob = succs[0].probability;
+            let ideal_successors : Vec<&BlockEdge> = succs.iter().filter(|b| {
+                match f_content.get_block(b.target).trace_hint {
+                    TraceHint::SlowPath | TraceHint::ReturnSink => false,
+                    _ => true
+                }
+            }).collect();
 
-            for edge in succs.iter() {
-                if edge.probability > hot_prob {
-                    hot_blk = edge.target;
-                    hot_prob = edge.probability;
+            if ideal_successors.len() == 0 {
+                None
+            } else {
+                let mut hot_blk = succs[0].target;
+                let mut hot_prob = succs[0].probability;
+
+                for edge in succs.iter() {
+                    if edge.probability > hot_prob {
+                        hot_blk = edge.target;
+                        hot_prob = edge.probability;
+                    }
+                }
+
+                Some(hot_blk)
+            }
+        }
+    }
+}
+
+/// a conditional branch should always be followed by its false label. The adjustment should follow the rules:
+/// * any conditional branch followed by its false label stays unchanged
+/// * for conditional branch followed by its true label,
+///   we switch the true and false label, and negate the condition
+/// * for conditional branch followed by neither label,
+///   we invent a new false label, and rewrite the conditional branch so that
+///   the new cond branch will be followed by the new false label.
+fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
+    let mut trace = func.block_trace.take().unwrap();
+    let mut f_content = func.content.take().unwrap();
+    let mut new_blocks : Vec<Block> = vec![];
+
+    for (blk_id, mut block) in f_content.blocks.iter_mut() {
+        trace_if!(LOG_TRACE_SCHEDULE, "block: {} #{}", block, blk_id);
+
+        let next_block_in_trace : Option<usize> = {
+            if let Some(index) = trace.iter().position(|x| x == blk_id) {
+                if index == trace.len() {
+                    None
+                } else {
+                    Some(index + 1)
+                }
+            } else {
+                warn!("find an unreachable block (a block exists in IR, but is not in trace");
+                continue
+            }
+        };
+
+        // we only need to deal with blocks that ends with a branch
+        if block.ends_with_cond_branch() {
+            // old block content
+            let block_content = block.content.as_ref().unwrap().clone();
+
+            let mut new_body = vec![];
+
+            for node in block_content.body.iter() {
+                match node.v {
+                    TreeNode_::Instruction(Instruction {
+                                               ref ops,
+                                               v: Instruction_::Branch2 {
+                                                   cond, ref true_dest, ref false_dest, true_prob
+                                               },
+                                               ..
+                                           }) => {
+                        trace_if!(LOG_TRACE_SCHEDULE, "rewrite cond branch: {}", node);
+
+                        let true_label  = true_dest.target;
+                        let false_label = false_dest.target;
+
+                        if next_block_in_trace.is_some()
+                            && next_block_in_trace.unwrap() == false_label {
+                            // any conditional branch followed by its false label stays unchanged
+                            trace_if!(LOG_TRACE_SCHEDULE, ">>stays unchanged");
+                            new_body.push(node.clone());
+                        } else if next_block_in_trace.is_some()
+                            && next_block_in_trace.unwrap() == true_label {
+                            // for conditional branch followed by its true label
+                            // we switch the true and false label, and negate the condition
+                            let new_true_dest  = false_dest.clone();
+                            let new_false_dest = true_dest.clone();
+
+                            let new_cond_node = {
+                                let old_cond_node_clone = ops[cond].clone();
+                                match ops[cond].v {
+                                    // cond is a comparison, we recreate a comparison node
+                                    // with inverted operator
+                                    // orig: if a  OP b then L1 else L2
+                                    // new : if a ~OP b then L2 else L1
+                                    TreeNode_::Instruction(Instruction {
+                                                               ref value,
+                                                               ref ops,
+                                                               v: Instruction_::CmpOp(optr, op1, op2),
+                                                               ..
+                                                           }) => {
+                                        TreeNode::new_inst(Instruction {
+                                            hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                            value: value.clone(),
+                                            ops: ops.clone(),
+                                            v: Instruction_::CmpOp(optr.invert(), op1, op2)
+                                        })
+                                    }
+                                    // cond is computed form other instruction or is a value
+                                    // we add an instruction for cond EQ 0 (negate of cond EQ 1)
+                                    // orig: if (cond)        then L1 else L2
+                                    // new : if ((cond) EQ 0) then L2 else L1
+                                    _ => {
+                                        let temp_res : P<TreeNode> = func.new_ssa(
+                                            MuEntityHeader::unnamed(vm.next_id()),
+                                            UINT1_TYPE.clone()
+                                        );
+                                        let const_0 = func.new_constant(Value::make_int_const_ty(
+                                            vm.next_id(),
+                                            UINT1_TYPE.clone(),
+                                            0
+                                        ));
+                                        TreeNode::new_inst(Instruction {
+                                            hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                            value: Some(vec![temp_res.clone_value()]),
+                                            ops: vec![old_cond_node_clone, const_0],
+                                            v: Instruction_::CmpOp(CmpOp::EQ, 0, 1)
+                                        })
+                                    }
+                                }
+                            };
+
+                            // old ops is something like: a b cond c d e
+                            // we want: a b new_cond c d e
+                            let new_ops = {
+                                let mut ret = ops.clone();
+                                ret.push(new_cond_node);
+                                let last = ret.len() - 1;
+                                ret.swap(cond, last);
+                                ret.remove(last);
+                                ret
+                            };
+
+                            let new_cond_branch = func.new_inst(Instruction {
+                                hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                value: None,
+                                ops: new_ops,
+                                v: Instruction_::Branch2 {
+                                    cond: cond,
+                                    true_dest: new_true_dest,
+                                    false_dest: new_false_dest,
+                                    true_prob: 1f32 - true_prob
+                                }
+                            });
+
+                            trace_if!(LOG_TRACE_SCHEDULE, ">>T/F labels switched, op negated");
+                            trace_if!(LOG_TRACE_SCHEDULE, ">>{}", new_cond_branch);
+                            new_body.push(new_cond_branch);
+                        } else {
+                            // for conditional branch followed by neither label,
+                            // we invent a new false label, and rewrite the conditional branch so that
+                            // the new cond branch will be followed by the new false label
+
+                            // create a false block
+                            // Lnew_false (arg list):
+                            //   BRANCH Lfalse (arg list)
+                            let new_false_block = {
+                                let block_name = format!("{}:#{}:false", func.name(), node.id());
+                                let mut block = Block::new(MuEntityHeader::named(vm.next_id(), block_name));
+                                vm.set_name(block.as_entity());
+
+                                let block_args : Vec<P<TreeNode>> = false_dest.args.iter()
+                                    .map(|x| match x {
+                                        &DestArg::Normal(i) => {
+                                            func.new_ssa(
+                                                MuEntityHeader::unnamed(vm.next_id()),
+                                                ops[i].as_value().ty.clone()
+                                            )
+                                        }
+                                        _ => unimplemented!()
+                                    }).collect();
+                                let block_args_len = block_args.len();
+                                block.content = Some(BlockContent {
+                                    args: block_args.iter().map(|x| x.clone_value()).collect(),
+                                    exn_arg: None,
+                                    body: vec![
+                                        func.new_inst(Instruction {
+                                            hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                            value: None,
+                                            ops: block_args,
+                                            v: Instruction_::Branch1(Destination {
+                                                target: false_dest.target,
+                                                args: (0..block_args_len)
+                                                    .map(|x| DestArg::Normal(x)).collect()
+                                            })
+                                        })
+                                    ],
+                                    keepalives: None
+                                });
+
+                                block
+                            };
+
+                            // for BRANCH2 cond Ltrue Lfalse
+                            // rewrite it as BRANCH2 cond Ltrue (...) Lnew_false (...)
+                            let new_cond_branch = func.new_inst(Instruction {
+                                hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                value: None,
+                                ops: ops.clone(),
+                                v: Instruction_::Branch2 {
+                                    cond: cond,
+                                    true_dest: true_dest.clone(),
+                                    false_dest: Destination {
+                                        target: new_false_block.id(),
+                                        args: false_dest.args.clone()
+                                    },
+                                    true_prob: true_prob
+                                }
+                            });
+
+                            trace_if!(LOG_TRACE_SCHEDULE, ">>new F label created");
+                            trace_if!(LOG_TRACE_SCHEDULE, ">>{}", new_cond_branch);
+                            new_body.push(new_cond_branch);
+
+                            // add new false block to trace (immediate after this block)
+                            if let Some(next_block_index) = next_block_in_trace {
+                                trace.insert(next_block_index, new_false_block.id());
+                            } else {
+                                trace.push(new_false_block.id());
+                            }
+                            // add new false block to new_blocks (insert them to function later)
+                            new_blocks.push(new_false_block);
+                        }
+                    }
+
+                    _ => {
+                        new_body.push(node.clone())
+                    }
                 }
             }
 
-            Some(hot_blk)
+            block.content = Some(BlockContent {
+                args: block_content.args.to_vec(),
+                exn_arg: block_content.exn_arg.clone(),
+                body: new_body,
+                keepalives: block_content.keepalives.clone()
+            });
         }
     }
+
+    for blk in new_blocks {
+        f_content.blocks.insert(blk.id(), blk);
+    }
+
+    func.content = Some(f_content);
+    func.block_trace = Some(trace);
 }
