@@ -208,6 +208,8 @@ pub trait MachineCode {
     fn replace_define_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
     /// replace a temp that is used in the inst with another temp
     fn replace_use_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
+    /// replace destination for an unconditional branch instruction
+    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str);
     /// set an instruction as nop
     fn set_inst_nop(&mut self, index: usize);
     /// remove unnecessary push/pop if the callee saved register is not used

@@ -40,6 +40,20 @@ impl CompilerPass for PeepholeOptimization {
         for i in 0..cf.mc().number_of_insts() {
             // if two sides of a move instruction are the same, it is redundant, and can be eliminated
             self.remove_redundant_move(i, &mut cf);
+
+            // if a branch jumps a label that contains another jump, such as
+            // ..
+            //   jmp L1
+            // ..
+            // L1:
+            //   jmp L2
+            // ..
+            // we can rewrite first branch to jump to L2 directly
+
+            // the order matters: we need to run this first, then remove_unnecessary_jump()
+            // as this opt will give us more chances to remove unnecessary jumps
+            self.remove_jump_to_jump(i, &mut cf);
+
             // if a branch targets a block that immediately follow it, it can be eliminated
             self.remove_unnecessary_jump(i, &mut cf);
         }
@@ -125,6 +139,34 @@ impl PeepholeOptimization {
             None => {
                 // do nothing
             }
+        }
+    }
+
+    fn remove_jump_to_jump(&mut self, inst: usize, cf: &mut CompiledFunction) {
+        let mut mc = cf.mc_mut();
+
+        let opt_dest = mc.is_jmp(inst);
+
+        match opt_dest {
+            Some(ref dest) => {
+                // get the block for destination
+                let start = mc.get_block_range(dest).unwrap().start;
+
+                // get the first instruction
+                let first_inst = match mc.get_next_inst(start) {
+                    Some(i) => i,
+                    None => return
+                };
+                match mc.is_jmp(first_inst) {
+                    Some(ref dest2) => {
+                        // its a jump-to-jump case
+                        // change destination of 1st jump to the 2nd destination
+                        mc.replace_branch_dest(inst, dest2);
+                    }
+                    None => return
+                }
+            }
+            None => return
         }
     }
 }
