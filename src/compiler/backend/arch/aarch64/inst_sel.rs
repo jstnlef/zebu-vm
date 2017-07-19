@@ -32,8 +32,7 @@ use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
 
-use compiler::backend::PROLOGUE_BLOCK_NAME;
-use compiler::backend::EPILOGUE_BLOCK_NAME;
+use compiler::PROLOGUE_BLOCK_NAME;
 
 use compiler::backend::aarch64::*;
 use compiler::backend::make_block_name;
@@ -78,7 +77,7 @@ impl <'a> InstructionSelection {
     #[cfg(feature = "aot")]
     pub fn new() -> InstructionSelection {
         InstructionSelection {
-            name: "Instruction Selection (x64)",
+            name: "Instruction Selection (aarch64)",
             backend: Box::new(ASMCodeGen::new()),
 
             current_fv_id: 0,
@@ -120,16 +119,7 @@ impl <'a> InstructionSelection {
                     // TODO: Optimise if cond is a flag from a binary operation?
                     Instruction_::Branch2 { cond, ref true_dest, ref false_dest, .. } => {
                         trace!("instsel on BRANCH2");
-                        let (fallthrough_dest, branch_dest, branch_if_true) = {
-                            let cur_block = f_content.get_block_by_name(self.current_block_in_ir.as_ref().unwrap().clone());
-                            let next_block_in_trace = cur_block.control_flow.get_hottest_succ().unwrap();
-
-                            if next_block_in_trace == true_dest.target {
-                                (true_dest, false_dest, false)
-                            } else {
-                                (false_dest, true_dest, true)
-                            }
-                        };
+                        let (fallthrough_dest, branch_dest) = (false_dest, true_dest);
 
                         let ref ops = inst.ops;
 
@@ -151,20 +141,11 @@ impl <'a> InstructionSelection {
                                 if use_cbnz { Some(Box::new(tmp_cond.as_ref().unwrap().clone())) }
                                 else { None };
 
-                            let mut cmpop = self.emit_cmp_res(cond, cond_box, f_content, f_context, vm);
+                            let cmpop = self.emit_cmp_res(cond, cond_box, f_content, f_context, vm);
 
                             if use_cbnz {
-                                if !branch_if_true {
-                                    self.backend.emit_cbz(tmp_cond.as_ref().unwrap(), branch_target);
-                                } else {
-                                    self.backend.emit_cbnz(tmp_cond.as_ref().unwrap(), branch_target);
-                                }
-
+                                self.backend.emit_cbnz(tmp_cond.as_ref().unwrap(), branch_target);
                             } else {
-                                if !branch_if_true {
-                                    cmpop = cmpop.invert();
-                                }
-
                                 let cond = get_condition_codes(cmpop);
 
                                 if cmpop == op::CmpOp::FFALSE {
@@ -181,22 +162,8 @@ impl <'a> InstructionSelection {
                             }
                         } else {
                             let cond_reg = self.emit_ireg(cond, f_content, f_context, vm);
-
-                            if branch_if_true {
-                                self.backend.emit_tbnz(&cond_reg, 0, branch_target.clone());
-                            } else {
-                                self.backend.emit_tbz(&cond_reg, 0, branch_target.clone());
-                            }
+                            self.backend.emit_tbnz(&cond_reg, 0, branch_target.clone());
                         };
-
-                        // it is possible that the fallthrough block is scheduled somewhere else
-                        // we need to explicitly jump to it
-                        self.finish_block();
-                        let fallthrough_temp_block = make_block_name(&self.current_fv_name, node.id(), "branch_fallthrough", );
-                        self.start_block(fallthrough_temp_block);
-
-                        let fallthrough_target = f_content.get_block(fallthrough_dest.target).name();
-                        self.backend.emit_b(fallthrough_target);
                     },
 
                     Instruction_::Select { cond, true_val, false_val } => {
@@ -466,8 +433,8 @@ impl <'a> InstructionSelection {
                             }
                         }
 
-                        let epilogue_block = format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME);
-                        self.backend.emit_b(epilogue_block);
+                        self.emit_epilogue(f_context, vm);
+                        self.backend.emit_ret(&LR);
                     },
 
                     Instruction_::BinOp(op, op1, op2) => {
@@ -4571,13 +4538,6 @@ impl CompilerPass for InstructionSelection {
     }
 
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        // Todo: Don't emit this if the function never returns
-        let epilogue_block = format!("{}:{}", self.current_fv_name, EPILOGUE_BLOCK_NAME);
-        self.start_block(epilogue_block);
-        self.emit_epilogue(&mut func.context, vm);
-        self.backend.emit_ret(&LR); // return to the Link Register
-        self.finish_block();
-
         self.backend.print_cur_code();
 
         let func_name = {

@@ -681,8 +681,8 @@ impl Instruction_ {
             &Instruction_::Throw(exn_obj) => format!("THROW {}", ops[exn_obj]),
             &Instruction_::TailCall(ref call) => format!("TAILCALL {}", call.debug_str(ops)),
             &Instruction_::Branch1(ref dest) => format!("BRANCH {}", dest.debug_str(ops)),
-            &Instruction_::Branch2{cond, ref true_dest, ref false_dest, ..} => {
-                format!("BRANCH2 {} {} {}", ops[cond], true_dest.debug_str(ops), false_dest.debug_str(ops))
+            &Instruction_::Branch2{cond, ref true_dest, ref false_dest, true_prob} => {
+                format!("BRANCH2 {} {}({}) {}", ops[cond], true_dest.debug_str(ops), true_prob, false_dest.debug_str(ops))
             },
             &Instruction_::Select{cond, true_val, false_val} => {
                 format!("SELECT if {} then {} else {}", ops[cond], ops[true_val], ops[false_val])

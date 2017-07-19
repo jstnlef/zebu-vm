@@ -759,6 +759,24 @@ impl MachineCode for ASMCode {
         }
     }
 
+    /// replace destination for a jump instruction
+    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: MuID) {
+        {
+            let asm = &mut self.code[inst];
+
+            asm.code = format!("jmp {}", symbol(mangle_name(String::from(new_dest))));
+            asm.succs.clear();
+            asm.succs.push(succ);
+        }
+        {
+            let asm = &mut self.code[succ];
+
+            if !asm.preds.contains(&inst) {
+                asm.preds.push(inst);
+            }
+        }
+    }
+
     /// set an instruction as nop
     fn set_inst_nop(&mut self, index: usize) {
         self.code[index].code.clear();

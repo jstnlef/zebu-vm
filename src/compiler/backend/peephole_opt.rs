@@ -40,6 +40,20 @@ impl CompilerPass for PeepholeOptimization {
         for i in 0..cf.mc().number_of_insts() {
             // if two sides of a move instruction are the same, it is redundant, and can be eliminated
             self.remove_redundant_move(i, &mut cf);
+
+            // if a branch jumps a label that contains another jump, such as
+            // ..
+            //   jmp L1
+            // ..
+            // L1:
+            //   jmp L2
+            // ..
+            // we can rewrite first branch to jump to L2 directly
+
+            // the order matters: we need to run this first, then remove_unnecessary_jump()
+            // as this will give us more chances to remove unnecessary jumps
+            self.remove_jump_to_jump(i, &mut cf);
+
             // if a branch targets a block that immediately follow it, it can be eliminated
             self.remove_unnecessary_jump(i, &mut cf);
         }
@@ -90,7 +104,7 @@ impl PeepholeOptimization {
 
             // check if two registers are aliased
             if backend::is_aliased(src_machine_reg, dst_machine_reg) {
-                trace!("move between {} and {} is redundant! removed", src_machine_reg, dst_machine_reg);
+                info!("move between {} and {} is redundant! removed", src_machine_reg, dst_machine_reg);
                 // redundant, remove this move
                 cf.mc_mut().set_inst_nop(inst);
             } else {
@@ -115,7 +129,8 @@ impl PeepholeOptimization {
                 let opt_label = mc.is_label(inst + 1);
                 match opt_label {
                     Some(ref label) if dest == label => {
-                            mc.set_inst_nop(inst);
+                        info!("inst {}'s jmp to {} is unnecessary! removed", inst, label);
+                        mc.set_inst_nop(inst);
                     }
                     _ => {
                         // do nothing
@@ -125,6 +140,58 @@ impl PeepholeOptimization {
             None => {
                 // do nothing
             }
+        }
+    }
+
+    fn remove_jump_to_jump(&mut self, inst: usize, cf: &mut CompiledFunction) {
+        let mut mc = cf.mc_mut();
+
+        // the instruction that we may rewrite
+        let orig_inst = inst;
+        // the destination we will rewrite the instruction to branch to
+        let final_dest : Option<MuName> = {
+            let mut cur_inst = inst;
+            let mut last_dest = None;
+            loop {
+                let opt_dest = mc.is_jmp(cur_inst);
+                match opt_dest {
+                    Some(ref dest) => {
+                        // get the block for destination
+                        let first_inst = mc.get_block_range(dest).unwrap().start;
+                        debug_assert!(mc.is_label(first_inst).is_none(), "expect start inst {} of \
+                            block {} is a inst instead of label", first_inst, dest);
+
+                        trace!("examining first inst {} of block {}", first_inst, dest);
+
+                        // if first instruction is jump
+                        match mc.is_jmp(first_inst) {
+                            Some(ref dest2) => {
+                                // its a jump-to-jump case
+                                cur_inst = first_inst;
+                                last_dest = Some(dest2.clone());
+                            }
+                            None => break
+                        }
+                    }
+                    None => break
+                }
+            }
+            last_dest
+        };
+
+        if let Some(dest) = final_dest {
+            let first_inst = {
+                let start = mc.get_block_range(&dest).unwrap().start;
+                match mc.get_next_inst(start) {
+                    Some(i) => i,
+                    None => panic!("we are jumping to a block {}\
+                        that does not have instructions?", dest)
+                }
+            };
+
+            info!("inst {} chain jumps to {}, rewrite as branching to {} (successor: {})",
+                orig_inst, dest, dest, first_inst);
+            mc.replace_branch_dest(inst, &dest, first_inst);
         }
     }
 }

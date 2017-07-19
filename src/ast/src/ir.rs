@@ -481,11 +481,16 @@ impl FunctionContext {
 
 /// Block contains BlockContent, which includes all the instructions for the block
 
-// FIXME: control_flow field should be moved out of ast crate (Issue #18)
+//  FIXME: control_flow field should be moved out of ast crate (Issue #18)
+//  FIXME: trace_hint should also be moved
 #[derive(Clone)]
 pub struct Block {
     pub hdr: MuEntityHeader,
+    /// the actual content of this block
     pub content: Option<BlockContent>,
+    /// a trace scheduling hint about where to layout this block
+    pub trace_hint: TraceHint,
+    /// control flow info about this block (predecessors, successors, etc)
     pub control_flow: ControlFlow
 }
 
@@ -503,9 +508,15 @@ impl fmt::Debug for Block {
     }
 }
 
+impl fmt::Display for Block {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 impl Block {
     pub fn new(entity: MuEntityHeader) -> Block {
-        Block{hdr: entity, content: None, control_flow: ControlFlow::default()}
+        Block{hdr: entity, content: None, trace_hint: TraceHint::None, control_flow: ControlFlow::default()}
     }
 
     /// does this block have an exception arguments?
@@ -523,11 +534,60 @@ impl Block {
             content.body.len()
         }
     }
+
+    /// is this block ends with a conditional branch?
+    pub fn ends_with_cond_branch(&self) -> bool {
+        let block : &BlockContent = self.content.as_ref().unwrap();
+        match block.body.last() {
+            Some(node) => {
+                match node.v {
+                    TreeNode_::Instruction(Instruction {v: Instruction_::Branch2{..}, ..}) => {
+                        true
+                    }
+                    _ => false
+                }
+            }
+            None => false
+        }
+    }
+
+    /// is this block ends with a return?
+    pub fn ends_with_return(&self) -> bool {
+        let block : &BlockContent = self.content.as_ref().unwrap();
+        match block.body.last() {
+            Some(node) => {
+                match node.v {
+                    TreeNode_::Instruction(Instruction {v: Instruction_::Return(_), ..}) => {
+                        true
+                    }
+                    _ => false
+                }
+            }
+            None => false
+        }
+    }
+}
+
+/// TraceHint is a hint for the compiler to generate better trace for this block
+//  Note: for a sequence of blocks that are supposed to be fast/slow path, only mark the
+//  first block with TraceHint, and let the trace scheduler to normally layout other
+//  blocks. Otherwise, the scheduler will take every TraceHint into consideration,
+//  and may not generate the trace as expected.
+//  FIXME: Issue #18
+#[derive(Clone, PartialEq)]
+pub enum TraceHint {
+    /// no hint provided. Trace scheduler should use its own heuristics to decide
+    None,
+    /// this block is fast path, and should be put in straightline code where possible
+    FastPath,
+    /// this block is slow path, and should be kept out of hot loops
+    SlowPath,
+    /// this block is return sink, and should be put at the end of a function
+    ReturnSink
 }
 
 /// ControlFlow stores compilation info about control flows of a block
-
-// FIXME: Issue #18
+//  FIXME: Issue #18
 #[derive(Debug, Clone)]
 pub struct ControlFlow {
     pub preds : Vec<MuID>,
@@ -709,6 +769,13 @@ impl TreeNode {
         })
     }
 
+    /// creates a sharable Value TreeNode
+    pub fn new_value(v: P<Value>) -> P<TreeNode> {
+        P(TreeNode {
+            v: TreeNode_::Value(v)
+        })
+    }
+
     /// extracts the MuID of an SSA TreeNode
     /// if the node is not an SSA, returns None
     pub fn extract_ssa_id(&self) -> Option<MuID> {
@@ -798,9 +865,13 @@ rodal_struct!(Value{hdr, ty, v});
 impl Value {
     /// creates an int constant value
     pub fn make_int_const(id: MuID, val: u64) -> P<Value> {
+        Value::make_int_const_ty(id, UINT32_TYPE.clone(), val)
+    }
+
+    pub fn make_int_const_ty(id: MuID, ty: P<MuType>, val: u64) -> P<Value> {
         P(Value{
             hdr: MuEntityHeader::unnamed(id),
-            ty: UINT32_TYPE.clone(),
+            ty: ty,
             v: Value_::Constant(Constant::Int(val))
         })
     }
