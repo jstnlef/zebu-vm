@@ -62,7 +62,7 @@ rodal_struct!(Frame {
     argument_by_reg,
     argument_by_stack,
     allocated,
-    callee_saved,
+    callee_saved
 });
 
 impl fmt::Display for Frame {

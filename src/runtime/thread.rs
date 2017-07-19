@@ -595,5 +595,5 @@ pub struct PrimordialThreadInfo {
 rodal_struct!(PrimordialThreadInfo {
     func_id,
     args,
-    has_const_args,
+    has_const_args
 });

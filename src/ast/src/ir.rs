@@ -99,7 +99,7 @@ rodal_struct!(MuFunction {
     hdr,
     sig,
     cur_ver,
-    all_vers,
+    all_vers
 });
 
 impl MuFunction {
@@ -150,7 +150,7 @@ pub struct MuFunctionVersion {
 rodal_struct!(Callsite {
     name,
     exception_destination,
-    stack_arg_size,
+    stack_arg_size
 });
 pub struct Callsite {
     pub name: MuName,

@@ -28,7 +28,7 @@ rodal_struct!(GCType {
     fix_refs,
     var_refs,
     var_size,
-    id,
+    id
 });
 #[derive(Debug, Clone)] // size 136, align 8
 pub struct GCType {

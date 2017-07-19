@@ -82,7 +82,7 @@ rodal_struct!(VMOptions {
     flag_disable_inline,
     flag_disable_regalloc_validate,
     flag_emit_debug_info,
-    flag_gc_disable_collection,
+    flag_gc_disable_collection
 });
 
 #[derive(Debug, Clone, Copy, Deserialize)]
