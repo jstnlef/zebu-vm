@@ -178,27 +178,34 @@ fn find_next_block(cur_block: &Block, func: &MuFunctionVersion) -> Option<MuID> 
         .find(|edge| f_content.get_block(edge.target).trace_hint == TraceHint::FastPath);
 
     if has_fastpath.is_some() {
-        Some(has_fastpath.unwrap().target)
+        let target = has_fastpath.unwrap().target;
+        trace_if!(LOG_TRACE_SCHEDULE, "found fastpath successor {} for block {}", target, cur_block);
+        Some(target)
     } else {
         // we need to find next path by examining probability
         if succs.len() == 0 {
+            trace_if!(LOG_TRACE_SCHEDULE, "cannot find successors of block {}", cur_block);
             None
         } else {
+            trace_if!(LOG_TRACE_SCHEDULE, "successors: {:?}", succs);
             let ideal_successors : Vec<&BlockEdge> = succs.iter().filter(|b| {
                 match f_content.get_block(b.target).trace_hint {
                     TraceHint::SlowPath | TraceHint::ReturnSink => false,
                     _ => true
                 }
             }).collect();
+            trace_if!(LOG_TRACE_SCHEDULE,
+                "after filtering out slowpath/retsink, we have: {:?}", ideal_successors);
 
             if ideal_successors.len() == 0 {
                 None
             } else {
-                let mut hot_blk = succs[0].target;
-                let mut hot_prob = succs[0].probability;
+                let mut hot_blk = ideal_successors[0].target;
+                let mut hot_prob = ideal_successors[0].probability;
 
-                for edge in succs.iter() {
-                    if edge.probability > hot_prob {
+                for edge in ideal_successors.iter() {
+                    trace_if!(LOG_TRACE_SCHEDULE, "succ: {}/{}", edge.target, edge.probability);
+                    if edge.probability >= hot_prob {
                         hot_blk = edge.target;
                         hot_prob = edge.probability;
                     }
