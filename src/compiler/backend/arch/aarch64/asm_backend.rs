@@ -505,17 +505,6 @@ impl MachineCode for ASMCode {
                 let split : Vec<&str> = inst.code.split(' ').collect();
                 Some(demangle_name(String::from(split[1])))
             }
-            Some(inst) if inst.code.starts_with("CBNZ ")  || inst.code.starts_with("CBZ ") => {
-                // Destination is the second argument
-                let split : Vec<&str> = inst.code.split(',').collect();
-                Some(demangle_name(String::from(split[1])))
-            }
-            Some(inst) if inst.code.starts_with("TBNZ ")  || inst.code.starts_with("TBZ ") => {
-                // Destination is the third argument
-                let split : Vec<&str> = inst.code.split(',').collect();
-                Some(demangle_name(String::from(split[2])))
-            }
-
             _ => None
         }
     }
@@ -630,7 +619,21 @@ impl MachineCode for ASMCode {
     }
 
     fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: usize) {
-        unimplemented!()
+        {
+            let asm = &mut self.code[inst];
+
+            let inst = String::from(asm.code.split_whitespace().next().unwrap());
+            asm.code = format!("{} {}", inst, mangle_name(String::from(new_dest)));
+            asm.succs.clear();
+            asm.succs.push(succ);
+        }
+        {
+            let asm = &mut self.code[succ];
+
+            if !asm.preds.contains(&inst) {
+                asm.preds.push(inst);
+            }
+        }
     }
 
     fn set_inst_nop(&mut self, index: usize) {
