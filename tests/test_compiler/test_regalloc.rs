@@ -75,14 +75,14 @@ fn test_spill1() {
     let dylib = aot::link_dylib(
         vec![Mu("spill1")],
         &linkutils::get_dylib_name("spill1"),
-        &vm,
+        &vm
     );
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
         let spill1: libloading::Symbol<unsafe extern "C" fn() -> u64> = match lib.get(b"spill1") {
             Ok(symbol) => symbol,
-            Err(e) => panic!("cannot find symbol spill1 in dylib: {:?}", e),
+            Err(e) => panic!("cannot find symbol spill1 in dylib: {:?}", e)
         };
 
         // we cannot call this (it doesnt return)
@@ -300,7 +300,7 @@ fn test_simple_spill() {
     let dylib = aot::link_dylib(
         vec![Mu("simple_spill")],
         &linkutils::get_dylib_name("simple_spill"),
-        &vm,
+        &vm
     );
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
@@ -308,7 +308,7 @@ fn test_simple_spill() {
         let simple_spill: libloading::Symbol<unsafe extern "C" fn() -> u64> =
             match lib.get(b"simple_spill") {
                 Ok(symbol) => symbol,
-                Err(e) => panic!("cannot find symbol simple_spill in dylib: {:?}", e),
+                Err(e) => panic!("cannot find symbol simple_spill in dylib: {:?}", e)
             };
 
         let res = simple_spill();
@@ -862,7 +862,7 @@ fn test_coalesce_branch2_moves() {
     let dylib = aot::link_dylib(
         vec![Mu("coalesce_branch2_moves")],
         &linkutils::get_dylib_name("coalesce_branch2_moves"),
-        &vm,
+        &vm
     );
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
@@ -1020,7 +1020,7 @@ fn test_preserve_caller_saved_simple() {
     let executable = aot::link_primordial(
         vec![Mu("foo"), Mu("preserve_caller_saved_simple")],
         "test_preserve_caller_saved_simple",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 
@@ -1245,7 +1245,7 @@ fn test_preserve_caller_saved_call_args() {
     let executable = aot::link_primordial(
         vec![Mu("foo6"), Mu("preserve_caller_saved_call_args")],
         "test_preserve_caller_saved_call_args",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 
@@ -1460,7 +1460,7 @@ fn test_spill_int8() {
     let dylib = aot::link_dylib(
         vec![Mu("spill_int8")],
         &linkutils::get_dylib_name("spill_int8"),
-        &vm,
+        &vm
     );
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
@@ -1468,7 +1468,7 @@ fn test_spill_int8() {
         let spill_int8: libloading::Symbol<unsafe extern "C" fn() -> u8> =
             match lib.get(b"spill_int8") {
                 Ok(symbol) => symbol,
-                Err(e) => panic!("cannot find symbol spill_int8 in dylib: {:?}", e),
+                Err(e) => panic!("cannot find symbol spill_int8 in dylib: {:?}", e)
             };
 
         let res = spill_int8();

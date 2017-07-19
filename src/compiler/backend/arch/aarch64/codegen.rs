@@ -94,7 +94,7 @@ pub trait CodeGenerator {
         &mut self,
         dest1: Reg, /*GPR or FPR*/
         dest2: Reg, /*GPR or FPR*/
-        src: Mem,
+        src: Mem
     ); // [base, #simm7]
 
     // Stores
@@ -114,7 +114,7 @@ pub trait CodeGenerator {
         &mut self,
         dest: Mem,
         src1: Reg, /*GPR or FPR*/
-        src2: Reg, /*GPR or FPR*/
+        src2: Reg  /*GPR or FPR*/
     ); // [base, #simm7]
 
     // Calls
@@ -124,14 +124,14 @@ pub trait CodeGenerator {
         func: MuName,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
-        is_native: bool,
+        is_native: bool
     ) -> ValueLocation;
     fn emit_blr(
         &mut self,
         callsite: String,
         func: Reg,
         pe: Option<MuName>,
-        args: Vec<P<Value>>,
+        args: Vec<P<Value>>
     ) -> ValueLocation;
 
     // Branches
@@ -222,7 +222,7 @@ pub trait CodeGenerator {
         src1: Reg, /*GPR or SP*/
         src2: Reg,
         signed: bool,
-        shift: u8,
+        shift: u8
     );
     fn emit_adds_ext(
         &mut self,
@@ -230,7 +230,7 @@ pub trait CodeGenerator {
         src1: Reg, /*GPR or SP*/
         src2: Reg,
         signed: bool,
-        shift: u8,
+        shift: u8
     );
     fn emit_sub_ext(
         &mut self,
@@ -238,7 +238,7 @@ pub trait CodeGenerator {
         src1: Reg, /*GPR or SP*/
         src2: Reg,
         signed: bool,
-        shift: u8,
+        shift: u8
     );
     fn emit_subs_ext(
         &mut self,
@@ -246,7 +246,7 @@ pub trait CodeGenerator {
         src1: Reg, /*GPR or SP*/
         src2: Reg,
         signed: bool,
-        shift: u8,
+        shift: u8
     );
 
     // Multiplication
@@ -315,7 +315,7 @@ pub trait CodeGenerator {
         dest: Reg, /*GPR or SP*/
         src1: Reg, /*GPR or SP*/
         src2: u16,
-        shift: bool,
+        shift: bool
     );
     fn emit_adds_imm(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
     fn emit_sub_imm(
@@ -323,7 +323,7 @@ pub trait CodeGenerator {
         dest: Reg, /*GPR or SP*/
         src1: Reg, /*GPR or SP*/
         src2: u16,
-        shift: bool,
+        shift: bool
     );
     fn emit_subs_imm(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
 
@@ -346,28 +346,28 @@ pub trait CodeGenerator {
         dest: Reg, /*64*/
         src1: Reg, /*32*/
         src2: Reg, /*32*/
-        src3: Reg, /*64*/
+        src3: Reg  /*64*/
     );
     fn emit_smsubl(
         &mut self,
         dest: Reg, /*64*/
         src1: Reg, /*32*/
         src2: Reg, /*32*/
-        src3: Reg, /*64*/
+        src3: Reg  /*64*/
     );
     fn emit_umaddl(
         &mut self,
         dest: Reg, /*64*/
         src1: Reg, /*32*/
         src2: Reg, /*32*/
-        src3: Reg, /*64*/
+        src3: Reg  /*64*/
     );
     fn emit_umsubl(
         &mut self,
         dest: Reg, /*64*/
         src1: Reg, /*32*/
         src2: Reg, /*32*/
-        src3: Reg, /*64*/
+        src3: Reg  /*64*/
     );
     fn emit_fmadd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg);
     fn emit_fmsub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg);

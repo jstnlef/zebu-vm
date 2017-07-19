@@ -27,7 +27,7 @@ pub type EntryFuncSig = MuFuncSig;
 pub struct RuntimeEntrypoint {
     pub sig: P<MuFuncSig>,
     pub aot: ValueLocation,
-    pub jit: RwLock<Option<ValueLocation>>,
+    pub jit: RwLock<Option<ValueLocation>>
 }
 
 lazy_static! {

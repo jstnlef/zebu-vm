@@ -160,7 +160,7 @@ pub struct InstructionSelection {
     current_constants: HashMap<MuID, P<Value>>,
     /// constants used in this function that are put to memory
     /// key: value id, val: memory location
-    current_constants_locs: HashMap<MuID, P<Value>>,
+    current_constants_locs: HashMap<MuID, P<Value>>
 }
 
 impl<'a> InstructionSelection {
@@ -189,7 +189,7 @@ impl<'a> InstructionSelection {
             current_exn_blocks: HashMap::new(),
 
             current_constants: HashMap::new(),
-            current_constants_locs: HashMap::new(),
+            current_constants_locs: HashMap::new()
         }
     }
 
@@ -205,7 +205,7 @@ impl<'a> InstructionSelection {
         node: &'a TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         trace!("instsel on node#{} {}", node.id(), node);
 
@@ -263,7 +263,7 @@ impl<'a> InstructionSelection {
                                     self.backend.emit_jbe(branch_target)
                                 }
 
-                                _ => unimplemented!(),
+                                _ => unimplemented!()
                             }
                         } else if self.match_ireg(cond) {
                             // this branch2 cond is a temporary with value, or an instruction that
@@ -284,7 +284,7 @@ impl<'a> InstructionSelection {
                     Instruction_::Select {
                         cond,
                         true_val,
-                        false_val,
+                        false_val
                     } => {
                         use ast::op::CmpOp::*;
 
@@ -359,7 +359,7 @@ impl<'a> InstructionSelection {
                                         }
 
                                         // FFALSE/FTRUE unimplemented
-                                        _ => unimplemented!(),
+                                        _ => unimplemented!()
                                     }
                                 }
                                 // jcc - for 8-bits integer
@@ -367,17 +367,17 @@ impl<'a> InstructionSelection {
                                     let blk_true = make_block_name(
                                         &self.current_fv_name,
                                         node.id(),
-                                        "select_true",
+                                        "select_true"
                                     );
                                     let blk_false = make_block_name(
                                         &self.current_fv_name,
                                         node.id(),
-                                        "select_false",
+                                        "select_false"
                                     );
                                     let blk_end = make_block_name(
                                         &self.current_fv_name,
                                         node.id(),
-                                        "select_end",
+                                        "select_end"
                                     );
 
                                     // jump to blk_true if true
@@ -401,7 +401,7 @@ impl<'a> InstructionSelection {
                                         FOLE | FULE => self.backend.emit_jbe(blk_true.clone()),
 
                                         // FFALSE/FTRUE unimplemented
-                                        _ => unimplemented!(),
+                                        _ => unimplemented!()
                                     }
 
                                     // finishing current block
@@ -415,7 +415,7 @@ impl<'a> InstructionSelection {
                                         &false_val,
                                         f_content,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     // jmp to end
                                     self.backend.emit_jmp(blk_end.clone());
@@ -430,7 +430,7 @@ impl<'a> InstructionSelection {
                                         &true_val,
                                         f_content,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     self.finish_block();
 
@@ -468,7 +468,7 @@ impl<'a> InstructionSelection {
                                 FOLT | FULT => self.backend.emit_jb(blk_true.clone()),
                                 FOLE | FULE => self.backend.emit_jbe(blk_true.clone()),
 
-                                _ => unimplemented!(),
+                                _ => unimplemented!()
                             }
 
                             // finishing current block
@@ -482,7 +482,7 @@ impl<'a> InstructionSelection {
                                 &false_val,
                                 f_content,
                                 f_context,
-                                vm,
+                                vm
                             );
                             // jmp to end
                             self.backend.emit_jmp(blk_end.clone());
@@ -498,7 +498,7 @@ impl<'a> InstructionSelection {
                                 &true_val,
                                 f_content,
                                 f_context,
-                                vm,
+                                vm
                             );
                             self.finish_block();
 
@@ -538,7 +538,7 @@ impl<'a> InstructionSelection {
                             FOLE | FULE => self.backend.emit_setbe_r(&tmp_res),
 
                             // FFALSE/FTRUE
-                            _ => unimplemented!(),
+                            _ => unimplemented!()
                         }
                     }
 
@@ -556,7 +556,7 @@ impl<'a> InstructionSelection {
                     Instruction_::Switch {
                         cond,
                         ref default,
-                        ref branches,
+                        ref branches
                     } => {
                         trace!("instsel on SWITCH");
                         let ref ops = inst.ops;
@@ -604,7 +604,7 @@ impl<'a> InstructionSelection {
                                 let block_name = make_block_name(
                                     &self.current_fv_name,
                                     node.id(),
-                                    format!("switch_not_met_case_{}", case_op_index).as_str(),
+                                    format!("switch_not_met_case_{}", case_op_index).as_str()
                                 );
                                 self.start_block(block_name);
                             }
@@ -637,13 +637,13 @@ impl<'a> InstructionSelection {
                             node, // cur_node: &TreeNode,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
                     Instruction_::Call {
                         ref data,
-                        ref resume,
+                        ref resume
                     } => {
                         trace!("instsel on CALL");
 
@@ -665,7 +665,7 @@ impl<'a> InstructionSelection {
 
                     Instruction_::CCall {
                         ref data,
-                        ref resume,
+                        ref resume
                     } => {
                         trace!("instsel on CCALL");
 
@@ -676,7 +676,7 @@ impl<'a> InstructionSelection {
                             node,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -734,7 +734,7 @@ impl<'a> InstructionSelection {
                                     BinOp::Add | BinOp::Sub | BinOp::Mul => {
                                         self.backend.emit_setb_r8(&tmp_status);
                                     }
-                                    _ => panic!("Only Add/Sub/Mul has #C flag"),
+                                    _ => panic!("Only Add/Sub/Mul has #C flag")
                                 }
                             }
 
@@ -746,7 +746,7 @@ impl<'a> InstructionSelection {
                                     BinOp::Add | BinOp::Sub | BinOp::Mul => {
                                         self.backend.emit_seto_r8(&tmp_status);
                                     }
-                                    _ => panic!("Only Add/Sub/Mul has #V flag"),
+                                    _ => panic!("Only Add/Sub/Mul has #V flag")
                                 }
                             }
                         } else if RegGroup::get_from_value(&values[0]) == RegGroup::GPREX {
@@ -760,7 +760,7 @@ impl<'a> InstructionSelection {
                         operation,
                         ref from_ty,
                         ref to_ty,
-                        operand,
+                        operand
                     } => {
                         trace!("instsel on CONVOP");
 
@@ -798,7 +798,7 @@ impl<'a> InstructionSelection {
                                                 &tmp_op.as_type(UINT64_TYPE.clone())
                                             })
                                         }
-                                        _ => panic!("unsupported int size: {}", to_ty_size),
+                                        _ => panic!("unsupported int size: {}", to_ty_size)
                                     }
                                 } else if self.match_ireg_ex(op) {
                                     let (op_l, _) = self.emit_ireg_ex(op, f_content, f_context, vm);
@@ -807,11 +807,11 @@ impl<'a> InstructionSelection {
                                         1 | 2 => {
                                             self.backend.emit_movz_r_r(
                                                 unsafe { &tmp_res.as_type(UINT32_TYPE.clone()) },
-                                                &op_l,
+                                                &op_l
                                             )
                                         }
                                         4 | 8 => self.backend.emit_mov_r_r(&tmp_res, &op_l),
-                                        _ => panic!("unsupported int size: {}", to_ty_size),
+                                        _ => panic!("unsupported int size: {}", to_ty_size)
                                     }
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op);
@@ -913,7 +913,7 @@ impl<'a> InstructionSelection {
                                                 });
                                                 self.backend.emit_sar_r_imm8(&res_h, 63i8);
                                             }
-                                            _ => self.backend.emit_movs_r_r(&tmp_res, &tmp_op),
+                                            _ => self.backend.emit_movs_r_r(&tmp_res, &tmp_op)
                                         }
                                     } else {
                                         // FIXME: sign extending <int1> 1 to <int8>
@@ -1039,7 +1039,7 @@ impl<'a> InstructionSelection {
                                                 let tmp = self.make_temporary(
                                                     f_context,
                                                     UINT64_TYPE.clone(),
-                                                    vm,
+                                                    vm
                                                 );
 
                                                 // movl op -> tmp(32)
@@ -1067,7 +1067,7 @@ impl<'a> InstructionSelection {
                                                 let tmp1 = self.make_temporary(
                                                     f_context,
                                                     UINT32_TYPE.clone(),
-                                                    vm,
+                                                    vm
                                                 );
                                                 self.backend.emit_mov_r_r(&tmp1, unsafe {
                                                     &tmp_op.as_type(UINT32_TYPE.clone())
@@ -1082,17 +1082,17 @@ impl<'a> InstructionSelection {
                                                 let blk_if_signed = make_block_name(
                                                     &self.current_fv_name,
                                                     node.id(),
-                                                    "uitofp_float_if_signed",
+                                                    "uitofp_float_if_signed"
                                                 );
                                                 let blk_if_not_signed = make_block_name(
                                                     &self.current_fv_name,
                                                     node.id(),
-                                                    "uitofp_float_if_not_signed",
+                                                    "uitofp_float_if_not_signed"
                                                 );
                                                 let blk_done = make_block_name(
                                                     &self.current_fv_name,
                                                     node.id(),
-                                                    "uitofp_float_done",
+                                                    "uitofp_float_done"
                                                 );
 
                                                 // js %if_signed
@@ -1118,7 +1118,7 @@ impl<'a> InstructionSelection {
                                                 // or %tmp_op %tmp1 -> %tmp1
                                                 self.backend.emit_or_r_r(
                                                     unsafe { &tmp1.as_type(UINT64_TYPE.clone()) },
-                                                    &tmp_op,
+                                                    &tmp_op
                                                 );
 
                                                 // cvtsi2ss %tmp1 -> %tmp_res
@@ -1135,14 +1135,14 @@ impl<'a> InstructionSelection {
                                                 let tmp1 = self.make_temporary(
                                                     f_context,
                                                     UINT32_TYPE.clone(),
-                                                    vm,
+                                                    vm
                                                 );
                                                 self.backend.emit_mov_r_r(&tmp1, &tmp_op);
 
                                                 // cvtsi2ssq %tmp1(64) -> %tmp_res
                                                 self.backend.emit_cvtsi2ss_f32_r(
                                                     &tmp_res,
-                                                    unsafe { &tmp1.as_type(UINT64_TYPE.clone()) },
+                                                    unsafe { &tmp1.as_type(UINT64_TYPE.clone()) }
                                                 );
                                             }
                                             2 | 1 => {
@@ -1184,12 +1184,12 @@ impl<'a> InstructionSelection {
                                             let tmp1 = self.make_temporary(
                                                 f_context,
                                                 DOUBLE_TYPE.clone(),
-                                                vm,
+                                                vm
                                             );
                                             let tmp2 = self.make_temporary(
                                                 f_context,
                                                 DOUBLE_TYPE.clone(),
-                                                vm,
+                                                vm
                                             );
 
                                             // movsd FPTOUI_C_DOUBLE -> %tmp1
@@ -1209,12 +1209,12 @@ impl<'a> InstructionSelection {
                                             let tmp_const = self.make_temporary(
                                                 f_context,
                                                 UINT64_TYPE.clone(),
-                                                vm,
+                                                vm
                                             );
                                             // mov 0x8000000000000000 -> %tmp_const
                                             self.backend.emit_mov_r64_imm64(
                                                 &tmp_const,
-                                                -9223372036854775808i64,
+                                                -9223372036854775808i64
                                             );
 
                                             // xor %tmp_res, %tmp_const -> %tmp_const
@@ -1246,7 +1246,7 @@ impl<'a> InstructionSelection {
                                             // movz %tmp_res -> %tmp_res(32)
                                             self.backend.emit_movz_r_r(&tmp_res32, &tmp_res);
                                         }
-                                        _ => panic!("not implemented int length {}", res_ty_size),
+                                        _ => panic!("not implemented int length {}", res_ty_size)
                                     }
                                 } else if from_ty.is_float() {
                                     match res_ty_size {
@@ -1255,12 +1255,12 @@ impl<'a> InstructionSelection {
                                             let tmp1 = self.make_temporary(
                                                 f_context,
                                                 FLOAT_TYPE.clone(),
-                                                vm,
+                                                vm
                                             );
                                             let tmp2 = self.make_temporary(
                                                 f_context,
                                                 FLOAT_TYPE.clone(),
-                                                vm,
+                                                vm
                                             );
 
                                             // movss FPTOUI_C_FLOAT -> %tmp1
@@ -1280,12 +1280,12 @@ impl<'a> InstructionSelection {
                                             let tmp_const = self.make_temporary(
                                                 f_context,
                                                 UINT64_TYPE.clone(),
-                                                vm,
+                                                vm
                                             );
                                             // mov 0x8000000000000000 -> %tmp_const
                                             self.backend.emit_mov_r64_imm64(
                                                 &tmp_const,
-                                                -9223372036854775808i64,
+                                                -9223372036854775808i64
                                             );
 
                                             // xor %tmp_res, %tmp_const -> %tmp_const
@@ -1317,13 +1317,13 @@ impl<'a> InstructionSelection {
                                             // movz %tmp_res(32) -> %tmp_res
                                             self.backend.emit_movz_r_r(&tmp_res32, &tmp_res);
                                         }
-                                        _ => panic!("not implemented int length {}", res_ty_size),
+                                        _ => panic!("not implemented int length {}", res_ty_size)
                                     }
                                 } else {
                                     panic!("expect double or float")
                                 }
                             }
-                            _ => unimplemented!(),
+                            _ => unimplemented!()
                         }
                     }
 
@@ -1342,7 +1342,7 @@ impl<'a> InstructionSelection {
                             MemoryOrder::Acquire |
                             MemoryOrder::SeqCst |
                             MemoryOrder::NotAtomic => {}
-                            _ => panic!("unsupported order {:?} for LOAD", order),
+                            _ => panic!("unsupported order {:?} for LOAD", order)
                         }
 
                         let resolved_loc =
@@ -1362,7 +1362,7 @@ impl<'a> InstructionSelection {
                             let loc = self.addr_const_offset_adjust(
                                 resolved_loc.extract_memory_location().unwrap(),
                                 POINTER_SIZE as u64,
-                                vm,
+                                vm
                             );
                             let val_loc = self.make_memory_from_location(loc, vm);
                             self.backend.emit_mov_r_mem(&res_h, &val_loc);
@@ -1374,7 +1374,7 @@ impl<'a> InstructionSelection {
                                 MuType_::Float => {
                                     self.backend.emit_movss_f32_mem32(&res_temp, &resolved_loc)
                                 }
-                                _ => panic!("expect double or float"),
+                                _ => panic!("expect double or float")
                             }
                         } else {
                             // load other types
@@ -1401,7 +1401,7 @@ impl<'a> InstructionSelection {
                                 MemoryOrder::Release |
                                 MemoryOrder::NotAtomic => false,
                                 MemoryOrder::SeqCst => true,
-                                _ => panic!("unsupported order {:?} for STORE", order),
+                                _ => panic!("unsupported order {:?} for STORE", order)
                             }
                         };
 
@@ -1425,7 +1425,7 @@ impl<'a> InstructionSelection {
                             let loc = self.addr_const_offset_adjust(
                                 resolved_loc.extract_memory_location().unwrap(),
                                 POINTER_SIZE as u64,
-                                vm,
+                                vm
                             );
                             let loc_val = self.make_memory_from_location(loc, vm);
 
@@ -1440,7 +1440,7 @@ impl<'a> InstructionSelection {
                                 MuType_::Float => {
                                     self.backend.emit_movss_mem32_f32(&resolved_loc, &val)
                                 }
-                                _ => panic!("unexpected fp type: {}", val.ty),
+                                _ => panic!("unexpected fp type: {}", val.ty)
                             }
                         } else {
                             // store other types
@@ -1466,7 +1466,7 @@ impl<'a> InstructionSelection {
                             MemoryOrder::SeqCst => {
                                 self.backend.emit_mfence();
                             }
-                            _ => panic!("unsupported order {:?} for FENCE"),
+                            _ => panic!("unsupported order {:?} for FENCE")
                         }
                     }
 
@@ -1501,7 +1501,7 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1516,7 +1516,7 @@ impl<'a> InstructionSelection {
                             &tmp_res,
                             &tl,
                             *thread::USER_TLS_OFFSET as i32,
-                            vm,
+                            vm
                         );
                     }
                     Instruction_::CommonInst_SetThreadLocal(op) => {
@@ -1536,7 +1536,7 @@ impl<'a> InstructionSelection {
                             &tl,
                             *thread::USER_TLS_OFFSET as i32,
                             &tmp_op,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1560,7 +1560,7 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
                     Instruction_::CommonInst_Unpin(op) => {
@@ -1580,7 +1580,7 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
                     Instruction_::CommonInst_GetAddr(op) => {
@@ -1624,7 +1624,7 @@ impl<'a> InstructionSelection {
                             node,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                         // muentry_init_object(%allocator, %tmp_res, %encode)
                         let encode =
@@ -1636,7 +1636,7 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1667,7 +1667,7 @@ impl<'a> InstructionSelection {
 
                                 (
                                     self.make_int_const(actual_size as u64, vm),
-                                    self.make_int_const(var_len as u64, vm),
+                                    self.make_int_const(var_len as u64, vm)
                                 )
                             } else {
                                 // otherwise we need compute it at runtime
@@ -1725,7 +1725,7 @@ impl<'a> InstructionSelection {
                             node,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
 
                         // muentry_init_object(%allocator, %tmp_res, %encode)
@@ -1738,7 +1738,7 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1776,7 +1776,7 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1793,7 +1793,7 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1813,11 +1813,11 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
-                    _ => unimplemented!(),
+                    _ => unimplemented!()
                 } // main switch
             }
 
@@ -1834,7 +1834,7 @@ impl<'a> InstructionSelection {
         &mut self,
         f_context: &mut FunctionContext,
         ty: P<MuType>,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         f_context.make_temporary(vm.next_id(), ty).clone_value()
     }
@@ -1845,7 +1845,7 @@ impl<'a> InstructionSelection {
         base: &P<Value>,
         offset: i32,
         ty: P<MuType>,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
@@ -1854,8 +1854,8 @@ impl<'a> InstructionSelection {
                 base: base.clone(),
                 offset: Some(self.make_int_const(offset as u64, vm)),
                 index: None,
-                scale: None,
-            }),
+                scale: None
+            })
         })
     }
 
@@ -1866,7 +1866,7 @@ impl<'a> InstructionSelection {
         index: &P<Value>,
         scale: u8,
         ty: P<MuType>,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
@@ -1875,8 +1875,8 @@ impl<'a> InstructionSelection {
                 base: base.clone(),
                 offset: None,
                 index: Some(index.clone()),
-                scale: Some(scale),
-            }),
+                scale: Some(scale)
+            })
         })
     }
 
@@ -1885,7 +1885,7 @@ impl<'a> InstructionSelection {
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: ADDRESS_TYPE.clone(),
-            v: Value_::Memory(loc),
+            v: Value_::Memory(loc)
         })
     }
 
@@ -1894,7 +1894,7 @@ impl<'a> InstructionSelection {
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: UINT64_TYPE.clone(),
-            v: Value_::Constant(Constant::Int(val)),
+            v: Value_::Constant(Constant::Int(val))
         })
     }
 
@@ -1908,7 +1908,7 @@ impl<'a> InstructionSelection {
         op2: OpIndex,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         let ref ops = inst.ops;
 
@@ -2200,7 +2200,7 @@ impl<'a> InstructionSelection {
                             4 => x86_64::EAX.clone(),
                             2 => x86_64::AX.clone(),
                             1 => x86_64::AL.clone(),
-                            _ => unimplemented!(),
+                            _ => unimplemented!()
                         };
 
                         if self.match_iimm(op1) {
@@ -2248,7 +2248,7 @@ impl<'a> InstructionSelection {
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
                             2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
                             1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
-                            _ => unimplemented!(),
+                            _ => unimplemented!()
                         }
                     }
                     16 => {
@@ -2303,7 +2303,7 @@ impl<'a> InstructionSelection {
                             panic!("unexpected op for node {:?}, expect int128 MUL", node)
                         }
                     }
-                    _ => panic!("unsupported int size: {}", op_size),
+                    _ => panic!("unsupported int size: {}", op_size)
                 }
             }
             op::BinOp::Udiv => {
@@ -2323,7 +2323,7 @@ impl<'a> InstructionSelection {
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
                             2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
                             1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
-                            _ => panic!("unexpected res for node {:?}", node),
+                            _ => panic!("unexpected res for node {:?}", node)
                         }
                     }
                     16 => {
@@ -2341,10 +2341,10 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
-                    _ => panic!("unsupported int size: {}", op_size),
+                    _ => panic!("unsupported int size: {}", op_size)
                 }
             }
             op::BinOp::Sdiv => {
@@ -2364,7 +2364,7 @@ impl<'a> InstructionSelection {
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
                             2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
                             1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
-                            _ => panic!("unexpected res for node {:?}", node),
+                            _ => panic!("unexpected res for node {:?}", node)
                         }
                     }
                     16 => {
@@ -2378,10 +2378,10 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
-                    _ => panic!("unsupported int size: {}", op_size),
+                    _ => panic!("unsupported int size: {}", op_size)
                 }
             }
             op::BinOp::Urem => {
@@ -2401,7 +2401,7 @@ impl<'a> InstructionSelection {
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX),
                             2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX),
                             1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH),
-                            _ => panic!("unexpected res for node {:?}", node),
+                            _ => panic!("unexpected res for node {:?}", node)
                         }
                     }
                     16 => {
@@ -2415,10 +2415,10 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
-                    _ => panic!("unsupported int size: {}", op_size),
+                    _ => panic!("unsupported int size: {}", op_size)
                 }
             }
             op::BinOp::Srem => {
@@ -2438,7 +2438,7 @@ impl<'a> InstructionSelection {
                             4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EDX),
                             2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::DX),
                             1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AH),
-                            _ => panic!("unexpected res for node {:?}", node),
+                            _ => panic!("unexpected res for node {:?}", node)
                         }
                     }
                     16 => {
@@ -2452,10 +2452,10 @@ impl<'a> InstructionSelection {
                             Some(node),
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
-                    _ => panic!("unsupported int size: {}"),
+                    _ => panic!("unsupported int size: {}")
                 }
             }
 
@@ -2705,7 +2705,7 @@ impl<'a> InstructionSelection {
                             // add op2 res
                             self.backend.emit_addss_f32_mem32(&res_tmp, &mem_op2);
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
 
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
@@ -2727,7 +2727,7 @@ impl<'a> InstructionSelection {
                             // add op2 res
                             self.backend.emit_addss_f32_f32(&res_tmp, &reg_op2);
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
                 } else {
                     panic!("unexpected op for node {:?}", node)
@@ -2754,7 +2754,7 @@ impl<'a> InstructionSelection {
                             // sub op2 res
                             self.backend.emit_subss_f32_mem32(&res_tmp, &mem_op2);
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit sub-fpreg-fpreg");
@@ -2775,7 +2775,7 @@ impl<'a> InstructionSelection {
                             // sub op2 res
                             self.backend.emit_subss_f32_f32(&res_tmp, &reg_op2);
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
                 } else {
                     panic!("unexpected op for node {:?}", node)
@@ -2802,7 +2802,7 @@ impl<'a> InstructionSelection {
                             // mul op2 res
                             self.backend.emit_mulss_f32_mem32(&res_tmp, &mem_op2);
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit mul-fpreg-fpreg");
@@ -2823,7 +2823,7 @@ impl<'a> InstructionSelection {
                             // mul op2 res
                             self.backend.emit_mulss_f32_f32(&res_tmp, &reg_op2);
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
                 } else {
                     panic!("unexpected op for node {:?}", node)
@@ -2850,7 +2850,7 @@ impl<'a> InstructionSelection {
                             // div op2 res
                             self.backend.emit_divss_f32_mem32(&res_tmp, &mem_op2);
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
                 } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
                     trace!("emit div-fpreg-fpreg");
@@ -2871,7 +2871,7 @@ impl<'a> InstructionSelection {
                             // div op2 res
                             self.backend.emit_divss_f32_f32(&res_tmp, &reg_op2);
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
                 } else {
                     panic!("unexpected op for node {:?}", node)
@@ -2896,7 +2896,7 @@ impl<'a> InstructionSelection {
                                 Some(node),
                                 f_content,
                                 f_context,
-                                vm,
+                                vm
                             );
                         }
                         MuType_::Float => {
@@ -2907,10 +2907,10 @@ impl<'a> InstructionSelection {
                                 Some(node),
                                 f_content,
                                 f_context,
-                                vm,
+                                vm
                             );
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
                 } else {
                     panic!("unexpected op for node {:?}", node)
@@ -2932,7 +2932,7 @@ impl<'a> InstructionSelection {
         node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
@@ -2946,7 +2946,7 @@ impl<'a> InstructionSelection {
                     node,
                     f_content,
                     f_context,
-                    vm,
+                    vm
                 )
             } else {
                 self.emit_alloc_sequence_small(
@@ -2956,7 +2956,7 @@ impl<'a> InstructionSelection {
                     node,
                     f_content,
                     f_context,
-                    vm,
+                    vm
                 )
             }
         } else {
@@ -3001,7 +3001,7 @@ impl<'a> InstructionSelection {
                 node,
                 f_content,
                 f_context,
-                vm,
+                vm
             );
             self.backend.emit_jmp(blk_alloc_large_end.clone());
             // finishing current block
@@ -3016,7 +3016,7 @@ impl<'a> InstructionSelection {
                 node,
                 f_content,
                 f_context,
-                vm,
+                vm
             );
             self.finish_block();
 
@@ -3033,7 +3033,7 @@ impl<'a> InstructionSelection {
         node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         // ASM: %tl = get_thread_local()
         let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
@@ -3055,7 +3055,7 @@ impl<'a> InstructionSelection {
         node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         let tmp_res = self.get_result_value(node);
 
@@ -3069,7 +3069,7 @@ impl<'a> InstructionSelection {
             Some(node),
             f_content,
             f_context,
-            vm,
+            vm
         );
 
         tmp_res
@@ -3084,7 +3084,7 @@ impl<'a> InstructionSelection {
         node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         if INLINE_FASTPATH {
             //  this function needs to generate exact same code as alloc() in immix_mutator.rs in GC
@@ -3140,7 +3140,7 @@ impl<'a> InstructionSelection {
                 &tmp_tl,
                 limit_offset as i32,
                 ADDRESS_TYPE.clone(),
-                vm,
+                vm
             );
             self.backend.emit_cmp_mem_r(&mem_limit, &tmp_end);
 
@@ -3192,7 +3192,7 @@ impl<'a> InstructionSelection {
                 Some(node),
                 f_content,
                 f_context,
-                vm,
+                vm
             );
 
             if OBJECT_HEADER_OFFSET != 0 {
@@ -3220,7 +3220,7 @@ impl<'a> InstructionSelection {
                 Some(node),
                 f_content,
                 f_context,
-                vm,
+                vm
             );
 
             tmp_res
@@ -3233,7 +3233,7 @@ impl<'a> InstructionSelection {
         dest: &P<Value>,
         base: &P<Value>,
         offset: i32,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         let mem = self.make_memory_op_base_offset(base, offset, dest.ty.clone(), vm);
 
@@ -3276,7 +3276,7 @@ impl<'a> InstructionSelection {
         op2: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         assert!(self.match_ireg(op1));
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -3308,7 +3308,7 @@ impl<'a> InstructionSelection {
                 // div uses AX
                 self.backend.emit_mov_r_r(&x86_64::AL, &reg_op1);
             }
-            _ => panic!("unsupported int size for udiv: {}", op1_size),
+            _ => panic!("unsupported int size for udiv: {}", op1_size)
         }
 
         // div op2
@@ -3339,7 +3339,7 @@ impl<'a> InstructionSelection {
         op2: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         assert!(self.match_ireg(op1));
         let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -3374,7 +3374,7 @@ impl<'a> InstructionSelection {
                 // sign extend al to ax
                 self.backend.emit_movs_r_r(&x86_64::AX, &x86_64::AL);
             }
-            _ => panic!("unsupported int size for idiv: {}", op1_size),
+            _ => panic!("unsupported int size for idiv: {}", op1_size)
         }
 
         // idiv op2
@@ -3403,7 +3403,7 @@ impl<'a> InstructionSelection {
         cur_node: Option<&TreeNode>,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         let mut rets = self.emit_runtime_entry(
             &entrypoints::GET_THREAD_LOCAL,
@@ -3412,7 +3412,7 @@ impl<'a> InstructionSelection {
             cur_node,
             f_content,
             f_context,
-            vm,
+            vm
         );
 
         rets.pop().unwrap()
@@ -3430,7 +3430,7 @@ impl<'a> InstructionSelection {
         cur_node: Option<&TreeNode>,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> Vec<P<Value>> {
         let sig = entry.sig.clone();
 
@@ -3442,7 +3442,7 @@ impl<'a> InstructionSelection {
 
                 match entry_loc {
                     &ValueLocation::Relocatable(_, ref name) => name.clone(),
-                    _ => panic!("expecting a relocatable value"),
+                    _ => panic!("expecting a relocatable value")
                 }
             }
         };
@@ -3455,7 +3455,7 @@ impl<'a> InstructionSelection {
             cur_node,
             f_content,
             f_context,
-            vm,
+            vm
         )
     }
 
@@ -3465,7 +3465,7 @@ impl<'a> InstructionSelection {
         &mut self,
         args: &Vec<P<Value>>,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> usize {
         // put args into registers if we can
         // in the meantime record args that do not fit in registers
@@ -3594,7 +3594,7 @@ impl<'a> InstructionSelection {
                             &x86_64::RSP,
                             rsp_offset_before_call + (stack_arg_offsets[index]) as i32,
                             &arg,
-                            vm,
+                            vm
                         );
                         index += 1;
                     }
@@ -3619,7 +3619,7 @@ impl<'a> InstructionSelection {
         rets: &Option<Vec<P<Value>>>,
         precall_stack_arg_size: usize,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> Vec<P<Value>> {
         // deal with ret vals
         let mut return_vals = vec![];
@@ -3632,7 +3632,7 @@ impl<'a> InstructionSelection {
             // use the given return temporary, or create a new one
             let ret_val = match rets {
                 &Some(ref rets) => rets[ret_index].clone(),
-                &None => self.make_temporary(f_context, ty.clone(), vm),
+                &None => self.make_temporary(f_context, ty.clone(), vm)
             };
 
             if RegGroup::get_from_value(&ret_val) == RegGroup::GPR && ret_val.is_reg() {
@@ -3670,7 +3670,7 @@ impl<'a> InstructionSelection {
                     match ret_val.ty.v {
                         MuType_::Double => self.backend.emit_movsd_f64_f64(&ret_val, &ret_fpr),
                         MuType_::Float => self.backend.emit_movss_f32_f32(&ret_val, &ret_fpr),
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
 
                     fpr_ret_count += 1;
@@ -3708,7 +3708,7 @@ impl<'a> InstructionSelection {
         cur_node: Option<&TreeNode>,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> Vec<P<Value>> {
         let stack_arg_size = self.emit_precall_convention(&args, f_context, vm);
 
@@ -3755,7 +3755,7 @@ impl<'a> InstructionSelection {
         cur_node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         let ref ops = inst.ops;
 
@@ -3777,7 +3777,7 @@ impl<'a> InstructionSelection {
                 TreeNode_::Value(ref pv) => {
                     let sig = match pv.ty.v {
                         MuType_::UFuncPtr(ref sig) => sig.clone(),
-                        _ => panic!("expected ufuncptr type with ccall, found {}", pv),
+                        _ => panic!("expected ufuncptr type with ccall, found {}", pv)
                     };
 
                     let rets = inst.value.clone();
@@ -3793,7 +3793,7 @@ impl<'a> InstructionSelection {
                                 Some(cur_node),    // Option<&TreeNode>,
                                 f_content,         // &FunctionContent,
                                 f_context,         // &mut FunctionContext,
-                                vm,
+                                vm
                             );
                         }
                         _ => {
@@ -3824,7 +3824,7 @@ impl<'a> InstructionSelection {
         cur_node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         trace!("deal with pre-call convention");
 
@@ -3835,7 +3835,7 @@ impl<'a> InstructionSelection {
                 let ty: &MuType = &pv.ty;
                 match ty.v {
                     MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => sig,
-                    _ => panic!("expected funcref/ptr type"),
+                    _ => panic!("expected funcref/ptr type")
                 }
             }
             _ => {
@@ -3942,7 +3942,7 @@ impl<'a> InstructionSelection {
         ops: &Vec<P<TreeNode>>,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> Vec<P<Value>> {
         let mut ret = vec![];
 
@@ -3979,7 +3979,7 @@ impl<'a> InstructionSelection {
         dest: &Destination,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         for i in 0..dest.args.len() {
             let ref dest_arg = dest.args[i];
@@ -3996,7 +3996,7 @@ impl<'a> InstructionSelection {
 
                     self.emit_move_node_to_value(target_arg, &arg, f_content, f_context, vm);
                 }
-                &DestArg::Freshbound(_) => unimplemented!(),
+                &DestArg::Freshbound(_) => unimplemented!()
             }
         }
     }
@@ -4011,7 +4011,7 @@ impl<'a> InstructionSelection {
         &mut self,
         args: &Vec<P<Value>>,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         let block_name = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
         self.backend.start_block(block_name.clone());
@@ -4104,7 +4104,7 @@ impl<'a> InstructionSelection {
                     match arg.ty.v {
                         MuType_::Double => self.backend.emit_movsd_f64_f64(&arg, &arg_fpr),
                         MuType_::Float => self.backend.emit_movss_f32_f32(&arg, &arg_fpr),
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
 
                     self.current_frame
@@ -4138,7 +4138,7 @@ impl<'a> InstructionSelection {
                 &arg,
                 &x86_64::RBP,
                 (stack_arg_base_offset + stack_arg_offsets[i] as i32),
-                vm,
+                vm
             );
             self.current_frame
                 .as_mut()
@@ -4164,13 +4164,13 @@ impl<'a> InstructionSelection {
         ret_inst: &Instruction,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         // prepare return regs
         let ref ops = ret_inst.ops;
         let ret_val_indices = match ret_inst.v {
             Instruction_::Return(ref vals) => vals,
-            _ => panic!("expected ret inst"),
+            _ => panic!("expected ret inst")
         };
 
         let mut gpr_ret_count = 0;
@@ -4228,16 +4228,16 @@ impl<'a> InstructionSelection {
                         MuType_::Double => {
                             self.backend.emit_movsd_f64_f64(
                                 &x86_64::RETURN_FPRS[fpr_ret_count],
-                                &reg_ret_val,
+                                &reg_ret_val
                             )
                         }
                         MuType_::Float => {
                             self.backend.emit_movss_f32_f32(
                                 &x86_64::RETURN_FPRS[fpr_ret_count],
-                                &reg_ret_val,
+                                &reg_ret_val
                             )
                         }
-                        _ => panic!("expect double or float"),
+                        _ => panic!("expect double or float")
                     }
 
                     fpr_ret_count += 1;
@@ -4281,10 +4281,10 @@ impl<'a> InstructionSelection {
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
                     Instruction_::CmpOp(_, _, _) => true,
-                    _ => false,
+                    _ => false
                 }
             }
-            TreeNode_::Value(_) => false,
+            TreeNode_::Value(_) => false
         }
     }
 
@@ -4294,7 +4294,7 @@ impl<'a> InstructionSelection {
         cond: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
@@ -4378,7 +4378,7 @@ impl<'a> InstructionSelection {
                                         match op {
                                             CmpOp::UGT => CmpOp::ULT,
                                             CmpOp::SGT => CmpOp::SLT,
-                                            _ => unreachable!(),
+                                            _ => unreachable!()
                                         }
                                     }
                                     CmpOp::UGE | CmpOp::SGE => {
@@ -4421,7 +4421,7 @@ impl<'a> InstructionSelection {
                                         match op {
                                             CmpOp::ULE => CmpOp::UGE,
                                             CmpOp::SLE => CmpOp::SGE,
-                                            _ => unreachable!(),
+                                            _ => unreachable!()
                                         }
                                     }
 
@@ -4451,7 +4451,7 @@ impl<'a> InstructionSelection {
                                         MuType_::Float => {
                                             self.backend.emit_comiss_f32_f32(&reg_op2, &reg_op1)
                                         }
-                                        _ => panic!("expect double or float"),
+                                        _ => panic!("expect double or float")
                                     }
 
                                     op
@@ -4469,7 +4469,7 @@ impl<'a> InstructionSelection {
                                         MuType_::Float => {
                                             self.backend.emit_ucomiss_f32_f32(&reg_op2, &reg_op1)
                                         }
-                                        _ => panic!("expect double or float"),
+                                        _ => panic!("expect double or float")
                                     }
 
                                     op
@@ -4482,10 +4482,10 @@ impl<'a> InstructionSelection {
                         }
                     }
 
-                    _ => panic!("expect cmp res to emit"),
+                    _ => panic!("expect cmp res to emit")
                 }
             }
-            _ => panic!("expect cmp res to emit"),
+            _ => panic!("expect cmp res to emit")
         }
     }
 
@@ -4517,7 +4517,7 @@ impl<'a> InstructionSelection {
                     Value_::SSAVar(_) | Value_::Constant(_) => {
                         RegGroup::get_from_value(&pv) == RegGroup::GPR
                     }
-                    _ => false,
+                    _ => false
                 }
             }
         }
@@ -4546,7 +4546,7 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            TreeNode_::Value(ref pv) => RegGroup::get_from_value(&pv) == RegGroup::GPREX,
+            TreeNode_::Value(ref pv) => RegGroup::get_from_value(&pv) == RegGroup::GPREX
         }
     }
 
@@ -4573,7 +4573,7 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            TreeNode_::Value(ref pv) => RegGroup::get_from_value(pv) == RegGroup::FPR,
+            TreeNode_::Value(ref pv) => RegGroup::get_from_value(pv) == RegGroup::FPR
         }
     }
 
@@ -4583,7 +4583,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
@@ -4642,12 +4642,12 @@ impl<'a> InstructionSelection {
                                 // for now, use mov -> a
                                 self.backend.emit_mov_r_imm(&tmp, 0);
                             }
-                            _ => panic!("expected a constant that fits ireg, found {}", c),
+                            _ => panic!("expected a constant that fits ireg, found {}", c)
                         }
 
                         tmp
                     }
-                    _ => panic!("value doesnt match with ireg: {}", pv),
+                    _ => panic!("value doesnt match with ireg: {}", pv)
                 }
             }
         }
@@ -4659,7 +4659,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> (P<Value>, P<Value>) {
         match op.v {
             TreeNode_::Instruction(_) => {
@@ -4686,7 +4686,7 @@ impl<'a> InstructionSelection {
 
                         (tmp_l, tmp_h)
                     }
-                    _ => panic!("value doesnt match with ireg-ex: {}", pv),
+                    _ => panic!("value doesnt match with ireg-ex: {}", pv)
                 }
             }
         }
@@ -4698,7 +4698,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         self.emit_ireg(op, f_content, f_context, vm)
     }
@@ -4709,7 +4709,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
@@ -4752,12 +4752,12 @@ impl<'a> InstructionSelection {
                         let tmp_fp = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
                         self.backend.emit_mov_fpr_r64(
                             &tmp_fp,
-                            unsafe { &tmp_int.as_type(UINT64_TYPE.clone()) },
+                            unsafe { &tmp_int.as_type(UINT64_TYPE.clone()) }
                         );
 
                         tmp_fp
                     }
-                    _ => panic!("expected fpreg"),
+                    _ => panic!("expected fpreg")
                 }
             }
         }
@@ -4767,7 +4767,7 @@ impl<'a> InstructionSelection {
     fn match_iimm(&mut self, op: &TreeNode) -> bool {
         match op.v {
             TreeNode_::Value(ref pv) if x86_64::is_valid_x86_imm(pv) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -4775,7 +4775,7 @@ impl<'a> InstructionSelection {
     fn node_iimm_to_i32(&mut self, op: &TreeNode) -> i32 {
         match op.v {
             TreeNode_::Value(ref pv) => self.value_iimm_to_i32(pv),
-            _ => panic!("expected iimm"),
+            _ => panic!("expected iimm")
         }
     }
 
@@ -4784,7 +4784,7 @@ impl<'a> InstructionSelection {
     fn node_iimm_to_i32_with_len(&mut self, op: &TreeNode) -> (i32, usize) {
         match op.v {
             TreeNode_::Value(ref pv) => self.value_iimm_to_i32_with_len(pv),
-            _ => panic!("expected iimm"),
+            _ => panic!("expected iimm")
         }
     }
 
@@ -4792,7 +4792,7 @@ impl<'a> InstructionSelection {
     fn node_iimm_to_value(&mut self, op: &TreeNode) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => pv.clone(),
-            _ => panic!("expected iimm"),
+            _ => panic!("expected iimm")
         }
     }
 
@@ -4806,7 +4806,7 @@ impl<'a> InstructionSelection {
     fn value_iimm_to_i32_with_len(&mut self, op: &P<Value>) -> (i32, usize) {
         let op_length = match op.ty.get_int_length() {
             Some(l) => l,
-            None => panic!("expected an int"),
+            None => panic!("expected an int")
         };
 
         match op.v {
@@ -4815,7 +4815,7 @@ impl<'a> InstructionSelection {
 
                 (val as i32, op_length)
             }
-            _ => panic!("expected iimm"),
+            _ => panic!("expected iimm")
         }
     }
 
@@ -4829,7 +4829,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
@@ -4842,8 +4842,8 @@ impl<'a> InstructionSelection {
                             base: pv.clone(),
                             offset: None,
                             index: None,
-                            scale: None,
-                        }),
+                            scale: None
+                        })
                     }),
                     Value_::Global(_) => {
                         if vm.is_doing_jit() {
@@ -4859,8 +4859,8 @@ impl<'a> InstructionSelection {
                                         base: Some(x86_64::RIP.clone()),
                                         label: pv.name(),
                                         is_global: true,
-                                        is_native: false,
-                                    }),
+                                        is_native: false
+                                    })
                                 })
                             } else if cfg!(target_os = "linux") {
                                 // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
@@ -4873,8 +4873,8 @@ impl<'a> InstructionSelection {
                                         base: Some(x86_64::RIP.clone()),
                                         label: pv.name(),
                                         is_global: true,
-                                        is_native: false,
-                                    }),
+                                        is_native: false
+                                    })
                                 });
 
                                 // mov (got_loc) -> actual_loc
@@ -4885,7 +4885,7 @@ impl<'a> InstructionSelection {
                                     &actual_loc,
                                     0,
                                     pv.ty.get_referent_ty().unwrap(),
-                                    vm,
+                                    vm
                                 )
                             } else {
                                 unimplemented!()
@@ -4893,10 +4893,10 @@ impl<'a> InstructionSelection {
                         }
                     }
                     Value_::Memory(_) => pv.clone(),
-                    Value_::Constant(_) => unimplemented!(),
+                    Value_::Constant(_) => unimplemented!()
                 }
             }
-            TreeNode_::Instruction(_) => self.emit_inst_addr_to_value(op, f_content, f_context, vm),
+            TreeNode_::Instruction(_) => self.emit_inst_addr_to_value(op, f_content, f_context, vm)
         }
     }
 
@@ -4906,14 +4906,14 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         let mem = self.emit_inst_addr_to_value_inner(op, f_content, f_context, vm);
 
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: ADDRESS_TYPE.clone(),
-            v: Value_::Memory(mem),
+            v: Value_::Memory(mem)
         })
     }
 
@@ -4926,7 +4926,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> MemoryLocation {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
@@ -4941,7 +4941,7 @@ impl<'a> InstructionSelection {
                             base: tmp_op,
                             offset: None,
                             index: None,
-                            scale: None,
+                            scale: None
                         };
 
                         trace!("MEM from GETIREF: {}", ret);
@@ -4974,7 +4974,7 @@ impl<'a> InstructionSelection {
                                     base,
                                     f_content,
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                                 let ret =
                                     self.addr_const_offset_adjust(mem, field_offset as u64, vm);
@@ -4989,7 +4989,7 @@ impl<'a> InstructionSelection {
                                     base: tmp,
                                     offset: Some(self.make_int_const(field_offset as u64, vm)),
                                     index: None,
-                                    scale: None,
+                                    scale: None
                                 };
 
                                 trace!("MEM from GETFIELDIREF(ireg): {}", ret);
@@ -5001,7 +5001,7 @@ impl<'a> InstructionSelection {
                         let ref base = ops[base];
                         let struct_ty = match base.as_value().ty.get_referent_ty() {
                             Some(ty) => ty,
-                            None => panic!("expecting an iref or uptr in GetVarPartIRef"),
+                            None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
                         let fix_part_size = vm.get_backend_type_size(struct_ty.id());
 
@@ -5015,7 +5015,7 @@ impl<'a> InstructionSelection {
                                     base,
                                     f_content,
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                                 let ret =
                                     self.addr_const_offset_adjust(mem, fix_part_size as u64, vm);
@@ -5030,7 +5030,7 @@ impl<'a> InstructionSelection {
                                     base: tmp,
                                     offset: Some(self.make_int_const(fix_part_size as u64, vm)),
                                     index: None,
-                                    scale: None,
+                                    scale: None
                                 };
 
                                 trace!("MEM from GETVARPARTIREF(ireg): {}", ret);
@@ -5072,7 +5072,7 @@ impl<'a> InstructionSelection {
                                         base,
                                         f_content,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     let ret =
                                         self.addr_const_offset_adjust(mem, shift_size as u64, vm);
@@ -5087,7 +5087,7 @@ impl<'a> InstructionSelection {
                                         base: tmp,
                                         offset: Some(self.make_int_const(shift_size as u64, vm)),
                                         index: None,
-                                        scale: None,
+                                        scale: None
                                     };
 
                                     trace!("MEM from SHIFTIREF(ireg, imm): {}", ret);
@@ -5142,7 +5142,7 @@ impl<'a> InstructionSelection {
                                         base,
                                         f_content,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     let ret =
                                         self.addr_append_index_scale(mem, tmp_index_copy, scale);
@@ -5157,7 +5157,7 @@ impl<'a> InstructionSelection {
                                         base: tmp,
                                         offset: None,
                                         index: Some(tmp_index_copy),
-                                        scale: Some(scale),
+                                        scale: Some(scale)
                                     };
 
                                     trace!("MEM from SHIFTIREF(ireg, ireg): {}", ret);
@@ -5207,7 +5207,7 @@ impl<'a> InstructionSelection {
                                         base,
                                         f_content,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     let ret = self.addr_const_offset_adjust(mem, offset as u64, vm);
 
@@ -5223,7 +5223,7 @@ impl<'a> InstructionSelection {
                                         base,
                                         f_content,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     let ret = self.addr_const_offset_adjust(mem, offset as u64, vm);
 
@@ -5237,7 +5237,7 @@ impl<'a> InstructionSelection {
                                         base: tmp,
                                         offset: Some(self.make_int_const(offset as u64, vm)),
                                         index: None,
-                                        scale: None,
+                                        scale: None
                                     };
 
                                     trace!("MEM from GETELEMIREF(ireg, const): {}", ret);
@@ -5290,7 +5290,7 @@ impl<'a> InstructionSelection {
                                         base,
                                         f_content,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     let ret =
                                         self.addr_append_index_scale(mem, tmp_index_copy, scale);
@@ -5307,7 +5307,7 @@ impl<'a> InstructionSelection {
                                         base,
                                         f_content,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     let ret =
                                         self.addr_append_index_scale(mem, tmp_index_copy, scale);
@@ -5322,7 +5322,7 @@ impl<'a> InstructionSelection {
                                         base: tmp,
                                         offset: None,
                                         index: Some(tmp_index_copy),
-                                        scale: Some(scale),
+                                        scale: Some(scale)
                                     };
 
                                     trace!("MEM from GETELEMIREF(ireg, ireg): {}", ret);
@@ -5339,7 +5339,7 @@ impl<'a> InstructionSelection {
                             base: tmp_loc,
                             offset: None,
                             index: None,
-                            scale: None,
+                            scale: None
                         };
 
                         trace!("MEM from general ireg inst: {}", op);
@@ -5361,31 +5361,31 @@ impl<'a> InstructionSelection {
         &mut self,
         mem: MemoryLocation,
         more_offset: u64,
-        vm: &VM,
+        vm: &VM
     ) -> MemoryLocation {
         match mem {
             MemoryLocation::Address {
                 base,
                 offset,
                 index,
-                scale,
+                scale
             } => {
                 let new_offset = match offset {
                     Some(pv) => {
                         let old_offset = pv.extract_int_const().unwrap();
                         old_offset + more_offset
                     }
-                    None => more_offset,
+                    None => more_offset
                 };
 
                 MemoryLocation::Address {
                     base: base,
                     offset: Some(self.make_int_const(new_offset, vm)),
                     index: index,
-                    scale: scale,
+                    scale: scale
                 }
             }
-            _ => panic!("expected an address memory location"),
+            _ => panic!("expected an address memory location")
         }
     }
 
@@ -5395,14 +5395,14 @@ impl<'a> InstructionSelection {
         &mut self,
         mem: MemoryLocation,
         index_: P<Value>,
-        scale_: u8,
+        scale_: u8
     ) -> MemoryLocation {
         match mem {
             MemoryLocation::Address {
                 base,
                 offset,
                 index,
-                scale,
+                scale
             } => {
                 assert!(index.is_none());
                 assert!(scale.is_none());
@@ -5411,10 +5411,10 @@ impl<'a> InstructionSelection {
                     base: base,
                     offset: offset,
                     index: Some(index_),
-                    scale: Some(scale_),
+                    scale: Some(scale_)
                 }
             }
-            _ => panic!("expected an address memory location"),
+            _ => panic!("expected an address memory location")
         }
     }
 
@@ -5425,12 +5425,12 @@ impl<'a> InstructionSelection {
                 let is_const = pv.is_const();
                 let is_func = match &pv.ty.v {
                     &MuType_::FuncRef(_) | &MuType_::UFuncPtr(_) => true,
-                    _ => false,
+                    _ => false
                 };
 
                 is_const && is_func
             }
-            _ => false,
+            _ => false
         }
     }
 
@@ -5440,10 +5440,10 @@ impl<'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::Constant(Constant::FuncRef(id)) => id,
-                    _ => panic!("expected a funcref const"),
+                    _ => panic!("expected a funcref const")
                 }
             }
-            _ => panic!("expected a funcref const"),
+            _ => panic!("expected a funcref const")
         }
     }
 
@@ -5454,13 +5454,13 @@ impl<'a> InstructionSelection {
                 match pv.v {
                     Value_::Memory(_) => true,
                     Value_::Global(_) => true,
-                    _ => false,
+                    _ => false
                 }
             }
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
                     Instruction_::Load { .. } => true,
-                    _ => false,
+                    _ => false
                 }
             }
         }
@@ -5496,7 +5496,7 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            TreeNode_::Value(ref pv) => pv.clone(),
+            TreeNode_::Value(ref pv) => pv.clone()
         }
     }
 
@@ -5510,7 +5510,7 @@ impl<'a> InstructionSelection {
         src: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         // because src is a TreeNode, we may need to emit code to turn the node
         // into a value before calling emit_move_value_to_value()
@@ -5639,7 +5639,7 @@ impl<'a> InstructionSelection {
                         panic!("unexpected fpr mov between {} -> {}", src, dest);
                     }
                 }
-                _ => panic!("expect double or float"),
+                _ => panic!("expect double or float")
             }
         } else {
             warn!("mov of type {} unimplemented", src_ty);
@@ -5653,7 +5653,7 @@ impl<'a> InstructionSelection {
         exception_arg: &P<Value>,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         // get thread local and add offset to get exception_obj
         let tl = self.emit_get_threadlocal(None, f_content, f_context, vm);
@@ -5665,7 +5665,7 @@ impl<'a> InstructionSelection {
         let ty_info = vm.get_backend_type_info(ty.id());
         let layout = match ty_info.struct_layout.as_ref() {
             Some(layout) => layout,
-            None => panic!("a struct type does not have a layout yet: {:?}", ty_info),
+            None => panic!("a struct type does not have a layout yet: {:?}", ty_info)
         };
 
         assert!(layout.len() > index);
@@ -5679,7 +5679,7 @@ impl<'a> InstructionSelection {
                 make_block_name(
                     &self.current_fv_name,
                     cur_node.unwrap().id(),
-                    format!("callsite_{}", self.current_callsite_id).as_str(),
+                    format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {
                 format!(
@@ -5710,11 +5710,11 @@ impl<'a> InstructionSelection {
                             base: Some(x86_64::RIP.clone()),
                             label: name.clone(),
                             is_global: false,
-                            is_native: false,
-                        }),
+                            is_native: false
+                        })
                     })
                 }
-                _ => panic!("expecting relocatable location, found {}", const_value_loc),
+                _ => panic!("expecting relocatable location, found {}", const_value_loc)
             };
 
             self.current_constants.insert(id, val.clone());
@@ -5737,8 +5737,8 @@ impl<'a> InstructionSelection {
                 base: Some(x86_64::RIP.clone()),
                 label: func_name,
                 is_global: true,
-                is_native: false,
-            }),
+                is_native: false
+            })
         })
     }
 
@@ -5749,7 +5749,7 @@ impl<'a> InstructionSelection {
         &mut self,
         int128: &P<Value>,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> (P<Value>, P<Value>) {
         if f_context.get_value(int128.id()).unwrap().has_split() {
             let vec = f_context
@@ -5910,7 +5910,7 @@ impl CompilerPass for InstructionSelection {
 
             vm.add_exception_callsite(
                 Callsite::new(callsite.clone(), block_loc, stack_arg_size),
-                self.current_fv_id,
+                self.current_fv_id
             );
         }
 
@@ -5922,7 +5922,7 @@ impl CompilerPass for InstructionSelection {
             self.current_constants_locs.clone(),
             frame,
             self.current_func_start.take().unwrap(),
-            func_end,
+            func_end
         );
 
         vm.add_compiled_func(compiled_func);

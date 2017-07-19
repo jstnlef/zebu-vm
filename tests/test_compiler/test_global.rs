@@ -301,7 +301,7 @@ fn test_persist_linked_list() {
         vm.handle_store(
             MemoryOrder::Relaxed,
             &global_handle,
-            last_node.as_ref().unwrap(),
+            last_node.as_ref().unwrap()
         );
     }
 
@@ -313,7 +313,7 @@ fn test_persist_linked_list() {
     let executable = aot::link_primordial(
         vec![Mu("persist_linked_list")],
         "persist_linked_list_test",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 
@@ -749,7 +749,7 @@ fn test_persist_funcref() {
         vec![], // sym fields/strings
         vec![],
         vec![], // reloc fields/strings
-        "test_persist_funcref".to_string(),
+        "test_persist_funcref".to_string()
     );
 
     // link

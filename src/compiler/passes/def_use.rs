@@ -20,13 +20,13 @@ use compiler::CompilerPass;
 use std::any::Any;
 
 pub struct DefUse {
-    name: &'static str,
+    name: &'static str
 }
 
 impl DefUse {
     pub fn new() -> DefUse {
         DefUse {
-            name: "Def-Use Pass",
+            name: "Def-Use Pass"
         }
     }
 }
@@ -60,7 +60,7 @@ impl CompilerPass for DefUse {
                     use_op(op, func_context);
                 }
             }
-            _ => panic!("expected instruction node in visit_inst()"),
+            _ => panic!("expected instruction node in visit_inst()")
         }
     }
 

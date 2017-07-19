@@ -21,7 +21,7 @@ use compiler::backend;
 use std::any::Any;
 
 pub struct PeepholeOptimization {
-    name: &'static str,
+    name: &'static str
 }
 
 impl CompilerPass for PeepholeOptimization {
@@ -67,7 +67,7 @@ impl CompilerPass for PeepholeOptimization {
 impl PeepholeOptimization {
     pub fn new() -> PeepholeOptimization {
         PeepholeOptimization {
-            name: "Peephole Optimization",
+            name: "Peephole Optimization"
         }
     }
 
@@ -93,13 +93,13 @@ impl PeepholeOptimization {
             let src_machine_reg: MuID = {
                 match cf.temps.get(&src) {
                     Some(reg) => *reg,
-                    None => src,
+                    None => src
                 }
             };
             let dst_machine_reg: MuID = {
                 match cf.temps.get(&dst) {
                     Some(reg) => *reg,
-                    None => dst,
+                    None => dst
                 }
             };
 
@@ -180,10 +180,10 @@ impl PeepholeOptimization {
                                 cur_inst = first_inst;
                                 last_dest = Some(dest2.clone());
                             }
-                            None => break,
+                            None => break
                         }
                     }
-                    None => break,
+                    None => break
                 }
             }
             last_dest

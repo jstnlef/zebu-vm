@@ -34,7 +34,7 @@ pub struct GraphNode {
     /// temp register group (which machine register class we should assign)
     group: backend::RegGroup,
     /// cost to spill this temp
-    spill_cost: f32,
+    spill_cost: f32
 }
 
 /// Move represents a move between two nodes (referred by index)
@@ -42,7 +42,7 @@ pub struct GraphNode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Move {
     pub from: NodeIndex,
-    pub to: NodeIndex,
+    pub to: NodeIndex
 }
 
 /// InterferenceGraph represents the interference graph, including
@@ -56,7 +56,7 @@ pub struct InterferenceGraph {
     /// node index is how nodes are referred to with pet_graph
     nodes: LinkedHashMap<MuID, NodeIndex>,
     /// a set of all moves
-    moves: LinkedHashSet<Move>,
+    moves: LinkedHashSet<Move>
 }
 
 impl InterferenceGraph {
@@ -65,7 +65,7 @@ impl InterferenceGraph {
         InterferenceGraph {
             graph: Graph::new_undirected(),
             nodes: LinkedHashMap::new(),
-            moves: LinkedHashSet::new(),
+            moves: LinkedHashSet::new()
         }
     }
 
@@ -80,7 +80,7 @@ impl InterferenceGraph {
                 temp: reg_id,
                 color: None,
                 group: backend::RegGroup::get_from_ty(entry.ty()),
-                spill_cost: 0.0f32,
+                spill_cost: 0.0f32
             };
 
             // add to the graph
@@ -103,7 +103,7 @@ impl InterferenceGraph {
     pub fn get_node(&self, reg: MuID) -> NodeIndex {
         match self.nodes.get(&reg) {
             Some(index) => *index,
-            None => panic!("do not have a node for {}", reg),
+            None => panic!("do not have a node for {}", reg)
         }
     }
 
@@ -279,7 +279,7 @@ const TRACE_LIVENESS: bool = false;
 /// - CGO'06, Figure 4
 pub fn build_interference_graph_chaitin_briggs(
     cf: &mut CompiledFunction,
-    func: &MuFunctionVersion,
+    func: &MuFunctionVersion
 ) -> InterferenceGraph {
     let _p = hprof::enter("regalloc: build global liveness");
     build_global_liveness(cf, func);
@@ -316,7 +316,7 @@ pub fn build_interference_graph_chaitin_briggs(
         let mut current_live =
             LinkedHashSet::from_vec(match cf.mc().get_ir_block_liveout(&block) {
                 Some(liveout) => liveout.to_vec(),
-                None => panic!("cannot find liveout for block {}", block),
+                None => panic!("cannot find liveout for block {}", block)
             });
         if TRACE_LIVENESS {
             trace!("Block{}: live out", block);
@@ -498,7 +498,7 @@ struct CFGBlockNode {
     pred: Vec<String>,
     succ: Vec<String>,
     uses: Vec<MuID>,
-    defs: Vec<MuID>,
+    defs: Vec<MuID>
 }
 
 /// builds a LinkedHashMap from basic block names to CFGBlockNode
@@ -521,7 +521,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
         for block in all_blocks.iter() {
             let range = match mc.get_block_range(block) {
                 Some(range) => range,
-                None => panic!("cannot find range for block {}", block),
+                None => panic!("cannot find range for block {}", block)
             };
 
             // start inst
@@ -622,7 +622,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
             pred: preds,
             succ: succs,
             uses: livein,
-            defs: defs,
+            defs: defs
         };
 
         trace_if!(TRACE_LIVENESS, "as CFGNode {:?}", node);
@@ -636,7 +636,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
 fn global_liveness_analysis(
     blocks: LinkedHashMap<String, CFGBlockNode>,
     cf: &mut CompiledFunction,
-    func: &MuFunctionVersion,
+    func: &MuFunctionVersion
 ) {
     info!("---global liveness analysis---");
     info!("{} blocks", blocks.len());

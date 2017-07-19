@@ -39,7 +39,7 @@ pub struct Compiler<'vm> {
     /// policy decides what passes to be executed
     policy: RefCell<CompilerPolicy>,
     /// a reference to vm, for compiler to query VM-wide info
-    vm: &'vm VM,
+    vm: &'vm VM
 }
 
 impl<'vm> Compiler<'vm> {
@@ -47,7 +47,7 @@ impl<'vm> Compiler<'vm> {
     pub fn new(policy: CompilerPolicy, vm: &VM) -> Compiler {
         Compiler {
             policy: RefCell::new(policy),
-            vm: vm,
+            vm: vm
         }
     }
 
@@ -84,7 +84,7 @@ impl<'vm> Compiler<'vm> {
 /// CompilerPolicy specifies a list of ordered CompilerPasses
 /// the compiler will follow the list to compile each function
 pub struct CompilerPolicy {
-    pub passes: Vec<Box<CompilerPass>>,
+    pub passes: Vec<Box<CompilerPass>>
 }
 
 impl CompilerPolicy {

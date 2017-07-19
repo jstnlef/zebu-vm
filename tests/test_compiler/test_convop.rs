@@ -29,7 +29,7 @@ fn test_truncate_then_call() {
     let lib = linkutils::aot::compile_fncs(
         "truncate_then_call",
         vec!["truncate_then_call", "dummy_call"],
-        &truncate_then_call,
+        &truncate_then_call
     );
 
     unsafe {

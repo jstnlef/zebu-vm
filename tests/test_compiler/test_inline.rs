@@ -187,7 +187,7 @@ fn test_inline_add_with_extra_norm_args() {
     let lib = linkutils::aot::compile_fncs(
         "inline_add_with_extra_norm_args",
         vec!["add_with_extra_norm_args", "add"],
-        &inline_add_with_extra_norm_args,
+        &inline_add_with_extra_norm_args
     );
 
     unsafe {

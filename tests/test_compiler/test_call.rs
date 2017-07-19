@@ -68,7 +68,7 @@ fn test_ccall_exit() {
 pub fn gen_ccall_exit(
     arg: P<TreeNode>,
     func_ver: &mut MuFunctionVersion,
-    vm: &VM,
+    vm: &VM
 ) -> Box<TreeNode> {
     typedef!    ((vm) int64 = mu_int(64));
     funcsig!    ((vm) exit_sig = (int64) -> ());
@@ -162,7 +162,7 @@ fn test_pass_1arg_by_stack() {
     let executable = aot::link_primordial(
         vec![Mu("foo7"), Mu("pass_1arg_by_stack")],
         "test_pass_1arg_by_stack",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 
@@ -422,7 +422,7 @@ fn test_pass_2args_by_stack() {
     let executable = aot::link_primordial(
         vec![Mu("foo8"), Mu("pass_2args_by_stack")],
         "test_pass_2args_by_stack",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 
@@ -691,7 +691,7 @@ fn test_pass_2_int8_args_by_stack() {
     let executable = aot::link_primordial(
         vec![Mu("foo8"), Mu("pass_2_int8_args_by_stack")],
         "test_pass_2_int8_args_by_stack",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 
@@ -977,7 +977,7 @@ fn test_pass_mixed_args_by_stack() {
     let executable = aot::link_primordial(
         vec![Mu("foo8"), Mu("pass_mixed_args_by_stack")],
         "test_pass_mixed_args_by_stack",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 
@@ -1298,14 +1298,14 @@ fn test_store_funcref() {
     let lib = linkutils::aot::compile_fncs(
         "store_funcref",
         vec!["store_funcref", "foo"],
-        &store_funcref,
+        &store_funcref
     );
 
     unsafe {
         use mu::utils::mem::memsec::malloc;
         let ptr = match malloc::<u64>(8) {
             Some(ptr) => ptr,
-            None => panic!("failed to alloc memory for testing"),
+            None => panic!("failed to alloc memory for testing")
         };
 
         let store_funcref: libloading::Symbol<unsafe extern "C" fn(*mut u64) -> (u64)> =
@@ -1438,7 +1438,7 @@ fn test_call_int128_arg() {
     let executable = aot::link_primordial(
         vec![Mu("add_u128"), Mu("call_add_u128")],
         "test_call_int128_arg",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 

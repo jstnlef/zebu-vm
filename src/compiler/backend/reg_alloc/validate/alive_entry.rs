@@ -26,7 +26,7 @@ type EntryID = usize;
 pub struct AliveEntries {
     index: EntryID,
 
-    inner: LinkedHashMap<EntryID, RegisterEntry>,
+    inner: LinkedHashMap<EntryID, RegisterEntry>
 }
 
 impl fmt::Display for AliveEntries {
@@ -51,7 +51,7 @@ impl AliveEntries {
     pub fn new() -> AliveEntries {
         AliveEntries {
             index: 0,
-            inner: LinkedHashMap::new(),
+            inner: LinkedHashMap::new()
         }
     }
 
@@ -152,7 +152,7 @@ impl AliveEntries {
         let entry = RegisterEntry {
             temp: None,
             real: vec![reg],
-            stack: vec![],
+            stack: vec![]
         };
 
         self.inner.insert(id, entry);
@@ -165,7 +165,7 @@ impl AliveEntries {
         let entry = RegisterEntry {
             temp: None,
             real: vec![],
-            stack: vec![mem],
+            stack: vec![mem]
         };
 
         self.inner.insert(id, entry);
@@ -186,7 +186,7 @@ impl AliveEntries {
             let entry = RegisterEntry {
                 temp: Some(temp),
                 real: vec![reg],
-                stack: vec![],
+                stack: vec![]
             };
 
             self.inner.insert(id, entry);
@@ -208,7 +208,7 @@ impl AliveEntries {
             let entry = RegisterEntry {
                 temp: Some(temp),
                 real: vec![],
-                stack: vec![mem],
+                stack: vec![mem]
             };
 
             self.inner.insert(id, entry);
@@ -321,7 +321,7 @@ impl AliveEntries {
 pub struct RegisterEntry {
     temp: Option<MuID>,
     real: Vec<MuID>,
-    stack: Vec<P<Value>>,
+    stack: Vec<P<Value>>
 }
 
 impl RegisterEntry {
@@ -414,7 +414,7 @@ impl fmt::Display for RegisterEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let temp = match self.temp {
             Some(id) => format!("{}", id),
-            None => "_".to_string(),
+            None => "_".to_string()
         };
 
         let real = format!("{:?}", self.real);

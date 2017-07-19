@@ -30,28 +30,28 @@ use std::mem::transmute;
 fn tr64(val: u64) -> APIHandle {
     APIHandle {
         id: 0, // arbitrary
-        v: APIHandleValue::TagRef64(val),
+        v: APIHandleValue::TagRef64(val)
     }
 }
 
 fn double(val: f64) -> APIHandle {
     APIHandle {
         id: 0, // arbitrary
-        v: APIHandleValue::Double(val),
+        v: APIHandleValue::Double(val)
     }
 }
 
 fn tag(val: u64) -> APIHandle {
     APIHandle {
         id: 0, // arbitrary
-        v: APIHandleValue::Int(val, 6),
+        v: APIHandleValue::Int(val, 6)
     }
 }
 
 fn int52(val: u64) -> APIHandle {
     APIHandle {
         id: 0, // arbitrary
-        v: APIHandleValue::Int(val, 52),
+        v: APIHandleValue::Int(val, 52)
     }
 }
 
@@ -60,7 +60,7 @@ fn ref_void(val: u64) -> APIHandle {
         id: 0, // arbitrary
         v: APIHandleValue::Ref(REF_VOID_TYPE.clone(), unsafe {
             Address::from_usize(val as usize)
-        }),
+        })
     }
 }
 

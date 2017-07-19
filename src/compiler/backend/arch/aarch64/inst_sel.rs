@@ -69,7 +69,7 @@ pub struct InstructionSelection {
     current_stack_arg_size: usize,
     current_xr_value: Option<P<Value>>, // A temporary that holds to saved XR value (if needed)
     current_constants: HashMap<MuID, P<Value>>,
-    current_constants_locs: HashMap<MuID, P<Value>>,
+    current_constants_locs: HashMap<MuID, P<Value>>
 }
 
 // TODO: Move all functions that are in here that don't need access to 'self'
@@ -99,7 +99,7 @@ impl<'a> InstructionSelection {
             current_stack_arg_size: 0,
             current_xr_value: None,
             current_constants: HashMap::new(),
-            current_constants_locs: HashMap::new(),
+            current_constants_locs: HashMap::new()
         }
 
     }
@@ -117,7 +117,7 @@ impl<'a> InstructionSelection {
         node: &'a TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         trace!("instsel on node#{} {}", node.id(), node);
 
@@ -187,7 +187,7 @@ impl<'a> InstructionSelection {
                     Instruction_::Select {
                         cond,
                         true_val,
-                        false_val,
+                        false_val
                     } => {
                         use ast::op::CmpOp::*;
 
@@ -271,7 +271,7 @@ impl<'a> InstructionSelection {
                             &op2,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                         let cond = get_condition_codes(cmpop);
 
@@ -292,7 +292,7 @@ impl<'a> InstructionSelection {
                                         &tmp_res,
                                         &tmp_res,
                                         &WZR,
-                                        invert_condition_code(cond[1]),
+                                        invert_condition_code(cond[1])
                                     );
                                 }
                             }
@@ -315,7 +315,7 @@ impl<'a> InstructionSelection {
                     Instruction_::Switch {
                         cond,
                         ref default,
-                        ref branches,
+                        ref branches
                     } => {
                         trace!("instsel on SWITCH");
                         let ref ops = inst.ops;
@@ -362,7 +362,7 @@ impl<'a> InstructionSelection {
                                 let block_name = make_block_name(
                                     &self.current_fv_name,
                                     node.id(),
-                                    format!("switch_not_met_case_{}", case_op_index).as_str(),
+                                    format!("switch_not_met_case_{}", case_op_index).as_str()
                                 );
                                 self.start_block(block_name);
                             }
@@ -392,13 +392,13 @@ impl<'a> InstructionSelection {
                             node,  // cur_node: &TreeNode,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
                     Instruction_::Call {
                         ref data,
-                        ref resume,
+                        ref resume
                     } => {
                         trace!("instsel on CALL");
 
@@ -410,7 +410,7 @@ impl<'a> InstructionSelection {
                             node,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -425,7 +425,7 @@ impl<'a> InstructionSelection {
                             node,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -441,7 +441,7 @@ impl<'a> InstructionSelection {
 
                     Instruction_::CCall {
                         ref data,
-                        ref resume,
+                        ref resume
                     } => {
                         trace!("instsel on CCALL");
 
@@ -452,7 +452,7 @@ impl<'a> InstructionSelection {
                             node,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -486,14 +486,14 @@ impl<'a> InstructionSelection {
                                     &ret_loc,
                                     &val_l,
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                                 emit_move_value_to_value(
                                     self.backend.as_mut(),
                                     &ret_loc_h,
                                     &val_h,
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                             } else {
                                 emit_move_value_to_value(
@@ -501,7 +501,7 @@ impl<'a> InstructionSelection {
                                     &ret_loc,
                                     &ret_val,
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                             }
                         } else {
@@ -513,7 +513,7 @@ impl<'a> InstructionSelection {
                                     &ops[*ret_index],
                                     f_content,
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                                 let ref ty = ret_val.ty;
                                 let offset = self.get_field_offset(&ret_type, i, &vm);
@@ -530,7 +530,7 @@ impl<'a> InstructionSelection {
                                             &ret_val,
                                             offset as i64,
                                             f_context,
-                                            vm,
+                                            vm
                                         )
                                     }
                                 }
@@ -553,13 +553,13 @@ impl<'a> InstructionSelection {
                                 flag_n: false,
                                 flag_z: false,
                                 flag_c: false,
-                                flag_v: false,
+                                flag_v: false
                             },
                             op1,
                             op2,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -572,7 +572,7 @@ impl<'a> InstructionSelection {
                         operation,
                         ref from_ty,
                         ref to_ty,
-                        operand,
+                        operand
                     } => {
                         trace!("instsel on CONVOP");
 
@@ -604,7 +604,7 @@ impl<'a> InstructionSelection {
                                             op,
                                             f_content,
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     }
                                 } else {
@@ -620,7 +620,7 @@ impl<'a> InstructionSelection {
                                             &tmp_res,
                                             &cast_value(&tmp_op, &to_ty),
                                             0,
-                                            from_ty_size as u8,
+                                            from_ty_size as u8
                                         );
                                     } else if to_ty_size == 128 {
                                         let (res_l, res_h) = split_int128(&tmp_res, f_context, vm);
@@ -630,7 +630,7 @@ impl<'a> InstructionSelection {
                                             &res_l,
                                             &cast_value(&tmp_op, &UINT64_TYPE),
                                             0,
-                                            from_ty_size as u8,
+                                            from_ty_size as u8
                                         );
                                         self.backend.emit_mov(&res_h, &XZR); // res_h = 0
 
@@ -644,7 +644,7 @@ impl<'a> InstructionSelection {
                                         &tmp_res,
                                         &tmp_op,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                 }
                             }
@@ -656,7 +656,7 @@ impl<'a> InstructionSelection {
                                             &tmp_res,
                                             &cast_value(&tmp_op, &to_ty),
                                             0,
-                                            from_ty_size as u8,
+                                            from_ty_size as u8
                                         );
                                     } else if to_ty_size == 128 {
                                         let (res_l, res_h) = split_int128(&tmp_res, f_context, vm);
@@ -666,7 +666,7 @@ impl<'a> InstructionSelection {
                                             &res_l,
                                             &cast_value(&tmp_op, &UINT64_TYPE),
                                             0,
-                                            from_ty_size as u8,
+                                            from_ty_size as u8
                                         );
                                         // res_h = ASHR src, 63
                                         self.backend.emit_asr_imm(&res_h, &tmp_op, 63);
@@ -682,7 +682,7 @@ impl<'a> InstructionSelection {
                                         &tmp_res,
                                         &tmp_op,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                 }
                             }
@@ -700,7 +700,7 @@ impl<'a> InstructionSelection {
                                             Some(vec![tmp_res.clone()]),
                                             Some(node),
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     } else {
                                         self.emit_runtime_entry(
@@ -709,7 +709,7 @@ impl<'a> InstructionSelection {
                                             Some(vec![tmp_res.clone()]),
                                             Some(node),
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     }
                                 } else {
@@ -727,7 +727,7 @@ impl<'a> InstructionSelection {
                                             Some(vec![tmp_res.clone()]),
                                             Some(node),
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     } else {
                                         self.emit_runtime_entry(
@@ -736,7 +736,7 @@ impl<'a> InstructionSelection {
                                             Some(vec![tmp_res.clone()]),
                                             Some(node),
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     }
                                 } else {
@@ -754,7 +754,7 @@ impl<'a> InstructionSelection {
                                             Some(vec![tmp_res.clone()]),
                                             Some(node),
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     } else {
                                         self.emit_runtime_entry(
@@ -763,7 +763,7 @@ impl<'a> InstructionSelection {
                                             Some(vec![tmp_res.clone()]),
                                             Some(node),
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     }
                                 } else {
@@ -778,7 +778,7 @@ impl<'a> InstructionSelection {
                                         // to_ty_size bits
                                         self.backend.emit_tst_imm(
                                             &tmp_res,
-                                            bits_ones(to_ty_reg_size - to_ty_size) << to_ty_size,
+                                            bits_ones(to_ty_reg_size - to_ty_size) << to_ty_size
                                         );
 
                                         // If the above condition is true, the an overflow occurred
@@ -787,7 +787,7 @@ impl<'a> InstructionSelection {
                                             &tmp_res,
                                             &tmp_res,
                                             &get_alias_for_length(XZR.id(), to_ty_size),
-                                            "EQ",
+                                            "EQ"
                                         );
                                     }
                                 }
@@ -802,7 +802,7 @@ impl<'a> InstructionSelection {
                                             Some(vec![tmp_res.clone()]),
                                             Some(node),
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     } else {
                                         self.emit_runtime_entry(
@@ -811,7 +811,7 @@ impl<'a> InstructionSelection {
                                             Some(vec![tmp_res.clone()]),
                                             Some(node),
                                             f_context,
-                                            vm,
+                                            vm
                                         );
                                     }
                                 } else {
@@ -829,24 +829,24 @@ impl<'a> InstructionSelection {
                                         let blk_positive = make_block_name(
                                             &self.current_fv_name,
                                             node.id(),
-                                            "positive",
+                                            "positive"
                                         );
                                         let blk_negative = make_block_name(
                                             &self.current_fv_name,
                                             node.id(),
-                                            "negative",
+                                            "negative"
                                         );
                                         let blk_end = make_block_name(
                                             &self.current_fv_name,
                                             node.id(),
-                                            "end",
+                                            "end"
                                         );
                                         let tmp = make_temporary(f_context, to_ty.clone(), vm);
 
                                         self.backend.emit_tbnz(
                                             &tmp_res,
                                             (to_ty_size - 1) as u8,
-                                            blk_negative.clone(),
+                                            blk_negative.clone()
                                         );
                                         self.finish_block();
 
@@ -858,7 +858,7 @@ impl<'a> InstructionSelection {
                                             self.backend.emit_tst_imm(
                                                 &tmp_res,
                                                 bits_ones(to_ty_reg_size - to_ty_size) <<
-                                                    to_ty_size,
+                                                    to_ty_size
                                             );
                                             self.backend
                                                 .emit_mov_imm(&tmp, bits_ones(to_ty_size - 1));
@@ -879,7 +879,7 @@ impl<'a> InstructionSelection {
                                             self.backend.emit_tst_imm(
                                                 &tmp_res,
                                                 bits_ones(to_ty_reg_size - to_ty_size) <<
-                                                    to_ty_size,
+                                                    to_ty_size
                                             );
 
                                             // Set just the sign bit (this is smallest
@@ -920,7 +920,7 @@ impl<'a> InstructionSelection {
                                 MemoryOrder::Relaxed | MemoryOrder::NotAtomic => false,
                                 MemoryOrder::Consume | MemoryOrder::Acquire |
                                 MemoryOrder::SeqCst => true,
-                                _ => panic!("didnt expect order {:?} with load inst", order),
+                                _ => panic!("didnt expect order {:?} with load inst", order)
                             };
 
 
@@ -930,7 +930,7 @@ impl<'a> InstructionSelection {
                                     self.backend.as_mut(),
                                     &resolved_loc,
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                                 match res.ty.v {
                                     // Have to load a temporary GPR first
@@ -947,7 +947,7 @@ impl<'a> InstructionSelection {
                                         self.backend.emit_fmov(&res, &temp);
                                     }
                                     // Can load the register directly
-                                    _ => self.backend.emit_ldar(&res, &temp_loc),
+                                    _ => self.backend.emit_ldar(&res, &temp_loc)
                                 };
                             } else {
                                 let temp_loc = emit_mem(
@@ -955,7 +955,7 @@ impl<'a> InstructionSelection {
                                     &resolved_loc,
                                     get_type_alignment(&res.ty, vm),
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                                 self.backend.emit_ldr(&res, &temp_loc, false);
                             }
@@ -969,7 +969,7 @@ impl<'a> InstructionSelection {
                                         &resolved_loc,
                                         get_type_alignment(&res.ty, vm),
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     self.backend.emit_ldp(&res_l, &res_h, &temp_loc);
                                 }
@@ -1010,7 +1010,7 @@ impl<'a> InstructionSelection {
                                         self.backend.as_mut(),
                                         &resolved_loc,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
 
                                     self.finish_block();
@@ -1018,7 +1018,7 @@ impl<'a> InstructionSelection {
                                     let blk_load_start = make_block_name(
                                         &self.current_fv_name,
                                         node.id(),
-                                        "load_start",
+                                        "load_start"
                                     );
 
                                     // load_start:
@@ -1070,7 +1070,7 @@ impl<'a> InstructionSelection {
                             let use_release = match order {
                                 MemoryOrder::Relaxed | MemoryOrder::NotAtomic => false,
                                 MemoryOrder::Release | MemoryOrder::SeqCst => true,
-                                _ => panic!("didnt expect order {:?} with load inst", order),
+                                _ => panic!("didnt expect order {:?} with load inst", order)
                             };
 
                             let val = self.emit_reg(val_op, f_content, f_context, vm);
@@ -1081,7 +1081,7 @@ impl<'a> InstructionSelection {
                                     self.backend.as_mut(),
                                     &resolved_loc,
                                     f_context,
-                                    vm,
+                                    vm
                                 );
 
                                 match val.ty.v {
@@ -1099,7 +1099,7 @@ impl<'a> InstructionSelection {
                                         self.backend.emit_stlr(&temp_loc, &temp);
                                     }
                                     // Can load the register directly
-                                    _ => self.backend.emit_stlr(&temp_loc, &val),
+                                    _ => self.backend.emit_stlr(&temp_loc, &val)
                                 };
                             } else {
                                 let temp_loc = emit_mem(
@@ -1107,7 +1107,7 @@ impl<'a> InstructionSelection {
                                     &resolved_loc,
                                     get_type_alignment(&val.ty, vm),
                                     f_context,
-                                    vm,
+                                    vm
                                 );
                                 self.backend.emit_str(&temp_loc, &val);
                             }
@@ -1122,7 +1122,7 @@ impl<'a> InstructionSelection {
                                         &resolved_loc,
                                         16,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
                                     self.backend.emit_stp(&temp_loc, &val_l, &val_h);
                                 }
@@ -1159,7 +1159,7 @@ impl<'a> InstructionSelection {
                                         self.backend.as_mut(),
                                         &resolved_loc,
                                         f_context,
-                                        vm,
+                                        vm
                                     );
 
                                     self.finish_block();
@@ -1167,7 +1167,7 @@ impl<'a> InstructionSelection {
                                     let blk_store_start = make_block_name(
                                         &self.current_fv_name,
                                         node.id(),
-                                        "store_start",
+                                        "store_start"
                                     );
 
                                     // store_start:
@@ -1227,7 +1227,7 @@ impl<'a> InstructionSelection {
                                     }
                                 }
                             }
-                            _ => panic!("didnt expect fail order {:?} for cmpxchg", fail_order),
+                            _ => panic!("didnt expect fail order {:?} for cmpxchg", fail_order)
                         };
                         let use_release = match fail_order {
                             MemoryOrder::Acquire => {
@@ -1260,7 +1260,7 @@ impl<'a> InstructionSelection {
                                     }
                                 }
                             }
-                            _ => panic!("didnt expect fail order {:?} for cmpxchg", fail_order),
+                            _ => panic!("didnt expect fail order {:?} for cmpxchg", fail_order)
                         };
 
 
@@ -1300,7 +1300,7 @@ impl<'a> InstructionSelection {
                                     self.backend.emit_fmov(&res_value, &temp);
                                 }
                                 // Can load the register directly
-                                _ => self.backend.emit_ldaxr(&res_value, &loc),
+                                _ => self.backend.emit_ldaxr(&res_value, &loc)
                             };
                         } else {
                             match res_value.ty.v {
@@ -1316,7 +1316,7 @@ impl<'a> InstructionSelection {
                                     self.backend.emit_fmov(&res_value, &temp);
                                 }
                                 // Can load the register directly
-                                _ => self.backend.emit_ldxr(&res_value, &loc),
+                                _ => self.backend.emit_ldxr(&res_value, &loc)
                             };
                         }
 
@@ -1341,7 +1341,7 @@ impl<'a> InstructionSelection {
                                     self.backend.emit_stlxr(&loc, &res_success, &temp);
                                 }
                                 // Can load the register directly
-                                _ => self.backend.emit_stlxr(&loc, &res_success, &desired),
+                                _ => self.backend.emit_stlxr(&loc, &res_success, &desired)
                             };
                         } else {
                             match desired.ty.v {
@@ -1357,7 +1357,7 @@ impl<'a> InstructionSelection {
                                     self.backend.emit_stxr(&loc, &res_success, &temp);
                                 }
                                 // Can load the register directly
-                                _ => self.backend.emit_stxr(&loc, &res_success, &desired),
+                                _ => self.backend.emit_stxr(&loc, &res_success, &desired)
                             };
                         }
 
@@ -1406,7 +1406,7 @@ impl<'a> InstructionSelection {
                                 false
                             }
                             MemoryOrder::Acquire => true,
-                            _ => panic!("didnt expect order {:?} with load inst", order),
+                            _ => panic!("didnt expect order {:?} with load inst", order)
                         };
 
                         if use_load {
@@ -1439,7 +1439,7 @@ impl<'a> InstructionSelection {
                             None,
                             Some(node),
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1457,7 +1457,7 @@ impl<'a> InstructionSelection {
                             &tl,
                             *thread::USER_TLS_OFFSET as i64,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1480,7 +1480,7 @@ impl<'a> InstructionSelection {
                             *thread::USER_TLS_OFFSET as i64,
                             &tmp_op,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1542,7 +1542,7 @@ impl<'a> InstructionSelection {
                             ty_align,
                             node,
                             f_context,
-                            vm,
+                            vm
                         );
 
                         // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
@@ -1554,7 +1554,7 @@ impl<'a> InstructionSelection {
                             None,
                             Some(node),
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1587,7 +1587,7 @@ impl<'a> InstructionSelection {
                                 let actual_size = fix_part_size + var_ty_size * (var_len as usize);
                                 (
                                     make_value_int_const(actual_size as u64, vm),
-                                    make_value_int_const(var_len as u64, vm),
+                                    make_value_int_const(var_len as u64, vm)
                                 )
                             } else {
                                 let tmp_actual_size =
@@ -1599,14 +1599,14 @@ impl<'a> InstructionSelection {
                                     self.backend.as_mut(),
                                     &tmp_actual_size,
                                     &tmp_var_len,
-                                    var_ty_size as u64,
+                                    var_ty_size as u64
                                 );
                                 // tmp_actual_size = tmp_var_len*var_ty_size + fix_part_size
                                 emit_add_u64(
                                     self.backend.as_mut(),
                                     &tmp_actual_size,
                                     &tmp_actual_size,
-                                    fix_part_size as u64,
+                                    fix_part_size as u64
                                 );
                                 (tmp_actual_size, tmp_var_len)
                             }
@@ -1619,7 +1619,7 @@ impl<'a> InstructionSelection {
                             ty_align,
                             node,
                             f_context,
-                            vm,
+                            vm
                         );
 
                         // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
@@ -1631,7 +1631,7 @@ impl<'a> InstructionSelection {
                             None,
                             Some(node),
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1654,7 +1654,7 @@ impl<'a> InstructionSelection {
                             ty_info.alignment,
                             f_context,
                             vm,
-                            node,
+                            node
                         );
                     }
 
@@ -1684,7 +1684,7 @@ impl<'a> InstructionSelection {
 
                                 vm.get_backend_type_info(var_ty.id()).size
                             }
-                            _ => panic!("only expect HYBRID type here"),
+                            _ => panic!("only expect HYBRID type here")
                         };
                         let res = self.get_result_value(node, 0);
 
@@ -1698,7 +1698,7 @@ impl<'a> InstructionSelection {
                                 ty_align,
                                 f_context,
                                 vm,
-                                node,
+                                node
                             );
                         } else {
                             let align = lcm(ty_align, 16) as u64; // This is always going to be 16
@@ -1715,7 +1715,7 @@ impl<'a> InstructionSelection {
                                 f_context,
                                 vm,
                                 var_ty_size as u64,
-                                fix_part_size as u64,
+                                fix_part_size as u64
                             );
 
                             // Grow the stack by 'res' bytes
@@ -1735,7 +1735,7 @@ impl<'a> InstructionSelection {
                                 None,
                                 Some(node),
                                 f_context,
-                                vm,
+                                vm
                             );
 
                             // Set the result to the stack pointer
@@ -1755,7 +1755,7 @@ impl<'a> InstructionSelection {
                             None,
                             Some(node),
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1771,7 +1771,7 @@ impl<'a> InstructionSelection {
                             None,
                             Some(node),
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1788,7 +1788,7 @@ impl<'a> InstructionSelection {
                             None,
                             Some(node),
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -1867,7 +1867,7 @@ impl<'a> InstructionSelection {
                                     (int_val & 0xfff8000000000000) | 0x0000000000000008
                                 } else {
                                     int_val
-                                },
+                                }
                             );
                         } else {
                             let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
@@ -1898,7 +1898,7 @@ impl<'a> InstructionSelection {
                                 &tmp_res,
                                 0x7FF0000000000001 |
                                     (((int_val & 0x8000000000000) << 12) |
-                                         (int_val & 0x7ffffffffffffu64) << 1),
+                                         (int_val & 0x7ffffffffffffu64) << 1)
                             );
                         } else {
                             let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
@@ -1928,7 +1928,7 @@ impl<'a> InstructionSelection {
                                 self.backend.as_mut(),
                                 &tmp_res,
                                 (0x7ff0000000000002u64 | ((tag & 0x3eu64) << 46) |
-                                     ((tag & 0x1) << 2)),
+                                     ((tag & 0x1) << 2))
                             );
                         } else {
                             let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -2023,7 +2023,7 @@ impl<'a> InstructionSelection {
                         self.backend.emit_bfxil(&tmp_res, &tmp_op8, 2, 1);
                     }
 
-                    _ => unimplemented!(),
+                    _ => unimplemented!()
                 } // main switch
             }
 
@@ -2048,7 +2048,7 @@ impl<'a> InstructionSelection {
         op2: OpIndex,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         use std;
         let mut op1 = op1;
@@ -2792,7 +2792,7 @@ impl<'a> InstructionSelection {
                         Some(vec![res.clone()]),
                         Some(node),
                         f_context,
-                        vm,
+                        vm
                     );
 
                     let (res_l, res_h) = split_int128(&res, f_context, vm);
@@ -2824,7 +2824,7 @@ impl<'a> InstructionSelection {
                         Some(vec![res.clone()]),
                         Some(node),
                         f_context,
-                        vm,
+                        vm
                     );
 
                     let (res_l, res_h) = split_int128(&res, f_context, vm);
@@ -2859,7 +2859,7 @@ impl<'a> InstructionSelection {
                         Some(vec![res.clone()]),
                         Some(node),
                         f_context,
-                        vm,
+                        vm
                     );
 
                     let (res_l, res_h) = split_int128(&res, f_context, vm);
@@ -2892,7 +2892,7 @@ impl<'a> InstructionSelection {
                         Some(vec![res.clone()]),
                         Some(node),
                         f_context,
-                        vm,
+                        vm
                     );
 
                     let (res_l, res_h) = split_int128(&res, f_context, vm);
@@ -3205,7 +3205,7 @@ impl<'a> InstructionSelection {
                         Some(vec![res.clone()]),
                         Some(node),
                         f_context,
-                        vm,
+                        vm
                     );
                 } else {
                     self.emit_runtime_entry(
@@ -3214,7 +3214,7 @@ impl<'a> InstructionSelection {
                         Some(vec![res.clone()]),
                         Some(node),
                         f_context,
-                        vm,
+                        vm
                     );
                 }
             }
@@ -3306,7 +3306,7 @@ impl<'a> InstructionSelection {
         res_l: &P<Value>,
         res_h: &P<Value>,
         status_z: &P<Value>,
-        status_n: &P<Value>,
+        status_n: &P<Value>
     ) {
         if !is_zero_register(status_z) {
             let tmp = &cast_value(&status_z, &UINT64_TYPE);
@@ -3332,7 +3332,7 @@ impl<'a> InstructionSelection {
         align: usize,
         f_context: &mut FunctionContext,
         vm: &VM,
-        node: &TreeNode,
+        node: &TreeNode
     ) {
         let align = lcm(align, 16); // This is always going to be 16
 
@@ -3353,7 +3353,7 @@ impl<'a> InstructionSelection {
                     &dest,
                     get_type_alignment(&UINT128_TYPE, vm),
                     f_context,
-                    vm,
+                    vm
                 );
                 self.backend.emit_stp(&dest, &XZR, &XZR);
             }
@@ -3368,7 +3368,7 @@ impl<'a> InstructionSelection {
                     offset as i64,
                     &src,
                     f_context,
-                    vm,
+                    vm
                 );
             }
             self.backend.emit_mov(&res, &SP);
@@ -3381,7 +3381,7 @@ impl<'a> InstructionSelection {
                 None,
                 Some(node),
                 f_context,
-                vm,
+                vm
             );
             self.backend.emit_mov(&SP, &res);
         };
@@ -3393,7 +3393,7 @@ impl<'a> InstructionSelection {
         align: usize,
         node: &TreeNode,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         if size.is_int_const() {
             // size known at compile time, we can choose to emit alloc_small or large now
@@ -3426,14 +3426,14 @@ impl<'a> InstructionSelection {
                     self.backend.as_mut(),
                     &size_with_hdr,
                     &size,
-                    OBJECT_HEADER_SIZE as u64,
+                    OBJECT_HEADER_SIZE as u64
                 );
                 emit_cmp_u64(
                     self.backend.as_mut(),
                     &size_with_hdr,
                     f_context,
                     vm,
-                    mm::LARGE_OBJECT_THRESHOLD as u64,
+                    mm::LARGE_OBJECT_THRESHOLD as u64
                 );
             } else {
                 emit_cmp_u64(
@@ -3441,7 +3441,7 @@ impl<'a> InstructionSelection {
                     &size,
                     f_context,
                     vm,
-                    mm::LARGE_OBJECT_THRESHOLD as u64,
+                    mm::LARGE_OBJECT_THRESHOLD as u64
                 );
             }
             self.backend.emit_b_cond("GT", blk_alloc_large.clone());
@@ -3455,7 +3455,7 @@ impl<'a> InstructionSelection {
                 align,
                 node,
                 f_context,
-                vm,
+                vm
             );
             self.backend.emit_b(blk_alloc_large_end.clone());
 
@@ -3484,7 +3484,7 @@ impl<'a> InstructionSelection {
             self.backend.as_mut(),
             &tmp_allocator,
             &tmp_tl,
-            allocator_offset as u64,
+            allocator_offset as u64
         );
         tmp_allocator
     }
@@ -3496,7 +3496,7 @@ impl<'a> InstructionSelection {
         align: usize,
         node: &TreeNode,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         let tmp_res = self.get_result_value(node, 0);
 
@@ -3509,7 +3509,7 @@ impl<'a> InstructionSelection {
             Some(vec![tmp_res.clone()]),
             Some(node),
             f_context,
-            vm,
+            vm
         );
 
         tmp_res
@@ -3522,7 +3522,7 @@ impl<'a> InstructionSelection {
         align: usize,
         node: &TreeNode,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         if INLINE_FASTPATH {
             unimplemented!(); // (inline the generated code in alloc() in immix_mutator.rs??)
@@ -3538,7 +3538,7 @@ impl<'a> InstructionSelection {
                 Some(vec![tmp_res.clone()]),
                 Some(node),
                 f_context,
-                vm,
+                vm
             );
 
             tmp_res
@@ -3554,7 +3554,7 @@ impl<'a> InstructionSelection {
             None,
             None,
             f_context,
-            vm,
+            vm
         );
         rets.pop().unwrap()
     }
@@ -3570,7 +3570,7 @@ impl<'a> InstructionSelection {
         rets: Option<Vec<P<Value>>>,
         cur_node: Option<&TreeNode>,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> Vec<P<Value>> {
         let sig = entry.sig.clone();
 
@@ -3582,7 +3582,7 @@ impl<'a> InstructionSelection {
 
                 match entry_loc {
                     &ValueLocation::Relocatable(_, ref name) => name.clone(),
-                    _ => panic!("expecting a relocatable value"),
+                    _ => panic!("expecting a relocatable value")
                 }
             }
         };
@@ -3628,7 +3628,7 @@ impl<'a> InstructionSelection {
 
             Void => 0, // Don't need to return anything
             // Integral or pointer type
-            _ => 0, // can return in GPR
+            _ => 0 // can return in GPR
         }
     }
 
@@ -3659,7 +3659,7 @@ impl<'a> InstructionSelection {
             Void => panic!("Nothing to return"),
             // Integral or pointer type
             // can return in GPR (or two if its a 128-bit integer)
-            _ => get_alias_for_length(RETURN_GPRS[0].id(), get_bit_size(t, vm)),
+            _ => get_alias_for_length(RETURN_GPRS[0].id(), get_bit_size(t, vm))
 
         }
     }
@@ -3675,7 +3675,7 @@ impl<'a> InstructionSelection {
         arg_types: &Vec<P<MuType>>,
         stack: &P<Value>,
         offset: i64,
-        vm: &VM,
+        vm: &VM
     ) -> (Vec<bool>, Vec<P<Value>>, usize) {
         if arg_types.len() == 0 {
             // nothing to do
@@ -3699,7 +3699,7 @@ impl<'a> InstructionSelection {
                         Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true,
                         Vector(_, _)  => unimplemented!(),
                         _ => false
-                    },
+                    }
             );
         }
         // TODO: How does passing arguments by reference effect the stack size??
@@ -3709,7 +3709,7 @@ impl<'a> InstructionSelection {
             let t = if reference[i] {
                 P(MuType::new(
                     new_internal_id(),
-                    MuType_::IRef(arg_types[i].clone()),
+                    MuType_::IRef(arg_types[i].clone())
                 ))
             } else {
                 arg_types[i].clone()
@@ -3724,7 +3724,7 @@ impl<'a> InstructionSelection {
                     if nsrn < 8 {
                         locations.push(get_alias_for_length(
                             ARGUMENT_FPRS[nsrn].id(),
-                            get_bit_size(&t, vm),
+                            get_bit_size(&t, vm)
                         ));
                         nsrn += 1;
                     } else {
@@ -3733,7 +3733,7 @@ impl<'a> InstructionSelection {
                             &stack,
                             offset + (nsaa as i64),
                             &t,
-                            vm,
+                            vm
                         ));
                         nsaa += size;
                     }
@@ -3746,7 +3746,7 @@ impl<'a> InstructionSelection {
                             // (one for each element)
                             locations.push(get_alias_for_length(
                                 ARGUMENT_FPRS[nsrn].id(),
-                                get_bit_size(&t, vm) / hfa_n,
+                                get_bit_size(&t, vm) / hfa_n
                             ));
                             nsrn += hfa_n;
                         } else {
@@ -3755,7 +3755,7 @@ impl<'a> InstructionSelection {
                                 &stack,
                                 offset + (nsaa as i64),
                                 &t,
-                                vm,
+                                vm
                             ));
                             nsaa += size;
                         }
@@ -3782,7 +3782,7 @@ impl<'a> InstructionSelection {
                                 &stack,
                                 offset + (nsaa as i64) as i64,
                                 &t,
-                                vm,
+                                vm
                             ));
                             nsaa += size;
                         }
@@ -3797,7 +3797,7 @@ impl<'a> InstructionSelection {
                         if ngrn < 8 {
                             locations.push(get_alias_for_length(
                                 ARGUMENT_GPRS[ngrn].id(),
-                                get_bit_size(&t, vm),
+                                get_bit_size(&t, vm)
                             ));
                             ngrn += 1;
                         } else {
@@ -3806,7 +3806,7 @@ impl<'a> InstructionSelection {
                                 &stack,
                                 offset + (nsaa as i64) as i64,
                                 &t,
-                                vm,
+                                vm
                             ));
                             nsaa += size;
                         }
@@ -3824,7 +3824,7 @@ impl<'a> InstructionSelection {
                                 &stack,
                                 offset + (nsaa as i64) as i64,
                                 &t,
-                                vm,
+                                vm
                             ));
                             nsaa += 16;
                         }
@@ -3848,7 +3848,7 @@ impl<'a> InstructionSelection {
         arg_tys: &Vec<P<MuType>>,
         return_size: usize,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> (usize, Vec<P<Value>>) {
         // If we're tail calling, use the current frame's argument location instead
         let mut reg_args = Vec::<P<Value>>::new();
@@ -3910,14 +3910,14 @@ impl<'a> InstructionSelection {
                             &arg_loc,
                             &val_l,
                             f_context,
-                            vm,
+                            vm
                         );
                         emit_move_value_to_value(
                             self.backend.as_mut(),
                             &arg_loc_h,
                             &val_h,
                             f_context,
-                            vm,
+                            vm
                         );
                     } else {
                         if arg_loc.is_reg() {
@@ -3928,7 +3928,7 @@ impl<'a> InstructionSelection {
                             &arg_loc,
                             &arg_val,
                             f_context,
-                            vm,
+                            vm
                         )
                     }
                 }
@@ -3946,7 +3946,7 @@ impl<'a> InstructionSelection {
         arg_size: usize,
         ret_size: usize,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> Vec<P<Value>> {
         // deal with ret vals
         let mut return_vals = vec![];
@@ -3998,7 +3998,7 @@ impl<'a> InstructionSelection {
                     MuType_::Struct(_) | MuType_::Array(_, _) => unimplemented!(),
 
                     // Integral, pointer of floating point type
-                    _ => self.extract_bytes(&ret_val, &ret_loc, offset as i64, f_context, vm),
+                    _ => self.extract_bytes(&ret_val, &ret_loc, offset as i64, f_context, vm)
                 }
                 return_vals.push(ret_val);
             }
@@ -4020,7 +4020,7 @@ impl<'a> InstructionSelection {
         src: &P<Value>,
         offset: i64,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         if dest.is_mem() {
             let dest_loc = match dest.v {
@@ -4030,11 +4030,11 @@ impl<'a> InstructionSelection {
                         mem.clone(),
                         offset,
                         f_context,
-                        vm,
+                        vm
                     );
                     make_value_from_memory(mem, &dest.ty, vm)
                 }
-                _ => panic!("Wrong kind of memory value"),
+                _ => panic!("Wrong kind of memory value")
             };
             emit_move_value_to_value(self.backend.as_mut(), &dest_loc, &src, f_context, vm);
         } else if is_machine_reg(dest) {
@@ -4061,14 +4061,14 @@ impl<'a> InstructionSelection {
                             &dest_reg,
                             &src_l,
                             f_context,
-                            vm,
+                            vm
                         );
                         emit_move_value_to_value(
                             self.backend.as_mut(),
                             &dest_reg_h,
                             &src_h,
                             f_context,
-                            vm,
+                            vm
                         );
                     } else {
                         // This is not possible according the Aaarch64 PCS, since it would involve a
@@ -4099,7 +4099,7 @@ impl<'a> InstructionSelection {
                             &tmp_src,
                             &src,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
 
@@ -4137,7 +4137,7 @@ impl<'a> InstructionSelection {
         src: &P<Value>,
         offset: i64,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         if src.is_mem() {
             let src_loc = match src.v {
@@ -4148,11 +4148,11 @@ impl<'a> InstructionSelection {
                         mem.clone(),
                         offset,
                         f_context,
-                        vm,
+                        vm
                     );
                     make_value_from_memory(mem, &src.ty, vm)
                 }
-                _ => panic!("Wrong kind of memory value"),
+                _ => panic!("Wrong kind of memory value")
             };
             // TODO: what if 'dest is in more than 1 register
             emit_move_value_to_value(self.backend.as_mut(), &dest, &src_loc, f_context, vm);
@@ -4180,14 +4180,14 @@ impl<'a> InstructionSelection {
                             &dest_l,
                             &src_reg,
                             f_context,
-                            vm,
+                            vm
                         );
                         emit_move_value_to_value(
                             self.backend.as_mut(),
                             &dest_h,
                             &src_reg_h,
                             f_context,
-                            vm,
+                            vm
                         );
                     } else {
                         // This is not possible according the Aaarch64 PCS, since it would involve a
@@ -4230,7 +4230,7 @@ impl<'a> InstructionSelection {
                             &dest,
                             &tmp_dest,
                             f_context,
-                            vm,
+                            vm
                         );
                     }
                 }
@@ -4251,7 +4251,7 @@ impl<'a> InstructionSelection {
         rets: Option<Vec<P<Value>>>,
         cur_node: Option<&TreeNode>,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> Vec<P<Value>> {
         let return_type = self.combine_return_types(&sig.ret_tys, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
@@ -4294,7 +4294,7 @@ impl<'a> InstructionSelection {
             stack_arg_size,
             return_size,
             f_context,
-            vm,
+            vm
         )
     }
 
@@ -4307,7 +4307,7 @@ impl<'a> InstructionSelection {
         cur_node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         let ref ops = inst.ops;
 
@@ -4336,7 +4336,7 @@ impl<'a> InstructionSelection {
                 TreeNode_::Value(ref pv) => {
                     let sig = match pv.ty.v {
                         MuType_::UFuncPtr(ref sig) => sig.clone(),
-                        _ => panic!("expected ufuncptr type with ccall, found {}", pv),
+                        _ => panic!("expected ufuncptr type with ccall, found {}", pv)
                     };
 
                     let rets = inst.value.clone();
@@ -4351,7 +4351,7 @@ impl<'a> InstructionSelection {
                                 rets,              // Option<Vec<P<Value>>>,
                                 Some(cur_node),    // Option<&TreeNode>,
                                 f_context,         // &mut FunctionContext,
-                                vm,
+                                vm
                             );
                         }
                         _ => {
@@ -4363,7 +4363,7 @@ impl<'a> InstructionSelection {
                         }
                     }
                 }
-                _ => unimplemented!(),
+                _ => unimplemented!()
             }
         }
     }
@@ -4377,7 +4377,7 @@ impl<'a> InstructionSelection {
         cur_node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         trace!("deal with pre-call convention");
 
@@ -4388,10 +4388,10 @@ impl<'a> InstructionSelection {
                 let ty: &MuType = &pv.ty;
                 match ty.v {
                     MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => sig,
-                    _ => panic!("expected funcref/ptr type"),
+                    _ => panic!("expected funcref/ptr type")
                 }
             }
-            _ => panic!("expected funcref/ptr type"),
+            _ => panic!("expected funcref/ptr type")
         };
 
         debug_assert!(func_sig.arg_tys.len() == calldata.args.len());
@@ -4433,7 +4433,7 @@ impl<'a> InstructionSelection {
             &func_sig.arg_tys,
             return_size,
             f_context,
-            vm,
+            vm
         );
 
         // check if this call has exception clause - need to tell backend about this
@@ -4481,7 +4481,7 @@ impl<'a> InstructionSelection {
                             target.name(),
                             potentially_excepting,
                             arg_regs,
-                            false,
+                            false
                         )
                     }
                 } else {
@@ -4512,7 +4512,7 @@ impl<'a> InstructionSelection {
                 stack_arg_size,
                 return_size,
                 f_context,
-                vm,
+                vm
             );
         }
     }
@@ -4523,7 +4523,7 @@ impl<'a> InstructionSelection {
         dest: &Destination,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         for i in 0..dest.args.len() {
             let ref dest_arg = dest.args[i];
@@ -4556,7 +4556,7 @@ impl<'a> InstructionSelection {
 
                     self.emit_move_node_to_value(target_arg, &arg, f_content, f_context, vm);
                 }
-                &DestArg::Freshbound(_) => unimplemented!(),
+                &DestArg::Freshbound(_) => unimplemented!()
             }
         }
     }
@@ -4566,7 +4566,7 @@ impl<'a> InstructionSelection {
         args: &Vec<P<Value>>,
         sig: &P<CFuncSig>,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         let prologue_block = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
         self.start_block(prologue_block);
@@ -4610,7 +4610,7 @@ impl<'a> InstructionSelection {
                 &loc,
                 get_type_alignment(&reg.ty, vm),
                 f_context,
-                vm,
+                vm
             );
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
@@ -4627,7 +4627,7 @@ impl<'a> InstructionSelection {
                 &loc,
                 get_type_alignment(&reg.ty, vm),
                 f_context,
-                vm,
+                vm
             );
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
@@ -4728,7 +4728,7 @@ impl<'a> InstructionSelection {
                 &loc,
                 get_type_alignment(&reg.ty, vm),
                 f_context,
-                vm,
+                vm
             );
             self.backend.emit_ldr_callee_saved(reg, &loc);
         }
@@ -4747,7 +4747,7 @@ impl<'a> InstructionSelection {
                 &loc,
                 get_type_alignment(&reg.ty, vm),
                 f_context,
-                vm,
+                vm
             );
             self.backend.emit_ldr_callee_saved(reg, &loc);
         }
@@ -4764,10 +4764,10 @@ impl<'a> InstructionSelection {
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
                     Instruction_::CmpOp(_, _, _) => true,
-                    _ => false,
+                    _ => false
                 }
             }
-            TreeNode_::Value(_) => false,
+            TreeNode_::Value(_) => false
         }
     }
 
@@ -4777,7 +4777,7 @@ impl<'a> InstructionSelection {
         dest: Option<Box<P<Value>>>,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> op::CmpOp {
         match cond.v {
             TreeNode_::Instruction(ref inst) => {
@@ -4789,10 +4789,10 @@ impl<'a> InstructionSelection {
                         let op2 = &ops[op2];
                         self.emit_cmp_res_op(op, dest, op1, op2, f_content, f_context, vm)
                     }
-                    _ => panic!("expect cmp res to emit"),
+                    _ => panic!("expect cmp res to emit")
                 }
             }
-            _ => panic!("expect cmp res to emit"),
+            _ => panic!("expect cmp res to emit")
         }
     }
 
@@ -4811,10 +4811,10 @@ impl<'a> InstructionSelection {
                             false
                         }
                     }
-                    _ => panic!("expect cmp res to emit"),
+                    _ => panic!("expect cmp res to emit")
                 }
             }
-            _ => panic!("expect cmp res to emit"),
+            _ => panic!("expect cmp res to emit")
         }
     }
 
@@ -4827,7 +4827,7 @@ impl<'a> InstructionSelection {
         op2: &P<TreeNode>,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> op::CmpOp {
         let mut op1 = op1;
         let mut op2 = op2;
@@ -4990,7 +4990,7 @@ impl<'a> InstructionSelection {
 
                     op::CmpOp::FOGT => CmpOp::FOLT,
                     op::CmpOp::FOLT => CmpOp::FOGT,
-                    _ => op, // all Other floating point comparisons are reflexive
+                    _ => op // all Other floating point comparisons are reflexive
                 }
             } else {
                 op
@@ -5018,7 +5018,7 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            TreeNode_::Value(ref pv) => is_int_reg(&pv) || pv.is_int_const(),
+            TreeNode_::Value(ref pv) => is_int_reg(&pv) || pv.is_int_const()
         }
     }
 
@@ -5042,7 +5042,7 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            TreeNode_::Value(ref pv) => is_int_ex_reg(&pv) || pv.is_int_ex_const(),
+            TreeNode_::Value(ref pv) => is_int_ex_reg(&pv) || pv.is_int_ex_const()
         }
     }
 
@@ -5066,7 +5066,7 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            TreeNode_::Value(ref pv) => pv.is_reg() || pv.is_const(),
+            TreeNode_::Value(ref pv) => pv.is_reg() || pv.is_const()
         }
     }
 
@@ -5090,7 +5090,7 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            TreeNode_::Value(ref pv) => is_fp_reg(&pv) || pv.is_fp_const(),
+            TreeNode_::Value(ref pv) => is_fp_reg(&pv) || pv.is_fp_const()
         }
     }
 
@@ -5100,7 +5100,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
@@ -5108,7 +5108,7 @@ impl<'a> InstructionSelection {
 
                 self.get_result_value(op, 0)
             }
-            TreeNode_::Value(ref pv) => emit_reg_value(self.backend.as_mut(), pv, f_context, vm),
+            TreeNode_::Value(ref pv) => emit_reg_value(self.backend.as_mut(), pv, f_context, vm)
         }
     }
 
@@ -5117,7 +5117,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
@@ -5125,7 +5125,7 @@ impl<'a> InstructionSelection {
 
                 self.get_result_value(op, 0)
             }
-            TreeNode_::Value(ref pv) => emit_ireg_value(self.backend.as_mut(), pv, f_context, vm),
+            TreeNode_::Value(ref pv) => emit_ireg_value(self.backend.as_mut(), pv, f_context, vm)
         }
     }
 
@@ -5134,7 +5134,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> (P<Value>, P<Value>) {
         match op.v {
             TreeNode_::Instruction(_) => {
@@ -5156,14 +5156,14 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
                 self.instruction_select(op, f_content, f_context, vm);
                 self.get_result_value(op, 0)
             }
-            TreeNode_::Value(ref pv) => emit_fpreg_value(self.backend.as_mut(), pv, f_context, vm),
+            TreeNode_::Value(ref pv) => emit_fpreg_value(self.backend.as_mut(), pv, f_context, vm)
         }
     }
 
@@ -5173,7 +5173,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         match op.v {
             TreeNode_::Value(ref pv) => {
@@ -5185,8 +5185,8 @@ impl<'a> InstructionSelection {
                             base: pv.clone(),
                             offset: None,
                             shift: 0,
-                            signed: false,
-                        }),
+                            signed: false
+                        })
                     }),
                     Value_::Global(_) => {
                         if vm.is_doing_jit() {
@@ -5197,10 +5197,10 @@ impl<'a> InstructionSelection {
                         }
                     }
                     Value_::Memory(_) => pv.clone(),
-                    Value_::Constant(_) => unimplemented!(),
+                    Value_::Constant(_) => unimplemented!()
                 }
             }
-            TreeNode_::Instruction(_) => self.emit_get_mem_from_inst(op, f_content, f_context, vm),
+            TreeNode_::Instruction(_) => self.emit_get_mem_from_inst(op, f_content, f_context, vm)
         }
     }
 
@@ -5209,14 +5209,14 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         let mem = self.emit_get_mem_from_inst_inner(op, f_content, f_context, vm);
 
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: node_type(&op).clone(),
-            v: Value_::Memory(mem),
+            v: Value_::Memory(mem)
         })
     }
 
@@ -5225,7 +5225,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> MemoryLocation {
         match op.v {
             TreeNode_::Instruction(ref inst) => {
@@ -5263,7 +5263,7 @@ impl<'a> InstructionSelection {
                     Instruction_::GetVarPartIRef { base, .. } => {
                         let struct_ty = match ops[base].clone_value().ty.get_referent_ty() {
                             Some(ty) => ty,
-                            None => panic!("expecting an iref or uptr in GetVarPartIRef"),
+                            None => panic!("expecting an iref or uptr in GetVarPartIRef")
                         };
                         let fix_part_size = vm.get_backend_type_size(struct_ty.id());
                         self.emit_offset_ref(
@@ -5271,7 +5271,7 @@ impl<'a> InstructionSelection {
                             fix_part_size as i64,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         )
                     }
 
@@ -5285,7 +5285,7 @@ impl<'a> InstructionSelection {
                             element_size,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         )
                     }
                     // GETELEMIREF <T1 T2> opnd index = opnd + index*element_size(T1)
@@ -5300,7 +5300,7 @@ impl<'a> InstructionSelection {
                             element_size,
                             f_content,
                             f_context,
-                            vm,
+                            vm
                         )
                     }
                     Instruction_::ConvOp {
@@ -5313,13 +5313,13 @@ impl<'a> InstructionSelection {
                                 let temp = self.emit_ireg(ref_op, f_content, f_context, vm);
                                 make_memory_location_base_offset(&temp, 0, vm)
                             }
-                            _ => panic!("Not a memory conversion"),
+                            _ => panic!("Not a memory conversion")
                         }
                     }
-                    _ => panic!("Not a memory reference instruction"),
+                    _ => panic!("Not a memory reference instruction")
                 }
             }
-            _ => panic!("expecting a instruction that yields a memory address"),
+            _ => panic!("expecting a instruction that yields a memory address")
         }
     }
 
@@ -5330,7 +5330,7 @@ impl<'a> InstructionSelection {
         offset: i64,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> MemoryLocation {
         match base.v {
             TreeNode_::Instruction(Instruction {
@@ -5371,7 +5371,7 @@ impl<'a> InstructionSelection {
         element_size: usize,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> MemoryLocation {
         if match_node_int_imm(offset) {
             let offset = node_imm_to_u64(offset);
@@ -5439,7 +5439,7 @@ impl<'a> InstructionSelection {
                         &tmp_offset,
                         element_size as u64,
                         f_context,
-                        vm,
+                        vm
                     )
                 }
                 _ => {
@@ -5448,7 +5448,7 @@ impl<'a> InstructionSelection {
                         &tmp,
                         &tmp_offset,
                         element_size as u64,
-                        true,
+                        true
                     )
                 }
             }
@@ -5459,17 +5459,17 @@ impl<'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 let is_const = match pv.v {
                     Value_::Constant(_) => true,
-                    _ => false,
+                    _ => false
                 };
 
                 let is_func = match &pv.ty.v {
                     &MuType_::FuncRef(_) | &MuType_::UFuncPtr(_) => true,
-                    _ => false,
+                    _ => false
                 };
 
                 is_const && is_func
             }
-            _ => false,
+            _ => false
         }
     }
 
@@ -5478,10 +5478,10 @@ impl<'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::Constant(Constant::FuncRef(id)) => id,
-                    _ => panic!("expected a funcref const"),
+                    _ => panic!("expected a funcref const")
                 }
             }
-            _ => panic!("expected a funcref const"),
+            _ => panic!("expected a funcref const")
         }
     }
 
@@ -5492,13 +5492,13 @@ impl<'a> InstructionSelection {
                 match pv.v {
                     Value_::Memory(_) => true,
                     Value_::Global(_) => true,
-                    _ => false,
+                    _ => false
                 }
             }
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
                     Instruction_::Load { .. } => true,
-                    _ => false,
+                    _ => false
                 }
             }
         }
@@ -5531,7 +5531,7 @@ impl<'a> InstructionSelection {
         op: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) -> P<Value> {
         match op.v {
             TreeNode_::Instruction(_) => {
@@ -5539,7 +5539,7 @@ impl<'a> InstructionSelection {
 
                 self.get_result_value(op, 0)
             }
-            TreeNode_::Value(ref pv) => pv.clone(),
+            TreeNode_::Value(ref pv) => pv.clone()
         }
     }
 
@@ -5550,7 +5550,7 @@ impl<'a> InstructionSelection {
         src: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         let src = if match_node_value(src) {
             get_node_value(src)
@@ -5566,7 +5566,7 @@ impl<'a> InstructionSelection {
         &mut self,
         exception_arg: &P<Value>,
         f_context: &mut FunctionContext,
-        vm: &VM,
+        vm: &VM
     ) {
         // get thread local and add offset to get exception_obj
         let tl = self.emit_get_threadlocal(f_context, vm);
@@ -5576,7 +5576,7 @@ impl<'a> InstructionSelection {
             &tl,
             *thread::EXCEPTION_OBJ_OFFSET as i64,
             f_context,
-            vm,
+            vm
         );
     }
 
@@ -5584,7 +5584,7 @@ impl<'a> InstructionSelection {
         let ty_info = vm.get_backend_type_info(ty.id());
         let layout = match ty_info.struct_layout.as_ref() {
             Some(layout) => layout,
-            None => panic!("a struct type does not have a layout yet: {:?}", ty_info),
+            None => panic!("a struct type does not have a layout yet: {:?}", ty_info)
         };
         debug_assert!(layout.len() > index);
 
@@ -5597,7 +5597,7 @@ impl<'a> InstructionSelection {
                 make_block_name(
                     &self.current_fv_name,
                     cur_node.unwrap().id(),
-                    format!("callsite_{}", self.current_callsite_id).as_str(),
+                    format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {
                 format!(
@@ -5746,7 +5746,7 @@ impl CompilerPass for InstructionSelection {
 
             vm.add_exception_callsite(
                 Callsite::new(callsite.clone(), block_loc, stack_arg_size),
-                self.current_fv_id,
+                self.current_fv_id
             );
         }
 
@@ -5758,7 +5758,7 @@ impl CompilerPass for InstructionSelection {
             self.current_constants_locs.clone(),
             frame,
             self.current_func_start.take().unwrap(),
-            func_end,
+            func_end
         );
 
         vm.add_compiled_func(compiled_func);

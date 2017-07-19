@@ -98,7 +98,7 @@ pub struct MuStack {
 
     /// the Mmap that keeps this memory alive
     #[allow(dead_code)]
-    mmap: Option<memmap::Mmap>,
+    mmap: Option<memmap::Mmap>
 }
 
 impl MuStack {
@@ -110,7 +110,7 @@ impl MuStack {
             let total_size = PAGE_SIZE * 2 + STACK_SIZE;
             match memmap::Mmap::anonymous(total_size, memmap::Protection::ReadWrite) {
                 Ok(m) => m,
-                Err(_) => panic!("failed to mmap for a stack"),
+                Err(_) => panic!("failed to mmap for a stack")
             }
         };
 
@@ -128,12 +128,12 @@ impl MuStack {
             memsec::mprotect(
                 overflow_guard.to_ptr_mut::<u8>(),
                 PAGE_SIZE,
-                memsec::Prot::NoAccess,
+                memsec::Prot::NoAccess
             );
             memsec::mprotect(
                 underflow_guard.to_ptr_mut::<u8>(),
                 PAGE_SIZE,
-                memsec::Prot::NoAccess,
+                memsec::Prot::NoAccess
             );
         }
 
@@ -159,7 +159,7 @@ impl MuStack {
             bp: upper_bound,
             ip: unsafe { Address::zero() },
 
-            mmap: Some(anon_mmap),
+            mmap: Some(anon_mmap)
         }
     }
 
@@ -187,7 +187,7 @@ impl MuStack {
             match reg_group {
                 RegGroup::GPR => gpr_used.push(word),
                 RegGroup::FPR => fpr_used.push(word),
-                RegGroup::GPREX => unimplemented!(),
+                RegGroup::GPREX => unimplemented!()
             }
         }
 
@@ -273,7 +273,7 @@ pub enum MuStackState {
     /// running mu code
     Active,
     /// can be destroyed
-    Dead,
+    Dead
 }
 
 /// MuThread represents metadata for a Mu thread.
@@ -298,7 +298,7 @@ pub struct MuThread {
     /// exception object being thrown by the thread
     pub exception_obj: Address,
     /// a pointer to the virtual machine
-    pub vm: Arc<VM>,
+    pub vm: Arc<VM>
 }
 
 // a few field offsets the compiler uses
@@ -411,7 +411,7 @@ impl MuThread {
         mut stack: Box<MuStack>,
         threadlocal: Address,
         vals: Vec<ValueLocation>,
-        vm: Arc<VM>,
+        vm: Arc<VM>
     ) -> JoinHandle<()> {
         // set up arguments on stack
         stack.setup_args(vals);
@@ -425,7 +425,7 @@ impl MuThread {
         id: MuID,
         stack: Box<MuStack>,
         user_tls: Address,
-        vm: Arc<VM>,
+        vm: Arc<VM>
     ) -> JoinHandle<()> {
         let new_sp = stack.sp;
         let entry = runtime::resolve_symbol(vm.name_of(stack.func.as_ref().unwrap().1));
@@ -435,7 +435,7 @@ impl MuThread {
             .name(format!("Mu Thread #{}", id))
             .spawn(move || {
                 let muthread: *mut MuThread = Box::into_raw(Box::new(
-                    MuThread::new(id, mm::new_mutator(), stack, user_tls, vm),
+                    MuThread::new(id, mm::new_mutator(), stack, user_tls, vm)
                 ));
 
                 // set thread local
@@ -453,7 +453,7 @@ impl MuThread {
                 debug!("returned to Rust stack. Going to quit");
             }) {
             Ok(handle) => handle,
-            Err(_) => panic!("failed to create a thread"),
+            Err(_) => panic!("failed to create a thread")
         }
     }
 
@@ -463,7 +463,7 @@ impl MuThread {
         allocator: mm::Mutator,
         stack: Box<MuStack>,
         user_tls: Address,
-        vm: Arc<VM>,
+        vm: Arc<VM>
     ) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
@@ -472,7 +472,7 @@ impl MuThread {
             native_sp_loc: unsafe { Address::zero() },
             user_tls: user_tls,
             vm: vm,
-            exception_obj: unsafe { Address::zero() },
+            exception_obj: unsafe { Address::zero() }
         }
     }
 
@@ -538,7 +538,7 @@ impl MuThread {
             bp: Address::zero(),
             ip: Address::zero(),
             // we are not responsible for keeping the memory alive
-            mmap: None,
+            mmap: None
         });
 
         // fake a thread for current thread
@@ -552,7 +552,7 @@ impl MuThread {
             // valid thread local from user
             user_tls: threadlocal,
             vm: vm,
-            exception_obj: Address::zero(),
+            exception_obj: Address::zero()
         };
 
         // set thread local
@@ -589,7 +589,7 @@ pub struct PrimordialThreadInfo {
     /// does user supply some contant arguments to start the primordial thread?
     pub has_const_args: bool,
     /// arguments
-    pub args: Vec<Constant>,
+    pub args: Vec<Constant>
 }
 
 rodal_struct!(PrimordialThreadInfo {

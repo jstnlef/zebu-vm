@@ -71,7 +71,7 @@ fn test_exception_throw_catch_simple() {
     let executable = aot::link_primordial(
         vec![Mu("throw_exception"), Mu("catch_exception")],
         "throw_catch_simple_test",
-        &vm,
+        &vm
     );
     linkutils::exec_path(executable);
 }
@@ -247,7 +247,7 @@ fn test_exception_throw_catch_dont_use_exception_arg() {
     let executable = aot::link_primordial(
         vec![Mu("throw_exception"), Mu("catch_exception")],
         "throw_catch_simple_test",
-        &vm,
+        &vm
     );
     linkutils::exec_path(executable);
 }
@@ -304,7 +304,7 @@ fn test_exception_throw_catch_and_add() {
     let executable = aot::link_primordial(
         vec![Mu("throw_exception"), Mu("catch_and_add")],
         "throw_catch_and_add",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 
@@ -530,7 +530,7 @@ fn test_exception_throw_catch_twice() {
     let executable = aot::link_primordial(
         vec![Mu("throw_exception"), Mu("catch_twice")],
         "throw_catch_twice",
-        &vm,
+        &vm
     );
     let output = linkutils::exec_path_nocheck(executable);
 

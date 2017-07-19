@@ -30,7 +30,7 @@ use compiler::backend::reg_alloc::validate;
 use std::any::Any;
 
 pub struct RegisterAllocation {
-    name: &'static str,
+    name: &'static str
 }
 
 impl CompilerPass for RegisterAllocation {
@@ -50,7 +50,7 @@ impl CompilerPass for RegisterAllocation {
 impl RegisterAllocation {
     pub fn new() -> RegisterAllocation {
         RegisterAllocation {
-            name: "Register Allocation",
+            name: "Register Allocation"
         }
     }
 

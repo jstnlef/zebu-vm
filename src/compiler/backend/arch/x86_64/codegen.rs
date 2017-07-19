@@ -226,19 +226,19 @@ pub trait CodeGenerator {
         callsite: String,
         func: MuName,
         pe: Option<MuName>,
-        is_native: bool,
+        is_native: bool
     ) -> ValueLocation;
     fn emit_call_near_r64(
         &mut self,
         callsite: String,
         func: &P<Value>,
-        pe: Option<MuName>,
+        pe: Option<MuName>
     ) -> ValueLocation;
     fn emit_call_near_mem64(
         &mut self,
         callsite: String,
         func: &P<Value>,
-        pe: Option<MuName>,
+        pe: Option<MuName>
     ) -> ValueLocation;
 
     fn emit_ret(&mut self);
