@@ -629,6 +629,10 @@ impl MachineCode for ASMCode {
         }
     }
 
+    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: usize) {
+        unimplemented!()
+    }
+
     fn set_inst_nop(&mut self, index: usize) {
         self.code[index].code.clear();
         //        self.code.remove(index);
