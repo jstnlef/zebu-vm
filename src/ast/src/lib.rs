@@ -15,6 +15,7 @@
 //! # MuIR AST crate
 //!
 //! This crate provides data structures to allow construct MuIR in Rust code, including:
+//!
 //! * types
 //! * ir
 //!   * MuFunction

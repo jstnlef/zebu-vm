@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Zebu micro virtual machine
+
 extern crate libc;
 #[macro_use]
 extern crate lazy_static;

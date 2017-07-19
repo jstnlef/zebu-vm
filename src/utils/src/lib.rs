@@ -15,6 +15,7 @@
 //! # Utility crate that serves Zebu
 //!
 //! It includes:
+//!
 //! * data structures
 //!   * double linked list
 //!   * linked hashmap/set
