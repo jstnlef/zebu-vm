@@ -39,7 +39,6 @@ use vm::VM;
 /// | spilled
 /// |---------------
 /// | alloca area (not implemented)
-
 #[derive(Clone)]
 pub struct Frame {
     /// function version for this frame
@@ -57,7 +56,14 @@ pub struct Frame {
     pub callee_saved: HashMap<isize, ByteOffset>,
 }
 
-rodal_struct!(Frame{func_ver_id, cur_offset, argument_by_reg, argument_by_stack, allocated, callee_saved});
+rodal_struct!(Frame {
+    func_ver_id,
+    cur_offset,
+    argument_by_reg,
+    argument_by_stack,
+    allocated,
+    callee_saved,
+});
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -187,7 +193,7 @@ pub struct FrameSlot {
     pub value: P<Value>,
 }
 
-rodal_struct!(FrameSlot{offset, value});
+rodal_struct!(FrameSlot { offset, value });
 
 impl fmt::Display for FrameSlot {
     #[cfg(target_arch = "x86_64")]
@@ -207,17 +213,15 @@ impl FrameSlot {
     pub fn make_memory_op(&self, ty: P<MuType>, vm: &VM) -> P<Value> {
         use compiler::backend::x86_64;
 
-        P(Value{
+        P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: ty.clone(),
-            v: Value_::Memory(
-                MemoryLocation::Address{
-                    base: x86_64::RBP.clone(),
-                    offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
-                    index: None,
-                    scale: None
-                }
-            )
+            v: Value_::Memory(MemoryLocation::Address {
+                base: x86_64::RBP.clone(),
+                offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
+                index: None,
+                scale: None,
+            }),
         })
     }
     /// generates a memory operand for this frame slot
@@ -225,17 +229,15 @@ impl FrameSlot {
     pub fn make_memory_op(&self, ty: P<MuType>, vm: &VM) -> P<Value> {
         use compiler::backend::aarch64;
 
-        P(Value{
+        P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: ty.clone(),
-            v: Value_::Memory(
-                MemoryLocation::VirtualAddress{
-                    base: aarch64::FP.clone(),
-                    offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
-                    scale: 1,
-                    signed: true
-                }
-            )
+            v: Value_::Memory(MemoryLocation::VirtualAddress {
+                base: aarch64::FP.clone(),
+                offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
+                scale: 1,
+                signed: true,
+            }),
         })
     }
 }

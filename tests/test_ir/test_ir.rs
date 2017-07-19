@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -186,7 +186,8 @@ pub fn factorial() -> VM {
     ssa!        ((vm, fac_v1) <int64> blk_1_v51);
     consta!     ((vm, fac_v1) const_funcref_fac_local = const_funcref_fac);
     inst!       ((vm, fac_v1) blk_1_call:
-        blk_1_v51 = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_fac_local (blk_1_v50)
+        blk_1_v51 =
+            EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_fac_local (blk_1_v50)
     );
 
     //   %v52 = MUL <@int_64> %n_3 %v51
@@ -242,17 +243,17 @@ pub fn global_access(vm: &VM) {
     funcsig!    ((vm) global_access_sig = () -> ());
     funcdecl!   ((vm) <global_access_sig> global_access);
     funcdef!    ((vm) <global_access_sig> global_access VERSION global_access_v1);
-    
+
     // %blk_0():
     block!      ((vm, global_access_v1) blk_0);
-    
+
     // STORE <@int_64> @a @int_64_1
     global!     ((vm, global_access_v1) blk_0_a = a);
     consta!     ((vm, global_access_v1) int64_1_local = int64_1);
     inst!       ((vm, global_access_v1) blk_0_store:
         STORE blk_0_a int64_1_local (is_ptr: false, order: MemoryOrder::Relaxed)
     );
-        
+
     // %x = LOAD <@int_64> @a
     ssa!        ((vm, global_access_v1) <int64> blk_0_x);
     inst!       ((vm, global_access_v1) blk_0_load:

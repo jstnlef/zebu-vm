@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,25 +32,33 @@ use std::sync::RwLock;
 #[test]
 fn test_thread_create() {
     VM::start_logging_trace();
-    
+
     let vm = Arc::new(primordial_main());
-    
+
     let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-    
-    let func_id = vm.id_of("primordial_main");    
+
+    let func_id = vm.id_of("primordial_main");
     {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-        
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
+
         compiler.compile(&mut func_ver);
     }
-    
+
     vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
-    
-    let executable = aot::link_primordial(vec!["primordial_main".to_string()], "primordial_main_test", &vm);
+
+    let executable = aot::link_primordial(
+        vec!["primordial_main".to_string()],
+        "primordial_main_test",
+        &vm,
+    );
     linkutils::exec_path(executable);
 }
 
@@ -60,7 +68,7 @@ fn primordial_main() -> VM {
     funcsig!    ((vm) sig = () -> ());
     funcdecl!   ((vm) <sig> primordial_main);
     funcdef!    ((vm) <sig> primordial_main VERSION primordial_main_v1);
-    
+
     block!      ((vm, primordial_main_v1) blk_entry);
     inst!       ((vm, primordial_main_v1) blk_entry_threadexit:
         THREADEXIT
@@ -73,7 +81,7 @@ fn primordial_main() -> VM {
     define_func_ver!((vm) primordial_main_v1(entry: blk_entry) {
         blk_entry
     });
-    
+
     vm
 }
 
@@ -81,15 +89,18 @@ fn primordial_main() -> VM {
 fn test_main_with_retval() {
     let vm = Arc::new(main_with_retval());
 
-    let func_id     = vm.id_of("main_with_retval");
+    let func_id = vm.id_of("main_with_retval");
     let func_handle = vm.handle_from_func(func_id);
     vm.make_boot_image(
         vec![func_id],
-        Some(&func_handle), None,
+        Some(&func_handle),
         None,
-        vec![], vec![],
-        vec![], vec![],
-        "test_main_with_retval".to_string()
+        None,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        "test_main_with_retval".to_string(),
     );
 
     // run

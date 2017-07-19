@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,12 +22,14 @@ use utils::LinkedHashSet;
 use std::any::Any;
 
 pub struct ControlFlowAnalysis {
-    name: &'static str
+    name: &'static str,
 }
 
 impl ControlFlowAnalysis {
     pub fn new() -> ControlFlowAnalysis {
-        ControlFlowAnalysis{name: "Control Flow Analysis"}
+        ControlFlowAnalysis {
+            name: "Control Flow Analysis",
+        }
     }
 }
 
@@ -42,11 +44,16 @@ impl CompilerPass for ControlFlowAnalysis {
 
     #[allow(unused_variables)]
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
-        let mut stack   : Vec<MuID> = vec![];
-        let mut visited : Vec<MuID> = vec![];
+        let mut stack: Vec<MuID> = vec![];
+        let mut visited: Vec<MuID> = vec![];
 
         // depth-first search
-        dfs(func.content.as_ref().unwrap().entry, &mut stack, &mut visited, func);
+        dfs(
+            func.content.as_ref().unwrap().entry,
+            &mut stack,
+            &mut visited,
+            func,
+        );
     }
 
     #[allow(unused_variables)]
@@ -63,7 +70,11 @@ impl CompilerPass for ControlFlowAnalysis {
                     }
                 }
             }
-            func.content.as_mut().unwrap().exception_blocks.add_all(exception_blocks);
+            func.content
+                .as_mut()
+                .unwrap()
+                .exception_blocks
+                .add_all(exception_blocks);
         }
 
         debug!("check control flow for {}", func);
@@ -84,7 +95,13 @@ fn check_edge_kind(target: MuID, stack: &Vec<MuID>) -> EdgeKind {
 }
 
 /// creates info for a new edge (set predecessor, successors, and recursively do dfs
-fn new_edge(cur: MuID, edge: BlockEdge, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuFunctionVersion) {
+fn new_edge(
+    cur: MuID,
+    edge: BlockEdge,
+    stack: &mut Vec<MuID>,
+    visited: &mut Vec<MuID>,
+    func: &mut MuFunctionVersion,
+) {
     // add current block to target's predecessors
     {
         let target = func.content.as_mut().unwrap().get_block_mut(edge.target);
@@ -105,9 +122,9 @@ fn new_edge(cur: MuID, edge: BlockEdge, stack: &mut Vec<MuID>, visited: &mut Vec
 }
 
 // some random number for edge probability
-const WATCHPOINT_DISABLED_CHANCE : f32 = 0.9f32;
-const NORMAL_RESUME_CHANCE       : f32 = 0.6f32;
-const EXN_RESUME_CHANCE          : f32 = 1f32 - NORMAL_RESUME_CHANCE;
+const WATCHPOINT_DISABLED_CHANCE: f32 = 0.9f32;
+const NORMAL_RESUME_CHANCE: f32 = 0.6f32;
+const EXN_RESUME_CHANCE: f32 = 1f32 - NORMAL_RESUME_CHANCE;
 
 /// depth first traversal
 fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuFunctionVersion) {
@@ -119,7 +136,7 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
     visited.push(cur);
 
     // find all the successors for current block, and push them to the stack
-    let out_edges : Vec<BlockEdge> = {
+    let out_edges: Vec<BlockEdge> = {
         let cur = func.content.as_mut().unwrap().get_block_mut(cur);
         let ref body = cur.content.as_ref().unwrap().body;
         let last_inst = body.last().unwrap();
@@ -128,48 +145,68 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
             TreeNode_::Instruction(ref inst) => {
                 match inst.v {
                     // unconditional branch, definitely branch to the target
-                    Branch1(ref dest) => vec![BlockEdge{
-                        target: dest.target,
-                        kind: check_edge_kind(dest.target, stack),
-                        is_exception: false,
-                        probability: 1.0f32
-                    }],
+                    Branch1(ref dest) => {
+                        vec![
+                            BlockEdge {
+                                target: dest.target,
+                                kind: check_edge_kind(dest.target, stack),
+                                is_exception: false,
+                                probability: 1.0f32,
+                            },
+                        ]
+                    }
 
                     // conditional branch
-                    Branch2{ref true_dest, ref false_dest, true_prob, ..} => vec![
-                        BlockEdge{
-                            target: true_dest.target,
-                            kind: check_edge_kind(true_dest.target, stack),
-                            is_exception: false,
-                            probability: true_prob
-                        },
-                        BlockEdge{
-                            target: false_dest.target,
-                            kind: check_edge_kind(false_dest.target, stack),
-                            is_exception: false,
-                            probability: 1.0f32 - true_prob
-                        }
-                    ],
+                    Branch2 {
+                        ref true_dest,
+                        ref false_dest,
+                        true_prob,
+                        ..
+                    } => {
+                        vec![
+                            BlockEdge {
+                                target: true_dest.target,
+                                kind: check_edge_kind(true_dest.target, stack),
+                                is_exception: false,
+                                probability: true_prob,
+                            },
+                            BlockEdge {
+                                target: false_dest.target,
+                                kind: check_edge_kind(false_dest.target, stack),
+                                is_exception: false,
+                                probability: 1.0f32 - true_prob,
+                            },
+                        ]
+                    }
 
                     // switch
-                    Switch{ref default, ref branches, ..} => {
-                        const BRANCH_DEFAULT_PROB : f32 = 0.1;
+                    Switch {
+                        ref default,
+                        ref branches,
+                        ..
+                    } => {
+                        const BRANCH_DEFAULT_PROB: f32 = 0.1;
                         let switch_prob = (1.0f32 - BRANCH_DEFAULT_PROB) / (branches.len() as f32);
 
-                        let map : LinkedHashMap<MuID, BlockEdge> = {
+                        let map: LinkedHashMap<MuID, BlockEdge> = {
                             let mut ret = LinkedHashMap::new();
 
-                            let check_add_edge = |map: &mut LinkedHashMap<MuID, BlockEdge>, target: MuID, prob: f32| {
+                            let check_add_edge = |map: &mut LinkedHashMap<MuID, BlockEdge>,
+                                                  target: MuID,
+                                                  prob: f32| {
                                 if map.contains_key(&target) {
                                     let mut edge : &mut BlockEdge = map.get_mut(&target).unwrap();
                                     edge.probability += prob;
                                 } else {
-                                    map.insert(target, BlockEdge{
-                                        target: target,
-                                        kind: check_edge_kind(target, stack),
-                                        is_exception: false,
-                                        probability: prob
-                                    });
+                                    map.insert(
+                                        target,
+                                        BlockEdge {
+                                            target: target,
+                                            kind: check_edge_kind(target, stack),
+                                            is_exception: false,
+                                            probability: prob,
+                                        },
+                                    );
                                 }
                             };
 
@@ -191,96 +228,110 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                     }
 
                     // watchpoints
-                    Watchpoint{ref id, ref disable_dest, ref resume} => {
+                    Watchpoint {
+                        ref id,
+                        ref disable_dest,
+                        ref resume,
+                    } => {
                         let ref normal = resume.normal_dest;
-                        let ref exn    = resume.exn_dest;
+                        let ref exn = resume.exn_dest;
 
                         if id.is_none() {
                             // unconditional trap
                             vec![
-                                BlockEdge{
+                                BlockEdge {
                                     target: normal.target,
                                     kind: check_edge_kind(normal.target, stack),
                                     is_exception: false,
-                                    probability: 1.0f32 * NORMAL_RESUME_CHANCE
+                                    probability: 1.0f32 * NORMAL_RESUME_CHANCE,
                                 },
-                                BlockEdge{
+                                BlockEdge {
                                     target: exn.target,
                                     kind: check_edge_kind(exn.target, stack),
                                     is_exception: true,
-                                    probability: 1.0f32 * EXN_RESUME_CHANCE
-                                }
+                                    probability: 1.0f32 * EXN_RESUME_CHANCE,
+                                },
                             ]
                         } else {
                             // watchpoint. jump to disable_dest when disabled. otherwise trap
                             vec![
-                                BlockEdge{
+                                BlockEdge {
                                     target: disable_dest.as_ref().unwrap().target,
-                                    kind: check_edge_kind(disable_dest.as_ref().unwrap().target, stack),
+                                    kind: check_edge_kind(
+                                        disable_dest.as_ref().unwrap().target,
+                                        stack,
+                                    ),
                                     is_exception: false,
-                                    probability: WATCHPOINT_DISABLED_CHANCE
+                                    probability: WATCHPOINT_DISABLED_CHANCE,
                                 },
-                                BlockEdge{
+                                BlockEdge {
                                     target: normal.target,
                                     kind: check_edge_kind(normal.target, stack),
                                     is_exception: false,
-                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE) * NORMAL_RESUME_CHANCE
+                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE) *
+                                        NORMAL_RESUME_CHANCE,
                                 },
-                                BlockEdge{
+                                BlockEdge {
                                     target: exn.target,
                                     kind: check_edge_kind(exn.target, stack),
                                     is_exception: true,
-                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE) * EXN_RESUME_CHANCE
-                                }
+                                    probability: (1.0f32 - WATCHPOINT_DISABLED_CHANCE) *
+                                        EXN_RESUME_CHANCE,
+                                },
                             ]
                         }
-                    },
+                    }
 
                     // wpbranch
-                    WPBranch{ref disable_dest, ref enable_dest, ..} => vec![
-                        BlockEdge{
-                            target: disable_dest.target,
-                            kind: check_edge_kind(disable_dest.target, stack),
-                            is_exception: false,
-                            probability: WATCHPOINT_DISABLED_CHANCE
-                        },
-                        BlockEdge{
-                            target: enable_dest.target,
-                            kind: check_edge_kind(enable_dest.target, stack),
-                            is_exception: false,
-                            probability: 1.0f32 - WATCHPOINT_DISABLED_CHANCE
-                        }
-                    ],
+                    WPBranch {
+                        ref disable_dest,
+                        ref enable_dest,
+                        ..
+                    } => {
+                        vec![
+                            BlockEdge {
+                                target: disable_dest.target,
+                                kind: check_edge_kind(disable_dest.target, stack),
+                                is_exception: false,
+                                probability: WATCHPOINT_DISABLED_CHANCE,
+                            },
+                            BlockEdge {
+                                target: enable_dest.target,
+                                kind: check_edge_kind(enable_dest.target, stack),
+                                is_exception: false,
+                                probability: 1.0f32 - WATCHPOINT_DISABLED_CHANCE,
+                            },
+                        ]
+                    }
 
                     // call
-                    Call{ref resume, ..}
-                    | CCall{ref resume, ..}
-                    | SwapStack{ref resume, ..}
-                    | ExnInstruction{ref resume, ..} => {
+                    Call { ref resume, .. } |
+                    CCall { ref resume, .. } |
+                    SwapStack { ref resume, .. } |
+                    ExnInstruction { ref resume, .. } => {
                         let ref normal = resume.normal_dest;
-                        let ref exn    = resume.exn_dest;
+                        let ref exn = resume.exn_dest;
 
                         vec![
-                                BlockEdge{
-                                    target: normal.target,
-                                    kind: check_edge_kind(normal.target, stack),
-                                    is_exception: false,
-                                    probability: 1.0f32 * NORMAL_RESUME_CHANCE
-                                },
-                                BlockEdge{
-                                    target: exn.target,
-                                    kind: check_edge_kind(exn.target, stack),
-                                    is_exception: true,
-                                    probability: 1.0f32 * EXN_RESUME_CHANCE
-                                }
-
+                            BlockEdge {
+                                target: normal.target,
+                                kind: check_edge_kind(normal.target, stack),
+                                is_exception: false,
+                                probability: 1.0f32 * NORMAL_RESUME_CHANCE,
+                            },
+                            BlockEdge {
+                                target: exn.target,
+                                kind: check_edge_kind(exn.target, stack),
+                                is_exception: true,
+                                probability: 1.0f32 * EXN_RESUME_CHANCE,
+                            },
                         ]
-                    },
+                    }
 
-                    _ => vec![]
+                    _ => vec![],
                 }
-            },
-            _ => panic!("expected an instruction")
+            }
+            _ => panic!("expected an instruction"),
         }
     };
 

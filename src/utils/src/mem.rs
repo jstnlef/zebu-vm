@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,7 +18,7 @@ pub extern crate memmap;
 pub extern crate memsec;
 
 use Word;
-#[allow(unused_imports)]    // import both endianness (we may not use big endian though)
+#[allow(unused_imports)] // import both endianness (we may not use big endian though)
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 
 /// returns bit representations for u64
@@ -52,15 +52,15 @@ pub fn as_word(mut u8_array: Vec<u8>) -> Word {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
     use Word;
-    
+
     #[test]
     fn test_primitive_to_raw() {
-        let a : Word = 0xabcd;
+        let a: Word = 0xabcd;
         let raw = u64_to_raw(a as u64);
-        
+
         assert_eq!(raw, a);
     }
 }

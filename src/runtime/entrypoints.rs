@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,7 +27,7 @@ pub type EntryFuncSig = MuFuncSig;
 pub struct RuntimeEntrypoint {
     pub sig: P<MuFuncSig>,
     pub aot: ValueLocation,
-    pub jit: RwLock<Option<ValueLocation>>
+    pub jit: RwLock<Option<ValueLocation>>,
 }
 
 lazy_static! {
@@ -54,7 +54,7 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_set_retval")),
         jit: RwLock::new(None)
     };
-    
+
     // impl: runtime_asm_ARCH_OS.s
     // decl: thread.rs
     pub static ref SWAP_BACK_TO_NATIVE_STACK : RuntimeEntrypoint = RuntimeEntrypoint {
@@ -63,7 +63,8 @@ lazy_static! {
             ret_tys: vec![],
             arg_tys: vec![ADDRESS_TYPE.clone()]
         }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_swap_back_to_native_stack")),
+        aot: ValueLocation::Relocatable(RegGroup::GPR,
+                                        String::from("muentry_swap_back_to_native_stack")),
         jit: RwLock::new(None),
     };
 
@@ -77,7 +78,7 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_alloc_fast")),
         jit: RwLock::new(None)
     };
-    
+
     // impl/decl: gc/lib.rs
     pub static ref ALLOC_SLOW : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig {
@@ -116,7 +117,8 @@ lazy_static! {
         sig: P(MuFuncSig {
             hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
             ret_tys: vec![],
-            arg_tys: vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()]
+            arg_tys: vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(),
+                          UINT64_TYPE.clone(), UINT64_TYPE.clone()]
         }),
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_init_hybrid")),
         jit: RwLock::new(None)
@@ -143,13 +145,13 @@ lazy_static! {
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_unpin_object")),
         jit: RwLock::new(None)
     };
-    
+
     // impl/decl: exception.rs
     pub static ref THROW_EXCEPTION : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig {
             hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
             ret_tys: vec![],
-            arg_tys: vec![ADDRESS_TYPE.clone()]        
+            arg_tys: vec![ADDRESS_TYPE.clone()]
         }),
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_throw_exception")),
         jit: RwLock::new(None),

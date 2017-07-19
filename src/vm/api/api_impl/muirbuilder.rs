@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -66,12 +66,12 @@ impl MuIRBuilder {
     #[inline(always)]
     fn get_mvm<'a, 'b>(&'a mut self) -> &'b MuVM {
         //self.mvm
-        unsafe { & *self.mvm }
+        unsafe { &*self.mvm }
     }
 
     #[inline(always)]
     fn get_mvm_immutable<'a, 'b>(&'a self) -> &'b MuVM {
-        unsafe { & *self.mvm }
+        unsafe { &*self.mvm }
     }
 
     #[inline(always)]
@@ -87,7 +87,11 @@ impl MuIRBuilder {
     fn deallocate(&mut self) {
         let c_struct = self.c_struct;
         let b_ptr = self as *mut MuIRBuilder;
-        debug!("Deallocating MuIRBuilder {:?} and CMuIRBuilder {:?}...", b_ptr, c_struct);
+        debug!(
+            "Deallocating MuIRBuilder {:?} and CMuIRBuilder {:?}...",
+            b_ptr,
+            c_struct
+        );
         unsafe {
             Box::from_raw(c_struct);
             Box::from_raw(b_ptr);
@@ -117,151 +121,248 @@ impl MuIRBuilder {
         trace!("gen_sym({:?}) -> {}", name, my_id);
 
         match name {
-            None => {},
+            None => {}
             Some(the_name) => {
                 let old = self.id_name_map.insert(my_id, the_name);
-                debug_assert!(old.is_none(), "ID already exists: {}, new name: {}, old name: {}",
-                my_id, self.id_name_map.get(&my_id).unwrap(), old.unwrap());
-            },
+                debug_assert!(
+                    old.is_none(),
+                    "ID already exists: {}, new name: {}, old name: {}",
+                    my_id,
+                    self.id_name_map.get(&my_id).unwrap(),
+                    old.unwrap()
+                );
+            }
         };
 
         my_id
     }
 
     pub fn new_type_int(&mut self, id: MuID, len: c_int) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeInt { id: id, len: len }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeInt { id: id, len: len }));
     }
 
     pub fn new_type_float(&mut self, id: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeFloat { id: id }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeFloat { id: id }));
     }
 
     pub fn new_type_double(&mut self, id: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeDouble { id: id }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeDouble { id: id }));
     }
 
     pub fn new_type_uptr(&mut self, id: MuID, ty: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeUPtr{ id: id,
-            ty: ty }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeUPtr { id: id, ty: ty }));
     }
 
     pub fn new_type_ufuncptr(&mut self, id: MuID, sig: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeUFuncPtr{ id: id,
-            sig: sig }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeUFuncPtr { id: id, sig: sig }));
     }
 
     pub fn new_type_struct(&mut self, id: MuID, fieldtys: Vec<MuID>) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeStruct { id: id,
-            fieldtys: fieldtys }));
+        self.bundle.types.insert(
+            id,
+            Box::new(NodeType::TypeStruct {
+                id: id,
+                fieldtys: fieldtys,
+            }),
+        );
     }
 
     pub fn new_type_hybrid(&mut self, id: MuID, fixedtys: Vec<MuID>, varty: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeHybrid { id: id,
-            fixedtys: fixedtys, varty: varty }));
+        self.bundle.types.insert(
+            id,
+            Box::new(NodeType::TypeHybrid {
+                id: id,
+                fixedtys: fixedtys,
+                varty: varty,
+            }),
+        );
     }
 
     pub fn new_type_array(&mut self, id: MuID, elemty: MuID, len: u64) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeArray { id: id,
-            elemty: elemty, len: len as usize }));
+        self.bundle.types.insert(
+            id,
+            Box::new(NodeType::TypeArray {
+                id: id,
+                elemty: elemty,
+                len: len as usize,
+            }),
+        );
     }
 
     pub fn new_type_vector(&mut self, id: MuID, elemty: MuID, len: u64) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeVector { id: id,
-            elemty: elemty, len: len as usize }));
+        self.bundle.types.insert(
+            id,
+            Box::new(NodeType::TypeVector {
+                id: id,
+                elemty: elemty,
+                len: len as usize,
+            }),
+        );
     }
 
     pub fn new_type_void(&mut self, id: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeVoid { id: id }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeVoid { id: id }));
     }
 
     pub fn new_type_ref(&mut self, id: MuID, ty: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeRef{ id: id,
-            ty: ty }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeRef { id: id, ty: ty }));
     }
 
     pub fn new_type_iref(&mut self, id: MuID, ty: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeIRef{ id: id,
-            ty: ty }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeIRef { id: id, ty: ty }));
     }
 
     pub fn new_type_weakref(&mut self, id: MuID, ty: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeWeakRef{ id: id,
-            ty: ty }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeWeakRef { id: id, ty: ty }));
     }
 
     pub fn new_type_funcref(&mut self, id: MuID, sig: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeFuncRef{ id: id,
-            sig: sig }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeFuncRef { id: id, sig: sig }));
     }
 
     pub fn new_type_tagref64(&mut self, id: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeTagRef64 { id: id }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeTagRef64 { id: id }));
     }
 
     pub fn new_type_threadref(&mut self, id: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeThreadRef { id: id }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeThreadRef { id: id }));
     }
 
     pub fn new_type_stackref(&mut self, id: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeStackRef { id: id }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeStackRef { id: id }));
     }
 
     pub fn new_type_framecursorref(&mut self, id: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeFrameCursorRef { id: id }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeFrameCursorRef { id: id }));
     }
 
     pub fn new_type_irbuilderref(&mut self, id: MuID) {
-        self.bundle.types.insert(id, Box::new(NodeType::TypeIRBuilderRef { id: id }));
+        self.bundle
+            .types
+            .insert(id, Box::new(NodeType::TypeIRBuilderRef { id: id }));
     }
 
     pub fn new_funcsig(&mut self, id: MuID, paramtys: Vec<MuID>, rettys: Vec<MuID>) {
-        self.bundle.sigs.insert(id, Box::new(NodeFuncSig { id: id,
-            paramtys: paramtys, rettys: rettys }));
+        self.bundle.sigs.insert(
+            id,
+            Box::new(NodeFuncSig {
+                id: id,
+                paramtys: paramtys,
+                rettys: rettys,
+            }),
+        );
     }
 
     pub fn new_const_int(&mut self, id: MuID, ty: MuID, value: u64) {
-        self.bundle.consts.insert(id, Box::new(NodeConst::ConstInt { id: id,
-            ty: ty, value: value }));
+        self.bundle.consts.insert(
+            id,
+            Box::new(NodeConst::ConstInt {
+                id: id,
+                ty: ty,
+                value: value,
+            }),
+        );
     }
 
     pub fn new_const_int_ex(&mut self, id: MuID, ty: MuID, values: &[u64]) {
-        self.bundle.consts.insert(id, Box::new(NodeConst::ConstIntEx {id: id,
-            ty: ty, value: values.to_vec()}));
+        self.bundle.consts.insert(
+            id,
+            Box::new(NodeConst::ConstIntEx {
+                id: id,
+                ty: ty,
+                value: values.to_vec(),
+            }),
+        );
     }
 
     pub fn new_const_float(&mut self, id: MuID, ty: MuID, value: f32) {
-        self.bundle.consts.insert(id, Box::new(NodeConst::ConstFloat { id: id,
-            ty: ty, value: value }));
+        self.bundle.consts.insert(
+            id,
+            Box::new(NodeConst::ConstFloat {
+                id: id,
+                ty: ty,
+                value: value,
+            }),
+        );
     }
 
     pub fn new_const_double(&mut self, id: MuID, ty: MuID, value: f64) {
-        self.bundle.consts.insert(id, Box::new(NodeConst::ConstDouble { id: id,
-            ty: ty, value: value }));
+        self.bundle.consts.insert(
+            id,
+            Box::new(NodeConst::ConstDouble {
+                id: id,
+                ty: ty,
+                value: value,
+            }),
+        );
     }
 
     pub fn new_const_null(&mut self, id: MuID, ty: MuID) {
-        self.bundle.consts.insert(id, Box::new(NodeConst::ConstNull { id: id,
-            ty: ty }));
+        self.bundle
+            .consts
+            .insert(id, Box::new(NodeConst::ConstNull { id: id, ty: ty }));
     }
 
     pub fn new_const_seq(&mut self, id: MuID, ty: MuID, elems: Vec<MuID>) {
-        self.bundle.consts.insert(id, Box::new(NodeConst::ConstSeq { id: id,
-            ty: ty, elems: elems }));
+        self.bundle.consts.insert(
+            id,
+            Box::new(NodeConst::ConstSeq {
+                id: id,
+                ty: ty,
+                elems: elems,
+            }),
+        );
     }
 
     pub fn new_const_extern(&mut self, id: MuID, ty: MuID, symbol: String) {
-        self.bundle.consts.insert(id, Box::new(NodeConst::ConstExtern { id: id,
-            ty: ty, symbol: symbol }));
+        self.bundle.consts.insert(
+            id,
+            Box::new(NodeConst::ConstExtern {
+                id: id,
+                ty: ty,
+                symbol: symbol,
+            }),
+        );
     }
 
     pub fn new_global_cell(&mut self, id: MuID, ty: MuID) {
-        self.bundle.globals.insert(id, Box::new(NodeGlobalCell { id: id,
-            ty: ty }));
+        self.bundle
+            .globals
+            .insert(id, Box::new(NodeGlobalCell { id: id, ty: ty }));
     }
 
     pub fn new_func(&mut self, id: MuID, sig: MuID) {
-        self.bundle.funcs.insert(id, Box::new(NodeFunc { id: id,
-            sig: sig }));
+        self.bundle
+            .funcs
+            .insert(id, Box::new(NodeFunc { id: id, sig: sig }));
     }
 
     pub fn new_exp_func(&mut self, id: MuID, func: MuID, callconv: CMuCallConv, cookie: MuID) {
@@ -269,29 +370,62 @@ impl MuIRBuilder {
     }
 
     pub fn new_func_ver(&mut self, id: MuID, func: MuID, bbs: Vec<MuID>) {
-        self.bundle.funcvers.insert(id, Box::new(NodeFuncVer { id: id,
-            func: func, bbs: bbs }));
+        self.bundle.funcvers.insert(
+            id,
+            Box::new(NodeFuncVer {
+                id: id,
+                func: func,
+                bbs: bbs,
+            }),
+        );
     }
 
-    pub fn new_bb(&mut self, id: MuID, nor_param_ids: Vec<MuID>, nor_param_types: Vec<MuID>, exc_param_id: Option<MuID>, insts: Vec<MuID>) {
-        self.bundle.bbs.insert(id, Box::new(NodeBB { id: id,
-            nor_param_ids: nor_param_ids, nor_param_types: nor_param_types,
-            exc_param_id: exc_param_id, insts: insts }));
+    pub fn new_bb(
+        &mut self,
+        id: MuID,
+        nor_param_ids: Vec<MuID>,
+        nor_param_types: Vec<MuID>,
+        exc_param_id: Option<MuID>,
+        insts: Vec<MuID>,
+    ) {
+        self.bundle.bbs.insert(
+            id,
+            Box::new(NodeBB {
+                id: id,
+                nor_param_ids: nor_param_ids,
+                nor_param_types: nor_param_types,
+                exc_param_id: exc_param_id,
+                insts: insts,
+            }),
+        );
     }
 
     pub fn new_dest_clause(&mut self, id: MuID, dest: MuID, vars: Vec<MuID>) {
-        self.bundle.dest_clauses.insert(id, Box::new(NodeDestClause { id: id,
-            dest: dest, vars: vars }));
+        self.bundle.dest_clauses.insert(
+            id,
+            Box::new(NodeDestClause {
+                id: id,
+                dest: dest,
+                vars: vars,
+            }),
+        );
     }
 
     pub fn new_exc_clause(&mut self, id: MuID, nor: MuID, exc: MuID) {
-        self.bundle.exc_clauses.insert(id, Box::new(NodeExcClause { id: id,
-            nor: nor, exc: exc }));
+        self.bundle.exc_clauses.insert(
+            id,
+            Box::new(NodeExcClause {
+                id: id,
+                nor: nor,
+                exc: exc,
+            }),
+        );
     }
 
     pub fn new_keepalive_clause(&mut self, id: MuID, vars: Vec<MuID>) {
-        self.bundle.ka_clauses.insert(id, Box::new(NodeKeepaliveClause { id: id,
-            vars: vars }));
+        self.bundle
+            .ka_clauses
+            .insert(id, Box::new(NodeKeepaliveClause { id: id, vars: vars }));
     }
 
     pub fn new_csc_ret_with(&mut self, id: MuID, rettys: Vec<MuID>) {
@@ -315,245 +449,770 @@ impl MuIRBuilder {
         self.bundle.insts.insert(id, Box::new(inst));
     }
 
-    pub fn new_binop(&mut self, id: MuID, result_id: MuID, optr: CMuBinOptr, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeBinOp {
-            id: id, result_id: result_id, status_result_ids: vec![],
-            optr: optr, flags: 0, ty: ty, opnd1: opnd1, opnd2: opnd2,
-            exc_clause: exc_clause
-        });
+    pub fn new_binop(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        optr: CMuBinOptr,
+        ty: MuID,
+        opnd1: MuID,
+        opnd2: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeBinOp {
+                id: id,
+                result_id: result_id,
+                status_result_ids: vec![],
+                optr: optr,
+                flags: 0,
+                ty: ty,
+                opnd1: opnd1,
+                opnd2: opnd2,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
-    pub fn new_binop_with_status(&mut self, id: MuID, result_id: MuID, status_result_ids: Vec<MuID>, optr: CMuBinOptr, status_flags: CMuBinOpStatus, ty: MuID, opnd1: MuID, opnd2: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeBinOp {
-            id: id, result_id: result_id, status_result_ids: status_result_ids,
-            optr: optr, flags: status_flags, ty: ty, opnd1: opnd1, opnd2: opnd2,
-            exc_clause: exc_clause
-        })
+    pub fn new_binop_with_status(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        status_result_ids: Vec<MuID>,
+        optr: CMuBinOptr,
+        status_flags: CMuBinOpStatus,
+        ty: MuID,
+        opnd1: MuID,
+        opnd2: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeBinOp {
+                id: id,
+                result_id: result_id,
+                status_result_ids: status_result_ids,
+                optr: optr,
+                flags: status_flags,
+                ty: ty,
+                opnd1: opnd1,
+                opnd2: opnd2,
+                exc_clause: exc_clause,
+            },
+        )
     }
 
-    pub fn new_cmp(&mut self, id: MuID, result_id: MuID, optr: CMuCmpOptr, ty: MuID, opnd1: MuID, opnd2: MuID) {
-        self.add_inst(id, NodeInst::NodeCmp {
-            id: id, result_id: result_id,
-            optr: optr, ty: ty, opnd1: opnd1, opnd2: opnd2
-        });
+    pub fn new_cmp(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        optr: CMuCmpOptr,
+        ty: MuID,
+        opnd1: MuID,
+        opnd2: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeCmp {
+                id: id,
+                result_id: result_id,
+                optr: optr,
+                ty: ty,
+                opnd1: opnd1,
+                opnd2: opnd2,
+            },
+        );
     }
 
-    pub fn new_conv(&mut self, id: MuID, result_id: MuID, optr: CMuConvOptr, from_ty: MuID, to_ty: MuID, opnd: MuID) {
-        self.add_inst(id, NodeInst::NodeConv {
-            id: id, result_id: result_id,
-            optr: optr, from_ty: from_ty, to_ty: to_ty, opnd: opnd
-        });
+    pub fn new_conv(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        optr: CMuConvOptr,
+        from_ty: MuID,
+        to_ty: MuID,
+        opnd: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeConv {
+                id: id,
+                result_id: result_id,
+                optr: optr,
+                from_ty: from_ty,
+                to_ty: to_ty,
+                opnd: opnd,
+            },
+        );
     }
 
-    pub fn new_select(&mut self, id: MuID, result_id: MuID, cond_ty: MuID, opnd_ty: MuID, cond: MuID, if_true: MuID, if_false: MuID) {
-        self.add_inst(id, NodeInst::NodeSelect {
-            id: id, result_id: result_id,
-            cond_ty: cond_ty, opnd_ty: opnd_ty, cond: cond,
-            if_true: if_true, if_false: if_false
-        });
+    pub fn new_select(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        cond_ty: MuID,
+        opnd_ty: MuID,
+        cond: MuID,
+        if_true: MuID,
+        if_false: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeSelect {
+                id: id,
+                result_id: result_id,
+                cond_ty: cond_ty,
+                opnd_ty: opnd_ty,
+                cond: cond,
+                if_true: if_true,
+                if_false: if_false,
+            },
+        );
     }
 
     pub fn new_branch(&mut self, id: MuID, dest: MuID) {
-        self.add_inst(id, NodeInst::NodeBranch {
-            id: id, dest: dest
-        });
+        self.add_inst(id, NodeInst::NodeBranch { id: id, dest: dest });
     }
 
     pub fn new_branch2(&mut self, id: MuID, cond: MuID, if_true: MuID, if_false: MuID) {
-        self.add_inst(id, NodeInst::NodeBranch2 {
-            id: id, cond: cond, if_true: if_true, if_false: if_false
-        });
+        self.add_inst(
+            id,
+            NodeInst::NodeBranch2 {
+                id: id,
+                cond: cond,
+                if_true: if_true,
+                if_false: if_false,
+            },
+        );
     }
 
-    pub fn new_switch(&mut self, id: MuID, opnd_ty: MuID, opnd: MuID, default_dest: MuID, cases: Vec<MuID>, dests: Vec<MuID>) {
-        self.add_inst(id, NodeInst::NodeSwitch {
-            id: id, opnd_ty: opnd_ty, opnd: opnd, default_dest: default_dest,
-            cases: cases, dests: dests
-        });
+    pub fn new_switch(
+        &mut self,
+        id: MuID,
+        opnd_ty: MuID,
+        opnd: MuID,
+        default_dest: MuID,
+        cases: Vec<MuID>,
+        dests: Vec<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeSwitch {
+                id: id,
+                opnd_ty: opnd_ty,
+                opnd: opnd,
+                default_dest: default_dest,
+                cases: cases,
+                dests: dests,
+            },
+        );
     }
 
-    pub fn new_call(&mut self, id: MuID, result_ids: Vec<MuID>, sig: MuID, callee: MuID, args: Vec<MuID>, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeCall {
-            id: id, result_ids: result_ids,
-            sig: sig, callee: callee, args: args,
-            exc_clause: exc_clause, keepalive_clause: keepalive_clause
-        });
+    pub fn new_call(
+        &mut self,
+        id: MuID,
+        result_ids: Vec<MuID>,
+        sig: MuID,
+        callee: MuID,
+        args: Vec<MuID>,
+        exc_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeCall {
+                id: id,
+                result_ids: result_ids,
+                sig: sig,
+                callee: callee,
+                args: args,
+                exc_clause: exc_clause,
+                keepalive_clause: keepalive_clause,
+            },
+        );
     }
 
     pub fn new_tailcall(&mut self, id: MuID, sig: MuID, callee: MuID, args: Vec<MuID>) {
-        self.add_inst(id, NodeInst::NodeTailCall {
-            id: id, sig: sig, callee: callee, args: args
-        });
+        self.add_inst(
+            id,
+            NodeInst::NodeTailCall {
+                id: id,
+                sig: sig,
+                callee: callee,
+                args: args,
+            },
+        );
     }
 
     pub fn new_ret(&mut self, id: MuID, rvs: Vec<MuID>) {
-        self.add_inst(id, NodeInst::NodeRet {
-            id: id, rvs: rvs
-        });
+        self.add_inst(id, NodeInst::NodeRet { id: id, rvs: rvs });
     }
 
     pub fn new_throw(&mut self, id: MuID, exc: MuID) {
-        self.add_inst(id, NodeInst::NodeThrow {
-            id: id, exc: exc
-        });
+        self.add_inst(id, NodeInst::NodeThrow { id: id, exc: exc });
     }
 
-    pub fn new_extractvalue(&mut self, id: MuID, result_id: MuID, strty: MuID, index: c_int, opnd: MuID) {
-        self.add_inst(id, NodeInst::NodeExtractValue {
-            id: id, result_id: result_id, strty: strty, index: index, opnd: opnd
-        });
+    pub fn new_extractvalue(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        strty: MuID,
+        index: c_int,
+        opnd: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeExtractValue {
+                id: id,
+                result_id: result_id,
+                strty: strty,
+                index: index,
+                opnd: opnd,
+            },
+        );
     }
 
-    pub fn new_insertvalue(&mut self, id: MuID, result_id: MuID, strty: MuID, index: c_int, opnd: MuID, newval: MuID) {
-        self.add_inst(id, NodeInst::NodeInsertValue {
-            id: id, result_id: result_id, strty: strty, index: index, opnd: opnd, newval: newval
-        });
+    pub fn new_insertvalue(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        strty: MuID,
+        index: c_int,
+        opnd: MuID,
+        newval: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeInsertValue {
+                id: id,
+                result_id: result_id,
+                strty: strty,
+                index: index,
+                opnd: opnd,
+                newval: newval,
+            },
+        );
     }
 
-    pub fn new_extractelement(&mut self, id: MuID, result_id: MuID, seqty: MuID, indty: MuID, opnd: MuID, index: MuID) {
-        self.add_inst(id, NodeInst::NodeExtractElement {
-            id: id, result_id: result_id, seqty: seqty, indty: indty, opnd: opnd, index: index
-        });
+    pub fn new_extractelement(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        seqty: MuID,
+        indty: MuID,
+        opnd: MuID,
+        index: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeExtractElement {
+                id: id,
+                result_id: result_id,
+                seqty: seqty,
+                indty: indty,
+                opnd: opnd,
+                index: index,
+            },
+        );
     }
 
-    pub fn new_insertelement(&mut self, id: MuID, result_id: MuID, seqty: MuID, indty: MuID, opnd: MuID, index: MuID, newval: MuID) {
-        self.add_inst(id, NodeInst::NodeInsertElement {
-            id: id, result_id: result_id, seqty: seqty, indty: indty, opnd: opnd, index: index, newval: newval
-        });
+    pub fn new_insertelement(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        seqty: MuID,
+        indty: MuID,
+        opnd: MuID,
+        index: MuID,
+        newval: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeInsertElement {
+                id: id,
+                result_id: result_id,
+                seqty: seqty,
+                indty: indty,
+                opnd: opnd,
+                index: index,
+                newval: newval,
+            },
+        );
     }
 
-    pub fn new_shufflevector(&mut self, id: MuID, result_id: MuID, vecty: MuID, maskty: MuID, vec1: MuID, vec2: MuID, mask: MuID) {
-        self.add_inst(id, NodeInst::NodeShuffleVector {
-            id: id, result_id: result_id, vecty: vecty, maskty: maskty, vec1: vec1, vec2: vec2, mask: mask
-        });
+    pub fn new_shufflevector(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        vecty: MuID,
+        maskty: MuID,
+        vec1: MuID,
+        vec2: MuID,
+        mask: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeShuffleVector {
+                id: id,
+                result_id: result_id,
+                vecty: vecty,
+                maskty: maskty,
+                vec1: vec1,
+                vec2: vec2,
+                mask: mask,
+            },
+        );
     }
 
     pub fn new_new(&mut self, id: MuID, result_id: MuID, allocty: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeNew {
-            id: id, result_id: result_id, allocty: allocty, exc_clause: exc_clause
-        });
+        self.add_inst(
+            id,
+            NodeInst::NodeNew {
+                id: id,
+                result_id: result_id,
+                allocty: allocty,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
-    pub fn new_newhybrid(&mut self, id: MuID, result_id: MuID, allocty: MuID, lenty: MuID, length: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeNewHybrid {
-            id: id, result_id: result_id, allocty: allocty, lenty: lenty, length: length, exc_clause: exc_clause
-        });
+    pub fn new_newhybrid(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        allocty: MuID,
+        lenty: MuID,
+        length: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeNewHybrid {
+                id: id,
+                result_id: result_id,
+                allocty: allocty,
+                lenty: lenty,
+                length: length,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
-    pub fn new_alloca(&mut self, id: MuID, result_id: MuID, allocty: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeAlloca {
-            id: id, result_id: result_id, allocty: allocty, exc_clause: exc_clause
-        });
+    pub fn new_alloca(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        allocty: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeAlloca {
+                id: id,
+                result_id: result_id,
+                allocty: allocty,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
-    pub fn new_allocahybrid(&mut self, id: MuID, result_id: MuID, allocty: MuID, lenty: MuID, length: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeAllocaHybrid {
-            id: id, result_id: result_id, allocty: allocty, lenty: lenty, length: length, exc_clause: exc_clause
-        });
+    pub fn new_allocahybrid(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        allocty: MuID,
+        lenty: MuID,
+        length: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeAllocaHybrid {
+                id: id,
+                result_id: result_id,
+                allocty: allocty,
+                lenty: lenty,
+                length: length,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
     pub fn new_getiref(&mut self, id: MuID, result_id: MuID, refty: MuID, opnd: MuID) {
-        self.add_inst(id, NodeInst::NodeGetIRef {
-            id: id, result_id: result_id, refty: refty, opnd: opnd
-        });
+        self.add_inst(
+            id,
+            NodeInst::NodeGetIRef {
+                id: id,
+                result_id: result_id,
+                refty: refty,
+                opnd: opnd,
+            },
+        );
     }
 
-    pub fn new_getfieldiref(&mut self, id: MuID, result_id: MuID, is_ptr: bool, refty: MuID, index: c_int, opnd: MuID) {
-        self.add_inst(id, NodeInst::NodeGetFieldIRef {
-            id: id, result_id: result_id, is_ptr: is_ptr, refty: refty, index: index, opnd: opnd
-        });
+    pub fn new_getfieldiref(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        is_ptr: bool,
+        refty: MuID,
+        index: c_int,
+        opnd: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeGetFieldIRef {
+                id: id,
+                result_id: result_id,
+                is_ptr: is_ptr,
+                refty: refty,
+                index: index,
+                opnd: opnd,
+            },
+        );
     }
 
-    pub fn new_getelemiref(&mut self, id: MuID, result_id: MuID, is_ptr: bool, refty: MuID, indty: MuID, opnd: MuID, index: MuID) {
-        self.add_inst(id, NodeInst::NodeGetElemIRef {
-            id: id, result_id: result_id, is_ptr: is_ptr, refty: refty, indty: indty, opnd: opnd, index: index
-        });
+    pub fn new_getelemiref(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        is_ptr: bool,
+        refty: MuID,
+        indty: MuID,
+        opnd: MuID,
+        index: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeGetElemIRef {
+                id: id,
+                result_id: result_id,
+                is_ptr: is_ptr,
+                refty: refty,
+                indty: indty,
+                opnd: opnd,
+                index: index,
+            },
+        );
     }
 
-    pub fn new_shiftiref(&mut self, id: MuID, result_id: MuID, is_ptr: bool, refty: MuID, offty: MuID, opnd: MuID, offset: MuID) {
-        self.add_inst(id, NodeInst::NodeShiftIRef {
-            id: id, result_id: result_id, is_ptr: is_ptr, refty: refty, offty: offty, opnd: opnd, offset: offset
-        });
+    pub fn new_shiftiref(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        is_ptr: bool,
+        refty: MuID,
+        offty: MuID,
+        opnd: MuID,
+        offset: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeShiftIRef {
+                id: id,
+                result_id: result_id,
+                is_ptr: is_ptr,
+                refty: refty,
+                offty: offty,
+                opnd: opnd,
+                offset: offset,
+            },
+        );
     }
 
-    pub fn new_getvarpartiref(&mut self, id: MuID, result_id: MuID, is_ptr: bool, refty: MuID, opnd: MuID) {
-        self.add_inst(id, NodeInst::NodeGetVarPartIRef {
-            id: id, result_id: result_id, is_ptr: is_ptr, refty: refty, opnd: opnd
-        });
+    pub fn new_getvarpartiref(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        is_ptr: bool,
+        refty: MuID,
+        opnd: MuID,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeGetVarPartIRef {
+                id: id,
+                result_id: result_id,
+                is_ptr: is_ptr,
+                refty: refty,
+                opnd: opnd,
+            },
+        );
     }
 
-    pub fn new_load(&mut self, id: MuID, result_id: MuID, is_ptr: bool, ord: CMuMemOrd, refty: MuID, loc: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeLoad {
-            id: id, result_id: result_id, is_ptr: is_ptr, ord: ord, refty: refty, loc: loc, exc_clause: exc_clause
-        });
+    pub fn new_load(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        is_ptr: bool,
+        ord: CMuMemOrd,
+        refty: MuID,
+        loc: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeLoad {
+                id: id,
+                result_id: result_id,
+                is_ptr: is_ptr,
+                ord: ord,
+                refty: refty,
+                loc: loc,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
-    pub fn new_store(&mut self, id: MuID, is_ptr: bool, ord: CMuMemOrd, refty: MuID, loc: MuID, newval: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeStore {
-            id: id, is_ptr: is_ptr, ord: ord, refty: refty, loc: loc, newval: newval, exc_clause: exc_clause
-        });
+    pub fn new_store(
+        &mut self,
+        id: MuID,
+        is_ptr: bool,
+        ord: CMuMemOrd,
+        refty: MuID,
+        loc: MuID,
+        newval: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeStore {
+                id: id,
+                is_ptr: is_ptr,
+                ord: ord,
+                refty: refty,
+                loc: loc,
+                newval: newval,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
-    pub fn new_cmpxchg(&mut self, id: MuID, value_result_id: MuID, succ_result_id: MuID, is_ptr: bool, is_weak: bool, ord_succ: CMuMemOrd, ord_fail: CMuMemOrd, refty: MuID, loc: MuID, expected: MuID, desired: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeCmpXchg {
-            id: id, value_result_id: value_result_id, succ_result_id: succ_result_id, is_ptr: is_ptr, is_weak: is_weak, ord_succ: ord_succ, ord_fail: ord_fail, refty: refty, loc: loc, expected: expected, desired: desired, exc_clause: exc_clause
-        });
+    pub fn new_cmpxchg(
+        &mut self,
+        id: MuID,
+        value_result_id: MuID,
+        succ_result_id: MuID,
+        is_ptr: bool,
+        is_weak: bool,
+        ord_succ: CMuMemOrd,
+        ord_fail: CMuMemOrd,
+        refty: MuID,
+        loc: MuID,
+        expected: MuID,
+        desired: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeCmpXchg {
+                id: id,
+                value_result_id: value_result_id,
+                succ_result_id: succ_result_id,
+                is_ptr: is_ptr,
+                is_weak: is_weak,
+                ord_succ: ord_succ,
+                ord_fail: ord_fail,
+                refty: refty,
+                loc: loc,
+                expected: expected,
+                desired: desired,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
-    pub fn new_atomicrmw(&mut self, id: MuID, result_id: MuID, is_ptr: bool, ord: CMuMemOrd, optr: CMuAtomicRMWOptr, ref_ty: MuID, loc: MuID, opnd: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeAtomicRMW {
-            id: id, result_id: result_id, is_ptr: is_ptr, ord: ord, optr: optr, ref_ty: ref_ty, loc: loc, opnd: opnd, exc_clause: exc_clause
-        });
+    pub fn new_atomicrmw(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        is_ptr: bool,
+        ord: CMuMemOrd,
+        optr: CMuAtomicRMWOptr,
+        ref_ty: MuID,
+        loc: MuID,
+        opnd: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeAtomicRMW {
+                id: id,
+                result_id: result_id,
+                is_ptr: is_ptr,
+                ord: ord,
+                optr: optr,
+                ref_ty: ref_ty,
+                loc: loc,
+                opnd: opnd,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
     pub fn new_fence(&mut self, id: MuID, ord: CMuMemOrd) {
-        self.add_inst(id, NodeInst::NodeFence {
-            id: id, ord: ord,
-        });
+        self.add_inst(id, NodeInst::NodeFence { id: id, ord: ord });
     }
 
-    pub fn new_trap(&mut self, id: MuID, result_ids: Vec<MuID>, rettys: Vec<MuID>, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeTrap {
-            id: id, result_ids: result_ids, rettys: rettys, exc_clause: exc_clause, keepalive_clause: keepalive_clause
-        });
+    pub fn new_trap(
+        &mut self,
+        id: MuID,
+        result_ids: Vec<MuID>,
+        rettys: Vec<MuID>,
+        exc_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeTrap {
+                id: id,
+                result_ids: result_ids,
+                rettys: rettys,
+                exc_clause: exc_clause,
+                keepalive_clause: keepalive_clause,
+            },
+        );
     }
 
-    pub fn new_watchpoint(&mut self, id: MuID, wpid: CMuWPID, result_ids: Vec<MuID>, rettys: Vec<MuID>, dis: MuID, ena: MuID, exc: Option<MuID>, keepalive_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeWatchPoint {
-            id: id, wpid: wpid as MuID, result_ids: result_ids, rettys: rettys, dis: dis, ena: ena, exc: exc, keepalive_clause: keepalive_clause
-        });
+    pub fn new_watchpoint(
+        &mut self,
+        id: MuID,
+        wpid: CMuWPID,
+        result_ids: Vec<MuID>,
+        rettys: Vec<MuID>,
+        dis: MuID,
+        ena: MuID,
+        exc: Option<MuID>,
+        keepalive_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeWatchPoint {
+                id: id,
+                wpid: wpid as MuID,
+                result_ids: result_ids,
+                rettys: rettys,
+                dis: dis,
+                ena: ena,
+                exc: exc,
+                keepalive_clause: keepalive_clause,
+            },
+        );
     }
 
     pub fn new_wpbranch(&mut self, id: MuID, wpid: CMuWPID, dis: MuID, ena: MuID) {
-        self.add_inst(id, NodeInst::NodeWPBranch {
-            id: id, wpid: wpid as MuID, dis: dis, ena: ena
-        });
+        self.add_inst(
+            id,
+            NodeInst::NodeWPBranch {
+                id: id,
+                wpid: wpid as MuID,
+                dis: dis,
+                ena: ena,
+            },
+        );
     }
 
-    pub fn new_ccall(&mut self, id: MuID, result_ids: Vec<MuID>, callconv: CMuCallConv, callee_ty: MuID, sig: MuID, callee: MuID, args: Vec<MuID>, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeCCall {
-            id: id, result_ids: result_ids, callconv: callconv, callee_ty: callee_ty, sig: sig, callee: callee, args: args, exc_clause: exc_clause, keepalive_clause: keepalive_clause
-        });
+    pub fn new_ccall(
+        &mut self,
+        id: MuID,
+        result_ids: Vec<MuID>,
+        callconv: CMuCallConv,
+        callee_ty: MuID,
+        sig: MuID,
+        callee: MuID,
+        args: Vec<MuID>,
+        exc_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeCCall {
+                id: id,
+                result_ids: result_ids,
+                callconv: callconv,
+                callee_ty: callee_ty,
+                sig: sig,
+                callee: callee,
+                args: args,
+                exc_clause: exc_clause,
+                keepalive_clause: keepalive_clause,
+            },
+        );
     }
 
-    pub fn new_newthread(&mut self, id: MuID, result_id: MuID, stack: MuID, threadlocal: Option<MuID>, new_stack_clause: MuID, exc_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeNewThread {
-            id: id, result_id: result_id, stack: stack, threadlocal: threadlocal, new_stack_clause: new_stack_clause, exc_clause: exc_clause
-        });
+    pub fn new_newthread(
+        &mut self,
+        id: MuID,
+        result_id: MuID,
+        stack: MuID,
+        threadlocal: Option<MuID>,
+        new_stack_clause: MuID,
+        exc_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeNewThread {
+                id: id,
+                result_id: result_id,
+                stack: stack,
+                threadlocal: threadlocal,
+                new_stack_clause: new_stack_clause,
+                exc_clause: exc_clause,
+            },
+        );
     }
 
-    pub fn new_swapstack(&mut self, id: MuID, result_ids: Vec<MuID>, swappee: MuID, cur_stack_clause: MuID, new_stack_clause: MuID, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeSwapStack {
-            id: id, result_ids: result_ids, swappee: swappee, cur_stack_clause: cur_stack_clause, new_stack_clause: new_stack_clause, exc_clause: exc_clause, keepalive_clause: keepalive_clause
-        });
+    pub fn new_swapstack(
+        &mut self,
+        id: MuID,
+        result_ids: Vec<MuID>,
+        swappee: MuID,
+        cur_stack_clause: MuID,
+        new_stack_clause: MuID,
+        exc_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeSwapStack {
+                id: id,
+                result_ids: result_ids,
+                swappee: swappee,
+                cur_stack_clause: cur_stack_clause,
+                new_stack_clause: new_stack_clause,
+                exc_clause: exc_clause,
+                keepalive_clause: keepalive_clause,
+            },
+        );
     }
 
-    pub fn new_comminst(&mut self, id: MuID, result_ids: Vec<MuID>, opcode: CMuCommInst, flags: &[CMuFlag], tys: Vec<MuID>, sigs: Vec<MuID>, args: Vec<MuID>, exc_clause: Option<MuID>, keepalive_clause: Option<MuID>) {
-        self.add_inst(id, NodeInst::NodeCommInst {
-            id: id, result_ids: result_ids,
-            opcode: opcode, flags: vec![], tys: tys, sigs: sigs, args: args,
-            exc_clause: exc_clause, keepalive_clause: keepalive_clause
-        });
+    pub fn new_comminst(
+        &mut self,
+        id: MuID,
+        result_ids: Vec<MuID>,
+        opcode: CMuCommInst,
+        flags: &[CMuFlag],
+        tys: Vec<MuID>,
+        sigs: Vec<MuID>,
+        args: Vec<MuID>,
+        exc_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>,
+    ) {
+        self.add_inst(
+            id,
+            NodeInst::NodeCommInst {
+                id: id,
+                result_ids: result_ids,
+                opcode: opcode,
+                flags: vec![],
+                tys: tys,
+                sigs: sigs,
+                args: args,
+                exc_clause: exc_clause,
+                keepalive_clause: keepalive_clause,
+            },
+        );
     }
 }
 
@@ -594,7 +1253,7 @@ struct BundleLoader<'lb, 'lvm> {
 fn load_bundle(b: &mut MuIRBuilder) {
     let vm = b.get_vm();
 
-    let new_map = b.id_name_map.drain().collect::<HashMap<_,_>>();
+    let new_map = b.id_name_map.drain().collect::<HashMap<_, _>>();
 
     let mut bl = BundleLoader {
         b: b,
@@ -652,7 +1311,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_void = P(MuType {
             hdr: MuEntityHeader::unnamed(id_void),
-            v: MuType_::Void
+            v: MuType_::Void,
         });
 
         trace!("Ensure void is defined: {} {:?}", id_void, impl_void);
@@ -673,7 +1332,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let id_void = self.ensure_void().id();
         let impl_refvoid = self.ensure_ref(id_void);
 
-        trace!("Ensure refvoid is defined: {} {:?}", id_refvoid, impl_refvoid);
+        trace!(
+            "Ensure refvoid is defined: {} {:?}",
+            id_refvoid,
+            impl_refvoid
+        );
 
         self.built_types.insert(id_refvoid, impl_refvoid.clone());
         self.built_refvoid = Some(impl_refvoid.clone());
@@ -837,7 +1500,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_void_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Void
+            v: MuType_::Void,
         });
         let impl_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
@@ -875,7 +1538,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         self.new_global(impl_val)
     }
-    
+
     fn ensure_funcref(&mut self, sig_id: MuID) -> P<MuType> {
         if let Some(funcref) = self.built_funcref_of.get(&sig_id) {
             return funcref.clone();
@@ -890,7 +1553,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             v: MuType_::FuncRef(sig),
         });
 
-        trace!("Ensure funcref of {} is defined: {} {:?}", sig_id, id_funcref, impl_funcref);
+        trace!(
+            "Ensure funcref of {} is defined: {} {:?}",
+            sig_id,
+            id_funcref,
+            impl_funcref
+        );
 
         self.built_types.insert(id_funcref, impl_funcref.clone());
         self.built_funcref_of.insert(sig_id, impl_funcref.clone());
@@ -898,9 +1566,17 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         impl_funcref
     }
 
-    fn ensure_type_generic<F>(id: MuID, hint: &str,
-                         vm: &VM, cache_map: &mut IdPMap<MuType>, storage_map: &mut IdPMap<MuType>,
-                         factory: F) -> P<MuType> where F: Fn(P<MuType>) -> MuType_ {
+    fn ensure_type_generic<F>(
+        id: MuID,
+        hint: &str,
+        vm: &VM,
+        cache_map: &mut IdPMap<MuType>,
+        storage_map: &mut IdPMap<MuType>,
+        factory: F,
+    ) -> P<MuType>
+    where
+        F: Fn(P<MuType>) -> MuType_,
+    {
         if let Some(obj) = cache_map.get(&id) {
             return obj.clone();
         }
@@ -926,19 +1602,22 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn ensure_ref(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "ref", &self.vm, &mut self.built_ref_of, &mut self.built_types, |impl_ty| {
+        BundleLoader::ensure_type_generic(ty_id, "ref", &self.vm, &mut self.built_ref_of,
+                                          &mut self.built_types, |impl_ty| {
             MuType_::Ref(impl_ty)
         })
     }
 
     fn ensure_iref(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "iref", &self.vm, &mut self.built_iref_of, &mut self.built_types, |impl_ty| {
+        BundleLoader::ensure_type_generic(ty_id, "iref", &self.vm, &mut self.built_iref_of,
+                                          &mut self.built_types, |impl_ty| {
             MuType_::IRef(impl_ty)
         })
     }
 
     fn ensure_uptr(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "uptr", &self.vm, &mut self.built_iref_of, &mut self.built_types, |impl_ty| {
+        BundleLoader::ensure_type_generic(ty_id, "uptr", &self.vm, &mut self.built_iref_of,
+                                          &mut self.built_types, |impl_ty| {
             MuType_::UPtr(impl_ty)
         })
     }
@@ -954,7 +1633,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn ensure_name(&mut self, id: MuID, parent_id: Option<MuID>) {
         let prefix = match parent_id {
             Some(parent_id) => self.get_name(parent_id) + ".",
-            None => "".to_string()
+            None => "".to_string(),
         };
         self.id_name_map.entry(id).or_insert_with(|| {
             let name = format!("{}#{}", prefix, id);
@@ -964,12 +1643,17 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn ensure_names(&mut self) {
-        // Make names for all unnamed entities that have parents, to be relative to their parents name (this is not strictly neccesary, but will make reading stuff the compiler generates easier)
+        // Make names for all unnamed entities that have parents, to be relative to their parents
+        // name (this is not strictly neccesary, but will make reading stuff the compiler generates
+        // easier)
 
-        // Give each struct and hybrid type a name (this is needed when structs/hybrids refer to themselves)
+        // Give each struct and hybrid type a name
+        // (this is needed when structs/hybrids refer to themselves)
         for (id, ty) in &self.b.bundle.types {
             match **ty {
-                NodeType::TypeHybrid{..} | NodeType::TypeStruct{..} => self.ensure_name(*id, None),
+                NodeType::TypeHybrid { .. } | NodeType::TypeStruct { .. } => {
+                    self.ensure_name(*id, None)
+                }
                 _ => {}
             }
         }
@@ -990,7 +1674,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
 
         for (bb_id, bb) in &self.b.bundle.bbs {
-            // Make each of the basic blocks unnamed paremters have names relative to the block itself
+            // Make each of the basic blocks unnamed parameters have
+            // names relative to the block itself
             for nor_id in &bb.nor_param_ids {
                 self.ensure_name(*nor_id, Some(*bb_id));
             }
@@ -1007,55 +1692,66 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     Some(inst) => {
                         match **inst {
                             // Instructions with a single result
-                            NodeInst::NodeCmp{ref result_id, ..} |
-                            NodeInst::NodeConv{ref result_id, ..} |
-                            NodeInst::NodeSelect{ref result_id, ..} |
-                            NodeInst::NodeExtractValue{ref result_id, ..} |
-                            NodeInst::NodeInsertValue{ref result_id, ..} |
-                            NodeInst::NodeExtractElement{ref result_id, ..} |
-                            NodeInst::NodeInsertElement{ref result_id, ..} |
-                            NodeInst::NodeShuffleVector{ref result_id, ..} |
-                            NodeInst::NodeNew{ref result_id, ..} |
-                            NodeInst::NodeNewHybrid{ref result_id, ..} |
-                            NodeInst::NodeAlloca{ref result_id, ..} |
-                            NodeInst::NodeAllocaHybrid{ref result_id, ..} |
-                            NodeInst::NodeGetIRef{ref result_id, ..} |
-                            NodeInst::NodeGetFieldIRef{ref result_id, ..} |
-                            NodeInst::NodeGetElemIRef{ref result_id, ..} |
-                            NodeInst::NodeShiftIRef{ref result_id, ..} |
-                            NodeInst::NodeGetVarPartIRef{ref result_id, ..} |
-                            NodeInst::NodeLoad{ref result_id, ..} |
-                            NodeInst::NodeAtomicRMW{ref result_id, ..} |
-                            NodeInst::NodeNewThread{ref result_id, ..} =>
-                                self.ensure_name(*result_id, Some(*bb_id)),
+                            NodeInst::NodeCmp { ref result_id, .. } |
+                            NodeInst::NodeConv { ref result_id, .. } |
+                            NodeInst::NodeSelect { ref result_id, .. } |
+                            NodeInst::NodeExtractValue { ref result_id, .. } |
+                            NodeInst::NodeInsertValue { ref result_id, .. } |
+                            NodeInst::NodeExtractElement { ref result_id, .. } |
+                            NodeInst::NodeInsertElement { ref result_id, .. } |
+                            NodeInst::NodeShuffleVector { ref result_id, .. } |
+                            NodeInst::NodeNew { ref result_id, .. } |
+                            NodeInst::NodeNewHybrid { ref result_id, .. } |
+                            NodeInst::NodeAlloca { ref result_id, .. } |
+                            NodeInst::NodeAllocaHybrid { ref result_id, .. } |
+                            NodeInst::NodeGetIRef { ref result_id, .. } |
+                            NodeInst::NodeGetFieldIRef { ref result_id, .. } |
+                            NodeInst::NodeGetElemIRef { ref result_id, .. } |
+                            NodeInst::NodeShiftIRef { ref result_id, .. } |
+                            NodeInst::NodeGetVarPartIRef { ref result_id, .. } |
+                            NodeInst::NodeLoad { ref result_id, .. } |
+                            NodeInst::NodeAtomicRMW { ref result_id, .. } |
+                            NodeInst::NodeNewThread { ref result_id, .. } => {
+                                self.ensure_name(*result_id, Some(*bb_id))
+                            }
 
                             // Instructions with a variable list of results
-                            NodeInst::NodeCall{ref result_ids, ..} |
-                            NodeInst::NodeTrap{ref result_ids, ..} |
-                            NodeInst::NodeWatchPoint{ref result_ids, ..} |
-                            NodeInst::NodeCCall{ref result_ids, ..} |
-                            NodeInst::NodeSwapStack{ref result_ids, ..} |
-                            NodeInst::NodeCommInst{ref result_ids, ..} =>
+                            NodeInst::NodeCall { ref result_ids, .. } |
+                            NodeInst::NodeTrap { ref result_ids, .. } |
+                            NodeInst::NodeWatchPoint { ref result_ids, .. } |
+                            NodeInst::NodeCCall { ref result_ids, .. } |
+                            NodeInst::NodeSwapStack { ref result_ids, .. } |
+                            NodeInst::NodeCommInst { ref result_ids, .. } => {
                                 for result_id in result_ids {
                                     self.ensure_name(*result_id, Some(*bb_id));
-                                },
+                                }
+                            }
 
-                            NodeInst::NodeBinOp{ref result_id, ref status_result_ids, ..} => {
+                            NodeInst::NodeBinOp {
+                                ref result_id,
+                                ref status_result_ids,
+                                ..
+                            } => {
                                 self.ensure_name(*result_id, Some(*bb_id));
                                 for status_result_id in status_result_ids {
-                                    self.ensure_name(*status_result_id, Some(*bb_id)); }
-                            },
+                                    self.ensure_name(*status_result_id, Some(*bb_id));
+                                }
+                            }
 
-                            NodeInst::NodeCmpXchg{ref value_result_id, ref succ_result_id, ..} => {
+                            NodeInst::NodeCmpXchg {
+                                ref value_result_id,
+                                ref succ_result_id,
+                                ..
+                            } => {
                                 self.ensure_name(*value_result_id, Some(*bb_id));
                                 self.ensure_name(*succ_result_id, Some(*bb_id));
-                            },
+                            }
 
                             // Instructions has no results
-                            _ => {},
+                            _ => {}
                         }
                     }
-                    None => panic!("Referenced instruction {} does not exist", inst_id)
+                    None => panic!("Referenced instruction {} does not exist", inst_id),
                 }
             }
         }
@@ -1127,77 +1823,67 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
 
         let impl_ty_ = match **ty {
-            NodeType::TypeInt { id: _, len } => {
-                MuType_::Int(len as usize)
-            },
-            NodeType::TypeFloat { id: _ } => {
-                MuType_::Float
-            },
-            NodeType::TypeDouble { id: _ } => {
-                MuType_::Double
-            },
+            NodeType::TypeInt { id: _, len } => MuType_::Int(len as usize),
+            NodeType::TypeFloat { id: _ } => MuType_::Float,
+            NodeType::TypeDouble { id: _ } => MuType_::Double,
             NodeType::TypeUPtr { id: _, ty: toty } => {
                 let impl_toty = self.ensure_type_rec(toty);
                 MuType_::UPtr(impl_toty)
-            },
+            }
             NodeType::TypeUFuncPtr { id: _, sig } => {
                 let impl_sig = self.ensure_sig_rec(sig);
                 MuType_::UFuncPtr(impl_sig)
-            },
-            NodeType::TypeStruct { id: _, fieldtys: _ } => { 
+            }
+            NodeType::TypeStruct { id: _, fieldtys: _ } => {
                 let tag = self.get_name(id);
                 self.struct_hybrid_id_tags.push((id, tag.clone()));
                 MuType_::mustruct_empty(tag)
                 // MuType_::Struct(tag)
-            },
-            NodeType::TypeHybrid { id: _, fixedtys: _, varty: _ } => {
+            }
+            NodeType::TypeHybrid {
+                id: _,
+                fixedtys: _,
+                varty: _,
+            } => {
                 let tag = self.get_name(id);
                 self.struct_hybrid_id_tags.push((id, tag.clone()));
                 MuType_::hybrid_empty(tag)
-//                let impl_fixedtys = fixedtys.iter().map(|t| self.ensure_type_rec(*t)).collect::<Vec<_>>();
-//                let impl_varty = self.ensure_type_rec(varty);
-//                MuType_::Hybrid(impl_fixedtys, impl_varty)
-            },
-            NodeType::TypeArray { id: _, elemty, len } => { 
+            }
+            NodeType::TypeArray { id: _, elemty, len } => {
                 let impl_elemty = self.ensure_type_rec(elemty);
                 MuType_::Array(impl_elemty, len)
-            },
-            NodeType::TypeVector { id: _, elemty, len } => { 
+            }
+            NodeType::TypeVector { id: _, elemty, len } => {
                 let impl_elemty = self.ensure_type_rec(elemty);
                 MuType_::Vector(impl_elemty, len)
-            },
-            NodeType::TypeVoid { id: _ } => {
-                MuType_::Void
-            },
-            NodeType::TypeTagRef64 { id: _ } => {
-                MuType_::Tagref64
-            },
+            }
+            NodeType::TypeVoid { id: _ } => MuType_::Void,
+            NodeType::TypeTagRef64 { id: _ } => MuType_::Tagref64,
             NodeType::TypeRef { id: _, ty: toty } => {
                 let impl_toty = self.ensure_type_rec(toty);
                 MuType_::Ref(impl_toty)
-            },
+            }
             NodeType::TypeIRef { id: _, ty: toty } => {
                 let impl_toty = self.ensure_type_rec(toty);
                 MuType_::IRef(impl_toty)
-            },
+            }
             NodeType::TypeWeakRef { id: _, ty: toty } => {
                 let impl_toty = self.ensure_type_rec(toty);
                 MuType_::WeakRef(impl_toty)
-            },
+            }
             NodeType::TypeFuncRef { id: _, sig } => {
                 let impl_sig = self.ensure_sig_rec(sig);
                 MuType_::FuncRef(impl_sig)
-            },
-            NodeType::TypeThreadRef { id: _ } => {
-                MuType_::ThreadRef
-            },
-            NodeType::TypeStackRef { id: _ } => {
-                MuType_::StackRef
-            },
+            }
+            NodeType::TypeThreadRef { id: _ } => MuType_::ThreadRef,
+            NodeType::TypeStackRef { id: _ } => MuType_::StackRef,
             ref t => panic!("{:?} not implemented", t),
         };
 
-        let impl_ty = MuType { hdr: hdr, v: impl_ty_ };
+        let impl_ty = MuType {
+            hdr: hdr,
+            v: impl_ty_,
+        };
 
         trace!("Type built: {} {:?}", id, impl_ty);
 
@@ -1209,7 +1895,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             if self.visited.contains(&id) {
                 match self.built_types.get(&id) {
                     Some(t) => t.clone(),
-                    None => panic!("Cyclic types found. id: {}", id)
+                    None => panic!("Cyclic types found. id: {}", id),
                 }
             } else {
                 self.build_type(id);
@@ -1223,7 +1909,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn get_built_type(&self, id: MuID) -> P<MuType> {
         match self.built_types.get(&id) {
             Some(t) => t.clone(),
-            None => self.vm.get_type(id)
+            None => self.vm.get_type(id),
         }
     }
 
@@ -1233,28 +1919,43 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Filling struct or hybrid {} {:?}", id, ty);
 
         match **ty {
-            NodeType::TypeStruct { id: _, ref fieldtys } => { 
-                let fieldtys_impl = fieldtys.iter().map(|fid| {
-                    self.ensure_type_rec(*fid)
-                }).collect::<Vec<_>>();
+            NodeType::TypeStruct {
+                id: _,
+                ref fieldtys,
+            } => {
+                let fieldtys_impl = fieldtys
+                    .iter()
+                    .map(|fid| self.ensure_type_rec(*fid))
+                    .collect::<Vec<_>>();
 
                 MuType_::mustruct_put(tag, fieldtys_impl);
 
-                trace!("Struct {} filled: {:?}", id,
-                       STRUCT_TAG_MAP.read().unwrap().get(tag));
-            },
-            NodeType::TypeHybrid { id: _, ref fixedtys, varty } => { 
-                let fixedtys_impl = fixedtys.iter().map(|fid| {
-                    self.ensure_type_rec(*fid)
-                }).collect::<Vec<_>>();
+                trace!(
+                    "Struct {} filled: {:?}",
+                    id,
+                    STRUCT_TAG_MAP.read().unwrap().get(tag)
+                );
+            }
+            NodeType::TypeHybrid {
+                id: _,
+                ref fixedtys,
+                varty,
+            } => {
+                let fixedtys_impl = fixedtys
+                    .iter()
+                    .map(|fid| self.ensure_type_rec(*fid))
+                    .collect::<Vec<_>>();
 
                 let varty_impl = self.ensure_type_rec(varty);
 
                 MuType_::hybrid_put(tag, fixedtys_impl, varty_impl);
 
-                trace!("Hybrid {} filled: {:?}", id,
-                       HYBRID_TAG_MAP.read().unwrap().get(tag));
-            },
+                trace!(
+                    "Hybrid {} filled: {:?}",
+                    id,
+                    HYBRID_TAG_MAP.read().unwrap().get(tag)
+                );
+            }
             ref t => panic!("{} {:?} should be a Struct or Hybrid type", id, ty),
         }
     }
@@ -1268,10 +1969,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let hdr = self.make_mu_entity_header(id);
 
-        let impl_sig = MuFuncSig{
+        let impl_sig = MuFuncSig {
             hdr: hdr,
-            ret_tys: sig.rettys.iter().map(|i| self.ensure_type_rec(*i)).collect::<Vec<_>>(),
-            arg_tys: sig.paramtys.iter().map(|i| self.ensure_type_rec(*i)).collect::<Vec<_>>(),
+            ret_tys: sig.rettys
+                .iter()
+                .map(|i| self.ensure_type_rec(*i))
+                .collect::<Vec<_>>(),
+            arg_tys: sig.paramtys
+                .iter()
+                .map(|i| self.ensure_type_rec(*i))
+                .collect::<Vec<_>>(),
         };
 
         trace!("Function signature built: {} {:?}", id, impl_sig);
@@ -1284,7 +1991,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             if self.visited.contains(&id) {
                 match self.built_sigs.get(&id) {
                     Some(t) => t.clone(),
-                    None => panic!("Cyclic signature found. id: {}", id)
+                    None => panic!("Cyclic signature found. id: {}", id),
                 }
             } else {
                 self.build_sig(id);
@@ -1309,32 +2016,40 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Int(value);
                 (c, t)
-            },
-            NodeConst::ConstIntEx { id: _, ty, ref value } => {
+            }
+            NodeConst::ConstIntEx {
+                id: _,
+                ty,
+                ref value,
+            } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::IntEx(value.clone());
                 (c, t)
-            },
+            }
             NodeConst::ConstFloat { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Float(value);
                 (c, t)
-            },
+            }
             NodeConst::ConstDouble { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Double(value);
                 (c, t)
-            },
+            }
             NodeConst::ConstNull { id: _, ty } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::NullRef;
                 (c, t)
-            },
-            NodeConst::ConstExtern { id: _, ty, ref symbol } => {
+            }
+            NodeConst::ConstExtern {
+                id: _,
+                ty,
+                ref symbol,
+            } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::ExternSym(symbol.clone());
                 (c, t)
-            },
+            }
             ref c => panic!("{:?} not implemented", c),
         };
 
@@ -1362,7 +2077,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let impl_val = Value {
             hdr: hdr,
             ty: self.ensure_iref(impl_ty.id()), // iref to global
-            v: Value_::Global(impl_ty)
+            v: Value_::Global(impl_ty),
         };
 
         trace!("Global built: {} {:?}", id, impl_val);
@@ -1424,16 +2139,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let mut fcb: FuncCtxBuilder = Default::default();
 
-        let blocks = fv.bbs.iter().map(|bbid| {
-            let block = self.build_block(&mut fcb, *bbid);
-            (*bbid, block)
-        }).collect::<LinkedHashMap<MuID, Block>>();
+        let blocks = fv.bbs
+            .iter()
+            .map(|bbid| {
+                let block = self.build_block(&mut fcb, *bbid);
+                (*bbid, block)
+            })
+            .collect::<LinkedHashMap<MuID, Block>>();
 
         let entry_id = *fv.bbs.first().unwrap();
         let ctn = FunctionContent {
             entry: entry_id,
             blocks: blocks,
-            exception_blocks: LinkedHashSet::new()
+            exception_blocks: LinkedHashSet::new(),
         };
 
         let impl_fv = MuFunctionVersion::new_(hdr, func_id, impl_sig, ctn, fcb.ctx);
@@ -1448,16 +2166,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     /// constructed in a functional recursive-descendent style.
     fn new_ssa(&self, fcb: &mut FuncCtxBuilder, id: MuID, ty: P<MuType>) -> P<TreeNode> {
         let hdr = self.make_mu_entity_header(id);
-        let val = P(Value{
+        let val = P(Value {
             hdr: hdr,
             ty: ty,
-            v: Value_::SSAVar(id)
+            v: Value_::SSAVar(id),
         });
 
         fcb.ctx.values.insert(id, SSAVarEntry::new(val.clone()));
 
         let tn = P(TreeNode {
-            v: TreeNode_::Value(val)
+            v: TreeNode_::Value(val),
         });
 
         fcb.tree_nodes.insert(id, tn.clone());
@@ -1466,14 +2184,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     pub fn new_inst(&self, v: Instruction) -> Box<TreeNode> {
-        Box::new(TreeNode{
+        Box::new(TreeNode {
             v: TreeNode_::Instruction(v),
         })
     }
 
     pub fn new_global(&self, v: P<Value>) -> P<TreeNode> {
-        P(TreeNode{
-            v: TreeNode_::Value(v)
+        P(TreeNode {
+            v: TreeNode_::Value(v),
         })
     }
 
@@ -1497,10 +2215,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let nor_ids = &bb.nor_param_ids;
         let nor_tys = &bb.nor_param_types;
 
-        let args = nor_ids.iter().zip(nor_tys).map(|(arg_id, arg_ty_id)| {
-            let arg_ty = self.get_built_type(*arg_ty_id);
-            self.new_ssa(fcb, *arg_id, arg_ty).clone_value()
-        }).collect::<Vec<_>>();
+        let args = nor_ids
+            .iter()
+            .zip(nor_tys)
+            .map(|(arg_id, arg_ty_id)| {
+                let arg_ty = self.get_built_type(*arg_ty_id);
+                self.new_ssa(fcb, *arg_id, arg_ty).clone_value()
+            })
+            .collect::<Vec<_>>();
 
         let exn_arg = bb.exc_param_id.map(|arg_id| {
             let arg_ty = self.ensure_refi64();
@@ -1526,8 +2248,15 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
     }
 
-    fn build_block_content(&mut self, fcb: &mut FuncCtxBuilder, insts: &Vec<MuID>) -> Vec<Box<TreeNode>> {
-        insts.iter().map(|iid| self.build_inst(fcb, *iid)).collect::<Vec<_>>()
+    fn build_block_content(
+        &mut self,
+        fcb: &mut FuncCtxBuilder,
+        insts: &Vec<MuID>,
+    ) -> Vec<Box<TreeNode>> {
+        insts
+            .iter()
+            .map(|iid| self.build_inst(fcb, *iid))
+            .collect::<Vec<_>>()
     }
 
     fn build_inst(&mut self, fcb: &mut FuncCtxBuilder, id: MuID) -> Box<TreeNode> {
@@ -1539,36 +2268,42 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_inst = match **inst {
             NodeInst::NodeBinOp {
-                id: _, result_id, ref status_result_ids,
-                optr, flags, ty, opnd1, opnd2,
-                exc_clause: _
+                id: _,
+                result_id,
+                ref status_result_ids,
+                optr,
+                flags,
+                ty,
+                opnd1,
+                opnd2,
+                exc_clause: _,
             } => {
                 let impl_optr = match optr {
-                    CMU_BINOP_ADD  => BinOp::Add,
-                    CMU_BINOP_SUB  => BinOp::Sub,
-                    CMU_BINOP_MUL  => BinOp::Mul,
+                    CMU_BINOP_ADD => BinOp::Add,
+                    CMU_BINOP_SUB => BinOp::Sub,
+                    CMU_BINOP_MUL => BinOp::Mul,
                     CMU_BINOP_SDIV => BinOp::Sdiv,
                     CMU_BINOP_SREM => BinOp::Srem,
                     CMU_BINOP_UDIV => BinOp::Udiv,
                     CMU_BINOP_UREM => BinOp::Urem,
-                    CMU_BINOP_SHL  => BinOp::Shl,
+                    CMU_BINOP_SHL => BinOp::Shl,
                     CMU_BINOP_LSHR => BinOp::Lshr,
                     CMU_BINOP_ASHR => BinOp::Ashr,
-                    CMU_BINOP_AND  => BinOp::And,
-                    CMU_BINOP_OR   => BinOp::Or,
-                    CMU_BINOP_XOR  => BinOp::Xor,
+                    CMU_BINOP_AND => BinOp::And,
+                    CMU_BINOP_OR => BinOp::Or,
+                    CMU_BINOP_XOR => BinOp::Xor,
                     CMU_BINOP_FADD => BinOp::FAdd,
                     CMU_BINOP_FSUB => BinOp::FSub,
                     CMU_BINOP_FMUL => BinOp::FMul,
                     CMU_BINOP_FDIV => BinOp::FDiv,
                     CMU_BINOP_FREM => BinOp::FRem,
-                    _ => panic!("Illegal binary operator {}", optr)
+                    _ => panic!("Illegal binary operator {}", optr),
                 };
                 let impl_ty = self.get_built_type(ty);
                 let impl_opnd1 = self.get_treenode(fcb, opnd1);
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_ty).clone_value();
-                
+
                 if flags == 0 {
                     // binop
                     Instruction {
@@ -1587,29 +2322,35 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     let ty_i1 = self.ensure_i1();
                     let mut flags_count = 0;
                     let mut impl_flags = BinOpStatus::none();
-                    
+
                     if flags & CMU_BOS_N != 0 {
                         impl_flags.flag_n = true;
 
-                        let flag_n = self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone()).clone_value();
+                        let flag_n =
+                            self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone())
+                                .clone_value();
                         flags_count += 1;
 
                         values.push(flag_n);
                     }
-                    
+
                     if flags & CMU_BOS_Z != 0 {
                         impl_flags.flag_z = true;
-                        
-                        let flag_z = self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone()).clone_value();
+
+                        let flag_z =
+                            self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone())
+                                .clone_value();
                         flags_count += 1;
-                        
+
                         values.push(flag_z);
                     }
 
                     if flags & CMU_BOS_C != 0 {
                         impl_flags.flag_c = true;
 
-                        let flag_c = self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone()).clone_value();
+                        let flag_c =
+                            self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone())
+                                .clone_value();
                         flags_count += 1;
 
                         values.push(flag_c);
@@ -1618,7 +2359,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     if flags & CMU_BOS_V != 0 {
                         impl_flags.flag_v = true;
 
-                        let flag_v = self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone()).clone_value();
+                        let flag_v =
+                            self.new_ssa(fcb, status_result_ids[flags_count], ty_i1.clone())
+                                .clone_value();
 
                         values.push(flag_v);
                     }
@@ -1630,38 +2373,43 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         v: Instruction_::BinOpWithStatus(impl_optr, impl_flags, 0, 1),
                     }
                 }
-            },
+            }
             NodeInst::NodeCmp {
-                id: _, result_id, optr, ty, opnd1, opnd2
+                id: _,
+                result_id,
+                optr,
+                ty,
+                opnd1,
+                opnd2,
             } => {
                 let impl_optr = match optr {
-                    CMU_CMP_EQ  => CmpOp::EQ,
-                    CMU_CMP_NE  => CmpOp::NE,
-                    CMU_CMP_SGE    => CmpOp::SGE,
-                    CMU_CMP_SGT    => CmpOp::SGT,
-                    CMU_CMP_SLE    => CmpOp::SLE,
-                    CMU_CMP_SLT    => CmpOp::SLT,
-                    CMU_CMP_UGE    => CmpOp::UGE,
-                    CMU_CMP_UGT    => CmpOp::UGT,
-                    CMU_CMP_ULE    => CmpOp::ULE,
-                    CMU_CMP_ULT    => CmpOp::ULT,
+                    CMU_CMP_EQ => CmpOp::EQ,
+                    CMU_CMP_NE => CmpOp::NE,
+                    CMU_CMP_SGE => CmpOp::SGE,
+                    CMU_CMP_SGT => CmpOp::SGT,
+                    CMU_CMP_SLE => CmpOp::SLE,
+                    CMU_CMP_SLT => CmpOp::SLT,
+                    CMU_CMP_UGE => CmpOp::UGE,
+                    CMU_CMP_UGT => CmpOp::UGT,
+                    CMU_CMP_ULE => CmpOp::ULE,
+                    CMU_CMP_ULT => CmpOp::ULT,
                     CMU_CMP_FFALSE => CmpOp::FFALSE,
-                    CMU_CMP_FTRUE  => CmpOp::FTRUE,
-                    CMU_CMP_FUNO   => CmpOp::FUNO,
-                    CMU_CMP_FUEQ   => CmpOp::FUEQ,
-                    CMU_CMP_FUNE   => CmpOp::FUNE,
-                    CMU_CMP_FUGT   => CmpOp::FUGT,
-                    CMU_CMP_FUGE   => CmpOp::FUGE,
-                    CMU_CMP_FULT   => CmpOp::FULT,
-                    CMU_CMP_FULE   => CmpOp::FULE,
-                    CMU_CMP_FORD   => CmpOp::FORD,
-                    CMU_CMP_FOEQ   => CmpOp::FOEQ,
-                    CMU_CMP_FONE   => CmpOp::FONE,
-                    CMU_CMP_FOGT   => CmpOp::FOGT,
-                    CMU_CMP_FOGE   => CmpOp::FOGE,
-                    CMU_CMP_FOLT   => CmpOp::FOLT,
-                    CMU_CMP_FOLE   => CmpOp::FOLE,
-                    _ => panic!("Illegal comparing operator {}", optr)
+                    CMU_CMP_FTRUE => CmpOp::FTRUE,
+                    CMU_CMP_FUNO => CmpOp::FUNO,
+                    CMU_CMP_FUEQ => CmpOp::FUEQ,
+                    CMU_CMP_FUNE => CmpOp::FUNE,
+                    CMU_CMP_FUGT => CmpOp::FUGT,
+                    CMU_CMP_FUGE => CmpOp::FUGE,
+                    CMU_CMP_FULT => CmpOp::FULT,
+                    CMU_CMP_FULE => CmpOp::FULE,
+                    CMU_CMP_FORD => CmpOp::FORD,
+                    CMU_CMP_FOEQ => CmpOp::FOEQ,
+                    CMU_CMP_FONE => CmpOp::FONE,
+                    CMU_CMP_FOGT => CmpOp::FOGT,
+                    CMU_CMP_FOGE => CmpOp::FOGE,
+                    CMU_CMP_FOLT => CmpOp::FOLT,
+                    CMU_CMP_FOLE => CmpOp::FOLE,
+                    _ => panic!("Illegal comparing operator {}", optr),
                 };
                 // NOTE: vectors not implemented. Otherwise the result would be a vector of
                 // int<1>
@@ -1676,29 +2424,35 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: vec![impl_opnd1, impl_opnd2],
                     v: Instruction_::CmpOp(impl_optr, 0, 1),
                 }
-            },
+            }
             NodeInst::NodeConv {
-                id: _, result_id, optr, from_ty, to_ty, opnd
+                id: _,
+                result_id,
+                optr,
+                from_ty,
+                to_ty,
+                opnd,
             } => {
                 let impl_optr = match optr {
-                    CMU_CONV_TRUNC   => ConvOp::TRUNC,
-                    CMU_CONV_ZEXT    => ConvOp::ZEXT,
-                    CMU_CONV_SEXT    => ConvOp::SEXT,
+                    CMU_CONV_TRUNC => ConvOp::TRUNC,
+                    CMU_CONV_ZEXT => ConvOp::ZEXT,
+                    CMU_CONV_SEXT => ConvOp::SEXT,
                     CMU_CONV_FPTRUNC => ConvOp::FPTRUNC,
-                    CMU_CONV_FPEXT   => ConvOp::FPEXT,
-                    CMU_CONV_FPTOUI  => ConvOp::FPTOUI,
-                    CMU_CONV_FPTOSI  => ConvOp::FPTOSI,
-                    CMU_CONV_UITOFP  => ConvOp::UITOFP,
-                    CMU_CONV_SITOFP  => ConvOp::SITOFP,
+                    CMU_CONV_FPEXT => ConvOp::FPEXT,
+                    CMU_CONV_FPTOUI => ConvOp::FPTOUI,
+                    CMU_CONV_FPTOSI => ConvOp::FPTOSI,
+                    CMU_CONV_UITOFP => ConvOp::UITOFP,
+                    CMU_CONV_SITOFP => ConvOp::SITOFP,
                     CMU_CONV_BITCAST => ConvOp::BITCAST,
                     CMU_CONV_REFCAST => ConvOp::REFCAST,
                     CMU_CONV_PTRCAST => ConvOp::PTRCAST,
-                    _ => panic!("Illegal conversion operator {}", optr)
+                    _ => panic!("Illegal conversion operator {}", optr),
                 };
                 let impl_from_ty = self.get_built_type(from_ty);
                 let impl_to_ty = self.get_built_type(to_ty);
                 let impl_opnd = self.get_treenode(fcb, opnd);
-                let impl_rv = self.new_ssa(fcb, result_id, impl_to_ty.clone()).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, impl_to_ty.clone())
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -1711,8 +2465,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         operand: 0,
                     },
                 }
-            },
-            NodeInst::NodeSelect { id: _, result_id, cond_ty, opnd_ty, cond, if_true, if_false } => {
+            }
+            NodeInst::NodeSelect {
+                id: _,
+                result_id,
+                cond_ty,
+                opnd_ty,
+                cond,
+                if_true,
+                if_false,
+            } => {
                 let impl_cond_ty = self.get_built_type(cond_ty);
                 let impl_opnd_ty = self.get_built_type(opnd_ty);
                 let impl_cond = self.get_treenode(fcb, cond);
@@ -1720,7 +2482,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_if_false = self.get_treenode(fcb, if_false);
 
                 // NOTE: only implemented scalar SELECT. Vector select is not implemented yet.
-                let impl_rv = self.new_ssa(fcb, result_id, impl_opnd_ty.clone()).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, impl_opnd_ty.clone())
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -1732,8 +2495,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         false_val: 2,
                     },
                 }
-            },
-            NodeInst::NodeBranch { id: _, dest } => { 
+            }
+            NodeInst::NodeBranch { id: _, dest } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
                 let impl_dest = self.build_destination(fcb, dest, &mut ops, &[]);
@@ -1744,8 +2507,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: ops,
                     v: Instruction_::Branch1(impl_dest),
                 }
-            },
-            NodeInst::NodeBranch2 { id: _, cond, if_true, if_false } => { 
+            }
+            NodeInst::NodeBranch2 {
+                id: _,
+                cond,
+                if_true,
+                if_false,
+            } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
                 self.add_opnd(fcb, &mut ops, cond);
@@ -1765,9 +2533,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         true_prob: DEFAULT_TRUE_PROB,
                     },
                 }
-            },
+            }
             NodeInst::NodeSwitch {
-                id: _, opnd_ty, opnd, default_dest, ref cases, ref dests
+                id: _,
+                opnd_ty,
+                opnd,
+                default_dest,
+                ref cases,
+                ref dests,
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
@@ -1775,14 +2548,18 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
                 let impl_dest_def = self.build_destination(fcb, default_dest, &mut ops, &[]);
 
-                let impl_branches = cases.iter().zip(dests).map(|(cid, did)| {
-                    let case_opindex = ops.len();
-                    self.add_opnd(fcb, &mut ops, *cid);
+                let impl_branches = cases
+                    .iter()
+                    .zip(dests)
+                    .map(|(cid, did)| {
+                        let case_opindex = ops.len();
+                        self.add_opnd(fcb, &mut ops, *cid);
 
-                    let impl_dest = self.build_destination(fcb, *did, &mut ops, &[]);
+                        let impl_dest = self.build_destination(fcb, *did, &mut ops, &[]);
 
-                    (case_opindex, impl_dest)
-                }).collect::<Vec<_>>();
+                        (case_opindex, impl_dest)
+                    })
+                    .collect::<Vec<_>>();
 
                 Instruction {
                     hdr: hdr,
@@ -1794,20 +2571,39 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         branches: impl_branches,
                     },
                 }
-            },
+            }
             NodeInst::NodeCall {
-                id: _, ref result_ids, sig, callee, ref args, exc_clause, keepalive_clause
+                id: _,
+                ref result_ids,
+                sig,
+                callee,
+                ref args,
+                exc_clause,
+                keepalive_clause,
             } => {
-                self.build_call_or_ccall(fcb, hdr, result_ids, sig, callee, args,
-                                         exc_clause, keepalive_clause,
-                                         false, CallConvention::Mu)
-            },
+                self.build_call_or_ccall(
+                    fcb,
+                    hdr,
+                    result_ids,
+                    sig,
+                    callee,
+                    args,
+                    exc_clause,
+                    keepalive_clause,
+                    false,
+                    CallConvention::Mu,
+                )
+            }
             NodeInst::NodeTailCall {
-                id: _, sig, callee, ref args
+                id: _,
+                sig,
+                callee,
+                ref args,
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-                let call_data = self.build_call_data(fcb, &mut ops, callee, args, CallConvention::Mu);
+                let call_data =
+                    self.build_call_data(fcb, &mut ops, callee, args, CallConvention::Mu);
 
                 Instruction {
                     hdr: hdr,
@@ -1815,9 +2611,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: ops,
                     v: Instruction_::TailCall(call_data),
                 }
-            },
+            }
             NodeInst::NodeRet { id: _, ref rvs } => {
-                let ops = rvs.iter().map(|rvid| self.get_treenode(fcb, *rvid)).collect::<Vec<_>>();
+                let ops = rvs.iter()
+                    .map(|rvid| self.get_treenode(fcb, *rvid))
+                    .collect::<Vec<_>>();
                 let op_indexes = (0..(ops.len())).collect::<Vec<_>>();
 
                 Instruction {
@@ -1826,7 +2624,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: ops,
                     v: Instruction_::Return(op_indexes),
                 }
-            },
+            }
             NodeInst::NodeThrow { id: _, exc } => {
                 let impl_exc = self.get_treenode(fcb, exc);
 
@@ -1836,9 +2634,17 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: vec![impl_exc],
                     v: Instruction_::Throw(0),
                 }
-            },
-            NodeInst::NodeNew { id: _, result_id, allocty, exc_clause } => {
-                assert!(exc_clause.is_none(), "exc_clause is not implemented for NEW");
+            }
+            NodeInst::NodeNew {
+                id: _,
+                result_id,
+                allocty,
+                exc_clause,
+            } => {
+                assert!(
+                    exc_clause.is_none(),
+                    "exc_clause is not implemented for NEW"
+                );
                 let impl_allocty = self.get_built_type(allocty);
                 let impl_rvtype = self.ensure_ref(allocty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
@@ -1848,9 +2654,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: vec![],
                     v: Instruction_::New(impl_allocty),
                 }
-            },
-            NodeInst::NodeNewHybrid { id: _, result_id, allocty, lenty, length, exc_clause } => {
-                assert!(exc_clause.is_none(), "exc_clause is not implemented for NEWHYBRID");
+            }
+            NodeInst::NodeNewHybrid {
+                id: _,
+                result_id,
+                allocty,
+                lenty,
+                length,
+                exc_clause,
+            } => {
+                assert!(
+                    exc_clause.is_none(),
+                    "exc_clause is not implemented for NEWHYBRID"
+                );
                 let impl_allocty = self.get_built_type(allocty);
                 let impl_length = self.get_treenode(fcb, length);
                 let impl_rvtype = self.ensure_ref(allocty);
@@ -1861,9 +2677,17 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: vec![impl_length],
                     v: Instruction_::NewHybrid(impl_allocty, 0),
                 }
-            },
-            NodeInst::NodeAlloca { id: _, result_id, allocty, exc_clause } => {
-                assert!(exc_clause.is_none(), "exc_clause is not implemented for ALLOCA");
+            }
+            NodeInst::NodeAlloca {
+                id: _,
+                result_id,
+                allocty,
+                exc_clause,
+            } => {
+                assert!(
+                    exc_clause.is_none(),
+                    "exc_clause is not implemented for ALLOCA"
+                );
                 let impl_allocty = self.get_built_type(allocty);
                 let impl_rvtype = self.ensure_iref(allocty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
@@ -1873,9 +2697,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: vec![],
                     v: Instruction_::AllocA(impl_allocty),
                 }
-            },
-            NodeInst::NodeAllocaHybrid { id: _, result_id, allocty, lenty, length, exc_clause } => {
-                assert!(exc_clause.is_none(), "exc_clause is not implemented for ALLOCAHYBRID");
+            }
+            NodeInst::NodeAllocaHybrid {
+                id: _,
+                result_id,
+                allocty,
+                lenty,
+                length,
+                exc_clause,
+            } => {
+                assert!(
+                    exc_clause.is_none(),
+                    "exc_clause is not implemented for ALLOCAHYBRID"
+                );
                 let impl_allocty = self.get_built_type(allocty);
                 let impl_length = self.get_treenode(fcb, length);
                 let impl_rvtype = self.ensure_iref(allocty);
@@ -1886,8 +2720,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: vec![impl_length],
                     v: Instruction_::AllocAHybrid(impl_allocty, 0),
                 }
-            },
-            NodeInst::NodeGetIRef { id: _, result_id, refty, opnd } => {
+            }
+            NodeInst::NodeGetIRef {
+                id: _,
+                result_id,
+                refty,
+                opnd,
+            } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_rvtype = self.ensure_iref(refty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
@@ -1897,19 +2736,35 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: vec![impl_opnd],
                     v: Instruction_::GetIRef(0),
                 }
-            },
-            NodeInst::NodeGetFieldIRef { id: _, result_id, is_ptr, refty, index, opnd } => {
+            }
+            NodeInst::NodeGetFieldIRef {
+                id: _,
+                result_id,
+                is_ptr,
+                refty,
+                index,
+                opnd,
+            } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let index = index as usize;
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
                 let field_ty_id = match **refty_node {
-                    NodeType::TypeStruct { id: _, ref fieldtys } => {
-                        fieldtys[index]
-                    },
-                    NodeType::TypeHybrid { id: _, ref fixedtys, varty: _ } => {
-                        fixedtys[index]
-                    },
-                    ref t => panic!("GETFIELDIREF {}: Expected struct or hybrid type. actual: {:?}", id, t)
+                    NodeType::TypeStruct {
+                        id: _,
+                        ref fieldtys,
+                    } => fieldtys[index],
+                    NodeType::TypeHybrid {
+                        id: _,
+                        ref fixedtys,
+                        varty: _,
+                    } => fixedtys[index],
+                    ref t => {
+                        panic!(
+                            "GETFIELDIREF {}: Expected struct or hybrid type. actual: {:?}",
+                            id,
+                            t
+                        )
+                    }
                 };
                 let impl_rvtype = self.ensure_iref_or_uptr(field_ty_id, is_ptr);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
@@ -1923,19 +2778,37 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         index: index,
                     },
                 }
-            },
-            NodeInst::NodeGetElemIRef { id: _, result_id, is_ptr, refty, indty: _, opnd, index } => {
+            }
+            NodeInst::NodeGetElemIRef {
+                id: _,
+                result_id,
+                is_ptr,
+                refty,
+                indty: _,
+                opnd,
+                index,
+            } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_index = self.get_treenode(fcb, index);
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
                 let elem_ty_id = match **refty_node {
-                    NodeType::TypeArray { id: _, elemty, len: _ } => { 
-                        elemty
-                    },
-                    NodeType::TypeVector { id: _, elemty, len: _ } => { 
-                        elemty
-                    },
-                    ref t => panic!("GETELEMIREF {}: Expected array or vector type. actual: {:?}", id, t)
+                    NodeType::TypeArray {
+                        id: _,
+                        elemty,
+                        len: _,
+                    } => elemty,
+                    NodeType::TypeVector {
+                        id: _,
+                        elemty,
+                        len: _,
+                    } => elemty,
+                    ref t => {
+                        panic!(
+                            "GETELEMIREF {}: Expected array or vector type. actual: {:?}",
+                            id,
+                            t
+                        )
+                    }
                 };
                 let impl_rvtype = self.ensure_iref_or_uptr(elem_ty_id, is_ptr);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
@@ -1949,8 +2822,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         index: 1,
                     },
                 }
-            },
-            NodeInst::NodeShiftIRef { id: _, result_id, is_ptr, refty, offty: _, opnd, offset } => {
+            }
+            NodeInst::NodeShiftIRef {
+                id: _,
+                result_id,
+                is_ptr,
+                refty,
+                offty: _,
+                opnd,
+                offset,
+            } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_offset = self.get_treenode(fcb, offset);
                 let impl_rvtype = self.ensure_iref_or_uptr(refty, is_ptr);
@@ -1965,15 +2846,29 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         offset: 1,
                     },
                 }
-            },
-            NodeInst::NodeGetVarPartIRef { id: _, result_id, is_ptr, refty, opnd } => {
+            }
+            NodeInst::NodeGetVarPartIRef {
+                id: _,
+                result_id,
+                is_ptr,
+                refty,
+                opnd,
+            } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
                 let elem_ty_id = match **refty_node {
-                    NodeType::TypeHybrid { id: _, fixedtys: _, varty } => { 
-                        varty
-                    },
-                    ref t => panic!("GETVARPARTIREF {}: Expected hybrid type. actual: {:?}", id, t)
+                    NodeType::TypeHybrid {
+                        id: _,
+                        fixedtys: _,
+                        varty,
+                    } => varty,
+                    ref t => {
+                        panic!(
+                            "GETVARPARTIREF {}: Expected hybrid type. actual: {:?}",
+                            id,
+                            t
+                        )
+                    }
                 };
                 let impl_rvtype = self.ensure_iref_or_uptr(elem_ty_id, is_ptr);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
@@ -1986,8 +2881,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         base: 0,
                     },
                 }
-            },
-            NodeInst::NodeLoad { id: _, result_id, is_ptr, ord, refty, loc, exc_clause } => {
+            }
+            NodeInst::NodeLoad {
+                id: _,
+                result_id,
+                is_ptr,
+                ord,
+                refty,
+                loc,
+                exc_clause,
+            } => {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_rvtype = self.get_built_type(refty);
@@ -2002,8 +2905,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         mem_loc: 0,
                     },
                 }
-            },
-            NodeInst::NodeStore { id: _, is_ptr, ord, refty, loc, newval, exc_clause } => {
+            }
+            NodeInst::NodeStore {
+                id: _,
+                is_ptr,
+                ord,
+                refty,
+                loc,
+                newval,
+                exc_clause,
+            } => {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_newval = self.get_treenode(fcb, newval);
@@ -2019,22 +2930,55 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         value: 1,
                     },
                 }
-            },
+            }
             NodeInst::NodeCCall {
-                id: _, ref result_ids, callconv: _, callee_ty: _,
-                sig, callee, ref args, exc_clause, keepalive_clause
+                id: _,
+                ref result_ids,
+                callconv: _,
+                callee_ty: _,
+                sig,
+                callee,
+                ref args,
+                exc_clause,
+                keepalive_clause,
             } => {
-                self.build_call_or_ccall(fcb, hdr, result_ids, sig, callee, args,
-                                         exc_clause, keepalive_clause,
-                                         true, CallConvention::Foreign(ForeignFFI::C))
-            },
+                self.build_call_or_ccall(
+                    fcb,
+                    hdr,
+                    result_ids,
+                    sig,
+                    callee,
+                    args,
+                    exc_clause,
+                    keepalive_clause,
+                    true,
+                    CallConvention::Foreign(ForeignFFI::C),
+                )
+            }
             NodeInst::NodeCommInst {
-                id, ref result_ids, opcode,
-                ref flags, ref tys, ref sigs, ref args,
-                ref exc_clause, ref keepalive_clause
+                id,
+                ref result_ids,
+                opcode,
+                ref flags,
+                ref tys,
+                ref sigs,
+                ref args,
+                ref exc_clause,
+                ref keepalive_clause,
             } => {
-                self.build_comm_inst(fcb, hdr, result_ids, opcode, flags, tys, sigs, args, exc_clause, keepalive_clause)
-            },
+                self.build_comm_inst(
+                    fcb,
+                    hdr,
+                    result_ids,
+                    opcode,
+                    flags,
+                    tys,
+                    sigs,
+                    args,
+                    exc_clause,
+                    keepalive_clause,
+                )
+            }
 
             ref i => panic!("{:?} not implemented", i),
         };
@@ -2044,9 +2988,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.new_inst(impl_inst)
     }
 
-    fn build_destination(&mut self, fcb: &mut FuncCtxBuilder, id: MuID,
-                         ops: &mut Vec<P<TreeNode>>, inst_result_ids: &[MuID],
-                         ) -> Destination {
+    fn build_destination(
+        &mut self,
+        fcb: &mut FuncCtxBuilder,
+        id: MuID,
+        ops: &mut Vec<P<TreeNode>>,
+        inst_result_ids: &[MuID],
+    ) -> Destination {
         let dest_clause = self.b.bundle.dest_clauses.get(&id).unwrap();
 
         let target = dest_clause.dest;
@@ -2083,15 +3031,21 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
     }
 
-    fn build_call_data(&mut self, fcb: &mut FuncCtxBuilder, ops: &mut Vec<P<TreeNode>>,
-                       callee: MuID, args: &[MuID], call_conv: CallConvention) -> CallData {
+    fn build_call_data(
+        &mut self,
+        fcb: &mut FuncCtxBuilder,
+        ops: &mut Vec<P<TreeNode>>,
+        callee: MuID,
+        args: &[MuID],
+        call_conv: CallConvention,
+    ) -> CallData {
         let func_index = ops.len();
         self.add_opnd(fcb, ops, callee);
 
         let args_begin_index = ops.len();
         self.add_opnds(fcb, ops, args);
 
-        let args_opindexes = (args_begin_index..(args.len()+1)).collect::<Vec<_>>();
+        let args_opindexes = (args_begin_index..(args.len() + 1)).collect::<Vec<_>>();
 
         let call_data = CallData {
             func: func_index,
@@ -2102,10 +3056,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         call_data
     }
 
-    fn build_call_or_ccall(&mut self, fcb: &mut FuncCtxBuilder, hdr: MuEntityHeader,
-                           result_ids: &[MuID], sig: MuID, callee: MuID, args: &[MuID],
-                           exc_clause: Option<MuID>, keepalive_claue: Option<MuID>,
-                           is_ccall: bool, call_conv: CallConvention) -> Instruction {
+    fn build_call_or_ccall(
+        &mut self,
+        fcb: &mut FuncCtxBuilder,
+        hdr: MuEntityHeader,
+        result_ids: &[MuID],
+        sig: MuID,
+        callee: MuID,
+        args: &[MuID],
+        exc_clause: Option<MuID>,
+        keepalive_claue: Option<MuID>,
+        is_ccall: bool,
+        call_conv: CallConvention,
+    ) -> Instruction {
         let mut ops: Vec<P<TreeNode>> = Vec::new();
 
         let call_data = self.build_call_data(fcb, &mut ops, callee, args, CallConvention::Mu);
@@ -2113,22 +3076,23 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let signode = self.b.bundle.sigs.get(&sig).unwrap();
         let rettys_ids = &signode.rettys;
 
-        let rvs = result_ids.iter().zip(rettys_ids).map(|(rvid, rvty)| {
-            let impl_rvty = self.get_built_type(*rvty);
-            self.new_ssa(fcb, *rvid, impl_rvty).clone_value()
-        }).collect::<Vec<_>>();
+        let rvs = result_ids
+            .iter()
+            .zip(rettys_ids)
+            .map(|(rvid, rvty)| {
+                let impl_rvty = self.get_built_type(*rvty);
+                self.new_ssa(fcb, *rvid, impl_rvty).clone_value()
+            })
+            .collect::<Vec<_>>();
 
         if let Some(ecid) = exc_clause {
             // terminating inst
             let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
 
-            let impl_normal_dest = {
-                self.build_destination(fcb, ecnode.nor, &mut ops, result_ids)
-            };
+            let impl_normal_dest =
+                { self.build_destination(fcb, ecnode.nor, &mut ops, result_ids) };
 
-            let impl_exn_dest = {
-                self.build_destination(fcb, ecnode.exc, &mut ops, &[])
-            };
+            let impl_exn_dest = { self.build_destination(fcb, ecnode.exc, &mut ops, &[]) };
 
             let resumption_data = ResumptionData {
                 normal_dest: impl_normal_dest,
@@ -2136,12 +3100,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             };
 
             let impl_inst_ = if is_ccall {
-                Instruction_::CCall{
+                Instruction_::CCall {
                     data: call_data,
                     resume: resumption_data,
                 }
             } else {
-                Instruction_::Call{
+                Instruction_::Call {
                     data: call_data,
                     resume: resumption_data,
                 }
@@ -2175,10 +3139,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     #[allow(unused_variables)]
-    fn build_comm_inst(&mut self, fcb: &mut FuncCtxBuilder, hdr: MuEntityHeader,
-                       result_ids: &Vec<MuID>, opcode: MuCommInst, flags: &Vec<Flag>,
-                       tys: &Vec<MuTypeNode>, sigs: &Vec<MuFuncSigNode>, args: &Vec<MuVarNode>,
-                       exc_clause: &Option<MuExcClause>, keepalives: &Option<MuKeepaliveClause>) -> Instruction {
+    fn build_comm_inst(
+        &mut self,
+        fcb: &mut FuncCtxBuilder,
+        hdr: MuEntityHeader,
+        result_ids: &Vec<MuID>,
+        opcode: MuCommInst,
+        flags: &Vec<Flag>,
+        tys: &Vec<MuTypeNode>,
+        sigs: &Vec<MuFuncSigNode>,
+        args: &Vec<MuVarNode>,
+        exc_clause: &Option<MuExcClause>,
+        keepalives: &Option<MuKeepaliveClause>,
+    ) -> Instruction {
         match opcode {
             CMU_CI_UVM_GET_THREADLOCAL => {
                 assert!(result_ids.len() == 1);
@@ -2190,7 +3163,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![rv]),
                     ops: vec![],
-                    v: Instruction_::CommonInst_GetThreadLocal
+                    v: Instruction_::CommonInst_GetThreadLocal,
                 }
             }
             CMU_CI_UVM_SET_THREADLOCAL => {
@@ -2202,20 +3175,20 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: vec![op],
-                    v: Instruction_::CommonInst_SetThreadLocal(0)
+                    v: Instruction_::CommonInst_SetThreadLocal(0),
                 }
             }
             CMU_CI_UVM_NATIVE_PIN => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 1);
+                assert!(tys.len() == 1);
 
                 let op_ty = self.ensure_type_rec(tys[0]);
                 let op = self.get_treenode(fcb, args[0]);
 
                 let referent_ty = match op_ty.get_referent_ty() {
                     Some(ty) => ty,
-                    _ => panic!("expected ty in PIN to be ref/iref, found {}", op_ty)
+                    _ => panic!("expected ty in PIN to be ref/iref, found {}", op_ty),
                 };
 
                 let rv_ty = self.ensure_uptr(referent_ty.id());
@@ -2225,12 +3198,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![rv]),
                     ops: vec![op],
-                    v: Instruction_::CommonInst_Pin(0)
+                    v: Instruction_::CommonInst_Pin(0),
                 }
             }
             CMU_CI_UVM_NATIVE_UNPIN => {
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 1);
+                assert!(tys.len() == 1);
 
                 let op_ty = self.ensure_type_rec(tys[0]);
                 let op = self.get_treenode(fcb, args[0]);
@@ -2239,7 +3212,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: vec![op],
-                    v: Instruction_::CommonInst_Unpin(0)
+                    v: Instruction_::CommonInst_Unpin(0),
                 }
             }
             CMU_CI_UVM_THREAD_EXIT => {
@@ -2247,13 +3220,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: vec![],
-                    v: Instruction_::ThreadExit
+                    v: Instruction_::ThreadExit,
                 }
             }
-            CMU_CI_UVM_TR64_IS_FP  => {
+            CMU_CI_UVM_TR64_IS_FP => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // int<1>
                 let impl_i1 = self.ensure_i1();
@@ -2270,7 +3243,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_IS_INT => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // int<1>
                 let impl_i1 = self.ensure_i1();
@@ -2287,7 +3260,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_IS_REF => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // int<1>
                 let impl_i1 = self.ensure_i1();
@@ -2304,12 +3277,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_FROM_FP => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_tagref64();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -2321,12 +3295,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_FROM_INT => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_tagref64();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -2338,13 +3313,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_FROM_REF => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 2);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_tagref64();
                 let impl_opnd1 = self.get_treenode(fcb, args[0]);
                 let impl_opnd2 = self.get_treenode(fcb, args[1]);
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -2356,12 +3332,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_TO_FP => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_double();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -2373,12 +3350,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_TO_INT => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_i52();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -2390,12 +3368,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_TO_REF => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_ref_void();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -2407,12 +3386,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_TR64_TO_TAG => {
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
-                assert!(tys.len()  == 0);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_i6();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -2421,7 +3401,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::CommonInst_Tr64ToTag(0),
                 }
             }
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 
@@ -2452,8 +3432,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             &mut self.built_globals,
             &mut self.built_funcs,
             &mut self.built_funcvers,
-            arc_vm
-            );
+            arc_vm,
+        );
 
         trace!("Bundle loaded to the VM!");
     }

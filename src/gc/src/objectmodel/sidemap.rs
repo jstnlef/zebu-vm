@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,10 +19,10 @@ use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
 use utils::bit_utils;
 use utils::{ByteSize, ByteOffset};
 
-pub const MINIMAL_ALIGNMENT : ByteSize = 1;
+pub const MINIMAL_ALIGNMENT: ByteSize = 1;
 
-pub const OBJECT_HEADER_SIZE : ByteSize = 0;
-pub const OBJECT_HEADER_OFFSET : ByteOffset = 0;
+pub const OBJECT_HEADER_SIZE: ByteSize = 0;
+pub const OBJECT_HEADER_OFFSET: ByteOffset = 0;
 
 pub fn gen_gctype_encode(ty: &GCType) -> u64 {
     unimplemented!()
@@ -37,30 +37,55 @@ pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, allo
     let mut cursor = obj;
     trace!("OBJECT 0x{:x}", obj);
     loop {
-        let hdr = get_ref_byte(alloc_map, space_start, unsafe {cursor.to_object_reference()});
+        let hdr = get_ref_byte(
+            alloc_map,
+            space_start,
+            unsafe { cursor.to_object_reference() },
+        );
         let (ref_bits, short_encode) = (
             bit_utils::lower_bits_u8(hdr, REF_BITS_LEN),
-            bit_utils::test_nth_bit_u8(hdr, SHORT_ENCODE_BIT)
+            bit_utils::test_nth_bit_u8(hdr, SHORT_ENCODE_BIT),
         );
 
 
-        trace!("0x{:x} | val: 0x{:15x} | {}, hdr: {:b}",
-        cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 0), hdr);
+        trace!(
+            "0x{:x} | val: 0x{:15x} | {}, hdr: {:b}",
+            cursor,
+            unsafe { cursor.load::<u64>() },
+            interpret_hdr_for_print_object(hdr, 0),
+            hdr
+        );
         cursor = cursor.plus(POINTER_SIZE);
-        trace!("0x{:x} | val: 0x{:15x} | {}",
-        cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 1));
+        trace!(
+            "0x{:x} | val: 0x{:15x} | {}",
+            cursor,
+            unsafe { cursor.load::<u64>() },
+            interpret_hdr_for_print_object(hdr, 1)
+        );
 
         cursor = cursor.plus(POINTER_SIZE);
-        trace!("0x{:x} | val: 0x{:15x} | {}",
-        cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 2));
+        trace!(
+            "0x{:x} | val: 0x{:15x} | {}",
+            cursor,
+            unsafe { cursor.load::<u64>() },
+            interpret_hdr_for_print_object(hdr, 2)
+        );
 
         cursor = cursor.plus(POINTER_SIZE);
-        trace!("0x{:x} | val: 0x{:15x} | {}",
-        cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 3));
+        trace!(
+            "0x{:x} | val: 0x{:15x} | {}",
+            cursor,
+            unsafe { cursor.load::<u64>() },
+            interpret_hdr_for_print_object(hdr, 3)
+        );
 
         cursor = cursor.plus(POINTER_SIZE);
-        trace!("0x{:x} | val: 0x{:15x} | {}",
-        cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 4));
+        trace!(
+            "0x{:x} | val: 0x{:15x} | {}",
+            cursor,
+            unsafe { cursor.load::<u64>() },
+            interpret_hdr_for_print_object(hdr, 4)
+        );
 
         cursor = cursor.plus(POINTER_SIZE);
         trace!("0x{:x} | val: 0x{:15x} | {} {}",
@@ -89,9 +114,16 @@ fn interpret_hdr_for_print_object(hdr: u8, index: usize) -> &'static str {
 }
 
 #[inline(always)]
-pub fn mark_as_traced(trace_map: *mut u8, space_start: Address, obj: ObjectReference, mark_state: u8) {
+pub fn mark_as_traced(
+    trace_map: *mut u8,
+    space_start: Address,
+    obj: ObjectReference,
+    mark_state: u8,
+) {
     unsafe {
-        *trace_map.offset((obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize) = mark_state;
+        *trace_map.offset(
+            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize,
+        ) = mark_state;
     }
 }
 
@@ -103,17 +135,28 @@ pub fn mark_as_untraced(trace_map: *mut u8, space_start: Address, addr: Address,
 }
 
 #[inline(always)]
-pub fn is_traced(trace_map: *mut u8, space_start: Address, obj: ObjectReference, mark_state: u8) -> bool {
+pub fn is_traced(
+    trace_map: *mut u8,
+    space_start: Address,
+    obj: ObjectReference,
+    mark_state: u8,
+) -> bool {
     unsafe {
-        (*trace_map.offset((obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize)) == mark_state
+        (*trace_map.offset(
+            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize,
+        )) == mark_state
     }
 }
 
-pub const REF_BITS_LEN    : usize = 6;
-pub const OBJ_START_BIT   : usize = 6;
-pub const SHORT_ENCODE_BIT : usize = 7;
+pub const REF_BITS_LEN: usize = 6;
+pub const OBJ_START_BIT: usize = 6;
+pub const SHORT_ENCODE_BIT: usize = 7;
 
 #[inline(always)]
-pub fn get_ref_byte(alloc_map:*mut u8, space_start: Address, obj: ObjectReference) -> u8 {
-    unsafe {*alloc_map.offset((obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize)}
+pub fn get_ref_byte(alloc_map: *mut u8, space_start: Address, obj: ObjectReference) -> u8 {
+    unsafe {
+        *alloc_map.offset(
+            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize,
+        )
+    }
 }

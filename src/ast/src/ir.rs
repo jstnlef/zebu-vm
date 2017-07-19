@@ -25,15 +25,19 @@ use std::fmt;
 use std::default;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
-pub type WPID  = usize;
-pub type MuID  = usize;
+pub type WPID = usize;
+pub type MuID = usize;
 pub type MuName = String;
-pub type CName  = MuName;
+pub type CName = MuName;
 
 #[allow(non_snake_case)]
-pub fn Mu(str: &'static str) -> MuName {str.to_string()}
+pub fn Mu(str: &'static str) -> MuName {
+    str.to_string()
+}
 #[allow(non_snake_case)]
-pub fn C(str: &'static str) -> CName {str.to_string()}
+pub fn C(str: &'static str) -> CName {
+    str.to_string()
+}
 
 pub type OpIndex = usize;
 
@@ -50,13 +54,13 @@ lazy_static! {
     };
 }
 /// MuID reserved for machine registers
-pub const  MACHINE_ID_START : usize = 0;
-pub const  MACHINE_ID_END   : usize = 200;
+pub const MACHINE_ID_START: usize = 0;
+pub const MACHINE_ID_END: usize = 200;
 
 /// MuID reserved for internal types, etc.
-pub const  INTERNAL_ID_START: usize = 201;
-pub const  INTERNAL_ID_END  : usize = 500;
-pub const  USER_ID_START    : usize = 1001;
+pub const INTERNAL_ID_START: usize = 201;
+pub const INTERNAL_ID_END: usize = 500;
+pub const USER_ID_START: usize = 1001;
 
 #[deprecated]
 #[allow(dead_code)]
@@ -85,13 +89,18 @@ pub fn new_internal_id() -> MuID {
 #[derive(Debug)]
 pub struct MuFunction {
     pub hdr: MuEntityHeader,
-    
+
     pub sig: P<MuFuncSig>,
     pub cur_ver: Option<MuID>,
-    pub all_vers: Vec<MuID>
+    pub all_vers: Vec<MuID>,
 }
 
-rodal_struct!(MuFunction{hdr, sig, cur_ver, all_vers});
+rodal_struct!(MuFunction {
+    hdr,
+    sig,
+    cur_ver,
+    all_vers,
+});
 
 impl MuFunction {
     pub fn new(entity: MuEntityHeader, sig: P<MuFuncSig>) -> MuFunction {
@@ -99,7 +108,7 @@ impl MuFunction {
             hdr: entity,
             sig: sig,
             cur_ver: None,
-            all_vers: vec![]
+            all_vers: vec![],
         }
     }
 
@@ -109,7 +118,7 @@ impl MuFunction {
             let obsolete_ver = self.cur_ver.unwrap();
             self.all_vers.push(obsolete_ver);
         }
-        
+
         self.cur_ver = Some(fv);
     }
 }
@@ -130,23 +139,35 @@ pub struct MuFunctionVersion {
 
     pub func_id: MuID,
     pub sig: P<MuFuncSig>,
-    orig_content: Option<FunctionContent>,      // original IR
-    pub content: Option<FunctionContent>,       // IR that may have been rewritten during compilation
+    orig_content: Option<FunctionContent>, // original IR
+    pub content: Option<FunctionContent>,  // IR that may have been rewritten during compilation
     is_defined: bool,
     is_compiled: bool,
     pub context: FunctionContext,
     pub force_inline: bool,
-    pub block_trace: Option<Vec<MuID>> // only available after Trace Generation Pass
+    pub block_trace: Option<Vec<MuID>>, // only available after Trace Generation Pass
 }
-rodal_struct!(Callsite{name, exception_destination, stack_arg_size});
+rodal_struct!(Callsite {
+    name,
+    exception_destination,
+    stack_arg_size,
+});
 pub struct Callsite {
     pub name: MuName,
     pub exception_destination: Option<MuName>,
     pub stack_arg_size: usize,
 }
 impl Callsite {
-    pub fn new(name: MuName, exception_destination: Option<MuName>, stack_arg_size: usize)->Callsite {
-        Callsite{name: name, exception_destination: exception_destination, stack_arg_size: stack_arg_size}
+    pub fn new(
+        name: MuName,
+        exception_destination: Option<MuName>,
+        stack_arg_size: usize,
+    ) -> Callsite {
+        Callsite {
+            name: name,
+            exception_destination: exception_destination,
+            stack_arg_size: stack_arg_size,
+        }
     }
 }
 impl fmt::Display for MuFunctionVersion {
@@ -176,7 +197,7 @@ impl fmt::Debug for MuFunctionVersion {
 impl MuFunctionVersion {
     /// creates an empty function version
     pub fn new(entity: MuEntityHeader, func: MuID, sig: P<MuFuncSig>) -> MuFunctionVersion {
-        MuFunctionVersion{
+        MuFunctionVersion {
             hdr: entity,
             func_id: func,
             sig: sig,
@@ -186,12 +207,18 @@ impl MuFunctionVersion {
             is_compiled: false,
             context: FunctionContext::new(),
             block_trace: None,
-            force_inline: false
+            force_inline: false,
         }
     }
 
     /// creates a complete function version
-    pub fn new_(hdr: MuEntityHeader, id: MuID, sig: P<MuFuncSig>, content: FunctionContent, context: FunctionContext) -> MuFunctionVersion {
+    pub fn new_(
+        hdr: MuEntityHeader,
+        id: MuID,
+        sig: P<MuFuncSig>,
+        content: FunctionContent,
+        context: FunctionContext,
+    ) -> MuFunctionVersion {
         MuFunctionVersion {
             hdr: hdr,
             func_id: id,
@@ -202,7 +229,7 @@ impl MuFunctionVersion {
             is_compiled: false,
             context: context,
             block_trace: None,
-            force_inline: false
+            force_inline: false,
         }
     }
 
@@ -231,33 +258,35 @@ impl MuFunctionVersion {
 
     pub fn new_ssa(&mut self, entity: MuEntityHeader, ty: P<MuType>) -> P<TreeNode> {
         let id = entity.id();
-        let val = P(Value{
+        let val = P(Value {
             hdr: entity,
             ty: ty,
-            v: Value_::SSAVar(id)
+            v: Value_::SSAVar(id),
         });
 
-        self.context.values.insert(id, SSAVarEntry::new(val.clone()));
+        self.context
+            .values
+            .insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            v: TreeNode_::Value(val)
+            v: TreeNode_::Value(val),
         })
     }
 
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
-        P(TreeNode{
-            v: TreeNode_::Value(v)
+        P(TreeNode {
+            v: TreeNode_::Value(v),
         })
     }
-    
+
     pub fn new_global(&mut self, v: P<Value>) -> P<TreeNode> {
-        P(TreeNode{
-            v: TreeNode_::Value(v)
+        P(TreeNode {
+            v: TreeNode_::Value(v),
         })
     }
 
     pub fn new_inst(&mut self, v: Instruction) -> Box<TreeNode> {
-        Box::new(TreeNode{
+        Box::new(TreeNode {
             v: TreeNode_::Instruction(v),
         })
     }
@@ -278,28 +307,30 @@ impl MuFunctionVersion {
                         let ref ops = inst.ops;
 
                         match inst.v {
-                            Instruction_::ExprCall{ref data, ..}
-                            | Instruction_::ExprCCall{ref data, ..}
-                            | Instruction_::Call {ref data, ..}
-                            | Instruction_::CCall {ref data, ..} => {
+                            Instruction_::ExprCall { ref data, .. } |
+                            Instruction_::ExprCCall { ref data, .. } |
+                            Instruction_::Call { ref data, .. } |
+                            Instruction_::CCall { ref data, .. } => {
                                 let ref callee = ops[data.func];
 
                                 match callee.v {
-                                    TreeNode_::Instruction(_) => {},
-                                    TreeNode_::Value(ref pv) => match pv.v {
-                                        Value_::Constant(Constant::FuncRef(id)) => {ret.insert(inst.id(), id);},
-                                        _ => {}
+                                    TreeNode_::Instruction(_) => {}
+                                    TreeNode_::Value(ref pv) => {
+                                        match pv.v {
+                                            Value_::Constant(Constant::FuncRef(id)) => {
+                                                ret.insert(inst.id(), id);
+                                            }
+                                            _ => {}
+                                        }
                                     }
                                 }
-                            },
+                            }
                             _ => {
                                 // do nothing
                             }
                         }
-                    },
-                    _ => {
-                        unreachable!()
                     }
+                    _ => unreachable!(),
                 }
             }
         }
@@ -319,15 +350,15 @@ impl MuFunctionVersion {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
                         match inst.v {
-                            Instruction_::Throw(_) => {return true;}
+                            Instruction_::Throw(_) => {
+                                return true;
+                            }
                             _ => {
                                 // do nothing
                             }
                         }
-                    },
-                    _ => {
-                        unreachable!()
                     }
+                    _ => unreachable!(),
                 }
             }
         }
@@ -345,15 +376,15 @@ impl MuFunctionVersion {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
                         match inst.v {
-                            Instruction_::TailCall(_) => {return true;}
+                            Instruction_::TailCall(_) => {
+                                return true;
+                            }
                             _ => {
                                 // do nothing
                             }
                         }
-                    },
-                    _ => {
-                        unreachable!()
                     }
+                    _ => unreachable!(),
                 }
             }
         }
@@ -367,7 +398,7 @@ impl MuFunctionVersion {
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: LinkedHashMap<MuID, Block>,
-    pub exception_blocks: LinkedHashSet<MuID> // this field only valid after control flow analysis
+    pub exception_blocks: LinkedHashSet<MuID>, // this field only valid after control flow analysis
 }
 
 impl fmt::Debug for FunctionContent {
@@ -390,13 +421,13 @@ impl FunctionContent {
         FunctionContent {
             entry: entry,
             blocks: blocks,
-            exception_blocks: LinkedHashSet::new()
+            exception_blocks: LinkedHashSet::new(),
         }
     }
 
     pub fn get_entry_block(&self) -> &Block {
         self.get_block(self.entry)
-    } 
+    }
 
     pub fn get_entry_block_mut(&mut self) -> &mut Block {
         let entry = self.entry;
@@ -407,7 +438,7 @@ impl FunctionContent {
         let ret = self.blocks.get(&id);
         match ret {
             Some(b) => b,
-            None => panic!("cannot find block #{}", id)
+            None => panic!("cannot find block #{}", id),
         }
     }
 
@@ -415,7 +446,7 @@ impl FunctionContent {
         let ret = self.blocks.get_mut(&id);
         match ret {
             Some(b) => b,
-            None => panic!("cannot find block #{}", id)
+            None => panic!("cannot find block #{}", id),
         }
     }
 
@@ -431,32 +462,31 @@ impl FunctionContent {
 }
 
 /// FunctionContext contains compilation information about the function
-
 // FIXME: should move this out of ast crate and bind its lifetime with compilation (Issue #18)
 #[derive(Default, Debug)]
 pub struct FunctionContext {
-    pub values: LinkedHashMap<MuID, SSAVarEntry>
+    pub values: LinkedHashMap<MuID, SSAVarEntry>,
 }
 
 impl FunctionContext {
     fn new() -> FunctionContext {
         FunctionContext {
-            values: LinkedHashMap::new()
+            values: LinkedHashMap::new(),
         }
     }
 
     /// makes a TreeNode of an SSA variable
     pub fn make_temporary(&mut self, id: MuID, ty: P<MuType>) -> P<TreeNode> {
-        let val = P(Value{
+        let val = P(Value {
             hdr: MuEntityHeader::unnamed(id),
             ty: ty,
-            v: Value_::SSAVar(id)
+            v: Value_::SSAVar(id),
         });
 
         self.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            v: TreeNode_::Value(val)
+            v: TreeNode_::Value(val),
         })
     }
 
@@ -464,7 +494,7 @@ impl FunctionContext {
     pub fn get_temp_display(&self, id: MuID) -> String {
         match self.get_value(id) {
             Some(entry) => format!("{}", entry.value()),
-            None => "CANT_FOUND_ID".to_string()
+            None => "CANT_FOUND_ID".to_string(),
         }
     }
 
@@ -480,7 +510,6 @@ impl FunctionContext {
 }
 
 /// Block contains BlockContent, which includes all the instructions for the block
-
 //  FIXME: control_flow field should be moved out of ast crate (Issue #18)
 //  FIXME: trace_hint should also be moved
 #[derive(Clone)]
@@ -491,7 +520,7 @@ pub struct Block {
     /// a trace scheduling hint about where to layout this block
     pub trace_hint: TraceHint,
     /// control flow info about this block (predecessors, successors, etc)
-    pub control_flow: ControlFlow
+    pub control_flow: ControlFlow,
 }
 
 impl fmt::Debug for Block {
@@ -516,12 +545,17 @@ impl fmt::Display for Block {
 
 impl Block {
     pub fn new(entity: MuEntityHeader) -> Block {
-        Block{hdr: entity, content: None, trace_hint: TraceHint::None, control_flow: ControlFlow::default()}
+        Block {
+            hdr: entity,
+            content: None,
+            trace_hint: TraceHint::None,
+            control_flow: ControlFlow::default(),
+        }
     }
 
     /// does this block have an exception arguments?
     pub fn is_receiving_exception_arg(&self) -> bool {
-        return self.content.as_ref().unwrap().exn_arg.is_some()
+        return self.content.as_ref().unwrap().exn_arg.is_some();
     }
 
     /// how many IR instruction does this block have?
@@ -537,33 +571,35 @@ impl Block {
 
     /// is this block ends with a conditional branch?
     pub fn ends_with_cond_branch(&self) -> bool {
-        let block : &BlockContent = self.content.as_ref().unwrap();
+        let block: &BlockContent = self.content.as_ref().unwrap();
         match block.body.last() {
             Some(node) => {
                 match node.v {
-                    TreeNode_::Instruction(Instruction {v: Instruction_::Branch2{..}, ..}) => {
-                        true
-                    }
-                    _ => false
+                    TreeNode_::Instruction(Instruction {
+                        v: Instruction_::Branch2 { .. },
+                        ..
+                    }) => true,
+                    _ => false,
                 }
             }
-            None => false
+            None => false,
         }
     }
 
     /// is this block ends with a return?
     pub fn ends_with_return(&self) -> bool {
-        let block : &BlockContent = self.content.as_ref().unwrap();
+        let block: &BlockContent = self.content.as_ref().unwrap();
         match block.body.last() {
             Some(node) => {
                 match node.v {
-                    TreeNode_::Instruction(Instruction {v: Instruction_::Return(_), ..}) => {
-                        true
-                    }
-                    _ => false
+                    TreeNode_::Instruction(Instruction {
+                        v: Instruction_::Return(_),
+                        ..
+                    }) => true,
+                    _ => false,
                 }
             }
-            None => false
+            None => false,
         }
     }
 }
@@ -583,15 +619,15 @@ pub enum TraceHint {
     /// this block is slow path, and should be kept out of hot loops
     SlowPath,
     /// this block is return sink, and should be put at the end of a function
-    ReturnSink
+    ReturnSink,
 }
 
 /// ControlFlow stores compilation info about control flows of a block
 //  FIXME: Issue #18
 #[derive(Debug, Clone)]
 pub struct ControlFlow {
-    pub preds : Vec<MuID>,
-    pub succs : Vec<BlockEdge>
+    pub preds: Vec<MuID>,
+    pub succs: Vec<BlockEdge>,
 }
 
 impl ControlFlow {
@@ -625,7 +661,10 @@ impl fmt::Display for ControlFlow {
 
 impl default::Default for ControlFlow {
     fn default() -> ControlFlow {
-        ControlFlow {preds: vec![], succs: vec![]}
+        ControlFlow {
+            preds: vec![],
+            succs: vec![],
+        }
     }
 }
 
@@ -635,18 +674,26 @@ pub struct BlockEdge {
     pub target: MuID,
     pub kind: EdgeKind,
     pub is_exception: bool,
-    pub probability: f32
+    pub probability: f32,
 }
 
 impl fmt::Display for BlockEdge {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} ({:?}{} - {})", self.target, self.kind, select_value!(self.is_exception, ", exceptional", ""), self.probability)
+        write!(
+            f,
+            "{} ({:?}{} - {})",
+            self.target,
+            self.kind,
+            select_value!(self.is_exception, ", exceptional", ""),
+            self.probability
+        )
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub enum EdgeKind {
-    Forward, Backward
+    Forward,
+    Backward,
 }
 
 /// BlockContent describes arguments to this block, and owns all the IR instructions
@@ -655,7 +702,7 @@ pub struct BlockContent {
     pub args: Vec<P<Value>>,
     pub exn_arg: Option<P<Value>>,
     pub body: Vec<Box<TreeNode>>,
-    pub keepalives: Option<Vec<P<Value>>>
+    pub keepalives: Option<Vec<P<Value>>>,
 }
 
 impl fmt::Debug for BlockContent {
@@ -665,7 +712,11 @@ impl fmt::Debug for BlockContent {
             writeln!(f, "exception arg: {}", self.exn_arg.as_ref().unwrap()).unwrap();
         }
         if self.keepalives.is_some() {
-            writeln!(f, "keepalives: {}", vec_utils::as_str(self.keepalives.as_ref().unwrap())).unwrap();
+            writeln!(
+                f,
+                "keepalives: {}",
+                vec_utils::as_str(self.keepalives.as_ref().unwrap())
+            ).unwrap();
         }
         for node in self.body.iter() {
             writeln!(f, "{}", node).unwrap();
@@ -679,56 +730,73 @@ impl BlockContent {
     pub fn get_out_arguments(&self) -> Vec<P<Value>> {
         let n_insts = self.body.len();
         let ref last_inst = self.body[n_insts - 1];
-        
-        let mut ret : Vec<P<Value>> = vec![];
-        
+
+        let mut ret: Vec<P<Value>> = vec![];
+
         match last_inst.v {
             TreeNode_::Instruction(ref inst) => {
                 let ref ops = inst.ops;
                 match inst.v {
-                    Instruction_::Return(_)
-                    | Instruction_::ThreadExit
-                    | Instruction_::Throw(_)
-                    | Instruction_::TailCall(_) => {
+                    Instruction_::Return(_) |
+                    Instruction_::ThreadExit |
+                    Instruction_::Throw(_) |
+                    Instruction_::TailCall(_) => {
                         // they do not have explicit liveouts
                     }
                     Instruction_::Branch1(ref dest) => {
                         let mut live_outs = dest.get_arguments(&ops);
                         vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
-                    Instruction_::Branch2{ref true_dest, ref false_dest, ..} => {
+                    Instruction_::Branch2 {
+                        ref true_dest,
+                        ref false_dest,
+                        ..
+                    } => {
                         let mut live_outs = true_dest.get_arguments(&ops);
                         live_outs.append(&mut false_dest.get_arguments(&ops));
-                        
+
                         vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
-                    Instruction_::Watchpoint{ref disable_dest, ref resume, ..} => {
+                    Instruction_::Watchpoint {
+                        ref disable_dest,
+                        ref resume,
+                        ..
+                    } => {
                         let mut live_outs = vec![];
-                        
+
                         if disable_dest.is_some() {
-                            live_outs.append(&mut disable_dest.as_ref().unwrap().get_arguments(&ops));
+                            live_outs
+                                .append(&mut disable_dest.as_ref().unwrap().get_arguments(&ops));
                         }
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
                         live_outs.append(&mut resume.exn_dest.get_arguments(&ops));
-                        
+
                         vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
-                    Instruction_::WPBranch{ref disable_dest, ref enable_dest, ..} => {
+                    Instruction_::WPBranch {
+                        ref disable_dest,
+                        ref enable_dest,
+                        ..
+                    } => {
                         let mut live_outs = vec![];
                         live_outs.append(&mut disable_dest.get_arguments(&ops));
                         live_outs.append(&mut enable_dest.get_arguments(&ops));
                         vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
-                    Instruction_::Call{ref resume, ..}
-                    | Instruction_::CCall{ref resume, ..}
-                    | Instruction_::SwapStack{ref resume, ..}
-                    | Instruction_::ExnInstruction{ref resume, ..} => {
+                    Instruction_::Call { ref resume, .. } |
+                    Instruction_::CCall { ref resume, .. } |
+                    Instruction_::SwapStack { ref resume, .. } |
+                    Instruction_::ExnInstruction { ref resume, .. } => {
                         let mut live_outs = vec![];
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
                         live_outs.append(&mut resume.exn_dest.get_arguments(&ops));
                         vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
-                    Instruction_::Switch{ref default, ref branches, ..} => {
+                    Instruction_::Switch {
+                        ref default,
+                        ref branches,
+                        ..
+                    } => {
                         let mut live_outs = vec![];
                         live_outs.append(&mut default.get_arguments(&ops));
                         for &(_, ref dest) in branches {
@@ -736,13 +804,13 @@ impl BlockContent {
                         }
                         vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
-                    
-                    _ => panic!("didn't expect last inst as {}", inst)
+
+                    _ => panic!("didn't expect last inst as {}", inst),
                 }
-            },
-            _ => panic!("expect last treenode of block is a inst")
+            }
+            _ => panic!("expect last treenode of block is a inst"),
         }
-        
+
         ret
     }
 }
@@ -757,14 +825,14 @@ pub struct TreeNode {
 impl TreeNode {
     /// creates a sharable Instruction TreeNode
     pub fn new_inst(v: Instruction) -> P<TreeNode> {
-        P(TreeNode{
+        P(TreeNode {
             v: TreeNode_::Instruction(v),
         })
     }
 
     /// creates an owned Instruction TreeNode
     pub fn new_boxed_inst(v: Instruction) -> Box<TreeNode> {
-        Box::new(TreeNode{
+        Box::new(TreeNode {
             v: TreeNode_::Instruction(v),
         })
     }
@@ -772,7 +840,7 @@ impl TreeNode {
     /// creates a sharable Value TreeNode
     pub fn new_value(v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
-            v: TreeNode_::Value(v)
+            v: TreeNode_::Value(v),
         })
     }
 
@@ -783,10 +851,10 @@ impl TreeNode {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar(id) => Some(id),
-                    _ => None
+                    _ => None,
                 }
-            },
-            _ => None
+            }
+            _ => None,
         }
     }
 
@@ -806,7 +874,10 @@ impl TreeNode {
             TreeNode_::Instruction(ref inst) => {
                 let vals = inst.value.as_ref().unwrap();
                 if vals.len() != 1 {
-                    panic!("we expect an inst with 1 value, but found multiple or zero (it should not be here - folded as a child)");
+                    panic!(
+                        "we expect an inst with 1 value, but found multiple or zero \
+                         (it should not be here - folded as a child)"
+                    );
                 }
                 &vals[0]
             }
@@ -817,7 +888,7 @@ impl TreeNode {
     pub fn into_value(self) -> Option<P<Value>> {
         match self.v {
             TreeNode_::Value(val) => Some(val),
-            _ => None
+            _ => None,
         }
     }
 
@@ -825,7 +896,7 @@ impl TreeNode {
     pub fn into_inst(self) -> Option<Instruction> {
         match self.v {
             TreeNode_::Instruction(inst) => Some(inst),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -834,9 +905,7 @@ impl fmt::Display for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.v {
             TreeNode_::Value(ref pv) => pv.fmt(f),
-            TreeNode_::Instruction(ref inst) => {
-                write!(f, "({})", inst)
-            }
+            TreeNode_::Instruction(ref inst) => write!(f, "({})", inst),
         }
     }
 }
@@ -845,7 +914,7 @@ impl fmt::Display for TreeNode {
 #[derive(Debug, Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
-    Instruction(Instruction)
+    Instruction(Instruction),
 }
 
 /// Value represents a value in the tree, it could be SSA variables, constants, globals,
@@ -857,10 +926,10 @@ pub enum TreeNode_ {
 pub struct Value {
     pub hdr: MuEntityHeader,
     pub ty: P<MuType>,
-    pub v: Value_
+    pub v: Value_,
 }
 
-rodal_struct!(Value{hdr, ty, v});
+rodal_struct!(Value { hdr, ty, v });
 
 impl Value {
     /// creates an int constant value
@@ -869,31 +938,31 @@ impl Value {
     }
 
     pub fn make_int_const_ty(id: MuID, ty: P<MuType>, val: u64) -> P<Value> {
-        P(Value{
+        P(Value {
             hdr: MuEntityHeader::unnamed(id),
             ty: ty,
-            v: Value_::Constant(Constant::Int(val))
+            v: Value_::Constant(Constant::Int(val)),
         })
     }
-    
+
     pub fn is_mem(&self) -> bool {
         match self.v {
             Value_::Memory(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_reg(&self) -> bool {
         match self.v {
             Value_::SSAVar(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_const(&self) -> bool {
         match self.v {
             Value_::Constant(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -901,17 +970,17 @@ impl Value {
     /// This is usually used for treat an integer type as an integer of a different length
     /// This method is unsafe
     pub unsafe fn as_type(&self, ty: P<MuType>) -> P<Value> {
-        P(Value{
+        P(Value {
             hdr: self.hdr.clone(),
             ty: ty,
-            v: self.v.clone()
+            v: self.v.clone(),
         })
     }
 
     pub fn is_int_ex_const(&self) -> bool {
         match self.v {
             Value_::Constant(Constant::IntEx(_)) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -920,7 +989,7 @@ impl Value {
         match self.v {
             Value_::Constant(Constant::Int(_)) => true,
             Value_::Constant(Constant::NullRef) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -928,42 +997,42 @@ impl Value {
         match self.v {
             Value_::Constant(Constant::Float(_)) => true,
             Value_::Constant(Constant::Double(_)) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn extract_int_const(&self) -> Option<u64> {
         match self.v {
             Value_::Constant(Constant::Int(val)) => Some(val),
-            Value_::Constant(Constant::NullRef)  => Some(0),
-            _ => None
+            Value_::Constant(Constant::NullRef) => Some(0),
+            _ => None,
         }
     }
 
     pub fn extract_int_ex_const(&self) -> Vec<u64> {
         match self.v {
             Value_::Constant(Constant::IntEx(ref val)) => val.clone(),
-            _ => panic!("expect int ex const")
+            _ => panic!("expect int ex const"),
         }
     }
 
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             Value_::SSAVar(id) => Some(id),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn extract_memory_location(&self) -> Option<MemoryLocation> {
         match self.v {
             Value_::Memory(ref loc) => Some(loc.clone()),
-            _ => None
+            _ => None,
         }
     }
 }
 
-const DISPLAY_ID : bool = true;
-const DISPLAY_TYPE : bool = false;
+const DISPLAY_ID: bool = true;
+const DISPLAY_TYPE: bool = false;
 const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {
@@ -976,33 +1045,17 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_TYPE {
             match self.v {
-                Value_::SSAVar(_) => {
-                    write!(f, "{}(%{})", self.ty, self.hdr)
-                },
-                Value_::Constant(ref c) => {
-                    write!(f, "{}({})", self.ty, c)
-                },
-                Value_::Global(ref ty) => {
-                    write!(f, "{}(@{})", ty, self.hdr)
-                },
-                Value_::Memory(ref mem) => {
-                    write!(f, "%{}{})", self.hdr, mem)
-                }
+                Value_::SSAVar(_) => write!(f, "{}(%{})", self.ty, self.hdr),
+                Value_::Constant(ref c) => write!(f, "{}({})", self.ty, c),
+                Value_::Global(ref ty) => write!(f, "{}(@{})", ty, self.hdr),
+                Value_::Memory(ref mem) => write!(f, "%{}{})", self.hdr, mem),
             }
         } else {
             match self.v {
-                Value_::SSAVar(_) => {
-                    write!(f, "%{}", self.hdr)
-                },
-                Value_::Constant(ref c) => {
-                    write!(f, "{}", c)
-                },
-                Value_::Global(_) => {
-                    write!(f, "@{}", self.hdr)
-                },
-                Value_::Memory(ref mem) => {
-                    write!(f, "%{}{}", self.hdr, mem)
-                }
+                Value_::SSAVar(_) => write!(f, "%{}", self.hdr),
+                Value_::Constant(ref c) => write!(f, "{}", c),
+                Value_::Global(_) => write!(f, "@{}", self.hdr),
+                Value_::Memory(ref mem) => write!(f, "%{}{}", self.hdr, mem),
             }
         }
     }
@@ -1014,7 +1067,7 @@ pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant),
     Global(P<MuType>), // what type is this global (without IRef)
-    Memory(MemoryLocation)
+    Memory(MemoryLocation),
 }
 
 rodal_enum!(Value_{(SSAVar: id), (Constant: val), (Global: ty), (Memory: location)});
@@ -1033,7 +1086,7 @@ pub struct SSAVarEntry {
     expr: Option<Instruction>,
 
     // some ssa vars (such as int128) needs to be split into smaller vars
-    split: Option<Vec<P<Value>>>
+    split: Option<Vec<P<Value>>>,
 }
 
 impl SSAVarEntry {
@@ -1042,11 +1095,11 @@ impl SSAVarEntry {
             val: val,
             use_count: ATOMIC_USIZE_INIT,
             expr: None,
-            split: None
+            split: None,
         };
-        
+
         ret.use_count.store(0, Ordering::SeqCst);
-        
+
         ret
     }
 
@@ -1115,7 +1168,7 @@ pub enum Constant {
     /// external symbol
     ExternSym(CName),
     /// a composite type of several constants (currently not used)
-    List(Vec<P<Value>>)
+    List(Vec<P<Value>>),
 }
 
 rodal_enum!(Constant{(Int: val), (IntEx: val), (Float: val), (Double: val), (FuncRef: val),
@@ -1128,7 +1181,7 @@ impl fmt::Display for Constant {
             &Constant::IntEx(ref v) => write!(f, "IntEx {:?}", v),
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
-//            &Constant::IRef(v) => write!(f, "{}", v),
+            //            &Constant::IRef(v) => write!(f, "{}", v),
             &Constant::FuncRef(v) => write!(f, "FuncRef {}", v),
             &Constant::Vector(ref v) => {
                 write!(f, "[").unwrap();
@@ -1160,29 +1213,35 @@ impl fmt::Display for Constant {
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
     /// addr = base + offset + index * scale
-    Address{
+    Address {
         base: P<Value>, // +8
         offset: Option<P<Value>>,
         index: Option<P<Value>>,
-        scale: Option<u8>
+        scale: Option<u8>,
     },
     /// addr = base + label(offset)
-    Symbolic{
+    Symbolic {
         base: Option<P<Value>>,
         label: MuName,
         is_global: bool,
         is_native: bool,
-    }
+    },
 }
 
 #[cfg(target_arch = "x86_64")]
-rodal_enum!(MemoryLocation{{Address: scale, base, offset, index}, {Symbolic: is_global, is_native, base, label}});
+rodal_enum!(MemoryLocation{{Address: scale, base, offset, index},
+    {Symbolic: is_global, is_native, base, label}});
 
 #[cfg(target_arch = "x86_64")]
 impl fmt::Display for MemoryLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &MemoryLocation::Address{ref base, ref offset, ref index, scale} => {
+            &MemoryLocation::Address {
+                ref base,
+                ref offset,
+                ref index,
+                scale,
+            } => {
                 // base
                 write!(f, "[{}", base).unwrap();
                 // offset
@@ -1195,7 +1254,11 @@ impl fmt::Display for MemoryLocation {
                 }
                 write!(f, "]")
             }
-            &MemoryLocation::Symbolic{ref base, ref label, ..} => {
+            &MemoryLocation::Symbolic {
+                ref base,
+                ref label,
+                ..
+            } => {
                 if base.is_some() {
                     write!(f, "{}({})", label, base.as_ref().unwrap())
                 } else {
@@ -1213,15 +1276,15 @@ impl fmt::Display for MemoryLocation {
 pub enum MemoryLocation {
     /// Represents how an address should be computed,
     /// will need to be converted to a real Address before being used
-    VirtualAddress{
+    VirtualAddress {
         /// Represents base + offset*scale
         /// With offset being interpreted as signed if 'signed' is true
         base: P<Value>, //+8
         offset: Option<P<Value>>, //+16
-        signed: bool, //+1
-        scale: u64 //+24
+        signed: bool,             //+1
+        scale: u64,               //+24
     },
-    Address{
+    Address {
         /// Must be a normal 64-bit register or SP
         base: P<Value>,
         /// Can be any GPR or a 12-bit unsigned immediate << n
@@ -1232,11 +1295,11 @@ pub enum MemoryLocation {
         /// Note: n is the number of bytes the adress refers two
         signed: bool,
     },
-    Symbolic{
+    Symbolic {
         label: MuName,
         is_global: bool,
         is_native: bool,
-    }
+    },
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -1250,22 +1313,32 @@ rodal_enum!(MemoryLocation{
 impl fmt::Display for MemoryLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &MemoryLocation::VirtualAddress{ref base, ref offset, scale, signed} => {
+            &MemoryLocation::VirtualAddress {
+                ref base,
+                ref offset,
+                scale,
+                signed,
+            } => {
                 write!(f, "[{}", base).unwrap();
 
                 if offset.is_some() {
-                    let sign_type = if signed { "SInt"} else { "UInt" };
+                    let sign_type = if signed { "SInt" } else { "UInt" };
                     write!(f, " + {}({})", sign_type, offset.as_ref().unwrap()).unwrap();
                 }
 
                 write!(f, " * {}", scale).unwrap();
                 write!(f, "]")
             }
-            &MemoryLocation::Address{ref base, ref offset, shift, signed} => {
+            &MemoryLocation::Address {
+                ref base,
+                ref offset,
+                shift,
+                signed,
+            } => {
                 write!(f, "[{}", base).unwrap();
 
                 if offset.is_some() {
-                    let sign_type = if signed { "SInt"} else { "UInt" };
+                    let sign_type = if signed { "SInt" } else { "UInt" };
                     write!(f, " + {}({})", sign_type, offset.as_ref().unwrap()).unwrap();
                 }
 
@@ -1274,9 +1347,7 @@ impl fmt::Display for MemoryLocation {
                 }
                 write!(f, "]")
             }
-            &MemoryLocation::Symbolic{ref label, ..} => {
-                write!(f, "{}", label)
-            }
+            &MemoryLocation::Symbolic { ref label, .. } => write!(f, "{}", label),
         }
     }
 }
@@ -1286,7 +1357,7 @@ impl fmt::Display for MemoryLocation {
 #[derive(Debug)] // Display, PartialEq, Clone
 pub struct MuEntityHeader {
     id: MuID,
-    name: MuName
+    name: MuName,
 }
 
 rodal_struct!(MuEntityHeader{id, name});
@@ -1295,7 +1366,7 @@ impl Clone for MuEntityHeader {
     fn clone(&self) -> Self {
         MuEntityHeader {
             id: self.id,
-            name: self.name.clone()
+            name: self.name.clone(),
         }
     }
 }
@@ -1309,14 +1380,21 @@ pub fn is_valid_c_identifier(name: &MuName) -> bool {
     for c in name.chars() {
         match c {
             '_' => {
-                if i == 0 { underscore = true; }
-                else if i == 1 && underscore { return false; }
-            },
+                if i == 0 {
+                    underscore = true;
+                } else if i == 1 && underscore {
+                    return false;
+                }
+            }
             '0'...'9' => {
-                if i == 0 { return false; }
-            },
-            'a'...'z' | 'A' ... 'Z' => { }
-            _ => { return false; }
+                if i == 0 {
+                    return false;
+                }
+            }
+            'a'...'z' | 'A'...'Z' => {}
+            _ => {
+                return false;
+            }
         }
         i += 1;
     }
@@ -1328,15 +1406,20 @@ pub fn is_valid_c_identifier(name: &MuName) -> bool {
 pub fn mangle_name(name: MuName) -> MuName {
     let name = name.replace('@', "");
     if name.starts_with("__mu_") {
-        // TODO: Get rid of this, since it will be trigered if a client provides a name starting with "__mu"
-        // which is totally valid, it's only here for the moment to debug name handling
-        panic!("Trying to mangle \"{}\", which is allready mangled", name.clone());
+        // TODO: Get rid of this, since it will be triggered if a client provides a name
+        // starting with "__mu" which is totally valid, it's only here for the moment to
+        // debug name handling
+        panic!("Trying to mangle \"{}\", which is already mangled", name.clone());
     }
 
     assert!(!name.starts_with("%"));
 
     // Note: a ':'  and '#' is only used by names generated by zebu itself
-    let name = name.replace('Z', "ZZ").replace('.', "Zd").replace('-', "Zh").replace(':', "Zc").replace('#', "Za");
+    let name = name.replace('Z', "ZZ")
+        .replace('.', "Zd")
+        .replace('-', "Zh")
+        .replace(':', "Zc")
+        .replace('#', "Za");
     "__mu_".to_string() + name.as_str()
 }
 
@@ -1355,7 +1438,11 @@ pub fn demangle_name(mut name: MuName) -> MuName {
         panic!("Trying to demangle \"{}\", which is not mangled", name.clone());
     }
     let name = name.split_at("__mu_".len()).1.to_string();
-    let name = name.replace("Za", "#").replace("Zc", ":").replace("Zh", "-").replace("Zd", ".").replace("ZZ", "Z");
+    let name = name.replace("Za", "#")
+        .replace("Zc", ":")
+        .replace("Zh", "-")
+        .replace("Zd", ".")
+        .replace("ZZ", "Z");
     name
 }
 
@@ -1387,7 +1474,8 @@ pub fn demangle_text(text: String) -> String {
                     i += 1;
                 }
 
-                output += demangle_name(String::from_utf8(text[start..i].to_vec()).unwrap()).as_str();
+                output +=
+                    demangle_name(String::from_utf8(text[start..i].to_vec()).unwrap()).as_str();
                 // Skip to the end of the name
                 last_i = i;
                 continue;
@@ -1407,7 +1495,8 @@ pub fn demangle_text(text: String) -> String {
         // Not the start of mangled name, continue
         i += 1;
     }
-    output + std::str::from_utf8(&text[last_i..n]).unwrap() // Return output plus whatever is left of the string
+    // Return output plus whatever is left of the string
+    output + std::str::from_utf8(&text[last_i..n]).unwrap()
 }
 
 
@@ -1415,21 +1504,21 @@ impl MuEntityHeader {
     pub fn unnamed(id: MuID) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: format!("#{}", id)
+            name: format!("#{}", id),
         }
     }
 
     pub fn named(id: MuID, name: MuName) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: name.replace('@', "")
+            name: name.replace('@', ""),
         }
     }
 
     pub fn id(&self) -> MuID {
         self.id
     }
-    
+
     pub fn name(&self) -> MuName {
         self.name.clone()
     }
@@ -1443,7 +1532,7 @@ impl MuEntityHeader {
         for i in 0..split.len() - 1 {
             ret.push(match split[i].chars().next() {
                 Some(c) => c,
-                None => '_'
+                None => '_',
             });
             ret.push('.');
         }
@@ -1506,21 +1595,21 @@ impl MuEntity for TreeNode {
     fn id(&self) -> MuID {
         match self.v {
             TreeNode_::Instruction(ref inst) => inst.id(),
-            TreeNode_::Value(ref pv) => pv.id()
+            TreeNode_::Value(ref pv) => pv.id(),
         }
     }
 
     fn name(&self) -> MuName {
         match self.v {
             TreeNode_::Instruction(ref inst) => inst.name(),
-            TreeNode_::Value(ref pv) => pv.name()
+            TreeNode_::Value(ref pv) => pv.name(),
         }
     }
 
     fn as_entity(&self) -> &MuEntity {
         match self.v {
             TreeNode_::Instruction(ref inst) => inst.as_entity(),
-            TreeNode_::Value(ref pv) => pv.as_entity()
+            TreeNode_::Value(ref pv) => pv.as_entity(),
         }
     }
 }

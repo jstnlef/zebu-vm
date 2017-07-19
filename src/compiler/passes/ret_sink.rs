@@ -25,13 +25,13 @@ use std::any::Any;
 /// create a return sink (a block), and rewrite all the RET instruction into
 /// a BRANCH with return values.
 pub struct RetSink {
-    name: &'static str
+    name: &'static str,
 }
 
 impl RetSink {
     pub fn new() -> RetSink {
         RetSink {
-            name: "Creating Return Sink"
+            name: "Creating Return Sink",
         }
     }
 }
@@ -59,8 +59,13 @@ impl CompilerPass for RetSink {
             vm.set_name(block.as_entity());
 
             let sig = func.sig.clone();
-            let args : Vec<P<Value>> = sig.ret_tys.iter()
-                .map(|ty| func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), ty.clone()).clone_value()).collect();
+            let args: Vec<P<Value>> = sig.ret_tys
+                .iter()
+                .map(|ty| {
+                    func.new_ssa(MuEntityHeader::unnamed(vm.next_id()), ty.clone())
+                        .clone_value()
+                })
+                .collect();
 
             block.content = Some(BlockContent {
                 args: args.clone(),
@@ -69,11 +74,13 @@ impl CompilerPass for RetSink {
                     func.new_inst(Instruction {
                         hdr: MuEntityHeader::unnamed(vm.next_id()),
                         value: None,
-                        ops: args.iter().map(|val| TreeNode::new_value(val.clone())).collect(),
-                        v: Instruction_::Return((0..args.len()).collect())
-                    })
+                        ops: args.iter()
+                            .map(|val| TreeNode::new_value(val.clone()))
+                            .collect(),
+                        v: Instruction_::Return((0..args.len()).collect()),
+                    }),
                 ],
-                keepalives: None
+                keepalives: None,
             });
 
             block
@@ -81,7 +88,7 @@ impl CompilerPass for RetSink {
 
         // rewrite existing RET instruction to a BRANCH
         // use RET values as BRANCH's goto values
-        let mut has_ret : bool = false;
+        let mut has_ret: bool = false;
         for (blk_id, mut block) in f_content.blocks.iter_mut() {
             trace!("block: {}", blk_id);
 
@@ -93,29 +100,33 @@ impl CompilerPass for RetSink {
             for node in block_content.body.iter() {
                 trace!("{}", node);
                 match node.v {
-                    TreeNode_::Instruction(Instruction {ref ops, v: Instruction_::Return(ref arg_index), ..}) => {
+                    TreeNode_::Instruction(Instruction {
+                        ref ops,
+                        v: Instruction_::Return(ref arg_index),
+                        ..
+                    }) => {
                         let branch_to_sink = func.new_inst(Instruction {
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             value: None,
                             ops: ops.clone(),
                             v: Instruction_::Branch1(Destination {
                                 target: return_sink.id(),
-                                args: arg_index.iter().map(|i| DestArg::Normal(*i)).collect()
-                            })
+                                args: arg_index.iter().map(|i| DestArg::Normal(*i)).collect(),
+                            }),
                         });
                         trace!(">> rewrite ret to {}", branch_to_sink);
                         new_body.push(branch_to_sink);
                         has_ret = true;
                     }
-                    _ => new_body.push(node.clone())
+                    _ => new_body.push(node.clone()),
                 }
             }
 
             block.content = Some(BlockContent {
-                args      : block_content.args.to_vec(),
-                exn_arg   : block_content.exn_arg.clone(),
-                body      : new_body,
-                keepalives: block_content.keepalives.clone()
+                args: block_content.args.to_vec(),
+                exn_arg: block_content.exn_arg.clone(),
+                body: new_body,
+                keepalives: block_content.keepalives.clone(),
             });
         }
 

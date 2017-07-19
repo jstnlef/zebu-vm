@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -64,7 +64,9 @@ impl MuVM {
 
         debug!("The C-visible CMuCtx struct address: {:?}", cctx);
 
-        unsafe{ (*ctx_ptr).c_struct = cctx; }
+        unsafe {
+            (*ctx_ptr).c_struct = cctx;
+        }
 
         cctx
     }
@@ -94,18 +96,22 @@ impl MuVM {
         use compiler::*;
         use linkutils::aot;
 
-        let funcs : Vec<MuID> = {
+        let funcs: Vec<MuID> = {
             let funcs = self.vm.funcs().read().unwrap();
             funcs.keys().map(|x| *x).collect()
         };
 
-        self.vm.make_boot_image_internal(funcs,
-                                         None, None,
-                                         None,
-                                         vec![], vec![],
-                                         vec![], vec![],
-                                         extra_srcs,
-                                         lib_name
+        self.vm.make_boot_image_internal(
+            funcs,
+            None,
+            None,
+            None,
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            extra_srcs,
+            lib_name,
         );
     }
 
@@ -113,11 +119,10 @@ impl MuVM {
         unsafe {
             thread::MuThread::current_thread_as_mu_thread(
                 transmute::<CMuCPtr, Address>(threadlocal),
-                self.vm.clone()
+                self.vm.clone(),
             );
         }
     }
-
 }
 
 /**
@@ -135,22 +140,22 @@ impl MuVM {
  * only see `MuCtx`, and it is enough for most of the works.
  */
 #[no_mangle]
-pub extern fn mu_fastimpl_new() -> *mut CMuVM {
+pub extern "C" fn mu_fastimpl_new() -> *mut CMuVM {
     mu_fastimpl_new_with_opts(ptr::null())
 }
 
 #[no_mangle]
-pub extern fn mu_fastimpl_new_with_opts(opts: *const c_char) -> *mut CMuVM {
+pub extern "C" fn mu_fastimpl_new_with_opts(opts: *const c_char) -> *mut CMuVM {
     info!("Creating Mu micro VM fast implementation instance...");
 
     let str_opts = {
         if opts == ptr::null() {
             ""
         } else {
-            let cstr = unsafe {CStr::from_ptr(opts)};
+            let cstr = unsafe { CStr::from_ptr(opts) };
             match cstr.to_str() {
                 Ok(str) => str,
-                Err(_) => panic!("invalid utf8 string as options: {:?}", cstr)
+                Err(_) => panic!("invalid utf8 string as options: {:?}", cstr),
             }
         }
     };

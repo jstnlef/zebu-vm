@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,7 +29,8 @@ fn test_add_u8() {
     let lib = linkutils::aot::compile_fnc("add_u8", &add_u8);
 
     unsafe {
-        let add_u8 : libloading::Symbol<unsafe extern fn(u8, u8) -> u8> = lib.get(b"add_u8").unwrap();
+        let add_u8: libloading::Symbol<unsafe extern "C" fn(u8, u8) -> u8> =
+            lib.get(b"add_u8").unwrap();
 
         let add_u8_1_1 = add_u8(1, 1);
         println!("add_u8(1, 1) = {}", add_u8_1_1);
@@ -83,7 +84,8 @@ fn test_truncate() {
     let lib = linkutils::aot::compile_fnc("truncate", &truncate);
 
     unsafe {
-        let truncate : libloading::Symbol<unsafe extern fn(u64) -> u8> = lib.get(b"truncate").unwrap();
+        let truncate: libloading::Symbol<unsafe extern "C" fn(u64) -> u8> =
+            lib.get(b"truncate").unwrap();
 
         let res = truncate(0xF01u64);
         println!("truncate(0xF01) = {}", res);
@@ -134,7 +136,7 @@ fn test_sext() {
     let lib = linkutils::aot::compile_fnc("sext", &sext);
 
     unsafe {
-        let sext : libloading::Symbol<unsafe extern fn(i8) -> i64> = lib.get(b"sext").unwrap();
+        let sext: libloading::Symbol<unsafe extern "C" fn(i8) -> i64> = lib.get(b"sext").unwrap();
 
         let res = sext(-1);
         println!("truncate(-1) = {}", res);
@@ -183,7 +185,8 @@ fn test_add_9f() {
     let lib = linkutils::aot::compile_fnc("add_9f", &add_9f);
 
     unsafe {
-        let add_9f : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"add_9f").unwrap();
+        let add_9f: libloading::Symbol<unsafe extern "C" fn(u64) -> u64> =
+            lib.get(b"add_9f").unwrap();
 
         let add_9f_1 = add_9f(1);
         println!("add_9f(1) = {}", add_9f_1);

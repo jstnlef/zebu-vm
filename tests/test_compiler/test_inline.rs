@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,10 +24,12 @@ use mu::utils::LinkedHashMap;
 
 #[test]
 fn test_inline_add_simple() {
-    let lib = linkutils::aot::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
+    let lib =
+        linkutils::aot::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
 
     unsafe {
-        let inline_add : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"add_trampoline").unwrap();
+        let inline_add: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"add_trampoline").unwrap();
 
         let inline_add_1_1 = inline_add(1, 1);
         println!("add(1, 1) = {}", inline_add_1_1);
@@ -79,14 +81,17 @@ fn inline_add() -> VM {
         consta!     ((vm, add_trampoline_v1) funcref_add_local = funcref_add);
         ssa!        ((vm, add_trampoline_v1) <int64> tramp_res);
         inst!       ((vm, add_trampoline_v1) tramp_blk_call:
-            tramp_res = EXPRCALL (CallConvention::Mu, is_abort: false) funcref_add_local (tramp_x, tramp_y)
+            tramp_res =
+                EXPRCALL (CallConvention::Mu, is_abort: false) funcref_add_local (tramp_x, tramp_y)
         );
 
         inst!       ((vm, add_trampoline_v1) tramp_blk_ret:
             RET (tramp_res)
         );
 
-        define_block!   ((vm, add_trampoline_v1) tramp_blk_entry(tramp_x, tramp_y) {tramp_blk_call, tramp_blk_ret});
+        define_block!   ((vm, add_trampoline_v1) tramp_blk_entry(tramp_x, tramp_y) {
+            tramp_blk_call, tramp_blk_ret
+        });
 
         define_func_ver!((vm) add_trampoline_v1 (entry: tramp_blk_entry) {tramp_blk_entry});
     }
@@ -96,10 +101,12 @@ fn inline_add() -> VM {
 
 #[test]
 fn test_inline_add_twice() {
-    let lib = linkutils::aot::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
+    let lib =
+        linkutils::aot::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
 
     unsafe {
-        let add_twice : libloading::Symbol<unsafe extern fn(u64, u64, u64) -> u64> = lib.get(b"add_twice").unwrap();
+        let add_twice: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64) -> u64> =
+            lib.get(b"add_twice").unwrap();
 
         let res = add_twice(1, 1, 1);
         println!("add(1, 1, 1) = {}", res);
@@ -159,7 +166,8 @@ fn inline_add_twice() -> VM {
 
         ssa!        ((vm, add_twice_v1) <int64> add_twice_res2);
         inst!       ((vm, add_twice_v1) call2:
-            add_twice_res2 = EXPRCALL (CallConvention::Mu, is_abort: false) funcref_add_local (add_twice_res1, z)
+            add_twice_res2 =
+                EXPRCALL (CallConvention::Mu, is_abort: false) funcref_add_local (add_twice_res1, z)
         );
 
         inst!       ((vm, add_twice_v1) ret:
@@ -176,10 +184,15 @@ fn inline_add_twice() -> VM {
 
 #[test]
 fn test_inline_add_with_extra_norm_args() {
-    let lib = linkutils::aot::compile_fncs("inline_add_with_extra_norm_args", vec!["add_with_extra_norm_args", "add"], &inline_add_with_extra_norm_args);
+    let lib = linkutils::aot::compile_fncs(
+        "inline_add_with_extra_norm_args",
+        vec!["add_with_extra_norm_args", "add"],
+        &inline_add_with_extra_norm_args,
+    );
 
     unsafe {
-        let add_twice : libloading::Symbol<unsafe extern fn(u64, u64, u64) -> u64> = lib.get(b"add_with_extra_norm_args").unwrap();
+        let add_twice: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64) -> u64> =
+            lib.get(b"add_with_extra_norm_args").unwrap();
 
         let res = add_twice(1, 1, 1);
         println!("add(1, 1, 1) = {}", res);
@@ -226,7 +239,8 @@ fn inline_add_with_extra_norm_args() -> VM {
         funcsig!    ((vm) sig_add_with_extra_norm_args = (int64, int64, int64) -> (int64));
 
         funcdecl!   ((vm) <sig_add_with_extra_norm_args> add_with_extra_norm_args);
-        funcdef!    ((vm) <sig_add_with_extra_norm_args> add_with_extra_norm_args VERSION add_with_extra_norm_args_v1);
+        funcdef!    ((vm) <sig_add_with_extra_norm_args> add_with_extra_norm_args
+            VERSION add_with_extra_norm_args_v1);
 
         block!      ((vm, add_with_extra_norm_args_v1) blk_entry);
         ssa!        ((vm, add_with_extra_norm_args_v1) <int64> x);
@@ -240,8 +254,10 @@ fn inline_add_with_extra_norm_args() -> VM {
         ssa!        ((vm, add_with_extra_norm_args_v1) <int64> res);
         inst!       ((vm, add_with_extra_norm_args_v1) call:
             //          0                , 1, 2, 3  , 4  , 5
-            res = CALL (funcref_add_local, x, y, res, arg, int64_100_local) FUNC(0) (vec![1, 2]) CallConvention::Mu,
-                  normal: blk_norm (vec![DestArg::Normal(3), DestArg::Normal(4), DestArg::Normal(5)]),
+            res = CALL (funcref_add_local, x, y, res, arg, int64_100_local) FUNC(0) (vec![1, 2])
+                  CallConvention::Mu,
+                  normal: blk_norm (vec![DestArg::Normal(3), DestArg::Normal(4),
+                                         DestArg::Normal(5)]),
                   exc: blk_exn (vec![])
         );
 
@@ -283,7 +299,9 @@ fn inline_add_with_extra_norm_args() -> VM {
             exn_ret
         });
 
-        define_func_ver!((vm) add_with_extra_norm_args_v1 (entry: blk_entry) {blk_entry, blk_norm, blk_exn});
+        define_func_ver!((vm) add_with_extra_norm_args_v1 (entry: blk_entry) {
+            blk_entry, blk_norm, blk_exn
+        });
     }
 
     vm

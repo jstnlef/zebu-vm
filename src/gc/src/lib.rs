@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -117,11 +117,11 @@ pub mod heap;
 
 /// whether this GC will move objects?
 /// (does an object have a fixed address once allocated before it is reclaimed)
-pub const GC_MOVES_OBJECT : bool = false;
+pub const GC_MOVES_OBJECT: bool = false;
 
 /// threshold for small objects. Use small object allocator (immix) for objects that
 /// are smaller than this threshold. Otherwise use large object allocator (freelist)
-pub const LARGE_OBJECT_THRESHOLD : usize = BYTES_IN_LINE;
+pub const LARGE_OBJECT_THRESHOLD: usize = BYTES_IN_LINE;
 
 /// the mutator that the user is supposed to put to every mutator thread
 /// Most interface functions provided by the GC require a pointer to this mutator.
@@ -139,29 +139,29 @@ pub use heap::immix::LIMIT_OFFSET as ALLOCATOR_LIMIT_OFFSET;
 
 /// initializes the GC
 #[no_mangle]
-pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize, enable_gc: bool) {
+pub extern "C" fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize, enable_gc: bool) {
     // init object model - init this first, since spaces may use it
     objectmodel::init();
-    
+
     // init space size
     heap::IMMIX_SPACE_SIZE.store(immix_size, Ordering::SeqCst);
     heap::LO_SPACE_SIZE.store(lo_size, Ordering::SeqCst);
-    
+
     let (immix_space, lo_space) = {
         let immix_space = Arc::new(ImmixSpace::new(immix_size));
-        let lo_space    = Arc::new(FreeListSpace::new(lo_size));
+        let lo_space = Arc::new(FreeListSpace::new(lo_size));
 
         heap::gc::init(n_gcthreads);
-        
+
         (immix_space, lo_space)
     };
-    
+
     *MY_GC.write().unwrap() = Some(GC {
         immix_space: immix_space,
         lo_space: lo_space,
 
         gc_types: vec![],
-        roots   : LinkedHashSet::new()
+        roots: LinkedHashSet::new(),
     });
 
     if enable_gc {
@@ -170,7 +170,12 @@ pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize, ena
         heap::gc::ENABLE_GC.store(false, Ordering::Relaxed);
     }
 
-    info!("heap is {} bytes (immix: {} bytes, lo: {} bytes) . ", immix_size + lo_size, immix_size, lo_size);
+    info!(
+        "heap is {} bytes (immix: {} bytes, lo: {} bytes) . ",
+        immix_size + lo_size,
+        immix_size,
+        lo_size
+    );
     info!("{} gc threads", n_gcthreads);
     if !enable_gc {
         warn!("GC disabled (panic when a collection is triggered)");
@@ -179,7 +184,7 @@ pub extern fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize, ena
 
 /// creates a mutator
 #[no_mangle]
-pub extern fn new_mutator() -> ImmixMutatorLocal {
+pub extern "C" fn new_mutator() -> ImmixMutatorLocal {
     ImmixMutatorLocal::new(MY_GC.read().unwrap().as_ref().unwrap().immix_space.clone())
 }
 
@@ -189,9 +194,9 @@ pub extern fn new_mutator() -> ImmixMutatorLocal {
 /// pending status
 #[no_mangle]
 #[allow(unused_variables)]
-pub extern fn drop_mutator(mutator: *mut ImmixMutatorLocal) {
-    unsafe {mutator.as_mut().unwrap()}.destroy();
-    
+pub extern "C" fn drop_mutator(mutator: *mut ImmixMutatorLocal) {
+    unsafe { mutator.as_mut().unwrap() }.destroy();
+
     // rust will reclaim the boxed mutator
 }
 
@@ -203,7 +208,7 @@ pub use heap::gc::set_low_water_mark;
 /// adds an object reference to the root set
 #[no_mangle]
 #[inline(always)]
-pub extern fn add_to_root(obj: ObjectReference) {
+pub extern "C" fn add_to_root(obj: ObjectReference) {
     let mut gc = MY_GC.write().unwrap();
     gc.as_mut().unwrap().roots.insert(obj);
 }
@@ -211,29 +216,29 @@ pub extern fn add_to_root(obj: ObjectReference) {
 /// removes an object reference from the root set
 #[no_mangle]
 #[inline(always)]
-pub extern fn remove_root(obj: ObjectReference) {
+pub extern "C" fn remove_root(obj: ObjectReference) {
     let mut gc = MY_GC.write().unwrap();
     gc.as_mut().unwrap().roots.remove(&obj);
 }
 
 /// pins an object so that it will be moved or reclaimed
 #[no_mangle]
-pub extern fn muentry_pin_object(obj: ObjectReference) -> Address {
+pub extern "C" fn muentry_pin_object(obj: ObjectReference) -> Address {
     add_to_root(obj);
     obj.to_address()
 }
 
 /// unpins an object so that it can be freely moved/reclaimed as normal objects
 #[no_mangle]
-pub extern fn muentry_unpin_object(obj: Address) {
-    remove_root(unsafe {obj.to_object_reference()});
+pub extern "C" fn muentry_unpin_object(obj: Address) {
+    remove_root(unsafe { obj.to_object_reference() });
 }
 
 /// a regular check to see if the mutator should stop for synchronisation
 #[no_mangle]
 #[inline(always)]
-pub extern fn yieldpoint(mutator: *mut ImmixMutatorLocal) {
-    unsafe {mutator.as_mut().unwrap()}.yieldpoint();
+pub extern "C" fn yieldpoint(mutator: *mut ImmixMutatorLocal) {
+    unsafe { mutator.as_mut().unwrap() }.yieldpoint();
 }
 
 /// the slowpath for yieldpoint
@@ -241,25 +246,35 @@ pub extern fn yieldpoint(mutator: *mut ImmixMutatorLocal) {
 /// constants, offsets to fields and this slowpath function for the user
 #[no_mangle]
 #[inline(never)]
-pub extern fn yieldpoint_slow(mutator: *mut ImmixMutatorLocal) {
-    unsafe {mutator.as_mut().unwrap()}.yieldpoint_slow()
+pub extern "C" fn yieldpoint_slow(mutator: *mut ImmixMutatorLocal) {
+    unsafe { mutator.as_mut().unwrap() }.yieldpoint_slow()
 }
 
 /// allocates an object in the immix space
 //  size doesn't include HEADER_SIZE
 #[inline(always)]
 pub fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
-    let addr = unsafe {&mut *mutator}.alloc(size, align);
-    unsafe {addr.to_object_reference()}
+    let addr = unsafe { &mut *mutator }.alloc(size, align);
+    unsafe { addr.to_object_reference() }
 }
 
 /// allocates an object in the immix space
 //  size doesn't include HEADER_SIZE
 #[no_mangle]
 #[inline(never)]
-pub extern fn muentry_alloc_fast(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
+pub extern "C" fn muentry_alloc_fast(
+    mutator: *mut ImmixMutatorLocal,
+    size: usize,
+    align: usize,
+) -> ObjectReference {
     let ret = alloc(mutator, size, align);
-    trace!("muentry_alloc_fast(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
+    trace!(
+        "muentry_alloc_fast(mutator: {:?}, size: {}, align: {}) = {}",
+        mutator,
+        size,
+        align,
+        ret
+    );
 
     ret
 }
@@ -269,9 +284,19 @@ pub extern fn muentry_alloc_fast(mutator: *mut ImmixMutatorLocal, size: usize, a
 #[inline(never)]
 //  this function is supposed to be called by an inlined fastpath
 //  size includes HEADER_SIZE, return value is NOT offset by HEADER_OFFSET
-pub extern fn muentry_alloc_slow(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> Address {
-    let ret = unsafe {&mut *mutator}.try_alloc_from_local(size, align);
-    trace!("muentry_alloc_slow(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
+pub extern "C" fn muentry_alloc_slow(
+    mutator: *mut ImmixMutatorLocal,
+    size: usize,
+    align: usize,
+) -> Address {
+    let ret = unsafe { &mut *mutator }.try_alloc_from_local(size, align);
+    trace!(
+        "muentry_alloc_slow(mutator: {:?}, size: {}, align: {}) = {}",
+        mutator,
+        size,
+        align,
+        ret
+    );
 
     ret
 }
@@ -279,46 +304,71 @@ pub extern fn muentry_alloc_slow(mutator: *mut ImmixMutatorLocal, size: usize, a
 /// allocates an object in the freelist space (large object space)
 #[no_mangle]
 //  size doesn't include HEADER_SIZE
-pub extern fn muentry_alloc_large(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> ObjectReference {
-    let ret = freelist::alloc_large(size, align, unsafe {mutator.as_mut().unwrap()}, MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone());
-    trace!("muentry_alloc_large(mutator: {:?}, size: {}, align: {}) = {}", mutator, size, align, ret);
+pub extern "C" fn muentry_alloc_large(
+    mutator: *mut ImmixMutatorLocal,
+    size: usize,
+    align: usize,
+) -> ObjectReference {
+    let ret = freelist::alloc_large(
+        size,
+        align,
+        unsafe { mutator.as_mut().unwrap() },
+        MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone(),
+    );
+    trace!(
+        "muentry_alloc_large(mutator: {:?}, size: {}, align: {}) = {}",
+        mutator,
+        size,
+        align,
+        ret
+    );
 
-    unsafe {ret.to_object_reference()}
+    unsafe { ret.to_object_reference() }
 }
 
 /// initializes a fix-sized object
 #[no_mangle]
 #[inline(never)]
-pub extern fn muentry_init_object(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64) {
-    unsafe {&mut *mutator}.init_object(obj.to_address(), encode);
+pub extern "C" fn muentry_init_object(
+    mutator: *mut ImmixMutatorLocal,
+    obj: ObjectReference,
+    encode: u64,
+) {
+    unsafe { &mut *mutator }.init_object(obj.to_address(), encode);
 }
 
 /// initializes a hybrid type object
 #[no_mangle]
 #[inline(never)]
-pub extern fn muentry_init_hybrid(mutator: *mut ImmixMutatorLocal, obj: ObjectReference, encode: u64, length: u64) {
-    unsafe {&mut *mutator}.init_hybrid(obj.to_address(), encode, length);
+pub extern "C" fn muentry_init_hybrid(
+    mutator: *mut ImmixMutatorLocal,
+    obj: ObjectReference,
+    encode: u64,
+    length: u64,
+) {
+    unsafe { &mut *mutator }.init_hybrid(obj.to_address(), encode, length);
 }
 
-/// forces gc to happen (this is not a 'hint' - world will be stopped, and heap traversal will start)
+/// forces gc to happen
+/// (this is not a 'hint' - world will be stopped, and heap traversal will start)
 #[no_mangle]
-pub extern fn force_gc() {
+pub extern "C" fn force_gc() {
     heap::gc::trigger_gc();
 }
 
 /// traces reachable objects and record them as a data structure
 /// so that the user can inspect the reachable heap and persist it in their way
 #[no_mangle]
-pub extern fn persist_heap(roots: Vec<Address>) -> objectdump::HeapDump {
+pub extern "C" fn persist_heap(roots: Vec<Address>) -> objectdump::HeapDump {
     objectdump::HeapDump::from_roots(roots)
 }
 
 /// GC represents the context for the current running GC instance
 struct GC {
     immix_space: Arc<ImmixSpace>,
-    lo_space   : Arc<FreeListSpace>,
-    gc_types   : Vec<Arc<GCType>>,
-    roots      : LinkedHashSet<ObjectReference>
+    lo_space: Arc<FreeListSpace>,
+    gc_types: Vec<Arc<GCType>>,
+    roots: LinkedHashSet<ObjectReference>,
 }
 
 lazy_static! {
@@ -338,13 +388,13 @@ impl fmt::Debug for GC {
 
 /// prints current GC context for debugging
 #[no_mangle]
-pub extern fn print_gc_context() {
+pub extern "C" fn print_gc_context() {
     println!("{:?}", MY_GC.read().unwrap().as_ref().unwrap());
 }
 
 /// gets immix space and freelist space
 #[no_mangle]
-pub extern fn get_spaces() -> (Arc<ImmixSpace>, Arc<FreeListSpace>) {
+pub extern "C" fn get_spaces() -> (Arc<ImmixSpace>, Arc<FreeListSpace>) {
     let space_lock = MY_GC.read().unwrap();
     let space = space_lock.as_ref().unwrap();
 
@@ -353,7 +403,7 @@ pub extern fn get_spaces() -> (Arc<ImmixSpace>, Arc<FreeListSpace>) {
 
 /// informs GC of a GCType
 #[no_mangle]
-pub extern fn add_gc_type(mut ty: GCType) -> Arc<GCType> {
+pub extern "C" fn add_gc_type(mut ty: GCType) -> Arc<GCType> {
     let mut gc_guard = MY_GC.write().unwrap();
     let mut gc = gc_guard.as_mut().unwrap();
 
@@ -369,9 +419,9 @@ pub extern fn add_gc_type(mut ty: GCType) -> Arc<GCType> {
 
 /// gets the encoding for a given GC type (by ID)
 #[no_mangle]
-pub extern fn get_gc_type_encode(id: u32) -> u64 {
+pub extern "C" fn get_gc_type_encode(id: u32) -> u64 {
     let gc_lock = MY_GC.read().unwrap();
-    let ref gctype  = gc_lock.as_ref().unwrap().gc_types[id as usize];
+    let ref gctype = gc_lock.as_ref().unwrap().gc_types[id as usize];
 
     if gctype.is_hybrid() {
         objectmodel::gen_hybrid_gctype_encode(gctype, 0) // fake length

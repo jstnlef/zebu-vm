@@ -17,7 +17,8 @@
 // TODO: CHECK THAT THE TYPE OF EVERY MEMORY LOCATION HAS THE CORRECT SIZE
 // (the size should be size of the area in memory that it is referring to, and will indicate
 // how much data any load/store instructions that uses it will operate on
-// (so it should be [1], 8, 16, 32, 64, or 128 bits in size (when using emit_mem, it can have other sizes before this))
+// (so it should be [1], 8, 16, 32, 64, or 128 bits in size (when using emit_mem,
+// it can have other sizes before this))
 
 #![allow(non_upper_case_globals)]
 // TODO: Move architecture independent codes in here, inst_sel and asm_backend to somewhere else...
@@ -50,7 +51,7 @@ use utils::LinkedHashMap;
 use std::collections::HashMap;
 
 // Number of nromal callee saved registers (excluding FP and LR, and SP)
-pub const CALLEE_SAVED_COUNT : usize = 18;
+pub const CALLEE_SAVED_COUNT: usize = 18;
 
 macro_rules! REGISTER {
     ($id:expr, $name: expr, $ty: ident) => {
@@ -126,16 +127,25 @@ GPR_ALIAS!(X27_ALIAS: (54, X27)  -> W27);
 GPR_ALIAS!(X28_ALIAS: (56, X28)  -> W28);
 GPR_ALIAS!(X29_ALIAS: (58, X29)  -> W29);
 GPR_ALIAS!(X30_ALIAS: (60, X30)  -> W30);
-GPR_ALIAS!(SP_ALIAS: (62, SP)  -> WSP); // Special register (only some instructions can reference it)
+GPR_ALIAS!(SP_ALIAS: (62, SP)  -> WSP); // Special register(only some instructions can reference it)
 GPR_ALIAS!(XZR_ALIAS: (64, XZR)  -> WZR); // Pseudo register, not to be used by register allocator
 
 // Aliases
-ALIAS!(X8 -> XR); // Indirect result location register (points to a location in memory to write return values to)
-ALIAS!(X16 -> IP0); // Intra proecdure call register 0 (may be modified by the linker when executing BL/BLR instructions)
-ALIAS!(X17 -> IP1);// Intra proecdure call register 1 (may be modified by the linker when executing BL/BLR instructions)
-ALIAS!(X18 -> PR); // Platform Register (NEVER TOUCH THIS REGISTER (Unless you can prove Linux dosn't use it))
-ALIAS!(X29 -> FP); // Frame Pointer (can be used as a normal register when not calling or returning)
-ALIAS!(X30 -> LR); // Link Register (not supposed to be used for any other purpose)
+
+// Indirect result location register (points to a location in memory to write return values to)
+ALIAS!(X8 -> XR);
+// Intra proecdure call register 0
+// (may be modified by the linker when executing BL/BLR instructions)
+ALIAS!(X16 -> IP0);
+// Intra proecdure call register 1
+// (may be modified by the linker when executing BL/BLR instructions)
+ALIAS!(X17 -> IP1);
+// Platform Register (NEVER TOUCH THIS REGISTER (Unless you can prove Linux doesn't use it))
+ALIAS!(X18 -> PR);
+// Frame Pointer (can be used as a normal register when not calling or returning)
+ALIAS!(X29 -> FP);
+// Link Register (not supposed to be used for any other purpose)
+ALIAS!(X30 -> LR);
 
 
 lazy_static! {
@@ -201,16 +211,16 @@ pub fn is_machine_reg(val: &P<Value>) -> bool {
             if *id < FPR_ID_START {
                 match GPR_ALIAS_LOOKUP.get(&id) {
                     Some(_) => true,
-                    None => false
+                    None => false,
                 }
             } else {
                 match FPR_ALIAS_LOOKUP.get(&id) {
                     Some(_) => true,
-                    None => false
+                    None => false,
                 }
             }
         }
-        _ => false
+        _ => false,
     }
 
 }
@@ -221,12 +231,12 @@ pub fn get_register_from_id(id: MuID) -> P<Value> {
     if id < FPR_ID_START {
         match GPR_ALIAS_LOOKUP.get(&id) {
             Some(val) => val.clone(),
-            None => panic!("cannot find GPR {}", id)
+            None => panic!("cannot find GPR {}", id),
         }
     } else {
         match FPR_ALIAS_LOOKUP.get(&id) {
             Some(val) => val.clone(),
-            None => panic!("cannot find FPR {}", id)
+            None => panic!("cannot find FPR {}", id),
         }
     }
 }
@@ -235,7 +245,7 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
     if id < FPR_ID_START {
         let vec = match GPR_ALIAS_TABLE.get(&id) {
             Some(vec) => vec,
-            None => panic!("didnt find {} as GPR", id)
+            None => panic!("didnt find {} as GPR", id),
         };
 
         if length > 32 {
@@ -246,7 +256,7 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
     } else {
         let vec = match FPR_ALIAS_TABLE.get(&id) {
             Some(vec) => vec,
-            None => panic!("didnt find {} as FPR", id)
+            None => panic!("didnt find {} as FPR", id),
         };
 
         if length > 32 {
@@ -267,12 +277,12 @@ pub fn get_color_for_precolored(id: MuID) -> MuID {
     if id < FPR_ID_START {
         match GPR_ALIAS_LOOKUP.get(&id) {
             Some(val) => val.id(),
-            None => panic!("cannot find GPR {}", id)
+            None => panic!("cannot find GPR {}", id),
         }
     } else {
         match FPR_ALIAS_LOOKUP.get(&id) {
             Some(val) => val.id(),
-            None => panic!("cannot find FPR {}", id)
+            None => panic!("cannot find FPR {}", id),
         }
     }
 }
@@ -287,47 +297,44 @@ pub fn check_op_len(ty: &P<MuType>) -> usize {
             match ty.v {
                 MuType_::Float => 32,
                 MuType_::Double => 64,
-                _ => panic!("unimplemented primitive type: {}", ty)
+                _ => panic!("unimplemented primitive type: {}", ty),
             }
         }
     }
 }
 
 #[inline(always)]
-pub fn get_bit_size(ty : &P<MuType>, vm: &VM) -> usize
-{
+pub fn get_bit_size(ty: &P<MuType>, vm: &VM) -> usize {
     match ty.get_int_length() {
         Some(val) => val,
         None => {
             match ty.v {
                 MuType_::Float => 32,
                 MuType_::Double => 64,
-                MuType_::Vector(ref t, n) => get_bit_size(t, vm)*n,
-                MuType_::Array(ref t, n) => get_bit_size(t, vm)*n,
+                MuType_::Vector(ref t, n) => get_bit_size(t, vm) * n,
+                MuType_::Array(ref t, n) => get_bit_size(t, vm) * n,
                 MuType_::Void => 0,
-                _ => vm.get_backend_type_size(ty.id())*8,
+                _ => vm.get_backend_type_size(ty.id()) * 8,
             }
         }
     }
 }
 
 #[inline(always)]
-pub fn get_type_alignment(ty: &P<MuType>, vm: &VM) -> usize
-{
+pub fn get_type_alignment(ty: &P<MuType>, vm: &VM) -> usize {
     vm.get_backend_type_info(ty.id()).alignment
 }
 
 #[inline(always)]
-pub fn primitive_byte_size(ty : &P<MuType>) -> usize
-{
+pub fn primitive_byte_size(ty: &P<MuType>) -> usize {
     match ty.get_int_length() {
-        Some(val) => (round_up(val, 8)/8).next_power_of_two(),
+        Some(val) => (round_up(val, 8) / 8).next_power_of_two(),
         None => {
             match ty.v {
                 MuType_::Float => 4,
                 MuType_::Double => 8,
                 MuType_::Void => 0,
-                _ => panic!("Not a primitive type")
+                _ => panic!("Not a primitive type"),
             }
         }
     }
@@ -431,7 +438,7 @@ lazy_static! {
     ];
 }
 
-pub const FPR_ID_START : usize = 100;
+pub const FPR_ID_START: usize = 100;
 
 FPR_ALIAS!(D0_ALIAS: (FPR_ID_START + 0, D0)  -> S0);
 FPR_ALIAS!(D1_ALIAS: (FPR_ID_START + 2, D1)  -> S1);
@@ -749,7 +756,7 @@ lazy_static! {
     };
 }
 
-pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
+pub fn init_machine_regs_for_func(func_context: &mut FunctionContext) {
     for reg in ALL_MACHINE_REGS.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let entry = SSAVarEntry::new(reg.clone());
@@ -822,11 +829,11 @@ pub fn set_return_address(frame_pointer: Address, value: Address) {
 pub fn get_callee_saved_offset(reg: MuID) -> isize {
     debug_assert!(is_callee_saved(reg));
     let id = if reg < FPR_ID_START {
-        (reg - CALLEE_SAVED_GPRS[0].id())/2
+        (reg - CALLEE_SAVED_GPRS[0].id()) / 2
     } else {
         (reg - CALLEE_SAVED_FPRS[0].id()) / 2 + CALLEE_SAVED_GPRS.len()
     };
-    (id as isize + 1)*(-8)
+    (id as isize + 1) * (-8)
 }
 
 // Returns the callee saved register with the id...
@@ -865,41 +872,45 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
     match inst.v {
         // simple
-        BinOp(_, _, _)  => 1,
+        BinOp(_, _, _) => 1,
         BinOpWithStatus(_, _, _, _) => 2,
-        CmpOp(_, _, _)  => 1,
-        ConvOp{..}      => 1,
+        CmpOp(_, _, _) => 1,
+        ConvOp { .. } => 1,
 
         // control flow
-        Branch1(_)     => 1,
-        Branch2{..}    => 1,
-        Select{..}     => 2,
-        Watchpoint{..} => 1,
-        WPBranch{..}   => 2,
-        Switch{..}     => 3,
+        Branch1(_) => 1,
+        Branch2 { .. } => 1,
+        Select { .. } => 2,
+        Watchpoint { .. } => 1,
+        WPBranch { .. } => 2,
+        Switch { .. } => 3,
 
         // call
-        ExprCall{..} | ExprCCall{..} | Call{..} | CCall{..} => 5,
-        Return(_)   => 1,
+        ExprCall { .. } | ExprCCall { .. } | Call { .. } | CCall { .. } => 5,
+        Return(_) => 1,
         TailCall(_) => 1,
 
         // memory access
-        Load{..} | Store{..} => 1,
-        CmpXchg{..}          => 1,
-        AtomicRMW{..}        => 1,
-        AllocA(_)            => 1,
-        AllocAHybrid(_, _)   => 1,
-        Fence(_)             => 1,
+        Load { .. } | Store { .. } => 1,
+        CmpXchg { .. } => 1,
+        AtomicRMW { .. } => 1,
+        AllocA(_) => 1,
+        AllocAHybrid(_, _) => 1,
+        Fence(_) => 1,
 
         // memory addressing
-        GetIRef(_) | GetFieldIRef{..} | GetElementIRef{..} | ShiftIRef{..} | GetVarPartIRef{..} => 0,
+        GetIRef(_) |
+        GetFieldIRef { .. } |
+        GetElementIRef { .. } |
+        ShiftIRef { .. } |
+        GetVarPartIRef { .. } => 0,
 
         // runtime
         New(_) | NewHybrid(_, _) => 10,
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
-        ThreadExit    => 10,
-        Throw(_)      => 10,
-        SwapStack{..} => 10,
+        ThreadExit => 10,
+        Throw(_) => 10,
+        SwapStack { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
         CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
 
@@ -907,7 +918,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         Move(_) => 0,
         PrintHex(_) => 10,
         SetRetval(_) => 10,
-        ExnInstruction{ref inner, ..} => estimate_insts_for_ir(&inner),
+        ExnInstruction { ref inner, .. } => estimate_insts_for_ir(&inner),
         _ => unimplemented!(),
     }
 }
@@ -915,7 +926,12 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
 // Splits an integer immediate into four 16-bit segments (returns the least significant first)
 pub fn split_aarch64_imm_u64(val: u64) -> (u16, u16, u16, u16) {
-    (val as u16, (val >> 16) as u16, (val >> 32) as u16, (val >> 48) as u16)
+    (
+        val as u16,
+        (val >> 16) as u16,
+        (val >> 32) as u16,
+        (val >> 48) as u16,
+    )
 }
 
 // Trys to reduce the given floating point to an immediate u64 that can be used with MOVI
@@ -931,7 +947,7 @@ pub fn f64_to_aarch64_u64(val: f64) -> Option<u64> {
         }
     }
 
-    Some(unsafe {mem::transmute::<f64, u64>(val)})
+    Some(unsafe { mem::transmute::<f64, u64>(val) })
 }
 
 // Check that the given floating point fits in 8 bits
@@ -948,11 +964,12 @@ pub fn is_valid_f32_imm(val: f32) -> bool {
     let b = get_bit(uval as u64, 0x19);
 
     get_bit(uval as u64, 0x1E) == !b &&
-        ((uval & (0b11111 << 0x19)) == if b {0b11111 << 0x19} else {0}) &&
+        ((uval & (0b11111 << 0x19)) == if b { 0b11111 << 0x19 } else { 0 }) &&
         ((uval & !(0b1111111111111 << 0x13)) == 0)
 }
 
-// Reduces the given floating point constant to 8-bits (if it won't loose precision, otherwise returns 0)
+// Reduces the given floating point constant to 8-bits
+// (if it won't loose precision, otherwise returns 0)
 pub fn is_valid_f64_imm(val: f64) -> bool {
     use std::mem;
 
@@ -966,7 +983,7 @@ pub fn is_valid_f64_imm(val: f64) -> bool {
     let b = (uval & (1 << 0x36)) != 0;
 
     ((uval & (1 << 0x3E)) != 0) == !b &&
-        ((uval & (0b11111111 << 0x36)) == if b {0b11111111 << 0x36} else {0}) &&
+        ((uval & (0b11111111 << 0x36)) == if b { 0b11111111 << 0x36 } else { 0 }) &&
         ((uval & !(0b1111111111111111 << 0x30)) == 0)
 
 }
@@ -974,11 +991,11 @@ pub fn is_valid_f64_imm(val: f64) -> bool {
 // Returns the 'ith bit of x
 #[inline(always)]
 pub fn get_bit(x: u64, i: usize) -> bool {
-    (x & ((1 as u64) << i) ) != 0
+    (x & ((1 as u64) << i)) != 0
 }
 
 // Returns true if val = A << S, from some 0 <= A < 4096, and S = 0 or S = 12
-pub fn is_valid_arithmetic_imm(val : u64) -> bool {
+pub fn is_valid_arithmetic_imm(val: u64) -> bool {
     val < 4096 || ((val & 0b111111111111) == 0 && val < (4096 << 12))
 }
 
@@ -986,7 +1003,7 @@ pub fn is_valid_arithmetic_imm(val : u64) -> bool {
 // so a valid n bit logical immediate (where n < 32) can't be dirrectly used
 // this function will replicate the bit pattern so that it can be used
 // (the resulting value will be valid iff 'val' is valid, and the lower 'n' bits will equal val)
-pub fn replicate_logical_imm(val : u64, n : usize) -> u64 {
+pub fn replicate_logical_imm(val: u64, n: usize) -> u64 {
     let op_size = if n <= 32 { 32 } else { 64 };
     let mut val = val;
     for i in 1..op_size / n {
@@ -996,11 +1013,12 @@ pub fn replicate_logical_imm(val : u64, n : usize) -> u64 {
 }
 
 
-// 'val' is a valid logical immediate if the binary value of ROR(val, r) matches the regular expresion
+// 'val' is a valid logical immediate if the binary value of ROR(val, r)
+// matches the regular expression
 //      (0{k-x}1{x}){m/k}
 //      for some r, k that divides N, 2 <= k <= n, and x with 0 < x < k
 //      (note: 0 =< r < k);
-pub fn is_valid_logical_imm(val : u64, n : usize) -> bool {
+pub fn is_valid_logical_imm(val: u64, n: usize) -> bool {
     // val should be an 'n' bit number
     debug_assert!(0 < n && n <= 64 && (n == 64 || (val < (1 << n))));
     debug_assert!(n.is_power_of_two());
@@ -1062,8 +1080,8 @@ pub fn is_valid_logical_imm(val : u64, n : usize) -> bool {
     let val_0 = val & k_mask; // the first 'k' bits of val
 
     // for each N/k expected repitions of val_0 (except the first one_
-    for i in 1..(n/k) {
-        if val_0 != ((val >> (k*i)) & k_mask) {
+    for i in 1..(n / k) {
+        if val_0 != ((val >> (k * i)) & k_mask) {
             return false; // val_0 dosen't repeat
         }
     }
@@ -1084,7 +1102,7 @@ pub fn get_signed_value(val: u64, size: usize) -> i64 {
         let negative = (val & (1 << (size - 1))) != 0;
 
         if negative {
-            (val | (bits_ones(64-size) << size)) as i64 // set the highest '64 - size' bits of val
+            (val | (bits_ones(64 - size) << size)) as i64 // set the highest '64 - size' bits of val
         } else {
             (val & bits_ones(size)) as i64 // clears all but the lowest 'size' bits of val
         }
@@ -1097,7 +1115,7 @@ pub fn get_negative_value(val: u64, size: usize) -> i64 {
     if size == 64 {
         val as i64
     } else {
-        (val | (bits_ones(64-size) << size)) as i64 // set the highest '64 - size' bits of val
+        (val | (bits_ones(64 - size) << size)) as i64 // set the highest '64 - size' bits of val
     }
 }
 
@@ -1128,7 +1146,7 @@ fn invert_condition_code(cond: &str) -> &'static str {
         "LE" => "GT",
 
         "AL" | "NV" => panic!("AL and NV don't have inverses"),
-        _ => panic!("Unrecognised condition code")
+        _ => panic!("Unrecognised condition code"),
     }
 }
 
@@ -1136,8 +1154,8 @@ fn invert_condition_code(cond: &str) -> &'static str {
 // (the comparisoon is true when the logical or of these conditions is true)
 fn get_condition_codes(op: op::CmpOp) -> Vec<&'static str> {
     match op {
-        op::CmpOp::EQ  | op::CmpOp::FOEQ => vec!["EQ"],
-        op::CmpOp::NE  | op::CmpOp::FUNE => vec!["NE"],
+        op::CmpOp::EQ | op::CmpOp::FOEQ => vec!["EQ"],
+        op::CmpOp::NE | op::CmpOp::FUNE => vec!["NE"],
         op::CmpOp::SGT | op::CmpOp::FOGT => vec!["GT"],
         op::CmpOp::SGE | op::CmpOp::FOGE => vec!["GE"],
         op::CmpOp::SLT | op::CmpOp::FULT => vec!["LT"],
@@ -1153,16 +1171,15 @@ fn get_condition_codes(op: op::CmpOp) -> Vec<&'static str> {
 
         // These need to be handeled specially
         op::CmpOp::FFALSE => vec![],
-        op::CmpOp::FTRUE  => vec![],
+        op::CmpOp::FTRUE => vec![],
     }
 }
 
-// if t is a homogenouse floating point aggregate
-// (i.e. an array or struct where each element is the same floating-point type, and there are at most 4 elements)
+// if t is a homogenouse floating point aggregate (i.e. an array or struct
+// where each element is the same floating-point type, and there are at most 4 elements)
 // returns the number of elements, otherwise returns 0
 
-fn hfa_length(t : P<MuType>) -> usize
-{
+fn hfa_length(t: P<MuType>) -> usize {
     match t.v {
         MuType_::Struct(ref name) => {
             let read_lock = STRUCT_TAG_MAP.read().unwrap();
@@ -1186,45 +1203,51 @@ fn hfa_length(t : P<MuType>) -> usize
             }
 
 
-        }, // TODO: how do I extra the list of member-types from this??
+        } // TODO: how do I extra the list of member-types from this??
         MuType_::Array(ref base, n) if n <= 4 => {
             match base.v {
                 MuType_::Float | MuType_::Double => n,
-                _ => 0
+                _ => 0,
             }
         }
-        _ => 0
+        _ => 0,
 
     }
 }
 
 // val is an unsigned multiple of n and val/n fits in 12 bits
 #[inline(always)]
-pub fn is_valid_immediate_offset(val: i64, n : usize) -> bool {
+pub fn is_valid_immediate_offset(val: i64, n: usize) -> bool {
     use std;
     let n_align = std::cmp::max(n, 8);
     if n <= 8 {
         (val >= -(1 << 8) && val < (1 << 8)) || // Valid 9 bit signed unscaled offset
             // Valid unsigned 12-bit scalled offset
-            (val >= 0 && (val as u64) % (n_align as u64) == 0 && ((val as u64) / (n_align as u64) < (1 << 12)))
-    } else { // Will be using a load/store-pair
+            (val >= 0 && (val as u64) % (n_align as u64) == 0 &&
+                ((val as u64) / (n_align as u64) < (1 << 12)))
+    } else {
+        // Will be using a load/store-pair
         // Is val a signed 7 bit multiple of n_align
-        (val as u64) % (n_align as u64) == 0  && ((val as u64)/(n_align as u64) < (1 << 7))
+        (val as u64) % (n_align as u64) == 0 && ((val as u64) / (n_align as u64) < (1 << 7))
     }
 }
 
 #[inline(always)]
-pub fn is_valid_immediate_scale(val: u64, n : usize) -> bool {
+pub fn is_valid_immediate_scale(val: u64, n: usize) -> bool {
     // if n > 8, then a load pair will be used, and they don't support scales
     n <= 8 && (val == (n as u64) || val == 1)
 }
 
 #[inline(always)]
-pub fn is_valid_immediate_extension(val: u64) -> bool { val <= 4 }
+pub fn is_valid_immediate_extension(val: u64) -> bool {
+    val <= 4
+}
 
 // Rounds n to the next multiple of d
 #[inline(always)]
-pub fn round_up(n: usize, d: usize) -> usize { ((n + d - 1)/d)*d }
+pub fn round_up(n: usize, d: usize) -> usize {
+    ((n + d - 1) / d) * d
+}
 
 #[inline(always)]
 // Log2, assumes value is a power of two
@@ -1252,7 +1275,7 @@ pub fn get_alignment_type(align: usize) -> P<MuType> {
         4 => UINT32_TYPE.clone(),
         8 => UINT64_TYPE.clone(),
         16 => UINT128_TYPE.clone(),
-        _ => panic!("aarch64 dosn't have types with alignment {}", align)
+        _ => panic!("aarch64 dosn't have types with alignment {}", align),
     }
 }
 
@@ -1268,35 +1291,39 @@ pub fn is_zero_register_id(id: MuID) -> bool {
 
 pub fn match_node_f32imm(op: &TreeNode) -> bool {
     match op.v {
-        TreeNode_::Value(ref pv) => match pv.v {
-            Value_::Constant(Constant::Float(_)) => true,
-            _ => false
-        },
-        _ => false
+        TreeNode_::Value(ref pv) => {
+            match pv.v {
+                Value_::Constant(Constant::Float(_)) => true,
+                _ => false,
+            }
+        }
+        _ => false,
     }
 }
 
 pub fn match_node_f64imm(op: &TreeNode) -> bool {
     match op.v {
-        TreeNode_::Value(ref pv) => match pv.v {
-            Value_::Constant(Constant::Double(_)) => true,
-            _ => false
-        },
-        _ => false
+        TreeNode_::Value(ref pv) => {
+            match pv.v {
+                Value_::Constant(Constant::Double(_)) => true,
+                _ => false,
+            }
+        }
+        _ => false,
     }
 }
 
 pub fn match_value_f64imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(Constant::Double(_)) => true,
-        _ => false
+        _ => false,
     }
 }
 
 pub fn match_value_f32imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(Constant::Float(_)) => true,
-        _ => false
+        _ => false,
     }
 }
 
@@ -1322,40 +1349,40 @@ pub fn node_type(op: &TreeNode) -> P<MuType> {
 pub fn match_value_imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(_) => true,
-        _ => false
+        _ => false,
     }
 }
 
 pub fn match_value_int_imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(Constant::Int(_)) => true,
-        _ => false
+        _ => false,
     }
 }
 pub fn match_value_ref_imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(Constant::NullRef) => true,
-        _ => false
+        _ => false,
     }
 }
 pub fn match_node_value(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(_) => true,
-        _ => false
+        _ => false,
     }
 }
 
 pub fn get_node_value(op: &TreeNode) -> P<Value> {
     match op.v {
         TreeNode_::Value(ref pv) => pv.clone(),
-        _ => panic!("Expected node with value")
+        _ => panic!("Expected node with value"),
     }
 }
 
 pub fn match_node_int_imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match_value_int_imm(pv),
-        _ => false
+        _ => false,
     }
 }
 
@@ -1363,105 +1390,102 @@ pub fn match_node_int_imm(op: &TreeNode) -> bool {
 pub fn match_node_ref_imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match_value_ref_imm(pv),
-        _ => false
+        _ => false,
     }
 }
 
 pub fn match_node_imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match_value_imm(pv),
-        _ => false
+        _ => false,
     }
 }
 
 pub fn node_imm_to_u64(op: &TreeNode) -> u64 {
     match op.v {
         TreeNode_::Value(ref pv) => value_imm_to_u64(pv),
-        _ => panic!("expected imm")
+        _ => panic!("expected imm"),
     }
 }
 pub fn node_imm_to_i64(op: &TreeNode, signed: bool) -> u64 {
     match op.v {
         TreeNode_::Value(ref pv) => value_imm_to_i64(pv, signed),
-        _ => panic!("expected imm")
+        _ => panic!("expected imm"),
     }
 }
 pub fn node_imm_to_s64(op: &TreeNode) -> i64 {
     match op.v {
         TreeNode_::Value(ref pv) => value_imm_to_s64(pv),
-        _ => panic!("expected imm")
+        _ => panic!("expected imm"),
     }
 }
 
 pub fn node_imm_to_f64(op: &TreeNode) -> f64 {
     match op.v {
         TreeNode_::Value(ref pv) => value_imm_to_f64(pv),
-        _ => panic!("expected imm")
+        _ => panic!("expected imm"),
     }
 }
 
 pub fn node_imm_to_f32(op: &TreeNode) -> f32 {
     match op.v {
         TreeNode_::Value(ref pv) => value_imm_to_f32(pv),
-        _ => panic!("expected imm")
+        _ => panic!("expected imm"),
     }
 }
 
 pub fn node_imm_to_value(op: &TreeNode) -> P<Value> {
     match op.v {
-        TreeNode_::Value(ref pv) => {
-            pv.clone()
-        }
-        _ => panic!("expected imm")
+        TreeNode_::Value(ref pv) => pv.clone(),
+        _ => panic!("expected imm"),
     }
 }
 
 pub fn value_imm_to_f32(op: &P<Value>) -> f32 {
     match op.v {
-        Value_::Constant(Constant::Float(val)) => {
-            val as f32
-        },
-        _ => panic!("expected imm float")
+        Value_::Constant(Constant::Float(val)) => val as f32,
+        _ => panic!("expected imm float"),
     }
 }
 
 pub fn value_imm_to_f64(op: &P<Value>) -> f64 {
     match op.v {
-        Value_::Constant(Constant::Double(val)) => {
-            val as f64
-        },
-        _ => panic!("expected imm double")
+        Value_::Constant(Constant::Double(val)) => val as f64,
+        _ => panic!("expected imm double"),
     }
 }
 
 pub fn value_imm_to_u64(op: &P<Value>) -> u64 {
     match op.v {
-        Value_::Constant(Constant::Int(val)) =>
-            get_unsigned_value(val as u64, op.ty.get_int_length().unwrap()),
+        Value_::Constant(Constant::Int(val)) => {
+            get_unsigned_value(val as u64, op.ty.get_int_length().unwrap())
+        }
         Value_::Constant(Constant::NullRef) => 0,
-        _ => panic!("expected imm int")
+        _ => panic!("expected imm int"),
     }
 }
 
 pub fn value_imm_to_i64(op: &P<Value>, signed: bool) -> u64 {
     match op.v {
-        Value_::Constant(Constant::Int(val)) =>
+        Value_::Constant(Constant::Int(val)) => {
             if signed {
                 get_signed_value(val as u64, op.ty.get_int_length().unwrap()) as u64
             } else {
                 get_unsigned_value(val as u64, op.ty.get_int_length().unwrap())
-            },
+            }
+        }
         Value_::Constant(Constant::NullRef) => 0,
-        _ => panic!("expected imm int")
+        _ => panic!("expected imm int"),
     }
 }
 
 pub fn value_imm_to_s64(op: &P<Value>) -> i64 {
     match op.v {
-        Value_::Constant(Constant::Int(val)) =>
-            get_signed_value(val as u64, op.ty.get_int_length().unwrap()),
+        Value_::Constant(Constant::Int(val)) => {
+            get_signed_value(val as u64, op.ty.get_int_length().unwrap())
+        }
         Value_::Constant(Constant::NullRef) => 0,
-        _ => panic!("expected imm int")
+        _ => panic!("expected imm int"),
     }
 }
 
@@ -1469,14 +1493,15 @@ pub fn make_value_int_const(val: u64, vm: &VM) -> P<Value> {
     P(Value {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         ty: UINT64_TYPE.clone(),
-        v: Value_::Constant(Constant::Int(val))
+        v: Value_::Constant(Constant::Int(val)),
     })
 }
 
 // Replaces the zero register with a temporary whose value is zero (or returns the orignal register)
 /* TODO use this function for the following arguments:
 
-We can probabbly allow the zero register to be the second argument to an _ext function (as the assembler will simply use the shifted-register encoding, which allows it)
+We can probabbly allow the zero register to be the second argument to an _ext function
+(as the assembler will simply use the shifted-register encoding, which allows it)
 add[,s1] // tirival
 add_ext[d, s1]  // trivial
 add_imm[d, s1] // trivial
@@ -1501,7 +1526,8 @@ cmn_imm[s1] // not trivial (sets flags)
 cmp_ext[s1] // not trivial (sets flags)
 cmp_imm[s1] // not trivial (sets flags)
 
-(they are all (or did I miss some??) places that the SP can be used, which takes up the encoding of the ZR
+(they are all (or did I miss some??) places that the SP can be used,
+which takes up the encoding of the ZR
 I believe the Zero register can be used in all other places that an integer register is expected
 (BUT AM NOT CERTAIN)
 */
@@ -1512,7 +1538,12 @@ and arg is the name of the argument that can't be the zero register (do so for e
 let arg = replace_zero_register(backend, &arg, f_context, vm);
 */
 
-pub fn replace_zero_register(backend: &mut CodeGenerator, val: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+pub fn replace_zero_register(
+    backend: &mut CodeGenerator,
+    val: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> P<Value> {
     if is_zero_register(&val) {
         let temp = make_temporary(f_context, val.ty.clone(), vm);
         backend.emit_mov_imm(&temp, 0);
@@ -1526,8 +1557,13 @@ pub fn make_temporary(f_context: &mut FunctionContext, ty: P<MuType>, vm: &VM) -
     f_context.make_temporary(vm.next_id(), ty).clone_value()
 }
 
-fn emit_mov_f64(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: f64)
-{
+fn emit_mov_f64(
+    backend: &mut CodeGenerator,
+    dest: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+    val: f64,
+) {
     use std::mem;
     if val == 0.0 {
         backend.emit_fmov(&dest, &XZR);
@@ -1542,7 +1578,11 @@ fn emit_mov_f64(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut Fu
             None => {
                 // Have to load a temporary GPR with the value first
                 let tmp_int = make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                emit_mov_u64(backend, &tmp_int, unsafe { mem::transmute::<f64, u64>(val) });
+                emit_mov_u64(
+                    backend,
+                    &tmp_int,
+                    unsafe { mem::transmute::<f64, u64>(val) },
+                );
 
                 // then move it to an FPR
                 backend.emit_fmov(&dest, &tmp_int);
@@ -1551,8 +1591,13 @@ fn emit_mov_f64(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut Fu
     }
 }
 
-fn emit_mov_f32(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: f32)
-{
+fn emit_mov_f32(
+    backend: &mut CodeGenerator,
+    dest: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+    val: f32,
+) {
     use std::mem;
     if val == 0.0 {
         backend.emit_fmov(&dest, &WZR);
@@ -1562,14 +1607,15 @@ fn emit_mov_f32(backend: &mut CodeGenerator, dest: &P<Value>, f_context: &mut Fu
         // Have to load a temporary GPR with the value first
         let tmp_int = make_temporary(f_context, UINT32_TYPE.clone(), vm);
 
-        emit_mov_u64(backend, &tmp_int, unsafe { mem::transmute::<f32, u32>(val) } as u64);
+        emit_mov_u64(backend, &tmp_int, unsafe {
+            mem::transmute::<f32, u32>(val)
+        } as u64);
         // then move it to an FPR
         backend.emit_fmov(&dest, &tmp_int);
     }
 }
 
-pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
-{
+pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64) {
     let n = dest.ty.get_int_length().unwrap();
     let unsigned_value = get_unsigned_value(val, n);
     let negative_value = get_negative_value(val, n) as u64;
@@ -1584,7 +1630,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
         // Value is more than 16 bits
         backend.emit_mov_imm(&dest, replicate_logical_imm(val, n));
 
-        // Have to use more than one instruciton
+    // Have to use more than one instruciton
     } else {
         // Otherwise emmit a sequences of MOVZ, MOVN and MOVK, where:
         //  MOVZ(dest, v, n) will set dest = (v << n)
@@ -1592,22 +1638,21 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
         //  MOVK(dest, v, n) will set dest = dest[63:16+n]:n:dest[(n-1):0];
 
         // How many halfowrds are all zeros
-        let n_zeros =
-            ((unsigned_value & bits_ones(16) == 0) as u64) +
-            ((unsigned_value & (bits_ones(16)<<16) == 0) as u64) +
-            ((unsigned_value & (bits_ones(16)<<32) == 0) as u64) +
-            ((unsigned_value & (bits_ones(16)<<48) == 0) as u64);
+        let n_zeros = ((unsigned_value & bits_ones(16) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16) << 16) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16) << 32) == 0) as u64) +
+            ((unsigned_value & (bits_ones(16) << 48) == 0) as u64);
 
         // How many halfowrds are all ones
-        let n_ones =
-            ((negative_value & bits_ones(16) == bits_ones(16)) as u64) +
-            ((negative_value & (bits_ones(16)<<16) == (bits_ones(16)<<16)) as u64) +
-            ((negative_value & (bits_ones(16)<<32) == (bits_ones(16)<<32)) as u64) +
-            ((negative_value & (bits_ones(16)<<48) == (bits_ones(16)<<48)) as u64);
+        let n_ones = ((negative_value & bits_ones(16) == bits_ones(16)) as u64) +
+            ((negative_value & (bits_ones(16) << 16) == (bits_ones(16) << 16)) as u64) +
+            ((negative_value & (bits_ones(16) << 32) == (bits_ones(16) << 32)) as u64) +
+            ((negative_value & (bits_ones(16) << 48) == (bits_ones(16) << 48)) as u64);
 
 
         let mut movzn = false; // whether a movz/movn has been emmited yet
-        if n_ones > n_zeros { // It will take less instructions to use MOVN
+        if n_ones > n_zeros {
+            // It will take less instructions to use MOVN
             let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(negative_value);
 
             if pv0 != bits_ones(16) as u16 {
@@ -1637,7 +1682,8 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
                     backend.emit_movk(&dest, pv3, 48);
                 }
             }
-        } else { // It will take less instructions to use MOVZ
+        } else {
+            // It will take less instructions to use MOVZ
             let (pv0, pv1, pv2, pv3) = split_aarch64_imm_u64(unsigned_value);
 
             if pv0 != 0 {
@@ -1672,8 +1718,7 @@ pub fn emit_mov_u64(backend: &mut CodeGenerator, dest: &P<Value>, val: u64)
 }
 
 // TODO: Will this be correct if src is treated as signed (i think so...)
-pub fn emit_mul_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64)
-{
+pub fn emit_mul_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64) {
     if val == 0 {
         // dest = 0
         backend.emit_mov_imm(&dest, 0);
@@ -1693,8 +1738,7 @@ pub fn emit_mul_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>
 }
 
 // Decrement the register by an immediate value
-fn emit_sub_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64)
-{
+fn emit_sub_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64) {
     if (val as i64) < 0 {
         emit_add_u64(backend, &dest, &src, (-(val as i64) as u64));
     } else if val == 0 {
@@ -1712,8 +1756,7 @@ fn emit_sub_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, va
 }
 
 // Increment the register by an immediate value
-fn emit_add_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64)
-{
+fn emit_add_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, val: u64) {
     if (val as i64) < 0 {
         emit_sub_u64(backend, &dest, &src, (-(val as i64) as u64));
     } else if val == 0 {
@@ -1731,8 +1774,13 @@ fn emit_add_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, va
 }
 
 // dest = src1*val + src2
-fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, val: u64, src2: &P<Value>)
-{
+fn emit_madd_u64(
+    backend: &mut CodeGenerator,
+    dest: &P<Value>,
+    src1: &P<Value>,
+    val: u64,
+    src2: &P<Value>,
+) {
     if val == 0 {
         // dest = src2
         backend.emit_mov(&dest, &src2);
@@ -1759,8 +1807,15 @@ fn emit_madd_u64(backend: &mut CodeGenerator, dest: &P<Value>, src1: &P<Value>, 
 }
 
 // dest = src*val1 + val2
-fn emit_madd_u64_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val1: u64, val2: u64)
-{
+fn emit_madd_u64_u64(
+    backend: &mut CodeGenerator,
+    dest: &P<Value>,
+    src: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+    val1: u64,
+    val2: u64,
+) {
     if val2 == 0 {
         // dest = src*val
         emit_mul_u64(backend, &dest, &src, val1);
@@ -1789,8 +1844,13 @@ fn emit_madd_u64_u64(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
 }
 
 // Compare register with value
-fn emit_cmp_u64(backend: &mut CodeGenerator, src1: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64)
-{
+fn emit_cmp_u64(
+    backend: &mut CodeGenerator,
+    src1: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+    val: u64,
+) {
     if (val as i64) < 0 {
         emit_cmn_u64(backend, &src1, f_context, vm, (-(val as i64) as u64));
     } else if val == 0 {
@@ -1807,8 +1867,13 @@ fn emit_cmp_u64(backend: &mut CodeGenerator, src1: &P<Value>, f_context: &mut Fu
 }
 
 // Compare register with value
-fn emit_cmn_u64(backend: &mut CodeGenerator, src1: &P<Value>, f_context: &mut FunctionContext, vm: &VM, val: u64)
-{
+fn emit_cmn_u64(
+    backend: &mut CodeGenerator,
+    src1: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+    val: u64,
+) {
     if (val as i64) < 0 {
         emit_cmp_u64(backend, &src1, f_context, vm, (-(val as i64) as u64));
     } else if val == 0 {
@@ -1825,8 +1890,7 @@ fn emit_cmn_u64(backend: &mut CodeGenerator, src1: &P<Value>, f_context: &mut Fu
 }
 
 // sign extends reg, to fit in a 32/64 bit register
-fn emit_sext(backend: &mut CodeGenerator, reg: &P<Value>)
-{
+fn emit_sext(backend: &mut CodeGenerator, reg: &P<Value>) {
     let nreg = check_op_len(&reg.ty); // The size of the aarch64 register
     let nmu = reg.ty.get_int_length().unwrap(); // the size of the Mu type
 
@@ -1837,8 +1901,7 @@ fn emit_sext(backend: &mut CodeGenerator, reg: &P<Value>)
 }
 
 // zero extends reg, to fit in a 32/64 bit register
-fn emit_zext(backend: &mut CodeGenerator, reg: &P<Value>)
-{
+fn emit_zext(backend: &mut CodeGenerator, reg: &P<Value>) {
     let nreg = check_op_len(&reg.ty); // The size of the aarch64 register
     let nmu = reg.ty.get_int_length().unwrap(); // the size of the Mu type
 
@@ -1849,8 +1912,7 @@ fn emit_zext(backend: &mut CodeGenerator, reg: &P<Value>)
 }
 
 // one extends reg, to fit in a 32/64 bit register
-fn emit_oext(backend: &mut CodeGenerator, reg: &P<Value>)
-{
+fn emit_oext(backend: &mut CodeGenerator, reg: &P<Value>) {
     let nreg = check_op_len(&reg.ty); // The size of the aarch64 register
     let nmu = reg.ty.get_int_length().unwrap(); // the size of the Mu type
 
@@ -1864,11 +1926,15 @@ fn emit_oext(backend: &mut CodeGenerator, reg: &P<Value>)
 
 // Masks 'src' so that it can be used to shift 'dest'
 // Returns a register that should be used for the shift operand (may be dest or src)
-fn emit_shift_mask<'b>(backend: &mut CodeGenerator, dest: &'b P<Value>, src: &'b P<Value>) -> &'b P<Value>
-{
+fn emit_shift_mask<'b>(
+    backend: &mut CodeGenerator,
+    dest: &'b P<Value>,
+    src: &'b P<Value>,
+) -> &'b P<Value> {
     let ndest = dest.ty.get_int_length().unwrap() as u64;
 
-    if ndest != 32 && ndest != 64 { // Not a native integer size, need to mask
+    if ndest != 32 && ndest != 64 {
+        // Not a native integer size, need to mask
         backend.emit_and_imm(&dest, &src, ndest.next_power_of_two() - 1);
         &dest
     } else {
@@ -1876,7 +1942,12 @@ fn emit_shift_mask<'b>(backend: &mut CodeGenerator, dest: &'b P<Value>, src: &'b
     }
 }
 // TODO: Deal with memory case
-fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+fn emit_reg_value(
+    backend: &mut CodeGenerator,
+    pv: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> P<Value> {
     match pv.v {
         Value_::SSAVar(_) => pv.clone(),
         Value_::Constant(ref c) => {
@@ -1892,7 +1963,7 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                     emit_mov_u64(backend, &tmp, val);
                     tmp
                     //}
-                },
+                }
                 &Constant::IntEx(ref val) => {
                     assert!(val.len() == 2);
 
@@ -1903,20 +1974,21 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                     emit_mov_u64(backend, &tmp_h, val[1]);
 
                     tmp
-                },
+                }
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                    let mem =
+                        make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
-                },
+                }
                 &Constant::NullRef => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
                     backend.emit_mov_imm(&tmp, 0);
                     tmp
                     //get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
-                },
+                }
                 &Constant::Double(val) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
                     emit_mov_f64(backend, &tmp, f_context, vm, val);
@@ -1926,16 +1998,21 @@ fn emit_reg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fu
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
                     emit_mov_f32(backend, &tmp, f_context, vm, val);
                     tmp
-                },
-                _ => panic!("expected fpreg or ireg")
+                }
+                _ => panic!("expected fpreg or ireg"),
             }
-        },
-        _ => panic!("expected fpreg or ireg")
+        }
+        _ => panic!("expected fpreg or ireg"),
     }
 }
 
 // TODO: Deal with memory case
-pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+pub fn emit_ireg_value(
+    backend: &mut CodeGenerator,
+    pv: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> P<Value> {
     match pv.v {
         Value_::SSAVar(_) => pv.clone(),
         Value_::Constant(ref c) => {
@@ -1943,7 +2020,7 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                 &Constant::Int(val) => {
                     // TODO Deal with zero case
                     /*if val == 0 {
-                        // TODO: Are there any (integer) instructions that can't use the Zero register?
+                        // TODO: Are there any (integer) instructions that can't use the Zero reg?
                         // Use the zero register (saves having to use a temporary)
                         get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
                     } else {*/
@@ -1952,7 +2029,7 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                     emit_mov_u64(backend, &tmp, val);
                     tmp
                     //}
-                },
+                }
                 &Constant::IntEx(ref val) => {
                     assert!(val.len() == 2);
 
@@ -1963,29 +2040,35 @@ pub fn emit_ireg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &m
                     emit_mov_u64(backend, &tmp_h, val[1]);
 
                     tmp
-                },
+                }
                 &Constant::FuncRef(func_id) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                    let mem =
+                        make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
-                },
+                }
                 &Constant::NullRef => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
                     backend.emit_mov_imm(&tmp, 0);
                     tmp
                     //get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
-                },
-                _ => panic!("expected ireg")
+                }
+                _ => panic!("expected ireg"),
             }
-        },
-        _ => panic!("expected ireg")
+        }
+        _ => panic!("expected ireg"),
     }
 }
 
 // TODO: Deal with memory case
-fn emit_fpreg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+fn emit_fpreg_value(
+    backend: &mut CodeGenerator,
+    pv: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> P<Value> {
     match pv.v {
         Value_::SSAVar(_) => pv.clone(),
         Value_::Constant(Constant::Double(val)) => {
@@ -1997,31 +2080,46 @@ fn emit_fpreg_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut 
             let tmp = make_temporary(f_context, FLOAT_TYPE.clone(), vm);
             emit_mov_f32(backend, &tmp, f_context, vm, val);
             tmp
-        },
-        _ => panic!("expected fpreg")
+        }
+        _ => panic!("expected fpreg"),
     }
 }
 
-fn split_int128(int128: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>) {
+fn split_int128(
+    int128: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> (P<Value>, P<Value>) {
     if f_context.get_value(int128.id()).unwrap().has_split() {
-        let vec = f_context.get_value(int128.id()).unwrap().get_split().as_ref().unwrap();
+        let vec = f_context
+            .get_value(int128.id())
+            .unwrap()
+            .get_split()
+            .as_ref()
+            .unwrap();
         (vec[0].clone(), vec[1].clone())
     } else {
         let arg_l = make_temporary(f_context, UINT64_TYPE.clone(), vm);
         let arg_h = make_temporary(f_context, UINT64_TYPE.clone(), vm);
 
-        f_context.get_value_mut(int128.id()).unwrap().set_split(vec![arg_l.clone(), arg_h.clone()]);
+        f_context
+            .get_value_mut(int128.id())
+            .unwrap()
+            .set_split(vec![arg_l.clone(), arg_h.clone()]);
 
         trace!("ISAAC <- make temporary ({}, {})", &arg_l, &arg_h);
         (arg_l, arg_h)
     }
 }
 
-pub fn emit_ireg_ex_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> (P<Value>, P<Value>)  {
+pub fn emit_ireg_ex_value(
+    backend: &mut CodeGenerator,
+    pv: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> (P<Value>, P<Value>) {
     match pv.v {
-        Value_::SSAVar(_) => {
-            split_int128(pv, f_context, vm)
-        },
+        Value_::SSAVar(_) => split_int128(pv, f_context, vm),
         Value_::Constant(Constant::IntEx(ref val)) => {
             assert!(val.len() == 2);
 
@@ -2031,14 +2129,26 @@ pub fn emit_ireg_ex_value(backend: &mut CodeGenerator, pv: &P<Value>, f_context:
             emit_mov_u64(backend, &tmp_l, val[0]);
             emit_mov_u64(backend, &tmp_h, val[1]);
 
-            trace!("ISAAC <- ({}, {}) = ({}, {})", &tmp_l, &tmp_h, val[0], val[1]);
+            trace!(
+                "ISAAC <- ({}, {}) = ({}, {})",
+                &tmp_l,
+                &tmp_h,
+                val[0],
+                val[1]
+            );
             (tmp_l, tmp_h)
-        },
-        _ => panic!("expected ireg_ex")
+        }
+        _ => panic!("expected ireg_ex"),
     }
 }
 
-pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, alignment: usize, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+pub fn emit_mem(
+    backend: &mut CodeGenerator,
+    pv: &P<Value>,
+    alignment: usize,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> P<Value> {
     match pv.v {
         Value_::Memory(ref mem) => {
             match mem {
@@ -2058,13 +2168,15 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, alignment: usize, f_
                                     emit_mov_u64(backend, &offset, offset_val as u64);
                                     Some(offset)
                                 } else {
-                                    // We will be using a store/load pair which dosn't support register offsets
+                                    // We will be using a store/load pair
+                                    // which dosn't support register offsets
                                     return emit_mem_base(backend, &pv, f_context, vm);
                                 }
                             } else {
                                 let offset = emit_ireg_value(backend, offset, f_context, vm);
 
-                                // TODO: If scale == (2^n)*m (for some m), set shift = n, and multiply index by m
+                                // TODO: If scale == (2^n)*m (for some m), set shift = n,
+                                // and multiply index by m
                                 if !is_valid_immediate_scale(scale, alignment) {
                                     let temp = make_temporary(f_context, offset.ty.clone(), vm);
 
@@ -2123,7 +2235,12 @@ pub fn emit_mem(backend: &mut CodeGenerator, pv: &P<Value>, alignment: usize, f_
 
 // Same as emit_mem except returns a memory location with only a base
 // NOTE: This code duplicates allot of code in emit_mem and emit_calculate_address
-fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+fn emit_mem_base(
+    backend: &mut CodeGenerator,
+    pv: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> P<Value> {
     match pv.v {
         Value_::Memory(ref mem) => {
             let base = match mem {
@@ -2136,7 +2253,8 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
                                 base.clone() // trivial
                             } else {
                                 let temp = make_temporary(f_context, pv.ty.clone(), vm);
-                                emit_add_u64(backend, &temp, &base, (offset_val * scale as i64) as u64);
+                                emit_add_u64(backend, &temp, &base,
+                                             (offset_val * scale as i64) as u64);
                                 temp
                             }
                         } else {
@@ -2144,10 +2262,12 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
 
                             // TODO: If scale == r*m (for some 0 <= m <= 4), multiply offset by r
                             // then use and add_ext(,...,m)
-                            if scale.is_power_of_two() && is_valid_immediate_extension(log2(scale)) {
+                            if scale.is_power_of_two() &&
+                                is_valid_immediate_extension(log2(scale)) {
                                 let temp = make_temporary(f_context, pv.ty.clone(), vm);
                                 // temp = base + offset << log2(scale)
-                                backend.emit_add_ext(&temp, &base, &offset, signed, log2(scale) as u8);
+                                backend.emit_add_ext(&temp, &base, &offset, signed,
+                                                     log2(scale) as u8);
                                 temp
                             } else {
                                 let temp_offset = make_temporary(f_context, offset.ty.clone(), vm);
@@ -2181,7 +2301,8 @@ fn emit_mem_base(backend: &mut CodeGenerator, pv: &P<Value>, f_context: &mut Fun
                                 emit_add_u64(backend, &temp, &base, offset as u64);
                                 temp
                             }
-                        } else if RegGroup::get_from_value(&offset) == RegGroup::GPR && offset.is_reg() {
+                        } else if RegGroup::get_from_value(&offset) == RegGroup::GPR &&
+                            offset.is_reg() {
                             let temp = make_temporary(f_context, pv.ty.clone(), vm);
                             backend.emit_add_ext(&temp, &base, &offset, signed, shift);
                             temp
@@ -2225,22 +2346,26 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
     match src.v {
         Value_::Memory(ref mem) => {
             match mem {
-                &MemoryLocation::Symbolic{ref label, is_global, is_native} => {
+                &MemoryLocation::Symbolic {
+                    ref label,
+                    is_global,
+                    is_native,
+                } => {
                     if is_global {
                         // Set dest to be the page address of the entry for src in the GOT
                         backend.emit_adrp(&dest, &src);
 
-                        // Note: The offset should always be a valid immediate offset as it is 12-bits
+                        // Note: The offset should always be a valid immediate offset
+                        // as it is 12-bits
                         // (The same size as an immediate offset)
                         let offset = P(Value {
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             ty: UINT64_TYPE.clone(),
-                            v: Value_::Constant(Constant::ExternSym(
-                                if is_native {
-                                    format!("/*C*/:got_lo12:{}", label)
-                                } else {
-                                    format!(":got_lo12:{}", mangle_name(label.clone()))
-                                }))
+                            v: Value_::Constant(Constant::ExternSym(if is_native {
+                                format!("/*C*/:got_lo12:{}", label)
+                            } else {
+                                format!(":got_lo12:{}", mangle_name(label.clone()))
+                            })),
                         });
 
                         // [dest + low 12 bits of the GOT entry for src]
@@ -2248,13 +2373,12 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             ty: ADDRESS_TYPE.clone(),
                             // should be ptr<src.ty>
-
                             v: Value_::Memory(MemoryLocation::Address {
                                 base: dest.clone(),
                                 offset: Some(offset),
                                 shift: 0,
                                 signed: false,
-                            })
+                            }),
                         });
 
                         // Load dest with the value in the GOT entry for src
@@ -2264,20 +2388,30 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
                         backend.emit_adr(&dest, &src);
                     }
                 }
-                _ => panic!("Expected symbolic memory location")
+                _ => panic!("Expected symbolic memory location"),
             }
         }
-        _ => panic!("Expected memory value")
+        _ => panic!("Expected memory value"),
     }
 }
 
 fn emit_calculate_address(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, vm: &VM) {
     match src.v {
-        Value_::Memory(MemoryLocation::VirtualAddress{ref base, ref offset, scale, signed}) => {
+        Value_::Memory(MemoryLocation::VirtualAddress {
+            ref base,
+            ref offset,
+            scale,
+            signed,
+        }) => {
             if offset.is_some() {
                 let offset = offset.as_ref().unwrap();
                 if match_value_int_imm(offset) {
-                    emit_add_u64(backend, &dest, &base, ((value_imm_to_i64(offset, signed) as i64)*(scale as i64)) as u64);
+                    emit_add_u64(
+                        backend,
+                        &dest,
+                        &base,
+                        ((value_imm_to_i64(offset, signed) as i64) * (scale as i64)) as u64,
+                    );
                 } else {
                     // dest = offset * scale + base
                     emit_madd_u64(backend, &dest, &offset, scale as u64, &base);
@@ -2287,7 +2421,12 @@ fn emit_calculate_address(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<
             }
         }
         // offset(base,index,scale)
-        Value_::Memory(MemoryLocation::Address{ref base, ref offset, shift, signed}) => {
+        Value_::Memory(MemoryLocation::Address {
+            ref base,
+            ref offset,
+            shift,
+            signed,
+        }) => {
             if offset.is_some() {
                 let ref offset = offset.as_ref().unwrap();
 
@@ -2308,12 +2447,12 @@ fn emit_calculate_address(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<
                 // Simple base address
                 backend.emit_mov(&dest, &base);
             }
-        },
+        }
 
-        Value_::Memory(MemoryLocation::Symbolic{..}) => {
+        Value_::Memory(MemoryLocation::Symbolic { .. }) => {
             emit_addr_sym(backend, &dest, &src, vm);
         }
-        _ => panic!("expect mem location as value")
+        _ => panic!("expect mem location as value"),
     }
 }
 
@@ -2326,20 +2465,20 @@ fn make_value_from_memory(mem: MemoryLocation, ty: &P<MuType>, vm: &VM) -> P<Val
     P(Value {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         ty: ty.clone(),
-        v: Value_::Memory(mem)
+        v: Value_::Memory(mem),
     })
 }
 
 fn make_memory_location_base_offset(base: &P<Value>, offset: i64, vm: &VM) -> MemoryLocation {
     if offset == 0 {
-        MemoryLocation::VirtualAddress{
+        MemoryLocation::VirtualAddress {
             base: base.clone(),
             offset: None,
             scale: 1,
             signed: true,
         }
     } else {
-        MemoryLocation::VirtualAddress{
+        MemoryLocation::VirtualAddress {
             base: base.clone(),
             offset: Some(make_value_int_const(offset as u64, vm)),
             scale: 1,
@@ -2348,49 +2487,68 @@ fn make_memory_location_base_offset(base: &P<Value>, offset: i64, vm: &VM) -> Me
     }
 }
 
-fn make_memory_location_base_offset_scale(base: &P<Value>, offset: &P<Value>, scale: u64, signed: bool) -> MemoryLocation {
-    MemoryLocation::VirtualAddress{
+fn make_memory_location_base_offset_scale(
+    base: &P<Value>,
+    offset: &P<Value>,
+    scale: u64,
+    signed: bool,
+) -> MemoryLocation {
+    MemoryLocation::VirtualAddress {
         base: base.clone(),
         offset: Some(offset.clone()),
         scale: scale,
-        signed: signed
+        signed: signed,
     }
 }
 
 // Returns a memory location that points to 'Base + offset*scale + more_offset'
-fn memory_location_shift(backend: &mut CodeGenerator, mem: MemoryLocation, more_offset: i64, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {
+fn memory_location_shift(
+    backend: &mut CodeGenerator,
+    mem: MemoryLocation,
+    more_offset: i64,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> MemoryLocation {
     if more_offset == 0 {
         return mem; // No need to do anything
     }
     match mem {
-        MemoryLocation::VirtualAddress { ref base, ref offset, scale, signed } => {
+        MemoryLocation::VirtualAddress {
+            ref base,
+            ref offset,
+            scale,
+            signed,
+        } => {
             let mut new_scale = 1;
-            let new_offset =
-                if offset.is_some() {
-                    let offset = offset.as_ref().unwrap();
-                    if match_value_int_imm(&offset) {
-                        let offset = offset.extract_int_const().unwrap() *scale + (more_offset as u64);
-                        make_value_int_const(offset as u64, vm)
+            let new_offset = if offset.is_some() {
+                let offset = offset.as_ref().unwrap();
+                if match_value_int_imm(&offset) {
+                    let offset = offset.extract_int_const().unwrap() * scale + (more_offset as u64);
+                    make_value_int_const(offset as u64, vm)
+                } else {
+                    let offset = emit_ireg_value(backend, &offset, f_context, vm);
+                    let temp = make_temporary(f_context, offset.ty.clone(), vm);
+
+                    if more_offset % (scale as i64) == 0 {
+                        // temp = offset + more_offset/scale
+                        emit_add_u64(
+                            backend,
+                            &temp,
+                            &offset,
+                            (more_offset / (scale as i64)) as u64,
+                        );
+                        new_scale = scale;
                     } else {
-                        let offset = emit_ireg_value(backend, &offset, f_context, vm);
-                        let temp = make_temporary(f_context, offset.ty.clone(), vm);
-
-                        if more_offset % (scale as i64) == 0 {
-                            // temp = offset + more_offset/scale
-                            emit_add_u64(backend, &temp, &offset, (more_offset/(scale as i64)) as u64);
-                            new_scale = scale;
-                        } else {
-                            // temp = offset*scale + more_offset
-                            emit_mul_u64(backend, &temp, &offset, scale);
-                            emit_add_u64(backend, &temp, &temp,  more_offset as u64);
-                        }
-
-                        temp
+                        // temp = offset*scale + more_offset
+                        emit_mul_u64(backend, &temp, &offset, scale);
+                        emit_add_u64(backend, &temp, &temp, more_offset as u64);
                     }
+
+                    temp
                 }
-                    else {
-                        make_value_int_const(more_offset as u64, vm)
-                    };
+            } else {
+                make_value_int_const(more_offset as u64, vm)
+            };
 
             // if offset was an immediate or more_offset % scale != 0:
             //      new_offset = offset*scale+more_offset
@@ -2405,75 +2563,106 @@ fn memory_location_shift(backend: &mut CodeGenerator, mem: MemoryLocation, more_
                 scale: new_scale,
                 signed: signed,
             }
-        },
-        _ => panic!("expected a VirtualAddress memory location")
+        }
+        _ => panic!("expected a VirtualAddress memory location"),
     }
 }
 
 // Returns a memory location that points to 'Base + offset*scale + more_offset*new_scale'
-fn memory_location_shift_scale(backend: &mut CodeGenerator, mem: MemoryLocation, more_offset:  &P<Value>, new_scale: u64, f_context: &mut FunctionContext, vm: &VM) -> MemoryLocation {
+fn memory_location_shift_scale(
+    backend: &mut CodeGenerator,
+    mem: MemoryLocation,
+    more_offset: &P<Value>,
+    new_scale: u64,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> MemoryLocation {
     if match_value_int_imm(&more_offset) {
         let more_offset = value_imm_to_s64(&more_offset);
-        memory_location_shift(backend, mem, more_offset * (new_scale as i64), f_context, vm)
+        memory_location_shift(
+            backend,
+            mem,
+            more_offset * (new_scale as i64),
+            f_context,
+            vm,
+        )
     } else {
         let mut new_scale = new_scale;
         match mem {
-            MemoryLocation::VirtualAddress { ref base, ref offset, scale, signed } => {
-                let offset =
-                    if offset.is_some() {
-                        let offset = offset.as_ref().unwrap();
-                        if match_value_int_imm(&offset) {
-                            let temp = make_temporary(f_context, offset.ty.clone(), vm);
-                            let offset_scaled = (offset.extract_int_const().unwrap() as i64)*(scale as i64);
-                            if offset_scaled % (new_scale as i64) == 0 {
-                                emit_add_u64(backend, &temp, &more_offset, (offset_scaled / (new_scale as i64)) as u64);
-                                // new_scale*temp = (more_offset + (offset*scale)/new_scale)
-                                //                = more_offset*new_scale + offset*scale
-                            } else {
-                                // temp = more_offset*new_scale + offset*scale
-                                emit_mul_u64(backend, &temp, &more_offset, new_scale);
-                                emit_add_u64(backend, &temp, &temp, offset_scaled as u64);
-                                new_scale = 1;
-                            }
-                            temp
+            MemoryLocation::VirtualAddress {
+                ref base,
+                ref offset,
+                scale,
+                signed,
+            } => {
+                let offset = if offset.is_some() {
+                    let offset = offset.as_ref().unwrap();
+                    if match_value_int_imm(&offset) {
+                        let temp = make_temporary(f_context, offset.ty.clone(), vm);
+                        let offset_scaled =
+                            (offset.extract_int_const().unwrap() as i64) * (scale as i64);
+                        if offset_scaled % (new_scale as i64) == 0 {
+                            emit_add_u64(
+                                backend,
+                                &temp,
+                                &more_offset,
+                                (offset_scaled / (new_scale as i64)) as u64,
+                            );
+                        // new_scale*temp = (more_offset + (offset*scale)/new_scale)
+                        //                = more_offset*new_scale + offset*scale
                         } else {
-                            let offset = emit_ireg_value(backend, &offset, f_context, vm);
-                            let temp = make_temporary(f_context, offset.ty.clone(), vm);
-
-                            if new_scale == scale {
-                                // just add the offsets
-                                backend.emit_add_ext(&temp, &more_offset, &temp, signed, 0);
-                            }  else {
-                                // temp = offset * scale
-                                emit_mul_u64(backend, &temp, &offset, scale);
-
-                                if new_scale.is_power_of_two() && is_valid_immediate_extension(log2(new_scale)) {
-                                    // temp = (offset * scale) + more_offset << log2(new_scale)
-                                    backend.emit_add_ext(&temp, &temp, &more_offset, signed, log2(new_scale) as u8);
-                                } else {
-                                    // temp_more = more_offset * new_scale
-                                    let temp_more = make_temporary(f_context, offset.ty.clone(), vm);
-                                    emit_mul_u64(backend, &temp_more, &more_offset, new_scale);
-
-                                    // temp = (offset * scale) + (more_offset * new_scale);
-                                    backend.emit_add_ext(&temp, &temp_more, &temp, signed, 0);
-                                }
-
-                                new_scale = 1;
-                            }
-                            temp
+                            // temp = more_offset*new_scale + offset*scale
+                            emit_mul_u64(backend, &temp, &more_offset, new_scale);
+                            emit_add_u64(backend, &temp, &temp, offset_scaled as u64);
+                            new_scale = 1;
                         }
+                        temp
                     } else {
-                        more_offset.clone()
-                    };
+                        let offset = emit_ireg_value(backend, &offset, f_context, vm);
+                        let temp = make_temporary(f_context, offset.ty.clone(), vm);
+
+                        if new_scale == scale {
+                            // just add the offsets
+                            backend.emit_add_ext(&temp, &more_offset, &temp, signed, 0);
+                        } else {
+                            // temp = offset * scale
+                            emit_mul_u64(backend, &temp, &offset, scale);
+
+                            if new_scale.is_power_of_two() &&
+                                is_valid_immediate_extension(log2(new_scale))
+                            {
+                                // temp = (offset * scale) + more_offset << log2(new_scale)
+                                backend.emit_add_ext(
+                                    &temp,
+                                    &temp,
+                                    &more_offset,
+                                    signed,
+                                    log2(new_scale) as u8,
+                                );
+                            } else {
+                                // temp_more = more_offset * new_scale
+                                let temp_more = make_temporary(f_context, offset.ty.clone(), vm);
+                                emit_mul_u64(backend, &temp_more, &more_offset, new_scale);
+
+                                // temp = (offset * scale) + (more_offset * new_scale);
+                                backend.emit_add_ext(&temp, &temp_more, &temp, signed, 0);
+                            }
+
+                            new_scale = 1;
+                        }
+                        temp
+                    }
+                } else {
+                    more_offset.clone()
+                };
                 MemoryLocation::VirtualAddress {
                     base: base.clone(),
                     offset: Some(offset),
                     scale: new_scale,
                     signed: signed,
                 }
-            },
-            _ => panic!("expected a VirtualAddress memory location")
+            }
+            _ => panic!("expected a VirtualAddress memory location"),
         }
     }
 }
@@ -2485,9 +2674,11 @@ pub fn cast_value(val: &P<Value>, t: &P<MuType>) -> P<Value> {
         val.clone() // No need to cast
     } else {
         if is_machine_reg(val) {
-            if from_size < to_size { // 64 bits to 32 bits
+            if from_size < to_size {
+                // 64 bits to 32 bits
                 get_register_from_id(val.id() + 1)
-            } else { // 32 bits to 64 bits
+            } else {
+                // 32 bits to 64 bits
                 get_register_from_id(val.id() - 1)
             }
         } else {
@@ -2499,16 +2690,22 @@ pub fn cast_value(val: &P<Value>, t: &P<MuType>) -> P<Value> {
 fn make_value_symbolic(label: MuName, global: bool, ty: &P<MuType>, vm: &VM) -> P<Value> {
     P(Value {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
-        ty : ty.clone(),
-        v  : Value_::Memory(MemoryLocation::Symbolic {
+        ty: ty.clone(),
+        v: Value_::Memory(MemoryLocation::Symbolic {
             label: label,
             is_global: global,
             is_native: false,
-        })
+        }),
     })
 }
 
-fn emit_move_value_to_value(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
+fn emit_move_value_to_value(
+    backend: &mut CodeGenerator,
+    dest: &P<Value>,
+    src: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) {
     let ref src_ty = src.ty;
     if src_ty.is_scalar() && !src_ty.is_fp() {
         // 128-bit move
@@ -2530,7 +2727,8 @@ fn emit_move_value_to_value(backend: &mut CodeGenerator, dest: &P<Value>, src: &
             } else {
                 panic!("unexpected gpr mov between {} -> {}", src, dest);
             }
-        } else if is_int_reg(&dest) { // gpr mov
+        } else if is_int_reg(&dest) {
+            // gpr mov
             if src.is_int_const() {
                 let imm = value_imm_to_u64(src);
                 emit_mov_u64(backend, dest, imm);
@@ -2574,8 +2772,20 @@ fn emit_move_value_to_value(backend: &mut CodeGenerator, dest: &P<Value>, src: &
     }
 }
 
-fn emit_load(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
-    let src = emit_mem(backend, &src, get_type_alignment(&dest.ty, vm), f_context, vm);
+fn emit_load(
+    backend: &mut CodeGenerator,
+    dest: &P<Value>,
+    src: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) {
+    let src = emit_mem(
+        backend,
+        &src,
+        get_type_alignment(&dest.ty, vm),
+        f_context,
+        vm,
+    );
     if is_int_reg(dest) || is_fp_reg(dest) {
         backend.emit_ldr(&dest, &src, false);
     } else if is_int_ex_reg(dest) {
@@ -2587,8 +2797,20 @@ fn emit_load(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_con
 
 }
 
-fn emit_store(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
-    let dest = emit_mem(backend, &dest, get_type_alignment(&src.ty, vm), f_context, vm);
+fn emit_store(
+    backend: &mut CodeGenerator,
+    dest: &P<Value>,
+    src: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) {
+    let dest = emit_mem(
+        backend,
+        &dest,
+        get_type_alignment(&src.ty, vm),
+        f_context,
+        vm,
+    );
     if is_int_reg(src) || is_fp_reg(src) {
         backend.emit_str(&dest, &src);
     } else if is_int_ex_reg(src) {
@@ -2599,27 +2821,38 @@ fn emit_store(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value>, f_co
     }
 }
 
-fn emit_load_base_offset(backend: &mut CodeGenerator, dest: &P<Value>, base: &P<Value>, offset: i64, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+fn emit_load_base_offset(
+    backend: &mut CodeGenerator,
+    dest: &P<Value>,
+    base: &P<Value>,
+    offset: i64,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) -> P<Value> {
     let mem = make_value_base_offset(base, offset, &dest.ty, vm);
     emit_load(backend, dest, &mem, f_context, vm);
     mem
 }
 
-fn emit_store_base_offset(backend: &mut CodeGenerator, base: &P<Value>, offset: i64, src: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
+fn emit_store_base_offset(
+    backend: &mut CodeGenerator,
+    base: &P<Value>,
+    offset: i64,
+    src: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM,
+) {
     let mem = make_value_base_offset(base, offset, &src.ty, vm);
     emit_store(backend, &mem, src, f_context, vm);
 }
 
 
-fn is_int_reg(val: &P<Value>) -> bool
-{
+fn is_int_reg(val: &P<Value>) -> bool {
     RegGroup::get_from_value(&val) == RegGroup::GPR && (val.is_reg() || val.is_const())
 }
-fn is_int_ex_reg(val: &P<Value>) -> bool
-{
+fn is_int_ex_reg(val: &P<Value>) -> bool {
     RegGroup::get_from_value(&val) == RegGroup::GPREX && (val.is_reg() || val.is_const())
 }
-fn is_fp_reg(val: &P<Value>) -> bool
-{
+fn is_fp_reg(val: &P<Value>) -> bool {
     RegGroup::get_from_value(&val) == RegGroup::FPR && (val.is_reg() || val.is_const())
 }

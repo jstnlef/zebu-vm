@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,7 +21,8 @@ use compiler::backend::{Reg, Mem};
 
 pub trait CodeGenerator {
     fn start_code(&mut self, func_name: MuName, entry: MuName) -> ValueLocation;
-    fn finish_code(&mut self, func_name: MuName) -> (Box<MachineCode + Sync + Send>, ValueLocation);
+    fn finish_code(&mut self, func_name: MuName)
+        -> (Box<MachineCode + Sync + Send>, ValueLocation);
 
     // generate unnamed sequence of linear code (no branch)
     fn start_code_sequence(&mut self);
@@ -43,7 +44,7 @@ pub trait CodeGenerator {
     fn add_cfi_def_cfa_offset(&mut self, offset: i32);
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32);
 
-    //==================================================================================================
+    //===========================================================================================
 
     // emit code to adjust frame
     fn emit_frame_grow(&mut self); // Emits a SUB
@@ -56,60 +57,89 @@ pub trait CodeGenerator {
     fn emit_ldr_callee_saved(&mut self, dest: Reg, src: Mem);
     fn emit_str_callee_saved(&mut self, dest: Mem, src: Reg);
 
-    //==================================================================================================
+    //===========================================================================================
 
     /* Bellow ar all ARMv8-A Aarch64 instruction menmonics (with all operand modes) except:
         PRFM, PRFUM, CRC32*
         All advanced SIMD instructions (except MOVI)
 
     NOTE:
-        with loads and stores the menmonic indicated may be given a suffix indicating the size and signenedness of the access
-        also b_cond's menmononic is 'B.cond' (where cond is the value of the 'cond' parameter)
-        all other instructions have the menmonic being the first word of the function name after emit_
+        with loads and stores the menmonic indicated may be given a suffix indicating the size
+        and signenedness of the access also b_cond's menmononic is 'B.cond' (where cond is the
+        value of the 'cond' parameter) all other instructions have the menmonic being the first
+        word of the function name after emit_
             (subsequent words are used to disambiguate different overloads)
     NOTE unless otherwise indicated:
-        An instruction that dosn't start with an F operates on GPRS, those that start with an F operate on FPRs.
-        All instructions operate on 32-bit and 64-bit registers (but all register arguments must be the same size)
-        Also all arguments that may take the SP can't take the ZR (and vice versa)
+        An instruction that dosn't start with an F operates on GPRS, those that start with
+        an F operate on FPRs. All instructions operate on 32-bit and 64-bit registers (but all
+        register arguments must be the same size) Also all arguments that may take the SP can't
+        take the ZR (and vice versa)
     */
 
 
     // loads
-    fn emit_ldr(&mut self, dest: Reg/*GPR or FPR*/, src: Mem, signed: bool); // supports the full full range of addressing modes
+    // supports the full full range of addressing modes
+    fn emit_ldr(&mut self, dest: Reg /*GPR or FPR*/, src: Mem, signed: bool);
     fn emit_ldtr(&mut self, dest: Reg, src: Mem, signed: bool); // [base, #simm9]
-    fn emit_ldur(&mut self, dest: Reg/*GPR or FPR*/, src: Mem, signed: bool); // [base, #simm9]
-    fn emit_ldxr(&mut self, dest: Reg, src: Mem);// [base]
-    fn emit_ldaxr(&mut self, dest: Reg, src: Mem);// [base]
-    fn emit_ldar(&mut self, dest: Reg, src: Mem);// [base]
+    fn emit_ldur(&mut self, dest: Reg /*GPR or FPR*/, src: Mem, signed: bool); // [base, #simm9]
+    fn emit_ldxr(&mut self, dest: Reg, src: Mem); // [base]
+    fn emit_ldaxr(&mut self, dest: Reg, src: Mem); // [base]
+    fn emit_ldar(&mut self, dest: Reg, src: Mem); // [base]
 
-    fn emit_ldp(&mut self, dest1: Reg, dest2: Reg/*GPR or FPR*/, src: Mem); // [base, #simm7], [base], #simm7, [base, #simm7]!
+    // [base, #simm7], [base], #simm7, [base, #simm7]!
+    fn emit_ldp(&mut self, dest1: Reg, dest2: Reg /*GPR or FPR*/, src: Mem);
     fn emit_ldxp(&mut self, dest1: Reg, dest2: Reg, src: Mem); // [base]
     fn emit_ldaxp(&mut self, dest1: Reg, dest2: Reg, src: Mem); // [base]
-    fn emit_ldnp(&mut self, dest1: Reg/*GPR or FPR*/, dest2: Reg/*GPR or FPR*/, src: Mem); // [base, #simm7]
+    fn emit_ldnp(
+        &mut self,
+        dest1: Reg, /*GPR or FPR*/
+        dest2: Reg, /*GPR or FPR*/
+        src: Mem,
+    ); // [base, #simm7]
 
     // Stores
-    fn emit_str(&mut self, dest: Mem, src: Reg/*GPR or FPR*/); // supports the full full range of addressing modes
+    // supports the full full range of addressing modes
+    fn emit_str(&mut self, dest: Mem, src: Reg /*GPR or FPR*/);
     fn emit_sttr(&mut self, dest: Mem, src: Reg); // [base, #simm9]
-    fn emit_stur(&mut self, dest: Mem, src: Reg/*GPR or FPR*/); // [base, #simm9]
+    fn emit_stur(&mut self, dest: Mem, src: Reg /*GPR or FPR*/); // [base, #simm9]
     fn emit_stlr(&mut self, dest: Mem, src: Reg); // [base]
     fn emit_stxr(&mut self, dest: Mem, status: Reg, src: Reg); // [base]
     fn emit_stlxr(&mut self, dest: Mem, status: Reg, src: Reg); // [base]
 
-    fn emit_stp(&mut self, dest: Mem, src1: Reg, src2: Reg);  // [base, #simm7], [base], #simm7, [base, #simm7]!
+    // [base, #simm7], [base], #simm7, [base, #simm7]!
+    fn emit_stp(&mut self, dest: Mem, src1: Reg, src2: Reg);
     fn emit_stxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg); // [base]
     fn emit_stlxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg); // [base]
-    fn emit_stnp(&mut self, dest: Mem, src1: Reg/*GPR or FPR*/, src2: Reg/*GPR or FPR*/); // [base, #simm7]
+    fn emit_stnp(
+        &mut self,
+        dest: Mem,
+        src1: Reg, /*GPR or FPR*/
+        src2: Reg, /*GPR or FPR*/
+    ); // [base, #simm7]
 
     // Calls
-    fn emit_bl(&mut self, callsite: String, func: MuName, pe: Option<MuName>, args: Vec<P<Value>>, is_native: bool) -> ValueLocation;
-    fn emit_blr(&mut self, callsite: String, func: Reg, pe: Option<MuName>, args: Vec<P<Value>>) -> ValueLocation;
+    fn emit_bl(
+        &mut self,
+        callsite: String,
+        func: MuName,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        is_native: bool,
+    ) -> ValueLocation;
+    fn emit_blr(
+        &mut self,
+        callsite: String,
+        func: Reg,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+    ) -> ValueLocation;
 
     // Branches
     fn emit_b(&mut self, dest_name: MuName);
     fn emit_b_func(&mut self, func: MuName, args: Vec<P<Value>>); // For tail calls
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName);
     fn emit_br(&mut self, dest_address: Reg);
-    fn emit_br_func(&mut self, func_address: Reg, args: Vec<P<Value>>);  // For tail calls
+    fn emit_br_func(&mut self, func_address: Reg, args: Vec<P<Value>>); // For tail calls
 
     fn emit_ret(&mut self, src: Reg);
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName);
@@ -126,37 +156,39 @@ pub trait CodeGenerator {
     fn emit_adrp(&mut self, dest: Reg, src: Mem);
 
     // Unary ops
-    fn emit_mov(&mut self, dest: Reg/*GPR or SP or ZR*/, src: Reg/*GPR or SP or ZR*/); // The SP and ZR cannot both be used
+    // The SP and ZR cannot both be used
+    fn emit_mov(&mut self, dest: Reg /*GPR or SP or ZR*/, src: Reg /*GPR or SP or ZR*/);
     fn emit_mvn(&mut self, dest: Reg, src: Reg);
     fn emit_neg(&mut self, dest: Reg, src: Reg);
     fn emit_negs(&mut self, dest: Reg, src: Reg);
     fn emit_ngc(&mut self, dest: Reg, src: Reg);
     fn emit_ngcs(&mut self, dest: Reg, src: Reg);
-    fn emit_sxtb(&mut self, dest: Reg/*32*/, src: Reg/*32*/);
-    fn emit_sxth(&mut self, dest: Reg/*32*/, src: Reg/*32*/);
-    fn emit_sxtw(&mut self, dest: Reg/*64*/, src: Reg/*32*/);
-    fn emit_uxtb(&mut self, dest: Reg/*32*/, src: Reg/*32*/);
-    fn emit_uxth(&mut self, dest: Reg/*32*/, src: Reg/*32*/);
+    fn emit_sxtb(&mut self, dest: Reg /*32*/, src: Reg /*32*/);
+    fn emit_sxth(&mut self, dest: Reg /*32*/, src: Reg /*32*/);
+    fn emit_sxtw(&mut self, dest: Reg /*64*/, src: Reg /*32*/);
+    fn emit_uxtb(&mut self, dest: Reg /*32*/, src: Reg /*32*/);
+    fn emit_uxth(&mut self, dest: Reg /*32*/, src: Reg /*32*/);
     fn emit_cls(&mut self, dest: Reg, src: Reg);
     fn emit_clz(&mut self, dest: Reg, src: Reg);
     fn emit_rbit(&mut self, dest: Reg, src: Reg);
     fn emit_rev(&mut self, dest: Reg, src: Reg);
     fn emit_rev16(&mut self, dest: Reg, src: Reg);
-    fn emit_rev32(&mut self, dest: Reg/*64*/, src: Reg);
-    fn emit_rev64(&mut self, dest: Reg/*64*/, src: Reg); // alias of REV
+    fn emit_rev32(&mut self, dest: Reg /*64*/, src: Reg);
+    fn emit_rev64(&mut self, dest: Reg /*64*/, src: Reg); // alias of REV
     fn emit_fabs(&mut self, dest: Reg, src: Reg);
-    fn emit_fcvt(&mut self, dest: Reg, src: Reg/*Must have different size*/);
-    fn emit_fcvtas(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtau(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtms(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtmu(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtns(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtnu(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtps(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtpu(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtzs(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fcvtzu(&mut self, dest: Reg/*GPR, may have different size*/, src: Reg);
-    fn emit_fmov(&mut self, dest: Reg, src: Reg); // One register must be an FPR, the other may be a GPR or an FPR
+    fn emit_fcvt(&mut self, dest: Reg, src: Reg /*Must have different size*/);
+    fn emit_fcvtas(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtau(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtms(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtmu(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtns(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtnu(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtps(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtpu(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtzs(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    fn emit_fcvtzu(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
+    // One register must be an FPR, the other may be a GPR or an FPR
+    fn emit_fmov(&mut self, dest: Reg, src: Reg);
     fn emit_fneg(&mut self, dest: Reg, src: Reg);
     fn emit_frinta(&mut self, dest: Reg, src: Reg);
     fn emit_frinti(&mut self, dest: Reg, src: Reg);
@@ -166,8 +198,8 @@ pub trait CodeGenerator {
     fn emit_frintx(&mut self, dest: Reg, src: Reg);
     fn emit_frintz(&mut self, dest: Reg, src: Reg);
     fn emit_fsqrt(&mut self, dest: Reg, src: Reg);
-    fn emit_scvtf(&mut self, dest: Reg/*FPR, may have different size*/, src: Reg);
-    fn emit_ucvtf(&mut self, dest: Reg/*FPR, may have different size*/, src: Reg);
+    fn emit_scvtf(&mut self, dest: Reg /*FPR, may have different size*/, src: Reg);
+    fn emit_ucvtf(&mut self, dest: Reg /*FPR, may have different size*/, src: Reg);
 
     // Unary operations with shift
     fn emit_mov_shift(&mut self, dest: Reg, src: Reg, shift: &str, ammount: u8);
@@ -184,26 +216,54 @@ pub trait CodeGenerator {
     fn emit_fmov_imm(&mut self, dest: Reg, src: f32);
 
     // Extended binary ops
-    fn emit_add_ext(&mut self, dest: Reg/*GPR or SP*/, src1: Reg/*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
-    fn emit_adds_ext(&mut self, dest: Reg, src1: Reg/*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
-    fn emit_sub_ext(&mut self, dest: Reg/*GPR or SP*/, src1: Reg/*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
-    fn emit_subs_ext(&mut self, dest: Reg, src1: Reg/*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
+    fn emit_add_ext(
+        &mut self,
+        dest: Reg, /*GPR or SP*/
+        src1: Reg, /*GPR or SP*/
+        src2: Reg,
+        signed: bool,
+        shift: u8,
+    );
+    fn emit_adds_ext(
+        &mut self,
+        dest: Reg,
+        src1: Reg, /*GPR or SP*/
+        src2: Reg,
+        signed: bool,
+        shift: u8,
+    );
+    fn emit_sub_ext(
+        &mut self,
+        dest: Reg, /*GPR or SP*/
+        src1: Reg, /*GPR or SP*/
+        src2: Reg,
+        signed: bool,
+        shift: u8,
+    );
+    fn emit_subs_ext(
+        &mut self,
+        dest: Reg,
+        src1: Reg, /*GPR or SP*/
+        src2: Reg,
+        signed: bool,
+        shift: u8,
+    );
 
     // Multiplication
     fn emit_mul(&mut self, dest: Reg, src1: Reg, src2: Reg);
     fn emit_mneg(&mut self, dest: Reg, src1: Reg, src2: Reg);
-    fn emit_smulh(&mut self, dest: Reg/*64*/, src1: Reg/*64*/, src2: Reg/*64*/);
-    fn emit_umulh(&mut self, dest: Reg/*64*/, src1: Reg/*64*/, src2: Reg/*64*/);
-    fn emit_smnegl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/);
-    fn emit_smull(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/);
-    fn emit_umnegl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/);
-    fn emit_umull(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/);
+    fn emit_smulh(&mut self, dest: Reg /*64*/, src1: Reg /*64*/, src2: Reg /*64*/);
+    fn emit_umulh(&mut self, dest: Reg /*64*/, src1: Reg /*64*/, src2: Reg /*64*/);
+    fn emit_smnegl(&mut self, dest: Reg /*64*/, src1: Reg /*32*/, src2: Reg /*32*/);
+    fn emit_smull(&mut self, dest: Reg /*64*/, src1: Reg /*32*/, src2: Reg /*32*/);
+    fn emit_umnegl(&mut self, dest: Reg /*64*/, src1: Reg /*32*/, src2: Reg /*32*/);
+    fn emit_umull(&mut self, dest: Reg /*64*/, src1: Reg /*32*/, src2: Reg /*32*/);
 
     // Other binaries
     fn emit_adc(&mut self, dest: Reg, src1: Reg, src2: Reg);
     fn emit_adcs(&mut self, dest: Reg, src1: Reg, src2: Reg);
-    fn emit_add(&mut self, dest: Reg, src1: Reg/*GPR or SP*/, src2: Reg);
-    fn emit_adds(&mut self, dest: Reg, src1: Reg/*GPR or SP*/, src2: Reg);
+    fn emit_add(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: Reg);
+    fn emit_adds(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: Reg);
     fn emit_sbc(&mut self, dest: Reg, src1: Reg, src2: Reg);
     fn emit_sbcs(&mut self, dest: Reg, src1: Reg, src2: Reg);
     fn emit_sub(&mut self, dest: Reg, src1: Reg, src2: Reg);
@@ -250,15 +310,27 @@ pub trait CodeGenerator {
     fn emit_orr_shift(&mut self, dest: Reg, src1: Reg, src2: Reg, shift: &str, amount: u8);
 
     // binary ops with immediates
-    fn emit_add_imm(&mut self, dest: Reg/*GPR or SP*/, src1: Reg/*GPR or SP*/, src2: u16, shift: bool);
-    fn emit_adds_imm(&mut self, dest: Reg, src1: Reg/*GPR or SP*/, src2: u16, shift: bool);
-    fn emit_sub_imm(&mut self, dest: Reg/*GPR or SP*/, src1: Reg/*GPR or SP*/, src2: u16, shift: bool);
-    fn emit_subs_imm(&mut self, dest: Reg, src1: Reg/*GPR or SP*/, src2: u16, shift: bool);
+    fn emit_add_imm(
+        &mut self,
+        dest: Reg, /*GPR or SP*/
+        src1: Reg, /*GPR or SP*/
+        src2: u16,
+        shift: bool,
+    );
+    fn emit_adds_imm(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
+    fn emit_sub_imm(
+        &mut self,
+        dest: Reg, /*GPR or SP*/
+        src1: Reg, /*GPR or SP*/
+        src2: u16,
+        shift: bool,
+    );
+    fn emit_subs_imm(&mut self, dest: Reg, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
 
-    fn emit_and_imm(&mut self, dest: Reg/*GPR or SP*/, src1: Reg, src2: u64);
+    fn emit_and_imm(&mut self, dest: Reg /*GPR or SP*/, src1: Reg, src2: u64);
     fn emit_ands_imm(&mut self, dest: Reg, src1: Reg, src2: u64);
-    fn emit_eor_imm(&mut self, dest: Reg/*GPR or SP*/, src1: Reg, src2: u64);
-    fn emit_orr_imm(&mut self, dest: Reg/*GPR or SP*/, src1: Reg, src2: u64);
+    fn emit_eor_imm(&mut self, dest: Reg /*GPR or SP*/, src1: Reg, src2: u64);
+    fn emit_orr_imm(&mut self, dest: Reg /*GPR or SP*/, src1: Reg, src2: u64);
 
     fn emit_asr_imm(&mut self, dest: Reg, src1: Reg, src2: u8);
     fn emit_lsr_imm(&mut self, dest: Reg, src1: Reg, src2: u8);
@@ -269,10 +341,34 @@ pub trait CodeGenerator {
 
     fn emit_madd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg);
     fn emit_msub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg);
-    fn emit_smaddl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/, src3: Reg/*64*/);
-    fn emit_smsubl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/, src3: Reg/*64*/);
-    fn emit_umaddl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/, src3: Reg/*64*/);
-    fn emit_umsubl(&mut self, dest: Reg/*64*/, src1: Reg/*32*/, src2: Reg/*32*/, src3: Reg/*64*/);
+    fn emit_smaddl(
+        &mut self,
+        dest: Reg, /*64*/
+        src1: Reg, /*32*/
+        src2: Reg, /*32*/
+        src3: Reg, /*64*/
+    );
+    fn emit_smsubl(
+        &mut self,
+        dest: Reg, /*64*/
+        src1: Reg, /*32*/
+        src2: Reg, /*32*/
+        src3: Reg, /*64*/
+    );
+    fn emit_umaddl(
+        &mut self,
+        dest: Reg, /*64*/
+        src1: Reg, /*32*/
+        src2: Reg, /*32*/
+        src3: Reg, /*64*/
+    );
+    fn emit_umsubl(
+        &mut self,
+        dest: Reg, /*64*/
+        src1: Reg, /*32*/
+        src2: Reg, /*32*/
+        src3: Reg, /*64*/
+    );
     fn emit_fmadd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg);
     fn emit_fmsub(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg);
     fn emit_fnmadd(&mut self, dest: Reg, src1: Reg, src2: Reg, src3: Reg);
@@ -297,8 +393,8 @@ pub trait CodeGenerator {
     fn emit_fcmpe(&mut self, src1: Reg, src2: Reg);
 
     // Comparisons with extension
-    fn emit_cmn_ext(&mut self, src1: Reg/*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
-    fn emit_cmp_ext(&mut self, src1: Reg/*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
+    fn emit_cmn_ext(&mut self, src1: Reg /*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
+    fn emit_cmp_ext(&mut self, src1: Reg /*GPR or SP*/, src2: Reg, signed: bool, shift: u8);
 
     // Comparisons with shift
     fn emit_tst_shift(&mut self, src1: Reg, src2: Reg, shift: &str, ammount: u8);
@@ -307,8 +403,8 @@ pub trait CodeGenerator {
 
     // Immediat Comparisons
     fn emit_tst_imm(&mut self, src1: Reg, src2: u64);
-    fn emit_cmn_imm(&mut self, src1: Reg/*GPR or SP*/, src2: u16, shift : bool);
-    fn emit_cmp_imm(&mut self, src1: Reg/*GPR or SP*/, src2: u16, shift : bool);
+    fn emit_cmn_imm(&mut self, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
+    fn emit_cmp_imm(&mut self, src1: Reg /*GPR or SP*/, src2: u16, shift: bool);
 
     // Comparison against 0
     fn emit_fcmp_0(&mut self, src: Reg);

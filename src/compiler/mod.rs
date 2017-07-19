@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -39,15 +39,15 @@ pub struct Compiler<'vm> {
     /// policy decides what passes to be executed
     policy: RefCell<CompilerPolicy>,
     /// a reference to vm, for compiler to query VM-wide info
-    vm: &'vm VM
+    vm: &'vm VM,
 }
 
-impl <'vm> Compiler<'vm> {
+impl<'vm> Compiler<'vm> {
     /// creates a new compiler
     pub fn new(policy: CompilerPolicy, vm: &VM) -> Compiler {
-        Compiler{
+        Compiler {
             policy: RefCell::new(policy),
-            vm: vm
+            vm: vm,
         }
     }
 
@@ -57,7 +57,7 @@ impl <'vm> Compiler<'vm> {
         info!("Start compiling {}", func);
         info!("");
         debug!("{:?}", func);
-        
+
         // FIXME: should use function name here (however hprof::enter only accept &'static str)
         let _p = hprof::enter("Function Compilation");
 
@@ -84,18 +84,18 @@ impl <'vm> Compiler<'vm> {
 /// CompilerPolicy specifies a list of ordered CompilerPasses
 /// the compiler will follow the list to compile each function
 pub struct CompilerPolicy {
-    pub passes: Vec<Box<CompilerPass>>
+    pub passes: Vec<Box<CompilerPass>>,
 }
 
 impl CompilerPolicy {
     pub fn new(passes: Vec<Box<CompilerPass>>) -> CompilerPolicy {
-        CompilerPolicy{passes: passes}
+        CompilerPolicy { passes: passes }
     }
 }
 
 impl Default for CompilerPolicy {
     fn default() -> Self {
-        let mut passes : Vec<Box<CompilerPass>> = vec![];
+        let mut passes: Vec<Box<CompilerPass>> = vec![];
         passes.push(Box::new(passes::DotGen::new(".orig")));
 
         // ir level passes
@@ -116,7 +116,7 @@ impl Default for CompilerPolicy {
         passes.push(Box::new(backend::peephole_opt::PeepholeOptimization::new()));
         passes.push(Box::new(backend::code_emission::CodeEmission::new()));
 
-        CompilerPolicy{passes: passes}
+        CompilerPolicy { passes: passes }
     }
 }
 
@@ -143,26 +143,28 @@ fn hprof_print_child(this: &ProfileNode, indent: usize) {
         .unwrap_or(this.total_time.get()) as f64;
     let percent = 100.0 * (this.total_time.get() as f64 / parent_time);
     if percent.is_infinite() {
-        info!("{}{name} - {calls} * {each} = {total} @ {hz:.1}hz",
-        indent_str,
-        name  = this.name,
-        calls = this.calls.get(),
-        each = Nanoseconds((this.total_time.get() as f64 / this.calls.get() as f64) as u64),
-        total = Nanoseconds(this.total_time.get()),
-        hz = this.calls.get() as f64 / this.total_time.get() as f64 * 1e9f64
+        info!(
+            "{}{name} - {calls} * {each} = {total} @ {hz:.1}hz",
+            indent_str,
+            name = this.name,
+            calls = this.calls.get(),
+            each = Nanoseconds((this.total_time.get() as f64 / this.calls.get() as f64) as u64),
+            total = Nanoseconds(this.total_time.get()),
+            hz = this.calls.get() as f64 / this.total_time.get() as f64 * 1e9f64
         );
     } else {
-        info!("{}{name} - {calls} * {each} = {total} ({percent:.1}%)",
-        indent_str,
-        name  = this.name,
-        calls = this.calls.get(),
-        each = Nanoseconds((this.total_time.get() as f64 / this.calls.get() as f64) as u64),
-        total = Nanoseconds(this.total_time.get()),
-        percent = percent
+        info!(
+            "{}{name} - {calls} * {each} = {total} ({percent:.1}%)",
+            indent_str,
+            name = this.name,
+            calls = this.calls.get(),
+            each = Nanoseconds((this.total_time.get() as f64 / this.calls.get() as f64) as u64),
+            total = Nanoseconds(this.total_time.get()),
+            percent = percent
         );
     }
     for c in &*this.children.borrow() {
-        hprof_print_child(c, indent+2);
+        hprof_print_child(c, indent + 2);
     }
 }
 

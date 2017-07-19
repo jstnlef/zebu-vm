@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,9 +18,9 @@ use ast::ir::*;
 use compiler::machine_code::CompiledFunction;
 
 pub struct ExactLiveness {
-    livein : LinkedHashMap<usize, LinkedHashSet<MuID>>,
+    livein: LinkedHashMap<usize, LinkedHashSet<MuID>>,
     liveout: LinkedHashMap<usize, LinkedHashSet<MuID>>,
-    kill    : LinkedHashMap<usize, LinkedHashSet<MuID>>
+    kill: LinkedHashMap<usize, LinkedHashSet<MuID>>,
 }
 
 impl ExactLiveness {
@@ -28,7 +28,7 @@ impl ExactLiveness {
         let mut ret = ExactLiveness {
             livein: LinkedHashMap::new(),
             liveout: LinkedHashMap::new(),
-            kill: LinkedHashMap::new()
+            kill: LinkedHashMap::new(),
         };
 
         ret.liveness_analysis(cf);
@@ -42,7 +42,8 @@ impl ExactLiveness {
         for block in mc.get_all_blocks().iter() {
             let range = mc.get_block_range(block).unwrap();
 
-            let mut liveout : LinkedHashSet<MuID> = LinkedHashSet::from_vec(mc.get_ir_block_liveout(block).unwrap().clone());
+            let mut liveout: LinkedHashSet<MuID> =
+                LinkedHashSet::from_vec(mc.get_ir_block_liveout(block).unwrap().clone());
 
             for i in range.rev() {
                 // set liveout
@@ -65,7 +66,7 @@ impl ExactLiveness {
         // liveness analysis done
         // compute 'kill': if a reg is in livein of an inst, but not liveout, it kills in the inst
         for i in self.livein.keys() {
-            let mut kill : LinkedHashSet<MuID> = LinkedHashSet::new();
+            let mut kill: LinkedHashSet<MuID> = LinkedHashSet::new();
 
             let livein = self.livein.get(i).unwrap();
             let liveout = self.liveout.get(i).unwrap();
@@ -83,14 +84,14 @@ impl ExactLiveness {
     pub fn get_liveout(&self, index: usize) -> Option<LinkedHashSet<MuID>> {
         match self.liveout.get(&index) {
             Some(s) => Some(s.clone()),
-            None => None
+            None => None,
         }
     }
-    
+
     pub fn get_kills(&self, index: usize) -> Option<LinkedHashSet<MuID>> {
         match self.kill.get(&index) {
             Some(s) => Some(s.clone()),
-            None => None
+            None => None,
         }
     }
 

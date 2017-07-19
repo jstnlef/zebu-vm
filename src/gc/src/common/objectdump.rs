@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,24 +25,24 @@ use std::sync::Arc;
 
 pub struct HeapDump {
     pub objects: HashMap<Address, ObjectDump>,
-    pub relocatable_refs: HashMap<Address, String>
+    pub relocatable_refs: HashMap<Address, String>,
 }
 
 pub struct ObjectDump {
     pub mem_start: Address,
-    pub mem_size : ByteSize,
+    pub mem_size: ByteSize,
 
     pub reference_addr: Address,
-    pub reference_offsets: Vec<ByteSize> // based on reference_addr
+    pub reference_offsets: Vec<ByteSize>, // based on reference_addr
 }
 
 impl HeapDump {
     pub fn from_roots(roots: Vec<Address>) -> HeapDump {
         trace!("dump heap from {:?}", roots);
-        let mut work_queue : Vec<Address> = roots;
-        let mut heap : HeapDump = HeapDump {
+        let mut work_queue: Vec<Address> = roots;
+        let mut heap: HeapDump = HeapDump {
             objects: HashMap::new(),
-            relocatable_refs: HashMap::new()
+            relocatable_refs: HashMap::new(),
         };
 
         while !work_queue.is_empty() {
@@ -65,7 +65,7 @@ impl HeapDump {
     fn persist_object(&self, obj: Address) -> ObjectDump {
         trace!("dump object: {}", obj);
         let hdr_addr = obj + objectmodel::OBJECT_HEADER_OFFSET;
-        let hdr = unsafe {hdr_addr.load::<u64>()};
+        let hdr = unsafe { hdr_addr.load::<u64>() };
 
         if objectmodel::header_is_fix_size(hdr) {
             // fix sized type
@@ -78,7 +78,7 @@ impl HeapDump {
                 let mut offsets = vec![];
                 let mut i = 0;
                 while i < objectmodel::REF_MAP_LENGTH {
-                    let has_ref : bool = ((ref_map >> i) & 1) == 1;
+                    let has_ref: bool = ((ref_map >> i) & 1) == 1;
 
                     if has_ref {
                         offsets.push(i * POINTER_SIZE);
@@ -88,10 +88,11 @@ impl HeapDump {
                 }
 
                 ObjectDump {
-                    reference_addr   : obj,
-                    mem_start        : hdr_addr,
-                    mem_size         : objectmodel::header_get_object_size(hdr) as usize + objectmodel::OBJECT_HEADER_SIZE,
-                    reference_offsets: offsets
+                    reference_addr: obj,
+                    mem_start: hdr_addr,
+                    mem_size: objectmodel::header_get_object_size(hdr) as usize +
+                        objectmodel::OBJECT_HEADER_SIZE,
+                    reference_offsets: offsets,
                 }
             } else {
                 // by type ID
@@ -100,30 +101,32 @@ impl HeapDump {
                 trace!("fix size, type id as {}", gctype_id);
 
                 let gc_lock = MY_GC.read().unwrap();
-                let gctype : Arc<GCType> = gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
+                let gctype: Arc<GCType> =
+                    gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
 
                 ObjectDump {
                     reference_addr: obj,
-                    mem_start     : hdr_addr,
-                    mem_size      : gctype.size() + objectmodel::OBJECT_HEADER_SIZE,
-                    reference_offsets: gctype.gen_ref_offsets()
+                    mem_start: hdr_addr,
+                    mem_size: gctype.size() + objectmodel::OBJECT_HEADER_SIZE,
+                    reference_offsets: gctype.gen_ref_offsets(),
                 }
             }
         } else {
             // hybrids - same as above
-            let gctype_id  = objectmodel::header_get_gctype_id(hdr);
+            let gctype_id = objectmodel::header_get_gctype_id(hdr);
             let var_length = objectmodel::header_get_hybrid_length(hdr);
 
             trace!("var sized, type id as {}", gctype_id);
 
             let gc_lock = MY_GC.read().unwrap();
-            let gctype : Arc<GCType> = gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
+            let gctype: Arc<GCType> =
+                gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
 
             ObjectDump {
                 reference_addr: obj,
-                mem_start     : hdr_addr,
-                mem_size      : gctype.size_hybrid(var_length) + objectmodel::OBJECT_HEADER_SIZE,
-                reference_offsets: gctype.gen_hybrid_ref_offsets(var_length)
+                mem_start: hdr_addr,
+                mem_size: gctype.size_hybrid(var_length) + objectmodel::OBJECT_HEADER_SIZE,
+                reference_offsets: gctype.gen_hybrid_ref_offsets(var_length),
             }
         }
     }
@@ -133,7 +136,7 @@ impl HeapDump {
 
         for offset in obj_dump.reference_offsets.iter() {
             let field_addr = base + *offset;
-            let edge = unsafe {field_addr.load::<Address>()};
+            let edge = unsafe { field_addr.load::<Address>() };
 
             if !edge.is_zero() && !self.objects.contains_key(&edge) {
                 work_queue.push(edge);
@@ -157,9 +160,13 @@ use std::fmt;
 
 impl fmt::Debug for ObjectDump {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "PersistedObject({}, {} bytes from {}, offsets at {:?})",
-               self.reference_addr, self.mem_size, self.mem_start, self.reference_offsets
+        write!(
+            f,
+            "PersistedObject({}, {} bytes from {}, offsets at {:?})",
+            self.reference_addr,
+            self.mem_size,
+            self.mem_start,
+            self.reference_offsets
         )
     }
 }

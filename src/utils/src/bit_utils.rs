@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,12 +25,16 @@ pub fn lower_bits_u8(value: u8, len: usize) -> u8 {
     value & ((1 << len) - 1)
 }
 
-/// sets the nth bit (count from least significant bit) as val (treat the val as boolean, either 1 or 0)
+/// sets the nth bit (count from least significant bit) as val
+/// (treat the val as boolean, either 1 or 0)
 #[inline(always)]
 // Returns the number that has 'n' 1's in a row (i.e. 2^n-1)
 pub fn bits_ones(n: usize) -> u64 {
-    if n == 64 { (-(1 as i64)) as u64 }
-        else { (1 << n) - 1 }
+    if n == 64 {
+        (-(1 as i64)) as u64
+    } else {
+        (1 << n) - 1
+    }
 }
 
 #[inline(always)]
@@ -41,7 +45,7 @@ pub fn u64_asr(val: u64, shift: u32) -> u64 {
 }
 
 #[inline(always)]
-pub fn set_nth_bit_u64 (value: u64, index: usize, set_value: u8) -> u64 {
+pub fn set_nth_bit_u64(value: u64, index: usize, set_value: u8) -> u64 {
     value ^ (((-(set_value as i64) as u64) ^ value) & (1 << index))
 }
 
@@ -55,13 +59,13 @@ pub fn test_nth_bit_u64(value: u64, index: usize, val: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     pub fn test_u8_bits() {
-        let value : u8 = 0b1100_0011;
-        
+        let value: u8 = 0b1100_0011;
+
         assert_eq!(test_nth_bit_u8(value, 6, 1), true);
-        
+
         assert_eq!(lower_bits_u8(value, 6), 0b00_0011);
     }
 

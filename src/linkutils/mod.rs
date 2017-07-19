@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -37,7 +37,7 @@ fn get_c_compiler() -> String {
 
     match env::var("CC") {
         Ok(val) => val,
-        Err(_) => "clang".to_string()
+        Err(_) => "clang".to_string(),
     }
 }
 
@@ -53,7 +53,7 @@ fn get_path_under_zebu(str: &'static str) -> PathBuf {
             ret.push(str);
             ret
         }
-        Err(_) => PathBuf::from(str)
+        Err(_) => PathBuf::from(str),
     }
 }
 
@@ -83,7 +83,7 @@ fn exec_cmd_nocheck(mut cmd: Command) -> Output {
     info!("executing: {:?}", cmd);
     let output = match cmd.output() {
         Ok(res) => res,
-        Err(e) => panic!("failed to execute: {}", e)
+        Err(e) => panic!("failed to execute: {}", e),
     };
 
     info!("---out---");
@@ -92,7 +92,10 @@ fn exec_cmd_nocheck(mut cmd: Command) -> Output {
     info!("{}", String::from_utf8_lossy(&output.stderr));
 
     if output.status.signal().is_some() {
-        info!("terminated by a signal: {}", output.status.signal().unwrap());
+        info!(
+            "terminated by a signal: {}",
+            output.status.signal().unwrap()
+        );
     }
 
     output

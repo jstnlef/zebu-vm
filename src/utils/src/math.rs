@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,7 +17,7 @@ pub fn is_power_of_two(x: usize) -> Option<u8> {
     use std::u8;
 
     let mut power_of_two = 1;
-    let mut i : u8 = 0;
+    let mut i: u8 = 0;
     while power_of_two < x && i < u8::MAX {
         power_of_two *= 2;
         i += 1;
@@ -33,5 +33,5 @@ pub fn is_power_of_two(x: usize) -> Option<u8> {
 /// aligns up a number
 /// (returns the nearest multiply of the align value that is larger than the given value)
 pub fn align_up(x: usize, align: usize) -> usize {
-    (x + align - 1) & !(align  - 1)
+    (x + align - 1) & !(align - 1)
 }

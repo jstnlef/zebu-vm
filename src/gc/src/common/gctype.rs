@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,21 +22,33 @@ use std::u32;
 pub const GCTYPE_INIT_ID: u32 = u32::MAX;
 
 // Id has size less than the alignment of the others so it needs to go at the end
-rodal_struct!(GCType{alignment, fix_size, fix_refs, var_refs, var_size, id});
+rodal_struct!(GCType {
+    alignment,
+    fix_size,
+    fix_refs,
+    var_refs,
+    var_size,
+    id,
+});
 #[derive(Debug, Clone)] // size 136, align 8
 pub struct GCType {
-    pub id: u32, // +128
+    pub id: u32,             // +128
     pub alignment: ByteSize, // +0
 
-    pub fix_size: ByteSize, // +8
+    pub fix_size: ByteSize,           // +8
     pub fix_refs: Option<RefPattern>, //+16
 
-    pub var_refs: Option<RefPattern>,//+64
-    pub var_size: Option<ByteSize>//+112
+    pub var_refs: Option<RefPattern>, //+64
+    pub var_size: Option<ByteSize>,   //+112
 }
 
 impl GCType {
-    pub fn new_fix(id: u32, size: ByteSize, alignment: ByteSize, fix_refs: Option<RefPattern>) -> GCType {
+    pub fn new_fix(
+        id: u32,
+        size: ByteSize,
+        alignment: ByteSize,
+        fix_refs: Option<RefPattern>,
+    ) -> GCType {
         GCType {
             id: id,
             alignment: objectmodel::check_alignment(alignment),
@@ -45,11 +57,18 @@ impl GCType {
             fix_size: size,
 
             var_refs: None,
-            var_size: None
+            var_size: None,
         }
     }
 
-    pub fn new_hybrid(id: u32, size: ByteSize, alignment: ByteSize, fix_refs: Option<RefPattern>, var_refs: Option<RefPattern>, var_size: ByteSize) -> GCType {
+    pub fn new_hybrid(
+        id: u32,
+        size: ByteSize,
+        alignment: ByteSize,
+        fix_refs: Option<RefPattern>,
+        var_refs: Option<RefPattern>,
+        var_size: ByteSize,
+    ) -> GCType {
         GCType {
             id: id,
             alignment: objectmodel::check_alignment(alignment),
@@ -58,7 +77,7 @@ impl GCType {
             fix_size: size,
 
             var_refs: var_refs,
-            var_size: Some(var_size)
+            var_size: Some(var_size),
         }
     }
 
@@ -80,14 +99,14 @@ impl GCType {
             id: GCTYPE_INIT_ID,
             alignment: POINTER_SIZE,
 
-            fix_refs: Some(RefPattern::Map{
+            fix_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: POINTER_SIZE
+                size: POINTER_SIZE,
             }),
             fix_size: POINTER_SIZE,
 
             var_refs: None,
-            var_size: None
+            var_size: None,
         }
     }
 
@@ -133,7 +152,7 @@ impl GCType {
         match self.fix_refs {
             Some(ref pattern) => {
                 cur_offset = pattern.append_offsets(cur_offset, &mut ret);
-            },
+            }
             None => {}
         }
 
@@ -151,39 +170,38 @@ impl GCType {
 
 rodal_enum!(RefPattern{{Map: offsets, size}, (NestedType: vec), {Repeat: pattern, count}});
 #[derive(Clone, Debug)]
-pub enum RefPattern { // size 40, alignment 8
+pub enum RefPattern {
+    // size 40, alignment 8
     // discriminat 8 bytes
-    Map{
+    Map {
         offsets: Vec<ByteSize>, // +8
-        size : usize // +32
+        size: usize,            // +32
     },
     NestedType(Vec<Arc<GCType>>), // +8
-    Repeat{
+    Repeat {
         pattern: Box<RefPattern>, // +8
-        count: usize // +16
-    }
+        count: usize,             // +16
+    },
 }
 
 impl RefPattern {
     pub fn size(&self) -> ByteSize {
         match self {
-            &RefPattern::Map {size, ..} => size,
+            &RefPattern::Map { size, .. } => size,
             &RefPattern::NestedType(ref vec) => {
                 let mut size = 0;
                 for ty in vec.iter() {
                     size += ty.size();
                 }
                 size
-            },
-            &RefPattern::Repeat{ref pattern, count} => {
-                pattern.size() * count
             }
+            &RefPattern::Repeat { ref pattern, count } => pattern.size() * count,
         }
     }
 
     pub fn append_offsets(&self, base: ByteSize, vec: &mut Vec<ByteSize>) -> ByteSize {
         match self {
-            &RefPattern::Map{ref offsets, size} => {
+            &RefPattern::Map { ref offsets, size } => {
                 for off in offsets {
                     vec.push(base + off);
                 }
@@ -203,8 +221,8 @@ impl RefPattern {
                 }
 
                 cur_base
-            },
-            &RefPattern::Repeat{ref pattern, count} => {
+            }
+            &RefPattern::Repeat { ref pattern, count } => {
                 let mut cur_base = base;
 
                 for _ in 0..count {
@@ -225,18 +243,18 @@ mod tests {
 
     fn create_types() -> Vec<GCType> {
         // linked list: struct {ref, int64}
-        let a = GCType{
+        let a = GCType {
             id: 0,
             alignment: 8,
 
             fix_size: 16,
-            fix_refs: Some(RefPattern::Map{
+            fix_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 16
+                size: 16,
             }),
 
             var_size: None,
-            var_refs: None
+            var_refs: None,
         };
 
         // array of struct {ref, int64} with length 10
@@ -246,15 +264,15 @@ mod tests {
 
             fix_size: 160,
             fix_refs: Some(RefPattern::Repeat {
-                pattern: Box::new(RefPattern::Map{
+                pattern: Box::new(RefPattern::Map {
                     offsets: vec![0],
-                    size   : 16
+                    size: 16,
                 }),
-                count: 10
+                count: 10,
             }),
 
             var_size: None,
-            var_refs: None
+            var_refs: None,
         };
 
         // array(10) of array(10) of struct {ref, int64}
@@ -265,11 +283,11 @@ mod tests {
             fix_size: 1600,
             fix_refs: Some(RefPattern::Repeat {
                 pattern: Box::new(RefPattern::NestedType(vec![Arc::new(b.clone()).clone()])),
-                count  : 10
+                count: 10,
             }),
 
             var_size: None,
-            var_refs: None
+            var_refs: None,
         };
 
         vec![a, b, c]
@@ -290,11 +308,11 @@ mod tests {
             fix_size: 16,
             fix_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 16
+                size: 16,
             }),
 
             var_size: Some(8),
-            var_refs: None
+            var_refs: None,
         };
 
         assert_eq!(a.gen_hybrid_ref_offsets(5), vec![0]);
@@ -311,14 +329,14 @@ mod tests {
             fix_size: 16,
             fix_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 16
+                size: 16,
             }),
 
             var_size: Some(8),
             var_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 8
-            })
+                size: 8,
+            }),
         };
 
         assert_eq!(a.gen_hybrid_ref_offsets(5), vec![0, 16, 24, 32, 40, 48]);
@@ -341,7 +359,7 @@ mod tests {
             fix_refs: None,
 
             var_size: None,
-            var_refs: None
+            var_refs: None,
         };
 
         assert_eq!(int.gen_ref_offsets(), vec![]);

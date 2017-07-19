@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,13 +22,15 @@ pub mod immix;
 pub mod freelist;
 pub mod gc;
 
-pub const IMMIX_SPACE_RATIO : f64 = 1.0 - LO_SPACE_RATIO;
-pub const LO_SPACE_RATIO : f64 = 0.2;
-pub const DEFAULT_HEAP_SIZE : usize = 500 << 20;
+pub const IMMIX_SPACE_RATIO: f64 = 1.0 - LO_SPACE_RATIO;
+pub const LO_SPACE_RATIO: f64 = 0.2;
+pub const DEFAULT_HEAP_SIZE: usize = 500 << 20;
 
 lazy_static! {
-    pub static ref IMMIX_SPACE_SIZE : AtomicUsize = AtomicUsize::new( (DEFAULT_HEAP_SIZE as f64 * IMMIX_SPACE_RATIO) as usize );
-    pub static ref LO_SPACE_SIZE : AtomicUsize = AtomicUsize::new( (DEFAULT_HEAP_SIZE as f64 * LO_SPACE_RATIO) as usize );
+    pub static ref IMMIX_SPACE_SIZE : AtomicUsize =
+        AtomicUsize::new( (DEFAULT_HEAP_SIZE as f64 * IMMIX_SPACE_RATIO) as usize );
+    pub static ref LO_SPACE_SIZE : AtomicUsize =
+        AtomicUsize::new( (DEFAULT_HEAP_SIZE as f64 * LO_SPACE_RATIO) as usize );
 }
 
 pub trait Space {
@@ -55,7 +57,10 @@ pub trait Space {
         let index = (addr.diff(start) >> LOG_POINTER_SIZE) as isize;
 
         // use side map
-        if !bit_utils::test_nth_bit_u8(unsafe { *self.alloc_map().offset(index) }, objectmodel::OBJ_START_BIT) {
+        if !bit_utils::test_nth_bit_u8(
+            unsafe { *self.alloc_map().offset(index) },
+            objectmodel::OBJ_START_BIT,
+        ) {
             return false;
         }
 
@@ -77,7 +82,7 @@ pub trait Space {
         }
 
         // use header
-        let hdr = unsafe {(addr + objectmodel::OBJECT_HEADER_OFFSET).load::<u64>()};
+        let hdr = unsafe { (addr + objectmodel::OBJECT_HEADER_OFFSET).load::<u64>() };
         if !objectmodel::header_is_object_start(hdr) {
             return false;
         }
@@ -96,11 +101,13 @@ pub trait Space {
 }
 
 #[allow(dead_code)]
-pub const ALIGNMENT_VALUE : u8 = 1;
+pub const ALIGNMENT_VALUE: u8 = 1;
 
 #[inline(always)]
 #[allow(dead_code)]
-pub fn fill_alignment_gap(start : Address, end : Address) -> () {
+pub fn fill_alignment_gap(start: Address, end: Address) -> () {
     debug_assert!(end >= start);
-    unsafe {start.memset(ALIGNMENT_VALUE, end - start);}
+    unsafe {
+        start.memset(ALIGNMENT_VALUE, end - start);
+    }
 }

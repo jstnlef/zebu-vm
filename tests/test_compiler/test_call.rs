@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,7 +27,8 @@ use mu::linkutils;
 use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
 
-// NOTE: aarch64 has 2 more parameter registers than x86-64 so it needs different test cases for stack arguments
+// NOTE: aarch64 has 2 more parameter registers than x86-64
+// so it needs different test cases for stack arguments
 
 #[test]
 fn test_ccall_exit() {
@@ -42,7 +43,11 @@ fn test_ccall_exit() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -60,7 +65,11 @@ fn test_ccall_exit() {
     assert!(ret_code == 10);
 }
 
-pub fn gen_ccall_exit(arg: P<TreeNode>, func_ver: &mut MuFunctionVersion, vm: &VM) -> Box<TreeNode> {
+pub fn gen_ccall_exit(
+    arg: P<TreeNode>,
+    func_ver: &mut MuFunctionVersion,
+    vm: &VM,
+) -> Box<TreeNode> {
     typedef!    ((vm) int64 = mu_int(64));
     funcsig!    ((vm) exit_sig = (int64) -> ());
     typedef!    ((vm) ufp_exit = mu_ufuncptr(exit_sig));
@@ -127,13 +136,21 @@ fn test_pass_1arg_by_stack() {
 
         {
             let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_main).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -142,7 +159,11 @@ fn test_pass_1arg_by_stack() {
     vm.set_primordial_thread(func_main, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("foo7"), Mu("pass_1arg_by_stack")], "test_pass_1arg_by_stack", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("foo7"), Mu("pass_1arg_by_stack")],
+        "test_pass_1arg_by_stack",
+        &vm,
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (1)
@@ -162,7 +183,8 @@ fn pass_1arg_by_stack() -> VM {
     constdef!   ((vm) <int64> int64_2 = Constant::Int(2));
 
     // foo7
-    funcsig!    ((vm) foo7_sig = (int64, int64, int64, int64, int64, int64, int64, int64, int64) -> (int64));
+    funcsig!    ((vm) foo7_sig = (int64, int64, int64, int64, int64, int64, int64, int64, int64)
+                                 -> (int64));
     funcdecl!   ((vm) <foo7_sig> foo7);
     funcdef!    ((vm) <foo7_sig> foo7 VERSION foo7_v1);
 
@@ -233,7 +255,9 @@ fn pass_1arg_by_stack() -> VM {
     consta!     ((vm, pass_1arg_by_stack_v1) const_funcref_foo7_local = const_funcref_foo7);
     ssa!        ((vm, pass_1arg_by_stack_v1) <int64> retval);
     inst!       ((vm, pass_1arg_by_stack_v1) blk_main_call:
-        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo7_local (a0, a1, a2, a3, a4, a5, a6, a7, a8)
+        retval =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_foo7_local (a0, a1, a2, a3, a4, a5, a6, a7, a8)
     );
 
     let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_1arg_by_stack_v1, &vm);
@@ -332,7 +356,9 @@ fn pass_1arg_by_stack() -> VM {
     consta!     ((vm, pass_1arg_by_stack_v1) const_funcref_foo7_local = const_funcref_foo7);
     ssa!        ((vm, pass_1arg_by_stack_v1) <int64> retval);
     inst!       ((vm, pass_1arg_by_stack_v1) blk_main_call:
-        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo7_local (a0, a1, a2, a3, a4, a5, a6)
+        retval =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_foo7_local (a0, a1, a2, a3, a4, a5, a6)
     );
 
     let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_1arg_by_stack_v1, &vm);
@@ -370,13 +396,21 @@ fn test_pass_2args_by_stack() {
 
         {
             let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_main).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -385,7 +419,11 @@ fn test_pass_2args_by_stack() {
     vm.set_primordial_thread(func_main, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_2args_by_stack")], "test_pass_2args_by_stack", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("foo8"), Mu("pass_2args_by_stack")],
+        "test_pass_2args_by_stack",
+        &vm,
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (2)
@@ -405,7 +443,8 @@ fn pass_2args_by_stack() -> VM {
     constdef!   ((vm) <int64> int64_2 = Constant::Int(2));
 
     // foo8
-    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64, int64, int64, int64, int64, int64) -> (int64));
+    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64,
+                                  int64, int64, int64, int64, int64) -> (int64));
     funcdecl!   ((vm) <foo8_sig> foo8);
     funcdef!    ((vm) <foo8_sig> foo8 VERSION foo8_v1);
 
@@ -480,7 +519,9 @@ fn pass_2args_by_stack() -> VM {
     consta!     ((vm, pass_2args_by_stack_v1) const_funcref_foo8_local = const_funcref_foo8);
     ssa!        ((vm, pass_2args_by_stack_v1) <int64> retval);
     inst!       ((vm, pass_2args_by_stack_v1) blk_main_call:
-        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)
+        retval =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)
     );
 
     let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_2args_by_stack_v1, &vm);
@@ -514,7 +555,8 @@ fn pass_2args_by_stack() -> VM {
     constdef!   ((vm) <int64> int64_2 = Constant::Int(2));
 
     // foo8
-    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64, int64, int64, int64) -> (int64));
+    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64, int64, int64, int64)
+                                 -> (int64));
     funcdecl!   ((vm) <foo8_sig> foo8);
     funcdef!    ((vm) <foo8_sig> foo8 VERSION foo8_v1);
 
@@ -583,7 +625,9 @@ fn pass_2args_by_stack() -> VM {
     consta!     ((vm, pass_2args_by_stack_v1) const_funcref_foo8_local = const_funcref_foo8);
     ssa!        ((vm, pass_2args_by_stack_v1) <int64> retval);
     inst!       ((vm, pass_2args_by_stack_v1) blk_main_call:
-        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7)
+        retval =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7)
     );
 
     let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_2args_by_stack_v1, &vm);
@@ -621,13 +665,21 @@ fn test_pass_2_int8_args_by_stack() {
 
         {
             let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_main).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -636,7 +688,11 @@ fn test_pass_2_int8_args_by_stack() {
     vm.set_primordial_thread(func_main, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_2_int8_args_by_stack")], "test_pass_2_int8_args_by_stack", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("foo8"), Mu("pass_2_int8_args_by_stack")],
+        "test_pass_2_int8_args_by_stack",
+        &vm,
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (2)
@@ -658,7 +714,8 @@ fn pass_2_int8_args_by_stack() -> VM {
     constdef!   ((vm) <int8>  int8_2 = Constant::Int(2));
 
     // foo8
-    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64, int64, int64, int64, int8, int8) -> (int64));
+    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64,
+                                  int64, int64, int64, int8, int8) -> (int64));
     funcdecl!   ((vm) <foo8_sig> foo8);
     funcdef!    ((vm) <foo8_sig> foo8 VERSION foo8_v1);
 
@@ -739,7 +796,9 @@ fn pass_2_int8_args_by_stack() -> VM {
     consta!     ((vm, pass_2_int8_args_by_stack_v1) const_funcref_foo8_local = const_funcref_foo8);
     ssa!        ((vm, pass_2_int8_args_by_stack_v1) <int64> retval);
     inst!       ((vm, pass_2_int8_args_by_stack_v1) blk_main_call:
-        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)
+        retval =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)
     );
 
     let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_2_int8_args_by_stack_v1, &vm);
@@ -748,7 +807,8 @@ fn pass_2_int8_args_by_stack() -> VM {
         RET
     );
 
-    define_block!((vm, pass_2_int8_args_by_stack_v1) blk_main(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) {
+    define_block!((vm, pass_2_int8_args_by_stack_v1)
+        blk_main(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) {
         blk_main_call,
         blk_main_exit,
         blk_main_ret
@@ -851,7 +911,9 @@ fn pass_2_int8_args_by_stack() -> VM {
     consta!     ((vm, pass_2_int8_args_by_stack_v1) const_funcref_foo8_local = const_funcref_foo8);
     ssa!        ((vm, pass_2_int8_args_by_stack_v1) <int64> retval);
     inst!       ((vm, pass_2_int8_args_by_stack_v1) blk_main_call:
-        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7)
+        retval =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7)
     );
 
     let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_2_int8_args_by_stack_v1, &vm);
@@ -889,13 +951,21 @@ fn test_pass_mixed_args_by_stack() {
 
         {
             let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_main).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -904,7 +974,11 @@ fn test_pass_mixed_args_by_stack() {
     vm.set_primordial_thread(func_main, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("foo8"), Mu("pass_mixed_args_by_stack")], "test_pass_mixed_args_by_stack", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("foo8"), Mu("pass_mixed_args_by_stack")],
+        "test_pass_mixed_args_by_stack",
+        &vm,
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (2)
@@ -926,7 +1000,8 @@ fn pass_mixed_args_by_stack() -> VM {
     constdef!   ((vm) <int8>  int8_2 = Constant::Int(2));
 
     // foo8
-    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64, int64, int64, int64, int8, int64) -> (int64));
+    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64,
+                                  int64, int64, int64, int8, int64) -> (int64));
     funcdecl!   ((vm) <foo8_sig> foo8);
     funcdef!    ((vm) <foo8_sig> foo8 VERSION foo8_v1);
 
@@ -1003,7 +1078,9 @@ fn pass_mixed_args_by_stack() -> VM {
     consta!     ((vm, pass_mixed_args_by_stack_v1) const_funcref_foo8_local = const_funcref_foo8);
     ssa!        ((vm, pass_mixed_args_by_stack_v1) <int64> retval);
     inst!       ((vm, pass_mixed_args_by_stack_v1) blk_main_call:
-        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)
+        retval =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)
     );
 
     let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_mixed_args_by_stack_v1, &vm);
@@ -1012,7 +1089,8 @@ fn pass_mixed_args_by_stack() -> VM {
         RET
     );
 
-    define_block!((vm, pass_mixed_args_by_stack_v1) blk_main(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) {
+    define_block!((vm, pass_mixed_args_by_stack_v1)
+        blk_main(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) {
         blk_main_call,
         blk_main_exit,
         blk_main_ret
@@ -1040,7 +1118,8 @@ fn pass_mixed_args_by_stack() -> VM {
     constdef!   ((vm) <int8>  int8_2 = Constant::Int(2));
 
     // foo8
-    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64, int64, int8, int64) -> (int64));
+    funcsig!    ((vm) foo8_sig = (int64, int64, int64, int64, int64, int64, int8, int64)
+                                 -> (int64));
     funcdecl!   ((vm) <foo8_sig> foo8);
     funcdef!    ((vm) <foo8_sig> foo8 VERSION foo8_v1);
 
@@ -1111,7 +1190,9 @@ fn pass_mixed_args_by_stack() -> VM {
     consta!     ((vm, pass_mixed_args_by_stack_v1) const_funcref_foo8_local = const_funcref_foo8);
     ssa!        ((vm, pass_mixed_args_by_stack_v1) <int64> retval);
     inst!       ((vm, pass_mixed_args_by_stack_v1) blk_main_call:
-        retval = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7)
+        retval =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_foo8_local (a0, a1, a2, a3, a4, a5, a6, a7)
     );
 
     let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_mixed_args_by_stack_v1, &vm);
@@ -1139,7 +1220,8 @@ fn test_pass_fp_arg() {
     let lib = linkutils::aot::compile_fncs("pass_fp_arg", vec!["pass_fp_arg", "foo"], &pass_fp_arg);
 
     unsafe {
-        let pass_fp_arg : libloading::Symbol<unsafe extern fn (f64) -> f64> = lib.get(b"pass_fp_arg").unwrap();
+        let pass_fp_arg: libloading::Symbol<unsafe extern "C" fn(f64) -> f64> =
+            lib.get(b"pass_fp_arg").unwrap();
 
         let res1 = pass_fp_arg(0f64);
         println!("pass_fp_arg(0.0) = {}", res1);
@@ -1213,16 +1295,21 @@ fn pass_fp_arg() -> VM {
 
 #[test]
 fn test_store_funcref() {
-    let lib = linkutils::aot::compile_fncs("store_funcref", vec!["store_funcref", "foo"], &store_funcref);
+    let lib = linkutils::aot::compile_fncs(
+        "store_funcref",
+        vec!["store_funcref", "foo"],
+        &store_funcref,
+    );
 
     unsafe {
         use mu::utils::mem::memsec::malloc;
         let ptr = match malloc::<u64>(8) {
             Some(ptr) => ptr,
-            None => panic!("failed to alloc memory for testing")
+            None => panic!("failed to alloc memory for testing"),
         };
 
-        let store_funcref : libloading::Symbol<unsafe extern fn (*mut u64) -> (u64)> = lib.get(b"store_funcref").unwrap();
+        let store_funcref: libloading::Symbol<unsafe extern "C" fn(*mut u64) -> (u64)> =
+            lib.get(b"store_funcref").unwrap();
 
         let res = store_funcref(ptr);
         println!("store_funcref() = {}", res);
@@ -1315,7 +1402,7 @@ fn test_call_int128_arg() {
     let vm = Arc::new(add_u128());
     call_add_u128(&vm);
 
-    let func_add  = vm.id_of("add_u128");
+    let func_add = vm.id_of("add_u128");
     let func_call = vm.id_of("call_add_u128");
 
     let compiler = Compiler::new(CompilerPolicy::default(), &vm);
@@ -1325,13 +1412,21 @@ fn test_call_int128_arg() {
 
         {
             let func = funcs.get(&func_add).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_call).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1340,7 +1435,11 @@ fn test_call_int128_arg() {
     vm.set_primordial_thread(func_call, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("add_u128"), Mu("call_add_u128")], "test_call_int128_arg", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("add_u128"), Mu("call_add_u128")],
+        "test_call_int128_arg",
+        &vm,
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // exit with (84)
@@ -1350,7 +1449,7 @@ fn test_call_int128_arg() {
 
 fn call_add_u128(vm: &VM) {
     let add_u128_sig = vm.get_func_sig(vm.id_of("sig"));
-    let add_u128_id  = vm.id_of("add_u128");
+    let add_u128_id = vm.id_of("add_u128");
 
     typedef!    ((vm) int64  = mu_int(64));
     typedef!    ((vm) int128 = mu_int(128));
@@ -1372,7 +1471,9 @@ fn call_add_u128(vm: &VM) {
     consta!     ((vm, call_add_u128_v1) int128_42_local = int128_42);
     consta!     ((vm, call_add_u128_v1) const_funcref_add_u128_local = const_funcref_add_u128);
     inst!       ((vm, call_add_u128_v1) blk_entry_call:
-        res = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_add_u128_local (int128_42_local, int128_42_local)
+        res =
+            EXPRCALL (CallConvention::Mu, is_abort: false)
+            const_funcref_add_u128_local (int128_42_local, int128_42_local)
     );
 
     ssa!        ((vm, call_add_u128_v1) <int64> trunc_res);
