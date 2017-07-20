@@ -36,7 +36,7 @@ extern crate rodal;
 extern crate simple_logger;
 #[macro_use]
 extern crate lazy_static;
-extern crate utils;
+extern crate mu_utils as utils;
 
 /// all data structures for MuIR is an *MuEntity*
 /// which has a unique MuID, and an optional MuName

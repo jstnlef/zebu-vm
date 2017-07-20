@@ -33,10 +33,10 @@ extern crate extprim;
 extern crate num;
 
 #[macro_use]
-pub extern crate ast;
+pub extern crate mu_ast as ast;
 #[macro_use]
-pub extern crate utils;
-pub extern crate gc;
+pub extern crate mu_utils as utils;
+pub extern crate mu_gc as gc;
 pub mod vm;
 pub mod compiler;
 pub mod runtime;

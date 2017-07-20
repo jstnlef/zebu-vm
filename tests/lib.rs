@@ -13,7 +13,7 @@
 // limitations under the License.
 
 extern crate mu;
-extern crate utils;
+extern crate mu_utils as utils;
 #[macro_use]
 extern crate log;
 extern crate maplit;
