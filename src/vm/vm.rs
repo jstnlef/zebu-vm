@@ -86,7 +86,7 @@ pub struct VM {
     /// functions declared to the VM
     funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>, // +456
     /// primordial function that is set to make boot image
-    pub primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
+    primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
     /// current options for this VM
     pub vm_options: VMOptions, // +624
 
@@ -103,7 +103,7 @@ pub struct VM {
     /// global cell locations. We use this map to create handles for global cells,
     /// or dump globals into boot image. (this map does not get persisted because
     /// the location is changed in different runs)
-    pub global_locations: RwLock<HashMap<MuID, ValueLocation>>,
+    global_locations: RwLock<HashMap<MuID, ValueLocation>>,
     func_vers: RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>>,
 
     /// all the funcref that clients want to store for AOT which are pending stores
@@ -114,10 +114,10 @@ pub struct VM {
 
     /// runtime callsite table for exception handling
     /// a map from callsite address to CompiledCallsite
-    pub compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
+    compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
 
     /// Nnmber of callsites in the callsite tables
-    pub callsite_count: AtomicUsize
+    callsite_count: AtomicUsize
 }
 
 unsafe impl rodal::Dump for VM {
@@ -907,6 +907,21 @@ impl<'a> VM {
     /// returns the lock for function signatures
     pub fn func_sigs(&self) -> &RwLock<HashMap<MuID, P<MuFuncSig>>> {
         &self.func_sigs
+    }
+
+    /// returns the lock for global locations
+    pub fn global_locations(&self) -> &RwLock<HashMap<MuID, ValueLocation>> {
+        &self.global_locations
+    }
+
+    /// returns the lock for primordial thread info
+    pub fn primordial(&self) -> &RwLock<Option<PrimordialThreadInfo>> {
+        &self.primordial
+    }
+
+    /// returns the lock for compiled callsite table
+    pub fn compiled_callsite_table(&self) -> &RwLock<HashMap<Address, CompiledCallsite>> {
+        &self.compiled_callsite_table
     }
 
     pub fn resolve_function_address(&self, func_id: MuID) -> ValueLocation {

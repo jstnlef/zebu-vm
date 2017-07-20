@@ -220,7 +220,7 @@ pub extern "C" fn mu_main(
     };
     let vm = VM::resume_vm(dumped_vm);
     // find the primordial function as an entry
-    let primordial = vm.primordial.read().unwrap();
+    let primordial = vm.primordial().read().unwrap();
     if primordial.is_none() {
         panic!("no primordial thread/stack/function. Client should provide an entry point");
     } else {

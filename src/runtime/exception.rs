@@ -63,7 +63,7 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
     let sp;
     {
         // acquire lock for exception table
-        let compiled_callsite_table = vm.compiled_callsite_table.read().unwrap();
+        let compiled_callsite_table = vm.compiled_callsite_table().read().unwrap();
 
         loop {
             // Lookup the table for the callsite

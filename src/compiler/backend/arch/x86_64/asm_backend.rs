@@ -3874,7 +3874,7 @@ pub fn emit_context_with_reloc(
     {
         use runtime::mm;
 
-        let global_locs_lock = vm.global_locations.read().unwrap();
+        let global_locs_lock = vm.global_locations().read().unwrap();
         let global_lock = vm.globals().read().unwrap();
 
         // a map from address to ID

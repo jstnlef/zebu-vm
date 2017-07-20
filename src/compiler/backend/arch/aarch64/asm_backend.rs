@@ -3609,7 +3609,7 @@ pub fn emit_context_with_reloc(
         use runtime::mm;
 
         // persist globals
-        let global_locs_lock = vm.global_locations.read().unwrap();
+        let global_locs_lock = vm.global_locations().read().unwrap();
         let global_lock = vm.globals().read().unwrap();
 
         let global_addr_id_map = {
