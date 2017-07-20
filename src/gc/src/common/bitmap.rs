@@ -19,7 +19,7 @@ use heap::gc::malloc_zero;
 #[derive(Clone)]
 pub struct Bitmap {
     bitmap: *mut u64,
-    bitmap_len: usize,
+    bitmap_len: usize
 }
 
 impl Bitmap {
@@ -32,7 +32,7 @@ impl Bitmap {
 
         Bitmap {
             bitmap: bitmap,
-            bitmap_len: bitmap_len,
+            bitmap_len: bitmap_len
         }
     }
 

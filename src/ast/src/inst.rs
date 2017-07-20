@@ -32,7 +32,7 @@ pub struct Instruction {
     /// This design makes it easy for the compiler to iterate through all the children
     pub ops: Vec<P<TreeNode>>,
     /// used for pattern matching
-    pub v: Instruction_,
+    pub v: Instruction_
 }
 
 // Instruction implements MuEntity
@@ -44,7 +44,7 @@ impl Clone for Instruction {
             hdr: self.hdr.clone(),
             value: self.value.clone(),
             ops: self.ops.clone(),
-            v: self.v.clone(),
+            v: self.v.clone()
         }
     }
 }
@@ -118,7 +118,7 @@ impl Instruction {
             CCall { .. } |
             SwapStack { .. } |
             Switch { .. } |
-            ExnInstruction { .. } => true,
+            ExnInstruction { .. } => true
         }
     }
 
@@ -186,7 +186,7 @@ impl Instruction {
             CommonInst_Tr64ToTag(_) => false,
             Move(_) => false,
             PrintHex(_) => true,
-            SetRetval(_) => true,
+            SetRetval(_) => true
         }
     }
 
@@ -252,7 +252,7 @@ impl Instruction {
             CommonInst_Tr64ToTag(_) |
             Move(_) |
             PrintHex(_) |
-            SetRetval(_) => false,
+            SetRetval(_) => false
         }
     }
 
@@ -322,7 +322,7 @@ impl Instruction {
             CommonInst_Tr64ToTag(_) |
             Move(_) |
             PrintHex(_) |
-            SetRetval(_) => None,
+            SetRetval(_) => None
         }
     }
 
@@ -365,14 +365,14 @@ pub enum Instruction_ {
         operation: ConvOp,
         from_ty: P<MuType>,
         to_ty: P<MuType>,
-        operand: OpIndex,
+        operand: OpIndex
     },
 
     /// a non-terminating Call instruction (the call does not have an exceptional branch)
     /// This instruction is not in the Mu spec, but is documented in the HOL formal spec
     ExprCall {
         data: CallData,
-        is_abort: bool, // T to abort, F to rethrow
+        is_abort: bool // T to abort, F to rethrow
     },
 
     /// a non-terminating CCall instruction (the call does not have an exceptional branch)
@@ -383,7 +383,7 @@ pub enum Instruction_ {
     Load {
         is_ptr: bool,
         order: MemoryOrder,
-        mem_loc: OpIndex,
+        mem_loc: OpIndex
     },
 
     /// store instruction
@@ -391,7 +391,7 @@ pub enum Instruction_ {
         is_ptr: bool,
         order: MemoryOrder,
         mem_loc: OpIndex,
-        value: OpIndex,
+        value: OpIndex
     },
 
     /// compare and exchange, yields a pair value (oldvalue, boolean (T = success, F = failure))
@@ -402,7 +402,7 @@ pub enum Instruction_ {
         fail_order: MemoryOrder,
         mem_loc: OpIndex,
         expected_value: OpIndex,
-        desired_value: OpIndex,
+        desired_value: OpIndex
     },
 
     /// atomic read-modify-write, yields old memory value
@@ -411,7 +411,7 @@ pub enum Instruction_ {
         order: MemoryOrder,
         op: AtomicRMWOp,
         mem_loc: OpIndex,
-        value: OpIndex, // operand for op
+        value: OpIndex // operand for op
     },
 
     /// allocate an object (non hybrid type) in the heap, yields a reference of the type
@@ -452,21 +452,21 @@ pub enum Instruction_ {
     GetFieldIRef {
         is_ptr: bool,
         base: OpIndex, // iref or uptr
-        index: usize,  // constant
+        index: usize   // constant
     },
 
     /// get internal reference of an element of an iref (or uptr) to an array
     GetElementIRef {
         is_ptr: bool,
         base: OpIndex,
-        index: OpIndex, // can be constant or ssa var
+        index: OpIndex // can be constant or ssa var
     },
 
     /// offset an iref (or uptr) (offset is an index)
     ShiftIRef {
         is_ptr: bool,
         base: OpIndex,
-        offset: OpIndex,
+        offset: OpIndex
     },
 
     /// get internal reference to an element in hybrid var part
@@ -497,14 +497,14 @@ pub enum Instruction_ {
         cond: OpIndex,
         true_dest: Destination,
         false_dest: Destination,
-        true_prob: f32,
+        true_prob: f32
     },
 
     /// returns value1 if condition is true, otherwise returns value2
     Select {
         cond: OpIndex,
         true_val: OpIndex,
-        false_val: OpIndex,
+        false_val: OpIndex
     },
 
     /// a watchpoint
@@ -516,26 +516,26 @@ pub enum Instruction_ {
     Watchpoint {
         id: Option<WPID>,
         disable_dest: Option<Destination>,
-        resume: ResumptionData,
+        resume: ResumptionData
     },
 
     /// a watchpoint branch, branch to different destinations based on enabled/disabled
     WPBranch {
         wp: WPID,
         disable_dest: Destination,
-        enable_dest: Destination,
+        enable_dest: Destination
     },
 
     /// a call instruction that may throw an exception
     Call {
         data: CallData,
-        resume: ResumptionData,
+        resume: ResumptionData
     },
 
     /// a ccall instruction that may throw an exception
     CCall {
         data: CallData,
-        resume: ResumptionData,
+        resume: ResumptionData
     },
 
     /// swapstack. swap current Mu stack with the named Mu stack,
@@ -544,21 +544,21 @@ pub enum Instruction_ {
         stack: OpIndex,
         is_exception: bool,
         args: Vec<OpIndex>,
-        resume: ResumptionData,
+        resume: ResumptionData
     },
 
     /// a multiway branch
     Switch {
         cond: OpIndex,
         default: Destination,
-        branches: Vec<(OpIndex, Destination)>,
+        branches: Vec<(OpIndex, Destination)>
     },
 
     /// a wrapper for any instruction that may throw an exception
     //  This is not used at the moment
     ExnInstruction {
         inner: Box<Instruction>,
-        resume: ResumptionData,
+        resume: ResumptionData
     },
 
     /// common inst: get thread local
@@ -599,7 +599,7 @@ pub enum Instruction_ {
     /// internal use: print op as hex value
     PrintHex(OpIndex),
     /// internal use: set return value for main
-    SetRetval(OpIndex),
+    SetRetval(OpIndex)
 }
 
 impl Instruction_ {
@@ -614,7 +614,7 @@ impl Instruction_ {
                 operation,
                 ref from_ty,
                 ref to_ty,
-                operand,
+                operand
             } => format!("{:?} {} {} {}", operation, from_ty, to_ty, ops[operand]),
             &Instruction_::ExprCall { ref data, is_abort } => {
                 let abort = select_value!(is_abort, "ABORT_ON_EXN", "RETHROW");
@@ -627,7 +627,7 @@ impl Instruction_ {
             &Instruction_::Load {
                 is_ptr,
                 mem_loc,
-                order,
+                order
             } => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!("LOAD {} {:?} {}", ptr, order, ops[mem_loc])
@@ -636,7 +636,7 @@ impl Instruction_ {
                 value,
                 is_ptr,
                 mem_loc,
-                order,
+                order
             } => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!("STORE {} {:?} {} {}", ptr, order, ops[mem_loc], ops[value])
@@ -648,7 +648,7 @@ impl Instruction_ {
                 fail_order,
                 mem_loc,
                 expected_value,
-                desired_value,
+                desired_value
             } => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 let weak = select_value!(is_weak, "WEAK", "");
@@ -668,7 +668,7 @@ impl Instruction_ {
                 order,
                 op,
                 mem_loc,
-                value,
+                value
             } => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!(
@@ -700,7 +700,7 @@ impl Instruction_ {
             &Instruction_::GetFieldIRef {
                 is_ptr,
                 base,
-                index,
+                index
             } => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!("GETFIELDIREF {} {} {}", ptr, ops[base], index)
@@ -708,7 +708,7 @@ impl Instruction_ {
             &Instruction_::GetElementIRef {
                 is_ptr,
                 base,
-                index,
+                index
             } => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!("GETELEMENTIREF {} {} {}", ptr, ops[base], ops[index])
@@ -716,7 +716,7 @@ impl Instruction_ {
             &Instruction_::ShiftIRef {
                 is_ptr,
                 base,
-                offset,
+                offset
             } => {
                 let ptr = select_value!(is_ptr, "PTR", "");
                 format!("SHIFTIREF {} {} {}", ptr, ops[base], ops[offset])
@@ -737,7 +737,7 @@ impl Instruction_ {
                 cond,
                 ref true_dest,
                 ref false_dest,
-                true_prob,
+                true_prob
             } => {
                 format!(
                     "BRANCH2 {} {}({}) {}",
@@ -750,7 +750,7 @@ impl Instruction_ {
             &Instruction_::Select {
                 cond,
                 true_val,
-                false_val,
+                false_val
             } => {
                 format!(
                     "SELECT if {} then {} else {}",
@@ -762,7 +762,7 @@ impl Instruction_ {
             &Instruction_::Watchpoint {
                 id,
                 ref disable_dest,
-                ref resume,
+                ref resume
             } => {
                 match id {
                     Some(id) => {
@@ -773,13 +773,13 @@ impl Instruction_ {
                             resume.debug_str(ops)
                         )
                     }
-                    None => format!("TRAP {}", resume.debug_str(ops)),
+                    None => format!("TRAP {}", resume.debug_str(ops))
                 }
             }
             &Instruction_::WPBranch {
                 wp,
                 ref disable_dest,
-                ref enable_dest,
+                ref enable_dest
             } => {
                 format!(
                     "WPBRANCH {} {} {}",
@@ -790,17 +790,17 @@ impl Instruction_ {
             }
             &Instruction_::Call {
                 ref data,
-                ref resume,
+                ref resume
             } => format!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
             &Instruction_::CCall {
                 ref data,
-                ref resume,
+                ref resume
             } => format!("CCALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
             &Instruction_::SwapStack {
                 stack,
                 is_exception,
                 ref args,
-                ref resume,
+                ref resume
             } => {
                 format!(
                     "SWAPSTACK {} {} {} {}",
@@ -813,7 +813,7 @@ impl Instruction_ {
             &Instruction_::Switch {
                 cond,
                 ref default,
-                ref branches,
+                ref branches
             } => {
                 let mut ret = format!("SWITCH {} {} {{", ops[cond], default.debug_str(ops));
                 for i in 0..branches.len() {
@@ -829,7 +829,7 @@ impl Instruction_ {
             }
             &Instruction_::ExnInstruction {
                 ref inner,
-                ref resume,
+                ref resume
             } => format!("{} {}", inner.debug_str(ops), resume.debug_str(ops)),
 
             // common inst
@@ -864,7 +864,7 @@ impl Instruction_ {
             // print hex
             &Instruction_::PrintHex(i) => format!("PRINTHEX {}", ops[i]),
             // set retval
-            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val]),
+            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val])
         }
     }
 }
@@ -879,7 +879,7 @@ pub struct BinOpStatus {
     /// carry flag
     pub flag_c: bool,
     /// overflow flag
-    pub flag_v: bool,
+    pub flag_v: bool
 }
 
 impl BinOpStatus {
@@ -888,7 +888,7 @@ impl BinOpStatus {
             flag_n: false,
             flag_z: false,
             flag_c: false,
-            flag_v: false,
+            flag_v: false
         }
     }
 
@@ -897,7 +897,7 @@ impl BinOpStatus {
             flag_n: true,
             flag_z: false,
             flag_c: false,
-            flag_v: false,
+            flag_v: false
         }
     }
 
@@ -906,7 +906,7 @@ impl BinOpStatus {
             flag_n: false,
             flag_z: true,
             flag_c: false,
-            flag_v: false,
+            flag_v: false
         }
     }
 
@@ -915,7 +915,7 @@ impl BinOpStatus {
             flag_n: false,
             flag_z: false,
             flag_c: true,
-            flag_v: false,
+            flag_v: false
         }
     }
 
@@ -924,7 +924,7 @@ impl BinOpStatus {
             flag_n: false,
             flag_z: false,
             flag_c: false,
-            flag_v: true,
+            flag_v: true
         }
     }
 }
@@ -955,25 +955,25 @@ pub enum MemoryOrder {
     Acquire,
     Release,
     AcqRel,
-    SeqCst,
+    SeqCst
 }
 
 #[derive(Copy, Clone, Debug)]
 pub enum CallConvention {
     Mu,
-    Foreign(ForeignFFI),
+    Foreign(ForeignFFI)
 }
 
 #[derive(Copy, Clone, Debug)]
 pub enum ForeignFFI {
-    C,
+    C
 }
 
 #[derive(Clone, Debug)]
 pub struct CallData {
     pub func: OpIndex,
     pub args: Vec<OpIndex>,
-    pub convention: CallConvention,
+    pub convention: CallConvention
 }
 
 impl CallData {
@@ -991,7 +991,7 @@ impl CallData {
 #[derive(Clone, Debug)]
 pub struct ResumptionData {
     pub normal_dest: Destination,
-    pub exn_dest: Destination,
+    pub exn_dest: Destination
 }
 
 impl ResumptionData {
@@ -1007,7 +1007,7 @@ impl ResumptionData {
 #[derive(Clone, Debug)]
 pub struct Destination {
     pub target: MuID,
-    pub args: Vec<DestArg>,
+    pub args: Vec<DestArg>
 }
 
 impl Destination {
@@ -1029,14 +1029,14 @@ impl Destination {
     pub fn get_arguments_as_node(&self, ops: &Vec<P<TreeNode>>) -> Vec<P<TreeNode>> {
         vec_utils::map(&self.args, |x| match x {
             &DestArg::Normal(i) => ops[i].clone(),
-            &DestArg::Freshbound(_) => unimplemented!(),
+            &DestArg::Freshbound(_) => unimplemented!()
         })
     }
 
     pub fn get_arguments(&self, ops: &Vec<P<TreeNode>>) -> Vec<P<Value>> {
         vec_utils::map(&self.args, |x| match x {
             &DestArg::Normal(i) => ops[i].clone_value(),
-            &DestArg::Freshbound(_) => unimplemented!(),
+            &DestArg::Freshbound(_) => unimplemented!()
         })
     }
 }
@@ -1046,14 +1046,14 @@ pub enum DestArg {
     /// a normal destination argument is an SSA value (appears in the ops field of the instruction)
     Normal(OpIndex),
     /// a freshbound argument is an undeclared/anonymous value (currently not support this)
-    Freshbound(usize),
+    Freshbound(usize)
 }
 
 impl DestArg {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         match self {
             &DestArg::Normal(index) => format!("{}", ops[index]),
-            &DestArg::Freshbound(n) => format!("${}", n),
+            &DestArg::Freshbound(n) => format!("${}", n)
         }
     }
 }

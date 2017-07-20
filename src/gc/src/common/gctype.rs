@@ -39,7 +39,7 @@ pub struct GCType {
     pub fix_refs: Option<RefPattern>, //+16
 
     pub var_refs: Option<RefPattern>, //+64
-    pub var_size: Option<ByteSize>,   //+112
+    pub var_size: Option<ByteSize>    //+112
 }
 
 impl GCType {
@@ -47,7 +47,7 @@ impl GCType {
         id: u32,
         size: ByteSize,
         alignment: ByteSize,
-        fix_refs: Option<RefPattern>,
+        fix_refs: Option<RefPattern>
     ) -> GCType {
         GCType {
             id: id,
@@ -57,7 +57,7 @@ impl GCType {
             fix_size: size,
 
             var_refs: None,
-            var_size: None,
+            var_size: None
         }
     }
 
@@ -67,7 +67,7 @@ impl GCType {
         alignment: ByteSize,
         fix_refs: Option<RefPattern>,
         var_refs: Option<RefPattern>,
-        var_size: ByteSize,
+        var_size: ByteSize
     ) -> GCType {
         GCType {
             id: id,
@@ -77,7 +77,7 @@ impl GCType {
             fix_size: size,
 
             var_refs: var_refs,
-            var_size: Some(var_size),
+            var_size: Some(var_size)
         }
     }
 
@@ -90,7 +90,7 @@ impl GCType {
             fix_size: size,
 
             var_refs: None,
-            var_size: None,
+            var_size: None
         }
     }
 
@@ -101,12 +101,12 @@ impl GCType {
 
             fix_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: POINTER_SIZE,
+                size: POINTER_SIZE
             }),
             fix_size: POINTER_SIZE,
 
             var_refs: None,
-            var_size: None,
+            var_size: None
         }
     }
 
@@ -175,13 +175,13 @@ pub enum RefPattern {
     // discriminat 8 bytes
     Map {
         offsets: Vec<ByteSize>, // +8
-        size: usize,            // +32
+        size: usize             // +32
     },
     NestedType(Vec<Arc<GCType>>), // +8
     Repeat {
         pattern: Box<RefPattern>, // +8
-        count: usize,             // +16
-    },
+        count: usize              // +16
+    }
 }
 
 impl RefPattern {
@@ -195,7 +195,7 @@ impl RefPattern {
                 }
                 size
             }
-            &RefPattern::Repeat { ref pattern, count } => pattern.size() * count,
+            &RefPattern::Repeat { ref pattern, count } => pattern.size() * count
         }
     }
 
@@ -250,11 +250,11 @@ mod tests {
             fix_size: 16,
             fix_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 16,
+                size: 16
             }),
 
             var_size: None,
-            var_refs: None,
+            var_refs: None
         };
 
         // array of struct {ref, int64} with length 10
@@ -266,13 +266,13 @@ mod tests {
             fix_refs: Some(RefPattern::Repeat {
                 pattern: Box::new(RefPattern::Map {
                     offsets: vec![0],
-                    size: 16,
+                    size: 16
                 }),
-                count: 10,
+                count: 10
             }),
 
             var_size: None,
-            var_refs: None,
+            var_refs: None
         };
 
         // array(10) of array(10) of struct {ref, int64}
@@ -283,11 +283,11 @@ mod tests {
             fix_size: 1600,
             fix_refs: Some(RefPattern::Repeat {
                 pattern: Box::new(RefPattern::NestedType(vec![Arc::new(b.clone()).clone()])),
-                count: 10,
+                count: 10
             }),
 
             var_size: None,
-            var_refs: None,
+            var_refs: None
         };
 
         vec![a, b, c]
@@ -308,11 +308,11 @@ mod tests {
             fix_size: 16,
             fix_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 16,
+                size: 16
             }),
 
             var_size: Some(8),
-            var_refs: None,
+            var_refs: None
         };
 
         assert_eq!(a.gen_hybrid_ref_offsets(5), vec![0]);
@@ -329,14 +329,14 @@ mod tests {
             fix_size: 16,
             fix_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 16,
+                size: 16
             }),
 
             var_size: Some(8),
             var_refs: Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 8,
-            }),
+                size: 8
+            })
         };
 
         assert_eq!(a.gen_hybrid_ref_offsets(5), vec![0, 16, 24, 32, 40, 48]);
@@ -359,7 +359,7 @@ mod tests {
             fix_refs: None,
 
             var_size: None,
-            var_refs: None,
+            var_refs: None
         };
 
         assert_eq!(int.gen_ref_offsets(), vec![]);

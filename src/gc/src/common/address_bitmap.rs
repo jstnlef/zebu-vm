@@ -21,7 +21,7 @@ pub struct AddressBitmap {
     start: Address,
     end: Address,
 
-    bitmap: Bitmap,
+    bitmap: Bitmap
 }
 
 impl AddressBitmap {
@@ -32,7 +32,7 @@ impl AddressBitmap {
         AddressBitmap {
             start: start,
             end: end,
-            bitmap: bitmap,
+            bitmap: bitmap
         }
     }
 

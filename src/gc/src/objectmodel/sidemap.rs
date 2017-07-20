@@ -40,11 +40,11 @@ pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, allo
         let hdr = get_ref_byte(
             alloc_map,
             space_start,
-            unsafe { cursor.to_object_reference() },
+            unsafe { cursor.to_object_reference() }
         );
         let (ref_bits, short_encode) = (
             bit_utils::lower_bits_u8(hdr, REF_BITS_LEN),
-            bit_utils::test_nth_bit_u8(hdr, SHORT_ENCODE_BIT),
+            bit_utils::test_nth_bit_u8(hdr, SHORT_ENCODE_BIT)
         );
 
 
@@ -118,11 +118,11 @@ pub fn mark_as_traced(
     trace_map: *mut u8,
     space_start: Address,
     obj: ObjectReference,
-    mark_state: u8,
+    mark_state: u8
 ) {
     unsafe {
         *trace_map.offset(
-            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize,
+            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize
         ) = mark_state;
     }
 }
@@ -139,11 +139,11 @@ pub fn is_traced(
     trace_map: *mut u8,
     space_start: Address,
     obj: ObjectReference,
-    mark_state: u8,
+    mark_state: u8
 ) -> bool {
     unsafe {
         (*trace_map.offset(
-            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize,
+            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize
         )) == mark_state
     }
 }
@@ -156,7 +156,7 @@ pub const SHORT_ENCODE_BIT: usize = 7;
 pub fn get_ref_byte(alloc_map: *mut u8, space_start: Address, obj: ObjectReference) -> u8 {
     unsafe {
         *alloc_map.offset(
-            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize,
+            (obj.to_address().diff(space_start) >> LOG_POINTER_SIZE) as isize
         )
     }
 }

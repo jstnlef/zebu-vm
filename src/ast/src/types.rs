@@ -108,7 +108,7 @@ pub fn init_types() {
 #[derive(PartialEq, Debug)]
 pub struct MuType {
     pub hdr: MuEntityHeader,
-    pub v: MuType_,
+    pub v: MuType_
 }
 
 rodal_struct!(MuType { hdr, v });
@@ -118,7 +118,7 @@ impl MuType {
     pub fn new(id: MuID, v: MuType_) -> MuType {
         MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: v,
+            v: v
         }
     }
 
@@ -126,7 +126,7 @@ impl MuType {
     pub fn is_struct(&self) -> bool {
         match self.v {
             MuType_::Struct(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -134,7 +134,7 @@ impl MuType {
     pub fn is_hybrid(&self) -> bool {
         match self.v {
             MuType_::Hybrid(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -142,7 +142,7 @@ impl MuType {
     pub fn is_fp(&self) -> bool {
         match self.v {
             MuType_::Float | MuType_::Double => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -150,7 +150,7 @@ impl MuType {
     pub fn is_float(&self) -> bool {
         match self.v {
             MuType_::Float => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -158,7 +158,7 @@ impl MuType {
     pub fn is_double(&self) -> bool {
         match self.v {
             MuType_::Double => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -177,7 +177,7 @@ impl MuType {
             MuType_::StackRef |
             MuType_::Tagref64 |
             MuType_::UPtr(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -186,7 +186,7 @@ impl MuType {
     pub fn get_struct_hybrid_tag(&self) -> Option<MuName> {
         match self.v {
             MuType_::Hybrid(ref name) | MuType_::Struct(ref name) => Some(name.clone()),
-            _ => None,
+            _ => None
         }
     }
 
@@ -195,7 +195,7 @@ impl MuType {
     pub fn is_ref(&self) -> bool {
         match self.v {
             MuType_::Ref(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -203,7 +203,7 @@ impl MuType {
     pub fn is_heap_reference(&self) -> bool {
         match self.v {
             MuType_::Ref(_) | MuType_::IRef(_) | MuType_::WeakRef(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -211,7 +211,7 @@ impl MuType {
     pub fn is_iref(&self) -> bool {
         match self.v {
             MuType_::IRef(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -219,7 +219,7 @@ impl MuType {
     pub fn is_ptr(&self) -> bool {
         match self.v {
             MuType_::UPtr(_) | MuType_::UFuncPtr(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -227,7 +227,7 @@ impl MuType {
     pub fn is_aggregate(&self) -> bool {
         match self.v {
             MuType_::Struct(_) | MuType_::Hybrid(_) | MuType_::Array(_, _) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -264,7 +264,7 @@ impl MuType {
                     .map(|ty| ty.is_traced())
                     .fold(false, |ret, this| ret || this)
             }
-            _ => false,
+            _ => false
         }
     }
 
@@ -305,7 +305,7 @@ impl MuType {
                     .map(|ty| ty.is_native_safe())
                     .fold(true, |ret, this| ret && this)
             }
-            _ => false,
+            _ => false
         }
     }
 
@@ -313,7 +313,7 @@ impl MuType {
     pub fn get_elem_ty(&self) -> Option<P<MuType>> {
         match self.v {
             MuType_::Array(ref elem_ty, _) => Some(elem_ty.clone()),
-            _ => None,
+            _ => None
         }
     }
 
@@ -333,7 +333,7 @@ impl MuType {
 
                 Some(hybrid_inner.fix_tys[index].clone())
             }
-            _ => None,
+            _ => None
         }
     }
 
@@ -346,7 +346,7 @@ impl MuType {
 
                 Some(hybrid_inner.var_ty.clone())
             }
-            _ => None,
+            _ => None
         }
     }
 
@@ -356,7 +356,7 @@ impl MuType {
         use types::MuType_::*;
         match self.v {
             Ref(ref ty) | IRef(ref ty) | WeakRef(ref ty) | UPtr(ref ty) => Some(ty.clone()),
-            _ => None,
+            _ => None
         }
     }
 
@@ -375,7 +375,7 @@ impl MuType {
             Tagref64 |
             FuncRef(_) |
             UFuncPtr(_) => Some(64),
-            _ => None,
+            _ => None
         }
     }
 }
@@ -430,7 +430,7 @@ pub enum MuType_ {
     FuncRef(P<MuFuncSig>),
 
     /// ufuncptr<@sig>
-    UFuncPtr(P<MuFuncSig>),
+    UFuncPtr(P<MuFuncSig>)
 }
 
 rodal_enum!(MuType_{(Int: size), Float, Double, (Ref: ty), (IRef: ty), (WeakRef: ty), (UPtr: ty),
@@ -462,7 +462,7 @@ impl fmt::Display for MuType_ {
             &MuType_::FuncRef(ref sig) => write!(f, "funcref<{}>", sig),
             &MuType_::UFuncPtr(ref sig) => write!(f, "ufuncref<{}>", sig),
             &MuType_::Struct(ref tag) => write!(f, "{}(struct)", tag),
-            &MuType_::Hybrid(ref tag) => write!(f, "{}(hybrid)", tag),
+            &MuType_::Hybrid(ref tag) => write!(f, "{}(hybrid)", tag)
         }
     }
 }
@@ -479,7 +479,7 @@ lazy_static! {
 rodal_struct!(StructType_{tys});
 #[derive(PartialEq, Debug)]
 pub struct StructType_ {
-    tys: Vec<P<MuType>>,
+    tys: Vec<P<MuType>>
 }
 
 impl fmt::Display for StructType_ {
@@ -515,14 +515,14 @@ rodal_struct!(HybridType_{fix_tys, var_ty});
 #[derive(PartialEq, Debug)]
 pub struct HybridType_ {
     fix_tys: Vec<P<MuType>>,
-    var_ty: P<MuType>,
+    var_ty: P<MuType>
 }
 
 impl HybridType_ {
     pub fn new(fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) -> HybridType_ {
         HybridType_ {
             fix_tys: fix_tys,
-            var_ty: var_ty,
+            var_ty: var_ty
         }
     }
 
@@ -626,7 +626,7 @@ impl MuType_ {
                 struct_ty_.tys.clear();
                 struct_ty_.tys.append(&mut list);
             }
-            None => panic!("call mustruct_empty() to create an empty struct before mustruct_put()"),
+            None => panic!("call mustruct_empty() to create an empty struct before mustruct_put()")
         }
     }
     /// creates a Mu struct with specified field types
@@ -658,7 +658,7 @@ impl MuType_ {
     pub fn hybrid_empty(tag: HybridTag) -> MuType_ {
         let hybrid_ty_ = HybridType_ {
             fix_tys: vec![],
-            var_ty: VOID_TYPE.clone(),
+            var_ty: VOID_TYPE.clone()
         };
         HYBRID_TAG_MAP
             .write()
@@ -682,14 +682,14 @@ impl MuType_ {
 
                 hybrid_ty_.var_ty = var_ty;
             }
-            None => panic!("call hybrid_empty() to create an empty struct before hybrid_put()"),
+            None => panic!("call hybrid_empty() to create an empty struct before hybrid_put()")
         }
     }
     /// creates a Mu hybrid with specified fix part and var part types
     pub fn hybrid(tag: HybridTag, fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) -> MuType_ {
         let hybrid_ty_ = HybridType_ {
             fix_tys: fix_tys,
-            var_ty: var_ty,
+            var_ty: var_ty
         };
 
 
@@ -717,7 +717,7 @@ impl MuType_ {
 pub struct MuFuncSig {
     pub hdr: MuEntityHeader,
     pub ret_tys: Vec<P<MuType>>,
-    pub arg_tys: Vec<P<MuType>>,
+    pub arg_tys: Vec<P<MuType>>
 }
 
 rodal_struct!(MuFuncSig{hdr, ret_tys, arg_tys});

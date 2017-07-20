@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 pub struct HeapDump {
     pub objects: HashMap<Address, ObjectDump>,
-    pub relocatable_refs: HashMap<Address, String>,
+    pub relocatable_refs: HashMap<Address, String>
 }
 
 pub struct ObjectDump {
@@ -33,7 +33,7 @@ pub struct ObjectDump {
     pub mem_size: ByteSize,
 
     pub reference_addr: Address,
-    pub reference_offsets: Vec<ByteSize>, // based on reference_addr
+    pub reference_offsets: Vec<ByteSize> // based on reference_addr
 }
 
 impl HeapDump {
@@ -42,7 +42,7 @@ impl HeapDump {
         let mut work_queue: Vec<Address> = roots;
         let mut heap: HeapDump = HeapDump {
             objects: HashMap::new(),
-            relocatable_refs: HashMap::new(),
+            relocatable_refs: HashMap::new()
         };
 
         while !work_queue.is_empty() {
@@ -92,7 +92,7 @@ impl HeapDump {
                     mem_start: hdr_addr,
                     mem_size: objectmodel::header_get_object_size(hdr) as usize +
                         objectmodel::OBJECT_HEADER_SIZE,
-                    reference_offsets: offsets,
+                    reference_offsets: offsets
                 }
             } else {
                 // by type ID
@@ -108,7 +108,7 @@ impl HeapDump {
                     reference_addr: obj,
                     mem_start: hdr_addr,
                     mem_size: gctype.size() + objectmodel::OBJECT_HEADER_SIZE,
-                    reference_offsets: gctype.gen_ref_offsets(),
+                    reference_offsets: gctype.gen_ref_offsets()
                 }
             }
         } else {
@@ -126,7 +126,7 @@ impl HeapDump {
                 reference_addr: obj,
                 mem_start: hdr_addr,
                 mem_size: gctype.size_hybrid(var_length) + objectmodel::OBJECT_HEADER_SIZE,
-                reference_offsets: gctype.gen_hybrid_ref_offsets(var_length),
+                reference_offsets: gctype.gen_hybrid_ref_offsets(var_length)
             }
         }
     }

@@ -28,7 +28,7 @@ pub fn alloc_large(
     size: usize,
     align: usize,
     mutator: &mut immix::ImmixMutatorLocal,
-    space: Arc<FreeListSpace>,
+    space: Arc<FreeListSpace>
 ) -> Address {
     loop {
         mutator.yieldpoint();

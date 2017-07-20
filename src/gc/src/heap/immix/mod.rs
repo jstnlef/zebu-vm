@@ -36,11 +36,11 @@ pub enum LineMark {
     Live,
     FreshAlloc,
     ConservLive,
-    PrevLive,
+    PrevLive
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum BlockMark {
     Usable,
-    Full,
+    Full
 }

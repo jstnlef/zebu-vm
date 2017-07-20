@@ -161,7 +161,7 @@ pub extern "C" fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize,
         lo_space: lo_space,
 
         gc_types: vec![],
-        roots: LinkedHashSet::new(),
+        roots: LinkedHashSet::new()
     });
 
     if enable_gc {
@@ -265,7 +265,7 @@ pub fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> Obje
 pub extern "C" fn muentry_alloc_fast(
     mutator: *mut ImmixMutatorLocal,
     size: usize,
-    align: usize,
+    align: usize
 ) -> ObjectReference {
     let ret = alloc(mutator, size, align);
     trace!(
@@ -287,7 +287,7 @@ pub extern "C" fn muentry_alloc_fast(
 pub extern "C" fn muentry_alloc_slow(
     mutator: *mut ImmixMutatorLocal,
     size: usize,
-    align: usize,
+    align: usize
 ) -> Address {
     let ret = unsafe { &mut *mutator }.try_alloc_from_local(size, align);
     trace!(
@@ -307,13 +307,13 @@ pub extern "C" fn muentry_alloc_slow(
 pub extern "C" fn muentry_alloc_large(
     mutator: *mut ImmixMutatorLocal,
     size: usize,
-    align: usize,
+    align: usize
 ) -> ObjectReference {
     let ret = freelist::alloc_large(
         size,
         align,
         unsafe { mutator.as_mut().unwrap() },
-        MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone(),
+        MY_GC.read().unwrap().as_ref().unwrap().lo_space.clone()
     );
     trace!(
         "muentry_alloc_large(mutator: {:?}, size: {}, align: {}) = {}",
@@ -332,7 +332,7 @@ pub extern "C" fn muentry_alloc_large(
 pub extern "C" fn muentry_init_object(
     mutator: *mut ImmixMutatorLocal,
     obj: ObjectReference,
-    encode: u64,
+    encode: u64
 ) {
     unsafe { &mut *mutator }.init_object(obj.to_address(), encode);
 }
@@ -344,7 +344,7 @@ pub extern "C" fn muentry_init_hybrid(
     mutator: *mut ImmixMutatorLocal,
     obj: ObjectReference,
     encode: u64,
-    length: u64,
+    length: u64
 ) {
     unsafe { &mut *mutator }.init_hybrid(obj.to_address(), encode, length);
 }
@@ -368,7 +368,7 @@ struct GC {
     immix_space: Arc<ImmixSpace>,
     lo_space: Arc<FreeListSpace>,
     gc_types: Vec<Arc<GCType>>,
-    roots: LinkedHashSet<ObjectReference>,
+    roots: LinkedHashSet<ObjectReference>
 }
 
 lazy_static! {

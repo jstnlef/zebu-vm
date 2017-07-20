@@ -92,7 +92,7 @@ pub struct MuFunction {
 
     pub sig: P<MuFuncSig>,
     pub cur_ver: Option<MuID>,
-    pub all_vers: Vec<MuID>,
+    pub all_vers: Vec<MuID>
 }
 
 rodal_struct!(MuFunction {
@@ -108,7 +108,7 @@ impl MuFunction {
             hdr: entity,
             sig: sig,
             cur_ver: None,
-            all_vers: vec![],
+            all_vers: vec![]
         }
     }
 
@@ -145,7 +145,7 @@ pub struct MuFunctionVersion {
     is_compiled: bool,
     pub context: FunctionContext,
     pub force_inline: bool,
-    pub block_trace: Option<Vec<MuID>>, // only available after Trace Generation Pass
+    pub block_trace: Option<Vec<MuID>> // only available after Trace Generation Pass
 }
 rodal_struct!(Callsite {
     name,
@@ -155,18 +155,18 @@ rodal_struct!(Callsite {
 pub struct Callsite {
     pub name: MuName,
     pub exception_destination: Option<MuName>,
-    pub stack_arg_size: usize,
+    pub stack_arg_size: usize
 }
 impl Callsite {
     pub fn new(
         name: MuName,
         exception_destination: Option<MuName>,
-        stack_arg_size: usize,
+        stack_arg_size: usize
     ) -> Callsite {
         Callsite {
             name: name,
             exception_destination: exception_destination,
-            stack_arg_size: stack_arg_size,
+            stack_arg_size: stack_arg_size
         }
     }
 }
@@ -207,7 +207,7 @@ impl MuFunctionVersion {
             is_compiled: false,
             context: FunctionContext::new(),
             block_trace: None,
-            force_inline: false,
+            force_inline: false
         }
     }
 
@@ -217,7 +217,7 @@ impl MuFunctionVersion {
         id: MuID,
         sig: P<MuFuncSig>,
         content: FunctionContent,
-        context: FunctionContext,
+        context: FunctionContext
     ) -> MuFunctionVersion {
         MuFunctionVersion {
             hdr: hdr,
@@ -229,7 +229,7 @@ impl MuFunctionVersion {
             is_compiled: false,
             context: context,
             block_trace: None,
-            force_inline: false,
+            force_inline: false
         }
     }
 
@@ -261,7 +261,7 @@ impl MuFunctionVersion {
         let val = P(Value {
             hdr: entity,
             ty: ty,
-            v: Value_::SSAVar(id),
+            v: Value_::SSAVar(id)
         });
 
         self.context
@@ -269,25 +269,25 @@ impl MuFunctionVersion {
             .insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            v: TreeNode_::Value(val),
+            v: TreeNode_::Value(val)
         })
     }
 
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
-            v: TreeNode_::Value(v),
+            v: TreeNode_::Value(v)
         })
     }
 
     pub fn new_global(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
-            v: TreeNode_::Value(v),
+            v: TreeNode_::Value(v)
         })
     }
 
     pub fn new_inst(&mut self, v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode {
-            v: TreeNode_::Instruction(v),
+            v: TreeNode_::Instruction(v)
         })
     }
 
@@ -330,7 +330,7 @@ impl MuFunctionVersion {
                             }
                         }
                     }
-                    _ => unreachable!(),
+                    _ => unreachable!()
                 }
             }
         }
@@ -358,7 +358,7 @@ impl MuFunctionVersion {
                             }
                         }
                     }
-                    _ => unreachable!(),
+                    _ => unreachable!()
                 }
             }
         }
@@ -384,7 +384,7 @@ impl MuFunctionVersion {
                             }
                         }
                     }
-                    _ => unreachable!(),
+                    _ => unreachable!()
                 }
             }
         }
@@ -398,7 +398,7 @@ impl MuFunctionVersion {
 pub struct FunctionContent {
     pub entry: MuID,
     pub blocks: LinkedHashMap<MuID, Block>,
-    pub exception_blocks: LinkedHashSet<MuID>, // this field only valid after control flow analysis
+    pub exception_blocks: LinkedHashSet<MuID> // this field only valid after control flow analysis
 }
 
 impl fmt::Debug for FunctionContent {
@@ -421,7 +421,7 @@ impl FunctionContent {
         FunctionContent {
             entry: entry,
             blocks: blocks,
-            exception_blocks: LinkedHashSet::new(),
+            exception_blocks: LinkedHashSet::new()
         }
     }
 
@@ -438,7 +438,7 @@ impl FunctionContent {
         let ret = self.blocks.get(&id);
         match ret {
             Some(b) => b,
-            None => panic!("cannot find block #{}", id),
+            None => panic!("cannot find block #{}", id)
         }
     }
 
@@ -446,7 +446,7 @@ impl FunctionContent {
         let ret = self.blocks.get_mut(&id);
         match ret {
             Some(b) => b,
-            None => panic!("cannot find block #{}", id),
+            None => panic!("cannot find block #{}", id)
         }
     }
 
@@ -465,13 +465,13 @@ impl FunctionContent {
 // FIXME: should move this out of ast crate and bind its lifetime with compilation (Issue #18)
 #[derive(Default, Debug)]
 pub struct FunctionContext {
-    pub values: LinkedHashMap<MuID, SSAVarEntry>,
+    pub values: LinkedHashMap<MuID, SSAVarEntry>
 }
 
 impl FunctionContext {
     fn new() -> FunctionContext {
         FunctionContext {
-            values: LinkedHashMap::new(),
+            values: LinkedHashMap::new()
         }
     }
 
@@ -480,13 +480,13 @@ impl FunctionContext {
         let val = P(Value {
             hdr: MuEntityHeader::unnamed(id),
             ty: ty,
-            v: Value_::SSAVar(id),
+            v: Value_::SSAVar(id)
         });
 
         self.values.insert(id, SSAVarEntry::new(val.clone()));
 
         P(TreeNode {
-            v: TreeNode_::Value(val),
+            v: TreeNode_::Value(val)
         })
     }
 
@@ -494,7 +494,7 @@ impl FunctionContext {
     pub fn get_temp_display(&self, id: MuID) -> String {
         match self.get_value(id) {
             Some(entry) => format!("{}", entry.value()),
-            None => "CANT_FOUND_ID".to_string(),
+            None => "CANT_FOUND_ID".to_string()
         }
     }
 
@@ -520,7 +520,7 @@ pub struct Block {
     /// a trace scheduling hint about where to layout this block
     pub trace_hint: TraceHint,
     /// control flow info about this block (predecessors, successors, etc)
-    pub control_flow: ControlFlow,
+    pub control_flow: ControlFlow
 }
 
 impl fmt::Debug for Block {
@@ -549,7 +549,7 @@ impl Block {
             hdr: entity,
             content: None,
             trace_hint: TraceHint::None,
-            control_flow: ControlFlow::default(),
+            control_flow: ControlFlow::default()
         }
     }
 
@@ -579,10 +579,10 @@ impl Block {
                         v: Instruction_::Branch2 { .. },
                         ..
                     }) => true,
-                    _ => false,
+                    _ => false
                 }
             }
-            None => false,
+            None => false
         }
     }
 
@@ -596,10 +596,10 @@ impl Block {
                         v: Instruction_::Return(_),
                         ..
                     }) => true,
-                    _ => false,
+                    _ => false
                 }
             }
-            None => false,
+            None => false
         }
     }
 }
@@ -619,7 +619,7 @@ pub enum TraceHint {
     /// this block is slow path, and should be kept out of hot loops
     SlowPath,
     /// this block is return sink, and should be put at the end of a function
-    ReturnSink,
+    ReturnSink
 }
 
 /// ControlFlow stores compilation info about control flows of a block
@@ -627,7 +627,7 @@ pub enum TraceHint {
 #[derive(Debug, Clone)]
 pub struct ControlFlow {
     pub preds: Vec<MuID>,
-    pub succs: Vec<BlockEdge>,
+    pub succs: Vec<BlockEdge>
 }
 
 impl ControlFlow {
@@ -663,7 +663,7 @@ impl default::Default for ControlFlow {
     fn default() -> ControlFlow {
         ControlFlow {
             preds: vec![],
-            succs: vec![],
+            succs: vec![]
         }
     }
 }
@@ -674,7 +674,7 @@ pub struct BlockEdge {
     pub target: MuID,
     pub kind: EdgeKind,
     pub is_exception: bool,
-    pub probability: f32,
+    pub probability: f32
 }
 
 impl fmt::Display for BlockEdge {
@@ -693,7 +693,7 @@ impl fmt::Display for BlockEdge {
 #[derive(Copy, Clone, Debug)]
 pub enum EdgeKind {
     Forward,
-    Backward,
+    Backward
 }
 
 /// BlockContent describes arguments to this block, and owns all the IR instructions
@@ -702,7 +702,7 @@ pub struct BlockContent {
     pub args: Vec<P<Value>>,
     pub exn_arg: Option<P<Value>>,
     pub body: Vec<Box<TreeNode>>,
-    pub keepalives: Option<Vec<P<Value>>>,
+    pub keepalives: Option<Vec<P<Value>>>
 }
 
 impl fmt::Debug for BlockContent {
@@ -805,10 +805,10 @@ impl BlockContent {
                         vec_utils::add_all_unique(&mut ret, &mut live_outs);
                     }
 
-                    _ => panic!("didn't expect last inst as {}", inst),
+                    _ => panic!("didn't expect last inst as {}", inst)
                 }
             }
-            _ => panic!("expect last treenode of block is a inst"),
+            _ => panic!("expect last treenode of block is a inst")
         }
 
         ret
@@ -819,28 +819,28 @@ impl BlockContent {
 /// or an value (SSA, constant, global, etc)
 #[derive(Debug, Clone)]
 pub struct TreeNode {
-    pub v: TreeNode_,
+    pub v: TreeNode_
 }
 
 impl TreeNode {
     /// creates a sharable Instruction TreeNode
     pub fn new_inst(v: Instruction) -> P<TreeNode> {
         P(TreeNode {
-            v: TreeNode_::Instruction(v),
+            v: TreeNode_::Instruction(v)
         })
     }
 
     /// creates an owned Instruction TreeNode
     pub fn new_boxed_inst(v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode {
-            v: TreeNode_::Instruction(v),
+            v: TreeNode_::Instruction(v)
         })
     }
 
     /// creates a sharable Value TreeNode
     pub fn new_value(v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
-            v: TreeNode_::Value(v),
+            v: TreeNode_::Value(v)
         })
     }
 
@@ -851,10 +851,10 @@ impl TreeNode {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar(id) => Some(id),
-                    _ => None,
+                    _ => None
                 }
             }
-            _ => None,
+            _ => None
         }
     }
 
@@ -888,7 +888,7 @@ impl TreeNode {
     pub fn into_value(self) -> Option<P<Value>> {
         match self.v {
             TreeNode_::Value(val) => Some(val),
-            _ => None,
+            _ => None
         }
     }
 
@@ -896,7 +896,7 @@ impl TreeNode {
     pub fn into_inst(self) -> Option<Instruction> {
         match self.v {
             TreeNode_::Instruction(inst) => Some(inst),
-            _ => None,
+            _ => None
         }
     }
 }
@@ -905,7 +905,7 @@ impl fmt::Display for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.v {
             TreeNode_::Value(ref pv) => pv.fmt(f),
-            TreeNode_::Instruction(ref inst) => write!(f, "({})", inst),
+            TreeNode_::Instruction(ref inst) => write!(f, "({})", inst)
         }
     }
 }
@@ -914,7 +914,7 @@ impl fmt::Display for TreeNode {
 #[derive(Debug, Clone)]
 pub enum TreeNode_ {
     Value(P<Value>),
-    Instruction(Instruction),
+    Instruction(Instruction)
 }
 
 /// Value represents a value in the tree, it could be SSA variables, constants, globals,
@@ -926,7 +926,7 @@ pub enum TreeNode_ {
 pub struct Value {
     pub hdr: MuEntityHeader,
     pub ty: P<MuType>,
-    pub v: Value_,
+    pub v: Value_
 }
 
 rodal_struct!(Value { hdr, ty, v });
@@ -941,28 +941,28 @@ impl Value {
         P(Value {
             hdr: MuEntityHeader::unnamed(id),
             ty: ty,
-            v: Value_::Constant(Constant::Int(val)),
+            v: Value_::Constant(Constant::Int(val))
         })
     }
 
     pub fn is_mem(&self) -> bool {
         match self.v {
             Value_::Memory(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
     pub fn is_reg(&self) -> bool {
         match self.v {
             Value_::SSAVar(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
     pub fn is_const(&self) -> bool {
         match self.v {
             Value_::Constant(_) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -973,14 +973,14 @@ impl Value {
         P(Value {
             hdr: self.hdr.clone(),
             ty: ty,
-            v: self.v.clone(),
+            v: self.v.clone()
         })
     }
 
     pub fn is_int_ex_const(&self) -> bool {
         match self.v {
             Value_::Constant(Constant::IntEx(_)) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -989,7 +989,7 @@ impl Value {
         match self.v {
             Value_::Constant(Constant::Int(_)) => true,
             Value_::Constant(Constant::NullRef) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -997,7 +997,7 @@ impl Value {
         match self.v {
             Value_::Constant(Constant::Float(_)) => true,
             Value_::Constant(Constant::Double(_)) => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -1005,28 +1005,28 @@ impl Value {
         match self.v {
             Value_::Constant(Constant::Int(val)) => Some(val),
             Value_::Constant(Constant::NullRef) => Some(0),
-            _ => None,
+            _ => None
         }
     }
 
     pub fn extract_int_ex_const(&self) -> Vec<u64> {
         match self.v {
             Value_::Constant(Constant::IntEx(ref val)) => val.clone(),
-            _ => panic!("expect int ex const"),
+            _ => panic!("expect int ex const")
         }
     }
 
     pub fn extract_ssa_id(&self) -> Option<MuID> {
         match self.v {
             Value_::SSAVar(id) => Some(id),
-            _ => None,
+            _ => None
         }
     }
 
     pub fn extract_memory_location(&self) -> Option<MemoryLocation> {
         match self.v {
             Value_::Memory(ref loc) => Some(loc.clone()),
-            _ => None,
+            _ => None
         }
     }
 }
@@ -1048,14 +1048,14 @@ impl fmt::Display for Value {
                 Value_::SSAVar(_) => write!(f, "{}(%{})", self.ty, self.hdr),
                 Value_::Constant(ref c) => write!(f, "{}({})", self.ty, c),
                 Value_::Global(ref ty) => write!(f, "{}(@{})", ty, self.hdr),
-                Value_::Memory(ref mem) => write!(f, "%{}{})", self.hdr, mem),
+                Value_::Memory(ref mem) => write!(f, "%{}{})", self.hdr, mem)
             }
         } else {
             match self.v {
                 Value_::SSAVar(_) => write!(f, "%{}", self.hdr),
                 Value_::Constant(ref c) => write!(f, "{}", c),
                 Value_::Global(_) => write!(f, "@{}", self.hdr),
-                Value_::Memory(ref mem) => write!(f, "%{}{}", self.hdr, mem),
+                Value_::Memory(ref mem) => write!(f, "%{}{}", self.hdr, mem)
             }
         }
     }
@@ -1067,7 +1067,7 @@ pub enum Value_ {
     SSAVar(MuID),
     Constant(Constant),
     Global(P<MuType>), // what type is this global (without IRef)
-    Memory(MemoryLocation),
+    Memory(MemoryLocation)
 }
 
 rodal_enum!(Value_{(SSAVar: id), (Constant: val), (Global: ty), (Memory: location)});
@@ -1086,7 +1086,7 @@ pub struct SSAVarEntry {
     expr: Option<Instruction>,
 
     // some ssa vars (such as int128) needs to be split into smaller vars
-    split: Option<Vec<P<Value>>>,
+    split: Option<Vec<P<Value>>>
 }
 
 impl SSAVarEntry {
@@ -1095,7 +1095,7 @@ impl SSAVarEntry {
             val: val,
             use_count: ATOMIC_USIZE_INIT,
             expr: None,
-            split: None,
+            split: None
         };
 
         ret.use_count.store(0, Ordering::SeqCst);
@@ -1168,7 +1168,7 @@ pub enum Constant {
     /// external symbol
     ExternSym(CName),
     /// a composite type of several constants (currently not used)
-    List(Vec<P<Value>>),
+    List(Vec<P<Value>>)
 }
 
 rodal_enum!(Constant{(Int: val), (IntEx: val), (Float: val), (Double: val), (FuncRef: val),
@@ -1217,15 +1217,15 @@ pub enum MemoryLocation {
         base: P<Value>, // +8
         offset: Option<P<Value>>,
         index: Option<P<Value>>,
-        scale: Option<u8>,
+        scale: Option<u8>
     },
     /// addr = base + label(offset)
     Symbolic {
         base: Option<P<Value>>,
         label: MuName,
         is_global: bool,
-        is_native: bool,
-    },
+        is_native: bool
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -1240,7 +1240,7 @@ impl fmt::Display for MemoryLocation {
                 ref base,
                 ref offset,
                 ref index,
-                scale,
+                scale
             } => {
                 // base
                 write!(f, "[{}", base).unwrap();
@@ -1282,7 +1282,7 @@ pub enum MemoryLocation {
         base: P<Value>, //+8
         offset: Option<P<Value>>, //+16
         signed: bool,             //+1
-        scale: u64,               //+24
+        scale: u64                //+24
     },
     Address {
         /// Must be a normal 64-bit register or SP
@@ -1293,13 +1293,13 @@ pub enum MemoryLocation {
         shift: u8,
         /// Whether offset is signed or not (only set this if offset is a register)
         /// Note: n is the number of bytes the adress refers two
-        signed: bool,
+        signed: bool
     },
     Symbolic {
         label: MuName,
         is_global: bool,
-        is_native: bool,
-    },
+        is_native: bool
+    }
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -1317,7 +1317,7 @@ impl fmt::Display for MemoryLocation {
                 ref base,
                 ref offset,
                 scale,
-                signed,
+                signed
             } => {
                 write!(f, "[{}", base).unwrap();
 
@@ -1333,7 +1333,7 @@ impl fmt::Display for MemoryLocation {
                 ref base,
                 ref offset,
                 shift,
-                signed,
+                signed
             } => {
                 write!(f, "[{}", base).unwrap();
 
@@ -1347,7 +1347,7 @@ impl fmt::Display for MemoryLocation {
                 }
                 write!(f, "]")
             }
-            &MemoryLocation::Symbolic { ref label, .. } => write!(f, "{}", label),
+            &MemoryLocation::Symbolic { ref label, .. } => write!(f, "{}", label)
         }
     }
 }
@@ -1357,7 +1357,7 @@ impl fmt::Display for MemoryLocation {
 #[derive(Debug)] // Display, PartialEq, Clone
 pub struct MuEntityHeader {
     id: MuID,
-    name: MuName,
+    name: MuName
 }
 
 rodal_struct!(MuEntityHeader{id, name});
@@ -1366,7 +1366,7 @@ impl Clone for MuEntityHeader {
     fn clone(&self) -> Self {
         MuEntityHeader {
             id: self.id,
-            name: self.name.clone(),
+            name: self.name.clone()
         }
     }
 }
@@ -1504,14 +1504,14 @@ impl MuEntityHeader {
     pub fn unnamed(id: MuID) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: format!("#{}", id),
+            name: format!("#{}", id)
         }
     }
 
     pub fn named(id: MuID, name: MuName) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: name.replace('@', ""),
+            name: name.replace('@', "")
         }
     }
 
@@ -1532,7 +1532,7 @@ impl MuEntityHeader {
         for i in 0..split.len() - 1 {
             ret.push(match split[i].chars().next() {
                 Some(c) => c,
-                None => '_',
+                None => '_'
             });
             ret.push('.');
         }
@@ -1595,21 +1595,21 @@ impl MuEntity for TreeNode {
     fn id(&self) -> MuID {
         match self.v {
             TreeNode_::Instruction(ref inst) => inst.id(),
-            TreeNode_::Value(ref pv) => pv.id(),
+            TreeNode_::Value(ref pv) => pv.id()
         }
     }
 
     fn name(&self) -> MuName {
         match self.v {
             TreeNode_::Instruction(ref inst) => inst.name(),
-            TreeNode_::Value(ref pv) => pv.name(),
+            TreeNode_::Value(ref pv) => pv.name()
         }
     }
 
     fn as_entity(&self) -> &MuEntity {
         match self.v {
             TreeNode_::Instruction(ref inst) => inst.as_entity(),
-            TreeNode_::Value(ref pv) => pv.as_entity(),
+            TreeNode_::Value(ref pv) => pv.as_entity()
         }
     }
 }

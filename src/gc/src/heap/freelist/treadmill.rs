@@ -40,17 +40,17 @@ pub struct FreeListSpace {
     #[allow(dead_code)]
     mmap: memmap::Mmap,
 
-    treadmill: Mutex<Treadmill>,
+    treadmill: Mutex<Treadmill>
 }
 
 impl FreeListSpace {
     pub fn new(space_size: usize) -> FreeListSpace {
         let anon_mmap: memmap::Mmap = match memmap::Mmap::anonymous(
             space_size + SPACE_ALIGN,
-            memmap::Protection::ReadWrite,
+            memmap::Protection::ReadWrite
         ) {
             Ok(m) => m,
-            Err(_) => panic!("failed to call mmap"),
+            Err(_) => panic!("failed to call mmap")
         };
         let start: Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
         let end: Address = start + space_size;
@@ -70,7 +70,7 @@ impl FreeListSpace {
             alloc_map: Arc::new(alloc_map),
             trace_map: Arc::new(trace_map),
             mmap: anon_mmap,
-            treadmill: Mutex::new(treadmill),
+            treadmill: Mutex::new(treadmill)
         }
     }
 
@@ -116,7 +116,7 @@ impl FreeListSpace {
             self.trace_map(),
             self.start,
             unsafe { addr.to_object_reference() },
-            mark_state,
+            mark_state
         )
     }
 
@@ -263,7 +263,7 @@ struct Treadmill {
     from_space_next: usize, // next available node in from_space
     from: usize,
     to: usize,
-    spaces: [Vec<TreadmillNode>; 2],
+    spaces: [Vec<TreadmillNode>; 2]
 }
 
 impl Treadmill {
@@ -289,7 +289,7 @@ impl Treadmill {
             from_space_next: 0,
             from: 0,
             to: 1,
-            spaces: [from_space, to_space],
+            spaces: [from_space, to_space]
         }
     }
 
@@ -443,7 +443,7 @@ impl fmt::Display for Treadmill {
 }
 
 struct TreadmillNode {
-    payload: Address,
+    payload: Address
 }
 
 impl TreadmillNode {

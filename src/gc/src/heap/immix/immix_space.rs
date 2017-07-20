@@ -36,13 +36,13 @@ use std::sync::Arc;
 pub struct LineMarkTable {
     space_start: Address,
     ptr: *mut immix::LineMark,
-    len: usize,
+    len: usize
 }
 
 #[derive(Clone)]
 pub struct LineMarkTableSlice {
     ptr: *mut immix::LineMark,
-    len: usize,
+    len: usize
 }
 
 impl LineMarkTable {
@@ -67,14 +67,14 @@ impl LineMarkTable {
         LineMarkTable {
             space_start: space_start,
             ptr: line_mark_table,
-            len: line_mark_table_len,
+            len: line_mark_table_len
         }
     }
 
     pub fn take_slice(&mut self, start: usize, len: usize) -> LineMarkTableSlice {
         LineMarkTableSlice {
             ptr: unsafe { self.ptr.offset(start as isize) },
-            len: len,
+            len: len
         }
     }
 
@@ -158,7 +158,7 @@ pub struct ImmixSpace {
     #[allow(dead_code)]
     mmap: memmap::Mmap,
     usable_blocks: Mutex<LinkedList<Box<ImmixBlock>>>,
-    used_blocks: Mutex<LinkedList<Box<ImmixBlock>>>,
+    used_blocks: Mutex<LinkedList<Box<ImmixBlock>>>
 }
 
 pub struct ImmixBlock {
@@ -167,7 +167,7 @@ pub struct ImmixBlock {
     start: Address,
 
     // a segment of the big line mark table in ImmixSpace
-    line_mark_table: LineMarkTableSlice,
+    line_mark_table: LineMarkTableSlice
 }
 
 const SPACE_ALIGN: usize = 1 << 19;
@@ -177,10 +177,10 @@ impl ImmixSpace {
         // acquire memory through mmap
         let anon_mmap: memmap::Mmap = match memmap::Mmap::anonymous(
             space_size + SPACE_ALIGN,
-            memmap::Protection::ReadWrite,
+            memmap::Protection::ReadWrite
         ) {
             Ok(m) => m,
-            Err(_) => panic!("failed to call mmap"),
+            Err(_) => panic!("failed to call mmap")
         };
         let start: Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
         let end: Address = start + space_size;
@@ -207,7 +207,7 @@ impl ImmixSpace {
             alloc_map: Arc::new(alloc_map),
             usable_blocks: Mutex::new(LinkedList::new()),
             used_blocks: Mutex::new(LinkedList::new()),
-            total_blocks: 0,
+            total_blocks: 0
         };
 
         ret.init_blocks();
@@ -227,7 +227,7 @@ impl ImmixSpace {
                 id: id,
                 state: immix::BlockMark::Usable,
                 start: block_start,
-                line_mark_table: self.line_mark_table.take_slice(line, immix::LINES_IN_BLOCK),
+                line_mark_table: self.line_mark_table.take_slice(line, immix::LINES_IN_BLOCK)
             }));
 
             id += 1;

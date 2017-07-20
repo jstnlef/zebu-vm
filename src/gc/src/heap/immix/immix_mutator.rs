@@ -63,7 +63,7 @@ pub struct ImmixMutatorLocal {
     space: Arc<ImmixSpace>,
     block: Option<Box<ImmixBlock>>,
 
-    mark_state: u8,
+    mark_state: u8
 }
 
 lazy_static! {
@@ -73,7 +73,7 @@ lazy_static! {
 
 pub struct ImmixMutatorGlobal {
     take_yield: AtomicBool,
-    still_blocked: AtomicBool,
+    still_blocked: AtomicBool
 }
 
 impl ImmixMutatorLocal {
@@ -114,7 +114,7 @@ impl ImmixMutatorLocal {
             space_start: space.start(),
             global: global,
             space: space,
-            mark_state: objectmodel::INIT_MARK_STATE as u8,
+            mark_state: objectmodel::INIT_MARK_STATE as u8
         };
         *id_lock += 1;
 
@@ -291,7 +291,7 @@ impl ImmixMutatorLocal {
                     self.cursor = end;
                     start
                 }
-                None => self.alloc_from_global(size, align),
+                None => self.alloc_from_global(size, align)
             }
         } else {
             // we need to alloc from global space
@@ -391,7 +391,7 @@ impl ImmixMutatorGlobal {
     pub fn new() -> ImmixMutatorGlobal {
         ImmixMutatorGlobal {
             take_yield: AtomicBool::new(false),
-            still_blocked: AtomicBool::new(false),
+            still_blocked: AtomicBool::new(false)
         }
     }
 

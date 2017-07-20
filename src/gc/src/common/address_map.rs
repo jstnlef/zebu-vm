@@ -24,12 +24,12 @@ pub struct AddressMap<T: Copy> {
     end: Address,
 
     pub ptr: *mut T,
-    len: usize,
+    len: usize
 }
 
 impl<T> AddressMap<T>
 where
-    T: Copy,
+    T: Copy
 {
     pub fn new(start: Address, end: Address) -> AddressMap<T> {
         let len = (end - start) >> LOG_POINTER_SIZE;
@@ -39,7 +39,7 @@ where
             start: start,
             end: end,
             ptr: ptr,
-            len: len,
+            len: len
         }
     }
 

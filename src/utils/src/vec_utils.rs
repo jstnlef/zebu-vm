@@ -85,7 +85,7 @@ pub fn remove_value<T: PartialEq>(vec: &mut Vec<T>, val: T) {
 /// maps each element in the vector with a map function, and returns the new vector
 pub fn map<T, Q, F>(vec: &Vec<T>, map_func: F) -> Vec<Q>
 where
-    F: Fn(&T) -> Q,
+    F: Fn(&T) -> Q
 {
     let mut ret = vec![];
 

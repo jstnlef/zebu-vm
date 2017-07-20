@@ -65,7 +65,7 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
     pub fn pop_front(&mut self) -> Option<K> {
         match self.0.pop_front() {
             Some((k, _)) => Some(k),
-            None => None,
+            None => None
         }
     }
 
@@ -73,7 +73,7 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
     pub fn pop_back(&mut self) -> Option<K> {
         match self.0.pop_back() {
             Some((k, _)) => Some(k),
-            None => None,
+            None => None
         }
     }
 
@@ -86,7 +86,7 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
     pub fn contains<Q: ?Sized>(&self, k: &Q) -> bool
     where
         K: Borrow<Q>,
-        Q: Eq + Hash,
+        Q: Eq + Hash
     {
         self.0.contains_key(k)
     }
@@ -95,7 +95,7 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
     pub fn remove<Q: ?Sized>(&mut self, k: &Q)
     where
         K: Borrow<Q>,
-        Q: Eq + Hash,
+        Q: Eq + Hash
     {
         self.0.remove(k);
     }

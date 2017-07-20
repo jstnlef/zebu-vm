@@ -264,7 +264,7 @@ fn gc() {
 
     GC_COUNT.store(
         GC_COUNT.load(atomic::Ordering::SeqCst) + 1,
-        atomic::Ordering::SeqCst,
+        atomic::Ordering::SeqCst
     );
 
     trace!("GC starts");
@@ -308,7 +308,7 @@ pub static GC_THREADS: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 pub fn start_trace(
     work_stack: &mut Vec<ObjectReference>,
     immix_space: Arc<ImmixSpace>,
-    lo_space: Arc<FreeListSpace>,
+    lo_space: Arc<FreeListSpace>
 ) {
     // creates root deque
     let (mut worker, stealer) = deque();
@@ -339,13 +339,13 @@ pub fn start_trace(
             let recv = receiver.recv();
             match recv {
                 Ok(obj) => worker.push(obj),
-                Err(_) => break,
+                Err(_) => break
             }
         }
 
         match worker.try_pop() {
             Some(obj_ref) => worker.push(obj_ref),
-            None => break,
+            None => break
         }
     }
 }
@@ -355,7 +355,7 @@ fn start_steal_trace(
     stealer: Stealer<ObjectReference>,
     job_sender: mpsc::Sender<ObjectReference>,
     immix_space: Arc<ImmixSpace>,
-    lo_space: Arc<FreeListSpace>,
+    lo_space: Arc<FreeListSpace>
 ) {
     use objectmodel;
 
@@ -371,7 +371,7 @@ fn start_steal_trace(
                 match work {
                     Steal::Empty => return,
                     Steal::Abort => continue,
-                    Steal::Data(obj) => obj,
+                    Steal::Data(obj) => obj
                 }
             }
         };
@@ -382,7 +382,7 @@ fn start_steal_trace(
             &job_sender,
             mark_state,
             &immix_space,
-            &lo_space,
+            &lo_space
         );
     }
 }
@@ -395,7 +395,7 @@ pub fn steal_trace_object(
     job_sender: &mpsc::Sender<ObjectReference>,
     mark_state: u8,
     immix_space: &ImmixSpace,
-    lo_space: &FreeListSpace,
+    lo_space: &FreeListSpace
 ) {
     if cfg!(debug_assertions) {
         // check if this object in within the heap, if it is an object
@@ -423,7 +423,7 @@ pub fn steal_trace_object(
             immix_space.trace_map(),
             immix_space.start(),
             obj,
-            mark_state,
+            mark_state
         );
 
         // mark line
@@ -449,7 +449,7 @@ pub fn steal_trace_object(
         let value = objectmodel::get_ref_byte(alloc_map, space_start, obj);
         let (ref_bits, short_encode) = (
             bit_utils::lower_bits_u8(value, objectmodel::REF_BITS_LEN),
-            bit_utils::test_nth_bit_u8(value, objectmodel::SHORT_ENCODE_BIT),
+            bit_utils::test_nth_bit_u8(value, objectmodel::SHORT_ENCODE_BIT)
         );
         match ref_bits {
             0b0000_0000 => {}
@@ -461,7 +461,7 @@ pub fn steal_trace_object(
                     job_sender,
                     mark_state,
                     immix_space,
-                    lo_space,
+                    lo_space
                 );
             }
             0b0000_0011 => {
@@ -472,7 +472,7 @@ pub fn steal_trace_object(
                     job_sender,
                     mark_state,
                     immix_space,
-                    lo_space,
+                    lo_space
                 );
                 steal_process_edge(
                     base,
@@ -481,7 +481,7 @@ pub fn steal_trace_object(
                     job_sender,
                     mark_state,
                     immix_space,
-                    lo_space,
+                    lo_space
                 );
             }
             0b0000_1111 => {
@@ -492,7 +492,7 @@ pub fn steal_trace_object(
                     job_sender,
                     mark_state,
                     immix_space,
-                    lo_space,
+                    lo_space
                 );
                 steal_process_edge(
                     base,
@@ -501,7 +501,7 @@ pub fn steal_trace_object(
                     job_sender,
                     mark_state,
                     immix_space,
-                    lo_space,
+                    lo_space
                 );
                 steal_process_edge(
                     base,
@@ -510,7 +510,7 @@ pub fn steal_trace_object(
                     job_sender,
                     mark_state,
                     immix_space,
-                    lo_space,
+                    lo_space
                 );
                 steal_process_edge(
                     base,
@@ -519,7 +519,7 @@ pub fn steal_trace_object(
                     job_sender,
                     mark_state,
                     immix_space,
-                    lo_space,
+                    lo_space
                 );
             }
             _ => {
@@ -544,7 +544,7 @@ pub fn steal_trace_object(
     job_sender: &mpsc::Sender<ObjectReference>,
     mark_state: u8,
     immix_space: &ImmixSpace,
-    lo_space: &FreeListSpace,
+    lo_space: &FreeListSpace
 ) {
     if cfg!(debug_assertions) {
         // check if this object in within the heap, if it is an object
@@ -603,7 +603,7 @@ pub fn steal_trace_object(
                         job_sender,
                         mark_state,
                         immix_space,
-                        lo_space,
+                        lo_space
                     );
                 }
                 0b0000_0011 => {
@@ -614,7 +614,7 @@ pub fn steal_trace_object(
                         job_sender,
                         mark_state,
                         immix_space,
-                        lo_space,
+                        lo_space
                     );
                     steal_process_edge(
                         addr,
@@ -623,7 +623,7 @@ pub fn steal_trace_object(
                         job_sender,
                         mark_state,
                         immix_space,
-                        lo_space,
+                        lo_space
                     );
                 }
                 0b0000_1111 => {
@@ -634,7 +634,7 @@ pub fn steal_trace_object(
                         job_sender,
                         mark_state,
                         immix_space,
-                        lo_space,
+                        lo_space
                     );
                     steal_process_edge(
                         addr,
@@ -643,7 +643,7 @@ pub fn steal_trace_object(
                         job_sender,
                         mark_state,
                         immix_space,
-                        lo_space,
+                        lo_space
                     );
                     steal_process_edge(
                         addr,
@@ -652,7 +652,7 @@ pub fn steal_trace_object(
                         job_sender,
                         mark_state,
                         immix_space,
-                        lo_space,
+                        lo_space
                     );
                     steal_process_edge(
                         addr,
@@ -661,7 +661,7 @@ pub fn steal_trace_object(
                         job_sender,
                         mark_state,
                         immix_space,
-                        lo_space,
+                        lo_space
                     );
                 }
                 _ => {
@@ -679,7 +679,7 @@ pub fn steal_trace_object(
                                 job_sender,
                                 mark_state,
                                 immix_space,
-                                lo_space,
+                                lo_space
                             );
                         }
 
@@ -703,7 +703,7 @@ pub fn steal_trace_object(
                     job_sender,
                     mark_state,
                     immix_space,
-                    lo_space,
+                    lo_space
                 );
             }
         }
@@ -723,7 +723,7 @@ pub fn steal_trace_object(
                 job_sender,
                 mark_state,
                 immix_space,
-                lo_space,
+                lo_space
             );
         }
     }
@@ -738,7 +738,7 @@ pub fn steal_process_edge(
     job_sender: &mpsc::Sender<ObjectReference>,
     mark_state: u8,
     immix_space: &ImmixSpace,
-    lo_space: &FreeListSpace,
+    lo_space: &FreeListSpace
 ) {
     let field_addr = base.plus(offset);
     let edge = unsafe { field_addr.load::<ObjectReference>() };
@@ -758,7 +758,7 @@ pub fn steal_process_edge(
                     base,
                     immix_space.start(),
                     immix_space.trace_map(),
-                    immix_space.alloc_map(),
+                    immix_space.alloc_map()
                 );
                 println!("---");
                 println!("immix space:{}", immix_space);
@@ -767,7 +767,7 @@ pub fn steal_process_edge(
                     base,
                     lo_space.start(),
                     lo_space.trace_map(),
-                    lo_space.alloc_map(),
+                    lo_space.alloc_map()
                 );
                 println!("---");
                 println!("lo space:{}", lo_space);
@@ -786,7 +786,7 @@ pub fn steal_process_edge(
                 immix_space.trace_map(),
                 immix_space.start(),
                 edge,
-                mark_state,
+                mark_state
             ) {
             if local_queue.len() >= PUSH_BACK_THRESHOLD {
                 job_sender.send(edge).unwrap();
@@ -798,7 +798,7 @@ pub fn steal_process_edge(
                 lo_space.trace_map(),
                 lo_space.start(),
                 edge,
-                mark_state,
+                mark_state
             ) {
             if local_queue.len() >= PUSH_BACK_THRESHOLD {
                 job_sender.send(edge).unwrap();
@@ -818,7 +818,7 @@ pub fn steal_process_edge(
     job_sender: &mpsc::Sender<ObjectReference>,
     mark_state: u8,
     immix_space: &ImmixSpace,
-    lo_space: &FreeListSpace,
+    lo_space: &FreeListSpace
 ) {
     let field_addr = base + offset;
     let edge = unsafe { field_addr.load::<ObjectReference>() };

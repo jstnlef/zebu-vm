@@ -177,7 +177,7 @@ pub fn mark_as_traced(obj: ObjectReference, mark_state: u8) {
         hdr_addr.store(bit_utils::set_nth_bit_u64(
             hdr_addr.load::<u64>(),
             BIT_IS_TRACED,
-            mark_state,
+            mark_state
         ));
     }
 }
@@ -189,7 +189,7 @@ pub fn mark_as_untraced(addr: Address, mark_state: u8) {
         hdr_addr.store(bit_utils::set_nth_bit_u64(
             hdr_addr.load::<u64>(),
             BIT_IS_TRACED,
-            mark_state ^ 1,
+            mark_state ^ 1
         ));
     }
 }
@@ -321,8 +321,8 @@ mod tests {
             8,
             Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 16,
-            }),
+                size: 16
+            })
         );
         println!("gctype: {:?}", a);
 
@@ -344,8 +344,8 @@ mod tests {
             8,
             Some(RefPattern::Map {
                 offsets: vec![0, 8],
-                size: 32,
-            }),
+                size: 32
+            })
         );
         println!("gctype: {:?}", a);
 
@@ -368,8 +368,8 @@ mod tests {
             8,
             Some(RefPattern::Map {
                 offsets: (0..N_REF).map(|x| x * POINTER_SIZE).collect(),
-                size: N_REF * POINTER_SIZE,
-            }),
+                size: N_REF * POINTER_SIZE
+            })
         );
         println!("gctype: {:?}", a);
 
@@ -391,9 +391,9 @@ mod tests {
             None,
             Some(RefPattern::Map {
                 offsets: vec![0],
-                size: 16,
+                size: 16
             }),
-            16,
+            16
         );
         println!("gctype: {:?}", a);
 
@@ -415,10 +415,10 @@ mod tests {
             Some(RefPattern::Repeat {
                 pattern: Box::new(RefPattern::Map {
                     offsets: vec![0],
-                    size: 16,
+                    size: 16
                 }),
-                count: 10,
-            }),
+                count: 10
+            })
         );
 
         // hybrid(10) of array(10) of struct {ref, int64}
@@ -428,7 +428,7 @@ mod tests {
             8,
             None,
             Some(RefPattern::NestedType(vec![Arc::new(b.clone()).clone()])),
-            160,
+            160
         );
         println!("gctype: {:?}", a);
 

@@ -36,7 +36,7 @@ pub enum BinOp {
     FSub,
     FMul,
     FDiv,
-    FRem,
+    FRem
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -69,7 +69,7 @@ pub enum CmpOp {
     FULT,
     FULE,
     FUNE,
-    FUNO,
+    FUNO
 }
 
 impl CmpOp {
@@ -97,7 +97,7 @@ impl CmpOp {
             FUGT => FULT,
             FULT => FUGT,
 
-            _ => self, // all other comparisons are symmetric
+            _ => self // all other comparisons are symmetric
         }
     }
 
@@ -142,7 +142,7 @@ impl CmpOp {
             FONE => FUEQ,
 
             FFALSE => FTRUE,
-            FTRUE => FFALSE,
+            FTRUE => FFALSE
         }
     }
 
@@ -154,7 +154,7 @@ impl CmpOp {
             SLT => ULT,
             SGT => UGT,
             SLE => ULE,
-            _ => self,
+            _ => self
         }
     }
 
@@ -162,7 +162,7 @@ impl CmpOp {
         use op::CmpOp::*;
         match self {
             SGE | SLT | SGT | SLE => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -170,7 +170,7 @@ impl CmpOp {
         use op::CmpOp::*;
         match self {
             EQ | NE | SGE | SGT | SLE | SLT | UGE | UGT | ULE | ULT => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -178,7 +178,7 @@ impl CmpOp {
         use op::CmpOp::*;
         match self {
             EQ | NE | FORD | FUNO | FUNE | FUEQ | FONE | FOEQ => true,
-            _ => false,
+            _ => false
         }
     }
 }
@@ -196,7 +196,7 @@ pub enum ConvOp {
     SITOFP,
     BITCAST,
     REFCAST,
-    PTRCAST,
+    PTRCAST
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -211,5 +211,5 @@ pub enum AtomicRMWOp {
     MAX,
     MIN,
     UMAX,
-    UMIN,
+    UMIN
 }

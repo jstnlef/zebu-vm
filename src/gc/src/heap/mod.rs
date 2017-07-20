@@ -59,7 +59,7 @@ pub trait Space {
         // use side map
         if !bit_utils::test_nth_bit_u8(
             unsafe { *self.alloc_map().offset(index) },
-            objectmodel::OBJ_START_BIT,
+            objectmodel::OBJ_START_BIT
         ) {
             return false;
         }

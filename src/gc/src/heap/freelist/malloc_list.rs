@@ -25,7 +25,7 @@ pub struct FreeListSpace {
     node_id: usize,
 
     size: usize,
-    used_bytes: usize,
+    used_bytes: usize
 }
 
 impl FreeListSpace {
@@ -34,7 +34,7 @@ impl FreeListSpace {
             current_nodes: LinkedList::new(),
             node_id: 0,
             size: size,
-            used_bytes: 0,
+            used_bytes: 0
         }
     }
 
@@ -53,7 +53,7 @@ impl FreeListSpace {
                 id: self.node_id,
                 start: addr,
                 size: size,
-                mark: NodeMark::FreshAlloc,
+                mark: NodeMark::FreshAlloc
             }));
             self.node_id += 1;
             self.used_bytes += size;
@@ -106,7 +106,7 @@ pub struct FreeListNode {
     id: usize,
     start: Address,
     size: usize,
-    mark: NodeMark,
+    mark: NodeMark
 }
 
 impl FreeListNode {
@@ -119,7 +119,7 @@ impl FreeListNode {
 pub enum NodeMark {
     FreshAlloc,
     PrevLive,
-    Live,
+    Live
 }
 unsafe impl Sync for NodeMark {}
 
