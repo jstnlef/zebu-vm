@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,33 +24,36 @@ use std::sync::Arc;
 use std::fmt;
 use std::sync::Mutex;
 
-const SPACE_ALIGN : usize = 1 << 19;
-const BLOCK_SIZE  : usize = 1 << 12;    // 4kb
+const SPACE_ALIGN: usize = 1 << 19;
+const BLOCK_SIZE: usize = 1 << 12; // 4kb
 
-const TRACE_TREADMILL : bool = false;
+const TRACE_TREADMILL: bool = false;
 
 #[repr(C)]
 pub struct FreeListSpace {
-    start : Address,
-    end   : Address,
+    start: Address,
+    end: Address,
 
-    pub alloc_map : Arc<AddressMap<u8>>,
-    pub trace_map : Arc<AddressMap<u8>>,
+    pub alloc_map: Arc<AddressMap<u8>>,
+    pub trace_map: Arc<AddressMap<u8>>,
 
     #[allow(dead_code)]
-    mmap : memmap::Mmap,
+    mmap: memmap::Mmap,
 
     treadmill: Mutex<Treadmill>
 }
 
 impl FreeListSpace {
     pub fn new(space_size: usize) -> FreeListSpace {
-        let anon_mmap : memmap::Mmap = match memmap::Mmap::anonymous(space_size + SPACE_ALIGN, memmap::Protection::ReadWrite) {
+        let anon_mmap: memmap::Mmap = match memmap::Mmap::anonymous(
+            space_size + SPACE_ALIGN,
+            memmap::Protection::ReadWrite
+        ) {
             Ok(m) => m,
             Err(_) => panic!("failed to call mmap")
         };
-        let start : Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
-        let end   : Address = start + space_size;
+        let start: Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
+        let end: Address = start + space_size;
 
         let trace_map = AddressMap::new(start, end);
         let alloc_map = AddressMap::new(start, end);
@@ -109,13 +112,18 @@ impl FreeListSpace {
     #[inline(always)]
     #[cfg(feature = "use-sidemap")]
     fn is_traced(&self, addr: Address, mark_state: u8) -> bool {
-        objectmodel::is_traced(self.trace_map(), self.start, unsafe { addr.to_object_reference() }, mark_state)
+        objectmodel::is_traced(
+            self.trace_map(),
+            self.start,
+            unsafe { addr.to_object_reference() },
+            mark_state
+        )
     }
 
     #[inline(always)]
     #[cfg(not(feature = "use-sidemap"))]
     fn is_traced(&self, addr: Address, mark_state: u8) -> bool {
-        objectmodel::is_traced(unsafe{addr.to_object_reference()}, mark_state)
+        objectmodel::is_traced(unsafe { addr.to_object_reference() }, mark_state)
     }
 
     pub fn sweep(&self) {
@@ -134,7 +142,7 @@ impl FreeListSpace {
             let mark_state = objectmodel::load_mark_state();
 
             let from = treadmill.from;
-            let to   = treadmill.to;
+            let to = treadmill.to;
 
             let total_nodes = treadmill.spaces[from].len();
             let mut i = 0;
@@ -156,7 +164,7 @@ impl FreeListSpace {
 
                     trace!("is alive");
 
-                    // do not increment i
+                // do not increment i
                 } else {
                     free_nodes_scanned += 1;
                     i += 1;
@@ -176,13 +184,14 @@ impl FreeListSpace {
         // flip
         if treadmill.from == 0 {
             treadmill.from = 1;
-            treadmill.to   = 0;
+            treadmill.to = 0;
         } else {
             treadmill.from = 0;
-            treadmill.to   = 1;
+            treadmill.to = 1;
         }
 
-        // sort from_space from from_space_next so contiguous blocks are together (easier to allocate)
+        // sort from_space from from_space_next so contiguous blocks are together
+        // (easier to allocate)
         let from = treadmill.from;
         let ref mut from_space = treadmill.spaces[from];
 
@@ -245,16 +254,16 @@ impl fmt::Display for FreeListSpace {
         write!(f, "FreeListSpace\n").unwrap();
         write!(f, "range={:#X} ~ {:#X}\n", self.start, self.end).unwrap();
 
-        let treadmill : &Treadmill = &self.treadmill.lock().unwrap();
+        let treadmill: &Treadmill = &self.treadmill.lock().unwrap();
         write!(f, "treadmill: {}", treadmill)
     }
 }
 
-struct Treadmill{
-    from_space_next : usize, // next available node in from_space
+struct Treadmill {
+    from_space_next: usize, // next available node in from_space
     from: usize,
-    to  : usize,
-    spaces      : [Vec<TreadmillNode>; 2]
+    to: usize,
+    spaces: [Vec<TreadmillNode>; 2]
 }
 
 impl Treadmill {
@@ -262,7 +271,7 @@ impl Treadmill {
         let half_space = start + ((end - start) / 2);
 
         let mut from_space = vec![];
-        let mut to_space   = vec![];
+        let mut to_space = vec![];
 
         let mut addr = start;
 
@@ -279,7 +288,7 @@ impl Treadmill {
         Treadmill {
             from_space_next: 0,
             from: 0,
-            to  : 1,
+            to: 1,
             spaces: [from_space, to_space]
         }
     }
@@ -288,7 +297,11 @@ impl Treadmill {
         match self.find_contiguous_blocks(n_blocks) {
             Some(start) => {
                 if TRACE_TREADMILL {
-                    trace!("found contiguous {} blocks, starting from {}", n_blocks, start);
+                    trace!(
+                        "found contiguous {} blocks, starting from {}",
+                        n_blocks,
+                        start
+                    );
                 }
 
                 let ref mut from_space = self.spaces[self.from];
@@ -352,14 +365,15 @@ impl Treadmill {
                 if TRACE_TREADMILL {
                     trace!("cannot find {} contiguous blocks", n_blocks);
                 }
-                unsafe {Address::zero()}
+                unsafe { Address::zero() }
             }
         }
     }
 
     fn find_contiguous_blocks(&mut self, n_blocks: usize) -> Option<usize> {
         // e.g. we have 10 blocks, and we require 3 blocks,
-        // we wont be able to find contiguous blocks if starting block is more than 7 (only 8, 9 might be available)
+        // we wont be able to find contiguous blocks if starting block is more than 7
+        // (only 8, 9 might be available)
         // 7 = 10 (total) - 3 (required)
         // Rust range is exclusive of the end, so we use (total - required + 1)
 
@@ -434,9 +448,7 @@ struct TreadmillNode {
 
 impl TreadmillNode {
     fn new(addr: Address) -> TreadmillNode {
-        TreadmillNode {
-            payload: addr
-        }
+        TreadmillNode { payload: addr }
     }
 }
 

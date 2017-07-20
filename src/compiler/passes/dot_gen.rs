@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,12 +23,12 @@ use std::path;
 use std::io::prelude::*;
 use std::fs::File;
 
-pub const EMIT_MUIR : bool = true;
+pub const EMIT_MUIR: bool = true;
 
 pub fn create_emit_directory(vm: &VM) {
     use std::fs;
     match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(_) => {}
     }
 }
@@ -39,21 +39,27 @@ fn create_emit_file(name: String, vm: &VM) -> File {
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
-        Err(why) => panic!("couldn't create emit file {}: {}", file_path.to_str().unwrap(), why),
+        Err(why) => {
+            panic!(
+                "couldn't create emit file {}: {}",
+                file_path.to_str().unwrap(),
+                why
+            )
+        }
         Ok(file) => file
     }
 }
 
 pub struct DotGen {
     name: &'static str,
-    suffix: &'static str,
+    suffix: &'static str
 }
 
 impl DotGen {
     pub fn new(suffix: &'static str) -> DotGen {
         DotGen {
             name: "DotGen",
-            suffix: suffix,
+            suffix: suffix
         }
     }
 }
@@ -69,7 +75,13 @@ fn emit_muir(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
     file_path.push(func_name.clone() + suffix + ".muir");
     let mut file = match File::create(file_path.as_path()) {
-        Err(why) => panic!("couldn't create muir file {}: {}", file_path.to_str().unwrap(), why),
+        Err(why) => {
+            panic!(
+                "couldn't create muir file {}: {}",
+                file_path.to_str().unwrap(),
+                why
+            )
+        }
         Ok(file) => file
     };
 
@@ -87,16 +99,20 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
     file_path.push(func_name.clone() + suffix + ".dot");
 
     let mut file = match File::create(file_path.as_path()) {
-        Err(why) => panic!("couldnt create muir dot {}: {}", file_path.to_str().unwrap(), why),
+        Err(why) => {
+            panic!(
+                "couldnt create muir dot {}: {}",
+                file_path.to_str().unwrap(),
+                why
+            )
+        }
         Ok(file) => file
     };
 
     emit_muir_dot_inner(&mut file, func_name.clone(), func.content.as_ref().unwrap());
 }
 
-fn emit_muir_dot_inner(file: &mut File,
-                       f_name: String,
-                       f_content: &FunctionContent) {
+fn emit_muir_dot_inner(file: &mut File, f_name: String, f_content: &FunctionContent) {
     use utils::vec_utils;
 
     // digraph func {
@@ -146,83 +162,146 @@ fn emit_muir_dot_inner(file: &mut File,
 
                 match inst.v {
                     Branch1(ref dest) => {
-                        writeln!(file, "BB{} -> BB{} [label = \"{}\"];",
-                            cur_block, dest.target, vec_utils::as_str(&dest.get_arguments(&ops))
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"{}\"];",
+                            cur_block,
+                            dest.target,
+                            vec_utils::as_str(&dest.get_arguments(&ops))
                         ).unwrap();
                     }
-                    Branch2{ref true_dest, ref false_dest, ..} => {
-                        writeln!(file, "BB{} -> BB{} [label = \"true: {}\"]",
-                            cur_block, true_dest.target, vec_utils::as_str(&true_dest.get_arguments(&ops))
+                    Branch2 {
+                        ref true_dest,
+                        ref false_dest,
+                        ..
+                    } => {
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"true: {}\"]",
+                            cur_block,
+                            true_dest.target,
+                            vec_utils::as_str(&true_dest.get_arguments(&ops))
                         ).unwrap();
-                        writeln!(file, "BB{} -> BB{} [label = \"false: {}\"]",
-                            cur_block, false_dest.target, vec_utils::as_str(&false_dest.get_arguments(&ops))
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"false: {}\"]",
+                            cur_block,
+                            false_dest.target,
+                            vec_utils::as_str(&false_dest.get_arguments(&ops))
                         ).unwrap();
                     }
-                    Switch{ref default, ref branches, ..} => {
+                    Switch {
+                        ref default,
+                        ref branches,
+                        ..
+                    } => {
                         for &(op, ref dest) in branches.iter() {
-                            writeln!(file, "BB{} -> BB{} [label = \"case {}: {}\"]",
-                                cur_block, dest.target, ops[op], vec_utils::as_str(&dest.get_arguments(&ops))
+                            writeln!(
+                                file,
+                                "BB{} -> BB{} [label = \"case {}: {}\"]",
+                                cur_block,
+                                dest.target,
+                                ops[op],
+                                vec_utils::as_str(&dest.get_arguments(&ops))
                             ).unwrap();
                         }
 
-                        writeln!(file, "BB{} -> BB{} [label = \"default: {}\"]",
-                            cur_block, default.target, vec_utils::as_str(&default.get_arguments(&ops))
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"default: {}\"]",
+                            cur_block,
+                            default.target,
+                            vec_utils::as_str(&default.get_arguments(&ops))
                         ).unwrap();
                     }
-                    Call{ref resume, ..}
-                    | CCall{ref resume, ..}
-                    | SwapStack{ref resume, ..}
-                    | ExnInstruction{ref resume, ..} => {
+                    Call { ref resume, .. } |
+                    CCall { ref resume, .. } |
+                    SwapStack { ref resume, .. } |
+                    ExnInstruction { ref resume, .. } => {
                         let ref normal = resume.normal_dest;
-                        let ref exn    = resume.exn_dest;
+                        let ref exn = resume.exn_dest;
 
-                        writeln!(file, "BB{} -> BB{} [label = \"normal: {}\"];",
-                            cur_block, normal.target, vec_utils::as_str(&normal.get_arguments(&ops))
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"normal: {}\"];",
+                            cur_block,
+                            normal.target,
+                            vec_utils::as_str(&normal.get_arguments(&ops))
                         ).unwrap();
 
-                        writeln!(file, "BB{} -> BB{} [label = \"exception: {}\"];",
-                            cur_block, exn.target, vec_utils::as_str(&exn.get_arguments(&ops))
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"exception: {}\"];",
+                            cur_block,
+                            exn.target,
+                            vec_utils::as_str(&exn.get_arguments(&ops))
                         ).unwrap();
                     }
-                    Watchpoint{ref id, ref disable_dest, ref resume, ..} if id.is_some() => {
+                    Watchpoint {
+                        ref id,
+                        ref disable_dest,
+                        ref resume,
+                        ..
+                    } if id.is_some() => {
                         let ref normal = resume.normal_dest;
-                        let ref exn    = resume.exn_dest;
+                        let ref exn = resume.exn_dest;
 
                         if id.is_some() {
                             let disable_dest = disable_dest.as_ref().unwrap();
-                            writeln!(file, "BB{} -> {} [label = \"disabled: {}\"];",
-                                 cur_block, disable_dest.target, vec_utils::as_str(&disable_dest.get_arguments(&ops))
+                            writeln!(
+                                file,
+                                "BB{} -> {} [label = \"disabled: {}\"];",
+                                cur_block,
+                                disable_dest.target,
+                                vec_utils::as_str(&disable_dest.get_arguments(&ops))
                             ).unwrap();
                         }
 
 
-                        writeln!(file, "BB{} -> BB{} [label = \"normal: {}\"];",
-                             cur_block, normal.target, vec_utils::as_str(&normal.get_arguments(&ops))
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"normal: {}\"];",
+                            cur_block,
+                            normal.target,
+                            vec_utils::as_str(&normal.get_arguments(&ops))
                         ).unwrap();
 
-                        writeln!(file, "BB{} -> BB{} [label = \"exception: {}\"];",
-                             cur_block, exn.target, vec_utils::as_str(&exn.get_arguments(&ops))
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"exception: {}\"];",
+                            cur_block,
+                            exn.target,
+                            vec_utils::as_str(&exn.get_arguments(&ops))
                         ).unwrap();
                     }
-                    WPBranch{ref disable_dest, ref enable_dest, ..} => {
-                        writeln!(file, "BB{} -> BB{} [label = \"disabled: {}\"];",
-                            cur_block, disable_dest.target, vec_utils::as_str(&disable_dest.get_arguments(&ops))
+                    WPBranch {
+                        ref disable_dest,
+                        ref enable_dest,
+                        ..
+                    } => {
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"disabled: {}\"];",
+                            cur_block,
+                            disable_dest.target,
+                            vec_utils::as_str(&disable_dest.get_arguments(&ops))
                         ).unwrap();
 
-                        writeln!(file, "BB{} -> BB{} [label = \"enabled: {}\"];",
-                            cur_block, enable_dest.target, vec_utils::as_str(&enable_dest.get_arguments(&ops))
+                        writeln!(
+                            file,
+                            "BB{} -> BB{} [label = \"enabled: {}\"];",
+                            cur_block,
+                            enable_dest.target,
+                            vec_utils::as_str(&enable_dest.get_arguments(&ops))
                         ).unwrap();
                     }
-                    Return(_)
-                    | Throw(_)
-                    | ThreadExit
-                    | TailCall(_) => {}
+                    Return(_) | Throw(_) | ThreadExit | TailCall(_) => {}
 
                     _ => {
                         panic!("unexpected terminating instruction: {}", inst);
                     }
                 }
-            },
+            }
             TreeNode_::Value(_) => {
                 panic!("expected last tree node to be an instruction");
             }

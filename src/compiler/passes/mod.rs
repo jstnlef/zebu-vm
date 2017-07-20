@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,6 +21,10 @@ use std::any::Any;
 /// the inlined function
 mod inlining;
 pub use compiler::passes::inlining::Inlining;
+
+/// A pass to check and rewrite RET instructions to ensure a single return sink for every function
+mod ret_sink;
+pub use compiler::passes::ret_sink::RetSink;
 
 /// A Def-Use pass. Getting use info and count for SSA variables in the IR (we are not collecting
 /// define info)

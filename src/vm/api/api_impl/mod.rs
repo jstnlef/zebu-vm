@@ -17,9 +17,9 @@
 //! Structs are written in idiomatic Rust code. The internal structures of these structs are
 //! implementation-specific. Methods are defined using `impl`.
 
-#![allow(unused_imports)]   // work in progress
+#![allow(unused_imports)] // work in progress
 #![allow(unused_variables)] // stubs
-#![allow(dead_code)]        // stubs
+#![allow(dead_code)] // stubs
 
 mod muvm;
 mod muctx;
@@ -59,4 +59,3 @@ mod common {
 
     pub use vm::handle::*;
 }
-

@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,7 +29,8 @@ fn test_double_add() {
     let lib = linkutils::aot::compile_fnc("double_add", &double_add);
 
     unsafe {
-        let double_add : libloading::Symbol<unsafe extern fn(f64, f64) -> f64> = lib.get(b"double_add").unwrap();
+        let double_add: libloading::Symbol<unsafe extern "C" fn(f64, f64) -> f64> =
+            lib.get(b"double_add").unwrap();
 
         let double_add_1_1 = double_add(1f64, 1f64);
         println!("double_add(1, 1) = {}", double_add_1_1);
@@ -79,7 +80,8 @@ fn test_float_add() {
     let lib = linkutils::aot::compile_fnc("float_add", &float_add);
 
     unsafe {
-        let float_add : libloading::Symbol<unsafe extern fn(f32, f32) -> f32> = lib.get(b"float_add").unwrap();
+        let float_add: libloading::Symbol<unsafe extern "C" fn(f32, f32) -> f32> =
+            lib.get(b"float_add").unwrap();
 
         let float_add_1_1 = float_add(1f32, 1f32);
         println!("float_add(1, 1) = {}", float_add_1_1);
@@ -129,7 +131,8 @@ fn test_fp_ogt_branch() {
     let lib = linkutils::aot::compile_fnc("fp_ogt_branch", &fp_ogt_branch);
 
     unsafe {
-        let fp_ogt : libloading::Symbol<unsafe extern fn(f64, f64) -> u32> = lib.get(b"fp_ogt_branch").unwrap();
+        let fp_ogt: libloading::Symbol<unsafe extern "C" fn(f64, f64) -> u32> =
+            lib.get(b"fp_ogt_branch").unwrap();
 
         let res = fp_ogt(-1f64, 0f64);
         println!("fp_ogt(-1, 0) = {}", res);
@@ -233,7 +236,8 @@ fn test_sitofp() {
     let lib = linkutils::aot::compile_fnc("sitofp", &sitofp);
 
     unsafe {
-        let sitofp : libloading::Symbol<unsafe extern fn(i64) -> f64> = lib.get(b"sitofp").unwrap();
+        let sitofp: libloading::Symbol<unsafe extern "C" fn(i64) -> f64> =
+            lib.get(b"sitofp").unwrap();
 
         let res = sitofp(-1i64);
         println!("sitofp(-1) = {}", res);
@@ -286,7 +290,8 @@ fn test_ui64tofp() {
     let lib = linkutils::aot::compile_fnc("ui64tofp", &ui64tofp);
 
     unsafe {
-        let ui64tofp : libloading::Symbol<unsafe extern fn(u64) -> f64> = lib.get(b"ui64tofp").unwrap();
+        let ui64tofp: libloading::Symbol<unsafe extern "C" fn(u64) -> f64> =
+            lib.get(b"ui64tofp").unwrap();
 
         let res = ui64tofp(0u64);
         println!("ui64tofp(0) = {}", res);
@@ -335,7 +340,8 @@ fn test_ui64tofp_float() {
     let lib = linkutils::aot::compile_fnc("ui64tofp_float", &ui64tofp_float);
 
     unsafe {
-        let ui64tofp_float : libloading::Symbol<unsafe extern fn(u64) -> f32> = lib.get(b"ui64tofp_float").unwrap();
+        let ui64tofp_float: libloading::Symbol<unsafe extern "C" fn(u64) -> f32> =
+            lib.get(b"ui64tofp_float").unwrap();
 
         let res = ui64tofp_float(0u64);
         println!("ui64tofp_float(0) = {}", res);
@@ -384,7 +390,8 @@ fn test_ui32tofp() {
     let lib = linkutils::aot::compile_fnc("ui32tofp", &ui32tofp);
 
     unsafe {
-        let ui32tofp : libloading::Symbol<unsafe extern fn(u32) -> f64> = lib.get(b"ui32tofp").unwrap();
+        let ui32tofp: libloading::Symbol<unsafe extern "C" fn(u32) -> f64> =
+            lib.get(b"ui32tofp").unwrap();
 
         let res = ui32tofp(0u32);
         println!("ui32tofp(0) = {}", res);
@@ -433,7 +440,8 @@ fn test_ui16tofp() {
     let lib = linkutils::aot::compile_fnc("ui16tofp", &ui16tofp);
 
     unsafe {
-        let ui16tofp : libloading::Symbol<unsafe extern fn(u16) -> f64> = lib.get(b"ui16tofp").unwrap();
+        let ui16tofp: libloading::Symbol<unsafe extern "C" fn(u16) -> f64> =
+            lib.get(b"ui16tofp").unwrap();
 
         let res = ui16tofp(0u16);
         println!("ui16tofp(0) = {}", res);
@@ -482,7 +490,8 @@ fn test_ui8tofp() {
     let lib = linkutils::aot::compile_fnc("ui8tofp", &ui8tofp);
 
     unsafe {
-        let ui8tofp : libloading::Symbol<unsafe extern fn(u8) -> f64> = lib.get(b"ui8tofp").unwrap();
+        let ui8tofp: libloading::Symbol<unsafe extern "C" fn(u8) -> f64> =
+            lib.get(b"ui8tofp").unwrap();
 
         let res = ui8tofp(0u8);
         println!("ui8tofp(0) = {}", res);
@@ -531,7 +540,8 @@ fn test_fptoui64() {
     let lib = linkutils::aot::compile_fnc("fptoui64", &fptoui64);
 
     unsafe {
-        let fptoui64 : libloading::Symbol<unsafe extern fn(f64) -> u64> = lib.get(b"fptoui64").unwrap();
+        let fptoui64: libloading::Symbol<unsafe extern "C" fn(f64) -> u64> =
+            lib.get(b"fptoui64").unwrap();
 
         let res = fptoui64(0f64);
         println!("fptoui64(0) = {}", res);
@@ -580,7 +590,8 @@ fn test_fptoui32() {
     let lib = linkutils::aot::compile_fnc("fptoui32", &fptoui32);
 
     unsafe {
-        let fptoui32 : libloading::Symbol<unsafe extern fn(f64) -> u32> = lib.get(b"fptoui32").unwrap();
+        let fptoui32: libloading::Symbol<unsafe extern "C" fn(f64) -> u32> =
+            lib.get(b"fptoui32").unwrap();
 
         let res = fptoui32(0f64);
         println!("fptoui32(0) = {}", res);
@@ -629,7 +640,8 @@ fn test_fptoui16() {
     let lib = linkutils::aot::compile_fnc("fptoui16", &fptoui16);
 
     unsafe {
-        let fptoui16 : libloading::Symbol<unsafe extern fn(f64) -> u16> = lib.get(b"fptoui16").unwrap();
+        let fptoui16: libloading::Symbol<unsafe extern "C" fn(f64) -> u16> =
+            lib.get(b"fptoui16").unwrap();
 
         let res = fptoui16(0f64);
         println!("fptoui16(0) = {}", res);
@@ -678,7 +690,8 @@ fn test_fptoui8() {
     let lib = linkutils::aot::compile_fnc("fptoui8", &fptoui8);
 
     unsafe {
-        let fptoui8 : libloading::Symbol<unsafe extern fn(f64) -> u8> = lib.get(b"fptoui8").unwrap();
+        let fptoui8: libloading::Symbol<unsafe extern "C" fn(f64) -> u8> =
+            lib.get(b"fptoui8").unwrap();
 
         let res = fptoui8(0f64);
         println!("fptoui8(0) = {}", res);
@@ -729,9 +742,21 @@ fn test_fp_arraysum() {
     let lib = linkutils::aot::compile_fnc("fp_arraysum", &fp_arraysum);
 
     unsafe {
-        let fp_arraysum : libloading::Symbol<unsafe extern fn(*const c_double, u64) -> f64> = lib.get(b"fp_arraysum").unwrap();
+        let fp_arraysum: libloading::Symbol<unsafe extern "C" fn(*const c_double, u64) -> f64> =
+            lib.get(b"fp_arraysum").unwrap();
 
-        let array : [f64; 10] = [0f64, 0.1f64, 0.2f64, 0.3f64, 0.4f64, 0.5f64, 0.6f64, 0.7f64, 0.8f64, 0.9f64];
+        let array: [f64; 10] = [
+            0f64,
+            0.1f64,
+            0.2f64,
+            0.3f64,
+            0.4f64,
+            0.5f64,
+            0.6f64,
+            0.7f64,
+            0.8f64,
+            0.9f64,
+        ];
         let c_array = array.as_ptr() as *const c_double;
 
         let res = fp_arraysum(c_array, 10);
@@ -771,7 +796,9 @@ fn fp_arraysum() -> VM {
         BRANCH blk1 (blk_entry_arr, double_0_local, int64_0_local, blk_entry_sz)
     );
 
-    define_block!   ((vm, fp_arraysum_v1) blk_entry(blk_entry_arr, blk_entry_sz) {blk_entry_branch});
+    define_block!   ((vm, fp_arraysum_v1) blk_entry(blk_entry_arr, blk_entry_sz) {
+        blk_entry_branch
+    });
 
     // blk1
     ssa!        ((vm, fp_arraysum_v1) <uptr_hybrid> blk1_arr);

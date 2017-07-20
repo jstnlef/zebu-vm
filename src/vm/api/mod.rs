@@ -25,14 +25,14 @@
 //! within the same directory).
 
 /// generated from muapi.h, and it declares structs/types in API
-pub mod api_c;      // This is pub because `api_c` can be used directly. It is just an interface.
+pub mod api_c; // This is pub because `api_c` can be used directly. It is just an interface.
 
 /// generated code to bridge C API to internal representation in a Rust-friendly way
-mod api_bridge;     // This is mostly auto-generatd code, and should not be used externally.
+mod api_bridge; // This is mostly auto-generatd code, and should not be used externally.
 
 /// implements __api_impl_stubs.rs that is generated from the API
 /// this actually implements the API calls
-mod api_impl;       // Mostly private.
+mod api_impl; // Mostly private.
 
 /// creates a Zebu instance with default options
 /// There is no standard API to create a Mu VM (it is implementation dependent)
@@ -48,5 +48,5 @@ mod deps {
     pub use ast::ir::MuName;
     pub use ast::ir::CName;
     pub use vm::handle::APIHandle;
-    extern crate ast;
+    extern crate mu_ast as ast;
 }

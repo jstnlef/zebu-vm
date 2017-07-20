@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,8 +31,8 @@ use std::cell::RefCell;
 use compiler::backend::reg_alloc::graph_coloring::liveness::Move;
 use compiler::backend::reg_alloc::graph_coloring::petgraph::graph::NodeIndex;
 
-const COALESCING : bool = true;
-const MAX_REWRITE_ITERATIONS_ALLOWED : usize = 10;
+const COALESCING: bool = true;
+const MAX_REWRITE_ITERATIONS_ALLOWED: usize = 10;
 
 /// GraphColoring algorithm
 /// based on Appel's book section 11.4
@@ -95,21 +95,37 @@ pub struct GraphColoring<'a> {
     spill_scratch_temps: LinkedHashMap<MuID, MuID>
 }
 
-impl <'a> GraphColoring<'a> {
+impl<'a> GraphColoring<'a> {
     /// starts coloring
-    pub fn start (func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a> {
-        GraphColoring::start_with_spill_history(LinkedHashMap::new(), LinkedHashMap::new(), 0, func, cf, vm)
+    pub fn start(
+        func: &'a mut MuFunctionVersion,
+        cf: &'a mut CompiledFunction,
+        vm: &'a VM
+    ) -> GraphColoring<'a> {
+        GraphColoring::start_with_spill_history(
+            LinkedHashMap::new(),
+            LinkedHashMap::new(),
+            0,
+            func,
+            cf,
+            vm
+        )
     }
 
     /// restarts coloring with spill history
-    fn start_with_spill_history(spill_history: LinkedHashMap<MuID, P<Value>>,
-                                spill_scratch_temps: LinkedHashMap<MuID, MuID>,
-                                iteration_count: usize,
-                                func: &'a mut MuFunctionVersion, cf: &'a mut CompiledFunction, vm: &'a VM) -> GraphColoring<'a>
-    {
-        assert!(iteration_count < MAX_REWRITE_ITERATIONS_ALLOWED,
+    fn start_with_spill_history(
+        spill_history: LinkedHashMap<MuID, P<Value>>,
+        spill_scratch_temps: LinkedHashMap<MuID, MuID>,
+        iteration_count: usize,
+        func: &'a mut MuFunctionVersion,
+        cf: &'a mut CompiledFunction,
+        vm: &'a VM
+    ) -> GraphColoring<'a> {
+        assert!(
+            iteration_count < MAX_REWRITE_ITERATIONS_ALLOWED,
             "reach graph coloring max rewrite iterations ({}), probably something is going wrong",
-            MAX_REWRITE_ITERATIONS_ALLOWED);
+            MAX_REWRITE_ITERATIONS_ALLOWED
+        );
         let iteration_count = iteration_count + 1;
 
         trace!("Initializing coloring allocator...");
@@ -147,7 +163,7 @@ impl <'a> GraphColoring<'a> {
             worklist_freeze: LinkedHashSet::new(),
             frozen_moves: LinkedHashSet::new(),
             worklist_simplify: LinkedHashSet::new(),
-            select_stack: Vec::new(),
+            select_stack: Vec::new()
         };
 
         coloring.regalloc()
@@ -166,7 +182,11 @@ impl <'a> GraphColoring<'a> {
 
     /// returns formatted string for a move
     fn display_move(&self, m: Move) -> String {
-        format!("Move: {} -> {}", self.display_node(m.from), self.display_node(m.to))
+        format!(
+            "Move: {} -> {}",
+            self.display_node(m.from),
+            self.display_node(m.to)
+        )
     }
 
     /// does coloring register allocation
@@ -176,14 +196,14 @@ impl <'a> GraphColoring<'a> {
 
         // start timing for graph coloring
         let _p = hprof::enter("regalloc: graph coloring");
-        
+
         // precolor for all machine registers
         for reg in backend::all_regs().values() {
             let reg_id = reg.extract_ssa_id().unwrap();
             let node = self.ig.get_node(reg_id);
             self.precolored.insert(node);
         }
-        
+
         // put usable registers as available colors
         for reg in backend::all_usable_regs().iter() {
             let reg_id = reg.extract_ssa_id().unwrap();
@@ -216,11 +236,9 @@ impl <'a> GraphColoring<'a> {
             } else if !self.worklist_spill.is_empty() {
                 self.select_spill();
             }
-            
-            ! (self.worklist_simplify.is_empty()
-            && self.worklist_moves.is_empty()
-            && self.worklist_freeze.is_empty()
-            && self.worklist_spill.is_empty())
+
+            !(self.worklist_simplify.is_empty() && self.worklist_moves.is_empty() &&
+                  self.worklist_freeze.is_empty() && self.worklist_spill.is_empty())
         } {}
 
         // pick color for nodes
@@ -243,12 +261,19 @@ impl <'a> GraphColoring<'a> {
             self.rewrite_program();
 
             // recursively redo graph coloring
-            return GraphColoring::start_with_spill_history(self.spill_history.clone(), self.spill_scratch_temps.clone(), self.iteration_count, self.func, self.cf, self.vm);
+            return GraphColoring::start_with_spill_history(
+                self.spill_history.clone(),
+                self.spill_scratch_temps.clone(),
+                self.iteration_count,
+                self.func,
+                self.cf,
+                self.vm
+            );
         }
 
         self
     }
-    
+
     fn build(&mut self) {
         if COALESCING {
             trace!("coalescing enabled, build move list");
@@ -257,14 +282,18 @@ impl <'a> GraphColoring<'a> {
             for m in ig.moves().iter() {
                 trace!("add to movelist: {:?}", m);
                 self.worklist_moves.push(m.clone());
-                GraphColoring::movelist_mut(movelist, m.from).borrow_mut().push(m.clone());
-                GraphColoring::movelist_mut(movelist, m.to).borrow_mut().push(m.clone());
+                GraphColoring::movelist_mut(movelist, m.from)
+                    .borrow_mut()
+                    .push(m.clone());
+                GraphColoring::movelist_mut(movelist, m.to)
+                    .borrow_mut()
+                    .push(m.clone());
             }
         } else {
             trace!("coalescing disabled");
         }
     }
-    
+
     fn make_work_list(&mut self) {
         trace!("Making work list from initials...");
         while !self.initial.is_empty() {
@@ -274,25 +303,34 @@ impl <'a> GraphColoring<'a> {
                 // condition: degree >= K
                 let degree = self.ig.get_degree_of(node);
                 let n_regs = self.n_regs_for_node(node);
-                
+
                 degree >= n_regs
             } {
-                trace!("{} 's degree >= reg number limit (K), push to spill list", self.display_node(node));
+                trace!(
+                    "{} 's degree >= reg number limit (K), push to spill list",
+                    self.display_node(node)
+                );
                 self.worklist_spill.push(node);
             } else if self.is_move_related(node) {
-                trace!("{} is move related, push to freeze list", self.display_node(node));
+                trace!(
+                    "{} is move related, push to freeze list",
+                    self.display_node(node)
+                );
                 self.worklist_freeze.insert(node);
             } else {
-                trace!("{} has small degree and not move related, push to simplify list", self.display_node(node));
+                trace!(
+                    "{} has small degree and not move related, push to simplify list",
+                    self.display_node(node)
+                );
                 self.worklist_simplify.insert(node);
             }
         }
     }
-    
+
     fn n_regs_for_node(&self, node: NodeIndex) -> usize {
         backend::number_of_usable_regs_in_group(self.ig.get_group_of(node))
     }
-    
+
     fn is_move_related(&mut self, node: NodeIndex) -> bool {
         !self.node_moves(node).is_empty()
     }
@@ -306,20 +344,20 @@ impl <'a> GraphColoring<'a> {
             true
         }
     }
-    
+
     fn node_moves(&mut self, node: NodeIndex) -> LinkedHashSet<Move> {
         let mut moves = LinkedHashSet::new();
-        
+
         // addAll(active_moves)
         for m in self.active_moves.iter() {
             moves.insert(m.clone());
         }
-        
+
         // addAll(worklist_moves)
         for m in self.worklist_moves.iter() {
             moves.insert(m.clone());
         }
-        
+
         let mut retained = LinkedHashSet::new();
         let movelist = &GraphColoring::movelist_mut(&mut self.movelist, node).borrow();
         for m in moves.iter() {
@@ -327,99 +365,114 @@ impl <'a> GraphColoring<'a> {
                 retained.insert(*m);
             }
         }
-        
+
         retained
     }
-    
+
     // avoid using &mut self as argument
     // in build(), we will need to mutate on self.movelist while
     // holding an immmutable reference of self(self.ig)
-    fn movelist_mut(list: &mut LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) -> &RefCell<Vec<Move>> {
+    fn movelist_mut(
+        list: &mut LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>,
+        node: NodeIndex
+    ) -> &RefCell<Vec<Move>> {
         GraphColoring::movelist_check(list, node);
-        unsafe {GraphColoring::movelist_nocheck(list, node)}
+        unsafe { GraphColoring::movelist_nocheck(list, node) }
     }
-    
+
     fn movelist_check(list: &mut LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) {
         if !list.contains_key(&node) {
             list.insert(node, RefCell::new(Vec::new()));
         }
     }
-    
+
     // allows getting the Vec<Move> without a mutable reference of the hashmap
-    unsafe fn movelist_nocheck(list: &LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>, node: NodeIndex) -> &RefCell<Vec<Move>> {
+    unsafe fn movelist_nocheck(
+        list: &LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>,
+        node: NodeIndex
+    ) -> &RefCell<Vec<Move>> {
         list.get(&node).unwrap()
     }
-    
+
     fn simplify(&mut self) {
         // remove next element from worklist_simplify, we know its not empty
         let node = self.worklist_simplify.pop_front().unwrap();
-        
+
         trace!("Simplifying {}", self.display_node(node));
-        
+
         self.select_stack.push(node);
         for m in self.adjacent(node).iter() {
             self.decrement_degree(*m);
         }
     }
-    
+
     fn adjacent(&self, n: NodeIndex) -> LinkedHashSet<NodeIndex> {
         let mut adj = LinkedHashSet::new();
-        
+
         // add n's successors
         for s in self.ig.get_edges_of(n) {
             adj.insert(s);
         }
-        
+
         // removeAll(select_stack)
         for s in self.select_stack.iter() {
             adj.remove(s);
         }
-        
+
         // removeAll(coalesced_nodes)
         for s in self.coalesced_nodes.iter() {
             adj.remove(s);
         }
-        
+
         adj
     }
-    
+
     fn degree(&self, n: NodeIndex) -> usize {
         match self.degree.get(&n) {
             Some(d) => *d,
             None => 0
         }
     }
-    
+
     fn decrement_degree(&mut self, n: NodeIndex) {
         if self.precolored.contains(&n) {
             return;
         }
-        
+
         trace!("decrement degree of {}", self.display_node(n));
-        
+
         let d = self.degree(n);
         debug_assert!(d != 0);
         self.degree.insert(n, d - 1);
-        
+
         if d == self.n_regs_for_node(n) {
-            trace!("{}'s degree is K, no longer need to spill it", self.display_node(n));
+            trace!(
+                "{}'s degree is K, no longer need to spill it",
+                self.display_node(n)
+            );
             let mut nodes = self.adjacent(n);
             nodes.insert(n);
             trace!("enable moves of {:?}", nodes);
             self.enable_moves(nodes);
-            
+
             vec_utils::remove_value(&mut self.worklist_spill, n);
-            
+
             if self.is_move_related(n) {
-                trace!("{} is move related, push to freeze list", self.display_node(n));
+                trace!(
+                    "{} is move related, push to freeze list",
+                    self.display_node(n)
+                );
                 self.worklist_freeze.insert(n);
             } else {
-                trace!("{} is not move related, push to simplify list", self.display_node(n));
+                trace!(
+                    "{} is not move related, push to simplify list",
+                    self.display_node(n)
+                );
                 self.worklist_simplify.insert(n);
             }
         }
     }
-    
+
     fn enable_moves(&mut self, nodes: LinkedHashSet<NodeIndex>) {
         for n in nodes.iter() {
             let n = *n;
@@ -432,10 +485,10 @@ impl <'a> GraphColoring<'a> {
             }
         }
     }
-    
+
     fn coalesce(&mut self) {
         let m = self.worklist_moves.pop().unwrap();
-        
+
         trace!("Coalescing on {}", self.display_move(m));
 
         // if they are not from the same register group, we cannot coalesce them
@@ -445,33 +498,40 @@ impl <'a> GraphColoring<'a> {
 
             return;
         }
-        
+
         let x = self.get_alias(m.from);
         let y = self.get_alias(m.to);
-        trace!("resolve alias: from {} to {}", self.display_node(x), self.display_node(y));
-        
+        trace!(
+            "resolve alias: from {} to {}",
+            self.display_node(x),
+            self.display_node(y)
+        );
+
         let (u, v, precolored_u, precolored_v) = {
             if self.precolored.contains(&y) {
                 let u = y;
                 let v = x;
                 let precolored_u = true;
                 let precolored_v = self.precolored.contains(&v);
-                
+
                 (u, v, precolored_u, precolored_v)
             } else {
                 let u = x;
                 let v = y;
                 let precolored_u = self.precolored.contains(&u);
                 let precolored_v = self.precolored.contains(&v);
-                
+
                 (u, v, precolored_u, precolored_v)
             }
         };
-        trace!("u={}, v={}, precolored_u={}, precolroed_v={}", 
+        trace!(
+            "u={}, v={}, precolored_u={}, precolroed_v={}",
             self.display_node(u),
             self.display_node(v),
-            precolored_u, precolored_v);
-        
+            precolored_u,
+            precolored_v
+        );
+
         if u == v {
             trace!("u == v, coalesce the move");
             self.coalesced_moves.insert(m);
@@ -489,12 +549,14 @@ impl <'a> GraphColoring<'a> {
             if !precolored_v {
                 self.add_worklist(v);
             }
-        } else if (precolored_u && self.ok(u, v)) 
-          || (!precolored_u && self.conservative(u, v)) {
+        } else if (precolored_u && self.ok(u, v)) || (!precolored_u && self.conservative(u, v)) {
             trace!("ok(u, v) = {}", self.ok(u, v));
             trace!("conservative(u, v) = {}", self.conservative(u, v));
 
-            trace!("precolored_u&&ok(u,v) || !precolored_u&&conserv(u,v), coalesce and combine the move");
+            trace!(
+                "precolored_u&&ok(u,v) || !precolored_u&&conserv(u,v), \
+                 coalesce and combine the move"
+            );
             self.coalesced_moves.insert(m);
             self.combine(u, v);
             if !precolored_u {
@@ -505,7 +567,7 @@ impl <'a> GraphColoring<'a> {
             self.active_moves.insert(m);
         }
     }
-    
+
     pub fn get_alias(&self, node: NodeIndex) -> NodeIndex {
         if self.coalesced_nodes.contains(&node) {
             self.get_alias(*self.alias.get(&node).unwrap())
@@ -513,27 +575,27 @@ impl <'a> GraphColoring<'a> {
             node
         }
     }
-    
+
     fn add_worklist(&mut self, node: NodeIndex) {
         if !self.is_move_related(node) && self.degree(node) < self.n_regs_for_node(node) {
             self.worklist_freeze.remove(&node);
             self.worklist_simplify.insert(node);
         }
     }
-    
+
     fn ok(&self, u: NodeIndex, v: NodeIndex) -> bool {
         for t in self.adjacent(v).iter() {
             let t = *t;
-            if !(self.degree(t) < self.n_regs_for_node(t)
-                || self.precolored.contains(&t)
-                || self.ig.is_adj(t, u)) {
+            if !(self.degree(t) < self.n_regs_for_node(t) || self.precolored.contains(&t) ||
+                     self.ig.is_adj(t, u))
+            {
                 return false;
             }
         }
-        
+
         true
     }
-    
+
     fn conservative(&self, u: NodeIndex, v: NodeIndex) -> bool {
         let adj_u = self.adjacent(u);
         let adj_v = self.adjacent(v);
@@ -542,17 +604,17 @@ impl <'a> GraphColoring<'a> {
             ret.add_all(adj_v);
             ret
         };
-        
+
         let mut k = 0;
         for n in nodes.iter() {
             if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) {
                 k += 1;
             }
         }
-        
+
         k < self.n_regs_for_node(u) && k < self.n_regs_for_node(v)
     }
-    
+
     fn combine(&mut self, u: NodeIndex, v: NodeIndex) {
         if self.worklist_freeze.contains(&v) {
             self.worklist_freeze.remove(&v);
@@ -561,9 +623,9 @@ impl <'a> GraphColoring<'a> {
             vec_utils::remove_value(&mut self.worklist_spill, v);
             self.coalesced_nodes.insert(v);
         }
-        
-        self.alias.insert(v, u); 
-        
+
+        self.alias.insert(v, u);
+
         {
             let ref mut movelist = self.movelist;
             GraphColoring::movelist_check(movelist, u);
@@ -571,30 +633,31 @@ impl <'a> GraphColoring<'a> {
             // we checked before getting the movelist, its safe
             // use nocheck version which requires only immutable references of movelist
             // avoid maintaining a mutable reference of movelist alive
-            let movelist_u = &mut unsafe {GraphColoring::movelist_nocheck(movelist, u)}.borrow_mut();
-            let movelist_v = &mut unsafe {GraphColoring::movelist_nocheck(movelist, v)}.borrow_mut();
-            
+            let movelist_u =
+                &mut unsafe { GraphColoring::movelist_nocheck(movelist, u) }.borrow_mut();
+            let movelist_v =
+                &mut unsafe { GraphColoring::movelist_nocheck(movelist, v) }.borrow_mut();
+
             // addAll()
             movelist_u.extend_from_slice(movelist_v.as_slice());
         }
-        
+
         let mut nodes = LinkedHashSet::new();
         nodes.insert(v);
         self.enable_moves(nodes);
-        
+
         for t in self.adjacent(v).iter() {
             let t = *t;
             self.add_edge(t, u);
             self.decrement_degree(t);
         }
-        
-        if self.worklist_freeze.contains(&u)
-          && self.degree(u) >= self.n_regs_for_node(u) {
+
+        if self.worklist_freeze.contains(&u) && self.degree(u) >= self.n_regs_for_node(u) {
             self.worklist_freeze.remove(&u);
             self.worklist_spill.push(u);
         }
     }
-    
+
     fn add_edge(&mut self, u: NodeIndex, v: NodeIndex) {
         if u != v && !self.ig.is_adj(u, v) {
             if !self.precolored.contains(&u) {
@@ -609,16 +672,16 @@ impl <'a> GraphColoring<'a> {
             }
         }
     }
-    
+
     fn freeze(&mut self) {
         // it is not empty (checked before)
         let node = self.worklist_freeze.pop_front().unwrap();
         trace!("Freezing {}...", self.display_node(node));
-        
+
         self.worklist_simplify.insert(node);
         self.freeze_moves(node);
     }
-    
+
     fn freeze_moves(&mut self, u: NodeIndex) {
         for m in self.node_moves(u).iter() {
             let m = *m;
@@ -626,92 +689,107 @@ impl <'a> GraphColoring<'a> {
             if v == self.get_alias(u) {
                 v = self.get_alias(m.to);
             }
-            
+
             self.active_moves.remove(&m);
             self.frozen_moves.insert(m);
-            
-            if !self.precolored.contains(&v) 
-               && self.node_moves(v).is_empty()
-               && self.degree(v) < self.n_regs_for_node(v) {
+
+            if !self.precolored.contains(&v) && self.node_moves(v).is_empty() &&
+                self.degree(v) < self.n_regs_for_node(v)
+            {
                 self.worklist_freeze.remove(&v);
                 self.worklist_simplify.insert(v);
             }
         }
     }
-    
+
     fn select_spill(&mut self) {
         trace!("Selecting a node to spill...");
-        let mut m : Option<NodeIndex> = None;
-        
+        let mut m: Option<NodeIndex> = None;
+
         for n in self.worklist_spill.iter() {
             let n = *n;
             if m.is_none() {
                 m = Some(n);
             } else if {
-                // m is not none
-                let temp = self.ig.get_temp_of(m.unwrap());
-                !self.is_spillable(temp)
-            } {
+                       // m is not none
+                       let temp = self.ig.get_temp_of(m.unwrap());
+                       !self.is_spillable(temp)
+                   } {
                 m = Some(n);
-            } else if (self.ig.get_spill_cost(n) / (self.degree(n) as f32)) 
-              < (self.ig.get_spill_cost(m.unwrap()) / (self.degree(m.unwrap()) as f32)) {
+            } else if (self.ig.get_spill_cost(n) / (self.degree(n) as f32)) <
+                       (self.ig.get_spill_cost(m.unwrap()) / (self.degree(m.unwrap()) as f32))
+            {
                 m = Some(n);
             }
         }
-        
+
         // m is not none
         let m = m.unwrap();
         trace!("Spilling {}...", self.display_node(m));
-        
+
         vec_utils::remove_value(&mut self.worklist_spill, m);
         self.worklist_simplify.insert(m);
         self.freeze_moves(m);
     }
-    
+
     fn assign_colors(&mut self) {
         trace!("---coloring done---");
         while !self.select_stack.is_empty() {
             let n = self.select_stack.pop().unwrap();
             trace!("Assigning color to {}", self.display_node(n));
-            
-            let mut ok_colors : LinkedHashSet<MuID> = self.colors.get(&self.ig.get_group_of(n)).unwrap().clone();
+
+            let mut ok_colors: LinkedHashSet<MuID> =
+                self.colors.get(&self.ig.get_group_of(n)).unwrap().clone();
 
             trace!("all the colors for this temp: {:?}", ok_colors);
 
             for w in self.ig.get_edges_of(n) {
                 let w_alias = self.get_alias(w);
                 match self.ig.get_color_of(w_alias) {
-                    None => {}, // do nothing
+                    None => {} // do nothing
                     Some(color) => {
-                        trace!("color {} is used for its neighbor {:?} (aliasing to {:?})", color, self.display_node(w), self.display_node(w_alias));
+                        trace!(
+                            "color {} is used for its neighbor {:?} (aliasing to {:?})",
+                            color,
+                            self.display_node(w),
+                            self.display_node(w_alias)
+                        );
                         ok_colors.remove(&color);
                     }
                 }
             }
             trace!("available colors: {:?}", ok_colors);
-            
+
             if ok_colors.is_empty() {
                 trace!("{} is a spilled node", self.display_node(n));
                 self.spilled_nodes.push(n);
             } else {
                 let first_available_color = ok_colors.pop_front().unwrap();
-                trace!("Color {} as {}", self.display_node(n), first_available_color);
-                
+                trace!(
+                    "Color {} as {}",
+                    self.display_node(n),
+                    first_available_color
+                );
+
                 if !backend::is_callee_saved(first_available_color) {
                     trace!("Use caller saved register {}", first_available_color);
                 }
-                
+
                 self.colored_nodes.push(n);
                 self.ig.color_node(n, first_available_color);
             }
         }
-        
+
         for n in self.colored_nodes.iter() {
             let n = *n;
             let alias = self.get_alias(n);
             let alias_color = self.ig.get_color_of(alias).unwrap();
-            
-            trace!("Assign color to {} based on aliased {}", self.display_node(n), self.display_node(alias));
+
+            trace!(
+                "Assign color to {} based on aliased {}",
+                self.display_node(n),
+                self.display_node(alias)
+            );
             trace!("Color {} as {}", self.display_node(n), alias_color);
             self.ig.color_node(n, alias_color);
         }
@@ -728,7 +806,9 @@ impl <'a> GraphColoring<'a> {
                 Some(entry) => entry,
                 None => panic!("The spilled register {} is not in func context", reg_id)
             };
-            let mem = self.cf.frame.alloc_slot_for_spilling(ssa_entry.value().clone(), self.vm);
+            let mem = self.cf
+                .frame
+                .alloc_slot_for_spilling(ssa_entry.value().clone(), self.vm);
 
             spilled_mem.insert(*reg_id, mem.clone());
             self.spill_history.insert(*reg_id, mem);
@@ -739,17 +819,17 @@ impl <'a> GraphColoring<'a> {
             self.spill_scratch_temps.insert(k, v);
         }
     }
-    
+
     pub fn spills(&self) -> Vec<MuID> {
         let mut spills = vec![];
-        
+
         let spill_count = self.spilled_nodes.len();
         if spill_count > 0 {
             for n in self.spilled_nodes.iter() {
                 spills.push(self.ig.get_temp_of(*n));
             }
         }
-        
+
         spills
     }
 
@@ -765,16 +845,21 @@ impl <'a> GraphColoring<'a> {
                 let alias = self.get_alias(node);
                 let machine_reg = match self.ig.get_color_of(alias) {
                     Some(reg) => reg,
-                    None => panic!(
-                        "Reg{}/{:?} (aliased as Reg{}/{:?}) is not assigned with a color",
-                        self.ig.get_temp_of(node), node,
-                        self.ig.get_temp_of(alias), alias)
+                    None => {
+                        panic!(
+                            "Reg{}/{:?} (aliased as Reg{}/{:?}) is not assigned with a color",
+                            self.ig.get_temp_of(node),
+                            node,
+                            self.ig.get_temp_of(alias),
+                            alias
+                        )
+                    }
                 };
 
                 ret.insert(temp, machine_reg);
             }
         }
-        
+
         ret
     }
 

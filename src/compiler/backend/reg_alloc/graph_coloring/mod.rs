@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,7 +17,8 @@ extern crate petgraph;
 mod liveness;
 mod coloring;
 
-use compiler::backend::reg_alloc::graph_coloring::liveness::build_interference_graph_chaitin_briggs as build_inteference_graph;
+use compiler::backend::reg_alloc::graph_coloring::liveness::build_interference_graph_chaitin_briggs
+as build_inteference_graph;
 use compiler::backend::reg_alloc::graph_coloring::coloring::GraphColoring;
 
 use ast::ir::*;
@@ -29,7 +30,7 @@ use compiler::backend::reg_alloc::validate;
 use std::any::Any;
 
 pub struct RegisterAllocation {
-    name: &'static str,
+    name: &'static str
 }
 
 impl CompilerPass for RegisterAllocation {
@@ -49,7 +50,7 @@ impl CompilerPass for RegisterAllocation {
 impl RegisterAllocation {
     pub fn new() -> RegisterAllocation {
         RegisterAllocation {
-            name: "Register Allocation",
+            name: "Register Allocation"
         }
     }
 
@@ -92,23 +93,31 @@ impl RegisterAllocation {
             // all the used callee saved registers
             let used_callee_saved: Vec<MuID> = {
                 use std::collections::HashSet;
-                let used_callee_saved: HashSet<MuID> =
-                    coloring.cf.temps.values()
-                        .map(|x| *x)
-                        .filter(|x| is_callee_saved(*x))
-                        .collect();
+                let used_callee_saved: HashSet<MuID> = coloring
+                    .cf
+                    .temps
+                    .values()
+                    .map(|x| *x)
+                    .filter(|x| is_callee_saved(*x))
+                    .collect();
                 used_callee_saved.into_iter().collect()
             };
 
             // remove unused callee saved registers
-            let removed_callee_saved = coloring.cf.mc_mut().remove_unnecessary_callee_saved(used_callee_saved);
+            let removed_callee_saved = coloring
+                .cf
+                .mc_mut()
+                .remove_unnecessary_callee_saved(used_callee_saved);
             for reg in removed_callee_saved {
                 coloring.cf.frame.remove_record_for_callee_saved_reg(reg);
             }
 
             // patch frame size
             let frame_size = coloring.cf.frame.cur_size();
-            trace!("patching the code to grow/shrink size of {} bytes", frame_size);
+            trace!(
+                "patching the code to grow/shrink size of {} bytes",
+                frame_size
+            );
             coloring.cf.mc_mut().patch_frame_size(frame_size);
         }
 

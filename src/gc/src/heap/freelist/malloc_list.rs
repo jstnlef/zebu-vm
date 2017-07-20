@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,12 +20,12 @@ use aligned_alloc;
 use std::collections::LinkedList;
 
 pub struct FreeListSpace {
-    current_nodes : LinkedList<Box<FreeListNode>>,
+    current_nodes: LinkedList<Box<FreeListNode>>,
 
     node_id: usize,
 
-    size       : usize,
-    used_bytes : usize
+    size: usize,
+    used_bytes: usize
 }
 
 impl FreeListSpace {
@@ -39,19 +39,22 @@ impl FreeListSpace {
     }
 
     #[allow(unused_variables)]
-    pub fn mark(&mut self, obj: Address) {
-
-    }
+    pub fn mark(&mut self, obj: Address) {}
 
     pub fn alloc(&mut self, size: usize, align: usize) -> Address {
         if self.used_bytes + size > self.size {
-            unsafe {Address::zero()}
+            unsafe { Address::zero() }
         } else {
             let ret = aligned_alloc::aligned_alloc(size, align);
 
             let addr = Address::from_ptr::<()>(ret);
 
-            self.current_nodes.push_front(Box::new(FreeListNode{id: self.node_id, start: addr, size: size, mark: NodeMark::FreshAlloc}));
+            self.current_nodes.push_front(Box::new(FreeListNode {
+                id: self.node_id,
+                start: addr,
+                size: size,
+                mark: NodeMark::FreshAlloc
+            }));
             self.node_id += 1;
             self.used_bytes += size;
 
@@ -72,17 +75,19 @@ impl FreeListSpace {
                         node.set_mark(NodeMark::PrevLive);
                         used_bytes += node.size;
                         ret.push_back(node);
-                    },
+                    }
                     NodeMark::PrevLive | NodeMark::FreshAlloc => {
                         let ptr = node.start.to_ptr::<()>() as *mut ();
                         // free the memory
-                        unsafe {aligned_alloc::aligned_free(ptr);}
+                        unsafe {
+                            aligned_alloc::aligned_free(ptr);
+                        }
                         // do not add this node into new linked list
                     }
                 }
             }
 
-                (ret, used_bytes)
+            (ret, used_bytes)
         };
 
         self.current_nodes = new_nodes;
@@ -99,9 +104,9 @@ impl FreeListSpace {
 
 pub struct FreeListNode {
     id: usize,
-    start : Address,
-    size  : usize,
-    mark  : NodeMark
+    start: Address,
+    size: usize,
+    mark: NodeMark
 }
 
 impl FreeListNode {
@@ -114,7 +119,7 @@ impl FreeListNode {
 pub enum NodeMark {
     FreshAlloc,
     PrevLive,
-    Live,
+    Live
 }
 unsafe impl Sync for NodeMark {}
 
@@ -136,6 +141,13 @@ impl fmt::Display for FreeListSpace {
 
 impl fmt::Display for FreeListNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FreeListNode#{}(start={:#X}, size={}, state={:?})", self.id, self.start, self.size, self.mark)
+        write!(
+            f,
+            "FreeListNode#{}(start={:#X}, size={}, state={:?})",
+            self.id,
+            self.start,
+            self.size,
+            self.mark
+        )
     }
 }

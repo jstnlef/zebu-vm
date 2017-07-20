@@ -15,7 +15,7 @@
 /// replaces bytes in the given string 's' with string 'replace', this replacement starts
 /// at 'index' position of 's', and happens for 'replace_len'.
 pub fn replace(s: &mut String, index: usize, replace: &String, replace_len: usize) {
-    let vec = unsafe {s.as_mut_vec()};
+    let vec = unsafe { s.as_mut_vec() };
     let vec_replace = replace.as_bytes();
 
     for i in 0..replace_len {

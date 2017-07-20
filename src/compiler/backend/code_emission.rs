@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -26,9 +26,9 @@ use std::fs::File;
 use std::collections::HashMap;
 
 /// should emit Mu IR dot graph?
-pub const EMIT_MUIR : bool = true;
+pub const EMIT_MUIR: bool = true;
 /// should emit machien code dot graph?
-pub const EMIT_MC_DOT : bool = true;
+pub const EMIT_MC_DOT: bool = true;
 
 pub struct CodeEmission {
     name: &'static str
@@ -66,7 +66,7 @@ impl CompilerPass for CodeEmission {
 pub fn create_emit_directory(vm: &VM) {
     use std::fs;
     match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(_) => {}
     }
 }
@@ -78,7 +78,13 @@ fn create_emit_file(name: String, vm: &VM) -> File {
     file_path.push(name);
 
     match File::create(file_path.as_path()) {
-        Err(why) => panic!("couldn't create emit file {}: {}", file_path.to_str().unwrap(), why),
+        Err(why) => {
+            panic!(
+                "couldn't create emit file {}: {}",
+                file_path.to_str().unwrap(),
+                why
+            )
+        }
         Ok(file) => file
     }
 }
@@ -92,7 +98,13 @@ pub fn emit_mu_types(suffix: &str, vm: &VM) {
         file_path.push(&vm.vm_options.flag_aot_emit_dir);
         file_path.push("___types".to_string() + suffix + ".muty");
         let mut file = match File::create(file_path.as_path()) {
-            Err(why) => panic!("couldn't create mu types file {}: {}", file_path.to_str().unwrap(), why),
+            Err(why) => {
+                panic!(
+                    "couldn't create mu types file {}: {}",
+                    file_path.to_str().unwrap(),
+                    why
+                )
+            }
             Ok(file) => file
         };
 
@@ -107,12 +119,16 @@ pub fn emit_mu_types(suffix: &str, vm: &VM) {
                 if ty.is_struct() {
                     write!(file, "{}", ty).unwrap();
 
-                    let struct_ty = struct_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
+                    let struct_ty = struct_map
+                        .get(&ty.get_struct_hybrid_tag().unwrap())
+                        .unwrap();
                     writeln!(file, " -> {}", struct_ty).unwrap();
                     writeln!(file, "  {}", vm.get_backend_type_info(ty.id())).unwrap();
                 } else if ty.is_hybrid() {
                     write!(file, "{}", ty).unwrap();
-                    let hybrid_ty = hybrid_map.get(&ty.get_struct_hybrid_tag().unwrap()).unwrap();
+                    let hybrid_ty = hybrid_map
+                        .get(&ty.get_struct_hybrid_tag().unwrap())
+                        .unwrap();
                     writeln!(file, " -> {}", hybrid_ty).unwrap();
                     writeln!(file, "  {}", vm.get_backend_type_info(ty.id())).unwrap();
                 } else {
@@ -144,7 +160,7 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
     let blocks = mc.get_all_blocks();
 
     type DotID = usize;
-    let name_id_map : HashMap<MuName, DotID> = {
+    let name_id_map: HashMap<MuName, DotID> = {
         let mut ret = HashMap::new();
         let mut index = 0;
 
@@ -159,7 +175,12 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
 
     for block_name in blocks.iter() {
         // BB [label = "
-        write!(file, "{} [label = \"{}:\\l\\l", id(block_name.clone()), block_name).unwrap();
+        write!(
+            file,
+            "{} [label = \"{}:\\l\\l",
+            id(block_name.clone()),
+            block_name
+        ).unwrap();
 
         for inst in mc.get_block_range(&block_name).unwrap() {
             file.write_all(&mc.emit_inst(inst)).unwrap();
@@ -173,8 +194,10 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
     for block_name in blocks.iter() {
         let end_inst = mc.get_block_range(block_name).unwrap().end;
 
-        for succ in mc.get_succs(mc.get_last_inst(end_inst).unwrap()).into_iter() {
-                match mc.get_block_for_inst(*succ) {
+        for succ in mc.get_succs(mc.get_last_inst(end_inst).unwrap())
+            .into_iter()
+        {
+            match mc.get_block_for_inst(*succ) {
                 Some(target) => {
                     let source_id = id(block_name.clone());
                     let target_id = id(target.clone());

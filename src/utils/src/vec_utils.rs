@@ -27,7 +27,7 @@ pub fn as_str<T: fmt::Display>(vec: &Vec<T>) -> String {
 }
 
 /// adds a value to the vector if the vector does not contains a same value
-pub fn add_unique<T: PartialEq> (vec: &mut Vec<T>, val: T) {
+pub fn add_unique<T: PartialEq>(vec: &mut Vec<T>, val: T) {
     if !vec.contains(&val) {
         vec.push(val);
     }
@@ -35,7 +35,7 @@ pub fn add_unique<T: PartialEq> (vec: &mut Vec<T>, val: T) {
 
 /// adds all values from 2nd vector to the first one if the vector does not contains a same value
 /// This function will pop all elements from the 2nd vector.
-pub fn add_all_unique<T: PartialEq> (vec: &mut Vec<T>, vec2: &mut Vec<T>) {
+pub fn add_all_unique<T: PartialEq>(vec: &mut Vec<T>, vec2: &mut Vec<T>) {
     while !vec2.is_empty() {
         let val = vec2.pop().unwrap();
         add_unique(vec, val);
@@ -44,7 +44,7 @@ pub fn add_all_unique<T: PartialEq> (vec: &mut Vec<T>, vec2: &mut Vec<T>) {
 
 /// returns the index of a given value in the vector
 /// returns None if the vector does not contains the value
-pub fn find_value<T: PartialEq> (vec: &Vec<T>, val: T) -> Option<usize> {
+pub fn find_value<T: PartialEq>(vec: &Vec<T>, val: T) -> Option<usize> {
     for i in 0..vec.len() {
         if vec[i] == val {
             return Some(i);
@@ -56,7 +56,7 @@ pub fn find_value<T: PartialEq> (vec: &Vec<T>, val: T) -> Option<usize> {
 
 /// intersects 1st vector with the 2nd one
 /// (retains elements that also appear in the 2nd vector, and deletes elements that do not)
-pub fn intersect<T: PartialEq + Clone> (vec: &mut Vec<T>, vec2: &Vec<T>) -> bool {
+pub fn intersect<T: PartialEq + Clone>(vec: &mut Vec<T>, vec2: &Vec<T>) -> bool {
     let mut indices_to_delete = vec![];
 
     for i in 0..vec.len() {
@@ -73,16 +73,20 @@ pub fn intersect<T: PartialEq + Clone> (vec: &mut Vec<T>, vec2: &Vec<T>) -> bool
 }
 
 /// removes a value from a vector (if there are several appearances, delete the first one)
-pub fn remove_value<T: PartialEq> (vec: &mut Vec<T>, val: T) {
+pub fn remove_value<T: PartialEq>(vec: &mut Vec<T>, val: T) {
     match find_value(vec, val) {
-        Some(index) => {vec.remove(index);},
+        Some(index) => {
+            vec.remove(index);
+        }
         None => {} // do nothing
     }
 }
 
 /// maps each element in the vector with a map function, and returns the new vector
-pub fn map<T, Q, F> (vec: &Vec<T>, map_func: F) -> Vec<Q>
-    where F : Fn(&T) -> Q {
+pub fn map<T, Q, F>(vec: &Vec<T>, map_func: F) -> Vec<Q>
+where
+    F: Fn(&T) -> Q
+{
     let mut ret = vec![];
 
     for t in vec {

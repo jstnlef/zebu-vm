@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -30,11 +30,11 @@ impl<K: Hash + Eq> LinkedHashSet<K> {
     /// consumes a vector to a LinkedHashSet (removes duplicated elements)
     pub fn from_vec(from: Vec<K>) -> Self {
         let mut ret = LinkedHashSet::new();
-        
+
         for ele in from {
             ret.insert(ele);
         }
-        
+
         ret
     }
 
@@ -84,16 +84,18 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
 
     /// returns true if the set contains the element, otherwise returns false
     pub fn contains<Q: ?Sized>(&self, k: &Q) -> bool
-        where K: Borrow<Q>,
-              Q: Eq + Hash
+    where
+        K: Borrow<Q>,
+        Q: Eq + Hash
     {
         self.0.contains_key(k)
     }
 
     /// removes an element from the set, do nothing if the set does not contain the element
     pub fn remove<Q: ?Sized>(&mut self, k: &Q)
-        where K: Borrow<Q>,
-              Q: Eq + Hash
+    where
+        K: Borrow<Q>,
+        Q: Eq + Hash
     {
         self.0.remove(k);
     }

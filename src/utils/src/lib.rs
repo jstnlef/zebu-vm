@@ -15,6 +15,7 @@
 //! # Utility crate that serves Zebu
 //!
 //! It includes:
+//!
 //! * data structures
 //!   * double linked list
 //!   * linked hashmap/set
@@ -35,25 +36,25 @@ extern crate doubly;
 // these type aliases make source code easier to read
 
 /// size in bits
-pub type BitSize    = usize;
+pub type BitSize = usize;
 /// size in bytes
-pub type ByteSize   = usize;
+pub type ByteSize = usize;
 /// offset in byte
 pub type ByteOffset = isize;
 /// word value
-pub type Word       = usize;
+pub type Word = usize;
 
 /// Zebu make an assumption that it will only support 64 bits architecture
 /// However, ideally we should always use pointer size, or pointer-size type defined here.
 /// But we may have hard coded u64 or 64 somewhere.
 //  TODO: fix the hard code
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-pub const LOG_POINTER_SIZE : usize = 3;
+pub const LOG_POINTER_SIZE: usize = 3;
 
 /// pointer size in byte
-pub const POINTER_SIZE     : ByteSize = 1 << LOG_POINTER_SIZE;
+pub const POINTER_SIZE: ByteSize = 1 << LOG_POINTER_SIZE;
 /// word size in byte
-pub const WORD_SIZE        : ByteSize = 1 << LOG_POINTER_SIZE;
+pub const WORD_SIZE: ByteSize = 1 << LOG_POINTER_SIZE;
 
 /// linked hashmap implementation copied from container-rs with modification
 mod linked_hashmap;
@@ -77,7 +78,8 @@ pub mod math;
 mod address;
 /// Address represents an arbitrary memory address (valid or not)
 pub use address::Address;
-/// ObjectReference is a reference to an object (the address is guaranteed to be valid with an object)
+/// ObjectReference is a reference to an object
+/// (the address is guaranteed to be valid with an object)
 pub use address::ObjectReference;
 
 // These modules provide operations on Vector, and String.

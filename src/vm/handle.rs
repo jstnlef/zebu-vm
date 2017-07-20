@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -35,7 +35,7 @@ pub struct APIHandle {
 pub type APIHandleResult = Box<APIHandle>;
 /// when client pass a handle (*const APIHandle) to the VM, we treat it as a reference
 /// to APIHandle.
-pub type APIHandleArg<'a>    = &'a APIHandle;
+pub type APIHandleArg<'a> = &'a APIHandle;
 
 impl fmt::Display for APIHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -58,21 +58,21 @@ pub enum APIHandleValue {
     /// double value
     Double(f64),
     /// unsafe pointer (type, address)
-    UPtr(P<MuType>, Address),  // uptr<T>
+    UPtr(P<MuType>, Address), // uptr<T>
     /// unsafe function pointer (type, address)
-    UFP (P<MuType>, Address),  // ufuncptr<sig>
+    UFP(P<MuType>, Address), // ufuncptr<sig>
 
     // SeqValue
     /// struct value (a vector of field values)
     Struct(Vec<APIHandleValue>),
     /// array value  (a vector of element values)
-    Array (Vec<APIHandleValue>),
+    Array(Vec<APIHandleValue>),
     /// vector value (a vector of element values)
     Vector(Vec<APIHandleValue>),
 
     // GenRef
     /// reference value (type, address)
-    Ref (P<MuType>, Address),
+    Ref(P<MuType>, Address),
     /// internal reference value (type, address)
     IRef(P<MuType>, Address),
     /// tagref value (stored as 64-bit integers)
@@ -121,7 +121,7 @@ pub enum APIHandleValue {
     ExcParam,
     /// instruction result value
     //  TODO: unused
-    InstRes,
+    InstRes
 }
 
 impl fmt::Display for APIHandleValue {
@@ -134,32 +134,32 @@ impl fmt::Debug for APIHandleValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         use self::APIHandleValue::*;
         match self {
-            &Int(val, len)            => write!(f, "{} as int<{}>", val, len),
-            &Float(val)               => write!(f, "{}", val),
-            &Double(val)              => write!(f, "{}", val),
-            &UPtr(ref ty, addr)           => write!(f, "uptr<{}> to {}", ty, addr),
-            &UFP(ref sig, addr)           => write!(f, "ufp<{}> to {}", sig, addr),
-            &Struct(ref vec)          => write!(f, "struct{{{:?}}}", vec),
-            &Array(ref vec)           => write!(f, "array{{{:?}}}", vec),
-            &Vector(ref vec)          => write!(f, "vector{{{:?}}}", vec),
-            &Ref(ref ty, addr)        => write!(f, "ref<{}> to {}", ty, addr),
-            &IRef(ref ty, addr)       => write!(f, "iref<{}> to {}", ty, addr),
-            &TagRef64(val)            => write!(f, "tagref64 0x{:x}", val),
-            &FuncRef(id)              => write!(f, "funcref to #{}", id),
-            &ThreadRef                => write!(f, "threadref"),
-            &StackRef                 => write!(f, "stackref"),
-            &FCRef                    => write!(f, "framecursorref"),
-            &Bundle                   => write!(f, "IR.bundle"),
-            &Type(id)                 => write!(f, "IR.type to #{}", id),
-            &FuncSig(id)              => write!(f, "IR.funcsig to #{}", id),
-            &FuncVer(id)              => write!(f, "IR.funcver to #{}", id),
-            &BB                       => write!(f, "IR.BB"),
-            &Inst                     => write!(f, "IR.inst"),
-            &Global(id)               => write!(f, "IR.global to #{}", id),
-            &ExpFunc                  => write!(f, "IR.expfunc"),
-            &NorParam                 => write!(f, "IR.norparam"),
-            &ExcParam                 => write!(f, "IR.excparam"),
-            &InstRes                  => write!(f, "IR.instres")
+            &Int(val, len) => write!(f, "{} as int<{}>", val, len),
+            &Float(val) => write!(f, "{}", val),
+            &Double(val) => write!(f, "{}", val),
+            &UPtr(ref ty, addr) => write!(f, "uptr<{}> to {}", ty, addr),
+            &UFP(ref sig, addr) => write!(f, "ufp<{}> to {}", sig, addr),
+            &Struct(ref vec) => write!(f, "struct{{{:?}}}", vec),
+            &Array(ref vec) => write!(f, "array{{{:?}}}", vec),
+            &Vector(ref vec) => write!(f, "vector{{{:?}}}", vec),
+            &Ref(ref ty, addr) => write!(f, "ref<{}> to {}", ty, addr),
+            &IRef(ref ty, addr) => write!(f, "iref<{}> to {}", ty, addr),
+            &TagRef64(val) => write!(f, "tagref64 0x{:x}", val),
+            &FuncRef(id) => write!(f, "funcref to #{}", id),
+            &ThreadRef => write!(f, "threadref"),
+            &StackRef => write!(f, "stackref"),
+            &FCRef => write!(f, "framecursorref"),
+            &Bundle => write!(f, "IR.bundle"),
+            &Type(id) => write!(f, "IR.type to #{}", id),
+            &FuncSig(id) => write!(f, "IR.funcsig to #{}", id),
+            &FuncVer(id) => write!(f, "IR.funcver to #{}", id),
+            &BB => write!(f, "IR.BB"),
+            &Inst => write!(f, "IR.inst"),
+            &Global(id) => write!(f, "IR.global to #{}", id),
+            &ExpFunc => write!(f, "IR.expfunc"),
+            &NorParam => write!(f, "IR.norparam"),
+            &ExcParam => write!(f, "IR.excparam"),
+            &InstRes => write!(f, "IR.instres")
         }
     }
 }
@@ -168,8 +168,10 @@ impl APIHandleValue {
     /// matches the handle as ref or iref
     pub fn as_ref_or_iref(&self) -> (P<MuType>, Address) {
         match self {
-            &APIHandleValue::Ref(ref ty, addr)
-            | &APIHandleValue::IRef(ref ty, addr) => (ty.clone(), addr),
+            &APIHandleValue::Ref(ref ty, addr) | &APIHandleValue::IRef(ref ty, addr) => (
+                ty.clone(),
+                addr
+            ),
             _ => panic!("expected Ref or IRef handle")
         }
     }
@@ -193,11 +195,16 @@ impl APIHandleValue {
     /// matches iref/ref/uptr/ufp handles and extracts address
     pub fn as_address(&self) -> Address {
         match self {
-            &APIHandleValue::IRef  (_, addr)
-            | &APIHandleValue::Ref (_, addr)
-            | &APIHandleValue::UPtr(_, addr)
-            | &APIHandleValue::UFP (_, addr) => addr,
-            _ => panic!("expected iref/ref/uptr/ufp which contains a pointer, found {}", self)
+            &APIHandleValue::IRef(_, addr) |
+            &APIHandleValue::Ref(_, addr) |
+            &APIHandleValue::UPtr(_, addr) |
+            &APIHandleValue::UFP(_, addr) => addr,
+            _ => {
+                panic!(
+                    "expected iref/ref/uptr/ufp which contains a pointer, found {}",
+                    self
+                )
+            }
         }
     }
 

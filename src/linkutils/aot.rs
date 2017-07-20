@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,11 +23,11 @@ use std::process::Command;
 
 /// links generated code for the given functions, static library of Zebu,
 /// and a main function to produce an executable of the given name
-pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
+pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     let emit_dir = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
 
     // prepare a list of files that need to be compiled and linked together
-    let files : Vec<PathBuf> = {
+    let files: Vec<PathBuf> = {
         use std::fs;
 
         let mut ret = vec![];
@@ -41,7 +41,7 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(get_path_for_mu_context(vm));
 
         // copy primoridal entry
-        let source   = get_path_under_zebu(runtime::PRIMORDIAL_ENTRY);
+        let source = get_path_under_zebu(runtime::PRIMORDIAL_ENTRY);
         let dest = {
             let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
             ret.push("main.c");
@@ -50,7 +50,7 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         };
         trace!("copying from {:?} to {:?}", source, dest);
         match fs::copy(source.as_path(), dest.as_path()) {
-            Ok(_)  => {},
+            Ok(_) => {}
             Err(e) => panic!("failed to copy: {}", e)
         }
 
@@ -70,14 +70,21 @@ pub fn link_primordial (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     let mut out_path = emit_dir.clone();
     out_path.push(out);
 
-    link_executable_internal(files,
-                             &vm.vm_options.flag_bootimage_external_lib,
-                             &vm.vm_options.flag_bootimage_external_libpath,
-                             out_path)
+    link_executable_internal(
+        files,
+        &vm.vm_options.flag_bootimage_external_lib,
+        &vm.vm_options.flag_bootimage_external_libpath,
+        out_path
+    )
 }
 
 /// invokes the C compiler to link code into an executable
-fn link_executable_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<String>, out: PathBuf) -> PathBuf {
+fn link_executable_internal(
+    files: Vec<PathBuf>,
+    lib: &Vec<String>,
+    libpath: &Vec<String>,
+    out: PathBuf
+) -> PathBuf {
     info!("output as {:?}", out.as_path());
 
     let mut cc = Command::new(get_c_compiler());
@@ -118,13 +125,18 @@ fn link_executable_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &V
 
 /// links generated code for the given functions to produce a dynamic
 /// library of the given name
-pub fn link_dylib (funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
+pub fn link_dylib(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     link_dylib_with_extra_srcs(funcs, vec![], out, vm)
 }
 
 /// links generated code for the given functions with a few external sources
 /// to produce a dynamic library of the given name
-pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &str, vm: &VM) -> PathBuf{
+pub fn link_dylib_with_extra_srcs(
+    funcs: Vec<MuName>,
+    srcs: Vec<String>,
+    out: &str,
+    vm: &VM
+) -> PathBuf {
     let files = {
         let mut ret = vec![];
 
@@ -144,15 +156,22 @@ pub fn link_dylib_with_extra_srcs(funcs: Vec<MuName>, srcs: Vec<String>, out: &s
     let mut out_path = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     out_path.push(out);
 
-    link_dylib_internal(files,
-                        &vm.vm_options.flag_bootimage_external_lib,
-                        &vm.vm_options.flag_bootimage_external_libpath,
-                        out_path)
+    link_dylib_internal(
+        files,
+        &vm.vm_options.flag_bootimage_external_lib,
+        &vm.vm_options.flag_bootimage_external_libpath,
+        out_path
+    )
 }
 
 /// invokes the C compiler to link code into a dynamic library
-fn link_dylib_internal (files: Vec<PathBuf>, lib: &Vec<String>, libpath: &Vec<String>, out: PathBuf) -> PathBuf {
-    let mut object_files : Vec<PathBuf> = vec![];
+fn link_dylib_internal(
+    files: Vec<PathBuf>,
+    lib: &Vec<String>,
+    libpath: &Vec<String>,
+    out: PathBuf
+) -> PathBuf {
+    let mut object_files: Vec<PathBuf> = vec![];
 
     // compile each single source file
     for file in files {
@@ -229,7 +248,12 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
 
         let cur_ver = match func.cur_ver {
             Some(v) => v,
-            None => panic!("function {} does not have a defined current version", fnc_name)
+            None => {
+                panic!(
+                    "function {} does not have a defined current version",
+                    fnc_name
+                )
+            }
         };
 
         let func_vers = vm.func_vers().read().unwrap();
@@ -249,7 +273,11 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
 /// links and loads it as a dynamic library
 /// This function is used to test compiler.
 //  TODO: should think about using make_boot_image() instead of this adhoc code (Issue #52)
-pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build_fnc: &'a Fn() -> VM) -> ll::Library {
+pub fn compile_fncs<'a>(
+    entry: &'static str,
+    fnc_names: Vec<&'static str>,
+    build_fnc: &'a Fn() -> VM
+) -> ll::Library {
     VM::start_logging_trace();
 
     let vm = Arc::new(build_fnc());
@@ -260,7 +288,11 @@ pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
         compiler.compile(&mut func_ver);
     }
 
@@ -272,7 +304,7 @@ pub fn compile_fncs<'a>(entry: &'static str, fnc_names: Vec<&'static str>, build
 }
 
 /// gets the path for the generated code of a Mu function
-fn get_path_for_mu_func (f: MuName, vm: &VM) -> PathBuf {
+fn get_path_for_mu_func(f: MuName, vm: &VM) -> PathBuf {
     let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     ret.push(f + ".S");
 
@@ -280,7 +312,7 @@ fn get_path_for_mu_func (f: MuName, vm: &VM) -> PathBuf {
 }
 
 /// gets the path for generated Mu context (persisted VM/heap)
-fn get_path_for_mu_context (vm: &VM) -> PathBuf {
+fn get_path_for_mu_context(vm: &VM) -> PathBuf {
     let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
     ret.push(backend::AOT_EMIT_CONTEXT_FILE);
     ret

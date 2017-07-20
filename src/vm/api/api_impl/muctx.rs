@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,21 +21,21 @@ pub struct MuCtx {
     mvm: *const MuVM,
 
     /// Point to the C-visible CMuCtx so that `close_context` can deallocate itself.
-    pub c_struct: *mut CMuCtx,
+    pub c_struct: *mut CMuCtx
 }
 
 impl MuCtx {
     pub fn new(mvm: *const MuVM) -> Box<MuCtx> {
         Box::new(MuCtx {
             mvm: mvm,
-            c_struct: ptr::null_mut(),
+            c_struct: ptr::null_mut()
         })
     }
 
     #[inline(always)]
     fn get_mvm(&mut self) -> &MuVM {
         //self.mvm
-        unsafe { & *self.mvm }
+        unsafe { &*self.mvm }
     }
 
     pub fn id_of(&mut self, name: MuName) -> MuID {
@@ -49,7 +49,11 @@ impl MuCtx {
     fn deallocate(&mut self) {
         let c_struct = self.c_struct;
         let ctx_ptr = self as *mut MuCtx;
-        debug!("Deallocating MuCtx {:?} and CMuCtx {:?}...", ctx_ptr, c_struct);
+        debug!(
+            "Deallocating MuCtx {:?} and CMuCtx {:?}...",
+            ctx_ptr,
+            c_struct
+        );
         unsafe {
             Box::from_raw(c_struct);
             Box::from_raw(ctx_ptr);
@@ -234,7 +238,12 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn insert_value(&mut self, str: &APIHandle, index: c_int, newval: &APIHandle) -> *const APIHandle {
+    pub fn insert_value(
+        &mut self,
+        str: &APIHandle,
+        index: c_int,
+        newval: &APIHandle
+    ) -> *const APIHandle {
         panic!("Not implemented")
     }
 
@@ -242,7 +251,12 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn insert_element(&mut self, str: &APIHandle, index: &APIHandle, newval: &APIHandle) -> *const APIHandle {
+    pub fn insert_element(
+        &mut self,
+        str: &APIHandle,
+        index: &APIHandle,
+        newval: &APIHandle
+    ) -> *const APIHandle {
         panic!("Not implemented")
     }
 
@@ -268,7 +282,11 @@ impl MuCtx {
 
     pub fn get_field_iref(&mut self, opnd: &APIHandle, field: c_int) -> *const APIHandle {
         trace!("get_field_iref: {}, field {}", opnd, field);
-        prepare_handle(self.get_mvm().vm.handle_get_field_iref(opnd, field as usize))
+        prepare_handle(
+            self.get_mvm()
+                .vm
+                .handle_get_field_iref(opnd, field as usize)
+        )
     }
 
     pub fn get_elem_iref(&mut self, opnd: &APIHandle, index: &APIHandle) -> *const APIHandle {
@@ -293,14 +311,31 @@ impl MuCtx {
 
     pub fn store(&mut self, ord: CMuMemOrd, loc: &APIHandle, newval: &APIHandle) {
         trace!("store: {} val {}", loc, newval);
-        self.get_mvm().vm.handle_store(impl_memorder(ord), loc, newval);
+        self.get_mvm()
+            .vm
+            .handle_store(impl_memorder(ord), loc, newval);
     }
 
-    pub fn cmpxchg(&mut self, ord_succ: CMuMemOrd, ord_fail: CMuMemOrd, weak: bool, loc: &APIHandle, expected: &APIHandle, desired: &APIHandle, is_succ: *mut CMuBool) -> *const APIHandle {
+    pub fn cmpxchg(
+        &mut self,
+        ord_succ: CMuMemOrd,
+        ord_fail: CMuMemOrd,
+        weak: bool,
+        loc: &APIHandle,
+        expected: &APIHandle,
+        desired: &APIHandle,
+        is_succ: *mut CMuBool
+    ) -> *const APIHandle {
         panic!("Not implemented")
     }
 
-    pub fn atomicrmw(&mut self, ord: CMuMemOrd, op: CMuAtomicRMWOptr, loc: &APIHandle, opnd: &APIHandle) -> *const APIHandle {
+    pub fn atomicrmw(
+        &mut self,
+        ord: CMuMemOrd,
+        op: CMuAtomicRMWOptr,
+        loc: &APIHandle,
+        opnd: &APIHandle
+    ) -> *const APIHandle {
         panic!("Not implemented")
     }
 
@@ -312,11 +347,21 @@ impl MuCtx {
         panic!("Not implemented")
     }
 
-    pub fn new_thread_nor(&mut self, stack: &APIHandle, threadlocal: Option<&APIHandle>, vals: Vec<&APIHandle>) -> *const APIHandle {
+    pub fn new_thread_nor(
+        &mut self,
+        stack: &APIHandle,
+        threadlocal: Option<&APIHandle>,
+        vals: Vec<&APIHandle>
+    ) -> *const APIHandle {
         panic!("Not implemented")
     }
 
-    pub fn new_thread_exc(&mut self, stack: &APIHandle, threadlocal: Option<&APIHandle>, exc: &APIHandle) -> *const APIHandle {
+    pub fn new_thread_exc(
+        &mut self,
+        stack: &APIHandle,
+        threadlocal: Option<&APIHandle>,
+        exc: &APIHandle
+    ) -> *const APIHandle {
         panic!("Not implemented")
     }
 
@@ -432,7 +477,12 @@ impl MuCtx {
         prepare_handle(self.get_mvm().vm.handle_get_addr(loc))
     }
 
-    pub fn expose(&mut self, func: &APIHandle, call_conv: CMuCallConv, cookie: &APIHandle) -> *const APIHandle {
+    pub fn expose(
+        &mut self,
+        func: &APIHandle,
+        call_conv: CMuCallConv,
+        cookie: &APIHandle
+    ) -> *const APIHandle {
         panic!("Not implemented")
     }
 
@@ -453,15 +503,37 @@ impl MuCtx {
 
         debug!("The C-visible CMuIRBuilder struct address: {:?}", cb);
 
-        unsafe{ (*b_ptr).c_struct = cb; }
+        unsafe {
+            (*b_ptr).c_struct = cb;
+        }
 
         cb
     }
 
-    pub fn make_boot_image(&mut self, whitelist: Vec<MuID>, primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>, primordial_threadlocal: Option<&APIHandle>, sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>, reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>, output_file: String) {
-        self.get_mvm().vm.make_boot_image(whitelist, primordial_func, primordial_stack, primordial_threadlocal, sym_fields, sym_strings, reloc_fields, reloc_strings, output_file);
+    pub fn make_boot_image(
+        &mut self,
+        whitelist: Vec<MuID>,
+        primordial_func: Option<&APIHandle>,
+        primordial_stack: Option<&APIHandle>,
+        primordial_threadlocal: Option<&APIHandle>,
+        sym_fields: Vec<&APIHandle>,
+        sym_strings: Vec<String>,
+        reloc_fields: Vec<&APIHandle>,
+        reloc_strings: Vec<String>,
+        output_file: String
+    ) {
+        self.get_mvm().vm.make_boot_image(
+            whitelist,
+            primordial_func,
+            primordial_stack,
+            primordial_threadlocal,
+            sym_fields,
+            sym_strings,
+            reloc_fields,
+            reloc_strings,
+            output_file
+        );
     }
-
 }
 
 fn prepare_handle(handle: APIHandleResult) -> *const APIHandle {
@@ -471,19 +543,21 @@ fn prepare_handle(handle: APIHandleResult) -> *const APIHandle {
 }
 
 fn delete_handle(handle: APIHandleArg) {
-    unsafe {Box::from_raw((handle as *const APIHandle) as *mut APIHandle);}
+    unsafe {
+        Box::from_raw((handle as *const APIHandle) as *mut APIHandle);
+    }
 }
 
 use ast::inst::MemoryOrder;
 fn impl_memorder(order: CMuMemOrd) -> MemoryOrder {
     match order {
         CMU_ORD_NOT_ATOMIC => MemoryOrder::NotAtomic,
-        CMU_ORD_RELAXED    => MemoryOrder::Relaxed,
-        CMU_ORD_CONSUME    => MemoryOrder::Consume,
-        CMU_ORD_ACQUIRE    => MemoryOrder::Acquire,
-        CMU_ORD_RELEASE    => MemoryOrder::Release,
-        CMU_ORD_ACQ_REL    => MemoryOrder::AcqRel,
-        CMU_ORD_SEQ_CST    => MemoryOrder::SeqCst,
+        CMU_ORD_RELAXED => MemoryOrder::Relaxed,
+        CMU_ORD_CONSUME => MemoryOrder::Consume,
+        CMU_ORD_ACQUIRE => MemoryOrder::Acquire,
+        CMU_ORD_RELEASE => MemoryOrder::Release,
+        CMU_ORD_ACQ_REL => MemoryOrder::AcqRel,
+        CMU_ORD_SEQ_CST => MemoryOrder::SeqCst,
         _ => panic!("invalid CMuMemOrd flag: {}", order)
     }
 }

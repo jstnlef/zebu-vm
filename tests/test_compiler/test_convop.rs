@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -26,10 +26,15 @@ use mu::utils::LinkedHashMap;
 
 #[test]
 fn test_truncate_then_call() {
-    let lib = linkutils::aot::compile_fncs("truncate_then_call", vec!["truncate_then_call", "dummy_call"], &truncate_then_call);
+    let lib = linkutils::aot::compile_fncs(
+        "truncate_then_call",
+        vec!["truncate_then_call", "dummy_call"],
+        &truncate_then_call
+    );
 
     unsafe {
-        let truncate_then_call : libloading::Symbol<unsafe extern fn(u64) -> u32> = lib.get(b"truncate_then_call").unwrap();
+        let truncate_then_call: libloading::Symbol<unsafe extern "C" fn(u64) -> u32> =
+            lib.get(b"truncate_then_call").unwrap();
 
         let res = truncate_then_call(1);
         println!("truncate_then_call(1) = {}", res);
@@ -93,7 +98,7 @@ fn truncate_then_call() -> VM {
         );
 
         inst!((vm, truncate_then_call_v1) blk_entry_ret:
-            RET (arg)
+            RET (res)
         );
 
         define_block!((vm, truncate_then_call_v1) blk_entry(arg) {

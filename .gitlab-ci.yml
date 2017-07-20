@@ -1,34 +1,16 @@
-# This file is a template, and might need editing before it works on your project.
-# Unofficial language image. Look for the different tagged releases at:
-# https://hub.docker.com/r/scorpil/rust/tags/
 image: "qinsoon/ubuntu-zebu-test:latest"
-
-# Optional: Pick zero or more services to be used on all builds.
-# Only needed when using a docker container to run your tests in.
-# Check out: http://docs.gitlab.com/ce/ci/docker/using_docker_images.html#what-is-service
-#services:
-#  - mysql:latest
-#  - redis:latest
-#  - postgres:latest
-
-# Optional: Install a C compiler, cmake and git into the container.
-# You will often need this when you (or any of your dependencies) depends on C code.
-#before_script:
-#- apt-get update -yqq
-#- apt-get install -yqq --no-install-recommends build-essential
-
-# Use cargo to test the project
-# cache:
-#   key: "$CI_BUILD_STAGE/$CI_BUILD_REF_NAME"
-#   paths:
-#     - .cargo/registry/cache
-#     - .cargo/registry/index
-#     - target
-#     - Cargo.lock
 
 stages:
   - build
   - test
+  - rustfmt
+
+before_script:
+  - export PATH=$PATH:/root/.cargo/bin
+  - export MU_ZEBU=$CI_PROJECT_DIR
+  - export ZEBU_BUILD=release
+  - export CARGO_HOME=.cargo
+  - export CC=clang
 
 build:
   stage: build
@@ -40,13 +22,6 @@ build:
       - target/release/libmu.so
       - target/release/libmu.a
       - target/release/lib-*
-
-before_script:
-  - export PATH=$PATH:/root/.cargo/bin
-  - export MU_ZEBU=$CI_PROJECT_DIR
-  - export ZEBU_BUILD=release
-  - export CARGO_HOME=.cargo
-  - export CC=clang
 
 test:cargo:api:
   stage: test
@@ -138,3 +113,8 @@ testjit:som:
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
     - MU_LOG_LEVEL=info LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_som.py -v --color=yes
+
+rustfmt:
+  stage: rustfmt
+  script:
+    - rustup run nightly cargo fmt -- --write-mode=diff src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs --verbose

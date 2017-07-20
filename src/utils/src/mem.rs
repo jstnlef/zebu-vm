@@ -18,7 +18,7 @@ pub extern crate memmap;
 pub extern crate memsec;
 
 use Word;
-#[allow(unused_imports)]    // import both endianness (we may not use big endian though)
+#[allow(unused_imports)] // import both endianness (we may not use big endian though)
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 
 /// returns bit representations for u64
@@ -52,15 +52,15 @@ pub fn as_word(mut u8_array: Vec<u8>) -> Word {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
     use Word;
-    
+
     #[test]
     fn test_primitive_to_raw() {
-        let a : Word = 0xabcd;
+        let a: Word = 0xabcd;
         let raw = u64_to_raw(a as u64);
-        
+
         assert_eq!(raw, a);
     }
 }

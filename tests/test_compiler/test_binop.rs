@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,7 +29,8 @@ fn test_udiv() {
     let lib = linkutils::aot::compile_fnc("udiv", &udiv);
 
     unsafe {
-        let udiv : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"udiv").unwrap();
+        let udiv: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"udiv").unwrap();
 
         let udiv_8_2 = udiv(8, 2);
         println!("udiv(8, 2) = {}", udiv_8_2);
@@ -79,7 +80,8 @@ fn test_sdiv() {
     let lib = linkutils::aot::compile_fnc("sdiv", &sdiv);
 
     unsafe {
-        let sdiv : libloading::Symbol<unsafe extern fn(i64, i64) -> i64> = lib.get(b"sdiv").unwrap();
+        let sdiv: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> i64> =
+            lib.get(b"sdiv").unwrap();
 
         let sdiv_8_2 = sdiv(8, 2);
         println!("sdiv(8, 2) = {}", sdiv_8_2);
@@ -133,7 +135,8 @@ fn test_shl() {
     let lib = linkutils::aot::compile_fnc("shl", &shl);
 
     unsafe {
-        let shl : libloading::Symbol<unsafe extern fn(u64, u8) -> u64> = lib.get(b"shl").unwrap();
+        let shl: libloading::Symbol<unsafe extern "C" fn(u64, u8) -> u64> =
+            lib.get(b"shl").unwrap();
 
         let shl_1_2 = shl(1, 2);
         println!("shl(1, 2) = {}", shl_1_2);
@@ -187,7 +190,8 @@ fn test_lshr() {
     let lib = linkutils::aot::compile_fnc("lshr", &lshr);
 
     unsafe {
-        let lshr : libloading::Symbol<unsafe extern fn(u64, u8) -> u64> = lib.get(b"lshr").unwrap();
+        let lshr: libloading::Symbol<unsafe extern "C" fn(u64, u8) -> u64> =
+            lib.get(b"lshr").unwrap();
 
         let lshr_8_3 = lshr(8, 3);
         println!("lshr(8, 3) = {}", lshr_8_3);
@@ -237,7 +241,8 @@ fn test_add_simple() {
     let lib = linkutils::aot::compile_fnc("add", &add);
 
     unsafe {
-        let add : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"add").unwrap();
+        let add: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"add").unwrap();
 
         let res = add(1, 1);
         println!("add(1, 1) = {}", res);
@@ -282,7 +287,8 @@ fn test_add_int64_n() {
     let lib = linkutils::aot::compile_fnc("add_int64_n", &add_int64_n);
 
     unsafe {
-        let add_int64_n : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_n").unwrap();
+        let add_int64_n: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> u8> =
+            lib.get(b"add_int64_n").unwrap();
 
         let flag = add_int64_n(1, 1);
         println!("add_int64_n(1, 1), #N = {}", flag);
@@ -341,7 +347,8 @@ fn test_add_int64_z() {
     let lib = linkutils::aot::compile_fnc("add_int64_z", &add_int64_z);
 
     unsafe {
-        let add_int64_z : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_z").unwrap();
+        let add_int64_z: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> u8> =
+            lib.get(b"add_int64_z").unwrap();
 
         let flag = add_int64_z(1, 1);
         println!("add_int64_z(1, 1), #Z = {}", flag);
@@ -398,7 +405,8 @@ fn test_add_int64_c() {
     let lib = linkutils::aot::compile_fnc("add_int64_c", &add_int64_c);
 
     unsafe {
-        let add_int64_c : libloading::Symbol<unsafe extern fn(u64, u64) -> u8> = lib.get(b"add_int64_c").unwrap();
+        let add_int64_c: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u8> =
+            lib.get(b"add_int64_c").unwrap();
 
         let flag = add_int64_c(u64::MAX, 1);
         println!("add_int64_c(u64::MAX, 1), #C = {}", flag);
@@ -451,7 +459,8 @@ fn test_add_int64_v() {
     let lib = linkutils::aot::compile_fnc("add_int64_v", &add_int64_v);
 
     unsafe {
-        let add_int64_v : libloading::Symbol<unsafe extern fn(i64, i64) -> u8> = lib.get(b"add_int64_v").unwrap();
+        let add_int64_v: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> u8> =
+            lib.get(b"add_int64_v").unwrap();
 
         let flag = add_int64_v(i64::MAX, 1);
         println!("add_int64_v(i64::MAX, 1), #V = {}", flag);
@@ -512,7 +521,8 @@ fn test_add_int64_nzc() {
     let lib = linkutils::aot::compile_fnc("add_int64_nzc", &add_int64_nzc);
 
     unsafe {
-        let add_int64_nzc : libloading::Symbol<unsafe extern fn(u64, u64) -> u8> = lib.get(b"add_int64_nzc").unwrap();
+        let add_int64_nzc: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u8> =
+            lib.get(b"add_int64_nzc").unwrap();
 
         let flag = add_int64_nzc(u64::MAX, 1);
         println!("add_int64_nzc(u64::MAX, 1), #C = {:b}", flag);
@@ -550,7 +560,9 @@ fn add_int64_nzc() -> VM {
     ssa!        ((vm, add_int64_nzc_v1) <int1> flag_c);
 
     inst!       ((vm, add_int64_nzc_v1) blk_entry_add:
-        sum, flag_n, flag_z, flag_c = BINOP_STATUS (BinOp::Add) (BinOpStatus{flag_n: true, flag_z: true, flag_c: true, flag_v: false}) a b
+        sum, flag_n, flag_z, flag_c =
+            BINOP_STATUS (BinOp::Add)
+            (BinOpStatus{flag_n: true, flag_z: true, flag_c: true, flag_v: false}) a b
     );
 
     ssa!        ((vm, add_int64_nzc_v1) <int8> shift_z);
@@ -580,7 +592,8 @@ fn add_int64_nzc() -> VM {
     );
 
     define_block!   ((vm, add_int64_nzc_v1) blk_entry(a, b) {
-        blk_entry_add, blk_entry_shift_z, blk_entry_add_ret1, blk_entry_shift_c, blk_entry_add_ret2, blk_entry_ret
+        blk_entry_add, blk_entry_shift_z, blk_entry_add_ret1,
+        blk_entry_shift_c, blk_entry_add_ret2, blk_entry_ret
     });
 
     define_func_ver!((vm) add_int64_nzc_v1 (entry: blk_entry) {blk_entry});

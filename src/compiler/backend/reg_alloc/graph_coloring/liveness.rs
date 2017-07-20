@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -40,7 +40,10 @@ pub struct GraphNode {
 /// Move represents a move between two nodes (referred by index)
 /// We need to know the moves so that we can coalesce.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Move{pub from: NodeIndex, pub to: NodeIndex}
+pub struct Move {
+    pub from: NodeIndex,
+    pub to: NodeIndex
+}
 
 /// InterferenceGraph represents the interference graph, including
 /// * the graph
@@ -53,7 +56,7 @@ pub struct InterferenceGraph {
     /// node index is how nodes are referred to with pet_graph
     nodes: LinkedHashMap<MuID, NodeIndex>,
     /// a set of all moves
-    moves: LinkedHashSet<Move>,
+    moves: LinkedHashSet<Move>
 }
 
 impl InterferenceGraph {
@@ -92,7 +95,7 @@ impl InterferenceGraph {
         let node_mut = self.graph.node_weight_mut(node_index).unwrap();
         // increase node spill cost
         node_mut.spill_cost += 1.0f32;
-        
+
         node_index
     }
 
@@ -141,7 +144,7 @@ impl InterferenceGraph {
             }
         };
 
-        self.moves.insert(Move{from: src, to: dst});
+        self.moves.insert(Move { from: src, to: dst });
     }
 
     /// adds an interference edge between two nodes
@@ -155,7 +158,7 @@ impl InterferenceGraph {
         // we also add %a - %rdi interference
 
         let from_tmp = self.graph.node_weight(from).unwrap().temp;
-        let to_tmp   = self.graph.node_weight(to).unwrap().temp;
+        let to_tmp = self.graph.node_weight(to).unwrap().temp;
 
         if from_tmp < MACHINE_ID_END || to_tmp < MACHINE_ID_END {
             let from_tmp = if from_tmp < MACHINE_ID_END {
@@ -171,7 +174,7 @@ impl InterferenceGraph {
             };
 
             let from_tmp_node = self.get_node(from_tmp);
-            let to_tmp_node   = self.get_node(to_tmp);
+            let to_tmp_node = self.get_node(to_tmp);
             self.graph.update_edge(from_tmp_node, to_tmp_node, ());
         }
     }
@@ -260,7 +263,10 @@ impl InterferenceGraph {
         }
 
         trace!("graph:");
-        trace!("\n\n{:?}\n", Dot::with_config(&self.graph, &[Config::EdgeNoLabel]));
+        trace!(
+            "\n\n{:?}\n",
+            Dot::with_config(&self.graph, &[Config::EdgeNoLabel])
+        );
         trace!("");
     }
 }
@@ -269,8 +275,12 @@ impl InterferenceGraph {
 const TRACE_LIVENESS: bool = false;
 
 /// builds interference graph based on chaitin briggs algorithms
-/// (reference: Tailoring Graph-coloring Register Allocation For Runtime Compilation - CGO'06, Figure 4)
-pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: &MuFunctionVersion) -> InterferenceGraph {
+/// reference: Tailoring Graph-coloring Register Allocation For Runtime Compilation
+/// - CGO'06, Figure 4
+pub fn build_interference_graph_chaitin_briggs(
+    cf: &mut CompiledFunction,
+    func: &MuFunctionVersion
+) -> InterferenceGraph {
     let _p = hprof::enter("regalloc: build global liveness");
     build_global_liveness(cf, func);
     drop(_p);
@@ -303,10 +313,11 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
     // for each basic block, insert interference edge while reversely traversing instructions
     for block in cf.mc().get_all_blocks() {
         // Current_Live(B) = LiveOut(B)
-        let mut current_live = LinkedHashSet::from_vec(match cf.mc().get_ir_block_liveout(&block) {
-            Some(liveout) => liveout.to_vec(),
-            None => panic!("cannot find liveout for block {}", block)
-        });
+        let mut current_live =
+            LinkedHashSet::from_vec(match cf.mc().get_ir_block_liveout(&block) {
+                Some(liveout) => liveout.to_vec(),
+                None => panic!("cannot find liveout for block {}", block)
+            });
         if TRACE_LIVENESS {
             trace!("Block{}: live out", block);
             for ele in current_live.iter() {
@@ -319,7 +330,12 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
             warn!("Block{}: has no range (no instructions?)", block);
             continue;
         }
-        trace_if!(TRACE_LIVENESS, "Block{}: range = {:?}", block, range.as_ref().unwrap());
+        trace_if!(
+            TRACE_LIVENESS,
+            "Block{}: range = {:?}",
+            block,
+            range.as_ref().unwrap()
+        );
 
         // for every inst I in reverse order
         for i in range.unwrap().rev() {
@@ -332,7 +348,7 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
                 }
             }
 
-            let src : Option<MuID> = {
+            let src: Option<MuID> = {
                 if cf.mc().is_move(i) {
                     let src = cf.mc().get_inst_reg_uses(i);
                     let dst = cf.mc().get_inst_reg_defines(i);
@@ -346,9 +362,12 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
                         if src.len() == 1 {
                             let node1 = ig.get_node(src[0]);
                             let node2 = ig.get_node(dst[0]);
-                            trace_if!(TRACE_LIVENESS, "add move between {} and {}",
-                            func.context.get_temp_display(src[0]),
-                            func.context.get_temp_display(dst[0]));
+                            trace_if!(
+                                TRACE_LIVENESS,
+                                "add move between {} and {}",
+                                func.context.get_temp_display(src[0]),
+                                func.context.get_temp_display(dst[0])
+                            );
                             ig.add_move(node1, node2);
 
                             Some(src[0])
@@ -362,32 +381,57 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
             };
             trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: src={:?}", block, i, src);
 
+            let defines = cf.mc().get_inst_reg_defines(i);
+            for d in defines.iter() {
+                current_live.insert(*d);
+            }
+
             // for every definition D in I
-            for d in cf.mc().get_inst_reg_defines(i) {
-                trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: for definition {}",
-                    block, i, func.context.get_temp_display(d));
+            for d in defines {
+                trace_if!(
+                    TRACE_LIVENESS,
+                    "Block{}: Inst{}: for definition {}",
+                    block,
+                    i,
+                    func.context.get_temp_display(d)
+                );
                 // add an interference from D to every element E in Current_Live - {D}
                 // creating nodes if necessary
                 for e in current_live.iter() {
-                    trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: for each live {}",
-                        block, i, func.context.get_temp_display(*e));
+                    trace_if!(
+                        TRACE_LIVENESS,
+                        "Block{}: Inst{}: for each live {}",
+                        block,
+                        i,
+                        func.context.get_temp_display(*e)
+                    );
                     if src.is_none() || (src.is_some() && *e != src.unwrap()) {
                         let from = ig.get_node(d);
                         let to = ig.get_node(*e);
 
-                        if !ig.is_same_node(from, to) &&ig.is_same_group(from, to) && !ig.is_adj(from, to) {
+                        if !ig.is_same_node(from, to) && ig.is_same_group(from, to) &&
+                            !ig.is_adj(from, to)
+                        {
                             if !ig.is_colored(from) {
-                                trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: add interference between {} and {}",
-                                    block, i,
+                                trace_if!(
+                                    TRACE_LIVENESS,
+                                    "Block{}: Inst{}: add interference between {} and {}",
+                                    block,
+                                    i,
                                     func.context.get_temp_display(d),
-                                    func.context.get_temp_display(*e));
+                                    func.context.get_temp_display(*e)
+                                );
                                 ig.add_interference_edge(from, to);
                             }
                             if !ig.is_colored(to) {
-                                trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: add interference between {} and {}",
-                                    block, i,
+                                trace_if!(
+                                    TRACE_LIVENESS,
+                                    "Block{}: Inst{}: add interference between {} and {}",
+                                    block,
+                                    i,
                                     func.context.get_temp_display(*e),
-                                    func.context.get_temp_display(d));
+                                    func.context.get_temp_display(d)
+                                );
                                 ig.add_interference_edge(to, from);
                             }
                         }
@@ -397,18 +441,26 @@ pub fn build_interference_graph_chaitin_briggs(cf: &mut CompiledFunction, func: 
 
             // for every definition D in I
             for d in cf.mc().get_inst_reg_defines(i) {
-                trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: remove define {} from current_live",
-                    block, i,
-                    func.context.get_temp_display(d));
+                trace_if!(
+                    TRACE_LIVENESS,
+                    "Block{}: Inst{}: remove define {} from current_live",
+                    block,
+                    i,
+                    func.context.get_temp_display(d)
+                );
                 // remove D from Current_Live
                 current_live.remove(&d);
             }
 
             // for every use U in I
             for u in cf.mc().get_inst_reg_uses(i) {
-                trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: add use {} to current_live",
-                    block, i,
-                    func.context.get_temp_display(u));
+                trace_if!(
+                    TRACE_LIVENESS,
+                    "Block{}: Inst{}: add use {} to current_live",
+                    block,
+                    i,
+                    func.context.get_temp_display(u)
+                );
                 // add U to Current_live
                 current_live.insert(u);
             }
@@ -445,7 +497,7 @@ struct CFGBlockNode {
     block: String,
     pred: Vec<String>,
     succ: Vec<String>,
-    uses:  Vec<MuID>,
+    uses: Vec<MuID>,
     defs: Vec<MuID>
 }
 
@@ -464,8 +516,8 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
     // create maps (start_inst -> name) and (end_inst -> name)
     // we will use it to find basic blocks when given a inst index
     let (start_inst_map, end_inst_map) = {
-        let mut start_inst_map : LinkedHashMap<usize, &str> = LinkedHashMap::new();
-        let mut end_inst_map   : LinkedHashMap<usize, &str> = LinkedHashMap::new();
+        let mut start_inst_map: LinkedHashMap<usize, &str> = LinkedHashMap::new();
+        let mut end_inst_map: LinkedHashMap<usize, &str> = LinkedHashMap::new();
         for block in all_blocks.iter() {
             let range = match mc.get_block_range(block) {
                 Some(range) => range,
@@ -477,9 +529,21 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
             // last inst (we need to skip symbols)
             let last_inst = match mc.get_last_inst(range.end) {
                 Some(last) => last,
-                None => panic!("cannot find last instruction in block {}, this block contains no instruction?", block)
+                None => {
+                    panic!(
+                        "cannot find last instruction in block {}, \
+                         this block contains no instruction?",
+                        block
+                    )
+                }
             };
-            trace_if!(TRACE_LIVENESS, "Block {}: start_inst={}, end_inst(inclusive)={}", block, first_inst, last_inst);
+            trace_if!(
+                TRACE_LIVENESS,
+                "Block {}: start_inst={}, end_inst(inclusive)={}",
+                block,
+                first_inst,
+                last_inst
+            );
 
             start_inst_map.insert(first_inst, block);
             end_inst_map.insert(last_inst, block);
@@ -493,7 +557,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
         trace_if!(TRACE_LIVENESS, "---block {}---", block);
         let range = mc.get_block_range(block).unwrap();
         let start_inst = range.start;
-        let end        = range.end;
+        let end = range.end;
 
         // livein set of this block is what temps this block uses from other blocks
         // defs is what temps this block defines in the block
@@ -502,7 +566,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
             let mut livein = vec![];
             // we need to know all temporaries defined in the block
             // if a temporary is not defined in this block, it is a livein for this block
-            let mut all_defined : LinkedHashSet<MuID> = LinkedHashSet::new();
+            let mut all_defined: LinkedHashSet<MuID> = LinkedHashSet::new();
 
             for i in start_inst..end {
                 let reg_uses = mc.get_inst_reg_uses(i);
@@ -520,12 +584,12 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
                 }
             }
 
-            let defs : Vec<MuID> = all_defined.iter().map(|x| *x).collect();
+            let defs: Vec<MuID> = all_defined.iter().map(|x| *x).collect();
 
             (livein, defs)
         };
 
-        let preds : Vec<String> = {
+        let preds: Vec<String> = {
             let mut ret = vec![];
 
             // predecessors of the first instruction is the predecessors of this block
@@ -539,7 +603,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
             ret
         };
 
-        let succs : Vec<String> = {
+        let succs: Vec<String> = {
             let mut ret = vec![];
 
             // successors of the last instruction is the successors of this block
@@ -569,19 +633,23 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
 }
 
 /// global analysis, the iterative algorithm to compute livenss until livein/out reaches a fix point
-fn global_liveness_analysis(blocks: LinkedHashMap<String, CFGBlockNode>, cf: &mut CompiledFunction, func: &MuFunctionVersion) {
+fn global_liveness_analysis(
+    blocks: LinkedHashMap<String, CFGBlockNode>,
+    cf: &mut CompiledFunction,
+    func: &MuFunctionVersion
+) {
     info!("---global liveness analysis---");
     info!("{} blocks", blocks.len());
 
     // init live in and live out
-    let mut livein  : LinkedHashMap<String, LinkedHashSet<MuID>> = {
+    let mut livein: LinkedHashMap<String, LinkedHashSet<MuID>> = {
         let mut ret = LinkedHashMap::new();
         for name in blocks.keys() {
             ret.insert(name.clone(), LinkedHashSet::new());
         }
         ret
     };
-    let mut liveout  : LinkedHashMap<String, LinkedHashSet<MuID>> = {
+    let mut liveout: LinkedHashMap<String, LinkedHashSet<MuID>> = {
         let mut ret = LinkedHashMap::new();
         for name in blocks.keys() {
             ret.insert(name.clone(), LinkedHashSet::new());
@@ -605,7 +673,7 @@ fn global_liveness_analysis(blocks: LinkedHashMap<String, CFGBlockNode>, cf: &mu
             let cfg_node = blocks.get(node).unwrap();
 
             // old livein/out
-            let in_set_old  = livein.get(node).unwrap().clone();
+            let in_set_old = livein.get(node).unwrap().clone();
             let out_set_old = liveout.get(node).unwrap().clone();
 
             // in <- use + (out - def)
@@ -637,7 +705,8 @@ fn global_liveness_analysis(blocks: LinkedHashMap<String, CFGBlockNode>, cf: &mu
             }
 
             // is in/out changed in this iteration?
-            let n_changed = !in_set_old.equals(livein.get(node).unwrap()) || !out_set_old.equals(liveout.get(node).unwrap());
+            let n_changed = !in_set_old.equals(livein.get(node).unwrap()) ||
+                !out_set_old.equals(liveout.get(node).unwrap());
 
             if TRACE_LIVENESS {
                 trace!("block {}", node);
@@ -655,16 +724,34 @@ fn global_liveness_analysis(blocks: LinkedHashMap<String, CFGBlockNode>, cf: &mu
 
     // set live in and live out
     for block in blocks.keys() {
-        let livein : Vec<MuID> = livein.get(block).unwrap().clone().iter().map(|x| *x).collect();
+        let livein: Vec<MuID> = livein
+            .get(block)
+            .unwrap()
+            .clone()
+            .iter()
+            .map(|x| *x)
+            .collect();
         if TRACE_LIVENESS {
-            let display_array : Vec<String> =  livein.iter().map(|x| func.context.get_temp_display(*x)).collect();
+            let display_array: Vec<String> = livein
+                .iter()
+                .map(|x| func.context.get_temp_display(*x))
+                .collect();
             trace!("livein  for block {}: {:?}", block, display_array);
         }
         cf.mc_mut().set_ir_block_livein(block, livein);
 
-        let liveout : Vec<MuID> = liveout.get(block).unwrap().clone().iter().map(|x| *x).collect();
+        let liveout: Vec<MuID> = liveout
+            .get(block)
+            .unwrap()
+            .clone()
+            .iter()
+            .map(|x| *x)
+            .collect();
         if TRACE_LIVENESS {
-            let display_array : Vec<String> = liveout.iter().map(|x| func.context.get_temp_display(*x)).collect();
+            let display_array: Vec<String> = liveout
+                .iter()
+                .map(|x| func.context.get_temp_display(*x))
+                .collect();
             trace!("liveout for block {}: {:?}", block, display_array);
         }
         cf.mc_mut().set_ir_block_liveout(block, liveout);

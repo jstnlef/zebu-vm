@@ -41,11 +41,11 @@ lazy_static! {
     pub static ref UINT16_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::int(16))
     );
-    
+
     pub static ref UINT32_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::int(32))
     );
-    
+
     pub static ref UINT64_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::int(64))
     );
@@ -111,7 +111,7 @@ pub struct MuType {
     pub v: MuType_
 }
 
-rodal_struct!(MuType{hdr, v});
+rodal_struct!(MuType { hdr, v });
 
 impl MuType {
     /// creates a new Mu type
@@ -165,18 +165,18 @@ impl MuType {
     /// is this type a scalar type?
     pub fn is_scalar(&self) -> bool {
         match self.v {
-            MuType_::Int(_)
-            | MuType_::Float
-            | MuType_::Double
-            | MuType_::Ref(_)
-            | MuType_::IRef(_)
-            | MuType_::WeakRef(_)
-            | MuType_::FuncRef(_)
-            | MuType_::UFuncPtr(_)
-            | MuType_::ThreadRef
-            | MuType_::StackRef
-            | MuType_::Tagref64
-            | MuType_::UPtr(_) => true,
+            MuType_::Int(_) |
+            MuType_::Float |
+            MuType_::Double |
+            MuType_::Ref(_) |
+            MuType_::IRef(_) |
+            MuType_::WeakRef(_) |
+            MuType_::FuncRef(_) |
+            MuType_::UFuncPtr(_) |
+            MuType_::ThreadRef |
+            MuType_::StackRef |
+            MuType_::Tagref64 |
+            MuType_::UPtr(_) => true,
             _ => false
         }
     }
@@ -185,8 +185,7 @@ impl MuType {
     /// We use tag to resolve recursive types, and maintains a map between tag and struct types
     pub fn get_struct_hybrid_tag(&self) -> Option<MuName> {
         match self.v {
-            MuType_::Hybrid(ref name)
-            | MuType_::Struct(ref name) => Some(name.clone()),
+            MuType_::Hybrid(ref name) | MuType_::Struct(ref name) => Some(name.clone()),
             _ => None
         }
     }
@@ -203,9 +202,7 @@ impl MuType {
     /// is this type any reference type pointing to the heap? (including ref/iref/weakref)
     pub fn is_heap_reference(&self) -> bool {
         match self.v {
-            MuType_::Ref(_)
-            | MuType_::IRef(_)
-            | MuType_::WeakRef(_) => true,
+            MuType_::Ref(_) | MuType_::IRef(_) | MuType_::WeakRef(_) => true,
             _ => false
         }
     }
@@ -229,9 +226,7 @@ impl MuType {
     /// is this type an aggregated type? (consisted of other types)
     pub fn is_aggregate(&self) -> bool {
         match self.v {
-            MuType_::Struct(_)
-            | MuType_::Hybrid(_)
-            | MuType_::Array(_, _) => true,
+            MuType_::Struct(_) | MuType_::Hybrid(_) | MuType_::Array(_, _) => true,
             _ => false
         }
     }
@@ -244,30 +239,31 @@ impl MuType {
             MuType_::Ref(_) => true,
             MuType_::IRef(_) => true,
             MuType_::WeakRef(_) => true,
-            MuType_::Array(ref elem_ty, _)
-            | MuType_::Vector(ref elem_ty, _) => elem_ty.is_traced(),
-            MuType_::ThreadRef
-            | MuType_::StackRef
-            | MuType_::Tagref64 => true,
+            MuType_::Array(ref elem_ty, _) | MuType_::Vector(ref elem_ty, _) => elem_ty.is_traced(),
+            MuType_::ThreadRef | MuType_::StackRef | MuType_::Tagref64 => true,
             MuType_::Hybrid(ref tag) => {
                 let map = HYBRID_TAG_MAP.read().unwrap();
                 let hybrid_ty = map.get(tag).unwrap();
 
                 let ref fix_tys = hybrid_ty.fix_tys;
-                let ref var_ty  = hybrid_ty.var_ty;
+                let ref var_ty = hybrid_ty.var_ty;
 
-                var_ty.is_traced()
-                || fix_tys.into_iter().map(|ty| ty.is_traced())
+                var_ty.is_traced() ||
+                    fix_tys
+                        .into_iter()
+                        .map(|ty| ty.is_traced())
                         .fold(false, |ret, this| ret || this)
-            },
+            }
             MuType_::Struct(ref tag) => {
                 let map = STRUCT_TAG_MAP.read().unwrap();
                 let struct_ty = map.get(tag).unwrap();
                 let ref field_tys = struct_ty.tys;
 
-                field_tys.into_iter().map(|ty| ty.is_traced())
+                field_tys
+                    .into_iter()
+                    .map(|ty| ty.is_traced())
                     .fold(false, |ret, this| ret || this)
-            },
+            }
             _ => false
         }
     }
@@ -281,8 +277,9 @@ impl MuType {
             MuType_::Float => true,
             MuType_::Double => true,
             MuType_::Void => true,
-            MuType_::Array(ref elem_ty, _)
-            | MuType_::Vector(ref elem_ty, _) => elem_ty.is_native_safe(),
+            MuType_::Array(ref elem_ty, _) | MuType_::Vector(ref elem_ty, _) => {
+                elem_ty.is_native_safe()
+            }
             MuType_::UPtr(_) => true,
             MuType_::UFuncPtr(_) => true,
             MuType_::Hybrid(ref tag) => {
@@ -290,20 +287,24 @@ impl MuType {
                 let hybrid_ty = map.get(tag).unwrap();
 
                 let ref fix_tys = hybrid_ty.fix_tys;
-                let ref var_ty  = hybrid_ty.var_ty;
+                let ref var_ty = hybrid_ty.var_ty;
 
-                var_ty.is_native_safe()
-                && fix_tys.into_iter().map(|ty| ty.is_native_safe())
+                var_ty.is_native_safe() &&
+                    fix_tys
+                        .into_iter()
+                        .map(|ty| ty.is_native_safe())
                         .fold(true, |ret, this| ret && this)
-            },
+            }
             MuType_::Struct(ref tag) => {
                 let map = STRUCT_TAG_MAP.read().unwrap();
                 let struct_ty = map.get(tag).unwrap();
                 let ref field_tys = struct_ty.tys;
 
-                field_tys.into_iter().map(|ty| ty.is_native_safe())
+                field_tys
+                    .into_iter()
+                    .map(|ty| ty.is_native_safe())
                     .fold(true, |ret, this| ret && this)
-            },
+            }
             _ => false
         }
     }
@@ -316,7 +317,8 @@ impl MuType {
         }
     }
 
-    /// gets a field's type of a struct type, returns None if the type is not a struct or hybrid type
+    /// gets a field's type of a struct type,
+    /// returns None if the type is not a struct or hybrid type
     pub fn get_field_ty(&self, index: usize) -> Option<P<MuType>> {
         match self.v {
             MuType_::Struct(ref tag) => {
@@ -324,13 +326,13 @@ impl MuType {
                 let struct_inner = map_lock.get(tag).unwrap();
 
                 Some(struct_inner.tys[index].clone())
-            },
+            }
             MuType_::Hybrid(ref tag) => {
                 let map_lock = HYBRID_TAG_MAP.read().unwrap();
                 let hybrid_inner = map_lock.get(tag).unwrap();
 
                 Some(hybrid_inner.fix_tys[index].clone())
-            },
+            }
             _ => None
         }
     }
@@ -343,7 +345,7 @@ impl MuType {
                 let hybrid_inner = map_lock.get(tag).unwrap();
 
                 Some(hybrid_inner.var_ty.clone())
-            },
+            }
             _ => None
         }
     }
@@ -353,10 +355,7 @@ impl MuType {
     pub fn get_referent_ty(&self) -> Option<P<MuType>> {
         use types::MuType_::*;
         match self.v {
-            Ref(ref ty)
-            | IRef(ref ty)
-            | WeakRef(ref ty)
-            | UPtr(ref ty) => Some(ty.clone()),
+            Ref(ref ty) | IRef(ref ty) | WeakRef(ref ty) | UPtr(ref ty) => Some(ty.clone()),
             _ => None
         }
     }
@@ -367,15 +366,15 @@ impl MuType {
         use types::MuType_::*;
         match self.v {
             Int(len) => Some(len),
-            Ref(_)
-            | IRef(_)
-            | WeakRef(_)
-            | UPtr(_)
-            | ThreadRef
-            | StackRef
-            | Tagref64
-            | FuncRef(_)
-            | UFuncPtr(_) => Some(64),
+            Ref(_) |
+            IRef(_) |
+            WeakRef(_) |
+            UPtr(_) |
+            ThreadRef |
+            StackRef |
+            Tagref64 |
+            FuncRef(_) |
+            UFuncPtr(_) => Some(64),
             _ => None
         }
     }
@@ -388,30 +387,30 @@ pub type HybridTag = MuName;
 #[derive(PartialEq, Debug)]
 pub enum MuType_ {
     /// int <length>
-    Int          (usize),
+    Int(usize),
     /// float
     Float,
     /// double
     Double,
 
     /// ref<T>
-    Ref          (P<MuType>),    // Box is needed for non-recursive enum
+    Ref(P<MuType>), // Box is needed for non-recursive enum
     /// iref<T>: internal reference
-    IRef         (P<MuType>),
+    IRef(P<MuType>),
     /// weakref<T>
-    WeakRef      (P<MuType>),
+    WeakRef(P<MuType>),
 
     /// uptr<T>: unsafe pointer
-    UPtr         (P<MuType>),
+    UPtr(P<MuType>),
 
     /// struct<T1 T2 ...>
-    Struct       (StructTag),
+    Struct(StructTag),
 
     /// array<T length>
-    Array        (P<MuType>, usize),
+    Array(P<MuType>, usize),
 
     /// hybrid<F1 F2 ... V>: a hybrid of fixed length parts and a variable length part
-    Hybrid       (HybridTag),
+    Hybrid(HybridTag),
 
     /// void
     Void,
@@ -425,13 +424,13 @@ pub enum MuType_ {
     Tagref64,
 
     /// vector<T length>
-    Vector       (P<MuType>, usize),
+    Vector(P<MuType>, usize),
 
     /// funcref<@sig>
-    FuncRef      (P<MuFuncSig>),
+    FuncRef(P<MuFuncSig>),
 
     /// ufuncptr<@sig>
-    UFuncPtr     (P<MuFuncSig>),
+    UFuncPtr(P<MuFuncSig>)
 }
 
 rodal_enum!(MuType_{(Int: size), Float, Double, (Ref: ty), (IRef: ty), (WeakRef: ty), (UPtr: ty),
@@ -440,30 +439,30 @@ rodal_enum!(MuType_{(Int: size), Float, Double, (Ref: ty), (IRef: ty), (WeakRef:
 
 impl fmt::Display for MuType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.v)        
+        write!(f, "{}", self.v)
     }
 }
 
 impl fmt::Display for MuType_ {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &MuType_::Int(n)                          => write!(f, "int<{}>", n),
-            &MuType_::Float                           => write!(f, "float"),
-            &MuType_::Double                          => write!(f, "double"),
-            &MuType_::Ref(ref ty)                     => write!(f, "ref<{}>", ty),
-            &MuType_::IRef(ref ty)                    => write!(f, "iref<{}>", ty),
-            &MuType_::WeakRef(ref ty)                 => write!(f, "weakref<{}>", ty),
-            &MuType_::UPtr(ref ty)                    => write!(f, "uptr<{}>", ty),
-            &MuType_::Array(ref ty, size)             => write!(f, "array<{} {}>", ty, size),
-            &MuType_::Void                            => write!(f, "void"),
-            &MuType_::ThreadRef                       => write!(f, "threadref"),
-            &MuType_::StackRef                        => write!(f, "stackref"),
-            &MuType_::Tagref64                        => write!(f, "tagref64"),
-            &MuType_::Vector(ref ty, size)            => write!(f, "vector<{} {}>", ty, size),
-            &MuType_::FuncRef(ref sig)                => write!(f, "funcref<{}>", sig),
-            &MuType_::UFuncPtr(ref sig)               => write!(f, "ufuncref<{}>", sig),
-            &MuType_::Struct(ref tag)                 => write!(f, "{}(struct)", tag),
-            &MuType_::Hybrid(ref tag)                 => write!(f, "{}(hybrid)", tag)
+            &MuType_::Int(n) => write!(f, "int<{}>", n),
+            &MuType_::Float => write!(f, "float"),
+            &MuType_::Double => write!(f, "double"),
+            &MuType_::Ref(ref ty) => write!(f, "ref<{}>", ty),
+            &MuType_::IRef(ref ty) => write!(f, "iref<{}>", ty),
+            &MuType_::WeakRef(ref ty) => write!(f, "weakref<{}>", ty),
+            &MuType_::UPtr(ref ty) => write!(f, "uptr<{}>", ty),
+            &MuType_::Array(ref ty, size) => write!(f, "array<{} {}>", ty, size),
+            &MuType_::Void => write!(f, "void"),
+            &MuType_::ThreadRef => write!(f, "threadref"),
+            &MuType_::StackRef => write!(f, "stackref"),
+            &MuType_::Tagref64 => write!(f, "tagref64"),
+            &MuType_::Vector(ref ty, size) => write!(f, "vector<{} {}>", ty, size),
+            &MuType_::FuncRef(ref sig) => write!(f, "funcref<{}>", sig),
+            &MuType_::UFuncPtr(ref sig) => write!(f, "ufuncref<{}>", sig),
+            &MuType_::Struct(ref tag) => write!(f, "{}(struct)", tag),
+            &MuType_::Hybrid(ref tag) => write!(f, "{}(hybrid)", tag)
         }
     }
 }
@@ -506,7 +505,7 @@ impl StructType_ {
         self.tys.clear();
         self.tys.append(&mut list);
     }
-    
+
     pub fn get_tys(&self) -> &Vec<P<MuType>> {
         &self.tys
     }
@@ -516,12 +515,15 @@ rodal_struct!(HybridType_{fix_tys, var_ty});
 #[derive(PartialEq, Debug)]
 pub struct HybridType_ {
     fix_tys: Vec<P<MuType>>,
-    var_ty : P<MuType>
+    var_ty: P<MuType>
 }
 
 impl HybridType_ {
     pub fn new(fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) -> HybridType_ {
-        HybridType_ {fix_tys: fix_tys, var_ty: var_ty}
+        HybridType_ {
+            fix_tys: fix_tys,
+            var_ty: var_ty
+        }
     }
 
     pub fn set_tys(&mut self, mut fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) {
@@ -604,13 +606,17 @@ impl MuType_ {
     /// creates an empty struct type with a tag (we can later put types into the struct)
     /// This is used to create a recursive struct type, e.g. T = struct { ref<T> }
     pub fn mustruct_empty(tag: MuName) -> MuType_ {
-        let struct_ty_ = StructType_{tys: vec![]};
-        STRUCT_TAG_MAP.write().unwrap().insert(tag.clone(), struct_ty_);
+        let struct_ty_ = StructType_ { tys: vec![] };
+        STRUCT_TAG_MAP
+            .write()
+            .unwrap()
+            .insert(tag.clone(), struct_ty_);
 
         MuType_::Struct(tag)
     }
     /// puts types into an empty struct (created by mustruct_empty())
-    /// This method will clear existing types declared with the tag, and set struct to the specified types
+    /// This method will clear existing types declared with the tag,
+    /// and set struct to the specified types
     /// This method panics if the tag does not exist
     pub fn mustruct_put(tag: &MuName, mut list: Vec<P<MuType>>) {
         let mut map_guard = STRUCT_TAG_MAP.write().unwrap();
@@ -619,13 +625,13 @@ impl MuType_ {
             Some(struct_ty_) => {
                 struct_ty_.tys.clear();
                 struct_ty_.tys.append(&mut list);
-            },
+            }
             None => panic!("call mustruct_empty() to create an empty struct before mustruct_put()")
         }
     }
     /// creates a Mu struct with specified field types
     pub fn mustruct(tag: StructTag, list: Vec<P<MuType>>) -> MuType_ {
-        let struct_ty_ = StructType_{tys: list};
+        let struct_ty_ = StructType_ { tys: list };
 
         // if there is an attempt to use a same tag for different struct,
         // we panic
@@ -635,11 +641,14 @@ impl MuType_ {
                     panic!("trying to insert {} as {}, while the old struct is defined as {}",
                             struct_ty_, tag, old_struct_ty_)
                 }
-            },
+            }
             None => {}
         }
         // otherwise, store the tag
-        STRUCT_TAG_MAP.write().unwrap().insert(tag.clone(), struct_ty_);
+        STRUCT_TAG_MAP
+            .write()
+            .unwrap()
+            .insert(tag.clone(), struct_ty_);
 
         MuType_::Struct(tag)
     }
@@ -647,13 +656,21 @@ impl MuType_ {
     /// creates an empty hybrid type with a tag (we can later put types into the hybrid)
     /// This is used to create a recursive hybrid type, e.g. T = hybrid { ref<T>, ... | ref<T> }
     pub fn hybrid_empty(tag: HybridTag) -> MuType_ {
-        let hybrid_ty_ = HybridType_{fix_tys: vec![], var_ty: VOID_TYPE.clone()};
-        HYBRID_TAG_MAP.write().unwrap().insert(tag.clone(), hybrid_ty_);
+        let hybrid_ty_ = HybridType_ {
+            fix_tys: vec![],
+            var_ty: VOID_TYPE.clone()
+        };
+        HYBRID_TAG_MAP
+            .write()
+            .unwrap()
+            .insert(tag.clone(), hybrid_ty_);
 
         MuType_::Hybrid(tag)
     }
+
     /// puts types into an empty hybrid (created by muhybrid_empty())
-    /// This method will clear existing types declared with the tag, and set hybrid to the specified types
+    /// This method will clear existing types declared with the tag,
+    /// and set hybrid to the specified types
     /// This method panics if the tag does not exist
     pub fn hybrid_put(tag: &HybridTag, mut fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) {
         let mut map_guard = HYBRID_TAG_MAP.write().unwrap();
@@ -664,13 +681,16 @@ impl MuType_ {
                 hybrid_ty_.fix_tys.append(&mut fix_tys);
 
                 hybrid_ty_.var_ty = var_ty;
-            },
+            }
             None => panic!("call hybrid_empty() to create an empty struct before hybrid_put()")
         }
     }
     /// creates a Mu hybrid with specified fix part and var part types
     pub fn hybrid(tag: HybridTag, fix_tys: Vec<P<MuType>>, var_ty: P<MuType>) -> MuType_ {
-        let hybrid_ty_ = HybridType_{fix_tys: fix_tys, var_ty: var_ty};
+        let hybrid_ty_ = HybridType_ {
+            fix_tys: fix_tys,
+            var_ty: var_ty
+        };
 
 
         match HYBRID_TAG_MAP.read().unwrap().get(&tag) {
@@ -679,11 +699,14 @@ impl MuType_ {
                     panic!("trying to insert {} as {}, while the old hybrid is defined as {}",
                            hybrid_ty_, tag, old_hybrid_ty_);
                 }
-            },
+            }
             None => {}
         }
 
-        HYBRID_TAG_MAP.write().unwrap().insert(tag.clone(), hybrid_ty_);
+        HYBRID_TAG_MAP
+            .write()
+            .unwrap()
+            .insert(tag.clone(), hybrid_ty_);
 
         MuType_::Hybrid(tag)
     }
@@ -693,7 +716,7 @@ impl MuType_ {
 #[derive(PartialEq, Debug)]
 pub struct MuFuncSig {
     pub hdr: MuEntityHeader,
-    pub ret_tys : Vec<P<MuType>>,
+    pub ret_tys: Vec<P<MuType>>,
     pub arg_tys: Vec<P<MuType>>
 }
 
@@ -701,7 +724,8 @@ rodal_struct!(MuFuncSig{hdr, ret_tys, arg_tys});
 
 impl fmt::Display for MuFuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{}] -> [{}]", vec_utils::as_str(&self.arg_tys), vec_utils::as_str(&self.ret_tys))
+        write!(f, "[{}] -> [{}]",
+               vec_utils::as_str(&self.arg_tys), vec_utils::as_str(&self.ret_tys))
     }
 }
 

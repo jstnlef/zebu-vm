@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,12 +21,14 @@ use compiler::CompilerPass;
 use std::any::Any;
 
 pub struct GenMovPhi {
-    name: &'static str,
+    name: &'static str
 }
 
 impl GenMovPhi {
     pub fn new() -> GenMovPhi {
-        GenMovPhi{name: "Generate Phi Moves"}
+        GenMovPhi {
+            name: "Generate Phi Moves"
+        }
     }
 }
 
@@ -34,7 +36,7 @@ struct IntermediateBlockInfo {
     blk_id: MuID,
     blk_name: MuName,
     target: MuID,
-    from_args : Vec<P<TreeNode>>
+    from_args: Vec<P<TreeNode>>
 }
 
 impl CompilerPass for GenMovPhi {
@@ -52,7 +54,7 @@ impl CompilerPass for GenMovPhi {
         // we do this with two steps.
         // first step collects information about intermediate blocks
         // and second step inserts intermediate blocks
-        let mut new_blocks_to_insert : Vec<IntermediateBlockInfo> = vec![];
+        let mut new_blocks_to_insert: Vec<IntermediateBlockInfo> = vec![];
 
         // first step - collects info on intermediate blocks
         for (blk_id, mut block) in f_content.blocks.iter_mut() {
@@ -79,13 +81,32 @@ impl CompilerPass for GenMovPhi {
                             let ref ops = inst.ops;
                             let inst_name = inst.name().clone();
                             match inst.v {
-                                Instruction_::Branch2{cond, true_dest, false_dest, true_prob} => {
+                                Instruction_::Branch2 {
+                                    cond,
+                                    true_dest,
+                                    false_dest,
+                                    true_prob
+                                } => {
                                     // check and insert intermediate blocks for true/false dest
-                                    let true_dest  = process_dest(true_dest,  &mut new_blocks_to_insert, &ops, vm, &inst_name, "true");
-                                    let false_dest = process_dest(false_dest, &mut new_blocks_to_insert, &ops, vm, &inst_name, "false");
+                                    let true_dest = process_dest(
+                                        true_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "true"
+                                    );
+                                    let false_dest = process_dest(
+                                        false_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "false"
+                                    );
 
                                     // rewrite the instruction
-                                    let new_inst = func.new_inst(Instruction{
+                                    let new_inst = func.new_inst(Instruction {
                                         hdr: inst.hdr.clone(),
                                         value: inst.value.clone(),
                                         ops: ops.to_vec(),
@@ -100,17 +121,31 @@ impl CompilerPass for GenMovPhi {
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
                                 }
-                                Instruction_::Call{data, resume} => {
-                                    let norm_dest = process_dest(resume.normal_dest, &mut new_blocks_to_insert, &ops, vm, &inst_name, "norm");
-                                    let exn_dest  = process_dest(resume.exn_dest,    &mut new_blocks_to_insert, &ops, vm, &inst_name, "exc");
+                                Instruction_::Call { data, resume } => {
+                                    let norm_dest = process_dest(
+                                        resume.normal_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "norm"
+                                    );
+                                    let exn_dest = process_dest(
+                                        resume.exn_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "exc"
+                                    );
 
-                                    let new_inst = func.new_inst(Instruction{
+                                    let new_inst = func.new_inst(Instruction {
                                         hdr: inst.hdr.clone(),
                                         value: inst.value.clone(),
                                         ops: ops.to_vec(),
                                         v: Instruction_::Call {
                                             data: data.clone(),
-                                            resume: ResumptionData{
+                                            resume: ResumptionData {
                                                 normal_dest: norm_dest,
                                                 exn_dest: exn_dest
                                             }
@@ -120,17 +155,31 @@ impl CompilerPass for GenMovPhi {
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
                                 }
-                                Instruction_::CCall{data, resume} => {
-                                    let norm_dest = process_dest(resume.normal_dest, &mut new_blocks_to_insert, &ops, vm, &inst_name, "norm");
-                                    let exn_dest  = process_dest(resume.exn_dest,    &mut new_blocks_to_insert, &ops, vm, &inst_name, "exc");
+                                Instruction_::CCall { data, resume } => {
+                                    let norm_dest = process_dest(
+                                        resume.normal_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "norm"
+                                    );
+                                    let exn_dest = process_dest(
+                                        resume.exn_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "exc"
+                                    );
 
-                                    let new_inst = func.new_inst(Instruction{
+                                    let new_inst = func.new_inst(Instruction {
                                         hdr: inst.hdr.clone(),
                                         value: inst.value.clone(),
                                         ops: ops.to_vec(),
                                         v: Instruction_::Call {
                                             data: data.clone(),
-                                            resume: ResumptionData{
+                                            resume: ResumptionData {
                                                 normal_dest: norm_dest,
                                                 exn_dest: exn_dest
                                             }
@@ -139,16 +188,37 @@ impl CompilerPass for GenMovPhi {
 
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
-                                },
-                                Instruction_::Switch{cond, default, mut branches} => {
-                                    let default_dest = process_dest(default, &mut new_blocks_to_insert, &ops, vm, &inst_name, "default");
+                                }
+                                Instruction_::Switch {
+                                    cond,
+                                    default,
+                                    mut branches
+                                } => {
+                                    let default_dest = process_dest(
+                                        default,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "default"
+                                    );
 
-                                    let new_branches = branches.drain(..).map(|pair| {
-                                        let dest = process_dest(pair.1, &mut new_blocks_to_insert, &ops, vm, &inst_name, format!("case_{}", pair.0).as_str());
-                                        (pair.0, dest)
-                                    }).collect();
+                                    let new_branches = branches
+                                        .drain(..)
+                                        .map(|pair| {
+                                            let dest = process_dest(
+                                                pair.1,
+                                                &mut new_blocks_to_insert,
+                                                &ops,
+                                                vm,
+                                                &inst_name,
+                                                format!("case_{}", pair.0).as_str()
+                                            );
+                                            (pair.0, dest)
+                                        })
+                                        .collect();
 
-                                    let new_inst = func.new_inst(Instruction{
+                                    let new_inst = func.new_inst(Instruction {
                                         hdr: inst.hdr.clone(),
                                         value: inst.value.clone(),
                                         ops: ops.to_vec(),
@@ -162,18 +232,10 @@ impl CompilerPass for GenMovPhi {
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
                                 }
-                                Instruction_::Watchpoint{..} => {
-                                    unimplemented!()
-                                },
-                                Instruction_::WPBranch{..} => {
-                                    unimplemented!()
-                                },
-                                Instruction_::SwapStack{..} => {
-                                    unimplemented!()
-                                },
-                                Instruction_::ExnInstruction{..} => {
-                                    unimplemented!()
-                                },
+                                Instruction_::Watchpoint { .. } => unimplemented!(),
+                                Instruction_::WPBranch { .. } => unimplemented!(),
+                                Instruction_::SwapStack { .. } => unimplemented!(),
+                                Instruction_::ExnInstruction { .. } => unimplemented!(),
                                 _ => {
                                     trace!("no rewrite");
                                     new_body.push(node.clone())
@@ -187,10 +249,10 @@ impl CompilerPass for GenMovPhi {
                 i += 1;
             }
 
-            block.content = Some(BlockContent{
-                args      : block_content.args.to_vec(),
-                exn_arg   : block_content.exn_arg.clone(),
-                body      : new_body,
+            block.content = Some(BlockContent {
+                args: block_content.args.to_vec(),
+                exn_arg: block_content.exn_arg.clone(),
+                body: new_body,
                 keepalives: block_content.keepalives.clone()
             });
         }
@@ -200,7 +262,10 @@ impl CompilerPass for GenMovPhi {
             // create intermediate block
             let block = {
                 let target_id = block_info.target;
-                let mut ret = Block::new(MuEntityHeader::named(block_info.blk_id, block_info.blk_name.clone()));
+                let mut ret = Block::new(MuEntityHeader::named(
+                    block_info.blk_id,
+                    block_info.blk_name.clone()
+                ));
                 vm.set_name(ret.as_entity());
 
                 let mut target_block = f_content.get_block_mut(target_id);
@@ -211,7 +276,7 @@ impl CompilerPass for GenMovPhi {
                 let exn_arg = target_block.content.as_mut().unwrap().exn_arg.take();
                 let ref target_args = target_block.content.as_ref().unwrap().args;
 
-                ret.content = Some(BlockContent{
+                ret.content = Some(BlockContent {
                     args: vec![],
                     exn_arg: exn_arg,
                     body: {
@@ -220,7 +285,7 @@ impl CompilerPass for GenMovPhi {
                         // move every from_arg to target_arg
                         let mut i = 0;
                         for arg in block_info.from_args.iter() {
-                            let m = func.new_inst(Instruction{
+                            let m = func.new_inst(Instruction {
                                 hdr: MuEntityHeader::unnamed(vm.next_id()),
                                 value: Some(vec![target_args[i].clone()]),
                                 ops: vec![arg.clone()],
@@ -233,11 +298,11 @@ impl CompilerPass for GenMovPhi {
                         }
 
                         // branch to target
-                        let b = func.new_inst(Instruction{
+                        let b = func.new_inst(Instruction {
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             value: None,
                             ops: vec![],
-                            v: Instruction_::Branch1(Destination{
+                            v: Instruction_::Branch1(Destination {
                                 target: target_id,
                                 args: vec![]
                             })
@@ -266,7 +331,14 @@ impl CompilerPass for GenMovPhi {
 /// we need an intermediate block to move the arguments, return
 /// the intermediate block as destination. Otherwise, return
 /// the original destination
-fn process_dest(dest: Destination, blocks_to_insert: &mut Vec<IntermediateBlockInfo>, ops: &Vec<P<TreeNode>>, vm: &VM, inst: &MuName, label: &str) -> Destination {
+fn process_dest(
+    dest: Destination,
+    blocks_to_insert: &mut Vec<IntermediateBlockInfo>,
+    ops: &Vec<P<TreeNode>>,
+    vm: &VM,
+    inst: &MuName,
+    label: &str
+) -> Destination {
     if dest.args.is_empty() {
         dest
     } else {
@@ -280,7 +352,7 @@ fn process_dest(dest: Destination, blocks_to_insert: &mut Vec<IntermediateBlockI
             };
 
             from_args.push(from_arg);
-        };
+        }
 
         let new_blk_id = vm.next_id();
 

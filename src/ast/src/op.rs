@@ -97,7 +97,7 @@ impl CmpOp {
             FUGT => FULT,
             FULT => FUGT,
 
-            _ => self, // all other comparisons are symmetric
+            _ => self // all other comparisons are symmetric
         }
     }
 
@@ -142,7 +142,7 @@ impl CmpOp {
             FONE => FUEQ,
 
             FFALSE => FTRUE,
-            FTRUE => FFALSE,
+            FTRUE => FFALSE
         }
     }
 
@@ -154,7 +154,7 @@ impl CmpOp {
             SLT => ULT,
             SGT => UGT,
             SLE => ULE,
-            _   => self,
+            _ => self
         }
     }
 
@@ -169,16 +169,7 @@ impl CmpOp {
     pub fn is_int_cmp(self) -> bool {
         use op::CmpOp::*;
         match self {
-            EQ
-            | NE
-            | SGE
-            | SGT
-            | SLE
-            | SLT
-            | UGE
-            | UGT
-            | ULE
-            | ULT => true,
+            EQ | NE | SGE | SGT | SLE | SLT | UGE | UGT | ULE | ULT => true,
             _ => false
         }
     }
@@ -186,7 +177,7 @@ impl CmpOp {
     pub fn is_symmetric(self) -> bool {
         use op::CmpOp::*;
         match self {
-            EQ | NE | FORD| FUNO| FUNE | FUEQ | FONE | FOEQ => true,
+            EQ | NE | FORD | FUNO | FUNE | FUEQ | FONE | FOEQ => true,
             _ => false
         }
     }
