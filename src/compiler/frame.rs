@@ -53,7 +53,7 @@ pub struct Frame {
     pub allocated: HashMap<MuID, FrameSlot>,
     /// mapping from callee saved id (i.e. the position in the list of callee saved registers)
     /// and offset from the frame pointer
-    pub callee_saved: HashMap<isize, ByteOffset>,
+    pub callee_saved: HashMap<isize, ByteOffset>
 }
 
 rodal_struct!(Frame {
@@ -62,7 +62,7 @@ rodal_struct!(Frame {
     argument_by_reg,
     argument_by_stack,
     allocated,
-    callee_saved,
+    callee_saved
 });
 
 impl fmt::Display for Frame {
@@ -87,7 +87,7 @@ impl Frame {
             argument_by_reg: HashMap::new(),
             argument_by_stack: HashMap::new(),
             callee_saved: HashMap::new(),
-            allocated: HashMap::new(),
+            allocated: HashMap::new()
         }
     }
 
@@ -176,7 +176,7 @@ impl Frame {
         let id = val.id();
         let ret = FrameSlot {
             offset: self.cur_offset,
-            value: val.clone(),
+            value: val.clone()
         };
 
         self.allocated.insert(id, ret);
@@ -190,7 +190,7 @@ pub struct FrameSlot {
     /// location offset from current base pointer
     pub offset: isize,
     /// Mu value that resides in this location
-    pub value: P<Value>,
+    pub value: P<Value>
 }
 
 rodal_struct!(FrameSlot { offset, value });
@@ -220,8 +220,8 @@ impl FrameSlot {
                 base: x86_64::RBP.clone(),
                 offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
                 index: None,
-                scale: None,
-            }),
+                scale: None
+            })
         })
     }
     /// generates a memory operand for this frame slot
@@ -236,8 +236,8 @@ impl FrameSlot {
                 base: aarch64::FP.clone(),
                 offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
                 scale: 1,
-                signed: true,
-            }),
+                signed: true
+            })
         })
     }
 }

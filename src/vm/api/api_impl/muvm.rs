@@ -25,7 +25,7 @@ pub struct MuVM {
 
     // Cache C strings. The C client expects `char*` from `name_of`. We assume the client won't
     // call `name_of` very often, so that we don't need to initialise this hashmap on startup.
-    name_cache: Mutex<HashMap<MuID, CString>>,
+    name_cache: Mutex<HashMap<MuID, CString>>
 }
 
 /**
@@ -47,7 +47,7 @@ impl MuVM {
             // because other threads will remove that element from the cache, even though I only
             // monotonically add elements into the `name_cache`. I can't upgrade the lock from read
             // lock to write lock, otherwise it will deadlock.
-            name_cache: Mutex::new(HashMap::new()),
+            name_cache: Mutex::new(HashMap::new())
         }
     }
 
@@ -111,7 +111,7 @@ impl MuVM {
             vec![],
             vec![],
             extra_srcs,
-            lib_name,
+            lib_name
         );
     }
 
@@ -119,7 +119,7 @@ impl MuVM {
         unsafe {
             thread::MuThread::current_thread_as_mu_thread(
                 transmute::<CMuCPtr, Address>(threadlocal),
-                self.vm.clone(),
+                self.vm.clone()
             );
         }
     }
@@ -155,7 +155,7 @@ pub extern "C" fn mu_fastimpl_new_with_opts(opts: *const c_char) -> *mut CMuVM {
             let cstr = unsafe { CStr::from_ptr(opts) };
             match cstr.to_str() {
                 Ok(str) => str,
-                Err(_) => panic!("invalid utf8 string as options: {:?}", cstr),
+                Err(_) => panic!("invalid utf8 string as options: {:?}", cstr)
             }
         }
     };

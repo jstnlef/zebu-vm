@@ -31,7 +31,7 @@ pub struct MuIRBuilder {
     id_name_map: HashMap<MuID, MuName>,
 
     /// The "transient bundle" includes everything being built here.
-    bundle: TransientBundle,
+    bundle: TransientBundle
 }
 
 pub type IdBMap<T> = HashMap<MuID, Box<T>>;
@@ -50,7 +50,7 @@ pub struct TransientBundle {
     insts: IdBMap<NodeInst>,
     dest_clauses: IdBMap<NodeDestClause>,
     exc_clauses: IdBMap<NodeExcClause>,
-    ka_clauses: IdBMap<NodeKeepaliveClause>,
+    ka_clauses: IdBMap<NodeKeepaliveClause>
 }
 
 impl MuIRBuilder {
@@ -59,7 +59,7 @@ impl MuIRBuilder {
             mvm: mvm,
             c_struct: ptr::null_mut(),
             id_name_map: Default::default(),
-            bundle: Default::default(),
+            bundle: Default::default()
         })
     }
 
@@ -172,8 +172,8 @@ impl MuIRBuilder {
             id,
             Box::new(NodeType::TypeStruct {
                 id: id,
-                fieldtys: fieldtys,
-            }),
+                fieldtys: fieldtys
+            })
         );
     }
 
@@ -183,8 +183,8 @@ impl MuIRBuilder {
             Box::new(NodeType::TypeHybrid {
                 id: id,
                 fixedtys: fixedtys,
-                varty: varty,
-            }),
+                varty: varty
+            })
         );
     }
 
@@ -194,8 +194,8 @@ impl MuIRBuilder {
             Box::new(NodeType::TypeArray {
                 id: id,
                 elemty: elemty,
-                len: len as usize,
-            }),
+                len: len as usize
+            })
         );
     }
 
@@ -205,8 +205,8 @@ impl MuIRBuilder {
             Box::new(NodeType::TypeVector {
                 id: id,
                 elemty: elemty,
-                len: len as usize,
-            }),
+                len: len as usize
+            })
         );
     }
 
@@ -276,8 +276,8 @@ impl MuIRBuilder {
             Box::new(NodeFuncSig {
                 id: id,
                 paramtys: paramtys,
-                rettys: rettys,
-            }),
+                rettys: rettys
+            })
         );
     }
 
@@ -287,8 +287,8 @@ impl MuIRBuilder {
             Box::new(NodeConst::ConstInt {
                 id: id,
                 ty: ty,
-                value: value,
-            }),
+                value: value
+            })
         );
     }
 
@@ -298,8 +298,8 @@ impl MuIRBuilder {
             Box::new(NodeConst::ConstIntEx {
                 id: id,
                 ty: ty,
-                value: values.to_vec(),
-            }),
+                value: values.to_vec()
+            })
         );
     }
 
@@ -309,8 +309,8 @@ impl MuIRBuilder {
             Box::new(NodeConst::ConstFloat {
                 id: id,
                 ty: ty,
-                value: value,
-            }),
+                value: value
+            })
         );
     }
 
@@ -320,8 +320,8 @@ impl MuIRBuilder {
             Box::new(NodeConst::ConstDouble {
                 id: id,
                 ty: ty,
-                value: value,
-            }),
+                value: value
+            })
         );
     }
 
@@ -337,8 +337,8 @@ impl MuIRBuilder {
             Box::new(NodeConst::ConstSeq {
                 id: id,
                 ty: ty,
-                elems: elems,
-            }),
+                elems: elems
+            })
         );
     }
 
@@ -348,8 +348,8 @@ impl MuIRBuilder {
             Box::new(NodeConst::ConstExtern {
                 id: id,
                 ty: ty,
-                symbol: symbol,
-            }),
+                symbol: symbol
+            })
         );
     }
 
@@ -375,8 +375,8 @@ impl MuIRBuilder {
             Box::new(NodeFuncVer {
                 id: id,
                 func: func,
-                bbs: bbs,
-            }),
+                bbs: bbs
+            })
         );
     }
 
@@ -386,7 +386,7 @@ impl MuIRBuilder {
         nor_param_ids: Vec<MuID>,
         nor_param_types: Vec<MuID>,
         exc_param_id: Option<MuID>,
-        insts: Vec<MuID>,
+        insts: Vec<MuID>
     ) {
         self.bundle.bbs.insert(
             id,
@@ -395,8 +395,8 @@ impl MuIRBuilder {
                 nor_param_ids: nor_param_ids,
                 nor_param_types: nor_param_types,
                 exc_param_id: exc_param_id,
-                insts: insts,
-            }),
+                insts: insts
+            })
         );
     }
 
@@ -406,8 +406,8 @@ impl MuIRBuilder {
             Box::new(NodeDestClause {
                 id: id,
                 dest: dest,
-                vars: vars,
-            }),
+                vars: vars
+            })
         );
     }
 
@@ -417,8 +417,8 @@ impl MuIRBuilder {
             Box::new(NodeExcClause {
                 id: id,
                 nor: nor,
-                exc: exc,
-            }),
+                exc: exc
+            })
         );
     }
 
@@ -457,7 +457,7 @@ impl MuIRBuilder {
         ty: MuID,
         opnd1: MuID,
         opnd2: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -470,8 +470,8 @@ impl MuIRBuilder {
                 ty: ty,
                 opnd1: opnd1,
                 opnd2: opnd2,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -485,7 +485,7 @@ impl MuIRBuilder {
         ty: MuID,
         opnd1: MuID,
         opnd2: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -498,8 +498,8 @@ impl MuIRBuilder {
                 ty: ty,
                 opnd1: opnd1,
                 opnd2: opnd2,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         )
     }
 
@@ -510,7 +510,7 @@ impl MuIRBuilder {
         optr: CMuCmpOptr,
         ty: MuID,
         opnd1: MuID,
-        opnd2: MuID,
+        opnd2: MuID
     ) {
         self.add_inst(
             id,
@@ -520,8 +520,8 @@ impl MuIRBuilder {
                 optr: optr,
                 ty: ty,
                 opnd1: opnd1,
-                opnd2: opnd2,
-            },
+                opnd2: opnd2
+            }
         );
     }
 
@@ -532,7 +532,7 @@ impl MuIRBuilder {
         optr: CMuConvOptr,
         from_ty: MuID,
         to_ty: MuID,
-        opnd: MuID,
+        opnd: MuID
     ) {
         self.add_inst(
             id,
@@ -542,8 +542,8 @@ impl MuIRBuilder {
                 optr: optr,
                 from_ty: from_ty,
                 to_ty: to_ty,
-                opnd: opnd,
-            },
+                opnd: opnd
+            }
         );
     }
 
@@ -555,7 +555,7 @@ impl MuIRBuilder {
         opnd_ty: MuID,
         cond: MuID,
         if_true: MuID,
-        if_false: MuID,
+        if_false: MuID
     ) {
         self.add_inst(
             id,
@@ -566,8 +566,8 @@ impl MuIRBuilder {
                 opnd_ty: opnd_ty,
                 cond: cond,
                 if_true: if_true,
-                if_false: if_false,
-            },
+                if_false: if_false
+            }
         );
     }
 
@@ -582,8 +582,8 @@ impl MuIRBuilder {
                 id: id,
                 cond: cond,
                 if_true: if_true,
-                if_false: if_false,
-            },
+                if_false: if_false
+            }
         );
     }
 
@@ -594,7 +594,7 @@ impl MuIRBuilder {
         opnd: MuID,
         default_dest: MuID,
         cases: Vec<MuID>,
-        dests: Vec<MuID>,
+        dests: Vec<MuID>
     ) {
         self.add_inst(
             id,
@@ -604,8 +604,8 @@ impl MuIRBuilder {
                 opnd: opnd,
                 default_dest: default_dest,
                 cases: cases,
-                dests: dests,
-            },
+                dests: dests
+            }
         );
     }
 
@@ -617,7 +617,7 @@ impl MuIRBuilder {
         callee: MuID,
         args: Vec<MuID>,
         exc_clause: Option<MuID>,
-        keepalive_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -628,8 +628,8 @@ impl MuIRBuilder {
                 callee: callee,
                 args: args,
                 exc_clause: exc_clause,
-                keepalive_clause: keepalive_clause,
-            },
+                keepalive_clause: keepalive_clause
+            }
         );
     }
 
@@ -640,8 +640,8 @@ impl MuIRBuilder {
                 id: id,
                 sig: sig,
                 callee: callee,
-                args: args,
-            },
+                args: args
+            }
         );
     }
 
@@ -659,7 +659,7 @@ impl MuIRBuilder {
         result_id: MuID,
         strty: MuID,
         index: c_int,
-        opnd: MuID,
+        opnd: MuID
     ) {
         self.add_inst(
             id,
@@ -668,8 +668,8 @@ impl MuIRBuilder {
                 result_id: result_id,
                 strty: strty,
                 index: index,
-                opnd: opnd,
-            },
+                opnd: opnd
+            }
         );
     }
 
@@ -680,7 +680,7 @@ impl MuIRBuilder {
         strty: MuID,
         index: c_int,
         opnd: MuID,
-        newval: MuID,
+        newval: MuID
     ) {
         self.add_inst(
             id,
@@ -690,8 +690,8 @@ impl MuIRBuilder {
                 strty: strty,
                 index: index,
                 opnd: opnd,
-                newval: newval,
-            },
+                newval: newval
+            }
         );
     }
 
@@ -702,7 +702,7 @@ impl MuIRBuilder {
         seqty: MuID,
         indty: MuID,
         opnd: MuID,
-        index: MuID,
+        index: MuID
     ) {
         self.add_inst(
             id,
@@ -712,8 +712,8 @@ impl MuIRBuilder {
                 seqty: seqty,
                 indty: indty,
                 opnd: opnd,
-                index: index,
-            },
+                index: index
+            }
         );
     }
 
@@ -725,7 +725,7 @@ impl MuIRBuilder {
         indty: MuID,
         opnd: MuID,
         index: MuID,
-        newval: MuID,
+        newval: MuID
     ) {
         self.add_inst(
             id,
@@ -736,8 +736,8 @@ impl MuIRBuilder {
                 indty: indty,
                 opnd: opnd,
                 index: index,
-                newval: newval,
-            },
+                newval: newval
+            }
         );
     }
 
@@ -749,7 +749,7 @@ impl MuIRBuilder {
         maskty: MuID,
         vec1: MuID,
         vec2: MuID,
-        mask: MuID,
+        mask: MuID
     ) {
         self.add_inst(
             id,
@@ -760,8 +760,8 @@ impl MuIRBuilder {
                 maskty: maskty,
                 vec1: vec1,
                 vec2: vec2,
-                mask: mask,
-            },
+                mask: mask
+            }
         );
     }
 
@@ -772,8 +772,8 @@ impl MuIRBuilder {
                 id: id,
                 result_id: result_id,
                 allocty: allocty,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -784,7 +784,7 @@ impl MuIRBuilder {
         allocty: MuID,
         lenty: MuID,
         length: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -794,8 +794,8 @@ impl MuIRBuilder {
                 allocty: allocty,
                 lenty: lenty,
                 length: length,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -804,7 +804,7 @@ impl MuIRBuilder {
         id: MuID,
         result_id: MuID,
         allocty: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -812,8 +812,8 @@ impl MuIRBuilder {
                 id: id,
                 result_id: result_id,
                 allocty: allocty,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -824,7 +824,7 @@ impl MuIRBuilder {
         allocty: MuID,
         lenty: MuID,
         length: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -834,8 +834,8 @@ impl MuIRBuilder {
                 allocty: allocty,
                 lenty: lenty,
                 length: length,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -846,8 +846,8 @@ impl MuIRBuilder {
                 id: id,
                 result_id: result_id,
                 refty: refty,
-                opnd: opnd,
-            },
+                opnd: opnd
+            }
         );
     }
 
@@ -858,7 +858,7 @@ impl MuIRBuilder {
         is_ptr: bool,
         refty: MuID,
         index: c_int,
-        opnd: MuID,
+        opnd: MuID
     ) {
         self.add_inst(
             id,
@@ -868,8 +868,8 @@ impl MuIRBuilder {
                 is_ptr: is_ptr,
                 refty: refty,
                 index: index,
-                opnd: opnd,
-            },
+                opnd: opnd
+            }
         );
     }
 
@@ -881,7 +881,7 @@ impl MuIRBuilder {
         refty: MuID,
         indty: MuID,
         opnd: MuID,
-        index: MuID,
+        index: MuID
     ) {
         self.add_inst(
             id,
@@ -892,8 +892,8 @@ impl MuIRBuilder {
                 refty: refty,
                 indty: indty,
                 opnd: opnd,
-                index: index,
-            },
+                index: index
+            }
         );
     }
 
@@ -905,7 +905,7 @@ impl MuIRBuilder {
         refty: MuID,
         offty: MuID,
         opnd: MuID,
-        offset: MuID,
+        offset: MuID
     ) {
         self.add_inst(
             id,
@@ -916,8 +916,8 @@ impl MuIRBuilder {
                 refty: refty,
                 offty: offty,
                 opnd: opnd,
-                offset: offset,
-            },
+                offset: offset
+            }
         );
     }
 
@@ -927,7 +927,7 @@ impl MuIRBuilder {
         result_id: MuID,
         is_ptr: bool,
         refty: MuID,
-        opnd: MuID,
+        opnd: MuID
     ) {
         self.add_inst(
             id,
@@ -936,8 +936,8 @@ impl MuIRBuilder {
                 result_id: result_id,
                 is_ptr: is_ptr,
                 refty: refty,
-                opnd: opnd,
-            },
+                opnd: opnd
+            }
         );
     }
 
@@ -949,7 +949,7 @@ impl MuIRBuilder {
         ord: CMuMemOrd,
         refty: MuID,
         loc: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -960,8 +960,8 @@ impl MuIRBuilder {
                 ord: ord,
                 refty: refty,
                 loc: loc,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -973,7 +973,7 @@ impl MuIRBuilder {
         refty: MuID,
         loc: MuID,
         newval: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -984,8 +984,8 @@ impl MuIRBuilder {
                 refty: refty,
                 loc: loc,
                 newval: newval,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -1002,7 +1002,7 @@ impl MuIRBuilder {
         loc: MuID,
         expected: MuID,
         desired: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -1018,8 +1018,8 @@ impl MuIRBuilder {
                 loc: loc,
                 expected: expected,
                 desired: desired,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -1033,7 +1033,7 @@ impl MuIRBuilder {
         ref_ty: MuID,
         loc: MuID,
         opnd: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -1046,8 +1046,8 @@ impl MuIRBuilder {
                 ref_ty: ref_ty,
                 loc: loc,
                 opnd: opnd,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -1061,7 +1061,7 @@ impl MuIRBuilder {
         result_ids: Vec<MuID>,
         rettys: Vec<MuID>,
         exc_clause: Option<MuID>,
-        keepalive_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -1070,8 +1070,8 @@ impl MuIRBuilder {
                 result_ids: result_ids,
                 rettys: rettys,
                 exc_clause: exc_clause,
-                keepalive_clause: keepalive_clause,
-            },
+                keepalive_clause: keepalive_clause
+            }
         );
     }
 
@@ -1084,7 +1084,7 @@ impl MuIRBuilder {
         dis: MuID,
         ena: MuID,
         exc: Option<MuID>,
-        keepalive_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -1096,8 +1096,8 @@ impl MuIRBuilder {
                 dis: dis,
                 ena: ena,
                 exc: exc,
-                keepalive_clause: keepalive_clause,
-            },
+                keepalive_clause: keepalive_clause
+            }
         );
     }
 
@@ -1108,8 +1108,8 @@ impl MuIRBuilder {
                 id: id,
                 wpid: wpid as MuID,
                 dis: dis,
-                ena: ena,
-            },
+                ena: ena
+            }
         );
     }
 
@@ -1123,7 +1123,7 @@ impl MuIRBuilder {
         callee: MuID,
         args: Vec<MuID>,
         exc_clause: Option<MuID>,
-        keepalive_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -1136,8 +1136,8 @@ impl MuIRBuilder {
                 callee: callee,
                 args: args,
                 exc_clause: exc_clause,
-                keepalive_clause: keepalive_clause,
-            },
+                keepalive_clause: keepalive_clause
+            }
         );
     }
 
@@ -1148,7 +1148,7 @@ impl MuIRBuilder {
         stack: MuID,
         threadlocal: Option<MuID>,
         new_stack_clause: MuID,
-        exc_clause: Option<MuID>,
+        exc_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -1158,8 +1158,8 @@ impl MuIRBuilder {
                 stack: stack,
                 threadlocal: threadlocal,
                 new_stack_clause: new_stack_clause,
-                exc_clause: exc_clause,
-            },
+                exc_clause: exc_clause
+            }
         );
     }
 
@@ -1171,7 +1171,7 @@ impl MuIRBuilder {
         cur_stack_clause: MuID,
         new_stack_clause: MuID,
         exc_clause: Option<MuID>,
-        keepalive_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -1182,8 +1182,8 @@ impl MuIRBuilder {
                 cur_stack_clause: cur_stack_clause,
                 new_stack_clause: new_stack_clause,
                 exc_clause: exc_clause,
-                keepalive_clause: keepalive_clause,
-            },
+                keepalive_clause: keepalive_clause
+            }
         );
     }
 
@@ -1197,7 +1197,7 @@ impl MuIRBuilder {
         sigs: Vec<MuID>,
         args: Vec<MuID>,
         exc_clause: Option<MuID>,
-        keepalive_clause: Option<MuID>,
+        keepalive_clause: Option<MuID>
     ) {
         self.add_inst(
             id,
@@ -1210,8 +1210,8 @@ impl MuIRBuilder {
                 sigs: sigs,
                 args: args,
                 exc_clause: exc_clause,
-                keepalive_clause: keepalive_clause,
-            },
+                keepalive_clause: keepalive_clause
+            }
         );
     }
 }
@@ -1247,7 +1247,7 @@ struct BundleLoader<'lb, 'lvm> {
     built_iref_of: IdPMap<MuType>,
     built_uptr_of: IdPMap<MuType>,
 
-    built_constint_of: HashMap<u64, P<Value>>,
+    built_constint_of: HashMap<u64, P<Value>>
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -1281,7 +1281,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
         built_uptr_of: Default::default(),
-        built_constint_of: Default::default(),
+        built_constint_of: Default::default()
     };
 
     bl.load_bundle();
@@ -1290,7 +1290,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
 #[derive(Default)]
 struct FuncCtxBuilder {
     ctx: FunctionContext,
-    tree_nodes: IdPMap<TreeNode>,
+    tree_nodes: IdPMap<TreeNode>
 }
 
 const DEFAULT_TRUE_PROB: f32 = 0.4f32;
@@ -1311,7 +1311,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_void = P(MuType {
             hdr: MuEntityHeader::unnamed(id_void),
-            v: MuType_::Void,
+            v: MuType_::Void
         });
 
         trace!("Ensure void is defined: {} {:?}", id_void, impl_void);
@@ -1354,12 +1354,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_i64 = P(MuType {
             hdr: MuEntityHeader::unnamed(id_i64),
-            v: MuType_::Int(64),
+            v: MuType_::Int(64)
         });
 
         let impl_ref = P(MuType {
             hdr: MuEntityHeader::unnamed(id_ref),
-            v: MuType_::Ref(impl_i64.clone()),
+            v: MuType_::Ref(impl_i64.clone())
         });
 
         trace!("Ensure i64 is defined: {} {:?}", id_i64, impl_i64);
@@ -1382,7 +1382,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Int(1),
+            v: MuType_::Int(1)
         });
 
         trace!("Ensure i1 is defined: {} {:?}", id, impl_ty);
@@ -1402,7 +1402,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Int(6),
+            v: MuType_::Int(6)
         });
 
         trace!("Ensure i6 is defined: {} {:?}", id, impl_ty);
@@ -1421,7 +1421,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Int(64),
+            v: MuType_::Int(64)
         });
 
         trace!("Ensure i64 is defined: {} {:?}", id, impl_ty);
@@ -1442,7 +1442,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Tagref64,
+            v: MuType_::Tagref64
         });
 
         trace!("Ensure tagref64 is defined: {} {:?}", id, impl_ty);
@@ -1461,7 +1461,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Int(52),
+            v: MuType_::Int(52)
         });
 
         trace!("Ensure i52 is defined: {} {:?}", id, impl_ty);
@@ -1480,7 +1480,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Double,
+            v: MuType_::Double
         });
 
         trace!("Ensure double is defined: {} {:?}", id, impl_ty);
@@ -1500,11 +1500,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_void_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Void,
+            v: MuType_::Void
         });
         let impl_ty = P(MuType {
             hdr: MuEntityHeader::unnamed(id),
-            v: MuType_::Ref(impl_void_ty.clone()),
+            v: MuType_::Ref(impl_void_ty.clone())
         });
 
         trace!("Ensure ref<void> is defined: {} {:?}", id, impl_ty);
@@ -1528,7 +1528,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let impl_val = P(Value {
             hdr: MuEntityHeader::unnamed(id),
             ty: impl_ty,
-            v: Value_::Constant(Constant::Int(value)),
+            v: Value_::Constant(Constant::Int(value))
         });
 
         trace!("Ensure const int is defined: {} {:?}", value, impl_val);
@@ -1550,7 +1550,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_funcref = P(MuType {
             hdr: MuEntityHeader::unnamed(id_funcref),
-            v: MuType_::FuncRef(sig),
+            v: MuType_::FuncRef(sig)
         });
 
         trace!(
@@ -1572,10 +1572,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         vm: &VM,
         cache_map: &mut IdPMap<MuType>,
         storage_map: &mut IdPMap<MuType>,
-        factory: F,
+        factory: F
     ) -> P<MuType>
     where
-        F: Fn(P<MuType>) -> MuType_,
+        F: Fn(P<MuType>) -> MuType_
     {
         if let Some(obj) = cache_map.get(&id) {
             return obj.clone();
@@ -1589,7 +1589,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let new_obj = P(MuType {
             hdr: MuEntityHeader::unnamed(new_id),
-            v: impl_type_,
+            v: impl_type_
         });
 
         storage_map.insert(new_id, new_obj.clone());
@@ -1630,7 +1630,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn ensure_name(&mut self, id: MuID, parent_id: Option<MuID>) {
         let prefix = match parent_id {
             Some(parent_id) => self.get_name(parent_id) + ".",
-            None => "".to_string(),
+            None => "".to_string()
         };
         self.id_name_map.entry(id).or_insert_with(|| {
             let name = format!("{}#{}", prefix, id);
@@ -1744,7 +1744,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                             _ => {}
                         }
                     }
-                    None => panic!("Referenced instruction {} does not exist", inst_id),
+                    None => panic!("Referenced instruction {} does not exist", inst_id)
                 }
             }
         }
@@ -1761,7 +1761,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn make_mu_entity_header(&self, id: MuID) -> MuEntityHeader {
         match self.maybe_get_name(id) {
             None => MuEntityHeader::unnamed(id),
-            Some(name) => MuEntityHeader::named(id, name),
+            Some(name) => MuEntityHeader::named(id, name)
         }
     }
 
@@ -1836,7 +1836,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeType::TypeHybrid {
                 id: _,
                 fixedtys: _,
-                varty: _,
+                varty: _
             } => {
                 let tag = self.get_name(id);
                 self.struct_hybrid_id_tags.push((id, tag.clone()));
@@ -1873,12 +1873,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             NodeType::TypeThreadRef { id: _ } => MuType_::ThreadRef,
             NodeType::TypeStackRef { id: _ } => MuType_::StackRef,
-            ref t => panic!("{:?} not implemented", t),
+            ref t => panic!("{:?} not implemented", t)
         };
 
         let impl_ty = MuType {
             hdr: hdr,
-            v: impl_ty_,
+            v: impl_ty_
         };
 
         trace!("Type built: {} {:?}", id, impl_ty);
@@ -1891,7 +1891,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             if self.visited.contains(&id) {
                 match self.built_types.get(&id) {
                     Some(t) => t.clone(),
-                    None => panic!("Cyclic types found. id: {}", id),
+                    None => panic!("Cyclic types found. id: {}", id)
                 }
             } else {
                 self.build_type(id);
@@ -1905,7 +1905,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn get_built_type(&self, id: MuID) -> P<MuType> {
         match self.built_types.get(&id) {
             Some(t) => t.clone(),
-            None => self.vm.get_type(id),
+            None => self.vm.get_type(id)
         }
     }
 
@@ -1917,7 +1917,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         match **ty {
             NodeType::TypeStruct {
                 id: _,
-                ref fieldtys,
+                ref fieldtys
             } => {
                 let fieldtys_impl = fieldtys
                     .iter()
@@ -1935,7 +1935,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeType::TypeHybrid {
                 id: _,
                 ref fixedtys,
-                varty,
+                varty
             } => {
                 let fixedtys_impl = fixedtys
                     .iter()
@@ -1952,7 +1952,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     HYBRID_TAG_MAP.read().unwrap().get(tag)
                 );
             }
-            ref t => panic!("{} {:?} should be a Struct or Hybrid type", id, ty),
+            ref t => panic!("{} {:?} should be a Struct or Hybrid type", id, ty)
         }
     }
 
@@ -1974,7 +1974,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             arg_tys: sig.paramtys
                 .iter()
                 .map(|i| self.ensure_type_rec(*i))
-                .collect::<Vec<_>>(),
+                .collect::<Vec<_>>()
         };
 
         trace!("Function signature built: {} {:?}", id, impl_sig);
@@ -1987,7 +1987,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             if self.visited.contains(&id) {
                 match self.built_sigs.get(&id) {
                     Some(t) => t.clone(),
-                    None => panic!("Cyclic signature found. id: {}", id),
+                    None => panic!("Cyclic signature found. id: {}", id)
                 }
             } else {
                 self.build_sig(id);
@@ -2016,7 +2016,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeConst::ConstIntEx {
                 id: _,
                 ty,
-                ref value,
+                ref value
             } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::IntEx(value.clone());
@@ -2040,19 +2040,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeConst::ConstExtern {
                 id: _,
                 ty,
-                ref symbol,
+                ref symbol
             } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::ExternSym(symbol.clone());
                 (c, t)
             }
-            ref c => panic!("{:?} not implemented", c),
+            ref c => panic!("{:?} not implemented", c)
         };
 
         let impl_val = Value {
             hdr: hdr,
             ty: impl_ty,
-            v: Value_::Constant(impl_con),
+            v: Value_::Constant(impl_con)
         };
 
         trace!("Constant built: {} {:?}", id, impl_val);
@@ -2073,7 +2073,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let impl_val = Value {
             hdr: hdr,
             ty: self.ensure_iref(impl_ty.id()), // iref to global
-            v: Value_::Global(impl_ty),
+            v: Value_::Global(impl_ty)
         };
 
         trace!("Global built: {} {:?}", id, impl_val);
@@ -2095,7 +2095,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             hdr: hdr.clone(),
             sig: impl_sig,
             cur_ver: None,
-            all_vers: Default::default(),
+            all_vers: Default::default()
         };
 
         trace!("Function built: {} {:?}", id, impl_fun);
@@ -2107,7 +2107,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let impl_val = Value {
             hdr: hdr,
             ty: impl_ty,
-            v: Value_::Constant(Constant::FuncRef(id)),
+            v: Value_::Constant(Constant::FuncRef(id))
         };
 
         trace!("Function value built: {} {:?}", id, impl_val);
@@ -2147,7 +2147,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let ctn = FunctionContent {
             entry: entry_id,
             blocks: blocks,
-            exception_blocks: LinkedHashSet::new(),
+            exception_blocks: LinkedHashSet::new()
         };
 
         let impl_fv = MuFunctionVersion::new_(hdr, func_id, impl_sig, ctn, fcb.ctx);
@@ -2165,13 +2165,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let val = P(Value {
             hdr: hdr,
             ty: ty,
-            v: Value_::SSAVar(id),
+            v: Value_::SSAVar(id)
         });
 
         fcb.ctx.values.insert(id, SSAVarEntry::new(val.clone()));
 
         let tn = P(TreeNode {
-            v: TreeNode_::Value(val),
+            v: TreeNode_::Value(val)
         });
 
         fcb.tree_nodes.insert(id, tn.clone());
@@ -2181,13 +2181,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
     pub fn new_inst(&self, v: Instruction) -> Box<TreeNode> {
         Box::new(TreeNode {
-            v: TreeNode_::Instruction(v),
+            v: TreeNode_::Instruction(v)
         })
     }
 
     pub fn new_global(&self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
-            v: TreeNode_::Value(v),
+            v: TreeNode_::Value(v)
         })
     }
 
@@ -2233,20 +2233,20 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             args: args,
             exn_arg: exn_arg,
             body: body,
-            keepalives: None,
+            keepalives: None
         };
 
         Block {
             hdr: hdr,
             content: Some(ctn),
-            control_flow: Default::default(),
+            control_flow: Default::default()
         }
     }
 
     fn build_block_content(
         &mut self,
         fcb: &mut FuncCtxBuilder,
-        insts: &Vec<MuID>,
+        insts: &Vec<MuID>
     ) -> Vec<Box<TreeNode>> {
         insts
             .iter()
@@ -2271,7 +2271,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 ty,
                 opnd1,
                 opnd2,
-                exc_clause: _,
+                exc_clause: _
             } => {
                 let impl_optr = match optr {
                     CMU_BINOP_ADD => BinOp::Add,
@@ -2292,7 +2292,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     CMU_BINOP_FMUL => BinOp::FMul,
                     CMU_BINOP_FDIV => BinOp::FDiv,
                     CMU_BINOP_FREM => BinOp::FRem,
-                    _ => panic!("Illegal binary operator {}", optr),
+                    _ => panic!("Illegal binary operator {}", optr)
                 };
                 let impl_ty = self.get_built_type(ty);
                 let impl_opnd1 = self.get_treenode(fcb, opnd1);
@@ -2305,7 +2305,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         hdr: hdr,
                         value: Some(vec![impl_rv]),
                         ops: vec![impl_opnd1, impl_opnd2],
-                        v: Instruction_::BinOp(impl_optr, 0, 1),
+                        v: Instruction_::BinOp(impl_optr, 0, 1)
                     }
                 } else {
                     let mut values = vec![];
@@ -2365,7 +2365,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         hdr: hdr,
                         value: Some(values),
                         ops: vec![impl_opnd1, impl_opnd2],
-                        v: Instruction_::BinOpWithStatus(impl_optr, impl_flags, 0, 1),
+                        v: Instruction_::BinOpWithStatus(impl_optr, impl_flags, 0, 1)
                     }
                 }
             }
@@ -2375,7 +2375,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 optr,
                 ty,
                 opnd1,
-                opnd2,
+                opnd2
             } => {
                 let impl_optr = match optr {
                     CMU_CMP_EQ => CmpOp::EQ,
@@ -2404,7 +2404,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     CMU_CMP_FOGE => CmpOp::FOGE,
                     CMU_CMP_FOLT => CmpOp::FOLT,
                     CMU_CMP_FOLE => CmpOp::FOLE,
-                    _ => panic!("Illegal comparing operator {}", optr),
+                    _ => panic!("Illegal comparing operator {}", optr)
                 };
                 // NOTE: vectors not implemented. Otherwise the result would be a vector of
                 // int<1>
@@ -2417,7 +2417,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd1, impl_opnd2],
-                    v: Instruction_::CmpOp(impl_optr, 0, 1),
+                    v: Instruction_::CmpOp(impl_optr, 0, 1)
                 }
             }
             NodeInst::NodeConv {
@@ -2426,7 +2426,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 optr,
                 from_ty,
                 to_ty,
-                opnd,
+                opnd
             } => {
                 let impl_optr = match optr {
                     CMU_CONV_TRUNC => ConvOp::TRUNC,
@@ -2441,7 +2441,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     CMU_CONV_BITCAST => ConvOp::BITCAST,
                     CMU_CONV_REFCAST => ConvOp::REFCAST,
                     CMU_CONV_PTRCAST => ConvOp::PTRCAST,
-                    _ => panic!("Illegal conversion operator {}", optr),
+                    _ => panic!("Illegal conversion operator {}", optr)
                 };
                 let impl_from_ty = self.get_built_type(from_ty);
                 let impl_to_ty = self.get_built_type(to_ty);
@@ -2457,8 +2457,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         operation: impl_optr,
                         from_ty: impl_from_ty,
                         to_ty: impl_to_ty,
-                        operand: 0,
-                    },
+                        operand: 0
+                    }
                 }
             }
             NodeInst::NodeSelect {
@@ -2468,7 +2468,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 opnd_ty,
                 cond,
                 if_true,
-                if_false,
+                if_false
             } => {
                 let impl_cond_ty = self.get_built_type(cond_ty);
                 let impl_opnd_ty = self.get_built_type(opnd_ty);
@@ -2487,8 +2487,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::Select {
                         cond: 0,
                         true_val: 1,
-                        false_val: 2,
-                    },
+                        false_val: 2
+                    }
                 }
             }
             NodeInst::NodeBranch { id: _, dest } => {
@@ -2500,14 +2500,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: ops,
-                    v: Instruction_::Branch1(impl_dest),
+                    v: Instruction_::Branch1(impl_dest)
                 }
             }
             NodeInst::NodeBranch2 {
                 id: _,
                 cond,
                 if_true,
-                if_false,
+                if_false
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
@@ -2525,8 +2525,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         cond: 0,
                         true_dest: impl_dest_true,
                         false_dest: impl_dest_false,
-                        true_prob: DEFAULT_TRUE_PROB,
-                    },
+                        true_prob: DEFAULT_TRUE_PROB
+                    }
                 }
             }
             NodeInst::NodeSwitch {
@@ -2535,7 +2535,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 opnd,
                 default_dest,
                 ref cases,
-                ref dests,
+                ref dests
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
@@ -2563,8 +2563,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::Switch {
                         cond: 0,
                         default: impl_dest_def,
-                        branches: impl_branches,
-                    },
+                        branches: impl_branches
+                    }
                 }
             }
             NodeInst::NodeCall {
@@ -2574,7 +2574,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 callee,
                 ref args,
                 exc_clause,
-                keepalive_clause,
+                keepalive_clause
             } => {
                 self.build_call_or_ccall(
                     fcb,
@@ -2586,14 +2586,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     exc_clause,
                     keepalive_clause,
                     false,
-                    CallConvention::Mu,
+                    CallConvention::Mu
                 )
             }
             NodeInst::NodeTailCall {
                 id: _,
                 sig,
                 callee,
-                ref args,
+                ref args
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
@@ -2604,7 +2604,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: ops,
-                    v: Instruction_::TailCall(call_data),
+                    v: Instruction_::TailCall(call_data)
                 }
             }
             NodeInst::NodeRet { id: _, ref rvs } => {
@@ -2617,7 +2617,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: ops,
-                    v: Instruction_::Return(op_indexes),
+                    v: Instruction_::Return(op_indexes)
                 }
             }
             NodeInst::NodeThrow { id: _, exc } => {
@@ -2627,14 +2627,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: vec![impl_exc],
-                    v: Instruction_::Throw(0),
+                    v: Instruction_::Throw(0)
                 }
             }
             NodeInst::NodeNew {
                 id: _,
                 result_id,
                 allocty,
-                exc_clause,
+                exc_clause
             } => {
                 assert!(
                     exc_clause.is_none(),
@@ -2647,7 +2647,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![],
-                    v: Instruction_::New(impl_allocty),
+                    v: Instruction_::New(impl_allocty)
                 }
             }
             NodeInst::NodeNewHybrid {
@@ -2656,7 +2656,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 allocty,
                 lenty,
                 length,
-                exc_clause,
+                exc_clause
             } => {
                 assert!(
                     exc_clause.is_none(),
@@ -2670,14 +2670,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_length],
-                    v: Instruction_::NewHybrid(impl_allocty, 0),
+                    v: Instruction_::NewHybrid(impl_allocty, 0)
                 }
             }
             NodeInst::NodeAlloca {
                 id: _,
                 result_id,
                 allocty,
-                exc_clause,
+                exc_clause
             } => {
                 assert!(
                     exc_clause.is_none(),
@@ -2690,7 +2690,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![],
-                    v: Instruction_::AllocA(impl_allocty),
+                    v: Instruction_::AllocA(impl_allocty)
                 }
             }
             NodeInst::NodeAllocaHybrid {
@@ -2699,7 +2699,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 allocty,
                 lenty,
                 length,
-                exc_clause,
+                exc_clause
             } => {
                 assert!(
                     exc_clause.is_none(),
@@ -2713,14 +2713,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_length],
-                    v: Instruction_::AllocAHybrid(impl_allocty, 0),
+                    v: Instruction_::AllocAHybrid(impl_allocty, 0)
                 }
             }
             NodeInst::NodeGetIRef {
                 id: _,
                 result_id,
                 refty,
-                opnd,
+                opnd
             } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_rvtype = self.ensure_iref(refty);
@@ -2729,7 +2729,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::GetIRef(0),
+                    v: Instruction_::GetIRef(0)
                 }
             }
             NodeInst::NodeGetFieldIRef {
@@ -2738,7 +2738,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 is_ptr,
                 refty,
                 index,
-                opnd,
+                opnd
             } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let index = index as usize;
@@ -2746,12 +2746,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let field_ty_id = match **refty_node {
                     NodeType::TypeStruct {
                         id: _,
-                        ref fieldtys,
+                        ref fieldtys
                     } => fieldtys[index],
                     NodeType::TypeHybrid {
                         id: _,
                         ref fixedtys,
-                        varty: _,
+                        varty: _
                     } => fixedtys[index],
                     ref t => {
                         panic!(
@@ -2770,8 +2770,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::GetFieldIRef {
                         is_ptr: is_ptr,
                         base: 0,
-                        index: index,
-                    },
+                        index: index
+                    }
                 }
             }
             NodeInst::NodeGetElemIRef {
@@ -2781,7 +2781,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 refty,
                 indty: _,
                 opnd,
-                index,
+                index
             } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_index = self.get_treenode(fcb, index);
@@ -2790,12 +2790,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     NodeType::TypeArray {
                         id: _,
                         elemty,
-                        len: _,
+                        len: _
                     } => elemty,
                     NodeType::TypeVector {
                         id: _,
                         elemty,
-                        len: _,
+                        len: _
                     } => elemty,
                     ref t => {
                         panic!(
@@ -2814,8 +2814,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::GetElementIRef {
                         is_ptr: is_ptr,
                         base: 0,
-                        index: 1,
-                    },
+                        index: 1
+                    }
                 }
             }
             NodeInst::NodeShiftIRef {
@@ -2825,7 +2825,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 refty,
                 offty: _,
                 opnd,
-                offset,
+                offset
             } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_offset = self.get_treenode(fcb, offset);
@@ -2838,8 +2838,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::ShiftIRef {
                         is_ptr: is_ptr,
                         base: 0,
-                        offset: 1,
-                    },
+                        offset: 1
+                    }
                 }
             }
             NodeInst::NodeGetVarPartIRef {
@@ -2847,7 +2847,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 result_id,
                 is_ptr,
                 refty,
-                opnd,
+                opnd
             } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
@@ -2855,7 +2855,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     NodeType::TypeHybrid {
                         id: _,
                         fixedtys: _,
-                        varty,
+                        varty
                     } => varty,
                     ref t => {
                         panic!(
@@ -2873,8 +2873,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     ops: vec![impl_opnd],
                     v: Instruction_::GetVarPartIRef {
                         is_ptr: is_ptr,
-                        base: 0,
-                    },
+                        base: 0
+                    }
                 }
             }
             NodeInst::NodeLoad {
@@ -2884,7 +2884,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 ord,
                 refty,
                 loc,
-                exc_clause,
+                exc_clause
             } => {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
@@ -2897,8 +2897,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     v: Instruction_::Load {
                         is_ptr: is_ptr,
                         order: impl_ord,
-                        mem_loc: 0,
-                    },
+                        mem_loc: 0
+                    }
                 }
             }
             NodeInst::NodeStore {
@@ -2908,7 +2908,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 refty,
                 loc,
                 newval,
-                exc_clause,
+                exc_clause
             } => {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
@@ -2922,8 +2922,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         is_ptr: is_ptr,
                         order: impl_ord,
                         mem_loc: 0,
-                        value: 1,
-                    },
+                        value: 1
+                    }
                 }
             }
             NodeInst::NodeCCall {
@@ -2935,7 +2935,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 callee,
                 ref args,
                 exc_clause,
-                keepalive_clause,
+                keepalive_clause
             } => {
                 self.build_call_or_ccall(
                     fcb,
@@ -2947,7 +2947,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     exc_clause,
                     keepalive_clause,
                     true,
-                    CallConvention::Foreign(ForeignFFI::C),
+                    CallConvention::Foreign(ForeignFFI::C)
                 )
             }
             NodeInst::NodeCommInst {
@@ -2959,7 +2959,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 ref sigs,
                 ref args,
                 ref exc_clause,
-                ref keepalive_clause,
+                ref keepalive_clause
             } => {
                 self.build_comm_inst(
                     fcb,
@@ -2971,11 +2971,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     sigs,
                     args,
                     exc_clause,
-                    keepalive_clause,
+                    keepalive_clause
                 )
             }
 
-            ref i => panic!("{:?} not implemented", i),
+            ref i => panic!("{:?} not implemented", i)
         };
 
         trace!("Instruction built {} {:?}", id, impl_inst);
@@ -2988,7 +2988,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb: &mut FuncCtxBuilder,
         id: MuID,
         ops: &mut Vec<P<TreeNode>>,
-        inst_result_ids: &[MuID],
+        inst_result_ids: &[MuID]
     ) -> Destination {
         let dest_clause = self.b.bundle.dest_clauses.get(&id).unwrap();
 
@@ -3009,7 +3009,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let impl_dest = Destination {
             target: target,
-            args: dest_args,
+            args: dest_args
         };
 
         impl_dest
@@ -3032,7 +3032,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         ops: &mut Vec<P<TreeNode>>,
         callee: MuID,
         args: &[MuID],
-        call_conv: CallConvention,
+        call_conv: CallConvention
     ) -> CallData {
         let func_index = ops.len();
         self.add_opnd(fcb, ops, callee);
@@ -3045,7 +3045,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let call_data = CallData {
             func: func_index,
             args: args_opindexes,
-            convention: call_conv,
+            convention: call_conv
         };
 
         call_data
@@ -3062,7 +3062,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         exc_clause: Option<MuID>,
         keepalive_claue: Option<MuID>,
         is_ccall: bool,
-        call_conv: CallConvention,
+        call_conv: CallConvention
     ) -> Instruction {
         let mut ops: Vec<P<TreeNode>> = Vec::new();
 
@@ -3091,18 +3091,18 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
             let resumption_data = ResumptionData {
                 normal_dest: impl_normal_dest,
-                exn_dest: impl_exn_dest,
+                exn_dest: impl_exn_dest
             };
 
             let impl_inst_ = if is_ccall {
                 Instruction_::CCall {
                     data: call_data,
-                    resume: resumption_data,
+                    resume: resumption_data
                 }
             } else {
                 Instruction_::Call {
                     data: call_data,
-                    resume: resumption_data,
+                    resume: resumption_data
                 }
             };
 
@@ -3110,7 +3110,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 hdr: hdr,
                 value: Some(rvs),
                 ops: ops,
-                v: impl_inst_,
+                v: impl_inst_
             }
         } else {
             // non-terminating inst
@@ -3121,14 +3121,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 v: if is_ccall {
                     Instruction_::ExprCCall {
                         data: call_data,
-                        is_abort: false,
+                        is_abort: false
                     }
                 } else {
                     Instruction_::ExprCall {
                         data: call_data,
-                        is_abort: false,
+                        is_abort: false
                     }
-                },
+                }
             }
         }
     }
@@ -3145,7 +3145,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         sigs: &Vec<MuFuncSigNode>,
         args: &Vec<MuVarNode>,
         exc_clause: &Option<MuExcClause>,
-        keepalives: &Option<MuKeepaliveClause>,
+        keepalives: &Option<MuKeepaliveClause>
     ) -> Instruction {
         match opcode {
             CMU_CI_UVM_GET_THREADLOCAL => {
@@ -3158,7 +3158,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![rv]),
                     ops: vec![],
-                    v: Instruction_::CommonInst_GetThreadLocal,
+                    v: Instruction_::CommonInst_GetThreadLocal
                 }
             }
             CMU_CI_UVM_SET_THREADLOCAL => {
@@ -3170,7 +3170,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: vec![op],
-                    v: Instruction_::CommonInst_SetThreadLocal(0),
+                    v: Instruction_::CommonInst_SetThreadLocal(0)
                 }
             }
             CMU_CI_UVM_NATIVE_PIN => {
@@ -3183,7 +3183,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
                 let referent_ty = match op_ty.get_referent_ty() {
                     Some(ty) => ty,
-                    _ => panic!("expected ty in PIN to be ref/iref, found {}", op_ty),
+                    _ => panic!("expected ty in PIN to be ref/iref, found {}", op_ty)
                 };
 
                 let rv_ty = self.ensure_uptr(referent_ty.id());
@@ -3193,7 +3193,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![rv]),
                     ops: vec![op],
-                    v: Instruction_::CommonInst_Pin(0),
+                    v: Instruction_::CommonInst_Pin(0)
                 }
             }
             CMU_CI_UVM_NATIVE_UNPIN => {
@@ -3207,7 +3207,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: vec![op],
-                    v: Instruction_::CommonInst_Unpin(0),
+                    v: Instruction_::CommonInst_Unpin(0)
                 }
             }
             CMU_CI_UVM_THREAD_EXIT => {
@@ -3215,7 +3215,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: vec![],
-                    v: Instruction_::ThreadExit,
+                    v: Instruction_::ThreadExit
                 }
             }
             CMU_CI_UVM_TR64_IS_FP => {
@@ -3232,7 +3232,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64IsFp(0),
+                    v: Instruction_::CommonInst_Tr64IsFp(0)
                 }
             }
             CMU_CI_UVM_TR64_IS_INT => {
@@ -3249,7 +3249,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64IsInt(0),
+                    v: Instruction_::CommonInst_Tr64IsInt(0)
                 }
             }
             CMU_CI_UVM_TR64_IS_REF => {
@@ -3266,7 +3266,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64IsRef(0),
+                    v: Instruction_::CommonInst_Tr64IsRef(0)
                 }
             }
             CMU_CI_UVM_TR64_FROM_FP => {
@@ -3284,7 +3284,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64FromFp(0),
+                    v: Instruction_::CommonInst_Tr64FromFp(0)
                 }
             }
             CMU_CI_UVM_TR64_FROM_INT => {
@@ -3302,7 +3302,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64FromInt(0),
+                    v: Instruction_::CommonInst_Tr64FromInt(0)
                 }
             }
             CMU_CI_UVM_TR64_FROM_REF => {
@@ -3321,7 +3321,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd1, impl_opnd2],
-                    v: Instruction_::CommonInst_Tr64FromRef(0, 1),
+                    v: Instruction_::CommonInst_Tr64FromRef(0, 1)
                 }
             }
             CMU_CI_UVM_TR64_TO_FP => {
@@ -3339,7 +3339,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64ToFp(0),
+                    v: Instruction_::CommonInst_Tr64ToFp(0)
                 }
             }
             CMU_CI_UVM_TR64_TO_INT => {
@@ -3357,7 +3357,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64ToInt(0),
+                    v: Instruction_::CommonInst_Tr64ToInt(0)
                 }
             }
             CMU_CI_UVM_TR64_TO_REF => {
@@ -3375,7 +3375,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64ToRef(0),
+                    v: Instruction_::CommonInst_Tr64ToRef(0)
                 }
             }
             CMU_CI_UVM_TR64_TO_TAG => {
@@ -3393,10 +3393,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
                     ops: vec![impl_opnd],
-                    v: Instruction_::CommonInst_Tr64ToTag(0),
+                    v: Instruction_::CommonInst_Tr64ToTag(0)
                 }
             }
-            _ => unimplemented!(),
+            _ => unimplemented!()
         }
     }
 
@@ -3409,7 +3409,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_ORD_RELEASE => MemoryOrder::Release,
             CMU_ORD_ACQ_REL => MemoryOrder::AcqRel,
             CMU_ORD_SEQ_CST => MemoryOrder::SeqCst,
-            o => panic!("Illegal memory order {}", o),
+            o => panic!("Illegal memory order {}", o)
         }
     }
 
@@ -3427,7 +3427,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             &mut self.built_globals,
             &mut self.built_funcs,
             &mut self.built_funcvers,
-            arc_vm,
+            arc_vm
         );
 
         trace!("Bundle loaded to the VM!");

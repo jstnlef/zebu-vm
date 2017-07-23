@@ -19,13 +19,13 @@ use compiler::CompilerPass;
 use std::any::Any;
 
 pub struct TraceGen {
-    name: &'static str,
+    name: &'static str
 }
 
 impl TraceGen {
     pub fn new() -> TraceGen {
         TraceGen {
-            name: "Trace Generation",
+            name: "Trace Generation"
         }
     }
 }
@@ -62,7 +62,7 @@ impl CompilerPass for TraceGen {
                 let hot_edge = {
                     match cur_block.control_flow.get_hottest_succ() {
                         Some(tag) => tag,
-                        None => continue,
+                        None => continue
                     }
                 };
 

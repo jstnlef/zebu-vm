@@ -92,7 +92,7 @@ pub struct GraphColoring<'a> {
     /// we need to log all registers get spilled with their spill location
     spill_history: LinkedHashMap<MuID, P<Value>>,
     /// we need to know the mapping between scratch temp -> original temp
-    spill_scratch_temps: LinkedHashMap<MuID, MuID>,
+    spill_scratch_temps: LinkedHashMap<MuID, MuID>
 }
 
 impl<'a> GraphColoring<'a> {
@@ -100,7 +100,7 @@ impl<'a> GraphColoring<'a> {
     pub fn start(
         func: &'a mut MuFunctionVersion,
         cf: &'a mut CompiledFunction,
-        vm: &'a VM,
+        vm: &'a VM
     ) -> GraphColoring<'a> {
         GraphColoring::start_with_spill_history(
             LinkedHashMap::new(),
@@ -108,7 +108,7 @@ impl<'a> GraphColoring<'a> {
             0,
             func,
             cf,
-            vm,
+            vm
         )
     }
 
@@ -119,7 +119,7 @@ impl<'a> GraphColoring<'a> {
         iteration_count: usize,
         func: &'a mut MuFunctionVersion,
         cf: &'a mut CompiledFunction,
-        vm: &'a VM,
+        vm: &'a VM
     ) -> GraphColoring<'a> {
         assert!(
             iteration_count < MAX_REWRITE_ITERATIONS_ALLOWED,
@@ -163,7 +163,7 @@ impl<'a> GraphColoring<'a> {
             worklist_freeze: LinkedHashSet::new(),
             frozen_moves: LinkedHashSet::new(),
             worklist_simplify: LinkedHashSet::new(),
-            select_stack: Vec::new(),
+            select_stack: Vec::new()
         };
 
         coloring.regalloc()
@@ -267,7 +267,7 @@ impl<'a> GraphColoring<'a> {
                 self.iteration_count,
                 self.func,
                 self.cf,
-                self.vm,
+                self.vm
             );
         }
 
@@ -374,7 +374,7 @@ impl<'a> GraphColoring<'a> {
     // holding an immmutable reference of self(self.ig)
     fn movelist_mut(
         list: &mut LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>,
-        node: NodeIndex,
+        node: NodeIndex
     ) -> &RefCell<Vec<Move>> {
         GraphColoring::movelist_check(list, node);
         unsafe { GraphColoring::movelist_nocheck(list, node) }
@@ -389,7 +389,7 @@ impl<'a> GraphColoring<'a> {
     // allows getting the Vec<Move> without a mutable reference of the hashmap
     unsafe fn movelist_nocheck(
         list: &LinkedHashMap<NodeIndex, RefCell<Vec<Move>>>,
-        node: NodeIndex,
+        node: NodeIndex
     ) -> &RefCell<Vec<Move>> {
         list.get(&node).unwrap()
     }
@@ -430,7 +430,7 @@ impl<'a> GraphColoring<'a> {
     fn degree(&self, n: NodeIndex) -> usize {
         match self.degree.get(&n) {
             Some(d) => *d,
-            None => 0,
+            None => 0
         }
     }
 
@@ -803,7 +803,7 @@ impl<'a> GraphColoring<'a> {
         for reg_id in spills.iter() {
             let ssa_entry = match self.func.context.get_value(*reg_id) {
                 Some(entry) => entry,
-                None => panic!("The spilled register {} is not in func context", reg_id),
+                None => panic!("The spilled register {} is not in func context", reg_id)
             };
             let mem = self.cf
                 .frame

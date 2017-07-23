@@ -51,7 +51,7 @@ pub struct CompiledFunction {
     /// start location of this compiled function
     pub start: ValueLocation,
     /// end location of this compiled function
-    pub end: ValueLocation,
+    pub end: ValueLocation
 }
 unsafe impl rodal::Dump for CompiledFunction {
     fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
@@ -77,7 +77,7 @@ impl CompiledFunction {
         constant_locs: HashMap<MuID, P<Value>>,
         frame: Frame,
         start_loc: ValueLocation,
-        end_loc: ValueLocation,
+        end_loc: ValueLocation
     ) -> CompiledFunction {
         CompiledFunction {
             func_id: func_id,
@@ -88,7 +88,7 @@ impl CompiledFunction {
             mc: Some(mc),
             frame: frame,
             start: start_loc,
-            end: end_loc,
+            end: end_loc
         }
     }
 
@@ -110,7 +110,7 @@ impl CompiledFunction {
     pub fn mc_mut(&mut self) -> &mut Box<MachineCode + Send + Sync> {
         match self.mc {
             Some(ref mut mc) => mc,
-            None => panic!("no mc found from a compiled function"),
+            None => panic!("no mc found from a compiled function")
         }
     }
 }
@@ -120,22 +120,22 @@ pub struct CompiledCallsite {
     pub exceptional_destination: Option<Address>,
     pub stack_args_size: usize,
     pub callee_saved_registers: Arc<HashMap<isize, isize>>,
-    pub function_version: MuID,
+    pub function_version: MuID
 }
 impl CompiledCallsite {
     pub fn new(
         callsite: &Callsite,
         fv: MuID,
-        callee_saved_registers: Arc<HashMap<isize, isize>>,
+        callee_saved_registers: Arc<HashMap<isize, isize>>
     ) -> CompiledCallsite {
         CompiledCallsite {
             exceptional_destination: match &callsite.exception_destination {
                 &Some(ref name) => Some(resolve_symbol(name.clone())),
-                &None => None,
+                &None => None
             },
             stack_args_size: callsite.stack_arg_size,
             callee_saved_registers: callee_saved_registers,
-            function_version: fv,
+            function_version: fv
         }
     }
 }

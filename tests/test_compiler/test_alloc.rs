@@ -57,7 +57,7 @@ fn test_allocation_fastpath() {
     let executable = aot::link_primordial(
         vec!["allocation_fastpath".to_string()],
         "allocation_fastpath_test",
-        &vm,
+        &vm
     );
     linkutils::exec_path(executable);
 }

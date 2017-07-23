@@ -46,20 +46,20 @@ fn create_emit_file(name: String, vm: &VM) -> File {
                 why
             )
         }
-        Ok(file) => file,
+        Ok(file) => file
     }
 }
 
 pub struct DotGen {
     name: &'static str,
-    suffix: &'static str,
+    suffix: &'static str
 }
 
 impl DotGen {
     pub fn new(suffix: &'static str) -> DotGen {
         DotGen {
             name: "DotGen",
-            suffix: suffix,
+            suffix: suffix
         }
     }
 }
@@ -82,7 +82,7 @@ fn emit_muir(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
                 why
             )
         }
-        Ok(file) => file,
+        Ok(file) => file
     };
 
     write!(file, "{:?}", func).unwrap();
@@ -106,7 +106,7 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
                 why
             )
         }
-        Ok(file) => file,
+        Ok(file) => file
     };
 
     emit_muir_dot_inner(&mut file, func_name.clone(), func.content.as_ref().unwrap());

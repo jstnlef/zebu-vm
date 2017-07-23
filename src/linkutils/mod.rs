@@ -37,7 +37,7 @@ fn get_c_compiler() -> String {
 
     match env::var("CC") {
         Ok(val) => val,
-        Err(_) => "clang".to_string(),
+        Err(_) => "clang".to_string()
     }
 }
 
@@ -53,7 +53,7 @@ fn get_path_under_zebu(str: &'static str) -> PathBuf {
             ret.push(str);
             ret
         }
-        Err(_) => PathBuf::from(str),
+        Err(_) => PathBuf::from(str)
     }
 }
 
@@ -83,7 +83,7 @@ fn exec_cmd_nocheck(mut cmd: Command) -> Output {
     info!("executing: {:?}", cmd);
     let output = match cmd.output() {
         Ok(res) => res,
-        Err(e) => panic!("failed to execute: {}", e),
+        Err(e) => panic!("failed to execute: {}", e)
     };
 
     info!("---out---");

@@ -57,17 +57,17 @@ pub enum NodeType {
     TypeHybrid {
         id: MuID,
         fixedtys: Vec<MuTypeNode>,
-        varty: MuTypeNode,
+        varty: MuTypeNode
     },
     TypeArray {
         id: MuID,
         elemty: MuTypeNode,
-        len: usize,
+        len: usize
     },
     TypeVector {
         id: MuID,
         elemty: MuTypeNode,
-        len: usize,
+        len: usize
     },
 
     TypeVoid { id: MuID },
@@ -80,14 +80,14 @@ pub enum NodeType {
     TypeThreadRef { id: MuID },
     TypeStackRef { id: MuID },
     TypeFrameCursorRef { id: MuID },
-    TypeIRBuilderRef { id: MuID },
+    TypeIRBuilderRef { id: MuID }
 }
 
 #[derive(Debug)]
 pub struct NodeFuncSig {
     pub id: MuID,
     pub paramtys: Vec<MuTypeNode>,
-    pub rettys: Vec<MuTypeNode>,
+    pub rettys: Vec<MuTypeNode>
 }
 
 #[derive(Debug)]
@@ -95,46 +95,46 @@ pub enum NodeConst {
     ConstInt {
         id: MuID,
         ty: MuTypeNode,
-        value: u64,
+        value: u64
     },
     ConstIntEx {
         id: MuID,
         ty: MuTypeNode,
-        value: Vec<u64>,
+        value: Vec<u64>
     },
     ConstFloat {
         id: MuID,
         ty: MuTypeNode,
-        value: f32,
+        value: f32
     },
     ConstDouble {
         id: MuID,
         ty: MuTypeNode,
-        value: f64,
+        value: f64
     },
     ConstNull { id: MuID, ty: MuTypeNode },
     ConstSeq {
         id: MuID,
         ty: MuTypeNode,
-        elems: Vec<MuGlobalVarNode>,
+        elems: Vec<MuGlobalVarNode>
     },
     ConstExtern {
         id: MuID,
         ty: MuTypeNode,
-        symbol: String,
-    },
+        symbol: String
+    }
 }
 
 #[derive(Debug)]
 pub struct NodeGlobalCell {
     pub id: MuID,
-    pub ty: MuTypeNode,
+    pub ty: MuTypeNode
 }
 
 #[derive(Debug)]
 pub struct NodeFunc {
     pub id: MuID,
-    pub sig: MuFuncSigNode,
+    pub sig: MuFuncSigNode
 }
 
 #[derive(Debug)]
@@ -142,14 +142,14 @@ pub struct NodeExpFunc {
     pub id: MuID,
     pub func: MuFuncNode,
     pub callconv: usize,
-    pub cookie: MuConstIntNode,
+    pub cookie: MuConstIntNode
 }
 
 #[derive(Debug)]
 pub struct NodeFuncVer {
     pub id: MuID,
     pub func: MuFuncNode,
-    pub bbs: Vec<MuBBNode>,
+    pub bbs: Vec<MuBBNode>
 }
 
 #[derive(Debug)]
@@ -158,48 +158,48 @@ pub struct NodeBB {
     pub nor_param_ids: Vec<MuID>,
     pub nor_param_types: Vec<MuTypeNode>,
     pub exc_param_id: Option<MuID>,
-    pub insts: Vec<MuInstNode>,
+    pub insts: Vec<MuInstNode>
 }
 #[derive(Debug)]
 pub struct NodeDestClause {
     pub id: MuID,
     pub dest: MuBBNode,
-    pub vars: Vec<MuVarNode>,
+    pub vars: Vec<MuVarNode>
 }
 
 #[derive(Debug)]
 pub struct NodeExcClause {
     pub id: MuID,
     pub nor: MuDestClause,
-    pub exc: MuDestClause,
+    pub exc: MuDestClause
 }
 
 #[derive(Debug)]
 pub struct NodeKeepaliveClause {
     pub id: MuID,
-    pub vars: Vec<MuLocalVarNode>,
+    pub vars: Vec<MuLocalVarNode>
 }
 
 #[derive(Debug)]
 pub struct NodeCscRetWith {
     pub id: MuID,
-    pub rettys: Vec<MuVarNode>,
+    pub rettys: Vec<MuVarNode>
 }
 #[derive(Debug)]
 pub struct NodeCscKillOld {
-    pub id: MuID,
+    pub id: MuID
 }
 
 #[derive(Debug)]
 pub struct NodeNscPassValues {
     pub id: MuID,
     pub tys: Vec<MuTypeNode>,
-    pub vars: Vec<MuVarNode>,
+    pub vars: Vec<MuVarNode>
 }
 #[derive(Debug)]
 pub struct NodeNscThrowExc {
     pub id: MuID,
-    pub exc: MuVarNode,
+    pub exc: MuVarNode
 }
 
 #[derive(Debug)]
@@ -213,7 +213,7 @@ pub enum NodeInst {
         ty: MuTypeNode,
         opnd1: MuVarNode,
         opnd2: MuVarNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeCmp {
         id: MuID,
@@ -221,7 +221,7 @@ pub enum NodeInst {
         optr: MuCmpOptr,
         ty: MuTypeNode,
         opnd1: MuVarNode,
-        opnd2: MuVarNode,
+        opnd2: MuVarNode
     },
     NodeConv {
         id: MuID,
@@ -229,7 +229,7 @@ pub enum NodeInst {
         optr: MuConvOptr,
         from_ty: MuTypeNode,
         to_ty: MuTypeNode,
-        opnd: MuVarNode,
+        opnd: MuVarNode
     },
     NodeSelect {
         id: MuID,
@@ -238,14 +238,14 @@ pub enum NodeInst {
         opnd_ty: MuTypeNode,
         cond: MuVarNode,
         if_true: MuVarNode,
-        if_false: MuVarNode,
+        if_false: MuVarNode
     },
     NodeBranch { id: MuID, dest: MuDestClause },
     NodeBranch2 {
         id: MuID,
         cond: MuVarNode,
         if_true: MuDestClause,
-        if_false: MuDestClause,
+        if_false: MuDestClause
     },
     NodeSwitch {
         id: MuID,
@@ -253,7 +253,7 @@ pub enum NodeInst {
         opnd: MuVarNode,
         default_dest: MuDestClause,
         cases: Vec<MuConstNode>,
-        dests: Vec<MuDestClause>,
+        dests: Vec<MuDestClause>
     },
     NodeCall {
         id: MuID,
@@ -262,13 +262,13 @@ pub enum NodeInst {
         callee: MuVarNode,
         args: Vec<MuVarNode>,
         exc_clause: Option<MuExcClause>,
-        keepalive_clause: Option<MuKeepaliveClause>,
+        keepalive_clause: Option<MuKeepaliveClause>
     },
     NodeTailCall {
         id: MuID,
         sig: MuFuncSigNode,
         callee: MuVarNode,
-        args: Vec<MuVarNode>,
+        args: Vec<MuVarNode>
     },
     NodeRet { id: MuID, rvs: Vec<MuVarNode> },
     NodeThrow { id: MuID, exc: MuVarNode },
@@ -277,7 +277,7 @@ pub enum NodeInst {
         result_id: MuID,
         strty: MuTypeNode,
         index: i32,
-        opnd: MuVarNode,
+        opnd: MuVarNode
     },
     NodeInsertValue {
         id: MuID,
@@ -285,7 +285,7 @@ pub enum NodeInst {
         strty: MuTypeNode,
         index: i32,
         opnd: MuVarNode,
-        newval: MuVarNode,
+        newval: MuVarNode
     },
     NodeExtractElement {
         id: MuID,
@@ -293,7 +293,7 @@ pub enum NodeInst {
         seqty: MuTypeNode,
         indty: MuTypeNode,
         opnd: MuVarNode,
-        index: MuVarNode,
+        index: MuVarNode
     },
     NodeInsertElement {
         id: MuID,
@@ -302,7 +302,7 @@ pub enum NodeInst {
         indty: MuTypeNode,
         opnd: MuVarNode,
         index: MuVarNode,
-        newval: MuVarNode,
+        newval: MuVarNode
     },
     NodeShuffleVector {
         id: MuID,
@@ -311,13 +311,13 @@ pub enum NodeInst {
         maskty: MuTypeNode,
         vec1: MuVarNode,
         vec2: MuVarNode,
-        mask: MuVarNode,
+        mask: MuVarNode
     },
     NodeNew {
         id: MuID,
         result_id: MuID,
         allocty: MuTypeNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeNewHybrid {
         id: MuID,
@@ -325,13 +325,13 @@ pub enum NodeInst {
         allocty: MuTypeNode,
         lenty: MuTypeNode,
         length: MuVarNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeAlloca {
         id: MuID,
         result_id: MuID,
         allocty: MuTypeNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeAllocaHybrid {
         id: MuID,
@@ -339,13 +339,13 @@ pub enum NodeInst {
         allocty: MuTypeNode,
         lenty: MuTypeNode,
         length: MuVarNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeGetIRef {
         id: MuID,
         result_id: MuID,
         refty: MuTypeNode,
-        opnd: MuVarNode,
+        opnd: MuVarNode
     },
     NodeGetFieldIRef {
         id: MuID,
@@ -353,7 +353,7 @@ pub enum NodeInst {
         is_ptr: bool,
         refty: MuTypeNode,
         index: i32,
-        opnd: MuVarNode,
+        opnd: MuVarNode
     },
     NodeGetElemIRef {
         id: MuID,
@@ -362,7 +362,7 @@ pub enum NodeInst {
         refty: MuTypeNode,
         indty: MuTypeNode,
         opnd: MuVarNode,
-        index: MuVarNode,
+        index: MuVarNode
     },
     NodeShiftIRef {
         id: MuID,
@@ -371,14 +371,14 @@ pub enum NodeInst {
         refty: MuTypeNode,
         offty: MuTypeNode,
         opnd: MuVarNode,
-        offset: MuVarNode,
+        offset: MuVarNode
     },
     NodeGetVarPartIRef {
         id: MuID,
         result_id: MuID,
         is_ptr: bool,
         refty: MuTypeNode,
-        opnd: MuVarNode,
+        opnd: MuVarNode
     },
     NodeLoad {
         id: MuID,
@@ -387,7 +387,7 @@ pub enum NodeInst {
         ord: MuMemoryOrder,
         refty: MuTypeNode,
         loc: MuVarNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeStore {
         id: MuID,
@@ -396,7 +396,7 @@ pub enum NodeInst {
         refty: MuTypeNode,
         loc: MuVarNode,
         newval: MuVarNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeCmpXchg {
         id: MuID,
@@ -410,7 +410,7 @@ pub enum NodeInst {
         loc: MuVarNode,
         expected: MuVarNode,
         desired: MuVarNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeAtomicRMW {
         id: MuID,
@@ -421,7 +421,7 @@ pub enum NodeInst {
         ref_ty: MuTypeNode,
         loc: MuVarNode,
         opnd: MuVarNode,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeFence { id: MuID, ord: MuMemoryOrder },
     NodeTrap {
@@ -429,7 +429,7 @@ pub enum NodeInst {
         result_ids: Vec<MuID>,
         rettys: Vec<MuTypeNode>,
         exc_clause: Option<MuExcClause>,
-        keepalive_clause: Option<MuKeepaliveClause>,
+        keepalive_clause: Option<MuKeepaliveClause>
     },
     NodeWatchPoint {
         id: MuID,
@@ -439,13 +439,13 @@ pub enum NodeInst {
         dis: MuDestClause,
         ena: MuDestClause,
         exc: Option<MuDestClause>,
-        keepalive_clause: Option<MuKeepaliveClause>,
+        keepalive_clause: Option<MuKeepaliveClause>
     },
     NodeWPBranch {
         id: MuID,
         wpid: MuWPID,
         dis: MuDestClause,
-        ena: MuDestClause,
+        ena: MuDestClause
     },
     NodeCCall {
         id: MuID,
@@ -456,7 +456,7 @@ pub enum NodeInst {
         callee: MuVarNode,
         args: Vec<MuVarNode>,
         exc_clause: Option<MuExcClause>,
-        keepalive_clause: Option<MuKeepaliveClause>,
+        keepalive_clause: Option<MuKeepaliveClause>
     },
     NodeNewThread {
         id: MuID,
@@ -464,7 +464,7 @@ pub enum NodeInst {
         stack: MuVarNode,
         threadlocal: Option<MuVarNode>,
         new_stack_clause: MuNewStackClause,
-        exc_clause: Option<MuExcClause>,
+        exc_clause: Option<MuExcClause>
     },
     NodeSwapStack {
         id: MuID,
@@ -473,7 +473,7 @@ pub enum NodeInst {
         cur_stack_clause: MuCurStackClause,
         new_stack_clause: MuNewStackClause,
         exc_clause: Option<MuExcClause>,
-        keepalive_clause: Option<MuKeepaliveClause>,
+        keepalive_clause: Option<MuKeepaliveClause>
     },
     NodeCommInst {
         id: MuID,
@@ -484,6 +484,6 @@ pub enum NodeInst {
         sigs: Vec<MuFuncSigNode>,
         args: Vec<MuVarNode>,
         exc_clause: Option<MuExcClause>,
-        keepalive_clause: Option<MuKeepaliveClause>,
-    },
+        keepalive_clause: Option<MuKeepaliveClause>
+    }
 }

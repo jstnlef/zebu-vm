@@ -95,7 +95,7 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
                 trace!("Found catch block: 0x{:x}", catch_address);
                 sp = get_previous_stack_pointer(
                     current_frame_pointer,
-                    callsite_info.stack_args_size,
+                    callsite_info.stack_args_size
                 );
                 trace!("\tRestoring SP to: 0x{:x}", sp);
 

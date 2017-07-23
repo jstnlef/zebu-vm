@@ -64,7 +64,7 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
                 .to_str()
                 .unwrap()
                 .to_string(),
-            Address::from_ptr(info.dli_saddr),
+            Address::from_ptr(info.dli_saddr)
         )
     } else {
         ("UNKOWN".to_string(), Address::from_ptr(info.dli_saddr))
@@ -111,7 +111,7 @@ pub enum ValueLocation {
     Relocatable(RegGroup, MuName), // TODO: This only works for mu entities (add a flag to indicate if its native or have a different variant?)
 
     Direct(RegGroup, Address),   // Not dumped
-    Indirect(RegGroup, Address), // Not dumped
+    Indirect(RegGroup, Address)  // Not dumped
 }
 
 rodal_enum!(ValueLocation{(Register: group, id), (Constant: group, word), (Relocatable: group, name)});
@@ -123,7 +123,7 @@ impl fmt::Display for ValueLocation {
             &ValueLocation::Constant(_, val) => write!(f, "VL_Const: {}", val),
             &ValueLocation::Relocatable(_, ref name) => write!(f, "VL_Reloc: {}", name),
             &ValueLocation::Direct(_, addr) => write!(f, "VL_Direct: 0x{:x}", addr),
-            &ValueLocation::Indirect(_, addr) => write!(f, "VL_Indirect: 0x{:x}", addr),
+            &ValueLocation::Indirect(_, addr) => write!(f, "VL_Indirect: 0x{:x}", addr)
         }
     }
 }
@@ -158,7 +158,7 @@ impl ValueLocation {
             Constant::Double(f64_val) => {
                 ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val))
             }
-            _ => unimplemented!(),
+            _ => unimplemented!()
         }
     }
 
@@ -178,7 +178,7 @@ impl ValueLocation {
     pub fn to_relocatable(&self) -> MuName {
         match self {
             &ValueLocation::Relocatable(_, ref name) => name.clone(),
-            _ => panic!("expecting Relocatable location, found {}", self),
+            _ => panic!("expecting Relocatable location, found {}", self)
         }
     }
 }
@@ -205,7 +205,7 @@ pub extern "C" fn mu_main(
     edata: *const (),
     dumped_vm: *mut Arc<VM>,
     argc: c_int,
-    argv: *const *const c_char,
+    argv: *const *const c_char
 ) {
     VM::start_logging_env();
     debug!("mu_main() started...");
@@ -214,7 +214,7 @@ pub extern "C" fn mu_main(
     unsafe {
         rodal::load_asm_bounds(
             rodal::Address::from_ptr(dumped_vm),
-            rodal::Address::from_ptr(edata),
+            rodal::Address::from_ptr(edata)
         )
     };
     let vm = VM::resume_vm(dumped_vm);
@@ -253,7 +253,7 @@ pub extern "C" fn mu_main(
             stack,
             unsafe { Address::zero() },
             args,
-            vm.clone(),
+            vm.clone()
         );
 
         thread.join().unwrap();
