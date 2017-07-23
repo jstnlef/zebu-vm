@@ -2742,8 +2742,8 @@ impl CodeGenerator for ASMCodeGen {
         trace_emit!("\tFMOV {} -> {}", src, dest);
 
         let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1);
-        // GCC complains if the immediate argument has no decimal part (it will treat it as an integer)
-        // (e.g. #1 is an error, but #1.0 is not)
+        // GCC complains if the immediate argument has no decimal part
+        // (it will treat it as an integer, e.g. #1 is an error, but #1.0 is not)
         let asm = if src == src.trunc() {
             // src is an integer, append '.0'
             format!("FMOV {},#{}.0", reg1, src)
@@ -3684,7 +3684,8 @@ pub fn emit_context_with_reloc(
                             Some(label) => label,
                             None => {
                                 panic!(
-                                    "cannot find label for address {}, it is not dumped by GC (why GC didn't trace to it)",
+                                    "cannot find label for address {}, it is not dumped by GC (why \
+                                     GC didn't trace to it)",
                                     load_ref
                                 )
                             }

@@ -235,7 +235,6 @@ pub trait CodeGenerator {
         func: &P<Value>,
         pe: Option<MuName>,
         args: Vec<P<Value>>
-        pe: Option<MuName>
     ) -> ValueLocation;
     fn emit_call_near_mem64(
         &mut self,

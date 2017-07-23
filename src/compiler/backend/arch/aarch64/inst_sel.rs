@@ -77,7 +77,8 @@ pub struct InstructionSelection {
     current_constants_locs: HashMap<MuID, P<Value>>
 }
 
-// TODO: Move all functions that are in here that don't need access to 'self' (or only call functions that don't need access to self (even if called on self)) to Mod.rs
+// TODO: Move all functions that are in here that don't need access to 'self'
+// (or only call functions that don't need access to self (even if called on self)) to Mod.rs
 impl<'a> InstructionSelection {
     #[cfg(feature = "aot")]
     pub fn new() -> InstructionSelection {
@@ -92,12 +93,14 @@ impl<'a> InstructionSelection {
             current_callsite_id: 0,
             current_frame: None,
             current_block: None,
-            current_block_in_ir: None, // it is possible the block is newly created in instruction selection
-            // but sometimes we want to know its control flow
-                                        // so we need to track what block it is from the IR
 
-                                        // FIXME: ideally we should not create new blocks in instruction selection
-                                        // see Issue #6
+            current_block_in_ir: None,
+            // it is possible the block is newly created in instruction selection
+            // but sometimes we want to know its control flow
+            // so we need to track what block it is from the IR
+
+            // FIXME: ideally we should not create new blocks in instruction selection
+            // see Issue #6
             current_func_start: None,
             current_callsites: LinkedList::new(),
             current_exn_blocks: HashMap::new(),
@@ -328,8 +331,9 @@ impl<'a> InstructionSelection {
                             } else {
                                 self.backend.emit_cset(&tmp_res, cond[0]);
 
-                                // Note: some compariosns can't be computed based on a single aarch64 flag
-                                // insted they are computed as a condition OR NOT another condition.
+                                // Note: some compariosns can't be computed based on a single
+                                // aarch64 flag insted they are computed as a condition OR NOT
+                                // another condition.
                                 if cond.len() == 2 {
                                     self.backend.emit_csinc(
                                         &tmp_res,
@@ -504,7 +508,8 @@ impl<'a> InstructionSelection {
 
                         // prepare return regs
                         let ref ops = inst.ops;
-                        // TODO: Are vals in the same order as the return types in the functions signature?
+                        // TODO: Are vals in the same order as the return types in the functions
+                        // signature?
 
                         let ret_tys: Vec<P<MuType>> =
                             vals.iter().map(|i| node_type(&ops[*i])).collect();
@@ -712,7 +717,8 @@ impl<'a> InstructionSelection {
                                             0,
                                             from_ty_size as u8
                                         );
-                                        self.backend.emit_asr_imm(&res_h, &tmp_op, 63); // res_h = ASHR src, 63
+                                        // res_h = ASR src, 63
+                                        self.backend.emit_asr_imm(&res_h, &tmp_op, 63);
 
                                     } else {
                                         panic!("unexpected int length {}", to_ty_size);
@@ -811,10 +817,11 @@ impl<'a> InstructionSelection {
                                     }
                                 } else {
                                     self.backend.emit_fcvtzu(&tmp_res, &tmp_op);
-
                                     // We have to emmit code to handle the case when the real result
                                     // overflows to_ty_size, but not to_ty_reg_size
-                                    let to_ty_reg_size = check_op_len(&tmp_res.ty); // The size of the aarch64 register
+
+                                    // The size of the aarch64 register
+                                    let to_ty_reg_size = check_op_len(&tmp_res.ty);
                                     if to_ty_size != to_ty_reg_size {
                                         // Compare the bits of the result after the lower
                                         // to_ty_size bits
@@ -859,12 +866,14 @@ impl<'a> InstructionSelection {
                                 } else {
                                     self.backend.emit_fcvtzs(&tmp_res, &tmp_op);
 
-                                    // TODO This code is horrible and inefficient due to branches and duplication
-                                    // is there a better way?
+                                    // TODO This code is horrible and inefficient due to branches
+                                    // and duplication, is there a better way?
 
                                     // We have to emmit code to handle the case when the real result
                                     // overflows to_ty_size, but not to_ty_reg_size
-                                    let to_ty_reg_size = check_op_len(&tmp_res.ty); // The size of the aarch64 register
+
+                                    // The size of the aarch64 register
+                                    let to_ty_reg_size = check_op_len(&tmp_res.ty);
                                     if to_ty_size != to_ty_reg_size {
                                         let blk_positive = make_block_name(
                                             &self.current_fv_name,
@@ -893,7 +902,8 @@ impl<'a> InstructionSelection {
                                         self.start_block(blk_positive.clone());
                                         {
                                             // check to see if the higher bits are the same as the
-                                            // sign bit (which is 0), if their not there's an overflow
+                                            // sign bit (which is 0), if their not there's an
+                                            // overflow
                                             self.backend.emit_tst_imm(
                                                 &tmp_res,
                                                 bits_ones(to_ty_reg_size - to_ty_size) <<
@@ -912,18 +922,21 @@ impl<'a> InstructionSelection {
                                         self.start_block(blk_negative.clone());
                                         {
                                             self.backend.emit_mvn(&tmp, &tmp_res);
-                                            // check to see if the higher bits of temp are the same as the
-                                            // sign bit (which is 1), if their not there's an overflow
+                                            // check to see if the higher bits of temp are the same
+                                            // as the sign bit (which is 1), if their not there's
+                                            // an overflow
                                             self.backend.emit_tst_imm(
                                                 &tmp_res,
                                                 bits_ones(to_ty_reg_size - to_ty_size) <<
                                                     to_ty_size
                                             );
 
-                                            // Set just the sign bit (this is smallest representable signed number)
+                                            // Set just the sign bit (this is smallest representable
+                                            // signed number)
                                             self.backend.emit_mov_imm(&tmp, 1 << to_ty_size);
 
-                                            // if the above test fails (i.e. results in zero), then set temp_res to tmp
+                                            // if the above test fails (i.e. results in zero), then
+                                            // set temp_res to tmp
                                             self.backend.emit_csel(&tmp_res, &tmp, &tmp_res, "EQ");
                                             self.finish_block();
                                         }
@@ -1011,7 +1024,8 @@ impl<'a> InstructionSelection {
                                 }
 
                                 // Aarch64 dosn't have a load acquire pair instruction
-                                // So instead we have to write a loop using load/store exclusive pairs
+                                // So instead we have to write a loop using load/store exclusive
+                                // pairs
                                 _ => {
                                     // Whether to use a load exclusive acquire
                                     let use_acquire = match order {
@@ -1163,7 +1177,8 @@ impl<'a> InstructionSelection {
                                 }
 
                                 // Aarch64 dosn't have a store release pair instruction
-                                // So instead we have to write a loop using load/store exclusive pairs
+                                // So instead we have to write a loop using load/store exclusive
+                                // pairs
                                 _ => {
                                     // Whether to use a load exclusive acquire
                                     let use_acquire = match order {
@@ -1416,7 +1431,8 @@ impl<'a> InstructionSelection {
 
                         // cmpxchg_succeded:
                         self.start_block(blk_cmpxchg_succeded.clone());
-                        // this NOT is needed as STXR/STLXR returns sucess as '0', wheras the Mu spec says it should be 1
+                        // this NOT is needed as STXR/STLXR returns sucess as '0', wheras the Mu
+                        // spec says it should be 1
                         self.backend.emit_eor_imm(&res_success, &res_success, 1);
                     }
                     Instruction_::GetIRef(_) |
@@ -1443,7 +1459,8 @@ impl<'a> InstructionSelection {
                         };
 
                         if use_load {
-                            // Data Memory Barrirer for Inner Shariable Domain (for Load accesses only)
+                            // Data Memory Barrier for Inner sharable Domain
+                            // (for Load accesses only)
                             self.backend.emit_dmb("ISHLD");
                         } else {
                             // Data Memory Barrirer for Inner Shariable Domain
@@ -1452,8 +1469,9 @@ impl<'a> InstructionSelection {
                     }
 
                     // TODO: Implement this similar to a return (where theres a common exit block)
-                    // and change SWAP_BACK_TO_NATIV_STACK and swap_to_mu_stack so they don't handle the callee saved registers
-                    // (this instruction should then guarentee that they are restored (in the same way a Return does)
+                    // and change SWAP_BACK_TO_NATIV_STACK and swap_to_mu_stack so they don't handle
+                    // the callee saved registers (this instruction should then guarentee that
+                    // they are restored (in the same way a Return does)
                     Instruction_::ThreadExit => {
                         trace!("instsel on THREADEXIT");
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
@@ -1595,7 +1613,8 @@ impl<'a> InstructionSelection {
                                 MuType_::Hybrid(_) => {}
                                 _ => {
                                     panic!(
-                                        "NEWHYBRID is only for allocating hybrid types, use NEW for others"
+                                        "NEWHYBRID is only for allocating hybrid types, use NEW \
+                                         for others"
                                     )
                                 }
                             }
@@ -1694,7 +1713,8 @@ impl<'a> InstructionSelection {
                                 MuType_::Hybrid(_) => {}
                                 _ => {
                                     panic!(
-                                        "ALLOCAHYBRID is only for allocating hybrid types, use ALLOCA for others"
+                                        "ALLOCAHYBRID is only for allocating hybrid types, use \
+                                         ALLOCA for others"
                                     )
                                 }
                             }
@@ -1734,7 +1754,8 @@ impl<'a> InstructionSelection {
                             let var_len = self.emit_ireg(var_len, f_content, f_context, vm);
                             emit_zext(self.backend.as_mut(), &var_len);
                             let var_len = cast_value(&var_len, &UINT64_TYPE.clone());
-                            // set res to the total size of the object (i.e. var_ty_size*var_len + fix_part_size)
+                            // set res to the total size of the object
+                            // (i.e. var_ty_size*var_len + fix_part_size)
                             emit_madd_u64_u64(
                                 self.backend.as_mut(),
                                 &res,
@@ -1746,11 +1767,13 @@ impl<'a> InstructionSelection {
                             );
 
                             // Grow the stack by 'res' bytes
-                            // Note: the SP can't be used as the source of the emit_and so we have to make a temporary
+                            // Note: the SP can't be used as the source of the emit_and so we have
+                            // to make a temporary
                             let tmp_sp = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
                             self.backend.emit_sub(&tmp_sp, &SP, &res);
 
-                            // Align the stack pointer down to the nearest multiple of align (which should be a power of two)
+                            // Align the stack pointer down to the nearest multiple of align
+                            // (which should be a power of two)
                             self.backend.emit_and_imm(&SP, &tmp_sp, !(align - 1));
 
                             // Zero out 'res' bytes starting at the stack pointer
@@ -1858,7 +1881,8 @@ impl<'a> InstructionSelection {
                         let tmp1 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
                         let tmp2 = make_temporary(f_context, UINT64_TYPE.clone(), vm);
 
-                        //res = (op & 0x7ff0000000000003 != 0x7ff0000000000002) & ((!op & 0x7ff0000000000001) != 0)
+                        //res = (op & 0x7ff0000000000003 != 0x7ff0000000000002) &
+                        //  ((!op & 0x7ff0000000000001) != 0)
                         emit_mov_u64(self.backend.as_mut(), &tmp_res_r64, 0x7ff0000000000001);
                         self.backend.emit_add_imm(&tmp1, &tmp_res_r64, 2, false);
                         self.backend.emit_add_imm(&tmp2, &tmp_res_r64, 1, false);
@@ -1880,7 +1904,8 @@ impl<'a> InstructionSelection {
                         if match_node_f64imm(op) {
                             let double_val = node_imm_to_f64(op);
                             // This is actually totally safe, ignore the unsafe keyword
-                            // (since f64 on aaarch64 is an IEEE 754 double precision floating point number)
+                            // (since f64 on aaarch64 is an IEEE 754 double precision floating point
+                            // number)
                             let int_val: u64 = unsafe { mem::transmute(double_val) };
 
                             emit_mov_u64(
@@ -1908,7 +1933,8 @@ impl<'a> InstructionSelection {
                             self.backend.emit_csel(&tmp_res, &tmp1, &tmp_res, "VS");
                         }
                     }
-                    //(0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) | ((opnd & 0x8000000000000u64) << 12))
+                    //(0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) |
+                    //  ((opnd & 0x8000000000000u64) << 12))
                     Instruction_::CommonInst_Tr64FromInt(index) => {
                         let ref ops = inst.ops;
                         let ref op = ops[index];
@@ -2034,8 +2060,11 @@ impl<'a> InstructionSelection {
                         let ref op = ops[index];
                         let tmp_res = self.get_result_value(node, 0);
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
-                        let tmp_res64 = cast_value(&tmp_res, &UINT64_TYPE); // Same register as tmp_res
-                        let tmp_op8 = cast_value(&tmp_op, &UINT8_TYPE); // Same resgiters as tmp_op
+
+                        // Same register as tmp_res
+                        let tmp_res64 = cast_value(&tmp_res, &UINT64_TYPE);
+                        // Same register as tmp_op
+                        let tmp_op8 = cast_value(&tmp_op, &UINT8_TYPE);
 
                         // ((op >> 46) & 0x3E) ¦ op[1+2:2]
                         self.backend.emit_lsr_imm(&tmp_res64, &tmp_op, 46);
@@ -2053,8 +2082,10 @@ impl<'a> InstructionSelection {
 
     // Returns the size of the operation
     // TODO: If the RHS of an ADD is negative change it to a SUB (and vice versa)
-    // TODO: Treat XOR 1....1, arg and XOR arg, 1....1 specially (1....1 is an invalid logical immediate, but the operation is non trivial so it should be optimised to res = MVN arg)
-    // Note: Assume that trivial operations are to be optimised by the Mu IR compiler (but this function still needs to work correctly if they aren't optimsed away)
+    // TODO: Treat XOR 1....1, arg and XOR arg, 1....1 specially (1....1 is an invalid logical
+    // immediate, but the operation is non trivial so it should be optimised to res = MVN arg)
+    // Note: Assume that trivial operations are to be optimised by the Mu IR compiler (but this
+    // function still needs to work correctly if they aren't optimsed away)
     // TODO: Use a shift when dividing or multiplying by a power of two
     fn emit_binop(
         &mut self,
@@ -2361,9 +2392,10 @@ impl<'a> InstructionSelection {
                         emit_zext(self.backend.as_mut(), &reg_op1);
 
                         if status.flag_c {
-                            // Note: reg_op2 is 'one'-extended so that SUB res, zext(reg_op1), oext(reg_op2)
-                            // Is equivelent to: ADD res, zext(reg_op1), zext(~reg_op2), +1
-                            // (this allows the carry flag to be computed as the 'n'th bit of res
+                            // Note: reg_op2 is 'one'-extended so that SUB res, zext(reg_op1),
+                            // oext(reg_op2) Is equivelent to: ADD res, zext(reg_op1), zext
+                            // (~reg_op2), +1 (this allows the carry flag to be computed as the
+                            // 'n'th bit of res
 
                             emit_oext(self.backend.as_mut(), &reg_op2);
                             self.backend.emit_subs(&res, &reg_op1, &reg_op2);
@@ -2681,7 +2713,7 @@ impl<'a> InstructionSelection {
                             self.backend.emit_umulh(&tmp_upper, &reg_op1, &reg_op2);
 
                             // Get the upper part of the product
-                            // (i.e. set tmp_upper to be the full 128-bit product right shifted by n)
+                            // i.e. set tmp_upper to be the full 128-bit product right shifted by n
                             self.backend
                                 .emit_extr(&tmp_upper, &tmp_upper, &res, n as u8);
 
@@ -2951,8 +2983,9 @@ impl<'a> InstructionSelection {
                     // We need to compute res_l = trunc(op1_l*2^shift), and
                     //      res_h = trunc(op1_h*2^shift) + trunc(op1_l*2^((shift-64))
 
-                    // This complicated code is needed as in Aarch64 the RHS of a shift is unsigned and masked
-                    // e.g. (a << b) actually equals trunc(a*2^(b & 63)) and not trunc(a*2^b)
+                    // This complicated code is needed as in Aarch64 the RHS of a shift is unsigned
+                    // and masked e.g. (a << b) actually equals trunc(a*2^(b & 63)) and not trunc
+                    // (a*2^b)
 
                     self.backend.emit_cmp_imm(&shift, 0, false);
 
@@ -3034,8 +3067,9 @@ impl<'a> InstructionSelection {
                     // We need to compute res_h = trunc(op1_h/2^shift), and
                     //      res_l = trunc(op1_l/2^shift) + trunc(op1_h/2^((shift-64))
 
-                    // This complicated code is needed as in Aarch64 the RHS of a shift is unsigned and masked
-                    // e.g. (a >> b) actually equals trunc(a/2^(b & 63)) and not trunc(a/2^b)
+                    // This complicated code is needed as in Aarch64 the RHS of a shift is unsigned
+                    // and masked, e.g. (a >> b) actually equals trunc(a/2^(b & 63)) and not trunc
+                    // (a/2^b)
 
                     self.backend.emit_cmp_imm(&shift, 0, false);
 
@@ -3118,8 +3152,9 @@ impl<'a> InstructionSelection {
                     // We need to compute res_h = trunc(op1_h/2^shift), and
                     //      res_l = trunc(op1_l/2^shift) + trunc(op1_h/2^((shift-64))
 
-                    // This complicated code is needed as in Aarch64 the RHS of a shift is unsigned and masked
-                    // e.g. (a >> b) actually equals trunc(a/2^(b & 63)) and not trunc(a/2^b)
+                    // This complicated code is needed as in Aarch64 the RHS of a shift is unsigned
+                    // and masked, e.g. (a >> b) actually equals trunc(a/2^(b & 63)) and not trunc
+                    // (a/2^b)
 
                     self.backend.emit_cmp_imm(&shift, 0, false);
 
@@ -3278,8 +3313,9 @@ impl<'a> InstructionSelection {
                 }
 
                 // The result of these instructions will have the correct sign bit (even for n < 32)
-                // And since overflow is not possible res will be 0 iff the lower 'n' bits of res is 0
-                // (thus a comparison to 0 will produce the correct N and Z flags without needing to sign extend the result)
+                // And since overflow is not possible res will be 0 iff the lower 'n' bits of res is
+                // 0 (thus a comparison to 0 will produce the correct N and Z flags without
+                // needing to sign extend the result)
                 op::BinOp::Sdiv | op::BinOp::Srem => {
                     self.backend.emit_cmp_imm(&res, 0, false);
 
@@ -3292,7 +3328,8 @@ impl<'a> InstructionSelection {
                     }
                 }
 
-                // All other operations that have flags just have the N and Z flags, but there are no instructions that set them automatically
+                // All other operations that have flags just have the N and Z flags, but there are
+                // no instructions that set them automatically
                 _ => {
                     emit_sext(self.backend.as_mut(), &res);
                     self.backend.emit_cmp_imm(&res, 0, false);
@@ -3309,7 +3346,8 @@ impl<'a> InstructionSelection {
         }
     }
 
-    // Computes the Z and B flags for 128 bit arithmetic, but only if status_z and status_n are not the zero register (respectivley).
+    // Computes the Z and B flags for 128 bit arithmetic, but only if status_z and status_n are not
+    // the zero register (respectivley).
     fn emit_flags_128(
         &mut self,
         res_l: &P<Value>,
@@ -3554,7 +3592,8 @@ impl<'a> InstructionSelection {
         }
     }
 
-    // This generates code identical to (though it may use different registers) the function muentry_get_thread_local
+    // This generates code identical to (though it may use different registers) the function
+    // muentry_get_thread_local
     fn emit_get_threadlocal(&mut self, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
         let mut rets = self.emit_runtime_entry(
             &entrypoints::GET_THREAD_LOCAL,
@@ -3600,7 +3639,8 @@ impl<'a> InstructionSelection {
 
 
     // Note: if tys has more than 1 element, then this will return a new struct type
-    // , but each call will generate a different name for this struct type (but the layout will be identical)
+    // , but each call will generate a different name for this struct type (but the layout will be
+    // identical)
     fn combine_return_types(&mut self, sig: &P<MuFuncSig>, vm: &VM) -> P<MuType> {
         let (res, new_res) = match self.combined_return_types.get(&sig.id()) {
             Some(ty) => (ty.clone(), false),
@@ -3629,14 +3669,16 @@ impl<'a> InstructionSelection {
         res
     }
 
-    // How much space needs to be allocated on the stack to hold the return value (returns 0 if no space needs to be allocated)
+    // How much space needs to be allocated on the stack to hold the return value (returns 0 if no
+    // space needs to be allocated)
     fn compute_return_allocation(&self, t: &P<MuType>, vm: &VM) -> usize {
         use ast::types::MuType_::*;
         let size = align_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
             Vector(_, _) => unimplemented!(),
             Float | Double => 0, // Can return in FPR
-            Hybrid(_) => panic!("cant return a hybrid"), // don't know how much space to reserve for it
+            Hybrid(_) => panic!("cant return a hybrid"), // don't know how much space to reserve
+            // for it
             Struct(_) | Array(_, _) => {
                 if hfa_length(t) > 0 || size <= 16 {
                     0 // Can return in register (or multiple registers)
@@ -3682,10 +3724,11 @@ impl<'a> InstructionSelection {
 
         }
     }
-    // TODO: Thoroughly test this (compare with code generated by GCC with variouse different types???)
+    // TODO: Thoroughly test this (compare with code generated by GCC with various different types?)
     // The algorithm presented here is derived from the ARM AAPCS64 reference
     // Returns a vector indicating whether each should be passed as an IRef (and not directly),
-    // a vector referencing to the location of each argument (in memory or a register) and the amount of stack space used
+    // a vector referencing to the location of each argument (in memory or a register) and the
+    // amount of stack space used
     // NOTE: It currently does not support vectors/SIMD types (or aggregates of such types)
     fn compute_argument_locations(
         &mut self,
@@ -3710,8 +3753,10 @@ impl<'a> InstructionSelection {
             reference.push(
                 hfa_length(t) == 0 && // HFA's aren't converted to IRef's
                     match t.v {
-                        Hybrid(_) => panic!("Hybrid argument not supported"), // size can't be statically determined
-                        Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true, //  type is too large
+                        // size can't be statically determined
+                        Hybrid(_) => panic!("Hybrid argument not supported"),
+                        //  type is too large
+                        Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true,
                         Vector(_, _)  => unimplemented!(),
                         _ => false
                     }
@@ -3757,7 +3802,8 @@ impl<'a> InstructionSelection {
                     let hfa_n = hfa_length(&t);
                     if hfa_n > 0 {
                         if nsrn + hfa_n <= 8 {
-                            // Note: the argument will occupy succesiv registers (one for each element)
+                            // Note: the argument will occupy succesiv registers
+                            // (one for each element)
                             locations.push(get_alias_for_length(
                                 ARGUMENT_FPRS[nsrn].id(),
                                 get_bit_size(&t, vm) / hfa_n
@@ -4091,7 +4137,8 @@ impl<'a> InstructionSelection {
                     } else {
                         // This is not possible according the Aaarch64 PCS, since it would involve a
                         // 128-bit integer which starts part way through a register, but a 128-bit
-                        // integer must be aligned to 16-bytes, and so must start at the start of an even register.
+                        // integer must be aligned to 16-bytes, and so must start at the start of an
+                        // even register.
                         panic!("A 128-bit integer must start at the start of a register");
                     }
                 } else {
@@ -4208,7 +4255,8 @@ impl<'a> InstructionSelection {
                     } else {
                         // This is not possible according the Aaarch64 PCS, since it would involve a
                         // 128-bit integer which starts part way through a register, but a 128-bit
-                        // integer must be aligned to 16-bytes, and so must start at the start of an even register.
+                        // integer must be aligned to 16-bytes, and so must start at the start of an
+                        // even register.
                         panic!("A 128-bit integer must start at the start of a register");
                     }
                 } else {
@@ -4279,8 +4327,10 @@ impl<'a> InstructionSelection {
         } else {
             let callsite = self.new_callsite_label(cur_node);
 
+            // assume ccall wont throw exception
             self.backend
-                .emit_bl(callsite.clone(), func_name, None, arg_regs, true); // assume ccall wont throw exception
+                .emit_bl(callsite.clone(), func_name, None, arg_regs, true);
+
 
             // TODO: What if theres an exception block?
             self.current_callsites
@@ -4370,7 +4420,8 @@ impl<'a> InstructionSelection {
                         }
                         _ => {
                             panic!(
-                                "expect a ufuncptr to be either address constant, or symbol constant, we have {}",
+                                "expect a ufuncptr to be either address constant, or symbol \
+                                 constant, we have {}",
                                 pv
                             )
                         }
@@ -4647,7 +4698,8 @@ impl<'a> InstructionSelection {
         }
 
         // unload arguments
-        // Read arguments starting from FP+16 (FP points to the frame record (the previouse FP and LR)
+        // Read arguments starting from FP+16 (FP points to the frame record (the previouse FP and
+        // LR)
         let (_, locations, stack_arg_size) =
             self.compute_argument_locations(&sig.arg_tys, &FP, 16, &vm);
         self.current_stack_arg_size = stack_arg_size;
@@ -5261,7 +5313,8 @@ impl<'a> InstructionSelection {
                                 MuType_::IRef(ref ty) | MuType_::UPtr(ref ty) => ty.clone(),
                                 _ => {
                                     panic!(
-                                        "expected the base for GetFieldIRef has a type of iref or uptr, found type: {}",
+                                        "expected the base for GetFieldIRef has a type of iref or \
+                                         uptr, found type: {}",
                                         iref_or_uptr_ty
                                     )
                                 }
@@ -5691,7 +5744,8 @@ impl CompilerPass for InstructionSelection {
 
             if is_exception_block {
                 // exception block
-                // we need to be aware of exception blocks so that we can emit information to catch exceptions
+                // we need to be aware of exception blocks so that we can emit information to catch
+                // exceptions
 
                 let loc = self.backend.start_exception_block(block_label.clone());
                 self.current_exn_blocks

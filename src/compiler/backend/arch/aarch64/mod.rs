@@ -132,12 +132,18 @@ GPR_ALIAS!(SP_ALIAS: (62, SP)  -> WSP); // Special register(only some instructio
 GPR_ALIAS!(XZR_ALIAS: (64, XZR)  -> WZR); // Pseudo register, not to be used by register allocator
 
 // Aliases
-ALIAS!(X8 -> XR); // Indirect result location register (points to a location in memory to write return values to)
-ALIAS!(X16 -> IP0); // Intra proecdure call register 0 (may be modified by the linker when executing BL/BLR instructions)
-ALIAS!(X17 -> IP1); // Intra proecdure call register 1 (may be modified by the linker when executing BL/BLR instructions)
-ALIAS!(X18 -> PR); // Platform Register (NEVER TOUCH THIS REGISTER (Unless you can prove Linux dosn't use it))
-ALIAS!(X29 -> FP); // Frame Pointer (can be used as a normal register when not calling or returning)
-ALIAS!(X30 -> LR); // Link Register (not supposed to be used for any other purpose)
+// Indirect result location register (points to a location in memory to write return values to)
+ALIAS!(X8 -> XR);
+// Intraprocedure call register 0 (may be modified by the linker when executing BL/BLR instructions)
+ALIAS!(X16 -> IP0);
+// Intraprocedure call register 1 (may be modified by the linker when executing BL/BLR instructions)
+ALIAS!(X17 -> IP1);
+// Platform Register (NEVER TOUCH THIS REGISTER (Unless you can prove Linux dosn't use it))
+ALIAS!(X18 -> PR);
+// Frame Pointer (can be used as a normal register when not calling or returning)
+ALIAS!(X29 -> FP);
+// Link Register (not supposed to be used for any other purpose)
+ALIAS!(X30 -> LR);
 
 lazy_static! {
     pub static ref GPR_ALIAS_TABLE : LinkedHashMap<MuID, Vec<P<Value>>> = {
@@ -1214,7 +1220,8 @@ pub fn is_valid_immediate_offset(val: i64, n: usize) -> bool {
     if n <= 8 {
         (val >= -(1 << 8) && val < (1 << 8)) || // Valid 9 bit signed unscaled offset
             // Valid unsigned 12-bit scalled offset
-            (val >= 0 && (val as u64) % (n_align as u64) == 0 && ((val as u64) / (n_align as u64) < (1 << 12)))
+            val >= 0 && (val as u64) % (n_align as u64) == 0 &&
+                ((val as u64) / (n_align as u64) < (1 << 12))
     } else {
         // Will be using a load/store-pair
         // Is val a signed 7 bit multiple of n_align

@@ -3466,7 +3466,7 @@ impl<'a> InstructionSelection {
         args: &Vec<P<Value>>,
         f_context: &mut FunctionContext,
         vm: &VM
-    ) -> usize {
+    ) -> (usize, Vec<P<Value>>) {
         // put args into registers if we can
         // in the meantime record args that do not fit in registers
         let mut stack_args: Vec<P<Value>> = vec![];
@@ -3719,7 +3719,7 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> Vec<P<Value>> {
-        let stack_arg_size = self.emit_precall_convention(&args, f_context, vm);
+        let (stack_arg_size, args) = self.emit_precall_convention(&args, f_context, vm);
 
         // make call
         if vm.is_doing_jit() {
@@ -3728,7 +3728,7 @@ impl<'a> InstructionSelection {
             let callsite = self.new_callsite_label(cur_node);
             // assume ccall wont throw exception
             self.backend
-                .emit_call_near_rel32(callsite.clone(), func_name, None, true);
+                .emit_call_near_rel32(callsite.clone(), func_name, None, args, true);
 
             // TODO: What if theres an exception block?
             self.current_callsites
@@ -3893,8 +3893,13 @@ impl<'a> InstructionSelection {
                     unimplemented!()
                 } else {
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend
-                        .emit_call_near_rel32(callsite, target.name(), potentially_excepting, arg_regs, false)
+                    self.backend.emit_call_near_rel32(
+                        callsite,
+                        target.name(),
+                        potentially_excepting,
+                        arg_regs,
+                        false
+                    )
                 }
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
