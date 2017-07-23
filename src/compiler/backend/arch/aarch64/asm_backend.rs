@@ -555,17 +555,6 @@ impl MachineCode for ASMCode {
                 let split: Vec<&str> = inst.code.split(' ').collect();
                 Some(demangle_name(String::from(split[1])))
             }
-            Some(inst) if inst.code.starts_with("CBNZ ") || inst.code.starts_with("CBZ ") => {
-                // Destination is the second argument
-                let split: Vec<&str> = inst.code.split(',').collect();
-                Some(demangle_name(String::from(split[1])))
-            }
-            Some(inst) if inst.code.starts_with("TBNZ ") || inst.code.starts_with("TBZ ") => {
-                // Destination is the third argument
-                let split: Vec<&str> = inst.code.split(',').collect();
-                Some(demangle_name(String::from(split[2])))
-            }
-
             _ => None
         }
     }
@@ -696,6 +685,24 @@ impl MachineCode for ASMCode {
             // remove old key, insert new one
             asm.uses.remove(&from);
             asm.uses.insert(to, use_locs);
+        }
+    }
+
+    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: usize) {
+        {
+            let asm = &mut self.code[inst];
+
+            let inst = String::from(asm.code.split_whitespace().next().unwrap());
+            asm.code = format!("{} {}", inst, mangle_name(String::from(new_dest)));
+            asm.succs.clear();
+            asm.succs.push(succ);
+        }
+        {
+            let asm = &mut self.code[succ];
+
+            if !asm.preds.contains(&inst) {
+                asm.preds.push(inst);
+            }
         }
     }
 
@@ -2743,7 +2750,8 @@ impl CodeGenerator for ASMCodeGen {
 
         let (reg1, id1, loc1) = self.prepare_reg(dest, 4 + 1);
         // GCC complains if the immediate argument has no decimal part
-        // (it will treat it as an integer, e.g. #1 is an error, but #1.0 is not)
+        // (it will treat it as an integer)
+        // (e.g. #1 is an error, but #1.0 is not)
         let asm = if src == src.trunc() {
             // src is an integer, append '.0'
             format!("FMOV {},#{}.0", reg1, src)
@@ -3601,7 +3609,7 @@ pub fn emit_context_with_reloc(
         use runtime::mm;
 
         // persist globals
-        let global_locs_lock = vm.global_locations.read().unwrap();
+        let global_locs_lock = vm.global_locations().read().unwrap();
         let global_lock = vm.globals().read().unwrap();
 
         let global_addr_id_map = {
@@ -3684,8 +3692,8 @@ pub fn emit_context_with_reloc(
                             Some(label) => label,
                             None => {
                                 panic!(
-                                    "cannot find label for address {}, it is not dumped by GC (why \
-                                     GC didn't trace to it)",
+                                    "cannot find label for address {}, \
+                                     it is not dumped by GC (why GC didn't trace to it)",
                                     load_ref
                                 )
                             }

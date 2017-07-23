@@ -134,11 +134,13 @@ GPR_ALIAS!(XZR_ALIAS: (64, XZR)  -> WZR); // Pseudo register, not to be used by 
 // Aliases
 // Indirect result location register (points to a location in memory to write return values to)
 ALIAS!(X8 -> XR);
-// Intraprocedure call register 0 (may be modified by the linker when executing BL/BLR instructions)
+// Intra proecdure call register 0
+// (may be modified by the linker when executing BL/BLR instructions)
 ALIAS!(X16 -> IP0);
-// Intraprocedure call register 1 (may be modified by the linker when executing BL/BLR instructions)
+// Intra proecdure call register 1
+// (may be modified by the linker when executing BL/BLR instructions)
 ALIAS!(X17 -> IP1);
-// Platform Register (NEVER TOUCH THIS REGISTER (Unless you can prove Linux dosn't use it))
+// Platform Register (NEVER TOUCH THIS REGISTER (Unless you can prove Linux doesn't use it))
 ALIAS!(X18 -> PR);
 // Frame Pointer (can be used as a normal register when not calling or returning)
 ALIAS!(X29 -> FP);

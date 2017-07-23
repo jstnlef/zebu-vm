@@ -28,7 +28,7 @@ def test_PyPy():
 
     cmd = [pypy_dir.join('rpython/bin/rpython')]
     flags = ['-O3', '--no-shared', '--backend=mu', '--mu-impl=zebu',
-             '--mu-suplibdir=%(bin_dir)s' % globals()]
+             '--mu-vmargs', '--gc-immixspace-size=10737418240', '--mu-suplibdir=%(bin_dir)s' % globals()]
     # flags = ['-O3', '--no-shared', '--backend=c', '--no-profopt']
     args = ['--no-allworkingmodules']
     cmd.extend(flags)
