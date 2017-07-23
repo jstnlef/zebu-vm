@@ -117,7 +117,8 @@ impl CompilerPass for TreeGen {
                                         .unwrap();
                                     if lhs.use_count() == 1 {
                                         if is_movable(&inst) {
-                                            lhs.assign_expr(inst.clone()); // FIXME: should be able to move the inst here
+                                            // FIXME: should be able to move the inst here
+                                            lhs.assign_expr(inst.clone());
 
                                             trace!("yes");
                                             trace!("");

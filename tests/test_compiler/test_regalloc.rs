@@ -28,7 +28,8 @@ use self::mu::vm::VM;
 
 use std::sync::Arc;
 
-// NOTE: aarch64 has 28 usable GPRs (wheras x86-64 has 14) so there are slightly different tests for spilling on aarch64
+// NOTE: aarch64 has 28 usable GPRs (wheras x86-64 has 14)
+// so there are slightly different tests for spilling on aarch64
 
 fn get_number_of_moves(fv_id: MuID, vm: &VM) -> usize {
     let cfs = vm.compiled_funcs().read().unwrap();
@@ -100,7 +101,8 @@ fn create_spill1() -> VM {
     funcdef!        ((vm) <spill1_sig> spill1 VERSION spill1_v1);
 
     typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
-    constdef!       ((vm) <funcref_spill1> const_funcref_spill1 = Constant::FuncRef(vm.id_of("spill1")));
+    constdef!       ((vm) <funcref_spill1> const_funcref_spill1 =
+        Constant::FuncRef(vm.id_of("spill1")));
 
     // %entry(<@int_64> %t1, t2, ... t10):
     block!          ((vm, spill1_v1) blk_entry);
@@ -185,7 +187,8 @@ fn create_spill1() -> VM {
     funcdef!        ((vm) <spill1_sig> spill1 VERSION spill1_v1);
 
     typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
-    constdef!       ((vm) <funcref_spill1> const_funcref_spill1 = Constant::FuncRef(vm.id_of("spill1")));
+    constdef!       ((vm) <funcref_spill1> const_funcref_spill1 =
+        Constant::FuncRef(vm.id_of("spill1")));
 
     // %entry(<@int_64> %t1, t2, ... t10):
     block!          ((vm, spill1_v1) blk_entry);
@@ -252,7 +255,8 @@ fn create_spill1() -> VM {
     );
 
     define_block!   ((vm, spill1_v1) blk_entry
-        (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24) {
+        (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12,
+         t13, t14, t15, t16, t17, t18, t19, t20, t21, t22, t23, t24) {
             blk_entry_call,
             blk_entry_add0,
             blk_entry_add1,
@@ -706,7 +710,9 @@ fn test_coalesce_branch_moves() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) == 2, "The function should not yield any mov instructions other than mov %rsp->%rbp and mov %rbp->%rsp (some possible coalescing failed)");
+        assert!(get_number_of_moves(fv_id, &vm) == 2,
+            "The function should not yield any mov instructions other than \
+            mov %rsp->%rbp and mov %rbp->%rsp (some possible coalescing failed)");
     }
 }
 
@@ -731,7 +737,9 @@ fn coalesce_branch_moves() -> VM {
         BRANCH blk1 (arg0, arg1, arg2, arg3)
     );
 
-    define_block!((vm, coalesce_branch_moves_v1) blk_entry (arg0, arg1, arg2, arg3) {blk_entry_branch});
+    define_block!((vm, coalesce_branch_moves_v1) blk_entry (arg0, arg1, arg2, arg3) {
+        blk_entry_branch
+    });
 
     ssa!     ((vm, coalesce_branch_moves_v1) <int64> blk1_arg0);
     ssa!     ((vm, coalesce_branch_moves_v1) <int64> blk1_arg1);
@@ -777,7 +785,10 @@ fn test_coalesce_args() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) == 2, "The function should not yield any mov instructions other than mov %rsp->%rbp and mov %rbp->%rsp (or MOV SP -> FP on aarch64) (some possible coalescing failed)");
+        assert!(get_number_of_moves(fv_id, &vm) == 2,
+            "The function should not yield any mov instructions other than \
+            mov %rsp->%rbp and mov %rbp->%rsp (or MOV SP -> FP on aarch64) \
+            (some possible coalescing failed)");
     }
 }
 
@@ -809,7 +820,9 @@ fn coalesce_args() -> VM {
         RET
     );
 
-    define_block!   ((vm, coalesce_args_v1) blk_entry(arg0, arg1, arg2, arg3) {blk_entry_call, blk_entry_ret});
+    define_block!   ((vm, coalesce_args_v1) blk_entry(arg0, arg1, arg2, arg3) {
+        blk_entry_call, blk_entry_ret
+    });
 
     define_func_ver!((vm) coalesce_args_v1 (entry: blk_entry) {blk_entry});
 
@@ -840,7 +853,8 @@ fn test_coalesce_branch2_moves() {
         // check
         let fv_id = func_ver.id();
 
-        assert!(get_number_of_moves(fv_id, &vm) <= 4, "too many moves (some possible coalescing failed)");
+        assert!(get_number_of_moves(fv_id, &vm) <= 4,
+            "too many moves (some possible coalescing failed)");
     }
 
     backend::emit_context(&vm);
@@ -878,7 +892,7 @@ fn coalesce_branch2_moves() -> VM {
     typedef! ((vm) int64 = mu_int(64));
     typedef! ((vm) int1  = mu_int(1));
 
-    funcsig! ((vm) sig = (int64, int64, int64, int64, int64, int64) -> ());
+    funcsig! ((vm) sig = (int64, int64, int64, int64, int64, int64) -> (int64));
     funcdecl!((vm) <sig> coalesce_branch2_moves);
     funcdef! ((vm) <sig> coalesce_branch2_moves VERSION coalesce_branch2_moves_v1);
 
@@ -1143,7 +1157,8 @@ fn preserve_caller_saved_simple() -> VM {
         RET
     );
 
-    define_block!   ((vm, preserve_caller_saved_simple_v1) blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
+    define_block!   ((vm, preserve_caller_saved_simple_v1)
+        blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
         blk_main_call,
 
         blk_main_add1,
@@ -1259,7 +1274,8 @@ fn preserve_caller_saved_call_args() -> VM {
 
     funcsig!    ((vm) sig = () -> ());
     funcdecl!   ((vm) <sig> preserve_caller_saved_call_args);
-    funcdef!    ((vm) <sig> preserve_caller_saved_call_args VERSION preserve_caller_saved_call_args_v1);
+    funcdef!    ((vm) <sig> preserve_caller_saved_call_args
+        VERSION preserve_caller_saved_call_args_v1);
 
     // blk entry
     block!      ((vm, preserve_caller_saved_call_args_v1) blk_entry);
@@ -1311,9 +1327,11 @@ fn preserve_caller_saved_call_args() -> VM {
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
     constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
 
-    consta!     ((vm, preserve_caller_saved_call_args_v1) const_funcref_foo_local = const_funcref_foo);
+    consta!     ((vm, preserve_caller_saved_call_args_v1) const_funcref_foo_local
+        = const_funcref_foo);
     inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_call:
-        EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_foo_local (v0, v1, v2, v3, v4, v5)
+        EXPRCALL (CallConvention::Mu, is_abort: false)
+        const_funcref_foo_local (v0, v1, v2, v3, v4, v5)
     );
 
     ssa!        ((vm, preserve_caller_saved_call_args_v1) <int64> res1);
@@ -1367,7 +1385,8 @@ fn preserve_caller_saved_call_args() -> VM {
         RET
     );
 
-    define_block!   ((vm, preserve_caller_saved_call_args_v1) blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
+    define_block!   ((vm, preserve_caller_saved_call_args_v1)
+        blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
         blk_main_call,
 
         blk_main_add1,
@@ -1640,7 +1659,9 @@ fn spill_int8() -> VM {
         RET (res16)
     );
 
-    define_block!   ((vm, spill_int8_v1) blk_ret(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16) {
+    define_block!   ((vm, spill_int8_v1)
+        blk_ret(v0, v1, v2, v3, v4, v5, v6, v7, v8,
+                v9, v10, v11, v12, v13, v14, v15, v16) {
         blk_ret_add1,
         blk_ret_add2,
         blk_ret_add3,
@@ -1973,7 +1994,10 @@ fn spill_int8() -> VM {
         RET (res30)
     );
 
-    define_block!   ((vm, spill_int8_v1) blk_ret(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30) {
+    define_block!   ((vm, spill_int8_v1)
+        blk_ret(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10,
+                v11, v12, v13, v14, v15, v16, v17, v18, v19, v20,
+                v21, v22, v23, v24, v25, v26, v27, v28, v29, v30) {
         blk_ret_add1,
         blk_ret_add2,
         blk_ret_add3,

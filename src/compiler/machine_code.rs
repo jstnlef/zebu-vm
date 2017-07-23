@@ -98,9 +98,9 @@ impl CompiledFunction {
             Some(ref mc) => mc,
             None => {
                 panic!(
-                    "trying to get mc from a compiled function. 
-                But machine code is None (probably this compiled function is restored from
-                boot image and mc is thrown away)"
+                    "trying to get mc from a compiled function.
+                    But machine code is None (probably this compiled function is restored from
+                    boot image and mc is thrown away)"
                 )
             }
         }
@@ -223,6 +223,8 @@ pub trait MachineCode {
     fn replace_define_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
     /// replace a temp that is used in the inst with another temp
     fn replace_use_tmp_for_inst(&mut self, from: MuID, to: MuID, inst: usize);
+    /// replace destination for an unconditional branch instruction
+    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: usize);
     /// set an instruction as nop
     fn set_inst_nop(&mut self, index: usize);
     /// remove unnecessary push/pop if the callee saved register is not used

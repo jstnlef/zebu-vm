@@ -1602,19 +1602,22 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn ensure_ref(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "ref", &self.vm, &mut self.built_ref_of, &mut self.built_types, |impl_ty| {
+        BundleLoader::ensure_type_generic(ty_id, "ref", &self.vm, &mut self.built_ref_of,
+                                          &mut self.built_types, |impl_ty| {
             MuType_::Ref(impl_ty)
         })
     }
 
     fn ensure_iref(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "iref", &self.vm, &mut self.built_iref_of, &mut self.built_types, |impl_ty| {
+        BundleLoader::ensure_type_generic(ty_id, "iref", &self.vm, &mut self.built_iref_of,
+                                          &mut self.built_types, |impl_ty| {
             MuType_::IRef(impl_ty)
         })
     }
 
     fn ensure_uptr(&mut self, ty_id: MuID) -> P<MuType> {
-        BundleLoader::ensure_type_generic(ty_id, "uptr", &self.vm, &mut self.built_iref_of, &mut self.built_types, |impl_ty| {
+        BundleLoader::ensure_type_generic(ty_id, "uptr", &self.vm, &mut self.built_iref_of,
+                                          &mut self.built_types, |impl_ty| {
             MuType_::UPtr(impl_ty)
         })
     }
@@ -1640,9 +1643,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     }
 
     fn ensure_names(&mut self) {
-        // Make names for all unnamed entities that have parents, to be relative to their parents name (this is not strictly neccesary, but will make reading stuff the compiler generates easier)
+        // Make names for all unnamed entities that have parents, to be relative to their parents
+        // name (this is not strictly neccesary, but will make reading stuff the compiler generates
+        // easier)
 
-        // Give each struct and hybrid type a name (this is needed when structs/hybrids refer to themselves)
+        // Give each struct and hybrid type a name
+        // (this is needed when structs/hybrids refer to themselves)
         for (id, ty) in &self.b.bundle.types {
             match **ty {
                 NodeType::TypeHybrid { .. } | NodeType::TypeStruct { .. } => {
@@ -1668,7 +1674,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
 
         for (bb_id, bb) in &self.b.bundle.bbs {
-            // Make each of the basic blocks unnamed paremters have names relative to the block itself
+            // Make each of the basic blocks unnamed parameters have
+            // names relative to the block itself
             for nor_id in &bb.nor_param_ids {
                 self.ensure_name(*nor_id, Some(*bb_id));
             }
@@ -1841,9 +1848,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let tag = self.get_name(id);
                 self.struct_hybrid_id_tags.push((id, tag.clone()));
                 MuType_::hybrid_empty(tag)
-                //                let impl_fixedtys = fixedtys.iter().map(|t| self.ensure_type_rec(*t)).collect::<Vec<_>>();
-                //                let impl_varty = self.ensure_type_rec(varty);
-                //                MuType_::Hybrid(impl_fixedtys, impl_varty)
             }
             NodeType::TypeArray { id: _, elemty, len } => {
                 let impl_elemty = self.ensure_type_rec(elemty);
@@ -2239,6 +2243,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         Block {
             hdr: hdr,
             content: Some(ctn),
+            trace_hint: TraceHint::None,
             control_flow: Default::default()
         }
     }

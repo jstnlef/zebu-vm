@@ -98,7 +98,7 @@ fn truncate_then_call() -> VM {
         );
 
         inst!((vm, truncate_then_call_v1) blk_entry_ret:
-            RET (arg)
+            RET (res)
         );
 
         define_block!((vm, truncate_then_call_v1) blk_entry(arg) {

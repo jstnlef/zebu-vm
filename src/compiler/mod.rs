@@ -29,6 +29,11 @@ pub mod machine_code;
 
 pub use compiler::passes::CompilerPass;
 
+/// name for prologue (this is not full name, but prologue name is generated from this)
+pub const PROLOGUE_BLOCK_NAME: &'static str = "prologue";
+/// name for epilogue (this is not full name, but epilogue name is generated from this)
+pub const EPILOGUE_BLOCK_NAME: &'static str = "epilogue";
+
 /// Zebu compiler
 pub struct Compiler<'vm> {
     /// policy decides what passes to be executed
@@ -92,8 +97,10 @@ impl Default for CompilerPolicy {
     fn default() -> Self {
         let mut passes: Vec<Box<CompilerPass>> = vec![];
         passes.push(Box::new(passes::DotGen::new(".orig")));
-        passes.push(Box::new(passes::Inlining::new()));
+
         // ir level passes
+        passes.push(Box::new(passes::RetSink::new()));
+        passes.push(Box::new(passes::Inlining::new()));
         passes.push(Box::new(passes::DefUse::new()));
         passes.push(Box::new(passes::TreeGen::new()));
         passes.push(Box::new(passes::GenMovPhi::new()));

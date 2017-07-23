@@ -31,10 +31,11 @@ jit = []
 gcc = "*"
 
 [dependencies]
-ast = {path = "src/ast"}
-utils = {path = "src/utils"}
-gc = {path = "src/gc"}
+mu_ast = {path = "src/ast"}
+mu_utils = {path = "src/utils"}
+mu_gc = {path = "src/gc"}
 rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = ">= 0.0.5" }
+
 libc="*"
 field-offset = "*"
 libloading = "*"

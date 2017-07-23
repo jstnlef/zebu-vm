@@ -796,7 +796,9 @@ fn fp_arraysum() -> VM {
         BRANCH blk1 (blk_entry_arr, double_0_local, int64_0_local, blk_entry_sz)
     );
 
-    define_block!   ((vm, fp_arraysum_v1) blk_entry(blk_entry_arr, blk_entry_sz) {blk_entry_branch});
+    define_block!   ((vm, fp_arraysum_v1) blk_entry(blk_entry_arr, blk_entry_sz) {
+        blk_entry_branch
+    });
 
     // blk1
     ssa!        ((vm, fp_arraysum_v1) <uptr_hybrid> blk1_arr);

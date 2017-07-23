@@ -275,7 +275,8 @@ impl InterferenceGraph {
 const TRACE_LIVENESS: bool = false;
 
 /// builds interference graph based on chaitin briggs algorithms
-/// (reference: Tailoring Graph-coloring Register Allocation For Runtime Compilation - CGO'06, Figure 4)
+/// reference: Tailoring Graph-coloring Register Allocation For Runtime Compilation
+/// - CGO'06, Figure 4
 pub fn build_interference_graph_chaitin_briggs(
     cf: &mut CompiledFunction,
     func: &MuFunctionVersion
@@ -530,7 +531,8 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
                 Some(last) => last,
                 None => {
                     panic!(
-                        "cannot find last instruction in block {}, this block contains no instruction?",
+                        "cannot find last instruction in block {}, \
+                         this block contains no instruction?",
                         block
                     )
                 }

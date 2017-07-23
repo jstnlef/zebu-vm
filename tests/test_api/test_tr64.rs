@@ -66,7 +66,8 @@ fn ref_void(val: u64) -> APIHandle {
 
 /**
  * These tests are translated from those in the reference implementation.
- * See: https://gitlab.anu.edu.au/mu/mu-impl-ref2/blob/master/src/test/scala/uvm/refimpl/itpr/UvmTagRef64OperationSpec.scala
+ * See: https://gitlab.anu.edu.au/mu/mu-impl-ref2/blob/master/src/test/scala/uvm/
+ *      refimpl/itpr/UvmTagRef64OperationSpec.scala
  *
  * TODO: These test specific values. It would be nice if we had something
  * along the lines of QuickCheck properties, e.g. tr64ToInt . intToTr64 == id,

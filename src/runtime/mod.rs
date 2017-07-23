@@ -73,7 +73,7 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
 }
 
 
-/// returns address for a given symbol, e.g. function namepub fn resolve_symbol(symbol: MuName) -> Address {
+/// returns address for a given symbol, e.g. function name
 pub fn resolve_symbol(symbol: MuName) -> Address {
     use std::ptr;
 
@@ -108,13 +108,14 @@ pub fn resolve_symbol(symbol: MuName) -> Address {
 pub enum ValueLocation {
     Register(RegGroup, MuID),
     Constant(RegGroup, Word),
-    Relocatable(RegGroup, MuName), // TODO: This only works for mu entities (add a flag to indicate if its native or have a different variant?)
-
+    Relocatable(RegGroup, MuName), // TODO: This only works for mu entities (add a flag to indicate
+    // if its native or have a different variant?)
     Direct(RegGroup, Address),   // Not dumped
     Indirect(RegGroup, Address)  // Not dumped
 }
 
-rodal_enum!(ValueLocation{(Register: group, id), (Constant: group, word), (Relocatable: group, name)});
+rodal_enum!(ValueLocation{(Register: group, id), (Constant: group, word),
+    (Relocatable: group, name)});
 
 impl fmt::Display for ValueLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -219,7 +220,7 @@ pub extern "C" fn mu_main(
     };
     let vm = VM::resume_vm(dumped_vm);
     // find the primordial function as an entry
-    let primordial = vm.primordial.read().unwrap();
+    let primordial = vm.primordial().read().unwrap();
     if primordial.is_none() {
         panic!("no primordial thread/stack/function. Client should provide an entry point");
     } else {

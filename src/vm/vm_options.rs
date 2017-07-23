@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg_attr(rustfmt, rustfmt_skip)]
+
 extern crate docopt;
 
 use self::docopt::Docopt;
-
 use std;
 use std::default::Default;
 
@@ -66,7 +67,7 @@ pub struct VMOptions {
     pub flag_gc_disable_collection: bool, // +100
     pub flag_gc_immixspace_size: usize,   // +72
     pub flag_gc_lospace_size: usize,      // +80
-    pub flag_gc_nthreads: usize           // +88
+    pub flag_gc_nthreads: usize,          // +88
 }
 
 // The fields need to be listed here in the order rust stores them in
@@ -92,7 +93,7 @@ pub enum MuLogLevel {
     Info,
     Debug,
     Trace,
-    Env
+    Env,
 }
 
 rodal_value!(MuLogLevel); // This enum has no fields with pointers, so just dump a strait value

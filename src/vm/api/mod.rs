@@ -48,5 +48,5 @@ mod deps {
     pub use ast::ir::MuName;
     pub use ast::ir::CName;
     pub use vm::handle::APIHandle;
-    extern crate ast;
+    extern crate mu_ast as ast;
 }

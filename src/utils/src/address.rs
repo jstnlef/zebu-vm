@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -83,14 +83,14 @@ impl Sub<Address> for Address {
 impl Address {
     /// creates Address from a pointer
     #[inline(always)]
-    pub fn from_ptr<T> (ptr: *const T) -> Address {
-        unsafe {mem::transmute(ptr)}
+    pub fn from_ptr<T>(ptr: *const T) -> Address {
+        unsafe { mem::transmute(ptr) }
     }
 
     /// creates Address from a mutable pointer
     #[inline(always)]
-    pub fn from_mut_ptr<T> (ptr: *mut T) -> Address {
-        unsafe {mem::transmute(ptr)}
+    pub fn from_mut_ptr<T>(ptr: *mut T) -> Address {
+        unsafe { mem::transmute(ptr) }
     }
 
     /// creates a null Address (0)
@@ -111,7 +111,7 @@ impl Address {
     /// creates an arbitrary Address
     /// It is unsafe and the user needs to be aware that they may create an invalid address.
     #[inline(always)]
-    pub unsafe fn from_usize(raw : usize) -> Address {
+    pub unsafe fn from_usize(raw: usize) -> Address {
         Address(raw)
     }
 
@@ -123,32 +123,32 @@ impl Address {
 
     /// loads a value of type T from the address
     #[inline(always)]
-    pub unsafe fn load<T: Copy> (&self) -> T {
+    pub unsafe fn load<T: Copy>(&self) -> T {
         *(self.0 as *mut T)
     }
 
     /// stores a value of type T to the address
     #[inline(always)]
-    pub unsafe fn store<T> (&self, value: T) {
+    pub unsafe fn store<T>(&self, value: T) {
         *(self.0 as *mut T) = value;
     }
 
     // commented out the function due to the fact that Rust does not have non-64bits atomic types
     // Issue #51
 
-//    /// loads a value of type T from the address with specified memory order
-//    #[inline(always)]
-//    pub unsafe fn load_order<T: Copy> (&self, order: Ordering) -> T {
-//        let atomic_ptr : AtomicPtr<T> = mem::transmute(self.0);
-//        *atomic_ptr.load(order)
-//    }
+    //    /// loads a value of type T from the address with specified memory order
+    //    #[inline(always)]
+    //    pub unsafe fn load_order<T: Copy> (&self, order: Ordering) -> T {
+    //        let atomic_ptr : AtomicPtr<T> = mem::transmute(self.0);
+    //        *atomic_ptr.load(order)
+    //    }
 
-//    /// stores a value of type T to the address with specified memory order
-//    #[inline(always)]
-//    pub unsafe fn store_order<T: Copy> (&self, mut value: T, order: Ordering) {
-//        let atomic_ptr : AtomicPtr<T> = mem::transmute(self.0);
-//        atomic_ptr.store(&mut value, order)
-//    }
+    //    /// stores a value of type T to the address with specified memory order
+    //    #[inline(always)]
+    //    pub unsafe fn store_order<T: Copy> (&self, mut value: T, order: Ordering) {
+    //        let atomic_ptr : AtomicPtr<T> = mem::transmute(self.0);
+    //        atomic_ptr.store(&mut value, order)
+    //    }
 
     /// is this address zero?
     #[inline(always)]
@@ -184,14 +184,14 @@ impl Address {
 
     /// converts the Address to a pointer
     #[inline(always)]
-    pub fn to_ptr<T> (&self) -> *const T {
-        unsafe {mem::transmute(self.0)}
+    pub fn to_ptr<T>(&self) -> *const T {
+        unsafe { mem::transmute(self.0) }
     }
 
     /// converts the Address to a mutable pointer
     #[inline(always)]
-    pub fn to_ptr_mut<T> (&self) -> *mut T {
-        unsafe {mem::transmute(self.0)}
+    pub fn to_ptr_mut<T>(&self) -> *mut T {
+        unsafe { mem::transmute(self.0) }
     }
 
     /// converts the Address to a pointer-sized integer
@@ -199,14 +199,13 @@ impl Address {
     pub fn as_usize(&self) -> usize {
         self.0
     }
-
 }
 
 /// allows comparison between Address
 impl PartialOrd for Address {
     #[inline(always)]
     fn partial_cmp(&self, other: &Address) -> Option<cmp::Ordering> {
-        Some(self.0.cmp(& other.0))
+        Some(self.0.cmp(&other.0))
     }
 }
 
@@ -225,14 +224,14 @@ impl PartialEq for Address {
 /// allows print Address as upper-case hex value
 impl fmt::UpperHex for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:X}", self.0) 
+        write!(f, "{:X}", self.0)
     }
 }
 
 /// allows print Address as lower-case hex value
 impl fmt::LowerHex for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:x}", self.0) 
+        write!(f, "{:x}", self.0)
     }
 }
 
@@ -277,7 +276,7 @@ mod addr_tests {
 /// are allowed for ObjectReference. The idea is from the paper
 /// High-level Low-level Programming (VEE09) and JikesRVM.
 #[derive(Copy, Clone, Eq, Hash)]
-pub struct ObjectReference (usize);
+pub struct ObjectReference(usize);
 
 impl ObjectReference {
     /// converts the ObjectReference to an Address
@@ -313,14 +312,14 @@ impl PartialEq for ObjectReference {
 /// allows print Address as upper-case hex value
 impl fmt::UpperHex for ObjectReference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:X}", self.0) 
+        write!(f, "{:X}", self.0)
     }
 }
 
 /// allows print Address as lower-case hex value
 impl fmt::LowerHex for ObjectReference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:x}", self.0) 
+        write!(f, "{:x}", self.0)
     }
 }
 

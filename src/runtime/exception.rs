@@ -22,8 +22,8 @@ use runtime::*;
 
 /// runtime function to deal with exception (unwind stack, find catch block, and restore)
 /// This function is called by muentry_throw_exception() which gets emitted for THROW instruction
-/// With the first argument being the address of the exception object,
-/// And the second argument should be point to the base of the call frame of muentry_throw_exception,
+/// With the first argument being the address of the exception object, and the second argument
+/// should be point to the base of the call frame of muentry_throw_exception,
 /// which saves every callee saved register (note this frame will be modified by this function).
 /// e.g. on aarch64 (where the values are the value of the registers immediately before the first
 /// instruction in muentry_throw_exception is executed):
@@ -56,14 +56,14 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
     let mut current_frame_pointer = frame_cursor;
     let mut callsite = get_return_address(current_frame_pointer);
     // thrower's fp, the starting point of the previous frame
-    let mut previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer); // thrower::fp, the starting point of the previous frame
+    let mut previous_frame_pointer = get_previous_frame_pointer(current_frame_pointer);
     // the address of the catch block
     let catch_address;
     // the stack pointer to restore to
     let sp;
     {
         // acquire lock for exception table
-        let compiled_callsite_table = vm.compiled_callsite_table.read().unwrap();
+        let compiled_callsite_table = vm.compiled_callsite_table().read().unwrap();
 
         loop {
             // Lookup the table for the callsite
@@ -89,7 +89,8 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
                 table_entry.unwrap()
             };
 
-            // Check for a catch block at this callsite (there won't be one on the first iteration of this loop)
+            // Check for a catch block at this callsite
+            // (there won't be one on the first iteration of this loop)
             if callsite_info.exceptional_destination.is_some() {
                 catch_address = callsite_info.exceptional_destination.unwrap();
                 trace!("Found catch block: 0x{:x}", catch_address);

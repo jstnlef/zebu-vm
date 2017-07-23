@@ -81,14 +81,17 @@ fn inline_add() -> VM {
         consta!     ((vm, add_trampoline_v1) funcref_add_local = funcref_add);
         ssa!        ((vm, add_trampoline_v1) <int64> tramp_res);
         inst!       ((vm, add_trampoline_v1) tramp_blk_call:
-            tramp_res = EXPRCALL (CallConvention::Mu, is_abort: false) funcref_add_local (tramp_x, tramp_y)
+            tramp_res =
+                EXPRCALL (CallConvention::Mu, is_abort: false) funcref_add_local (tramp_x, tramp_y)
         );
 
         inst!       ((vm, add_trampoline_v1) tramp_blk_ret:
             RET (tramp_res)
         );
 
-        define_block!   ((vm, add_trampoline_v1) tramp_blk_entry(tramp_x, tramp_y) {tramp_blk_call, tramp_blk_ret});
+        define_block!   ((vm, add_trampoline_v1) tramp_blk_entry(tramp_x, tramp_y) {
+            tramp_blk_call, tramp_blk_ret
+        });
 
         define_func_ver!((vm) add_trampoline_v1 (entry: tramp_blk_entry) {tramp_blk_entry});
     }
@@ -163,7 +166,8 @@ fn inline_add_twice() -> VM {
 
         ssa!        ((vm, add_twice_v1) <int64> add_twice_res2);
         inst!       ((vm, add_twice_v1) call2:
-            add_twice_res2 = EXPRCALL (CallConvention::Mu, is_abort: false) funcref_add_local (add_twice_res1, z)
+            add_twice_res2 =
+                EXPRCALL (CallConvention::Mu, is_abort: false) funcref_add_local (add_twice_res1, z)
         );
 
         inst!       ((vm, add_twice_v1) ret:
@@ -235,7 +239,8 @@ fn inline_add_with_extra_norm_args() -> VM {
         funcsig!    ((vm) sig_add_with_extra_norm_args = (int64, int64, int64) -> (int64));
 
         funcdecl!   ((vm) <sig_add_with_extra_norm_args> add_with_extra_norm_args);
-        funcdef!    ((vm) <sig_add_with_extra_norm_args> add_with_extra_norm_args VERSION add_with_extra_norm_args_v1);
+        funcdef!    ((vm) <sig_add_with_extra_norm_args> add_with_extra_norm_args
+            VERSION add_with_extra_norm_args_v1);
 
         block!      ((vm, add_with_extra_norm_args_v1) blk_entry);
         ssa!        ((vm, add_with_extra_norm_args_v1) <int64> x);
@@ -249,8 +254,10 @@ fn inline_add_with_extra_norm_args() -> VM {
         ssa!        ((vm, add_with_extra_norm_args_v1) <int64> res);
         inst!       ((vm, add_with_extra_norm_args_v1) call:
             //          0                , 1, 2, 3  , 4  , 5
-            res = CALL (funcref_add_local, x, y, res, arg, int64_100_local) FUNC(0) (vec![1, 2]) CallConvention::Mu,
-                  normal: blk_norm (vec![DestArg::Normal(3), DestArg::Normal(4), DestArg::Normal(5)]),
+            res = CALL (funcref_add_local, x, y, res, arg, int64_100_local) FUNC(0) (vec![1, 2])
+                  CallConvention::Mu,
+                  normal: blk_norm (vec![DestArg::Normal(3), DestArg::Normal(4),
+                                         DestArg::Normal(5)]),
                   exc: blk_exn (vec![])
         );
 
@@ -292,7 +299,9 @@ fn inline_add_with_extra_norm_args() -> VM {
             exn_ret
         });
 
-        define_func_ver!((vm) add_with_extra_norm_args_v1 (entry: blk_entry) {blk_entry, blk_norm, blk_exn});
+        define_func_ver!((vm) add_with_extra_norm_args_v1 (entry: blk_entry) {
+            blk_entry, blk_norm, blk_exn
+        });
     }
 
     vm

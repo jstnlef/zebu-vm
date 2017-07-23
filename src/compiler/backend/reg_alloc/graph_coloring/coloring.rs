@@ -554,7 +554,8 @@ impl<'a> GraphColoring<'a> {
             trace!("conservative(u, v) = {}", self.conservative(u, v));
 
             trace!(
-                "precolored_u&&ok(u,v) || !precolored_u&&conserv(u,v), coalesce and combine the move"
+                "precolored_u&&ok(u,v) || !precolored_u&&conserv(u,v), \
+                 coalesce and combine the move"
             );
             self.coalesced_moves.insert(m);
             self.combine(u, v);

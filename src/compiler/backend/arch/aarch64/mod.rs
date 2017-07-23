@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(dead_code)]
+
 // TODO: CHECK THAT THE TYPE OF EVERY MEMORY LOCATION HAS THE CORRECT SIZE
 // (the size should be size of the area in memory that it is referring to, and will indicate
 // how much data any load/store instructions that uses it will operate on
-// (so it should be [1], 8, 16, 32, 64, or 128 bits in size (when using emit_mem, it can have other sizes before this))
-
+// (so it should be [1], 8, 16, 32, 64, or 128 bits in size (when using emit_mem,
+// it can have other sizes before this))
 
 #![allow(non_upper_case_globals)]
 // TODO: Move architecture independent codes in here, inst_sel and asm_backend to somewhere else...
@@ -126,7 +128,7 @@ GPR_ALIAS!(X27_ALIAS: (54, X27)  -> W27);
 GPR_ALIAS!(X28_ALIAS: (56, X28)  -> W28);
 GPR_ALIAS!(X29_ALIAS: (58, X29)  -> W29);
 GPR_ALIAS!(X30_ALIAS: (60, X30)  -> W30);
-GPR_ALIAS!(SP_ALIAS: (62, SP)  -> WSP); // Special register (only some instructions can reference it)
+GPR_ALIAS!(SP_ALIAS: (62, SP)  -> WSP); // Special register(only some instructions can reference it)
 GPR_ALIAS!(XZR_ALIAS: (64, XZR)  -> WZR); // Pseudo register, not to be used by register allocator
 
 // Aliases
@@ -136,7 +138,6 @@ ALIAS!(X17 -> IP1); // Intra proecdure call register 1 (may be modified by the l
 ALIAS!(X18 -> PR); // Platform Register (NEVER TOUCH THIS REGISTER (Unless you can prove Linux dosn't use it))
 ALIAS!(X29 -> FP); // Frame Pointer (can be used as a normal register when not calling or returning)
 ALIAS!(X30 -> LR); // Link Register (not supposed to be used for any other purpose)
-
 
 lazy_static! {
     pub static ref GPR_ALIAS_TABLE : LinkedHashMap<MuID, Vec<P<Value>>> = {
@@ -330,7 +331,6 @@ pub fn primitive_byte_size(ty: &P<MuType>) -> usize {
     }
 }
 
-#[allow(dead_code)]
 lazy_static! {
     // Note: these are the same as the ARGUMENT_GPRS
     pub static ref RETURN_GPRS : [P<Value>; 8] = [
@@ -394,7 +394,6 @@ lazy_static! {
         //X18.clone(), // Platform Register
     ];
 
-    /*#[allow(dead_code)]
     static ref ALL_GPRS : [P<Value>; 30] = [
         X0.clone(),
         X1.clone(),
@@ -427,7 +426,7 @@ lazy_static! {
         X28.clone(),
         X29.clone(), // Frame Pointer
         X30.clone() // Link Register
-    ];*/
+    ];
 }
 
 pub const FPR_ID_START: usize = 100;
@@ -584,7 +583,6 @@ lazy_static!{
         D31.clone()
     ];
 
-    /*#[allow(dead_code)]
     static ref ALL_FPRS : [P<Value>; 32] = [
         D0.clone(),
         D1.clone(),
@@ -620,7 +618,7 @@ lazy_static!{
         D29.clone(),
         D30.clone(),
         D31.clone()
-    ];*/
+    ];
 }
 
 lazy_static! {
@@ -961,7 +959,8 @@ pub fn is_valid_f32_imm(val: f32) -> bool {
         ((uval & !(0b1111111111111 << 0x13)) == 0)
 }
 
-// Reduces the given floating point constant to 8-bits (if it won't loose precision, otherwise returns 0)
+// Reduces the given floating point constant to 8-bits
+// (if it won't loose precision, otherwise returns 0)
 pub fn is_valid_f64_imm(val: f64) -> bool {
     use std::mem;
 
@@ -1005,7 +1004,8 @@ pub fn replicate_logical_imm(val: u64, n: usize) -> u64 {
 }
 
 
-// 'val' is a valid logical immediate if the binary value of ROR(val, r) matches the regular expresion
+// 'val' is a valid logical immediate if the binary value of ROR(val, r)
+// matches the regular expression
 //      (0{k-x}1{x}){m/k}
 //      for some r, k that divides N, 2 <= k <= n, and x with 0 < x < k
 //      (note: 0 =< r < k);
@@ -1166,8 +1166,8 @@ fn get_condition_codes(op: op::CmpOp) -> Vec<&'static str> {
     }
 }
 
-// if t is a homogenouse floating point aggregate
-// (i.e. an array or struct where each element is the same floating-point type, and there are at most 4 elements)
+// if t is a homogenouse floating point aggregate (i.e. an array or struct
+// where each element is the same floating-point type, and there are at most 4 elements)
 // returns the number of elements, otherwise returns 0
 
 fn hfa_length(t: &P<MuType>) -> usize {
@@ -1484,7 +1484,8 @@ pub fn make_value_int_const(val: u64, vm: &VM) -> P<Value> {
 // Replaces the zero register with a temporary whose value is zero (or returns the orignal register)
 /* TODO use this function for the following arguments:
 
-We can probabbly allow the zero register to be the second argument to an _ext function (as the assembler will simply use the shifted-register encoding, which allows it)
+We can probabbly allow the zero register to be the second argument to an _ext function
+(as the assembler will simply use the shifted-register encoding, which allows it)
 add[,s1] // tirival
 add_ext[d, s1]  // trivial
 add_imm[d, s1] // trivial
@@ -1509,7 +1510,8 @@ cmn_imm[s1] // not trivial (sets flags)
 cmp_ext[s1] // not trivial (sets flags)
 cmp_imm[s1] // not trivial (sets flags)
 
-(they are all (or did I miss some??) places that the SP can be used, which takes up the encoding of the ZR
+(they are all (or did I miss some??) places that the SP can be used,
+which takes up the encoding of the ZR
 I believe the Zero register can be used in all other places that an integer register is expected
 (BUT AM NOT CERTAIN)
 */
@@ -2002,7 +2004,7 @@ pub fn emit_ireg_value(
                 &Constant::Int(val) => {
                     // TODO Deal with zero case
                     /*if val == 0 {
-                        // TODO: Are there any (integer) instructions that can't use the Zero register?
+                        // TODO: Are there any (integer) instructions that can't use the Zero reg?
                         // Use the zero register (saves having to use a temporary)
                         get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
                     } else {*/
@@ -2150,13 +2152,15 @@ pub fn emit_mem(
                                     emit_mov_u64(backend, &offset, offset_val as u64);
                                     Some(offset)
                                 } else {
-                                    // We will be using a store/load pair which dosn't support register offsets
+                                    // We will be using a store/load pair
+                                    // which dosn't support register offsets
                                     return emit_mem_base(backend, &pv, f_context, vm);
                                 }
                             } else {
                                 let offset = emit_ireg_value(backend, offset, f_context, vm);
 
-                                // TODO: If scale == (2^n)*m (for some m), set shift = n, and multiply index by m
+                                // TODO: If scale == (2^n)*m (for some m), set shift = n,
+                                // and multiply index by m
                                 if !is_valid_immediate_scale(scale, alignment) {
                                     let temp = make_temporary(f_context, offset.ty.clone(), vm);
 
@@ -2233,7 +2237,8 @@ fn emit_mem_base(
                                 base.clone() // trivial
                             } else {
                                 let temp = make_temporary(f_context, pv.ty.clone(), vm);
-                                emit_add_u64(backend, &temp, &base, (offset_val * scale as i64) as u64);
+                                emit_add_u64(backend, &temp, &base,
+                                             (offset_val * scale as i64) as u64);
                                 temp
                             }
                         } else {
@@ -2241,10 +2246,12 @@ fn emit_mem_base(
 
                             // TODO: If scale == r*m (for some 0 <= m <= 4), multiply offset by r
                             // then use and add_ext(,...,m)
-                            if scale.is_power_of_two() && is_valid_immediate_extension(log2(scale)) {
+                            if scale.is_power_of_two() &&
+                                is_valid_immediate_extension(log2(scale)) {
                                 let temp = make_temporary(f_context, pv.ty.clone(), vm);
                                 // temp = base + offset << log2(scale)
-                                backend.emit_add_ext(&temp, &base, &offset, signed, log2(scale) as u8);
+                                backend.emit_add_ext(&temp, &base, &offset, signed,
+                                                     log2(scale) as u8);
                                 temp
                             } else {
                                 let temp_offset = make_temporary(f_context, offset.ty.clone(), vm);
@@ -2278,7 +2285,8 @@ fn emit_mem_base(
                                 emit_add_u64(backend, &temp, &base, offset as u64);
                                 temp
                             }
-                        } else if RegGroup::get_from_value(&offset) == RegGroup::GPR && offset.is_reg() {
+                        } else if RegGroup::get_from_value(&offset) == RegGroup::GPR &&
+                            offset.is_reg() {
                             let temp = make_temporary(f_context, pv.ty.clone(), vm);
                             backend.emit_add_ext(&temp, &base, &offset, signed, shift);
                             temp
@@ -2331,7 +2339,8 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
                         // Set dest to be the page address of the entry for src in the GOT
                         backend.emit_adrp(&dest, &src);
 
-                        // Note: The offset should always be a valid immediate offset as it is 12-bits
+                        // Note: The offset should always be a valid immediate offset
+                        // as it is 12-bits
                         // (The same size as an immediate offset)
                         let offset = P(Value {
                             hdr: MuEntityHeader::unnamed(vm.next_id()),

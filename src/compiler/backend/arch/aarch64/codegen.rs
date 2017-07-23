@@ -44,7 +44,7 @@ pub trait CodeGenerator {
     fn add_cfi_def_cfa_offset(&mut self, offset: i32);
     fn add_cfi_offset(&mut self, reg: Reg, offset: i32);
 
-    //==================================================================================================
+    //===========================================================================================
 
     // emit code to adjust frame
     fn emit_frame_grow(&mut self); // Emits a SUB
@@ -57,33 +57,37 @@ pub trait CodeGenerator {
     fn emit_ldr_callee_saved(&mut self, dest: Reg, src: Mem);
     fn emit_str_callee_saved(&mut self, dest: Mem, src: Reg);
 
-    //==================================================================================================
+    //===========================================================================================
 
     /* Bellow ar all ARMv8-A Aarch64 instruction menmonics (with all operand modes) except:
         PRFM, PRFUM, CRC32*
         All advanced SIMD instructions (except MOVI)
 
     NOTE:
-        with loads and stores the menmonic indicated may be given a suffix indicating the size and signenedness of the access
-        also b_cond's menmononic is 'B.cond' (where cond is the value of the 'cond' parameter)
-        all other instructions have the menmonic being the first word of the function name after emit_
+        with loads and stores the menmonic indicated may be given a suffix indicating the size
+        and signenedness of the access also b_cond's menmononic is 'B.cond' (where cond is the
+        value of the 'cond' parameter) all other instructions have the menmonic being the first
+        word of the function name after emit_
             (subsequent words are used to disambiguate different overloads)
     NOTE unless otherwise indicated:
-        An instruction that dosn't start with an F operates on GPRS, those that start with an F operate on FPRs.
-        All instructions operate on 32-bit and 64-bit registers (but all register arguments must be the same size)
-        Also all arguments that may take the SP can't take the ZR (and vice versa)
+        An instruction that dosn't start with an F operates on GPRS, those that start with
+        an F operate on FPRs. All instructions operate on 32-bit and 64-bit registers (but all
+        register arguments must be the same size) Also all arguments that may take the SP can't
+        take the ZR (and vice versa)
     */
 
 
     // loads
-    fn emit_ldr(&mut self, dest: Reg /*GPR or FPR*/, src: Mem, signed: bool); // supports the full full range of addressing modes
+    // supports the full full range of addressing modes
+    fn emit_ldr(&mut self, dest: Reg /*GPR or FPR*/, src: Mem, signed: bool);
     fn emit_ldtr(&mut self, dest: Reg, src: Mem, signed: bool); // [base, #simm9]
     fn emit_ldur(&mut self, dest: Reg /*GPR or FPR*/, src: Mem, signed: bool); // [base, #simm9]
     fn emit_ldxr(&mut self, dest: Reg, src: Mem); // [base]
     fn emit_ldaxr(&mut self, dest: Reg, src: Mem); // [base]
     fn emit_ldar(&mut self, dest: Reg, src: Mem); // [base]
 
-    fn emit_ldp(&mut self, dest1: Reg, dest2: Reg /*GPR or FPR*/, src: Mem); // [base, #simm7], [base], #simm7, [base, #simm7]!
+    // [base, #simm7], [base], #simm7, [base, #simm7]!
+    fn emit_ldp(&mut self, dest1: Reg, dest2: Reg /*GPR or FPR*/, src: Mem);
     fn emit_ldxp(&mut self, dest1: Reg, dest2: Reg, src: Mem); // [base]
     fn emit_ldaxp(&mut self, dest1: Reg, dest2: Reg, src: Mem); // [base]
     fn emit_ldnp(
@@ -94,14 +98,16 @@ pub trait CodeGenerator {
     ); // [base, #simm7]
 
     // Stores
-    fn emit_str(&mut self, dest: Mem, src: Reg /*GPR or FPR*/); // supports the full full range of addressing modes
+    // supports the full full range of addressing modes
+    fn emit_str(&mut self, dest: Mem, src: Reg /*GPR or FPR*/);
     fn emit_sttr(&mut self, dest: Mem, src: Reg); // [base, #simm9]
     fn emit_stur(&mut self, dest: Mem, src: Reg /*GPR or FPR*/); // [base, #simm9]
     fn emit_stlr(&mut self, dest: Mem, src: Reg); // [base]
     fn emit_stxr(&mut self, dest: Mem, status: Reg, src: Reg); // [base]
     fn emit_stlxr(&mut self, dest: Mem, status: Reg, src: Reg); // [base]
 
-    fn emit_stp(&mut self, dest: Mem, src1: Reg, src2: Reg); // [base, #simm7], [base], #simm7, [base, #simm7]!
+    // [base, #simm7], [base], #simm7, [base, #simm7]!
+    fn emit_stp(&mut self, dest: Mem, src1: Reg, src2: Reg);
     fn emit_stxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg); // [base]
     fn emit_stlxp(&mut self, dest: Mem, status: Reg, src1: Reg, src2: Reg); // [base]
     fn emit_stnp(
@@ -150,7 +156,8 @@ pub trait CodeGenerator {
     fn emit_adrp(&mut self, dest: Reg, src: Mem);
 
     // Unary ops
-    fn emit_mov(&mut self, dest: Reg /*GPR or SP or ZR*/, src: Reg /*GPR or SP or ZR*/); // The SP and ZR cannot both be used
+    // The SP and ZR cannot both be used
+    fn emit_mov(&mut self, dest: Reg /*GPR or SP or ZR*/, src: Reg /*GPR or SP or ZR*/);
     fn emit_mvn(&mut self, dest: Reg, src: Reg);
     fn emit_neg(&mut self, dest: Reg, src: Reg);
     fn emit_negs(&mut self, dest: Reg, src: Reg);
@@ -180,7 +187,8 @@ pub trait CodeGenerator {
     fn emit_fcvtpu(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
     fn emit_fcvtzs(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
     fn emit_fcvtzu(&mut self, dest: Reg /*GPR, may have different size*/, src: Reg);
-    fn emit_fmov(&mut self, dest: Reg, src: Reg); // One register must be an FPR, the other may be a GPR or an FPR
+    // One register must be an FPR, the other may be a GPR or an FPR
+    fn emit_fmov(&mut self, dest: Reg, src: Reg);
     fn emit_fneg(&mut self, dest: Reg, src: Reg);
     fn emit_frinta(&mut self, dest: Reg, src: Reg);
     fn emit_frinti(&mut self, dest: Reg, src: Reg);

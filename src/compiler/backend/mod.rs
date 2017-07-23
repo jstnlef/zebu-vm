@@ -28,15 +28,11 @@ use runtime::mm;
 use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern};
 use num::integer::lcm;
 
-/// for ahead-of-time compilation (boot image making), the file contains a persisted VM, a persisted
-/// heap, constants. This allows the VM to resume execution with the same status as before persisting.
+/// for ahead-of-time compilation (boot image making), the file contains a persisted VM,
+/// a persisted heap, constants. This allows the VM to resume execution with
+/// the same status as before persisting.
 #[cfg(feature = "aot")]
 pub const AOT_EMIT_CONTEXT_FILE: &'static str = "context.S";
-
-/// name for prologue (this is not full name, but prologue name is generated from this)
-pub const PROLOGUE_BLOCK_NAME: &'static str = "prologue";
-/// name for epilogue (this is not full name, but epilogue name is generated from this)
-pub const EPILOGUE_BLOCK_NAME: &'static str = "epilogue";
 
 // type alias to make backend code more readable
 pub type Reg<'a> = &'a P<Value>;
@@ -327,11 +323,12 @@ impl BackendType {
                 let align = ele_ty.alignment;
 
                 // Acording to the AMD64 SYSV ABI Version 0.99.8,
-                // a 'local or global array variable of at least 16 bytes ... always has alignment of at least 16 bytes'
-                // However, if we apply this rule, it will break 'Mu's array rule, hopefully C programs
+                // a 'local or global array variable of at least 16 bytes ... always has
+                // alignment of at least 16 bytes' However, if we apply this rule,
+                // it will break 'Mu's array rule, hopefully C programs
                 // won't care if we allocate a local or global which is incorrectly alligned
-                // (A c function can't be sure a pointer to array that is passed to it is a local or global
-                // so this is unlikley to break anything).
+                // (A c function can't be sure a pointer to array that is passed to it is
+                // a local or global so this is unlikely to break anything).
 
                 BackendType {
                     size: size,

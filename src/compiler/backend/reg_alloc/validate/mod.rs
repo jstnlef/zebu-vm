@@ -24,7 +24,7 @@ use ast::ir::*;
 use ast::ptr::*;
 use compiler::machine_code::CompiledFunction;
 use compiler::backend::get_color_for_precolored as alias;
-use compiler::backend::PROLOGUE_BLOCK_NAME;
+use compiler::PROLOGUE_BLOCK_NAME;
 
 mod alive_entry;
 use compiler::backend::reg_alloc::validate::alive_entry::*;
@@ -104,7 +104,8 @@ pub fn validate_regalloc(
                     let source_temp =
                         get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
-                    // we check if source_temp are alive, and if it is alive in the designated location
+                    // we check if source_temp are alive, and if it is alive in the
+                    // designated location
                     validate_spill_load(scratch_temp, source_temp, spill_loc, &mut alive);
                 } else if let Some(spill_loc) = mc.is_spill_store(i) {
                     // spill store is a move from scratch temp to mem
@@ -198,7 +199,8 @@ pub fn validate_regalloc(
 
             if changed {
                 debug!(
-                    "we have visted this block before, but intersection made changes. we need to push its sucessors again. "
+                    "we have visted this block before, but intersection made changes. \
+                     we need to push its sucessors again. "
                 );
                 should_push_successors = true;
             }
@@ -347,7 +349,8 @@ fn add_def(
             for entry in alive.find_entries_for_reg(reg).iter() {
                 let old_temp = entry.get_temp().unwrap();
                 error!(
-                    "Register{}/Temp{} is alive at this point, defining a new value to Register{} is incorrect",
+                    "Register{}/Temp{} is alive at this point, \
+                     defining a new value to Register{} is incorrect",
                     reg,
                     old_temp,
                     reg
@@ -370,7 +373,8 @@ fn add_def(
                         debug!("adding temp {} to reg {}", temp, machine_reg);
                         entry.set_temp(temp);
                     } else {
-                        // if the register is holding a temporary, it needs to be coalesced with new temp
+                        // if the register is holding a temporary,
+                        // it needs to be coalesced with new temp
                         let old_temp: MuID = entry.get_temp().unwrap();
 
                         if old_temp == temp {
@@ -378,7 +382,8 @@ fn add_def(
                         } else {
                             if is_mov {
                                 debug!(
-                                    "Temp{} and Temp{} is using the same Register{}, possibly coalesced",
+                                    "Temp{} and Temp{} is using the same Register{}, \
+                                     possibly coalesced",
                                     temp,
                                     old_temp,
                                     machine_reg
@@ -433,7 +438,8 @@ fn validate_spill_load(
                 // valid
             } else {
                 error!(
-                    "SourceTemp{} is alive with the following entry, loading it from {} as ScratchTemp{} is not valid",
+                    "SourceTemp{} is alive with the following entry, loading it \
+                     from {} as ScratchTemp{} is not valid",
                     source_temp,
                     spill_loc,
                     scratch_temp
@@ -478,7 +484,8 @@ fn add_machine_specific_regs_at_func_start(alive: &mut AliveEntries) {
 fn add_machine_specific_regs_at_func_start(alive: &mut AliveEntries) {
     use compiler::backend::aarch64;
 
-    // the instruction pointer, stack pointer, link register and frame pointer, always have valid values
+    // the instruction pointer, stack pointer, link register and frame pointer
+    // always have valid values
     alive.new_alive_reg(aarch64::SP.id());
     alive.new_alive_reg(aarch64::LR.id());
     alive.new_alive_reg(aarch64::FP.id());

@@ -22,6 +22,10 @@ use std::any::Any;
 mod inlining;
 pub use compiler::passes::inlining::Inlining;
 
+/// A pass to check and rewrite RET instructions to ensure a single return sink for every function
+mod ret_sink;
+pub use compiler::passes::ret_sink::RetSink;
+
 /// A Def-Use pass. Getting use info and count for SSA variables in the IR (we are not collecting
 /// define info)
 mod def_use;

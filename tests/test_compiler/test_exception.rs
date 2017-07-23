@@ -102,7 +102,8 @@ fn create_catch_exception_func(vm: &VM, use_exception_arg: bool) {
     let throw_exception_id = vm.id_of("throw_exception");
 
     typedef!        ((vm) funcref_throw_exception = mu_funcref(throw_exception_sig));
-    constdef!       ((vm) <funcref_throw_exception> const_funcref_throw_exception = Constant::FuncRef(throw_exception_id));
+    constdef!       ((vm) <funcref_throw_exception> const_funcref_throw_exception
+        = Constant::FuncRef(throw_exception_id));
 
     funcsig!        ((vm) catch_exception_sig = () -> ());
     funcdecl!       ((vm) <catch_exception_sig> catch_exception);
@@ -114,7 +115,8 @@ fn create_catch_exception_func(vm: &VM, use_exception_arg: bool) {
     block!          ((vm, catch_exception_v1) blk_normal_cont);
     block!          ((vm, catch_exception_v1) blk_exn_cont);
 
-    consta!         ((vm, catch_exception_v1) const_funcref_throw_exception_local = const_funcref_throw_exception);
+    consta!         ((vm, catch_exception_v1) const_funcref_throw_exception_local
+        = const_funcref_throw_exception);
     inst!           ((vm, catch_exception_v1) blk_0_term:
         CALL (const_funcref_throw_exception_local) FUNC(0) (vec![]) CallConvention::Mu,
             normal: blk_normal_cont (vec![]),
@@ -335,7 +337,8 @@ fn create_catch_exception_and_add(vm: &VM) {
     constdef!   ((vm) <int64> int64_5 = Constant::Int(5));
 
     typedef!    ((vm) type_funcref_throw_exception  = mu_funcref(throw_exception_sig));
-    constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception = Constant::FuncRef(throw_exception_id));
+    constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception
+        = Constant::FuncRef(throw_exception_id));
 
     funcsig!    ((vm) catch_exception_sig = () -> ());
     funcdecl!   ((vm) <catch_exception_sig> catch_and_add);
@@ -457,7 +460,7 @@ fn create_catch_exception_and_add(vm: &VM) {
     let blk_exception_exit = gen_ccall_exit(res4.clone(), &mut catch_and_add_v1, &vm);
 
     inst!       ((vm, catch_and_add_v1) blk_exception_ret:
-        RET (res4)
+        RET
     );
 
     define_block!   ((vm, catch_and_add_v1) blk_exception(ev0, ev1, ev2, ev3, ev4) [exc_arg] {
@@ -556,7 +559,8 @@ fn create_catch_twice(vm: &VM) {
     let int64 = vm.get_type(vm.id_of("int64"));
 
     typedef!    ((vm) type_funcref_throw_exception = mu_funcref(throw_exception_sig));
-    constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception = Constant::FuncRef(throw_exception_id));
+    constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception
+        = Constant::FuncRef(throw_exception_id));
 
     funcsig!    ((vm) catch_exception_sig = () -> ());
     funcdecl!   ((vm) <catch_exception_sig> catch_twice);
@@ -627,7 +631,7 @@ fn create_catch_twice(vm: &VM) {
     let blk_exception2_exit = gen_ccall_exit(res.clone(), &mut catch_twice_v1, &vm);
 
     inst!       ((vm, catch_twice_v1) blk_exception2_ret:
-        RET (res)
+        RET
     );
 
     define_block!   ((vm, catch_twice_v1) blk_exception2(blk_exception2_exc_arg1) [exc_arg2] {

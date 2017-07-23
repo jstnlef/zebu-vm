@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [package]
-name = "gc"
+name = "mu_gc"
 version = "0.0.1"
 authors = ["qinsoon <qinsoon@gmail.com>"]
 build = "build.rs"
@@ -29,8 +29,7 @@ use-sidemap = []
 gcc = "*"
 
 [dependencies]
-utils = {path = "../utils"}
-
+mu_utils = {path = "../utils"}
 time = "*"
 lazy_static = "*"
 log = "*"

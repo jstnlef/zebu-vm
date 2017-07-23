@@ -211,6 +211,68 @@ fn select_eq_zero() -> VM {
 }
 
 #[test]
+fn test_select_eq_zero_double() {
+    let lib = linkutils::aot::compile_fnc("select_eq_zero_double", &select_eq_zero_double);
+
+    unsafe {
+        let select_eq_zero: libloading::Symbol<unsafe extern "C" fn(u64) -> f64> =
+            lib.get(b"select_eq_zero_double").unwrap();
+
+        let res = select_eq_zero(0);
+        println!("select_eq_zero(0) = {}", res);
+        assert!(res == 1f64);
+
+        let res = select_eq_zero(1);
+        println!("select_eq_zero(1) = {}", res);
+        assert!(res == 0f64);
+    }
+}
+
+fn select_eq_zero_double() -> VM {
+    let vm = VM::new();
+
+    typedef! ((vm) int64  = mu_int(64));
+    typedef! ((vm) int1   = mu_int(1));
+    typedef! ((vm) double = mu_double);
+    constdef!((vm) <int64>  int64_0  = Constant::Int(0));
+    constdef!((vm) <double> double_0 = Constant::Double(0f64));
+    constdef!((vm) <double> double_1 = Constant::Double(1f64));
+
+    funcsig! ((vm) sig = (int64) -> (double));
+    funcdecl!((vm) <sig> select_eq_zero_double);
+    funcdef! ((vm) <sig> select_eq_zero_double VERSION select_double_v1);
+
+    // blk entry
+    block! ((vm, select_double_v1) blk_entry);
+    ssa!   ((vm, select_double_v1) <int64> blk_entry_n);
+
+    ssa!   ((vm, select_double_v1) <int1> blk_entry_cond);
+    consta!((vm, select_double_v1) int64_0_local = int64_0);
+    inst!  ((vm, select_double_v1) blk_entry_inst_cmp:
+        blk_entry_cond = CMPOP (CmpOp::EQ) blk_entry_n int64_0_local
+    );
+
+    ssa!   ((vm, select_double_v1) <double> blk_entry_ret);
+    consta!((vm, select_double_v1) double_0_local = double_0);
+    consta!((vm, select_double_v1) double_1_local = double_1);
+    inst!  ((vm, select_double_v1) blk_entry_inst_select:
+        blk_entry_ret = SELECT blk_entry_cond double_1_local double_0_local
+    );
+
+    inst!  ((vm, select_double_v1) blk_entry_inst_ret:
+        RET (blk_entry_ret)
+    );
+
+    define_block!   ((vm, select_double_v1) blk_entry(blk_entry_n){
+        blk_entry_inst_cmp, blk_entry_inst_select, blk_entry_inst_ret
+    });
+
+    define_func_ver!((vm) select_double_v1 (entry: blk_entry) {blk_entry});
+
+    vm
+}
+
+#[test]
 fn test_select_u8_eq_zero() {
     let lib = linkutils::aot::compile_fnc("select_u8_eq_zero", &select_u8_eq_zero);
 

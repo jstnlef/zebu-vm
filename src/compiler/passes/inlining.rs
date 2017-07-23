@@ -184,7 +184,8 @@ impl Inlining {
                             Some(fvid) => fvid,
                             None => {
                                 panic!(
-                                    "cannot resolve current version of Func {}, which is supposed to be inlined",
+                                    "cannot resolve current version of Func {}, \
+                                     which is supposed to be inlined",
                                     inlined_func
                                 )
                             }
@@ -200,8 +201,8 @@ impl Inlining {
                             "content     : {:?}",
                             inlined_fv_guard.content.as_ref().unwrap()
                         );
-
-                        // creates a new block ID which will be the entry block for the inlined function
+                        // creates a new block ID
+                        // which will be the entry block for the inlined function
                         let new_inlined_entry_id = vm.next_id();
 
                         // change current call instruction to a branch
@@ -300,7 +301,8 @@ impl Inlining {
                                 let mut next_block = resume.normal_dest.target;
 
                                 // if normal_dest expects different number of arguments
-                                // other than the inlined function returns, we need an intermediate block to pass extra arguments
+                                // other than the inlined function returns, we need
+                                // an intermediate block to pass extra arguments
                                 if resume.normal_dest.args.len() !=
                                     inlined_fv_guard.sig.ret_tys.len()
                                 {
@@ -421,6 +423,7 @@ fn copy_inline_blocks(
                 format!("{}:inlinedblock.#{}", block.name(), new_id)
             ),
             content: block.content.clone(),
+            trace_hint: TraceHint::None,
             control_flow: ControlFlow::default()
         };
 

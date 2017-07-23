@@ -278,8 +278,8 @@ pub enum MuStackState {
 
 /// MuThread represents metadata for a Mu thread.
 /// A Mu thread in Zebu is basically an OS thread (pthread). However, we need to maintain our own
-/// thread local info, such as allocator, stack, user-level thread local pointer, exception object, and
-/// an Arc reference to the VM.
+/// thread local info, such as allocator, stack, user-level thread local pointer, exception object,
+/// and an Arc reference to the VM.
 /// We keep the pointer to MuThread for each thread, so that we can query our MuThread metadata.
 /// The user-level thread local pointer can be found within MuThread.
 /// The compiler emits code that uses offsets to some fields in this struct.
@@ -303,10 +303,14 @@ pub struct MuThread {
 
 // a few field offsets the compiler uses
 lazy_static! {
-    pub static ref ALLOCATOR_OFFSET     : usize = offset_of!(MuThread=>allocator).get_byte_offset();
-    pub static ref NATIVE_SP_LOC_OFFSET : usize = offset_of!(MuThread=>native_sp_loc).get_byte_offset();
-    pub static ref USER_TLS_OFFSET      : usize = offset_of!(MuThread=>user_tls).get_byte_offset();
-    pub static ref EXCEPTION_OBJ_OFFSET : usize = offset_of!(MuThread=>exception_obj).get_byte_offset();
+    pub static ref ALLOCATOR_OFFSET     : usize =
+        offset_of!(MuThread=>allocator).get_byte_offset();
+    pub static ref NATIVE_SP_LOC_OFFSET : usize =
+        offset_of!(MuThread=>native_sp_loc).get_byte_offset();
+    pub static ref USER_TLS_OFFSET      : usize =
+        offset_of!(MuThread=>user_tls).get_byte_offset();
+    pub static ref EXCEPTION_OBJ_OFFSET : usize =
+        offset_of!(MuThread=>exception_obj).get_byte_offset();
 }
 
 impl fmt::Display for MuThread {

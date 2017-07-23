@@ -27,7 +27,7 @@ macro_rules! assert_type (
 macro_rules! println_type (
     ($test:expr) => (
         println!("{}", $test)
-    )  
+    )
 );
 
 /// create one of each MuType

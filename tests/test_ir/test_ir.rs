@@ -186,7 +186,8 @@ pub fn factorial() -> VM {
     ssa!        ((vm, fac_v1) <int64> blk_1_v51);
     consta!     ((vm, fac_v1) const_funcref_fac_local = const_funcref_fac);
     inst!       ((vm, fac_v1) blk_1_call:
-        blk_1_v51 = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_fac_local (blk_1_v50)
+        blk_1_v51 =
+            EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_fac_local (blk_1_v50)
     );
 
     //   %v52 = MUL <@int_64> %n_3 %v51
@@ -260,7 +261,7 @@ pub fn global_access(vm: &VM) {
     );
 
     inst!       ((vm, global_access_v1) blk_0_ret:
-        RET (blk_0_x)
+        RET
     );
 
     define_block!((vm, global_access_v1) blk_0() {

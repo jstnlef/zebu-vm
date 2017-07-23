@@ -51,7 +51,8 @@ pub const CALLEE_SAVED_COUNT: usize = 5;
 
 /// a macro to declare a set of general purpose registers that are aliased to the first one
 macro_rules! GPR_ALIAS {
-    ($alias: ident: ($id64: expr, $r64: ident) -> $r32: ident, $r16: ident, $r8l: ident, $r8h: ident) => {
+    ($alias: ident: ($id64: expr, $r64: ident) ->
+     $r32: ident, $r16: ident, $r8l: ident, $r8h: ident) => {
         lazy_static!{
             pub static ref $r64 : P<Value> = GPR!($id64,    stringify!($r64), UINT64_TYPE);
             pub static ref $r32 : P<Value> = GPR!($id64 +1, stringify!($r32), UINT32_TYPE);
@@ -59,7 +60,8 @@ macro_rules! GPR_ALIAS {
             pub static ref $r8l : P<Value> = GPR!($id64 +3, stringify!($r8l), UINT8_TYPE);
             pub static ref $r8h : P<Value> = GPR!($id64 +4, stringify!($r8h), UINT8_TYPE);
 
-            pub static ref $alias : [P<Value>; 5] = [$r64.clone(), $r32.clone(), $r16.clone(), $r8l.clone(), $r8h.clone()];
+            pub static ref $alias : [P<Value>; 5] = [$r64.clone(), $r32.clone(), $r16.clone(),
+                                                     $r8l.clone(), $r8h.clone()];
         }
     };
 
@@ -70,15 +72,17 @@ macro_rules! GPR_ALIAS {
             pub static ref $r16 : P<Value> = GPR!($id64 +2, stringify!($r16), UINT16_TYPE);
             pub static ref $r8  : P<Value> = GPR!($id64 +3, stringify!($r8) , UINT8_TYPE );
 
-            pub static ref $alias : [P<Value>; 4] = [$r64.clone(), $r32.clone(), $r16.clone(), $r8.clone()];
+            pub static ref $alias : [P<Value>; 4] = [$r64.clone(), $r32.clone(),
+                                                     $r16.clone(), $r8.clone()];
         }
     };
 
     ($alias: ident: ($id64: expr, $r64: ident)) => {
         lazy_static!{
-            pub static ref $r64 : P<Value> = GPR!($id64,    stringify!($r64), UINT64_TYPE);
+            pub static ref $r64 : P<Value> = GPR!($id64, stringify!($r64), UINT64_TYPE);
 
-            pub static ref $alias : [P<Value>; 4] = [$r64.clone(), $r64.clone(), $r64.clone(), $r64.clone()];
+            pub static ref $alias : [P<Value>; 4] = [$r64.clone(), $r64.clone(),
+                                                     $r64.clone(), $r64.clone()];
         }
     };
 }

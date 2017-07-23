@@ -86,7 +86,8 @@ pub struct VM {
     /// functions declared to the VM
     funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>, // +456
     /// primordial function that is set to make boot image
-    pub primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
+    primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
+
     /// current options for this VM
     pub vm_options: VMOptions, // +624
 
@@ -103,7 +104,7 @@ pub struct VM {
     /// global cell locations. We use this map to create handles for global cells,
     /// or dump globals into boot image. (this map does not get persisted because
     /// the location is changed in different runs)
-    pub global_locations: RwLock<HashMap<MuID, ValueLocation>>,
+    global_locations: RwLock<HashMap<MuID, ValueLocation>>,
     func_vers: RwLock<HashMap<MuID, RwLock<MuFunctionVersion>>>,
 
     /// all the funcref that clients want to store for AOT which are pending stores
@@ -114,10 +115,10 @@ pub struct VM {
 
     /// runtime callsite table for exception handling
     /// a map from callsite address to CompiledCallsite
-    pub compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
+    compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
 
     /// Nnmber of callsites in the callsite tables
-    pub callsite_count: AtomicUsize
+    callsite_count: AtomicUsize
 }
 
 unsafe impl rodal::Dump for VM {
@@ -528,8 +529,8 @@ impl<'a> VM {
     }
 
     /// adds the global to the map (already acquired lock)
-    /// when bulk declaring, we hold locks for everything, we cannot resolve backend type and do alloc
-    /// so we add globals to the map, and then allocate them later
+    /// when bulk declaring, we hold locks for everything, we cannot resolve backend type
+    /// and do alloc so we add globals to the map, and then allocate them later
     fn declare_global_internal_no_alloc(
         &self,
         globals: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>,
@@ -672,7 +673,8 @@ impl<'a> VM {
         }
     }
 
-    /// gets the function signature for a function (by ID), panics if there is no function with the ID
+    /// gets the function signature for a function (by ID),
+    /// panics if there is no function with the ID
     pub fn get_sig_for_func(&self, id: MuID) -> P<MuFuncSig> {
         let funcs_lock = self.funcs.read().unwrap();
         match funcs_lock.get(&id) {
@@ -722,7 +724,8 @@ impl<'a> VM {
 
         // change current version of the function to new version (obsolete old versions)
         let funcs = self.funcs.read().unwrap();
-        debug_assert!(funcs.contains_key(&func_ver.func_id)); // it should be declared before defining
+        // it should be declared before defining
+        debug_assert!(funcs.contains_key(&func_ver.func_id));
         let mut func = funcs.get(&func_ver.func_id).unwrap().write().unwrap();
 
         func.new_version(func_ver.id());
@@ -774,7 +777,8 @@ impl<'a> VM {
             }
 
             for (id, obj) in new_globals.drain() {
-                // we bulk allocate later (since we are holding all the locks, we cannot find ty info)
+                // we bulk allocate later
+                // (since we are holding all the locks, we cannot find ty info)
                 self.declare_global_internal_no_alloc(&mut globals, id, obj);
             }
 
@@ -824,7 +828,8 @@ impl<'a> VM {
         }
     }
 
-    /// informs the VM of a newly compiled function (the function and funcver should already be declared before this call)
+    /// informs the VM of a newly compiled function
+    /// (the function and funcver should already be declared before this call)
     pub fn add_compiled_func(&self, func: CompiledFunction) {
         debug_assert!(self.funcs.read().unwrap().contains_key(&func.func_id));
         debug_assert!(
@@ -905,6 +910,21 @@ impl<'a> VM {
         &self.func_sigs
     }
 
+    /// returns the lock for global locations
+    pub fn global_locations(&self) -> &RwLock<HashMap<MuID, ValueLocation>> {
+        &self.global_locations
+    }
+
+    /// returns the lock for primordial thread info
+    pub fn primordial(&self) -> &RwLock<Option<PrimordialThreadInfo>> {
+        &self.primordial
+    }
+
+    /// returns the lock for compiled callsite table
+    pub fn compiled_callsite_table(&self) -> &RwLock<HashMap<Address, CompiledCallsite>> {
+        &self.compiled_callsite_table
+    }
+
     pub fn resolve_function_address(&self, func_id: MuID) -> ValueLocation {
         let funcs = self.funcs.read().unwrap();
         let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
@@ -927,9 +947,10 @@ impl<'a> VM {
     }
 
     /// makes a boot image
-    /// We are basically following the spec for this API calls. However, there are a few differences:
-    /// 1. we are not doing 'automagic' relocation for unsafe pointers, relocation of unsafe pointers
-    ///    needs to be done via explicit sym_fields/strings, reloc_fields/strings
+    /// We are basically following the spec for this API calls.
+    /// However, there are a few differences:
+    /// 1. we are not doing 'automagic' relocation for unsafe pointers, relocation of
+    ///    unsafe pointers needs to be done via explicit sym_fields/strings, reloc_fields/strings
     /// 2. if the output name for the boot image has extension name for dynamic libraries
     ///    (.so or .dylib), we generate a dynamic library as boot image. Otherwise, we generate
     ///    an executable.
@@ -940,7 +961,8 @@ impl<'a> VM {
     /// whitelist               : functions to be put into the boot image
     /// primordial_func         : starting function for the boot image
     /// primordial_stack        : starting stack for the boot image
-    ///                           (client should name either primordial_func or stack, currently Zebu only supports func)
+    ///                           (client should name either primordial_func or stack,
+    ///                            currently Zebu only supports func)
     /// primordial_threadlocal  : thread local for the starting thread
     /// sym_fields/strings      : declare an address with symbol
     /// reloc_fields/strings    : declare an field pointing to a symbol
@@ -1029,7 +1051,8 @@ impl<'a> VM {
         // we assume client will start with a function (instead of a stack)
         if has_primordial_stack {
             panic!(
-                "Zebu doesnt support creating primordial thread from a stack, name a entry function instead"
+                "Zebu doesnt support creating primordial thread from a stack, \
+                 name a entry function instead"
             )
         } else {
             if has_primordial_func {
@@ -1037,7 +1060,8 @@ impl<'a> VM {
                 let func_id = primordial_func.unwrap().v.as_funcref();
 
                 // make primordial thread in vm
-                self.set_primordial_thread(func_id, false, vec![]); // do not pass const args, use argc/argv
+                // no const args are passed, we will use argc/argv
+                self.set_primordial_thread(func_id, false, vec![]);
             } else {
                 warn!("no entry function is passed");
             }
@@ -1427,7 +1451,8 @@ impl<'a> VM {
                 }
 
                 // if we are JITing, we can store the address of the function
-                // but if we are doing AOT, we pend the store, and resolve the store when making boot image
+                // but if we are doing AOT, we pend the store, and resolve the store
+                // when making boot image
                 APIHandleValue::FuncRef(id) => {
                     if self.is_doing_jit() {
                         unimplemented!()
@@ -1461,7 +1486,7 @@ impl<'a> VM {
     /// performs CommonInst_Pin
     //  This function and the following two make assumption that GC will not move object.
     //  They need to be reimplemented if we have a moving GC
-    //  FIXME: The pin/unpin semantic (here and in instruction selection) is different from the spec
+    //  FIXME: The pin/unpin semantic (here and in instruction selection) is different from Mu spec
     //  See Issue #33
     pub fn handle_pin_object(&self, loc: APIHandleArg) -> APIHandleResult {
         debug_assert!(!gc::GC_MOVES_OBJECT);
@@ -1654,7 +1679,8 @@ impl<'a> VM {
     }
 
     // Functions for handling TagRef64-related API calls are taken from:
-    // https://gitlab.anu.edu.au/mu/mu-impl-ref2/blob/master/src/main/scala/uvm/refimpl/itpr/operationHelpers.scala
+    // https://gitlab.anu.edu.au/mu/mu-impl-ref2/blob/master/src/main/scala/uvm/refimpl/
+    // itpr/operationHelpers.scala
 
     /// checks if a Tagref64 is a floating point value
     pub fn handle_tr64_is_fp(&self, value: APIHandleArg) -> bool {

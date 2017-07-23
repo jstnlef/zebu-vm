@@ -560,7 +560,9 @@ fn add_int64_nzc() -> VM {
     ssa!        ((vm, add_int64_nzc_v1) <int1> flag_c);
 
     inst!       ((vm, add_int64_nzc_v1) blk_entry_add:
-        sum, flag_n, flag_z, flag_c = BINOP_STATUS (BinOp::Add) (BinOpStatus{flag_n: true, flag_z: true, flag_c: true, flag_v: false}) a b
+        sum, flag_n, flag_z, flag_c =
+            BINOP_STATUS (BinOp::Add)
+            (BinOpStatus{flag_n: true, flag_z: true, flag_c: true, flag_v: false}) a b
     );
 
     ssa!        ((vm, add_int64_nzc_v1) <int8> shift_z);
@@ -590,7 +592,8 @@ fn add_int64_nzc() -> VM {
     );
 
     define_block!   ((vm, add_int64_nzc_v1) blk_entry(a, b) {
-        blk_entry_add, blk_entry_shift_z, blk_entry_add_ret1, blk_entry_shift_c, blk_entry_add_ret2, blk_entry_ret
+        blk_entry_add, blk_entry_shift_z, blk_entry_add_ret1,
+        blk_entry_shift_c, blk_entry_add_ret2, blk_entry_ret
     });
 
     define_func_ver!((vm) add_int64_nzc_v1 (entry: blk_entry) {blk_entry});

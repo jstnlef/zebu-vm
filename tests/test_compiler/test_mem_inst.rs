@@ -463,11 +463,12 @@ pub fn struct_insts_macro() -> VM {
     let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut struct_insts_v1, &vm);
 
     inst!   ((vm, struct_insts_v1) blk_check_ret:
-                RET (blk_check_res)
+                RET
     );
 
     define_block! ((vm, struct_insts_v1) blk_check(blk_check_a) {
-        blk_check_inst0, blk_check_inst1, blk_check_inst2, blk_check_inst3, blk_check_inst4, blk_check_inst5, blk_check_ccall, blk_check_ret
+        blk_check_inst0, blk_check_inst1, blk_check_inst2, blk_check_inst3,
+        blk_check_inst4, blk_check_inst5, blk_check_ccall, blk_check_ret
     });
 
     define_func_ver! ((vm) struct_insts_v1 (entry: blk_entry) {blk_entry, blk_check});
@@ -655,7 +656,8 @@ pub fn hybrid_fix_part_insts() -> VM {
 
     funcsig!        ((vm) noparam_noret_sig = () -> ());
     funcdecl!       ((vm) <noparam_noret_sig> hybrid_fix_part_insts);
-    funcdef!        ((vm) <noparam_noret_sig> hybrid_fix_part_insts VERSION hybrid_fix_part_insts_v1);
+    funcdef!        ((vm) <noparam_noret_sig> hybrid_fix_part_insts
+                          VERSION hybrid_fix_part_insts_v1);
 
     // %entry():
     block!          ((vm, hybrid_fix_part_insts_v1) blk_entry);
@@ -741,10 +743,9 @@ pub fn hybrid_fix_part_insts() -> VM {
     // CCALL exit(%res)
     let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut hybrid_fix_part_insts_v1, &vm);
 
-    // RET <@int64> 0
-    consta!         ((vm, hybrid_fix_part_insts_v1) int64_0_local = int64_0);
+    // RET
     inst!           ((vm, hybrid_fix_part_insts_v1) blk_check_ret:
-        RET (int64_0_local)
+        RET
     );
 
     define_block!   ((vm, hybrid_fix_part_insts_v1) blk_check(blk_check_a) {
@@ -824,7 +825,8 @@ pub fn hybrid_var_part_insts() -> VM {
 
     funcsig!        ((vm) noparam_noret_sig = () -> ());
     funcdecl!       ((vm) <noparam_noret_sig> hybrid_var_part_insts);
-    funcdef!        ((vm) <noparam_noret_sig> hybrid_var_part_insts VERSION hybrid_var_part_insts_v1);
+    funcdef!        ((vm) <noparam_noret_sig> hybrid_var_part_insts
+                          VERSION hybrid_var_part_insts_v1);
 
     // %entry():
     block!          ((vm, hybrid_var_part_insts_v1) blk_entry);
@@ -925,7 +927,8 @@ pub fn hybrid_var_part_insts() -> VM {
             ELSE blk_exit (vec![1])
     );
 
-    define_block!   ((vm, hybrid_var_part_insts_v1) blk_head (blk_head_sum, blk_head_n, blk_head_i, blk_head_a) {
+    define_block!   ((vm, hybrid_var_part_insts_v1)
+        blk_head (blk_head_sum, blk_head_n, blk_head_i, blk_head_a) {
         blk_head_slt,
         blk_head_branch2
     });
@@ -978,7 +981,8 @@ pub fn hybrid_var_part_insts() -> VM {
         BRANCH blk_head (blk_body_sum2, blk_body_n, blk_body_i2, blk_body_a)
     );
 
-    define_block!   ((vm, hybrid_var_part_insts_v1) blk_body(blk_body_sum, blk_body_n, blk_body_i, blk_body_a) {
+    define_block!   ((vm, hybrid_var_part_insts_v1)
+        blk_body(blk_body_sum, blk_body_n, blk_body_i, blk_body_a) {
         blk_body_getiref,
         blk_body_getvarpart,
         blk_body_shiftiref,
@@ -993,9 +997,9 @@ pub fn hybrid_var_part_insts() -> VM {
 
     let blk_exit_exit = gen_ccall_exit(blk_exit_sum.clone(), &mut hybrid_var_part_insts_v1, &vm);
 
-    // RET @int64_0
+    // RET
     inst!           ((vm, hybrid_var_part_insts_v1) blk_exit_ret:
-        RET (int64_0_local)
+        RET
     );
 
     define_block!   ((vm, hybrid_var_part_insts_v1) blk_exit(blk_exit_sum) {
@@ -1295,7 +1299,8 @@ fn get_elem_iref_array_ele_9bytes() -> VM {
     funcsig!    ((vm) sig = (iref_array, int64) -> (iref_elem));
     funcdecl!   ((vm) <sig> get_elem_iref_array_ele_9bytes);
 
-    funcdef!    ((vm) <sig> get_elem_iref_array_ele_9bytes VERSION get_elem_iref_array_ele_9bytes_v1);
+    funcdef!    ((vm) <sig> get_elem_iref_array_ele_9bytes
+                      VERSION get_elem_iref_array_ele_9bytes_v1);
 
     // blk entry
     block!      ((vm, get_elem_iref_array_ele_9bytes_v1) blk_entry);
