@@ -742,8 +742,9 @@ fn test_fp_arraysum() {
     let lib = linkutils::aot::compile_fnc("fp_arraysum", &fp_arraysum);
 
     unsafe {
-        let fp_arraysum: libloading::Symbol<unsafe extern "C" fn(*const c_double, u64) -> f64> =
-            lib.get(b"fp_arraysum").unwrap();
+        let fp_arraysum: libloading::Symbol<
+            unsafe extern "C" fn(*const c_double, u64) -> f64,
+        > = lib.get(b"fp_arraysum").unwrap();
 
         let array: [f64; 10] = [
             0f64,

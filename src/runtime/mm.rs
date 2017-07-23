@@ -39,7 +39,7 @@ fn check_allocator(
     size: ByteSize,
     align: ByteSize,
     encode: u64,
-    hybrid_len: Option<u64>
+    hybrid_len: Option<u64>,
 ) -> ObjectReference {
     if MuThread::has_current() {
         // we have an allocator
@@ -52,7 +52,7 @@ fn check_allocator(
             size,
             align,
             encode,
-            hybrid_len
+            hybrid_len,
         );
         drop_mutator(&mut allocator as *mut Mutator);
 
@@ -67,7 +67,7 @@ fn allocate(
     size: ByteSize,
     align: ByteSize,
     encode: u64,
-    hybrid_len: Option<u64>
+    hybrid_len: Option<u64>,
 ) -> ObjectReference {
     // allocate
     let ret = if size > LARGE_OBJECT_THRESHOLD {
@@ -111,7 +111,7 @@ pub fn allocate_hybrid(ty: P<MuType>, len: u64, backendtype: Box<BackendType>) -
         gctype.size_hybrid(len as u32),
         gctype.alignment,
         encode,
-        Some(len)
+        Some(len),
     ).to_address()
 }
 

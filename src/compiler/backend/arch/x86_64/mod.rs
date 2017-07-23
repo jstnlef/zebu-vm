@@ -179,7 +179,7 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
     if id < FPR_ID_START {
         let vec = match GPR_ALIAS_TABLE.get(&id) {
             Some(vec) => vec,
-            None => panic!("didnt find {} as GPR", id)
+            None => panic!("didnt find {} as GPR", id),
         };
 
         match length {
@@ -188,7 +188,7 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
             16 => vec[2].clone(),
             8 => vec[3].clone(),
             1 => vec[3].clone(),
-            _ => panic!("unexpected length {} for {}", length, vec[0])
+            _ => panic!("unexpected length {} for {}", length, vec[0]),
         }
     } else {
         for r in ALL_FPRS.iter() {
@@ -235,7 +235,7 @@ pub fn get_color_for_precolored(id: MuID) -> MuID {
     if id < FPR_ID_START {
         match GPR_ALIAS_LOOKUP.get(&id) {
             Some(val) => val.id(),
-            None => panic!("cannot find GPR {}", id)
+            None => panic!("cannot find GPR {}", id),
         }
     } else {
         // we do not have alias for FPRs
@@ -252,7 +252,7 @@ pub fn check_op_len(op: &P<Value>) -> usize {
         Some(16) => 16,
         Some(8) => 8,
         Some(1) => 8,
-        _ => panic!("unsupported register length for x64: {}", op.ty)
+        _ => panic!("unsupported register length for x64: {}", op.ty),
     }
 }
 
@@ -510,7 +510,7 @@ pub fn number_of_usable_regs_in_group(group: RegGroup) -> usize {
     match group {
         RegGroup::GPR => ALL_USABLE_GPRS.len(),
         RegGroup::GPREX => ALL_USABLE_GPRS.len(),
-        RegGroup::FPR => ALL_USABLE_FPRS.len()
+        RegGroup::FPR => ALL_USABLE_FPRS.len(),
     }
 }
 
@@ -599,7 +599,7 @@ pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
         match op.v {
             Value_::Constant(Constant::Int(val))
                 if val as i32 >= i32::MIN && val as i32 <= i32::MAX => true,
-            _ => false
+            _ => false,
         }
     } else {
         false
@@ -661,6 +661,6 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         PrintHex(_) => 10,
         SetRetval(_) => 10,
         ExnInstruction { ref inner, .. } => estimate_insts_for_ir(&inner),
-        _ => unimplemented!()
+        _ => unimplemented!(),
     }
 }

@@ -70,7 +70,7 @@ fn test_startup_shutdown() {
 
 #[derive(Default)]
 struct CStringPool {
-    strings: Vec<CString>
+    strings: Vec<CString>,
 }
 
 impl CStringPool {
@@ -126,7 +126,7 @@ fn test_types_sigs_loading() {
             ptys.as_mut_ptr(),
             ptys.len(),
             rtys.as_mut_ptr(),
-            rtys.len()
+            rtys.len(),
         );
         ((*b).new_type_ufuncptr)(b, id9, id8);
 
@@ -241,7 +241,7 @@ fn test_function_loading() {
             ptys.as_mut_ptr(),
             ptys.len(),
             rtys.as_mut_ptr(),
-            rtys.len()
+            rtys.len(),
         );
 
         ((*b).new_func)(b, id_func, id_sig);
@@ -283,7 +283,7 @@ fn test_function_loading() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.entry.y"));
@@ -313,7 +313,7 @@ fn test_function_loading() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let mut rvs = vec![id_a];
@@ -336,7 +336,7 @@ fn test_function_loading() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.y"));
@@ -355,7 +355,7 @@ fn test_function_loading() {
                     id_dest_t,
                     id_bb3,
                     dest_args.as_mut_ptr(),
-                    dest_args.len()
+                    dest_args.len(),
                 );
             }
             {
@@ -365,7 +365,7 @@ fn test_function_loading() {
                     id_dest_f,
                     id_bb4,
                     dest_args.as_mut_ptr(),
-                    dest_args.len()
+                    dest_args.len(),
                 );
             }
 
@@ -386,7 +386,7 @@ fn test_function_loading() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let mut rvs = vec![id_const99];
@@ -409,7 +409,7 @@ fn test_function_loading() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let mut rvs = vec![id_const99];
@@ -430,7 +430,7 @@ fn test_function_loading() {
                 args.len(),
                 id_exc,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let mut rvs = vec![id_const99];
@@ -452,7 +452,7 @@ fn test_function_loading() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.bb5.y"));
@@ -468,7 +468,7 @@ fn test_function_loading() {
                     id_dest_def,
                     id_bb3,
                     dest_args.as_mut_ptr(),
-                    dest_args.len()
+                    dest_args.len(),
                 );
             }
             {
@@ -478,7 +478,7 @@ fn test_function_loading() {
                     id_dest_99,
                     id_bb4,
                     dest_args.as_mut_ptr(),
-                    dest_args.len()
+                    dest_args.len(),
                 );
             }
 
@@ -493,7 +493,7 @@ fn test_function_loading() {
                 id_dest_def,
                 cases.as_mut_ptr(),
                 dests.as_mut_ptr(),
-                cases.len()
+                cases.len(),
             )
         }
 
@@ -536,7 +536,7 @@ fn test_insts_call() {
             ptys.as_mut_ptr(),
             ptys.len(),
             rtys.as_mut_ptr(),
-            rtys.len()
+            rtys.len(),
         );
 
         ((*b).new_func)(b, id_func, id_sig);
@@ -573,7 +573,7 @@ fn test_insts_call() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.entry.y"));
@@ -591,7 +591,7 @@ fn test_insts_call() {
                     args.as_mut_ptr(),
                     args.len(),
                     0,
-                    0
+                    0,
                 );
             }
 
@@ -612,7 +612,7 @@ fn test_insts_call() {
                         id_dest1,
                         id_bb1,
                         dest_args.as_mut_ptr(),
-                        dest_args.len()
+                        dest_args.len(),
                     );
                 }
                 {
@@ -622,7 +622,7 @@ fn test_insts_call() {
                         id_dest2,
                         id_bb2,
                         dest_args.as_mut_ptr(),
-                        dest_args.len()
+                        dest_args.len(),
                     );
                 }
 
@@ -636,7 +636,7 @@ fn test_insts_call() {
                     args.as_mut_ptr(),
                     args.len(),
                     id_exc,
-                    0
+                    0,
                 );
             }
         }
@@ -659,7 +659,7 @@ fn test_insts_call() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let mut retvars = vec![id_z];
@@ -681,7 +681,7 @@ fn test_insts_call() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let mut retvars = vec![id_const1];
@@ -743,7 +743,7 @@ fn test_insts_new() {
             ptys.as_mut_ptr(),
             ptys.len(),
             rtys.as_mut_ptr(),
-            rtys.len()
+            rtys.len(),
         );
 
         let id_consti64_3 = ((*b).gen_sym)(b, csp.get("@CONSTI64_3"));
@@ -795,7 +795,7 @@ fn test_insts_new() {
                 args.len(),
                 0,
                 insts.as_mut_ptr(),
-                insts.len()
+                insts.len(),
             );
 
             let id_v_r1 = ((*b).gen_sym)(b, csp.get("@func.v1.entry.r1"));
@@ -825,7 +825,7 @@ fn test_insts_new() {
                 id_a,
                 id_i64,
                 id_v_f1,
-                id_consti64_3
+                id_consti64_3,
             );
 
             ((*b).new_getvarpartiref)(b, id_getvarpartiref, id_v_v, 0, id_h, id_v_i2);
@@ -837,7 +837,7 @@ fn test_insts_new() {
                 id_i8,
                 id_i64,
                 id_v_v,
-                id_consti64_3
+                id_consti64_3,
             );
 
             {

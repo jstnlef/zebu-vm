@@ -57,7 +57,7 @@ fn test_thread_create() {
     let executable = aot::link_primordial(
         vec!["primordial_main".to_string()],
         "primordial_main_test",
-        &vm
+        &vm,
     );
     linkutils::exec_path(executable);
 }
@@ -100,7 +100,7 @@ fn test_main_with_retval() {
         vec![],
         vec![],
         vec![],
-        "test_main_with_retval".to_string()
+        "test_main_with_retval".to_string(),
     );
 
     // run

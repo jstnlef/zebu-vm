@@ -31,8 +31,9 @@ fn test_add_u128() {
     unsafe {
         use std::u64;
 
-        let add_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
-            lib.get(b"add_u128").unwrap();
+        let add_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+        > = lib.get(b"add_u128").unwrap();
 
         let res = add_u128(1, 0, 1, 0);
         println!("add_u128(1, 1) = {:?}", res);
@@ -83,8 +84,9 @@ fn test_sub_u128() {
     unsafe {
         use std::u64;
 
-        let sub_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
-            lib.get(b"sub_u128").unwrap();
+        let sub_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+        > = lib.get(b"sub_u128").unwrap();
 
         let res = sub_u128(1, 0, 1, 0);
         println!("sub_u128(1, 1) = {:?}", res);
@@ -134,8 +136,9 @@ fn test_add_const_u128() {
     unsafe {
         use std::u64;
 
-        let add_const_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> (u64, u64)> =
-            lib.get(b"add_const_u128").unwrap();
+        let add_const_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64) -> (u64, u64),
+        > = lib.get(b"add_const_u128").unwrap();
 
         let res = add_const_u128(1, 0);
         println!("add_const_u128(1, 1) = {:?}", res);
@@ -188,8 +191,9 @@ fn test_mul_u128() {
     unsafe {
         use std::u64;
 
-        let mul_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
-            lib.get(b"mul_u128").unwrap();
+        let mul_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+        > = lib.get(b"mul_u128").unwrap();
 
         let res = mul_u128(6, 0, 7, 0);
         println!("mul_u128(6, 7) = {:?}", res);
@@ -242,7 +246,9 @@ fn test_udiv_u128() {
     unsafe {
         use self::extprim::u128::u128;
 
-        let udiv_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"udiv_u128").unwrap();
+        let udiv_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+        > = lib.get(b"udiv_u128").unwrap();
 
         let res = udiv_u128(42, 0, 7, 0);
         println!("udiv_u128(42, 7) = {:?}", res);
@@ -296,8 +302,9 @@ fn test_shl_u128() {
     let lib = linkutils::aot::compile_fnc("shl_u128", &shl_u128);
 
     unsafe {
-        let shl_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
-            lib.get(b"shl_u128").unwrap();
+        let shl_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+        > = lib.get(b"shl_u128").unwrap();
 
         let res = shl_u128(1, 0, 64, 0);
         println!("shl_u128(1, 64) = {:?}", res);
@@ -346,7 +353,9 @@ fn test_lshr_u128() {
     let lib = linkutils::aot::compile_fnc("lshr_u128", &lshr_u128);
 
     unsafe {
-        let lshr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"lshr_u128").unwrap();
+        let lshr_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+        > = lib.get(b"lshr_u128").unwrap();
 
         let res = lshr_u128(1, 1, 64, 0);
         println!("lshr_u128(100000000000...0001, 64) = {:?}", res);
@@ -395,7 +404,9 @@ fn test_ashr_u128() {
     let lib = linkutils::aot::compile_fnc("ashr_u128", &ashr_u128);
 
     unsafe {
-        let ashr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"ashr_u128").unwrap();
+        let ashr_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64),
+        > = lib.get(b"ashr_u128").unwrap();
 
         let res = ashr_u128(1, 0xffffffffffffffff, 64, 0);
         println!("ashr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}", res);
@@ -443,10 +454,12 @@ fn test_store_load_u128() {
         use mu::utils::mem::memsec::malloc;
         let ptr = match malloc::<u64>(16) {
             Some(ptr) => ptr,
-            None => panic!("failed to alloc memory for testing")
+            None => panic!("failed to alloc memory for testing"),
         };
 
-        let store_load_u128 : libloading::Symbol<unsafe extern fn(u64, u64, *mut u64) -> (u64, u64)> = lib.get(b"store_load_u128").unwrap();
+        let store_load_u128: libloading::Symbol<
+            unsafe extern "C" fn(u64, u64, *mut u64) -> (u64, u64),
+        > = lib.get(b"store_load_u128").unwrap();
 
         let res = store_load_u128(1, 2, ptr);
         println!("store_load(1, 2, ptr) = {:?}", res);

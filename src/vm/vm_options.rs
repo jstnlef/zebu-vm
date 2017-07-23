@@ -66,7 +66,7 @@ pub struct VMOptions {
     pub flag_gc_disable_collection: bool, // +100
     pub flag_gc_immixspace_size: usize,   // +72
     pub flag_gc_lospace_size: usize,      // +80
-    pub flag_gc_nthreads: usize           // +88
+    pub flag_gc_nthreads: usize,          // +88
 }
 
 // The fields need to be listed here in the order rust stores them in
@@ -81,7 +81,7 @@ rodal_struct!(VMOptions {
     flag_disable_inline,
     flag_disable_regalloc_validate,
     flag_emit_debug_info,
-    flag_gc_disable_collection
+    flag_gc_disable_collection,
 });
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -92,7 +92,7 @@ pub enum MuLogLevel {
     Info,
     Debug,
     Trace,
-    Env
+    Env,
 }
 
 rodal_value!(MuLogLevel); // This enum has no fields with pointers, so just dump a strait value
@@ -106,7 +106,7 @@ impl MuLogLevel {
             "info" => MuLogLevel::Info,
             "debug" => MuLogLevel::Debug,
             "trace" => MuLogLevel::Trace,
-            _ => panic!("Unrecognised log level {}", s)
+            _ => panic!("Unrecognised log level {}", s),
         }
     }
 }

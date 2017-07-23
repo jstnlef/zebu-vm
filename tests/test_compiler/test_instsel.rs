@@ -34,7 +34,7 @@ fn test_instsel_fac() {
             Box::new(passes::TraceGen::new()),
             Box::new(backend::inst_sel::InstructionSelection::new()),
         ]),
-        &vm
+        &vm,
     );
 
     let func_id = vm.id_of("fac");

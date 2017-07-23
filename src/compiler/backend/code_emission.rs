@@ -31,13 +31,13 @@ pub const EMIT_MUIR: bool = true;
 pub const EMIT_MC_DOT: bool = true;
 
 pub struct CodeEmission {
-    name: &'static str
+    name: &'static str,
 }
 
 impl CodeEmission {
     pub fn new() -> CodeEmission {
         CodeEmission {
-            name: "Code Emission"
+            name: "Code Emission",
         }
     }
 }
@@ -85,7 +85,7 @@ fn create_emit_file(name: String, vm: &VM) -> File {
                 why
             )
         }
-        Ok(file) => file
+        Ok(file) => file,
     }
 }
 
@@ -105,7 +105,7 @@ pub fn emit_mu_types(suffix: &str, vm: &VM) {
                     why
                 )
             }
-            Ok(file) => file
+            Ok(file) => file,
         };
 
         {

@@ -29,7 +29,7 @@ fn test_use_count() {
     let vm = Arc::new(factorial());
     let compiler = Compiler::new(
         CompilerPolicy::new(vec![Box::new(passes::DefUse::new())]),
-        &vm
+        &vm,
     );
 
     let func_id = vm.id_of("fac");
@@ -112,7 +112,7 @@ fn test_build_tree() {
             Box::new(passes::DefUse::new()),
             Box::new(passes::TreeGen::new()),
         ]),
-        &vm
+        &vm,
     );
 
     let func_id = vm.id_of("fac");
@@ -193,7 +193,7 @@ fn test_cfa_factorial() {
             Box::new(passes::GenMovPhi::new()),
             Box::new(passes::ControlFlowAnalysis::new()),
         ]),
-        &vm
+        &vm,
     );
 
     let func_id = vm.id_of("fac");
@@ -246,7 +246,7 @@ fn test_cfa_sum() {
             Box::new(passes::GenMovPhi::new()),
             Box::new(passes::ControlFlowAnalysis::new()),
         ]),
-        &vm
+        &vm,
     );
 
     let func_id = vm.id_of("sum");
@@ -319,7 +319,7 @@ fn test_trace_factorial() {
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new()),
         ]),
-        &vm
+        &vm,
     );
 
     let func_id = vm.id_of("fac");
@@ -353,7 +353,7 @@ fn test_trace_sum() {
             Box::new(passes::ControlFlowAnalysis::new()),
             Box::new(passes::TraceGen::new()),
         ]),
-        &vm
+        &vm,
     );
 
     let func_id = vm.id_of("sum");

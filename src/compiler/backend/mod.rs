@@ -209,7 +209,7 @@ pub struct BackendType {
     pub elem_size: Option<ByteSize>,
     /// GC type, containing information for GC (this is a temporary design)
     /// See Issue#12
-    pub gc_type: P<GCType>
+    pub gc_type: P<GCType>,
 }
 
 rodal_struct!(BackendType {
@@ -217,7 +217,7 @@ rodal_struct!(BackendType {
     alignment,
     struct_layout,
     elem_size,
-    gc_type
+    gc_type,
 });
 
 impl BackendType {
@@ -243,37 +243,37 @@ impl BackendType {
                         alignment: 1,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
+                        gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1)),
                     },
                     9...16 => BackendType {
                         size: 2,
                         alignment: 2,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
+                        gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2)),
                     },
                     17...32 => BackendType {
                         size: 4,
                         alignment: 4,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
+                        gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4)),
                     },
                     33...64 => BackendType {
                         size: 8,
                         alignment: 8,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
+                        gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8)),
                     },
                     128 => BackendType {
                         size: 16,
                         alignment: 16,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(16, 16))
+                        gc_type: mm::add_gc_type(GCType::new_noreftype(16, 16)),
                     },
-                    _ => unimplemented!()
+                    _ => unimplemented!(),
                 }
             }
             // reference of any type
@@ -282,7 +282,7 @@ impl BackendType {
                 alignment: 8,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_reftype())
+                gc_type: mm::add_gc_type(GCType::new_reftype()),
             },
             // pointer/opque ref
             MuType_::UPtr(_) |
@@ -294,7 +294,7 @@ impl BackendType {
                 alignment: 8,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
+                gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8)),
             },
             // tagref
             MuType_::Tagref64 => BackendType {
@@ -302,7 +302,7 @@ impl BackendType {
                 alignment: 8,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_reftype())
+                gc_type: mm::add_gc_type(GCType::new_reftype()),
             },
             // floating point
             MuType_::Float => BackendType {
@@ -310,14 +310,14 @@ impl BackendType {
                 alignment: 4,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
+                gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4)),
             },
             MuType_::Double => BackendType {
                 size: 8,
                 alignment: 8,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
+                gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8)),
             },
             // array
             MuType_::Array(ref ty, len) => {
@@ -344,9 +344,9 @@ impl BackendType {
                         align,
                         Some(RefPattern::Repeat {
                             pattern: Box::new(RefPattern::NestedType(vec![ele_ty.gc_type])),
-                            count: len
-                        })
-                    ))
+                            count: len,
+                        }),
+                    )),
                 }
             }
             // struct
@@ -393,10 +393,10 @@ impl BackendType {
                 alignment: 1,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(0, 1))
+                gc_type: mm::add_gc_type(GCType::new_noreftype(0, 1)),
             },
             // vector
-            MuType_::Vector(_, _) => unimplemented!()
+            MuType_::Vector(_, _) => unimplemented!(),
         }
     }
 
@@ -454,12 +454,12 @@ impl BackendType {
                 Some(if use_ref_offsets {
                     RefPattern::Map {
                         offsets: ref_offsets,
-                        size: size
+                        size: size,
                     }
                 } else {
                     RefPattern::NestedType(gc_types)
-                })
-            ))
+                }),
+            )),
         }
     }
 
@@ -501,7 +501,7 @@ pub enum RegGroup {
     /// requires two general purpose register
     GPREX,
     /// floating point register
-    FPR
+    FPR,
 }
 
 rodal_enum!(RegGroup { GPR, GPREX, FPR });
@@ -527,7 +527,7 @@ impl RegGroup {
             MuType_::Float => RegGroup::FPR,
             MuType_::Double => RegGroup::FPR,
 
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 

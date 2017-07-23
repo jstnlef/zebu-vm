@@ -21,13 +21,13 @@ use compiler::CompilerPass;
 use std::any::Any;
 
 pub struct TreeGen {
-    name: &'static str
+    name: &'static str,
 }
 
 impl TreeGen {
     pub fn new() -> TreeGen {
         TreeGen {
-            name: "Tree Geenration"
+            name: "Tree Geenration",
         }
     }
 }
@@ -135,7 +135,7 @@ impl CompilerPass for TreeGen {
                                 trace!("no, no value yielded");
                             }
                         }
-                        _ => panic!("expected an instruction node here")
+                        _ => panic!("expected an instruction node here"),
                     }
 
                     trace!("add {} back to block {}", node, label);

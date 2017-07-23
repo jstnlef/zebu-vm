@@ -39,7 +39,7 @@ const VERIFY_SPILLING: bool = false;
 pub fn validate_regalloc(
     cf: &CompiledFunction,
     reg_assigned: LinkedHashMap<MuID, MuID>,
-    spill_scratch_regs: LinkedHashMap<MuID, MuID>
+    spill_scratch_regs: LinkedHashMap<MuID, MuID>,
 ) {
     debug!("---Validating register allocation results---");
 
@@ -86,7 +86,7 @@ pub fn validate_regalloc(
         // check inst sequentially
         let range = match mc.get_block_range(&block) {
             Some(range) => range,
-            None => panic!("cannot find range for block {}", block)
+            None => panic!("cannot find range for block {}", block),
         };
         let last_inst = mc.get_last_inst(range.end - 1).unwrap();
         for i in range {
@@ -170,7 +170,7 @@ pub fn validate_regalloc(
         // find liveout of the block, and only preserve what is in the liveout
         let liveout = match mc.get_ir_block_liveout(&block) {
             Some(liveout) => liveout,
-            None => panic!("cannot find liveout for block {}", block)
+            None => panic!("cannot find liveout for block {}", block),
         };
         alive.preserve_list(liveout);
         debug!("liveout is {:?}", liveout);
@@ -182,7 +182,7 @@ pub fn validate_regalloc(
             .iter()
             .map(|x| match mc.is_label(*x - 1) {
                 Some(label) => label,
-                None => panic!("cannot find label for inst {}", *x - 1)
+                None => panic!("cannot find label for inst {}", *x - 1),
             })
             .collect();
 
@@ -225,7 +225,7 @@ pub fn validate_regalloc(
                     let block1 = succeeding_blocks[0].clone();
                     let block1_livein = match mc.get_ir_block_livein(&block1) {
                         Some(livein) => livein,
-                        None => panic!("cannot find livein for block {}", block1)
+                        None => panic!("cannot find livein for block {}", block1),
                     };
                     let mut block1_alive = alive.clone();
                     block1_alive.preserve_list(block1_livein);
@@ -239,7 +239,7 @@ pub fn validate_regalloc(
                     let block2 = succeeding_blocks[1].clone();
                     let block2_livein = match mc.get_ir_block_livein(&block2) {
                         Some(livein) => livein,
-                        None => panic!("cannot find livein for block {}", block2)
+                        None => panic!("cannot find livein for block {}", block2),
                     };
                     let mut block2_alive = alive.clone();
                     block2_alive.preserve_list(block2_livein);
@@ -256,11 +256,11 @@ pub fn validate_regalloc(
 
 fn get_source_temp_for_scratch(
     scratch: MuID,
-    spill_scratch_temps: &LinkedHashMap<MuID, MuID>
+    spill_scratch_temps: &LinkedHashMap<MuID, MuID>,
 ) -> MuID {
     match spill_scratch_temps.get(&scratch) {
         Some(src) => get_source_temp_for_scratch(*src, spill_scratch_temps),
-        None => scratch
+        None => scratch,
     }
 }
 
@@ -271,7 +271,7 @@ fn get_machine_reg(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>) -> MuID 
     } else {
         match reg_assigned.get(&reg) {
             Some(reg) => *reg,
-            None => panic!("Temp {} is not assigned to any machine register", reg)
+            None => panic!("Temp {} is not assigned to any machine register", reg),
         }
     }
 }
@@ -324,7 +324,7 @@ fn add_def(
     reg: MuID,
     reg_assigned: &LinkedHashMap<MuID, MuID>,
     is_mov: bool,
-    alive: &mut AliveEntries
+    alive: &mut AliveEntries,
 ) {
     let machine_reg = get_machine_reg(reg, reg_assigned);
     let temp = reg;
@@ -411,7 +411,7 @@ fn add_spill_store(
     scratch_temp: MuID,
     source_temp: MuID,
     spill_loc: P<Value>,
-    alive: &mut AliveEntries
+    alive: &mut AliveEntries,
 ) {
     // add source_temp with mem loc
     alive.add_temp_in_mem(source_temp, spill_loc.clone());
@@ -424,7 +424,7 @@ fn validate_spill_load(
     scratch_temp: MuID,
     source_temp: MuID,
     spill_loc: P<Value>,
-    alive: &mut AliveEntries
+    alive: &mut AliveEntries,
 ) {
     // verify its correct: the source temp should be alive with the mem location
     if alive.has_entries_for_temp(source_temp) {

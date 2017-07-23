@@ -89,14 +89,14 @@ fn switch() -> VM {
             cond: 0,
             default: Destination {
                 target: blk_default.id(),
-                args: vec![]
+                args: vec![],
             },
             branches: vec![
                 (1, Destination{target: blk_ret0.id(), args: vec![]}),
                 (2, Destination{target: blk_ret1.id(), args: vec![]}),
                 (3, Destination{target: blk_ret2.id(), args: vec![]})
-            ]
-        }
+            ],
+        },
     });
 
     define_block!((vm, switch_v1) blk_entry(a) {

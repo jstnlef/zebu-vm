@@ -21,14 +21,14 @@ pub struct MuCtx {
     mvm: *const MuVM,
 
     /// Point to the C-visible CMuCtx so that `close_context` can deallocate itself.
-    pub c_struct: *mut CMuCtx
+    pub c_struct: *mut CMuCtx,
 }
 
 impl MuCtx {
     pub fn new(mvm: *const MuVM) -> Box<MuCtx> {
         Box::new(MuCtx {
             mvm: mvm,
-            c_struct: ptr::null_mut()
+            c_struct: ptr::null_mut(),
         })
     }
 
@@ -242,7 +242,7 @@ impl MuCtx {
         &mut self,
         str: &APIHandle,
         index: c_int,
-        newval: &APIHandle
+        newval: &APIHandle,
     ) -> *const APIHandle {
         panic!("Not implemented")
     }
@@ -255,7 +255,7 @@ impl MuCtx {
         &mut self,
         str: &APIHandle,
         index: &APIHandle,
-        newval: &APIHandle
+        newval: &APIHandle,
     ) -> *const APIHandle {
         panic!("Not implemented")
     }
@@ -285,7 +285,7 @@ impl MuCtx {
         prepare_handle(
             self.get_mvm()
                 .vm
-                .handle_get_field_iref(opnd, field as usize)
+                .handle_get_field_iref(opnd, field as usize),
         )
     }
 
@@ -324,7 +324,7 @@ impl MuCtx {
         loc: &APIHandle,
         expected: &APIHandle,
         desired: &APIHandle,
-        is_succ: *mut CMuBool
+        is_succ: *mut CMuBool,
     ) -> *const APIHandle {
         panic!("Not implemented")
     }
@@ -334,7 +334,7 @@ impl MuCtx {
         ord: CMuMemOrd,
         op: CMuAtomicRMWOptr,
         loc: &APIHandle,
-        opnd: &APIHandle
+        opnd: &APIHandle,
     ) -> *const APIHandle {
         panic!("Not implemented")
     }
@@ -351,7 +351,7 @@ impl MuCtx {
         &mut self,
         stack: &APIHandle,
         threadlocal: Option<&APIHandle>,
-        vals: Vec<&APIHandle>
+        vals: Vec<&APIHandle>,
     ) -> *const APIHandle {
         panic!("Not implemented")
     }
@@ -360,7 +360,7 @@ impl MuCtx {
         &mut self,
         stack: &APIHandle,
         threadlocal: Option<&APIHandle>,
-        exc: &APIHandle
+        exc: &APIHandle,
     ) -> *const APIHandle {
         panic!("Not implemented")
     }
@@ -481,7 +481,7 @@ impl MuCtx {
         &mut self,
         func: &APIHandle,
         call_conv: CMuCallConv,
-        cookie: &APIHandle
+        cookie: &APIHandle,
     ) -> *const APIHandle {
         panic!("Not implemented")
     }
@@ -520,7 +520,7 @@ impl MuCtx {
         sym_strings: Vec<String>,
         reloc_fields: Vec<&APIHandle>,
         reloc_strings: Vec<String>,
-        output_file: String
+        output_file: String,
     ) {
         self.get_mvm().vm.make_boot_image(
             whitelist,
@@ -531,7 +531,7 @@ impl MuCtx {
             sym_strings,
             reloc_fields,
             reloc_strings,
-            output_file
+            output_file,
         );
     }
 }
@@ -558,6 +558,6 @@ fn impl_memorder(order: CMuMemOrd) -> MemoryOrder {
         CMU_ORD_RELEASE => MemoryOrder::Release,
         CMU_ORD_ACQ_REL => MemoryOrder::AcqRel,
         CMU_ORD_SEQ_CST => MemoryOrder::SeqCst,
-        _ => panic!("invalid CMuMemOrd flag: {}", order)
+        _ => panic!("invalid CMuMemOrd flag: {}", order),
     }
 }

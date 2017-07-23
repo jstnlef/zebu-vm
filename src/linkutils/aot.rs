@@ -51,7 +51,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         trace!("copying from {:?} to {:?}", source, dest);
         match fs::copy(source.as_path(), dest.as_path()) {
             Ok(_) => {}
-            Err(e) => panic!("failed to copy: {}", e)
+            Err(e) => panic!("failed to copy: {}", e),
         }
 
         // include the primordial C main
@@ -74,7 +74,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         files,
         &vm.vm_options.flag_bootimage_external_lib,
         &vm.vm_options.flag_bootimage_external_libpath,
-        out_path
+        out_path,
     )
 }
 
@@ -83,7 +83,7 @@ fn link_executable_internal(
     files: Vec<PathBuf>,
     lib: &Vec<String>,
     libpath: &Vec<String>,
-    out: PathBuf
+    out: PathBuf,
 ) -> PathBuf {
     info!("output as {:?}", out.as_path());
 
@@ -135,7 +135,7 @@ pub fn link_dylib_with_extra_srcs(
     funcs: Vec<MuName>,
     srcs: Vec<String>,
     out: &str,
-    vm: &VM
+    vm: &VM,
 ) -> PathBuf {
     let files = {
         let mut ret = vec![];
@@ -160,7 +160,7 @@ pub fn link_dylib_with_extra_srcs(
         files,
         &vm.vm_options.flag_bootimage_external_lib,
         &vm.vm_options.flag_bootimage_external_libpath,
-        out_path
+        out_path,
     )
 }
 
@@ -169,7 +169,7 @@ fn link_dylib_internal(
     files: Vec<PathBuf>,
     lib: &Vec<String>,
     libpath: &Vec<String>,
-    out: PathBuf
+    out: PathBuf,
 ) -> PathBuf {
     let mut object_files: Vec<PathBuf> = vec![];
 
@@ -243,7 +243,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
         let funcs = vm.funcs().read().unwrap();
         let func = match funcs.get(&func_id) {
             Some(func) => func.read().unwrap(),
-            None => panic!("cannot find function {}", fnc_name)
+            None => panic!("cannot find function {}", fnc_name),
         };
 
         let cur_ver = match func.cur_ver {
@@ -259,7 +259,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
         let func_vers = vm.func_vers().read().unwrap();
         let mut func_ver = match func_vers.get(&cur_ver) {
             Some(fv) => fv.write().unwrap(),
-            None => panic!("cannot find function version {}", cur_ver)
+            None => panic!("cannot find function version {}", cur_ver),
         };
         compiler.compile(&mut func_ver);
     }
@@ -276,7 +276,7 @@ pub fn compile_fnc<'a>(fnc_name: &'static str, build_fnc: &'a Fn() -> VM) -> ll:
 pub fn compile_fncs<'a>(
     entry: &'static str,
     fnc_names: Vec<&'static str>,
-    build_fnc: &'a Fn() -> VM
+    build_fnc: &'a Fn() -> VM,
 ) -> ll::Library {
     VM::start_logging_trace();
 
