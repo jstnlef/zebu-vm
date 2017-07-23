@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,7 +32,13 @@ pub struct AliveEntries {
 impl fmt::Display for AliveEntries {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{} entries", self.inner.len()).unwrap();
-        writeln!(f, "| {:20} | {:20} | {:20} |", "ssa", "registers", "stack slots").unwrap();
+        writeln!(
+            f,
+            "| {:20} | {:20} | {:20} |",
+            "ssa",
+            "registers",
+            "stack slots"
+        ).unwrap();
         for entry in self.inner.values() {
             writeln!(f, "{}", entry).unwrap()
         }
@@ -144,8 +150,8 @@ impl AliveEntries {
 
         let id = self.new_index();
         let entry = RegisterEntry {
-            temp : None,
-            real : vec![reg],
+            temp: None,
+            real: vec![reg],
             stack: vec![]
         };
 
@@ -157,8 +163,8 @@ impl AliveEntries {
 
         let id = self.new_index();
         let entry = RegisterEntry {
-            temp : None,
-            real : vec![],
+            temp: None,
+            real: vec![],
             stack: vec![mem]
         };
 
@@ -277,7 +283,7 @@ impl AliveEntries {
     }
 
     pub fn preserve_list(&mut self, list: &Vec<MuID>) {
-        let mut indices_to_delete : Vec<EntryID> = vec![];
+        let mut indices_to_delete: Vec<EntryID> = vec![];
 
         for (index, entry) in self.inner.iter() {
             if !entry.has_temp() {
@@ -295,7 +301,7 @@ impl AliveEntries {
         }
 
         // always preserve entries with spill location
-        let mut indices_to_really_delete : Vec<EntryID> = vec![];
+        let mut indices_to_really_delete: Vec<EntryID> = vec![];
         for index in indices_to_delete {
             let entry = self.inner.get(&index).unwrap();
 
@@ -313,9 +319,9 @@ impl AliveEntries {
 
 #[derive(Clone)]
 pub struct RegisterEntry {
-    temp  : Option<MuID>,
-    real  : Vec<MuID>,
-    stack : Vec<P<Value>>
+    temp: Option<MuID>,
+    real: Vec<MuID>,
+    stack: Vec<P<Value>>
 }
 
 impl RegisterEntry {
@@ -383,8 +389,9 @@ impl RegisterEntry {
     // two entries can intersect only when they have the same temp, or they do not have temps
     pub fn intersect(&mut self, another: &Self) -> bool {
         assert!(
-            (!self.has_temp() && !another.has_temp()
-            || (self.has_temp() && another.has_temp() && self.get_temp().unwrap() == another.get_temp().unwrap()))
+            (!self.has_temp() && !another.has_temp() ||
+                 (self.has_temp() && another.has_temp() &&
+                      self.get_temp().unwrap() == another.get_temp().unwrap()))
         );
 
         let mut changed = false;
@@ -407,7 +414,7 @@ impl fmt::Display for RegisterEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let temp = match self.temp {
             Some(id) => format!("{}", id),
-            None     => "_".to_string()
+            None => "_".to_string()
         };
 
         let real = format!("{:?}", self.real);

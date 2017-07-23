@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -46,20 +46,26 @@ pub mod exception;
 //        that starts before function_addr (instead we want the nearest function symbol)
 pub fn get_function_info(function_addr: Address) -> (CName, Address) {
     // dladdr will initialise this for us
-    let mut info = unsafe{std::mem::uninitialized::<Dl_info>()};
+    let mut info = unsafe { std::mem::uninitialized::<Dl_info>() };
 
-    unsafe {dladdr(function_addr.to_ptr_mut::<c_void>(), &mut info)};
+    unsafe { dladdr(function_addr.to_ptr_mut::<c_void>(), &mut info) };
 
-    let error = unsafe {dlerror()};
+    let error = unsafe { dlerror() };
     if !error.is_null() {
-        let cstr = unsafe {CStr::from_ptr(error)};
+        let cstr = unsafe { CStr::from_ptr(error) };
         error!("cannot find function address: {}", function_addr);
         error!("{}", cstr.to_str().unwrap());
 
         panic!("failed to resolve function address");
     }
     if !info.dli_sname.is_null() {
-        (unsafe {CStr::from_ptr(info.dli_sname)}.to_str().unwrap().to_string(), Address::from_ptr(info.dli_saddr))
+        (
+            unsafe { CStr::from_ptr(info.dli_sname) }
+                .to_str()
+                .unwrap()
+                .to_string(),
+            Address::from_ptr(info.dli_saddr)
+        )
     } else {
         ("UNKOWN".to_string(), Address::from_ptr(info.dli_saddr))
     }
@@ -72,16 +78,20 @@ pub fn resolve_symbol(symbol: MuName) -> Address {
     use std::ptr;
 
     let c_symbol = CString::new(mangle_name(symbol.clone())).unwrap();
-    
-    let rtld_default = unsafe {dlopen(ptr::null(), 0)};
-    let ret = unsafe {dlsym(rtld_default, c_symbol.as_ptr())};
 
-    let error = unsafe {dlerror()};
+    let rtld_default = unsafe { dlopen(ptr::null(), 0) };
+    let ret = unsafe { dlsym(rtld_default, c_symbol.as_ptr()) };
+
+    let error = unsafe { dlerror() };
     if !error.is_null() {
-        let cstr = unsafe {CStr::from_ptr(error)};
-        panic!("failed to resolve symbol: {} ({})", symbol, cstr.to_str().unwrap());
+        let cstr = unsafe { CStr::from_ptr(error) };
+        panic!(
+            "failed to resolve symbol: {} ({})",
+            symbol,
+            cstr.to_str().unwrap()
+        );
     }
-    
+
     Address::from_ptr(ret)
 }
 
@@ -98,10 +108,10 @@ pub fn resolve_symbol(symbol: MuName) -> Address {
 pub enum ValueLocation {
     Register(RegGroup, MuID),
     Constant(RegGroup, Word),
-    Relocatable(RegGroup, MuName),// TODO: This only works for mu entities (add a flag to indicate if its native or have a different variant?)
-    
-    Direct(RegGroup, Address),    // Not dumped
-    Indirect(RegGroup, Address),  // Not dumped
+    Relocatable(RegGroup, MuName), // TODO: This only works for mu entities (add a flag to indicate if its native or have a different variant?)
+
+    Direct(RegGroup, Address),   // Not dumped
+    Indirect(RegGroup, Address)  // Not dumped
 }
 
 rodal_enum!(ValueLocation{(Register: group, id), (Constant: group, word), (Relocatable: group, name)});
@@ -122,22 +132,16 @@ impl ValueLocation {
     /// loads value from a ValueLocation
     pub fn load_value(&self) -> (RegGroup, Word) {
         match self {
-            &ValueLocation::Register(_, _)        => unimplemented!(),
-            &ValueLocation::Direct(group, addr)   => {
-                (group, unsafe {addr.load::<Word>()})
-            }
-            &ValueLocation::Indirect(group, addr) => {
-                unsafe {
-                    let ptr = addr.load::<Address>();
-                    (group, ptr.load::<Word>())
-                }
-            }
-            &ValueLocation::Constant(group, word) => {
-                (group, word)
-            }
+            &ValueLocation::Register(_, _) => unimplemented!(),
+            &ValueLocation::Direct(group, addr) => (group, unsafe { addr.load::<Word>() }),
+            &ValueLocation::Indirect(group, addr) => unsafe {
+                let ptr = addr.load::<Address>();
+                (group, ptr.load::<Word>())
+            },
+            &ValueLocation::Constant(group, word) => (group, word),
             &ValueLocation::Relocatable(group, ref symbol) => {
                 let addr = resolve_symbol(symbol.clone());
-                (group, unsafe {addr.load::<Word>()})
+                (group, unsafe { addr.load::<Word>() })
             }
         }
     }
@@ -145,9 +149,15 @@ impl ValueLocation {
     /// creates a ValueLocation from a constant, panics if impossible
     pub fn from_constant(c: Constant) -> ValueLocation {
         match c {
-            Constant::Int(int_val)    => ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val)),
-            Constant::Float(f32_val)  => ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val)),
-            Constant::Double(f64_val) => ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val)),
+            Constant::Int(int_val) => {
+                ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val))
+            }
+            Constant::Float(f32_val) => {
+                ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val))
+            }
+            Constant::Double(f64_val) => {
+                ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val))
+            }
             _ => unimplemented!()
         }
     }
@@ -155,11 +165,12 @@ impl ValueLocation {
     /// returns the address that contains the value
     pub fn to_address(&self) -> Address {
         match self {
-            &ValueLocation::Direct(_, addr)   => addr,
-            &ValueLocation::Indirect(_, addr) => unsafe {addr.load::<Address>()},
+            &ValueLocation::Direct(_, addr) => addr,
+            &ValueLocation::Indirect(_, addr) => unsafe { addr.load::<Address>() },
             &ValueLocation::Relocatable(_, ref symbol) => resolve_symbol(symbol.clone()),
-            &ValueLocation::Register(_, _)
-            | &ValueLocation::Constant(_, _)  => panic!("a register/constant cannot be turned into address")
+            &ValueLocation::Register(_, _) | &ValueLocation::Constant(_, _) => {
+                panic!("a register/constant cannot be turned into address")
+            }
         }
     }
 
@@ -177,11 +188,11 @@ impl ValueLocation {
 /// 1. loads the persisted VM
 /// 2. invokes mu_main() to hand the control to Rust code
 /// 3. returns the return value set by SetRetval
-pub const PRIMORDIAL_ENTRY : &'static str = "src/runtime/main.c";
+pub const PRIMORDIAL_ENTRY: &'static str = "src/runtime/main.c";
 
 /// starts trace level logging, this function will be called from C
 #[no_mangle]
-pub extern fn mu_trace_level_log() {
+pub extern "C" fn mu_trace_level_log() {
     VM::start_logging_trace();
 }
 
@@ -190,12 +201,22 @@ pub static mut LAST_TIME: c_ulong = 0;
 
 /// the main function for executable boot image, this function will be called from C
 #[no_mangle]
-pub extern fn mu_main(edata: *const(), dumped_vm : *mut Arc<VM>, argc: c_int, argv: *const *const c_char) {
+pub extern "C" fn mu_main(
+    edata: *const (),
+    dumped_vm: *mut Arc<VM>,
+    argc: c_int,
+    argv: *const *const c_char
+) {
     VM::start_logging_env();
     debug!("mu_main() started...");
 
     // load and resume the VM
-    unsafe{rodal::load_asm_bounds(rodal::Address::from_ptr(dumped_vm), rodal::Address::from_ptr(edata))};
+    unsafe {
+        rodal::load_asm_bounds(
+            rodal::Address::from_ptr(dumped_vm),
+            rodal::Address::from_ptr(edata)
+        )
+    };
     let vm = VM::resume_vm(dumped_vm);
     // find the primordial function as an entry
     let primordial = vm.primordial.read().unwrap();
@@ -203,14 +224,18 @@ pub extern fn mu_main(edata: *const(), dumped_vm : *mut Arc<VM>, argc: c_int, ar
         panic!("no primordial thread/stack/function. Client should provide an entry point");
     } else {
         let primordial = primordial.as_ref().unwrap();
-        
+
         // create mu stack
         let stack = vm.new_stack(primordial.func_id);
 
         // if the primordial named some const arguments, we use the const args
         // otherwise we push 'argc' and 'argv' to new stack
-        let args : Vec<ValueLocation> = if primordial.has_const_args {
-            primordial.args.iter().map(|arg| ValueLocation::from_constant(arg.clone())).collect()
+        let args: Vec<ValueLocation> = if primordial.has_const_args {
+            primordial
+                .args
+                .iter()
+                .map(|arg| ValueLocation::from_constant(arg.clone()))
+                .collect()
         } else {
             let mut args = vec![];
 
@@ -222,21 +247,26 @@ pub extern fn mu_main(edata: *const(), dumped_vm : *mut Arc<VM>, argc: c_int, ar
 
             args
         };
-        
+
         // FIXME: currently assumes no user defined thread local - See Issue #48
-        let thread = thread::MuThread::new_thread_normal(stack, unsafe{Address::zero()}, args, vm.clone());
-        
+        let thread = thread::MuThread::new_thread_normal(
+            stack,
+            unsafe { Address::zero() },
+            args,
+            vm.clone()
+        );
+
         thread.join().unwrap();
     }
 }
 
 /// runtime function to print a hex value (for PRINTHEX instruction for debugging use)
 #[no_mangle]
-pub extern fn muentry_print_hex(x: u64) {
+pub extern "C" fn muentry_print_hex(x: u64) {
     println!("PRINTHEX: 0x{:x}", x);
 }
 
 #[no_mangle]
-pub unsafe extern fn muentry_mem_zero(dest: *mut u8, size: usize) {
+pub unsafe extern "C" fn muentry_mem_zero(dest: *mut u8, size: usize) {
     std::ptr::write_bytes(dest, 0, size);
 }

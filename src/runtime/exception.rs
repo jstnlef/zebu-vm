@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -38,7 +38,7 @@ use runtime::*;
 /// (and are accessed by get/set_return_address and get/set_previous_frame and may be passed
 /// real frame pointers or the frame cursor)
 #[no_mangle]
-pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Address) -> !  {
+pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor: Address) -> ! {
     trace!("throwing exception: {}", exception_obj);
 
     if cfg!(debug_assertions) {
@@ -77,9 +77,11 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
                 if table_entry.is_none() {
                     // we are not dealing with native frames for unwinding stack
                     // See Issue #42
-                    error!("Cannot find Mu callsite (i.e. we have reached a native frame), \
-                        either there isn't a catch block to catch the exception or \
-                        your catch block is above a native function call");
+                    error!(
+                        "Cannot find Mu callsite (i.e. we have reached a native frame), \
+                         either there isn't a catch block to catch the exception or \
+                         your catch block is above a native function call"
+                    );
                     // This function may segfault
                     print_backtrace(frame_cursor, compiled_callsite_table.deref());
                     panic!("Uncaught Mu Exception");
@@ -91,7 +93,10 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
             if callsite_info.exceptional_destination.is_some() {
                 catch_address = callsite_info.exceptional_destination.unwrap();
                 trace!("Found catch block: 0x{:x}", catch_address);
-                sp = get_previous_stack_pointer(current_frame_pointer, callsite_info.stack_args_size);
+                sp = get_previous_stack_pointer(
+                    current_frame_pointer,
+                    callsite_info.stack_args_size
+                );
                 trace!("\tRestoring SP to: 0x{:x}", sp);
 
                 if cfg!(debug_assertions) {
@@ -122,18 +127,26 @@ pub extern fn throw_exception_internal(exception_obj: Address, frame_cursor: Add
         }
     }
     // The above loop will only exit when a catch block is found, so restore to it
-    unsafe { thread::exception_restore(catch_address, frame_cursor.to_ptr(), sp); }
+    unsafe {
+        thread::exception_restore(catch_address, frame_cursor.to_ptr(), sp);
+    }
 }
 
 /// prints current frame cursor
 fn print_frame(cursor: Address) {
     let top = 2;
     let bottom = -(CALLEE_SAVED_COUNT as isize);
-    for i in (bottom .. top).rev() {
+    for i in (bottom..top).rev() {
         unsafe {
             let addr = cursor + (i * POINTER_SIZE as isize);
-            let val  = addr.load::<Word>();
-            trace!("\taddr: 0x{:x} | val: 0x{:x} {}", addr, val, {if addr == cursor {"<- cursor"} else {""}});
+            let val = addr.load::<Word>();
+            trace!("\taddr: 0x{:x} | val: 0x{:x} {}", addr, val, {
+                if addr == cursor {
+                    "<- cursor"
+                } else {
+                    ""
+                }
+            });
         }
 
     }
@@ -155,15 +168,34 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
         let callsite = get_return_address(frame_pointer);
 
         if compiled_callsite_table.contains_key(&callsite) {
-            let function_version = compiled_callsite_table.get(&callsite).unwrap().function_version;
-            let compiled_func = compiled_funcs.get(&function_version).unwrap().read().unwrap();
+            let function_version = compiled_callsite_table
+                .get(&callsite)
+                .unwrap()
+                .function_version;
+            let compiled_func = compiled_funcs
+                .get(&function_version)
+                .unwrap()
+                .read()
+                .unwrap();
 
-            error!("\tframe {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}", frame_count,
-            compiled_func.start.to_address(), vm.name_of(compiled_func.func_id),
-            compiled_func.func_id, compiled_func.func_ver_id, callsite);
+            error!(
+                "\tframe {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}",
+                frame_count,
+                compiled_func.start.to_address(),
+                vm.name_of(compiled_func.func_id),
+                compiled_func.func_id,
+                compiled_func.func_ver_id,
+                callsite
+            );
         } else {
             let (func_name, func_start) = get_function_info(callsite);
-            error!("\tframe {:2}: 0x{:x} - {} at 0x{:x}", frame_count, func_start, func_name, callsite);
+            error!(
+                "\tframe {:2}: 0x{:x} - {} at 0x{:x}",
+                frame_count,
+                func_start,
+                func_name,
+                callsite
+            );
         }
 
         frame_pointer = get_previous_frame_pointer(frame_pointer);

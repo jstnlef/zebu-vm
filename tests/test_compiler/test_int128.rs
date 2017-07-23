@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,7 +31,8 @@ fn test_add_u128() {
     unsafe {
         use std::u64;
 
-        let add_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"add_u128").unwrap();
+        let add_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
+            lib.get(b"add_u128").unwrap();
 
         let res = add_u128(1, 0, 1, 0);
         println!("add_u128(1, 1) = {:?}", res);
@@ -82,7 +83,8 @@ fn test_sub_u128() {
     unsafe {
         use std::u64;
 
-        let sub_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"sub_u128").unwrap();
+        let sub_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
+            lib.get(b"sub_u128").unwrap();
 
         let res = sub_u128(1, 0, 1, 0);
         println!("sub_u128(1, 1) = {:?}", res);
@@ -132,7 +134,8 @@ fn test_add_const_u128() {
     unsafe {
         use std::u64;
 
-        let add_const_u128 : libloading::Symbol<unsafe extern fn(u64, u64) -> (u64, u64)> = lib.get(b"add_const_u128").unwrap();
+        let add_const_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> (u64, u64)> =
+            lib.get(b"add_const_u128").unwrap();
 
         let res = add_const_u128(1, 0);
         println!("add_const_u128(1, 1) = {:?}", res);
@@ -185,7 +188,8 @@ fn test_mul_u128() {
     unsafe {
         use std::u64;
 
-        let mul_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"mul_u128").unwrap();
+        let mul_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
+            lib.get(b"mul_u128").unwrap();
 
         let res = mul_u128(6, 0, 7, 0);
         println!("mul_u128(6, 7) = {:?}", res);
@@ -229,7 +233,8 @@ fn mul_u128() -> VM {
     vm
 }
 
-#[ignore]   // this test uses runtime function, should run it as bootimage
+#[ignore]
+// this test uses runtime function, should run it as bootimage
 #[test]
 fn test_udiv_u128() {
     let lib = linkutils::aot::compile_fnc("udiv_u128", &udiv_u128);
@@ -291,7 +296,8 @@ fn test_shl_u128() {
     let lib = linkutils::aot::compile_fnc("shl_u128", &shl_u128);
 
     unsafe {
-        let shl_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"shl_u128").unwrap();
+        let shl_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> (u64, u64)> =
+            lib.get(b"shl_u128").unwrap();
 
         let res = shl_u128(1, 0, 64, 0);
         println!("shl_u128(1, 64) = {:?}", res);
@@ -496,7 +502,8 @@ fn test_ugt_u128() {
     let lib = linkutils::aot::compile_fnc("ugt_u128", &ugt_u128);
 
     unsafe {
-        let ugt_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> u64> = lib.get(b"ugt_u128").unwrap();
+        let ugt_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> u64> =
+            lib.get(b"ugt_u128").unwrap();
 
         let res = ugt_u128(1, 0, 2, 0);
         println!("ugt_u128(1, 0, 2, 0) = {:?}", res);
@@ -589,7 +596,8 @@ fn test_sgt_i128() {
     unsafe {
         use self::extprim::i128::i128;
 
-        let sgt_i128 : libloading::Symbol<unsafe extern fn(i128, i128) -> u64> = lib.get(b"sgt_i128").unwrap();
+        let sgt_i128: libloading::Symbol<unsafe extern "C" fn(i128, i128) -> u64> =
+            lib.get(b"sgt_i128").unwrap();
 
         let res = sgt_i128(i128::new(1i64), i128::new(2i64));
         println!("sgt_i128(1, 2) = {:?}", res);
@@ -676,7 +684,8 @@ fn test_ult_u128() {
     let lib = linkutils::aot::compile_fnc("ult_u128", &ult_u128);
 
     unsafe {
-        let ult_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> u64> = lib.get(b"ult_u128").unwrap();
+        let ult_u128: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64, u64) -> u64> =
+            lib.get(b"ult_u128").unwrap();
 
         let res = ult_u128(1, 0, 2, 0);
         println!("ult_u128(1, 0, 2, 0) = {:?}", res);
@@ -769,7 +778,8 @@ fn test_slt_i128() {
     unsafe {
         use self::extprim::i128::i128;
 
-        let slt_i128 : libloading::Symbol<unsafe extern fn(i128, i128) -> u64> = lib.get(b"slt_i128").unwrap();
+        let slt_i128: libloading::Symbol<unsafe extern "C" fn(i128, i128) -> u64> =
+            lib.get(b"slt_i128").unwrap();
 
         let res = slt_i128(i128::new(1i64), i128::new(2i64));
         println!("slt_i128(1, 2) = {:?}", res);

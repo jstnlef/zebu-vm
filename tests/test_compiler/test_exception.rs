@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -34,33 +34,45 @@ use std::sync::Arc;
 fn test_exception_throw_catch_simple() {
     VM::start_logging_trace();
     let vm = Arc::new(throw_catch_simple());
-    
+
     let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-    
+
     let func_throw = vm.id_of("throw_exception");
-    let func_catch = vm.id_of("catch_exception");    
+    let func_catch = vm.id_of("catch_exception");
     {
         let funcs = vm.funcs().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        
+
         {
             let func = funcs.get(&func_throw).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-    
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
+
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_catch).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-    
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
+
             compiler.compile(&mut func_ver);
         }
     }
-    
+
     vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
-    
-    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
+
+    let executable = aot::link_primordial(
+        vec![Mu("throw_exception"), Mu("catch_exception")],
+        "throw_catch_simple_test",
+        &vm
+    );
     linkutils::exec_path(executable);
 }
 
@@ -75,16 +87,16 @@ fn declare_commons(vm: &VM) {
 
 fn throw_catch_simple() -> VM {
     let vm = VM::new();
-    
+
     declare_commons(&vm);
-    
+
     create_throw_exception_func(&vm);
     create_catch_exception_func(&vm, true);
-    
+
     vm
 }
 
-fn create_catch_exception_func (vm: &VM, use_exception_arg: bool) {
+fn create_catch_exception_func(vm: &VM, use_exception_arg: bool) {
     // .typedef @funcref_throw_exception <@throw_exception_sig>
     let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
     let throw_exception_id = vm.id_of("throw_exception");
@@ -95,7 +107,7 @@ fn create_catch_exception_func (vm: &VM, use_exception_arg: bool) {
     funcsig!        ((vm) catch_exception_sig = () -> ());
     funcdecl!       ((vm) <catch_exception_sig> catch_exception);
     funcdef!        ((vm) <catch_exception_sig> catch_exception VERSION catch_exception_v1);
-    
+
     // %blk_0():
     block!          ((vm, catch_exception_v1) blk_0);
 
@@ -112,7 +124,7 @@ fn create_catch_exception_func (vm: &VM, use_exception_arg: bool) {
     define_block!   ((vm, catch_exception_v1) blk_0() {
         blk_0_term
     });
-    
+
     // %blk_normal_cont():
     inst!           ((vm, catch_exception_v1) blk_normal_cont_threadexit:
         THREADEXIT
@@ -121,7 +133,7 @@ fn create_catch_exception_func (vm: &VM, use_exception_arg: bool) {
     define_block!   ((vm, catch_exception_v1) blk_normal_cont() {
         blk_normal_cont_threadexit
     });
-    
+
     // %blk_exn_cont() %EXN:
     let ref_int64 = vm.get_type(vm.id_of("ref_int64"));
     ssa!            ((vm, catch_exception_v1) <ref_int64> exn_arg);
@@ -144,7 +156,7 @@ fn create_catch_exception_func (vm: &VM, use_exception_arg: bool) {
     });
 }
 
-fn create_throw_exception_func (vm: &VM) {
+fn create_throw_exception_func(vm: &VM) {
     let int64 = vm.get_type(vm.id_of("int64"));
     let ref_int64 = vm.get_type(vm.id_of("ref_int64"));
     let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
@@ -152,10 +164,10 @@ fn create_throw_exception_func (vm: &VM) {
     funcsig!    ((vm) throw_exception_sig = () -> ());
     funcdecl!   ((vm) <throw_exception_sig> throw_exception);
     funcdef!    ((vm) <throw_exception_sig> throw_exception VERSION throw_exception_v1);
-    
+
     // %blk_0():
     block!      ((vm, throw_exception_v1) blk_0);
-    
+
     // %exception_obj = NEW <@int64>
     ssa!        ((vm, throw_exception_v1) <ref_int64> exception_obj);
     inst!       ((vm, throw_exception_v1) blk_0_new:
@@ -167,7 +179,7 @@ fn create_throw_exception_func (vm: &VM) {
     inst!       ((vm, throw_exception_v1) blk_0_getiref:
         exception_obj_iref = GETIREF exception_obj
     );
-    
+
     // STORE <@int64> %exception_obj_iref @int64_1
     let const_int64_1 = vm.get_const(vm.id_of("int64_1"));
     consta!     ((vm, throw_exception_v1) int64_1_local = const_int64_1);
@@ -207,13 +219,21 @@ fn test_exception_throw_catch_dont_use_exception_arg() {
 
         {
             let func = funcs.get(&func_throw).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_catch).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -222,7 +242,11 @@ fn test_exception_throw_catch_dont_use_exception_arg() {
     vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_exception")], "throw_catch_simple_test", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("throw_exception"), Mu("catch_exception")],
+        "throw_catch_simple_test",
+        &vm
+    );
     linkutils::exec_path(executable);
 }
 
@@ -252,13 +276,21 @@ fn test_exception_throw_catch_and_add() {
 
         {
             let func = funcs.get(&func_throw).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_catch).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -267,7 +299,11 @@ fn test_exception_throw_catch_and_add() {
     vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_and_add")], "throw_catch_and_add", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("throw_exception"), Mu("catch_and_add")],
+        "throw_catch_and_add",
+        &vm
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // throw 1, add 0, 1, 2, 3, 4
@@ -361,7 +397,7 @@ fn create_catch_exception_and_add(vm: &VM) {
     ssa!        ((vm, catch_and_add_v1) <int64> ev2);
     ssa!        ((vm, catch_and_add_v1) <int64> ev3);
     ssa!        ((vm, catch_and_add_v1) <int64> ev4);
-    let ref_int64  = vm.get_type(vm.id_of("ref_int64"));
+    let ref_int64 = vm.get_type(vm.id_of("ref_int64"));
     let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
     ssa!        ((vm, catch_and_add_v1) <ref_int64> exc_arg);
 
@@ -465,13 +501,21 @@ fn test_exception_throw_catch_twice() {
 
         {
             let func = funcs.get(&func_throw).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
             let func = funcs.get(&func_catch).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -480,7 +524,11 @@ fn test_exception_throw_catch_twice() {
     vm.set_primordial_thread(func_catch, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("throw_exception"), Mu("catch_twice")], "throw_catch_twice", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("throw_exception"), Mu("catch_twice")],
+        "throw_catch_twice",
+        &vm
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // throw 1 twice, add 1 and 1 (equals 2)
@@ -501,11 +549,11 @@ fn throw_catch_twice() -> VM {
 
 fn create_catch_twice(vm: &VM) {
     let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
-    let throw_exception_id  = vm.id_of("throw_exception");
+    let throw_exception_id = vm.id_of("throw_exception");
 
-    let ref_int64  = vm.get_type(vm.id_of("ref_int64"));
+    let ref_int64 = vm.get_type(vm.id_of("ref_int64"));
     let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
-    let int64      = vm.get_type(vm.id_of("int64"));
+    let int64 = vm.get_type(vm.id_of("int64"));
 
     typedef!    ((vm) type_funcref_throw_exception = mu_funcref(throw_exception_sig));
     constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception = Constant::FuncRef(throw_exception_id));

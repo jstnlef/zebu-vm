@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -34,13 +34,13 @@ pub struct CompiledFunction {
 
     /// a map between temporaries and their assigned machine registers
     // FIXME: assumes one temporary maps to one register
-    pub temps : HashMap<MuID, MuID>,
+    pub temps: HashMap<MuID, MuID>,
 
     /// constants used in this function
     pub consts: HashMap<MuID, P<Value>>,
     /// if the constants needs to be put in memory, this stores their location
     pub const_mem: HashMap<MuID, P<Value>>,
-    
+
     /// the machine code representation
     /// when making boot image, this field does not get persisted
     pub mc: Option<Box<MachineCode + Send + Sync>>,
@@ -69,13 +69,20 @@ unsafe impl rodal::Dump for CompiledFunction {
 
 impl CompiledFunction {
     /// creates a new compiled function
-    pub fn new(func_id: MuID, fv_id: MuID, mc: Box<MachineCode + Send + Sync>,
-               constants: HashMap<MuID, P<Value>>, constant_locs: HashMap<MuID, P<Value>>,
-               frame: Frame, start_loc: ValueLocation, end_loc: ValueLocation) -> CompiledFunction {
+    pub fn new(
+        func_id: MuID,
+        fv_id: MuID,
+        mc: Box<MachineCode + Send + Sync>,
+        constants: HashMap<MuID, P<Value>>,
+        constant_locs: HashMap<MuID, P<Value>>,
+        frame: Frame,
+        start_loc: ValueLocation,
+        end_loc: ValueLocation
+    ) -> CompiledFunction {
         CompiledFunction {
             func_id: func_id,
             func_ver_id: fv_id,
-            temps:  HashMap::new(),
+            temps: HashMap::new(),
             consts: constants,
             const_mem: constant_locs,
             mc: Some(mc),
@@ -89,9 +96,13 @@ impl CompiledFunction {
     pub fn mc(&self) -> &Box<MachineCode + Send + Sync> {
         match self.mc {
             Some(ref mc) => mc,
-            None => panic!("trying to get mc from a compiled function. 
+            None => {
+                panic!(
+                    "trying to get mc from a compiled function. 
                 But machine code is None (probably this compiled function is restored from
-                boot image and mc is thrown away)")
+                boot image and mc is thrown away)"
+                )
+            }
         }
     }
 
@@ -112,7 +123,11 @@ pub struct CompiledCallsite {
     pub function_version: MuID
 }
 impl CompiledCallsite {
-    pub fn new(callsite: &Callsite, fv: MuID, callee_saved_registers: Arc<HashMap<isize, isize>>) -> CompiledCallsite {
+    pub fn new(
+        callsite: &Callsite,
+        fv: MuID,
+        callee_saved_registers: Arc<HashMap<isize, isize>>
+    ) -> CompiledCallsite {
         CompiledCallsite {
             exceptional_destination: match &callsite.exception_destination {
                 &Some(ref name) => Some(resolve_symbol(name.clone())),
@@ -120,7 +135,7 @@ impl CompiledCallsite {
             },
             stack_args_size: callsite.stack_arg_size,
             callee_saved_registers: callee_saved_registers,
-            function_version: fv,
+            function_version: fv
         }
     }
 }

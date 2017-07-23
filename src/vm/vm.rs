@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -64,31 +64,31 @@ use utils::bit_utils::{bits_ones, u64_asr};
 //  ir crate should be independent and self-contained. But when persisting the 'world',
 //  besides persisting VM struct (containing most of the 'world'), we also need to
 //  specifically persist those globals.
-pub struct VM { // The comments are the offset into the struct
+pub struct VM {
+    // The comments are the offset into the struct
     // ---serialize---
-
     /// next MuID to assign
-    next_id: AtomicUsize,                                       // +0
+    next_id: AtomicUsize, // +0
     /// a map from MuID to MuName (for client to query)
-    id_name_map: RwLock<HashMap<MuID, MuName>>,                 // +8
+    id_name_map: RwLock<HashMap<MuID, MuName>>, // +8
     /// a map from MuName to ID (for client to query)
-    name_id_map: RwLock<HashMap<MuName, MuID>>,                 // +64
+    name_id_map: RwLock<HashMap<MuName, MuID>>, // +64
     /// types declared to the VM
-    types: RwLock<HashMap<MuID, P<MuType>>>,                    // +120
+    types: RwLock<HashMap<MuID, P<MuType>>>, // +120
     /// types that are resolved as BackendType
     backend_type_info: RwLock<HashMap<MuID, Box<BackendType>>>, // +176
     /// constants declared to the VM
-    constants: RwLock<HashMap<MuID, P<Value>>>,                 // +232
+    constants: RwLock<HashMap<MuID, P<Value>>>, // +232
     /// globals declared to the VM
-    globals: RwLock<HashMap<MuID, P<Value>>>,                   // +288
+    globals: RwLock<HashMap<MuID, P<Value>>>, // +288
     /// function signatures declared
-    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,             // +400
+    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>, // +400
     /// functions declared to the VM
-    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,           // +456
+    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>, // +456
     /// primordial function that is set to make boot image
-    pub primordial: RwLock<Option<PrimordialThreadInfo>>,       // +568
+    pub primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
     /// current options for this VM
-    pub vm_options: VMOptions,                                  // +624
+    pub vm_options: VMOptions, // +624
 
     // ---partially serialize---
     /// compiled functions
@@ -117,11 +117,11 @@ pub struct VM { // The comments are the offset into the struct
     pub compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
 
     /// Nnmber of callsites in the callsite tables
-    pub callsite_count: AtomicUsize,
+    pub callsite_count: AtomicUsize
 }
 
 unsafe impl rodal::Dump for VM {
-    fn dump<D: ? Sized + rodal::Dumper>(&self, dumper: &mut D) {
+    fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
         dumper.debug_record("VM", "dump");
 
         dumper.dump_object(&self.next_id);
@@ -140,17 +140,25 @@ unsafe impl rodal::Dump for VM {
 
         // Dump empty maps so that we can safely read and modify them once loaded
         dumper.dump_padding(&self.global_locations);
-        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<MuID, ValueLocation>::new()));
+        dumper.dump_object_here(&RwLock::new(
+            rodal::EmptyHashMap::<MuID, ValueLocation>::new()
+        ));
 
         dumper.dump_padding(&self.func_vers);
-        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<MuID, RwLock<MuFunctionVersion>>::new()));
+        dumper.dump_object_here(&RwLock::new(
+            rodal::EmptyHashMap::<MuID, RwLock<MuFunctionVersion>>::new()
+        ));
 
         dumper.dump_padding(&self.aot_pending_funcref_store);
-        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, ValueLocation>::new()));
+        dumper.dump_object_here(&RwLock::new(
+            rodal::EmptyHashMap::<Address, ValueLocation>::new()
+        ));
 
         // Dump an emepty hashmap for the other hashmaps
         dumper.dump_padding(&self.compiled_callsite_table);
-        dumper.dump_object_here(&RwLock::new(rodal::EmptyHashMap::<Address, CompiledCallsite>::new()));
+        dumper.dump_object_here(&RwLock::new(
+            rodal::EmptyHashMap::<Address, CompiledCallsite>::new()
+        ));
         dumper.dump_object(&self.callsite_count);
     }
 }
@@ -159,7 +167,7 @@ unsafe impl rodal::Dump for VM {
 //  For AOT scenario, when client tries to store funcref to the heap, the store
 //  happens before we have an actual address for the function so we store a fake
 //  funcref and when generating boot image, we fix the funcref with a relocatable symbol
-const PENDING_FUNCREF : u64 = {
+const PENDING_FUNCREF: u64 = {
     use std::u64;
     u64::MAX
 };
@@ -181,7 +189,7 @@ macro_rules! gen_handle_int {
     }
 }
 
-impl <'a> VM {
+impl<'a> VM {
     /// creates a VM with default options
     pub fn new() -> VM {
         VM::new_internal(VMOptions::default())
@@ -214,7 +222,7 @@ impl <'a> VM {
             primordial: RwLock::new(None),
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_callsite_table: RwLock::new(HashMap::new()),
-            callsite_count: ATOMIC_USIZE_INIT,
+            callsite_count: ATOMIC_USIZE_INIT
         };
 
         // insert all internal types
@@ -242,10 +250,12 @@ impl <'a> VM {
         // init gc
         {
             let ref options = self.vm_options;
-            gc::gc_init(options.flag_gc_immixspace_size,
-                        options.flag_gc_lospace_size,
-                        options.flag_gc_nthreads,
-                        !options.flag_gc_disable_collection);
+            gc::gc_init(
+                options.flag_gc_immixspace_size,
+                options.flag_gc_lospace_size,
+                options.flag_gc_nthreads,
+                !options.flag_gc_disable_collection
+            );
         }
     }
 
@@ -253,10 +263,10 @@ impl <'a> VM {
     fn start_logging(level: MuLogLevel) {
         use std::env;
         match level {
-            MuLogLevel::None  => {},
+            MuLogLevel::None => {}
             MuLogLevel::Error => VM::start_logging_internal(LogLevel::Error),
-            MuLogLevel::Warn  => VM::start_logging_internal(LogLevel::Warn),
-            MuLogLevel::Info  => VM::start_logging_internal(LogLevel::Info),
+            MuLogLevel::Warn => VM::start_logging_internal(LogLevel::Warn),
+            MuLogLevel::Info => VM::start_logging_internal(LogLevel::Info),
             MuLogLevel::Debug => VM::start_logging_internal(LogLevel::Debug),
             MuLogLevel::Trace => VM::start_logging_internal(LogLevel::Trace),
             MuLogLevel::Env => {
@@ -264,7 +274,7 @@ impl <'a> VM {
                     Ok(s) => VM::start_logging(MuLogLevel::from_string(s)),
                     _ => {} // Don't log
                 }
-            },
+            }
         }
     }
 
@@ -285,15 +295,20 @@ impl <'a> VM {
 
         let verbose = match level {
             LogLevel::Error => 0,
-            LogLevel::Warn  => 1,
-            LogLevel::Info  => 2,
+            LogLevel::Warn => 1,
+            LogLevel::Info => 2,
             LogLevel::Debug => 3,
-            LogLevel::Trace => 4,
+            LogLevel::Trace => 4
         };
 
         match stderrlog::new().verbosity(verbose).init() {
-            Ok(()) => info!("logger initialized"),
-            Err(e) => error!("failed to init logger, probably already initialized: {:?}", e)
+            Ok(()) => info!("logger initialized")
+            Err(e) => {
+                error!(
+                    "failed to init logger, probably already initialized: {:?}",
+                    e
+                )
+            }
         }
     }
 
@@ -315,7 +330,7 @@ impl <'a> VM {
     /// persisting it except a few fields that we do not want to persist.
     pub fn resume_vm(dumped_vm: *mut Arc<VM>) -> Arc<VM> {
         // load the vm back
-        let vm = unsafe{rodal::load_asm_pointer_move(dumped_vm)};
+        let vm = unsafe { rodal::load_asm_pointer_move(dumped_vm) };
 
         // initialize runtime
         vm.init_runtime();
@@ -326,7 +341,8 @@ impl <'a> VM {
         // restore gc types
         {
             let type_info_guard = vm.backend_type_info.read().unwrap();
-            let mut type_info_vec: Vec<Box<BackendType>> = type_info_guard.values().map(|x| x.clone()).collect();
+            let mut type_info_vec: Vec<Box<BackendType>> =
+                type_info_guard.values().map(|x| x.clone()).collect();
             type_info_vec.sort_by(|a, b| a.gc_type.id.cmp(&b.gc_type.id));
 
             let mut expect_id = 0;
@@ -373,7 +389,14 @@ impl <'a> VM {
             let compiled_func = compiled_funcs.get(fv).unwrap().read().unwrap();
             let callee_saved_table = Arc::new(compiled_func.frame.callee_saved.clone());
             for callsite in callsite_list.iter() {
-                compiled_callsite_table.insert(resolve_symbol(callsite.name.clone()), CompiledCallsite::new(&callsite, compiled_func.func_ver_id, callee_saved_table.clone()));
+                compiled_callsite_table.insert(
+                    resolve_symbol(callsite.name.clone()),
+                    CompiledCallsite::new(
+                        &callsite,
+                        compiled_func.func_ver_id,
+                        callee_saved_table.clone()
+                    )
+                );
             }
         }
     }
@@ -388,22 +411,22 @@ impl <'a> VM {
 
     /// are we doing AOT compilation? (feature = aot when building Zebu)
     pub fn is_doing_aot(&self) -> bool {
-        return cfg!(feature = "aot")
+        return cfg!(feature = "aot");
     }
 
     /// are we doing JIT compilation? (feature = jit when building Zebu)
     pub fn is_doing_jit(&self) -> bool {
-        return cfg!(feature = "jit")
+        return cfg!(feature = "jit");
     }
 
     /// informs VM about a client-supplied name
     pub fn set_name(&self, entity: &MuEntity) {
         let id = entity.id();
         let name = entity.name();
-        
+
         let mut map = self.id_name_map.write().unwrap();
         map.insert(id, name.clone());
-        
+
         let mut map2 = self.name_id_map.write().unwrap();
         map2.insert(name, id);
     }
@@ -429,16 +452,25 @@ impl <'a> VM {
 
     /// declares a constant
     pub fn declare_const(&self, entity: MuEntityHeader, ty: P<MuType>, val: Constant) -> P<Value> {
-        let ret = P(Value{hdr: entity, ty: ty, v: Value_::Constant(val)});
+        let ret = P(Value {
+            hdr: entity,
+            ty: ty,
+            v: Value_::Constant(val)
+        });
 
         let mut constants = self.constants.write().unwrap();
         self.declare_const_internal(&mut constants, ret.id(), ret.clone());
-        
+
         ret
     }
 
     /// adds a constant to the map (already acquired lock)
-    fn declare_const_internal(&self, map: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>, id: MuID, val: P<Value>) {
+    fn declare_const_internal(
+        &self,
+        map: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>,
+        id: MuID,
+        val: P<Value>
+    ) {
         debug_assert!(!map.contains_key(&id));
 
         info!("declare const #{} = {}", id, val);
@@ -467,16 +499,19 @@ impl <'a> VM {
     /// declares a global
     pub fn declare_global(&self, entity: MuEntityHeader, ty: P<MuType>) -> P<Value> {
         // create iref value for the global
-        let global = P(Value{
+        let global = P(Value {
             hdr: entity,
-            ty: self.declare_type(MuEntityHeader::unnamed(self.next_id()), MuType_::iref(ty.clone())),
+            ty: self.declare_type(
+                MuEntityHeader::unnamed(self.next_id()),
+                MuType_::iref(ty.clone())
+            ),
             v: Value_::Global(ty)
         });
 
         let mut globals = self.globals.write().unwrap();
         let mut global_locs = self.global_locations.write().unwrap();
         self.declare_global_internal(&mut globals, &mut global_locs, global.id(), global.clone());
-        
+
         global
     }
 
@@ -485,7 +520,8 @@ impl <'a> VM {
         &self,
         globals: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>,
         global_locs: &mut RwLockWriteGuard<HashMap<MuID, ValueLocation>>,
-        id: MuID, val: P<Value>
+        id: MuID,
+        val: P<Value>
     ) {
         self.declare_global_internal_no_alloc(globals, id, val.clone());
         self.alloc_global(global_locs, id, val);
@@ -497,7 +533,8 @@ impl <'a> VM {
     fn declare_global_internal_no_alloc(
         &self,
         globals: &mut RwLockWriteGuard<HashMap<MuID, P<Value>>>,
-        id: MuID, val: P<Value>
+        id: MuID,
+        val: P<Value>
     ) {
         debug_assert!(!globals.contains_key(&id));
 
@@ -509,7 +546,8 @@ impl <'a> VM {
     fn alloc_global(
         &self,
         global_locs: &mut RwLockWriteGuard<HashMap<MuID, ValueLocation>>,
-        id: MuID, val: P<Value>
+        id: MuID,
+        val: P<Value>
     ) {
         let backend_ty = self.get_backend_type_info(val.ty.get_referent_ty().unwrap().id());
         let loc = gc::allocate_global(val, backend_ty);
@@ -519,16 +557,21 @@ impl <'a> VM {
 
     /// declares a type
     pub fn declare_type(&self, entity: MuEntityHeader, ty: MuType_) -> P<MuType> {
-        let ty = P(MuType{hdr: entity, v: ty});
+        let ty = P(MuType { hdr: entity, v: ty });
 
         let mut types = self.types.write().unwrap();
         self.declare_type_internal(&mut types, ty.id(), ty.clone());
-        
+
         ty
     }
 
     /// adds the type to the map (already acquired lock)
-    fn declare_type_internal(&self, types: &mut RwLockWriteGuard<HashMap<MuID, P<MuType>>>, id: MuID, ty: P<MuType>) {
+    fn declare_type_internal(
+        &self,
+        types: &mut RwLockWriteGuard<HashMap<MuID, P<MuType>>>,
+        id: MuID,
+        ty: P<MuType>
+    ) {
         debug_assert!(!types.contains_key(&id));
 
         types.insert(id, ty.clone());
@@ -555,20 +598,34 @@ impl <'a> VM {
             Some(ret) => ret.clone(),
             None => panic!("cannot find type #{}", id)
         }
-    }    
+    }
 
     /// declares a function signature
-    pub fn declare_func_sig(&self, entity: MuEntityHeader, ret_tys: Vec<P<MuType>>, arg_tys: Vec<P<MuType>>) -> P<MuFuncSig> {
-        let ret = P(MuFuncSig{hdr: entity, ret_tys: ret_tys, arg_tys: arg_tys});
+    pub fn declare_func_sig(
+        &self,
+        entity: MuEntityHeader,
+        ret_tys: Vec<P<MuType>>,
+        arg_tys: Vec<P<MuType>>
+    ) -> P<MuFuncSig> {
+        let ret = P(MuFuncSig {
+            hdr: entity,
+            ret_tys: ret_tys,
+            arg_tys: arg_tys
+        });
 
         let mut func_sigs = self.func_sigs.write().unwrap();
         self.declare_func_sig_internal(&mut func_sigs, ret.id(), ret.clone());
-        
+
         ret
     }
 
     /// adds a function signature to the map (already acquired lock)
-    fn declare_func_sig_internal(&self, sigs: &mut RwLockWriteGuard<HashMap<MuID, P<MuFuncSig>>>, id: MuID, sig: P<MuFuncSig>) {
+    fn declare_func_sig_internal(
+        &self,
+        sigs: &mut RwLockWriteGuard<HashMap<MuID, P<MuFuncSig>>>,
+        id: MuID,
+        sig: P<MuFuncSig>
+    ) {
         debug_assert!(!sigs.contains_key(&id));
 
         info!("declare func sig #{} = {}", id, sig);
@@ -585,14 +642,19 @@ impl <'a> VM {
     }
 
     /// declares a Mu function
-    pub fn declare_func (&self, func: MuFunction) {
+    pub fn declare_func(&self, func: MuFunction) {
         let mut funcs = self.funcs.write().unwrap();
 
         self.declare_func_internal(&mut funcs, func.id(), func);
     }
 
     /// adds a Mu function to the map (already acquired lock)
-    fn declare_func_internal(&self, funcs: &mut RwLockWriteGuard<HashMap<MuID, RwLock<MuFunction>>>, id: MuID, func: MuFunction) {
+    fn declare_func_internal(
+        &self,
+        funcs: &mut RwLockWriteGuard<HashMap<MuID, RwLock<MuFunction>>>,
+        id: MuID,
+        func: MuFunction
+    ) {
         debug_assert!(!funcs.contains_key(&id));
 
         info!("declare func #{} = {}", id, func);
@@ -627,7 +689,7 @@ impl <'a> VM {
             Some(rwlock_func) => {
                 let func_guard = rwlock_func.read().unwrap();
                 func_guard.cur_ver
-            },
+            }
             None => None
         }
     }
@@ -635,7 +697,7 @@ impl <'a> VM {
     /// gets the address as ValueLocation of a Mu function (by ID)
     pub fn get_address_for_func(&self, func_id: MuID) -> ValueLocation {
         let funcs = self.funcs.read().unwrap();
-        let func : &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
+        let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
 
         if self.is_doing_jit() {
             unimplemented!()
@@ -645,7 +707,7 @@ impl <'a> VM {
     }
 
     /// defines a function version
-    pub fn define_func_version (&self, func_ver: MuFunctionVersion) {
+    pub fn define_func_version(&self, func_ver: MuFunctionVersion) {
         info!("define function version {}", func_ver);
         // add this funcver to map
         let func_ver_id = func_ver.id();
@@ -653,16 +715,16 @@ impl <'a> VM {
             let mut func_vers = self.func_vers.write().unwrap();
             func_vers.insert(func_ver_id, RwLock::new(func_ver));
         }
-        
+
         // acquire a reference to the func_ver
         let func_vers = self.func_vers.read().unwrap();
         let func_ver = func_vers.get(&func_ver_id).unwrap().write().unwrap();
-        
+
         // change current version of the function to new version (obsolete old versions)
         let funcs = self.funcs.read().unwrap();
         debug_assert!(funcs.contains_key(&func_ver.func_id)); // it should be declared before defining
         let mut func = funcs.get(&func_ver.func_id).unwrap().write().unwrap();
-        
+
         func.new_version(func_ver.id());
 
         if self.is_doing_jit() {
@@ -675,27 +737,28 @@ impl <'a> VM {
     /// This function will drain the contents of all arguments. Ideally, this function should
     /// happen atomically. e.g. The client should not see a new type added without also seeing
     /// a new function added.
-    pub fn declare_many(&self,
-                        new_id_name_map: &mut HashMap<MuID, MuName>,
-                        new_types: &mut HashMap<MuID, P<MuType>>,
-                        new_func_sigs: &mut HashMap<MuID, P<MuFuncSig>>,
-                        new_constants: &mut HashMap<MuID, P<Value>>,
-                        new_globals: &mut HashMap<MuID, P<Value>>,
-                        new_funcs: &mut HashMap<MuID, Box<MuFunction>>,
-                        new_func_vers: &mut HashMap<MuID, Box<MuFunctionVersion>>,
-                        arc_vm: Arc<VM>
-                        ) {
+    pub fn declare_many(
+        &self,
+        new_id_name_map: &mut HashMap<MuID, MuName>,
+        new_types: &mut HashMap<MuID, P<MuType>>,
+        new_func_sigs: &mut HashMap<MuID, P<MuFuncSig>>,
+        new_constants: &mut HashMap<MuID, P<Value>>,
+        new_globals: &mut HashMap<MuID, P<Value>>,
+        new_funcs: &mut HashMap<MuID, Box<MuFunction>>,
+        new_func_vers: &mut HashMap<MuID, Box<MuFunctionVersion>>,
+        arc_vm: Arc<VM>
+    ) {
         // Make sure other components, if ever acquiring multiple locks at the same time, acquire
         // them in this order, to prevent deadlock.
         {
             let mut id_name_map = self.id_name_map.write().unwrap();
             let mut name_id_map = self.name_id_map.write().unwrap();
-            let mut types       = self.types.write().unwrap();
-            let mut constants   = self.constants.write().unwrap();
-            let mut globals     = self.globals.write().unwrap();
-            let mut func_sigs   = self.func_sigs.write().unwrap();
-            let mut funcs       = self.funcs.write().unwrap();
-            let mut func_vers   = self.func_vers.write().unwrap();
+            let mut types = self.types.write().unwrap();
+            let mut constants = self.constants.write().unwrap();
+            let mut globals = self.globals.write().unwrap();
+            let mut func_sigs = self.func_sigs.write().unwrap();
+            let mut funcs = self.funcs.write().unwrap();
+            let mut func_vers = self.func_vers.write().unwrap();
 
             for (id, name) in new_id_name_map.drain() {
                 id_name_map.insert(id, name.clone());
@@ -731,7 +794,12 @@ impl <'a> VM {
                     trace!("Adding funcver {} as a version of {}...", id, func_id);
                     let func = funcs.get_mut(&func_id).unwrap();
                     func.write().unwrap().new_version(id);
-                    trace!("Added funcver {} as a version of {} {:?}.", id, func_id, func);
+                    trace!(
+                        "Added funcver {} as a version of {} {:?}.",
+                        id,
+                        func_id,
+                        func
+                    );
                 }
             }
         }
@@ -743,24 +811,33 @@ impl <'a> VM {
             let mut global_locs = self.global_locations.write().unwrap();
 
             // make sure current thread has allocator
-            let created = unsafe {MuThread::current_thread_as_mu_thread(Address::zero(), arc_vm.clone())};
+            let created =
+                unsafe { MuThread::current_thread_as_mu_thread(Address::zero(), arc_vm.clone()) };
 
             for (id, global) in globals.iter() {
                 self.alloc_global(&mut global_locs, *id, global.clone());
             }
 
             if created {
-                unsafe {MuThread::cleanup_current_mu_thread()};
+                unsafe { MuThread::cleanup_current_mu_thread() };
             }
         }
     }
 
     /// informs the VM of a newly compiled function (the function and funcver should already be declared before this call)
-    pub fn add_compiled_func (&self, func: CompiledFunction) {
+    pub fn add_compiled_func(&self, func: CompiledFunction) {
         debug_assert!(self.funcs.read().unwrap().contains_key(&func.func_id));
-        debug_assert!(self.func_vers.read().unwrap().contains_key(&func.func_ver_id));
+        debug_assert!(
+            self.func_vers
+                .read()
+                .unwrap()
+                .contains_key(&func.func_ver_id)
+        );
 
-        self.compiled_funcs.write().unwrap().insert(func.func_ver_id, RwLock::new(func));
+        self.compiled_funcs
+            .write()
+            .unwrap()
+            .insert(func.func_ver_id, RwLock::new(func));
     }
 
     /// gets the backend/storage type for a given Mu type (by ID)
@@ -768,9 +845,11 @@ impl <'a> VM {
         // if we already resolved this type, return the BackendType
         {
             let read_lock = self.backend_type_info.read().unwrap();
-        
+
             match read_lock.get(&tyid) {
-                Some(info) => {return info.clone();},
+                Some(info) => {
+                    return info.clone();
+                }
                 None => {}
             }
         }
@@ -786,8 +865,8 @@ impl <'a> VM {
         // insert the type so later we do not need to resolve it again
         let mut write_lock = self.backend_type_info.write().unwrap();
         write_lock.insert(tyid, resolved.clone());
-        
-        resolved        
+
+        resolved
     }
 
     /// gets the backend/storage type size for a given Mu type (by ID)
@@ -825,11 +904,11 @@ impl <'a> VM {
     pub fn func_sigs(&self) -> &RwLock<HashMap<MuID, P<MuFuncSig>>> {
         &self.func_sigs
     }
-    
+
     pub fn resolve_function_address(&self, func_id: MuID) -> ValueLocation {
         let funcs = self.funcs.read().unwrap();
-        let func : &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
-                
+        let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
+
         if self.is_doing_jit() {
             unimplemented!()
         } else {
@@ -840,7 +919,11 @@ impl <'a> VM {
     /// set info (entry function, arguments) for primordial thread for boot image
     pub fn set_primordial_thread(&self, func_id: MuID, has_const_args: bool, args: Vec<Constant>) {
         let mut guard = self.primordial.write().unwrap();
-        *guard = Some(PrimordialThreadInfo {func_id: func_id, has_const_args: has_const_args, args: args});
+        *guard = Some(PrimordialThreadInfo {
+            func_id: func_id,
+            has_const_args: has_const_args,
+            args: args
+        });
     }
 
     /// makes a boot image
@@ -862,19 +945,27 @@ impl <'a> VM {
     /// sym_fields/strings      : declare an address with symbol
     /// reloc_fields/strings    : declare an field pointing to a symbol
     /// output_file             : path for the boot image
-    pub fn make_boot_image(&self,
-                            whitelist: Vec<MuID>,
-                            primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>,
-                            primordial_threadlocal: Option<&APIHandle>,
-                            sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>,
-                            reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>,
-                            output_file: String) {
+    pub fn make_boot_image(
+        &self,
+        whitelist: Vec<MuID>,
+        primordial_func: Option<&APIHandle>,
+        primordial_stack: Option<&APIHandle>,
+        primordial_threadlocal: Option<&APIHandle>,
+        sym_fields: Vec<&APIHandle>,
+        sym_strings: Vec<String>,
+        reloc_fields: Vec<&APIHandle>,
+        reloc_strings: Vec<String>,
+        output_file: String
+    ) {
         self.make_boot_image_internal(
             whitelist,
-            primordial_func, primordial_stack,
+            primordial_func,
+            primordial_stack,
             primordial_threadlocal,
-            sym_fields, sym_strings,
-            reloc_fields, reloc_strings,
+            sym_fields,
+            sym_strings,
+            reloc_fields,
+            reloc_strings,
             vec![],
             output_file
         )
@@ -884,14 +975,19 @@ impl <'a> VM {
     /// One difference from the public one is that we allow linking extra source code during
     /// generating the boot image.
     #[allow(unused_variables)]
-    pub fn make_boot_image_internal(&self,
-                                   whitelist: Vec<MuID>,
-                                   primordial_func: Option<&APIHandle>, primordial_stack: Option<&APIHandle>,
-                                   primordial_threadlocal: Option<&APIHandle>,
-                                   sym_fields: Vec<&APIHandle>, sym_strings: Vec<String>,
-                                   reloc_fields: Vec<&APIHandle>, reloc_strings: Vec<String>,
-                                   extra_sources_to_link: Vec<String>,
-                                   output_file: String) {
+    pub fn make_boot_image_internal(
+        &self,
+        whitelist: Vec<MuID>,
+        primordial_func: Option<&APIHandle>,
+        primordial_stack: Option<&APIHandle>,
+        primordial_threadlocal: Option<&APIHandle>,
+        sym_fields: Vec<&APIHandle>,
+        sym_strings: Vec<String>,
+        reloc_fields: Vec<&APIHandle>,
+        reloc_strings: Vec<String>,
+        extra_sources_to_link: Vec<String>,
+        output_file: String
+    ) {
         info!("Making boot image...");
 
         // compile the whitelist functions
@@ -927,36 +1023,43 @@ impl <'a> VM {
             unimplemented!()
         }
 
-        let has_primordial_func  = primordial_func.is_some();
+        let has_primordial_func = primordial_func.is_some();
         let has_primordial_stack = primordial_stack.is_some();
 
         // we assume client will start with a function (instead of a stack)
         if has_primordial_stack {
-            panic!("Zebu doesnt support creating primordial thread from a stack, name a entry function instead")
+            panic!(
+                "Zebu doesnt support creating primordial thread from a stack, name a entry function instead"
+            )
         } else {
             if has_primordial_func {
                 // extract func id
                 let func_id = primordial_func.unwrap().v.as_funcref();
 
                 // make primordial thread in vm
-                self.set_primordial_thread(func_id, false, vec![]);    // do not pass const args, use argc/argv
+                self.set_primordial_thread(func_id, false, vec![]); // do not pass const args, use argc/argv
             } else {
                 warn!("no entry function is passed");
             }
 
             // deal with relocation symbols, zip the two vectors into a hashmap
             assert_eq!(sym_fields.len(), sym_strings.len());
-            let symbols : HashMap<Address, MuName> = sym_fields.into_iter().map(|handle| handle.v.as_address())
-                .zip(sym_strings.into_iter()).collect();
+            let symbols: HashMap<Address, MuName> = sym_fields
+                .into_iter()
+                .map(|handle| handle.v.as_address())
+                .zip(sym_strings.into_iter())
+                .collect();
 
             // deal with relocation fields
             // zip the two vectors into a hashmap, and add fields for pending funcref stores
             assert_eq!(reloc_fields.len(), reloc_strings.len());
             let fields = {
                 // init reloc fields with client-supplied field/symbol pair
-                let mut reloc_fields : HashMap<Address, MuName> = reloc_fields.into_iter()
+                let mut reloc_fields: HashMap<Address, MuName> = reloc_fields
+                    .into_iter()
                     .map(|handle| handle.v.as_address())
-                    .zip(reloc_strings.into_iter()).collect();
+                    .zip(reloc_strings.into_iter())
+                    .collect();
 
                 // pending funcrefs - we want to replace them as symbol
                 {
@@ -987,7 +1090,10 @@ impl <'a> VM {
 
         let func_names = {
             let funcs_guard = self.funcs().read().unwrap();
-            funcs.iter().map(|x| funcs_guard.get(x).unwrap().read().unwrap().name()).collect()
+            funcs
+                .iter()
+                .map(|x| funcs_guard.get(x).unwrap().read().unwrap().name())
+                .collect()
         };
 
         trace!("functions: {:?}", func_names);
@@ -1013,9 +1119,13 @@ impl <'a> VM {
     /// creates a new stack with the given entry function
     pub fn new_stack(&self, func_id: MuID) -> Box<MuStack> {
         let funcs = self.funcs.read().unwrap();
-        let func : &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
+        let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
 
-        Box::new(MuStack::new(self.next_id(), self.get_address_for_func(func_id), func))
+        Box::new(MuStack::new(
+            self.next_id(),
+            self.get_address_for_func(func_id),
+            func
+        ))
     }
 
     /// creates a handle that we can return to the client
@@ -1036,20 +1146,25 @@ impl <'a> VM {
 
         self.new_handle(APIHandle {
             id: self.next_id(),
-            v : APIHandleValue::Ref(ty, addr)
+            v: APIHandleValue::Ref(ty, addr)
         })
     }
 
     /// creates a hybrid type object in the heap, and returns a reference handle
     pub fn new_hybrid(&self, tyid: MuID, length: APIHandleArg) -> APIHandleResult {
-        let ty  = self.get_type(tyid);
+        let ty = self.get_type(tyid);
         assert!(ty.is_hybrid());
 
         let len = self.handle_to_uint64(length);
 
         let backend_ty = self.get_backend_type_info(tyid);
         let addr = gc::allocate_hybrid(ty.clone(), len, backend_ty);
-        trace!("API: allocated hybrid type {} of length {} at {}", ty, len, addr);
+        trace!(
+            "API: allocated hybrid type {} of length {} at {}",
+            ty,
+            len,
+            addr
+        );
 
         self.new_handle(APIHandle {
             id: self.next_id(),
@@ -1073,16 +1188,16 @@ impl <'a> VM {
                     id: handle_id,
                     v: APIHandleValue::Ref(inner_ty, addr)
                 })
-            },
+            }
             APIHandleValue::IRef(_, addr) => {
                 assert!(to_ty.is_iref());
                 let inner_ty = to_ty.get_referent_ty().unwrap();
 
                 self.new_handle(APIHandle {
                     id: handle_id,
-                    v : APIHandleValue::IRef(inner_ty, addr)
+                    v: APIHandleValue::IRef(inner_ty, addr)
                 })
-            },
+            }
             APIHandleValue::FuncRef(_) => unimplemented!(),
 
             _ => panic!("unexpected operand for refcast: {:?}", from_op)
@@ -1096,7 +1211,7 @@ impl <'a> VM {
         // assume iref has the same address as ref
         let ret = self.new_handle(APIHandle {
             id: self.next_id(),
-            v : APIHandleValue::IRef(ty, addr)
+            v: APIHandleValue::IRef(ty, addr)
         });
 
         trace!("API: get iref from {:?}", handle_ref);
@@ -1106,7 +1221,11 @@ impl <'a> VM {
     }
 
     /// performs SHIFTIREF
-    pub fn handle_shift_iref(&self, handle_iref: APIHandleArg, offset: APIHandleArg) -> APIHandleResult {
+    pub fn handle_shift_iref(
+        &self,
+        handle_iref: APIHandleArg,
+        offset: APIHandleArg
+    ) -> APIHandleResult {
         let (ty, addr) = handle_iref.v.as_iref();
         let offset = self.handle_to_uint64(offset);
 
@@ -1120,7 +1239,7 @@ impl <'a> VM {
 
         let ret = self.new_handle(APIHandle {
             id: self.next_id(),
-            v : APIHandleValue::IRef(ty, offset_addr)
+            v: APIHandleValue::IRef(ty, offset_addr)
         });
 
         trace!("API: shift iref from {:?}", handle_iref);
@@ -1130,7 +1249,11 @@ impl <'a> VM {
     }
 
     /// performs GETELEMIREF
-    pub fn handle_get_elem_iref(&self, handle_iref: APIHandleArg, index: APIHandleArg) -> APIHandleResult {
+    pub fn handle_get_elem_iref(
+        &self,
+        handle_iref: APIHandleArg,
+        index: APIHandleArg
+    ) -> APIHandleResult {
         let (ty, addr) = handle_iref.v.as_iref();
         let index = self.handle_to_uint64(index);
 
@@ -1148,10 +1271,14 @@ impl <'a> VM {
 
         let ret = self.new_handle(APIHandle {
             id: self.next_id(),
-            v : APIHandleValue::IRef(ele_ty, elem_addr)
+            v: APIHandleValue::IRef(ele_ty, elem_addr)
         });
 
-        trace!("API: get element iref from {:?} at index {:?}", handle_iref, index);
+        trace!(
+            "API: get element iref from {:?} at index {:?}",
+            handle_iref,
+            index
+        );
         trace!("API: result {:?}", ret);
 
         ret
@@ -1173,7 +1300,7 @@ impl <'a> VM {
 
         let ret = self.new_handle(APIHandle {
             id: self.next_id(),
-            v : APIHandleValue::IRef(varpart_ty, varpart_addr)
+            v: APIHandleValue::IRef(varpart_ty, varpart_addr)
         });
 
         trace!("API: get var part iref from {:?}", handle_iref);
@@ -1183,7 +1310,11 @@ impl <'a> VM {
     }
 
     /// performs GETFIELDIREF
-    pub fn handle_get_field_iref(&self, handle_iref: APIHandleArg, field: usize) -> APIHandleResult {
+    pub fn handle_get_field_iref(
+        &self,
+        handle_iref: APIHandleArg,
+        field: usize
+    ) -> APIHandleResult {
         let (ty, addr) = handle_iref.v.as_iref();
 
         let field_ty = match ty.get_field_ty(field) {
@@ -1199,10 +1330,14 @@ impl <'a> VM {
 
         let ret = self.new_handle(APIHandle {
             id: self.next_id(),
-            v : APIHandleValue::IRef(field_ty, field_addr)
+            v: APIHandleValue::IRef(field_ty, field_addr)
         });
 
-        trace!("API: get field iref from {:?}, field: {}", handle_iref, field);
+        trace!(
+            "API: get field iref from {:?}, field: {}",
+            handle_iref,
+            field
+        );
         trace!("API: result {:?}", ret);
 
         ret
@@ -1215,24 +1350,24 @@ impl <'a> VM {
 
         // FIXME: not using memory order for load at the moment - See Issue #51
         let rust_memord = match ord {
-            MemoryOrder::Relaxed   => Ordering::Relaxed,
-            MemoryOrder::Acquire   => Ordering::Acquire,
-            MemoryOrder::SeqCst    => Ordering::SeqCst,
+            MemoryOrder::Relaxed => Ordering::Relaxed,
+            MemoryOrder::Acquire => Ordering::Acquire,
+            MemoryOrder::SeqCst => Ordering::SeqCst,
             MemoryOrder::NotAtomic => Ordering::Relaxed,    // use relax for not atomic
-            MemoryOrder::Consume   => Ordering::Acquire,    // use acquire for consume
+            MemoryOrder::Consume => Ordering::Acquire,    // use acquire for consume
             _ => panic!("unsupported order {:?} for LOAD", ord)
         };
 
         let handle_id = self.next_id();
         let handle_value = unsafe {
             match ty.v {
-                MuType_::Int(len)     => APIHandleValue::Int     (addr.load::<u64>(), len),
-                MuType_::Float        => APIHandleValue::Float   (addr.load::<f32>()),
-                MuType_::Double       => APIHandleValue::Double  (addr.load::<f64>()),
-                MuType_::Ref(ref ty)  => APIHandleValue::Ref     (ty.clone(), addr.load::<Address>()),
-                MuType_::IRef(ref ty) => APIHandleValue::IRef    (ty.clone(), addr.load::<Address>()),
-                MuType_::UPtr(ref ty) => APIHandleValue::UPtr    (ty.clone(), addr.load::<Address>()),
-                MuType_::Tagref64     => APIHandleValue::TagRef64(addr.load::<u64>()),
+                MuType_::Int(len) => APIHandleValue::Int(addr.load::<u64>(), len),
+                MuType_::Float => APIHandleValue::Float(addr.load::<f32>()),
+                MuType_::Double => APIHandleValue::Double(addr.load::<f64>()),
+                MuType_::Ref(ref ty) => APIHandleValue::Ref(ty.clone(), addr.load::<Address>()),
+                MuType_::IRef(ref ty) => APIHandleValue::IRef(ty.clone(), addr.load::<Address>()),
+                MuType_::UPtr(ref ty) => APIHandleValue::UPtr(ty.clone(), addr.load::<Address>()),
+                MuType_::Tagref64 => APIHandleValue::TagRef64(addr.load::<u64>()),
 
                 _ => unimplemented!()
             }
@@ -1240,7 +1375,7 @@ impl <'a> VM {
 
         let ret = self.new_handle(APIHandle {
             id: handle_id,
-            v : handle_value
+            v: handle_value
         });
 
         trace!("API: load from {:?}", loc);
@@ -1259,7 +1394,7 @@ impl <'a> VM {
         let rust_memord = match ord {
             MemoryOrder::Relaxed => Ordering::Relaxed,
             MemoryOrder::Release => Ordering::Release,
-            MemoryOrder::SeqCst  => Ordering::SeqCst,
+            MemoryOrder::SeqCst => Ordering::SeqCst,
             MemoryOrder::NotAtomic => Ordering::Relaxed,    // use relaxed for not atomic
             _ => panic!("unsupported order {:?} for STORE", ord)
         };
@@ -1271,33 +1406,35 @@ impl <'a> VM {
                 APIHandleValue::Int(ival, bits) => {
                     let trunc: u64 = ival & bits_ones(bits);
                     match bits {
-                        1  ... 8   => addr.store::<u8> (trunc as u8 ),
-                        9  ... 16  => addr.store::<u16>(trunc as u16),
-                        17 ... 32  => addr.store::<u32>(trunc as u32),
-                        33 ... 64  => addr.store::<u64>(trunc as u64),
-                        _  => panic!("unimplemented int length")
+                        1...8 => addr.store::<u8>(trunc as u8),
+                        9...16 => addr.store::<u16>(trunc as u16),
+                        17...32 => addr.store::<u32>(trunc as u32),
+                        33...64 => addr.store::<u64>(trunc as u64),
+                        _ => panic!("unimplemented int length")
                     }
-                },
-                APIHandleValue::TagRef64(val) => addr.store::<u64>(val ),
-                APIHandleValue::Float(fval)   => addr.store::<f32>(fval),
-                APIHandleValue::Double(fval)  => addr.store::<f64>(fval),
+                }
+                APIHandleValue::TagRef64(val) => addr.store::<u64>(val),
+                APIHandleValue::Float(fval) => addr.store::<f32>(fval),
+                APIHandleValue::Double(fval) => addr.store::<f64>(fval),
                 APIHandleValue::UPtr(_, aval) => addr.store::<Address>(aval),
-                APIHandleValue::UFP(_, aval)  => addr.store::<Address>(aval),
+                APIHandleValue::UFP(_, aval) => addr.store::<Address>(aval),
 
-                APIHandleValue::Struct(_)
-                | APIHandleValue::Array(_)
-                | APIHandleValue::Vector(_) => unimplemented!(),
+                APIHandleValue::Struct(_) | APIHandleValue::Array(_) |
+                APIHandleValue::Vector(_) => unimplemented!(),
 
-                APIHandleValue::Ref(_, aval)
-                | APIHandleValue::IRef(_, aval) => addr.store::<Address>(aval),
+                APIHandleValue::Ref(_, aval) | APIHandleValue::IRef(_, aval) => {
+                    addr.store::<Address>(aval)
+                }
 
                 // if we are JITing, we can store the address of the function
                 // but if we are doing AOT, we pend the store, and resolve the store when making boot image
-                APIHandleValue::FuncRef(id) => if self.is_doing_jit() {
-                    unimplemented!()
-                } else {
-                    self.store_funcref(addr, id)
-                },
+                APIHandleValue::FuncRef(id) => {
+                    if self.is_doing_jit() {
+                        unimplemented!()
+                    } else {
+                        self.store_funcref(addr, id)
+                    }
+                }
 
                 _ => unimplemented!()
             }
@@ -1309,13 +1446,16 @@ impl <'a> VM {
     #[cfg(feature = "aot")]
     fn store_funcref(&self, addr: Address, func_id: MuID) {
         // put a pending funcref in the address
-        unsafe {addr.store::<u64>(PENDING_FUNCREF)};
+        unsafe { addr.store::<u64>(PENDING_FUNCREF) };
 
         // and record this funcref
         let symbol = self.name_of(func_id);
 
         let mut pending_funcref_guard = self.aot_pending_funcref_store.write().unwrap();
-        pending_funcref_guard.insert(addr, ValueLocation::Relocatable(backend::RegGroup::GPR, symbol));
+        pending_funcref_guard.insert(
+            addr,
+            ValueLocation::Relocatable(backend::RegGroup::GPR, symbol)
+        );
     }
 
     /// performs CommonInst_Pin
@@ -1330,7 +1470,7 @@ impl <'a> VM {
         let (ty, addr) = loc.v.as_ref_or_iref();
         self.new_handle(APIHandle {
             id: self.next_id(),
-            v : APIHandleValue::UPtr(ty, addr)
+            v: APIHandleValue::UPtr(ty, addr)
         })
     }
 
@@ -1350,7 +1490,7 @@ impl <'a> VM {
         let (ty, addr) = loc.v.as_ref_or_iref();
         self.new_handle(APIHandle {
             id: self.next_id(),
-            v : APIHandleValue::UPtr(ty, addr)
+            v: APIHandleValue::UPtr(ty, addr)
         })
     }
 
@@ -1360,7 +1500,7 @@ impl <'a> VM {
 
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::FuncRef(id)
+            v: APIHandleValue::FuncRef(id)
         })
     }
 
@@ -1380,7 +1520,7 @@ impl <'a> VM {
 
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::IRef(global_inner_ty, global_iref)
+            v: APIHandleValue::IRef(global_inner_ty, global_iref)
         })
     }
 
@@ -1398,33 +1538,36 @@ impl <'a> VM {
             Value_::Constant(Constant::Int(val)) => {
                 let len = match const_ty.get_int_length() {
                     Some(len) => len,
-                    None => panic!("expected ty to be Int for a Constant::Int, found {}", const_ty)
+                    None => {
+                        panic!(
+                            "expected ty to be Int for a Constant::Int, found {}",
+                            const_ty
+                        )
+                    }
                 };
 
                 APIHandle {
                     id: handle_id,
-                    v : APIHandleValue::Int(val, len)
+                    v: APIHandleValue::Int(val, len)
                 }
             }
             Value_::Constant(Constant::Float(val)) => {
                 APIHandle {
                     id: handle_id,
-                    v : APIHandleValue::Float(val)
+                    v: APIHandleValue::Float(val)
                 }
             }
             Value_::Constant(Constant::Double(val)) => {
                 APIHandle {
                     id: handle_id,
-                    v : APIHandleValue::Double(val)
+                    v: APIHandleValue::Double(val)
                 }
             }
-            Value_::Constant(Constant::FuncRef(_)) => {
-                unimplemented!()
-            }
+            Value_::Constant(Constant::FuncRef(_)) => unimplemented!(),
             Value_::Constant(Constant::NullRef) => {
                 APIHandle {
                     id: handle_id,
-                    v : APIHandleValue::Ref(types::VOID_TYPE.clone(), unsafe {Address::zero()})
+                    v: APIHandleValue::Ref(types::VOID_TYPE.clone(), unsafe { Address::zero() })
                 }
             }
             _ => unimplemented!()
@@ -1440,7 +1583,7 @@ impl <'a> VM {
     /// creates a handle for unsigned int 16
     gen_handle_int!(handle_from_uint16, handle_to_uint16, u16);
     /// creates a handle for unsigned int 8
-    gen_handle_int!(handle_from_uint8 , handle_to_uint8 , u8 );
+    gen_handle_int!(handle_from_uint8, handle_to_uint8, u8);
     /// creates a handle for signed int 64
     gen_handle_int!(handle_from_sint64, handle_to_sint64, i64);
     /// creates a handle for signed int 32
@@ -1448,33 +1591,33 @@ impl <'a> VM {
     /// creates a handle for signed int 16
     gen_handle_int!(handle_from_sint16, handle_to_sint16, i16);
     /// creates a handle for signed int 8
-    gen_handle_int!(handle_from_sint8 , handle_to_sint8 , i8 );
+    gen_handle_int!(handle_from_sint8, handle_to_sint8, i8);
 
     /// creates a handle for float
     pub fn handle_from_float(&self, num: f32) -> APIHandleResult {
         let handle_id = self.next_id();
-        self.new_handle (APIHandle {
+        self.new_handle(APIHandle {
             id: handle_id,
             v: APIHandleValue::Float(num)
         })
     }
 
     /// unwraps a handle to float
-    pub fn handle_to_float (&self, handle: APIHandleArg) -> f32 {
+    pub fn handle_to_float(&self, handle: APIHandleArg) -> f32 {
         handle.v.as_float()
     }
 
     /// creates a handle for double
     pub fn handle_from_double(&self, num: f64) -> APIHandleResult {
         let handle_id = self.next_id();
-        self.new_handle (APIHandle {
+        self.new_handle(APIHandle {
             id: handle_id,
             v: APIHandleValue::Double(num)
         })
     }
 
     /// unwraps a handle to double
-    pub fn handle_to_double (&self, handle: APIHandleArg) -> f64 {
+    pub fn handle_to_double(&self, handle: APIHandleArg) -> f64 {
         handle.v.as_double()
     }
 
@@ -1483,9 +1626,9 @@ impl <'a> VM {
         let ty = self.get_type(tyid);
 
         let handle_id = self.next_id();
-        self.new_handle (APIHandle {
+        self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::UPtr(ty, ptr)
+            v: APIHandleValue::UPtr(ty, ptr)
         })
     }
 
@@ -1499,9 +1642,9 @@ impl <'a> VM {
         let ty = self.get_type(tyid);
 
         let handle_id = self.next_id();
-        self.new_handle (APIHandle {
+        self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::UFP(ty, ptr)
+            v: APIHandleValue::UFP(ty, ptr)
         })
     }
 
@@ -1512,9 +1655,9 @@ impl <'a> VM {
 
     // Functions for handling TagRef64-related API calls are taken from:
     // https://gitlab.anu.edu.au/mu/mu-impl-ref2/blob/master/src/main/scala/uvm/refimpl/itpr/operationHelpers.scala
-    
+
     /// checks if a Tagref64 is a floating point value
-    pub fn handle_tr64_is_fp(&self, value:APIHandleArg) -> bool {
+    pub fn handle_tr64_is_fp(&self, value: APIHandleArg) -> bool {
         (!self.handle_tr64_is_int(value)) && (!self.handle_tr64_is_ref(value))
     }
 
@@ -1535,9 +1678,7 @@ impl <'a> VM {
         let handle_id = self.next_id();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Double(
-                unsafe { std::mem::transmute(value.v.as_tr64()) }
-            )
+            v: APIHandleValue::Double(unsafe { std::mem::transmute(value.v.as_tr64()) })
         })
     }
 
@@ -1547,8 +1688,8 @@ impl <'a> VM {
         let opnd = value.v.as_tr64();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Int(((opnd & 0xffffffffffffeu64) >> 1) |
-                    ((opnd & 0x8000000000000000u64) >> 12),
+            v: APIHandleValue::Int(
+                ((opnd & 0xffffffffffffeu64) >> 1) | ((opnd & 0x8000000000000000u64) >> 12),
                 52
             )
         })
@@ -1560,10 +1701,12 @@ impl <'a> VM {
         let opnd = value.v.as_tr64();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Ref(types::REF_VOID_TYPE.clone(),
-                unsafe { Address::from_usize(((opnd & 0x7ffffffffff8u64) |
-                        u64_asr((opnd & 0x8000000000000000u64), 16)) as usize)
-                })
+            v: APIHandleValue::Ref(types::REF_VOID_TYPE.clone(), unsafe {
+                Address::from_usize(
+                    ((opnd & 0x7ffffffffff8u64) | u64_asr((opnd & 0x8000000000000000u64), 16)) as
+                        usize
+                )
+            })
         })
     }
 
@@ -1573,8 +1716,8 @@ impl <'a> VM {
         let opnd = value.v.as_tr64();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::Int(u64_asr((opnd & 0x000f800000000000u64), 46) |
-                    (u64_asr((opnd & 0x4), 2)),
+            v: APIHandleValue::Int(
+                u64_asr((opnd & 0x000f800000000000u64), 46) | (u64_asr((opnd & 0x4), 2)),
                 6
             )
         })
@@ -1593,7 +1736,7 @@ impl <'a> VM {
 
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64(result_bits)
+            v: APIHandleValue::TagRef64(result_bits)
         })
     }
 
@@ -1603,8 +1746,10 @@ impl <'a> VM {
         let opnd = value.v.as_int();
         self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64(0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1)
-                | ((opnd & 0x8000000000000u64) << 12))
+            v: APIHandleValue::TagRef64(
+                0x7ff0000000000001u64 | ((opnd & 0x7ffffffffffffu64) << 1) |
+                    ((opnd & 0x8000000000000u64) << 12)
+            )
         })
     }
 
@@ -1613,11 +1758,13 @@ impl <'a> VM {
         let handle_id = self.next_id();
         let (_, addr) = reff.v.as_ref();
         let addr_ = addr.as_usize() as u64;
-        let tag_  = tag.v.as_int();
-        self.new_handle (APIHandle {
+        let tag_ = tag.v.as_int();
+        self.new_handle(APIHandle {
             id: handle_id,
-            v : APIHandleValue::TagRef64(0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) |
-                ((addr_ & 0x800000000000u64) << 16) | ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2)
+            v: APIHandleValue::TagRef64(
+                0x7ff0000000000002u64 | (addr_ & 0x7ffffffffff8u64) |
+                    ((addr_ & 0x800000000000u64) << 16) |
+                    ((tag_ & 0x3eu64) << 46) | ((tag_ & 0x1) << 2)
             )
         })
     }

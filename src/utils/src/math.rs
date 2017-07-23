@@ -32,6 +32,9 @@ pub fn is_power_of_two(x: usize) -> Option<u8> {
 
 /// aligns up a number
 /// (returns the nearest multiply of the align value that is larger than the given value)
+#[inline(always)]
 pub fn align_up(x: usize, align: usize) -> usize {
+    //use ((x + align - 1)/align)*align if align is not a power of two
+    debug_assert!(align.is_power_of_two());
     (x + align - 1) & !(align  - 1)
 }

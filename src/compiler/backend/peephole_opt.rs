@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -55,33 +55,33 @@ impl PeepholeOptimization {
             name: "Peephole Optimization"
         }
     }
-    
+
     fn remove_redundant_move(&mut self, inst: usize, cf: &mut CompiledFunction) {
         // if this instruction is a move, and move from register to register (no memory operands)
         if cf.mc().is_move(inst) && !cf.mc().is_using_mem_op(inst) {
             cf.mc().trace_inst(inst);
 
             // get source reg/temp ID
-            let src : MuID = {
+            let src: MuID = {
                 let uses = cf.mc().get_inst_reg_uses(inst);
                 if uses.len() == 0 {
                     // moving immediate to register, its not redundant
                     return;
-                }                
+                }
                 uses[0]
             };
 
             // get dest reg/temp ID
-            let dst : MuID = cf.mc().get_inst_reg_defines(inst)[0];
+            let dst: MuID = cf.mc().get_inst_reg_defines(inst)[0];
 
             // turning temp into machine reg
-            let src_machine_reg : MuID = {
+            let src_machine_reg: MuID = {
                 match cf.temps.get(&src) {
                     Some(reg) => *reg,
                     None => src
                 }
             };
-            let dst_machine_reg : MuID = {
+            let dst_machine_reg: MuID = {
                 match cf.temps.get(&dst) {
                     Some(reg) => *reg,
                     None => dst
@@ -90,7 +90,11 @@ impl PeepholeOptimization {
 
             // check if two registers are aliased
             if backend::is_aliased(src_machine_reg, dst_machine_reg) {
-                trace!("move between {} and {} is redundant! removed", src_machine_reg, dst_machine_reg);
+                trace!(
+                    "move between {} and {} is redundant! removed",
+                    src_machine_reg,
+                    dst_machine_reg
+                );
                 // redundant, remove this move
                 cf.mc_mut().set_inst_nop(inst);
             } else {
@@ -115,7 +119,7 @@ impl PeepholeOptimization {
                 let opt_label = mc.is_label(inst + 1);
                 match opt_label {
                     Some(ref label) if dest == label => {
-                            mc.set_inst_nop(inst);
+                        mc.set_inst_nop(inst);
                     }
                     _ => {
                         // do nothing

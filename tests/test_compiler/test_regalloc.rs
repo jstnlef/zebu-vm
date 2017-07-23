@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,7 +32,7 @@ use std::sync::Arc;
 
 fn get_number_of_moves(fv_id: MuID, vm: &VM) -> usize {
     let cfs = vm.compiled_funcs().read().unwrap();
-    let cf  = cfs.get(&fv_id).unwrap().read().unwrap();
+    let cf = cfs.get(&fv_id).unwrap().read().unwrap();
 
     let mut n_mov_insts = 0;
 
@@ -50,28 +50,36 @@ fn get_number_of_moves(fv_id: MuID, vm: &VM) -> usize {
 #[allow(unused_variables)]
 fn test_spill1() {
     VM::start_logging_trace();
-    
+
     let vm = Arc::new(create_spill1());
-    
+
     let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-    
+
     let func_id = vm.id_of("spill1");
     {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-        
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
+
         compiler.compile(&mut func_ver);
     }
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("spill1")], &linkutils::get_dylib_name("spill1"), &vm);
+    let dylib = aot::link_dylib(
+        vec![Mu("spill1")],
+        &linkutils::get_dylib_name("spill1"),
+        &vm
+    );
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
-        let spill1 : libloading::Symbol<unsafe extern fn() -> u64> = match lib.get(b"spill1") {
+        let spill1: libloading::Symbol<unsafe extern "C" fn() -> u64> = match lib.get(b"spill1") {
             Ok(symbol) => symbol,
             Err(e) => panic!("cannot find symbol spill1 in dylib: {:?}", e)
         };
@@ -93,7 +101,7 @@ fn create_spill1() -> VM {
 
     typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
     constdef!       ((vm) <funcref_spill1> const_funcref_spill1 = Constant::FuncRef(vm.id_of("spill1")));
-    
+
     // %entry(<@int_64> %t1, t2, ... t10):
     block!          ((vm, spill1_v1) blk_entry);
     ssa!            ((vm, spill1_v1) <int64> t1);
@@ -106,7 +114,7 @@ fn create_spill1() -> VM {
     ssa!            ((vm, spill1_v1) <int64> t8);
     ssa!            ((vm, spill1_v1) <int64> t9);
     ssa!            ((vm, spill1_v1) <int64> t10);
-    
+
     // %x = CALL spill1(%t1, %t2, ... t10)
     ssa!            ((vm, spill1_v1) <int64> x);
     consta!         ((vm, spill1_v1) const_funcref_spill1_local = const_funcref_spill1);
@@ -114,31 +122,31 @@ fn create_spill1() -> VM {
         x = EXPRCALL (CallConvention::Mu, is_abort: false)
                      const_funcref_spill1_local(t1, t2, t3, t4, t5, t6, t7, t8, t9, t10)
     );
-    
+
     // %res0 = ADD %t1 %t2
     ssa!            ((vm, spill1_v1) <int64> res0);
     inst!           ((vm, spill1_v1) blk_entry_add0:
         res0 = BINOP (BinOp::Add) t1 t2
     );
-    
+
     // %res1 = ADD %res0 %t3
     ssa!            ((vm, spill1_v1) <int64> res1);
     inst!           ((vm, spill1_v1) blk_entry_add1:
         res1 = BINOP (BinOp::Add) res0 t3
     );
-    
+
     // %res2 = ADD %res1 %t4
     ssa!            ((vm, spill1_v1) <int64> res2);
     inst!           ((vm, spill1_v1) blk_entry_add2:
         res2 = BINOP (BinOp::Add) res1 t4
     );
-    
+
     // %res3 = ADD %res2 %t5
     ssa!            ((vm, spill1_v1) <int64> res3);
     inst!           ((vm, spill1_v1) blk_entry_add3:
         res3 = BINOP (BinOp::Add) res2 t5
     );
-    
+
     // RET %res3
     inst!           ((vm, spill1_v1) blk_entry_ret:
         RET (res3)
@@ -158,7 +166,7 @@ fn create_spill1() -> VM {
     define_func_ver!((vm) spill1_v1(entry: blk_entry) {
         blk_entry
     });
-    
+
     vm
 }
 
@@ -274,21 +282,30 @@ fn test_simple_spill() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("simple_spill")], &linkutils::get_dylib_name("simple_spill"), &vm);
+    let dylib = aot::link_dylib(
+        vec![Mu("simple_spill")],
+        &linkutils::get_dylib_name("simple_spill"),
+        &vm
+    );
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
-        let simple_spill : libloading::Symbol<unsafe extern fn() -> u64> = match lib.get(b"simple_spill") {
-            Ok(symbol) => symbol,
-            Err(e) => panic!("cannot find symbol simple_spill in dylib: {:?}", e)
-        };
+        let simple_spill: libloading::Symbol<unsafe extern "C" fn() -> u64> =
+            match lib.get(b"simple_spill") {
+                Ok(symbol) => symbol,
+                Err(e) => panic!("cannot find symbol simple_spill in dylib: {:?}", e)
+            };
 
         let res = simple_spill();
         println!("simple_spill() = {}", res);
@@ -678,7 +695,11 @@ fn test_coalesce_branch_moves() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
 
@@ -745,7 +766,11 @@ fn test_coalesce_args() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
 
@@ -804,7 +829,11 @@ fn test_coalesce_branch2_moves() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
 
@@ -816,7 +845,11 @@ fn test_coalesce_branch2_moves() {
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("coalesce_branch2_moves")], &linkutils::get_dylib_name("coalesce_branch2_moves"), &vm);
+    let dylib = aot::link_dylib(
+        vec![Mu("coalesce_branch2_moves")],
+        &linkutils::get_dylib_name("coalesce_branch2_moves"),
+        &vm
+    );
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
@@ -941,13 +974,25 @@ fn test_preserve_caller_saved_simple() {
 
         {
             let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
-            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let func = funcs
+                .get(&func_preserve_caller_saved_simple)
+                .unwrap()
+                .read()
+                .unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -956,7 +1001,11 @@ fn test_preserve_caller_saved_simple() {
     vm.set_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("foo"), Mu("preserve_caller_saved_simple")], "test_preserve_caller_saved_simple", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("foo"), Mu("preserve_caller_saved_simple")],
+        "test_preserve_caller_saved_simple",
+        &vm
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // add from 0 to 9
@@ -1032,7 +1081,7 @@ fn preserve_caller_saved_simple() -> VM {
     ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v9);
 
     let foo_sig = vm.get_func_sig(vm.id_of("foo_sig"));
-    let foo_id  = vm.id_of("foo");
+    let foo_id = vm.id_of("foo");
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
     constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
 
@@ -1149,13 +1198,25 @@ fn test_preserve_caller_saved_call_args() {
 
         {
             let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
         {
-            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+            let func = funcs
+                .get(&func_preserve_caller_saved_simple)
+                .unwrap()
+                .read()
+                .unwrap();
+            let mut func_ver = func_vers
+                .get(&func.cur_ver.unwrap())
+                .unwrap()
+                .write()
+                .unwrap();
 
             compiler.compile(&mut func_ver);
         }
@@ -1164,7 +1225,11 @@ fn test_preserve_caller_saved_call_args() {
     vm.set_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec![Mu("foo6"), Mu("preserve_caller_saved_call_args")], "test_preserve_caller_saved_call_args", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("foo6"), Mu("preserve_caller_saved_call_args")],
+        "test_preserve_caller_saved_call_args",
+        &vm
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     // add from 0 to 9
@@ -1240,7 +1305,7 @@ fn preserve_caller_saved_call_args() -> VM {
     ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v9);
 
     let foo_sig = vm.get_func_sig(vm.id_of("foo6_sig"));
-    let foo_id  = vm.id_of("foo6");
+    let foo_id = vm.id_of("foo6");
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
     constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
 
@@ -1360,21 +1425,30 @@ fn test_spill_int8() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
 
     backend::emit_context(&vm);
 
-    let dylib = aot::link_dylib(vec![Mu("spill_int8")], &linkutils::get_dylib_name("spill_int8"), &vm);
+    let dylib = aot::link_dylib(
+        vec![Mu("spill_int8")],
+        &linkutils::get_dylib_name("spill_int8"),
+        &vm
+    );
 
     let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
     unsafe {
-        let spill_int8 : libloading::Symbol<unsafe extern fn() -> u8> = match lib.get(b"spill_int8") {
-            Ok(symbol) => symbol,
-            Err(e) => panic!("cannot find symbol spill_int8 in dylib: {:?}", e)
-        };
+        let spill_int8: libloading::Symbol<unsafe extern "C" fn() -> u8> =
+            match lib.get(b"spill_int8") {
+                Ok(symbol) => symbol,
+                Err(e) => panic!("cannot find symbol spill_int8 in dylib: {:?}", e)
+            };
 
         let res = spill_int8();
         println!("spill_int8() = {}", res);

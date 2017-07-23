@@ -47,7 +47,7 @@ use utils::LinkedHashMap;
 use std::collections::HashMap;
 
 // number of normal callee saved registers (excluding RSP and RBP)
-pub const CALLEE_SAVED_COUNT : usize = 5;
+pub const CALLEE_SAVED_COUNT: usize = 5;
 
 /// a macro to declare a set of general purpose registers that are aliased to the first one
 macro_rules! GPR_ALIAS {
@@ -250,8 +250,8 @@ pub fn check_op_len(op: &P<Value>) -> usize {
         Some(64) => 64,
         Some(32) => 32,
         Some(16) => 16,
-        Some(8)  => 8,
-        Some(1)  => 8,
+        Some(8) => 8,
+        Some(1) => 8,
         _ => panic!("unsupported register length for x64: {}", op.ty)
     }
 }
@@ -320,7 +320,7 @@ lazy_static! {
     ];
 }
 
-pub const FPR_ID_START : usize = 100;
+pub const FPR_ID_START: usize = 100;
 
 lazy_static!{
     // floating point registers, we use SSE registers
@@ -496,7 +496,7 @@ lazy_static! {
 }
 
 /// creates context for each machine register in FunctionContext
-pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
+pub fn init_machine_regs_for_func(func_context: &mut FunctionContext) {
     for reg in ALL_MACHINE_REGS.values() {
         let reg_id = reg.extract_ssa_id().unwrap();
         let entry = SSAVarEntry::new(reg.clone());
@@ -508,9 +508,9 @@ pub fn init_machine_regs_for_func (func_context: &mut FunctionContext) {
 /// gets the number of registers in a certain register group
 pub fn number_of_usable_regs_in_group(group: RegGroup) -> usize {
     match group {
-        RegGroup::GPR   => ALL_USABLE_GPRS.len(),
+        RegGroup::GPR => ALL_USABLE_GPRS.len(),
         RegGroup::GPREX => ALL_USABLE_GPRS.len(),
-        RegGroup::FPR   => ALL_USABLE_FPRS.len()
+        RegGroup::FPR => ALL_USABLE_FPRS.len()
     }
 }
 
@@ -574,9 +574,9 @@ pub fn get_callee_saved_offset(reg: MuID) -> isize {
     let id = if reg == RBX.id() {
         0
     } else {
-        (reg - R12.id())/4 + 1
+        (reg - R12.id()) / 4 + 1
     };
-    (id as isize + 1)*(-8)
+    (id as isize + 1) * (-8)
 }
 
 /// is a machine register (by ID) callee saved?
@@ -597,9 +597,8 @@ pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
 
     if op.ty.get_int_length().is_some() && op.ty.get_int_length().unwrap() <= 32 {
         match op.v {
-            Value_::Constant(Constant::Int(val)) if val as i32 >= i32::MIN && val as i32 <= i32::MAX => {
-                true
-            },
+            Value_::Constant(Constant::Int(val))
+                if val as i32 >= i32::MIN && val as i32 <= i32::MAX => true,
             _ => false
         }
     } else {
@@ -615,49 +614,53 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
     match inst.v {
         // simple
-        BinOp(_, _, _)  => 1,
+        BinOp(_, _, _) => 1,
         BinOpWithStatus(_, _, _, _) => 2,
-        CmpOp(_, _, _)  => 1,
-        ConvOp{..}      => 0,
+        CmpOp(_, _, _) => 1,
+        ConvOp { .. } => 0,
 
         // control flow
-        Branch1(_)     => 1,
-        Branch2{..}    => 1,
-        Select{..}     => 2,
-        Watchpoint{..} => 1,
-        WPBranch{..}   => 2,
-        Switch{..}     => 3,
+        Branch1(_) => 1,
+        Branch2 { .. } => 1,
+        Select { .. } => 2,
+        Watchpoint { .. } => 1,
+        WPBranch { .. } => 2,
+        Switch { .. } => 3,
 
         // call
-        ExprCall{..} | ExprCCall{..} | Call{..} | CCall{..} => 5,
-        Return(_)   => 1,
+        ExprCall { .. } | ExprCCall { .. } | Call { .. } | CCall { .. } => 5,
+        Return(_) => 1,
         TailCall(_) => 1,
 
         // memory access
-        Load{..} | Store{..} => 1,
-        CmpXchg{..}          => 1,
-        AtomicRMW{..}        => 1,
-        AllocA(_)            => 1,
-        AllocAHybrid(_, _)   => 1,
-        Fence(_)             => 1,
+        Load { .. } | Store { .. } => 1,
+        CmpXchg { .. } => 1,
+        AtomicRMW { .. } => 1,
+        AllocA(_) => 1,
+        AllocAHybrid(_, _) => 1,
+        Fence(_) => 1,
 
         // memory addressing
-        GetIRef(_) | GetFieldIRef{..} | GetElementIRef{..} | ShiftIRef{..} | GetVarPartIRef{..} => 0,
+        GetIRef(_) |
+        GetFieldIRef { .. } |
+        GetElementIRef { .. } |
+        ShiftIRef { .. } |
+        GetVarPartIRef { .. } => 0,
 
         // runtime call
         New(_) | NewHybrid(_, _) => 10,
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
-        ThreadExit    => 10,
-        Throw(_)      => 10,
-        SwapStack{..} => 10,
+        ThreadExit => 10,
+        Throw(_) => 10,
+        SwapStack { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
         CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
 
         // others
         Move(_) => 0,
-        PrintHex(_)  => 10,
+        PrintHex(_) => 10,
         SetRetval(_) => 10,
-        ExnInstruction{ref inner, ..} => estimate_insts_for_ir(&inner),
-        _ => unimplemented!(),
+        ExnInstruction { ref inner, .. } => estimate_insts_for_ir(&inner),
+        _ => unimplemented!()
     }
 }

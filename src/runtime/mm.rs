@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -35,14 +35,25 @@ use runtime::thread::MuThread;
 /// finds an allocator and allocates memory
 /// if current thread has an allocator, use the allocator. Otherwise creates a new allocator,
 /// allocates objects and drops the allocator
-fn check_allocator(size: ByteSize, align: ByteSize, encode: u64, hybrid_len: Option<u64>) -> ObjectReference {
+fn check_allocator(
+    size: ByteSize,
+    align: ByteSize,
+    encode: u64,
+    hybrid_len: Option<u64>
+) -> ObjectReference {
     if MuThread::has_current() {
         // we have an allocator
         let allocator = (&mut MuThread::current_mut().allocator) as *mut Mutator;
         allocate(allocator, size, align, encode, hybrid_len)
     } else {
         let mut allocator = new_mutator();
-        let ret = allocate(&mut allocator as *mut Mutator, size, align, encode, hybrid_len);
+        let ret = allocate(
+            &mut allocator as *mut Mutator,
+            size,
+            align,
+            encode,
+            hybrid_len
+        );
         drop_mutator(&mut allocator as *mut Mutator);
 
         ret
@@ -51,7 +62,13 @@ fn check_allocator(size: ByteSize, align: ByteSize, encode: u64, hybrid_len: Opt
 
 /// allocates and initiates an object (hybrid or other types, large or small)
 #[inline(always)]
-fn allocate(allocator: *mut Mutator, size: ByteSize, align: ByteSize, encode: u64, hybrid_len: Option<u64>) -> ObjectReference {
+fn allocate(
+    allocator: *mut Mutator,
+    size: ByteSize,
+    align: ByteSize,
+    encode: u64,
+    hybrid_len: Option<u64>
+) -> ObjectReference {
     // allocate
     let ret = if size > LARGE_OBJECT_THRESHOLD {
         muentry_alloc_large(allocator, size, align)
@@ -90,17 +107,30 @@ pub fn allocate_hybrid(ty: P<MuType>, len: u64, backendtype: Box<BackendType>) -
     trace!("API:          gc ty   : {:?}", gctype);
     trace!("API:          encode  : {:b}", encode);
 
-    check_allocator(gctype.size_hybrid(len as u32), gctype.alignment, encode, Some(len)).to_address()
+    check_allocator(
+        gctype.size_hybrid(len as u32),
+        gctype.alignment,
+        encode,
+        Some(len)
+    ).to_address()
 }
 
 /// allocates a global cell
 pub fn allocate_global(iref_global: P<Value>, backendtype: Box<BackendType>) -> ValueLocation {
     let referenced_type = match iref_global.ty.get_referent_ty() {
         Some(ty) => ty,
-        None => panic!("expected global to be an iref type, found {}", iref_global.ty)
+        None => {
+            panic!(
+                "expected global to be an iref type, found {}",
+                iref_global.ty
+            )
+        }
     };
 
-    assert!(!referenced_type.is_hybrid(), "global cell cannot be hybrid type");
+    assert!(
+        !referenced_type.is_hybrid(),
+        "global cell cannot be hybrid type"
+    );
 
     let addr = allocate_fixed(referenced_type, backendtype);
     ValueLocation::Direct(RegGroup::GPR, addr)

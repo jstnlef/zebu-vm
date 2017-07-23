@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -33,60 +33,77 @@ macro_rules! println_type (
 /// create one of each MuType
 fn create_types() -> Vec<P<MuType>> {
     let mut types = vec![];
-    
+
     let t0 = MuType::new(0, MuType_::int(8));
     types.push(P(t0));
-    
+
     let t1 = MuType::new(1, MuType_::float());
     types.push(P(t1));
-    
+
     let t2 = MuType::new(2, MuType_::double());
     types.push(P(t2));
-    
+
     let t3 = MuType::new(3, MuType_::muref(types[0].clone()));
     types.push(P(t3));
-    
+
     let t4 = MuType::new(4, MuType_::iref(types[0].clone()));
     types.push(P(t4));
-    
+
     let t5 = MuType::new(5, MuType_::weakref(types[0].clone()));
     types.push(P(t5));
-    
+
     let t6 = MuType::new(6, MuType_::uptr(types[0].clone()));
     types.push(P(t6));
-    
-    let t7 = MuType::new(7, MuType_::mustruct("MyStructTag1".to_string(), vec![types[0].clone(), types[1].clone()]));
+
+    let t7 = MuType::new(
+        7,
+        MuType_::mustruct(
+            "MyStructTag1".to_string(),
+            vec![types[0].clone(), types[1].clone()]
+        )
+    );
     types.push(P(t7));
-    
+
     let t8 = MuType::new(8, MuType_::array(types[0].clone(), 5));
     types.push(P(t8));
-    
-    let t9 = MuType::new(9, MuType_::hybrid("MyHybridTag1".to_string(), vec![types[7].clone(), types[1].clone()], types[0].clone()));
+
+    let t9 = MuType::new(
+        9,
+        MuType_::hybrid(
+            "MyHybridTag1".to_string(),
+            vec![types[7].clone(), types[1].clone()],
+            types[0].clone()
+        )
+    );
     types.push(P(t9));
-    
+
     let t10 = MuType::new(10, MuType_::void());
     types.push(P(t10));
-    
+
     let t11 = MuType::new(11, MuType_::threadref());
     types.push(P(t11));
-    
+
     let t12 = MuType::new(12, MuType_::stackref());
     types.push(P(t12));
-    
+
     let t13 = MuType::new(13, MuType_::tagref64());
     types.push(P(t13));
-    
+
     let t14 = MuType::new(14, MuType_::vector(types[0].clone(), 5));
     types.push(P(t14));
-    
-    let sig = P(MuFuncSig{hdr: MuEntityHeader::unnamed(20), ret_tys: vec![types[10].clone()], arg_tys: vec![types[0].clone(), types[0].clone()]});
-    
+
+    let sig = P(MuFuncSig {
+        hdr: MuEntityHeader::unnamed(20),
+        ret_tys: vec![types[10].clone()],
+        arg_tys: vec![types[0].clone(), types[0].clone()]
+    });
+
     let t15 = MuType::new(15, MuType_::funcref(sig.clone()));
     types.push(P(t15));
-    
+
     let t16 = MuType::new(16, MuType_::ufuncptr(sig.clone()));
     types.push(P(t16));
-    
+
     types
 }
 
@@ -94,7 +111,7 @@ fn create_types() -> Vec<P<MuType>> {
 #[allow(unused_variables)]
 fn test_type_constructors() {
     let types = create_types();
-    
+
     assert_type!(*types[0], "int<8>");
     assert_type!(*types[1], "float");
     assert_type!(*types[2], "double");
@@ -122,15 +139,22 @@ fn test_type_constructors() {
 #[test]
 fn test_cyclic_struct() {
     // .typedef @cyclic_struct_ty = struct<ref<@cyclic_struct_ty> int<32>>
-    let ty = P(MuType::new(0, MuType_::mustruct_empty("MyStructTag2".to_string())));
+    let ty = P(MuType::new(
+        0,
+        MuType_::mustruct_empty("MyStructTag2".to_string())
+    ));
     let ref_ty = P(MuType::new(1, MuType_::muref(ty.clone())));
     let i32_ty = P(MuType::new(2, MuType_::int(32)));
-    
+
     {
-        STRUCT_TAG_MAP.write().unwrap().
-            get_mut("MyStructTag2").unwrap().set_tys(vec![ref_ty.clone(), i32_ty.clone()]);
+        STRUCT_TAG_MAP
+            .write()
+            .unwrap()
+            .get_mut("MyStructTag2")
+            .unwrap()
+            .set_tys(vec![ref_ty.clone(), i32_ty.clone()]);
     }
-    
+
     let map = STRUCT_TAG_MAP.read().unwrap();
     let struct_ty = map.get("MyStructTag2").unwrap();
     assert_type!(struct_ty, "struct<ref<MyStructTag2(struct)> int<32>>");
@@ -139,7 +163,7 @@ fn test_cyclic_struct() {
 #[test]
 fn test_is_traced() {
     let types = create_types();
-    
+
     assert_eq!(types[0].is_traced(), false);
     assert_eq!(types[1].is_traced(), false);
     assert_eq!(types[2].is_traced(), false);
@@ -148,17 +172,43 @@ fn test_is_traced() {
     assert_eq!(types[5].is_traced(), true);
     assert_eq!(types[6].is_traced(), false);
     assert_eq!(types[7].is_traced(), false);
-    let struct3 = MuType::new(100, MuType_::mustruct("MyStructTag3".to_string(), vec![types[3].clone(), types[0].clone()]));
+    let struct3 = MuType::new(
+        100,
+        MuType_::mustruct(
+            "MyStructTag3".to_string(),
+            vec![types[3].clone(), types[0].clone()]
+        )
+    );
     assert_eq!(struct3.is_traced(), true);
-    let struct4 = MuType::new(101, MuType_::mustruct("MyStructTag4".to_string(), vec![types[3].clone(), types[4].clone()]));
+    let struct4 = MuType::new(
+        101,
+        MuType_::mustruct(
+            "MyStructTag4".to_string(),
+            vec![types[3].clone(), types[4].clone()]
+        )
+    );
     assert_eq!(struct4.is_traced(), true);
     assert_eq!(types[8].is_traced(), false);
     let ref_array = MuType::new(102, MuType_::array(types[3].clone(), 5));
     assert_eq!(ref_array.is_traced(), true);
     assert_eq!(types[9].is_traced(), false);
-    let fix_ref_hybrid = MuType::new(103, MuType_::hybrid("FixRefHybrid".to_string(), vec![types[3].clone(), types[0].clone()], types[0].clone()));
+    let fix_ref_hybrid = MuType::new(
+        103,
+        MuType_::hybrid(
+            "FixRefHybrid".to_string(),
+            vec![types[3].clone(), types[0].clone()],
+            types[0].clone()
+        )
+    );
     assert_eq!(fix_ref_hybrid.is_traced(), true);
-    let var_ref_hybrid = MuType::new(104, MuType_::hybrid("VarRefHybrid".to_string(), vec![types[0].clone(), types[1].clone()], types[3].clone()));
+    let var_ref_hybrid = MuType::new(
+        104,
+        MuType_::hybrid(
+            "VarRefHybrid".to_string(),
+            vec![types[0].clone(), types[1].clone()],
+            types[3].clone()
+        )
+    );
     assert_eq!(var_ref_hybrid.is_traced(), true);
     assert_eq!(types[10].is_traced(), false);
     assert_eq!(types[11].is_traced(), true);
@@ -171,8 +221,8 @@ fn test_is_traced() {
 
 #[test]
 fn test_is_native_safe() {
-    let types = create_types();    
-    
+    let types = create_types();
+
     assert_eq!(types[0].is_native_safe(), true);
     assert_eq!(types[1].is_native_safe(), true);
     assert_eq!(types[2].is_native_safe(), true);
@@ -181,24 +231,50 @@ fn test_is_native_safe() {
     assert_eq!(types[5].is_native_safe(), false);
     assert_eq!(types[6].is_native_safe(), true);
     assert_eq!(types[7].is_native_safe(), true);
-    let struct3 = MuType::new(100, MuType_::mustruct("MyStructTag3".to_string(), vec![types[3].clone(), types[0].clone()]));
+    let struct3 = MuType::new(
+        100,
+        MuType_::mustruct(
+            "MyStructTag3".to_string(),
+            vec![types[3].clone(), types[0].clone()]
+        )
+    );
     assert_eq!(struct3.is_native_safe(), false);
-    let struct4 = MuType::new(101, MuType_::mustruct("MyStructTag4".to_string(), vec![types[3].clone(), types[4].clone()]));
+    let struct4 = MuType::new(
+        101,
+        MuType_::mustruct(
+            "MyStructTag4".to_string(),
+            vec![types[3].clone(), types[4].clone()]
+        )
+    );
     assert_eq!(struct4.is_native_safe(), false);
     assert_eq!(types[8].is_native_safe(), true);
     let ref_array = MuType::new(102, MuType_::array(types[3].clone(), 5));
     assert_eq!(ref_array.is_native_safe(), false);
     assert_eq!(types[9].is_native_safe(), true);
-    let fix_ref_hybrid = MuType::new(103, MuType_::hybrid("FixRefHybrid".to_string(), vec![types[3].clone(), types[0].clone()], types[0].clone()));
+    let fix_ref_hybrid = MuType::new(
+        103,
+        MuType_::hybrid(
+            "FixRefHybrid".to_string(),
+            vec![types[3].clone(), types[0].clone()],
+            types[0].clone()
+        )
+    );
     assert_eq!(fix_ref_hybrid.is_native_safe(), false);
-    let var_ref_hybrid = MuType::new(104, MuType_::hybrid("VarRefHybrid".to_string(), vec![types[0].clone(), types[1].clone()], types[3].clone()));
+    let var_ref_hybrid = MuType::new(
+        104,
+        MuType_::hybrid(
+            "VarRefHybrid".to_string(),
+            vec![types[0].clone(), types[1].clone()],
+            types[3].clone()
+        )
+    );
     assert_eq!(var_ref_hybrid.is_native_safe(), false);
     assert_eq!(types[10].is_native_safe(), true);
     assert_eq!(types[11].is_native_safe(), false);
     assert_eq!(types[12].is_native_safe(), false);
     assert_eq!(types[13].is_native_safe(), false);
     assert_eq!(types[14].is_native_safe(), true);
-    assert_eq!(types[15].is_native_safe(), false);    // funcref is not native safe
-                                                      // and not traced either
+    assert_eq!(types[15].is_native_safe(), false); // funcref is not native safe
+    // and not traced either
     assert_eq!(types[16].is_native_safe(), true);
 }

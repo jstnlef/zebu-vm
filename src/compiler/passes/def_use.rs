@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,12 +20,14 @@ use compiler::CompilerPass;
 use std::any::Any;
 
 pub struct DefUse {
-    name: &'static str,
+    name: &'static str
 }
 
 impl DefUse {
     pub fn new() -> DefUse {
-        DefUse{name: "Def-Use Pass"}
+        DefUse {
+            name: "Def-Use Pass"
+        }
     }
 }
 
@@ -57,7 +59,7 @@ impl CompilerPass for DefUse {
                 for op in inst.ops.iter() {
                     use_op(op, func_context);
                 }
-            },
+            }
             _ => panic!("expected instruction node in visit_inst()")
         }
     }
@@ -83,17 +85,17 @@ fn use_op(op: &P<TreeNode>, func_context: &mut FunctionContext) {
     match op.v {
         TreeNode_::Value(ref val) => {
             use_value(val, func_context);
-        },
+        }
         _ => {} // dont worry about instruction
     }
 }
 
 fn use_value(val: &P<Value>, func_context: &mut FunctionContext) {
-        match val.v {
-            Value_::SSAVar(ref id) => {
-                let entry = func_context.values.get_mut(id).unwrap();
-                entry.increase_use_count();
-            },
-            _ => {} // dont worry about constants
-        }    
+    match val.v {
+        Value_::SSAVar(ref id) => {
+            let entry = func_context.values.get_mut(id).unwrap();
+            entry.increase_use_count();
+        }
+        _ => {} // dont worry about constants
+    }
 }

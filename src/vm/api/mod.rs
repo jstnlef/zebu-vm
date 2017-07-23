@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,14 +25,14 @@
 //! within the same directory).
 
 /// generated from muapi.h, and it declares structs/types in API
-pub mod api_c;      // This is pub because `api_c` can be used directly. It is just an interface.
+pub mod api_c; // This is pub because `api_c` can be used directly. It is just an interface.
 
 /// generated code to bridge C API to internal representation in a Rust-friendly way
-mod api_bridge;     // This is mostly auto-generatd code, and should not be used externally.
+mod api_bridge; // This is mostly auto-generatd code, and should not be used externally.
 
 /// implements __api_impl_stubs.rs that is generated from the API
 /// this actually implements the API calls
-mod api_impl;       // Mostly private. 
+mod api_impl; // Mostly private.
 
 /// creates a Zebu instance with default options
 /// There is no standard API to create a Mu VM (it is implementation dependent)

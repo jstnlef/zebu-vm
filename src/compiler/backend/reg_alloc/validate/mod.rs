@@ -32,14 +32,15 @@ use compiler::backend::reg_alloc::validate::alive_entry::*;
 mod exact_liveness;
 use compiler::backend::reg_alloc::validate::exact_liveness::*;
 
-const VERIFY_SPILLING : bool = false;
+const VERIFY_SPILLING: bool = false;
 
 #[allow(unused_variables)]
 #[allow(unreachable_code)]
-pub fn validate_regalloc(cf: &CompiledFunction,
-                         reg_assigned: LinkedHashMap<MuID, MuID>,
-                         spill_scratch_regs: LinkedHashMap<MuID, MuID>)
-{
+pub fn validate_regalloc(
+    cf: &CompiledFunction,
+    reg_assigned: LinkedHashMap<MuID, MuID>,
+    spill_scratch_regs: LinkedHashMap<MuID, MuID>
+) {
     debug!("---Validating register allocation results---");
 
     debug!("liveness analysis...");
@@ -70,8 +71,8 @@ pub fn validate_regalloc(cf: &CompiledFunction,
 
     let mc = cf.mc();
 
-    let mut work_queue : LinkedHashMap<MuName, AliveEntries> = LinkedHashMap::new();
-    let mut visited    : LinkedHashMap<MuName, AliveEntries> = LinkedHashMap::new();
+    let mut work_queue: LinkedHashMap<MuName, AliveEntries> = LinkedHashMap::new();
+    let mut visited: LinkedHashMap<MuName, AliveEntries> = LinkedHashMap::new();
     // push entry block
     work_queue.insert(PROLOGUE_BLOCK_NAME.to_string(), alive.clone());
 
@@ -100,7 +101,8 @@ pub fn validate_regalloc(cf: &CompiledFunction,
 
                     // its define is the scratch temp
                     let scratch_temp = mc.get_inst_reg_defines(i)[0];
-                    let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
+                    let source_temp =
+                        get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
                     // we check if source_temp are alive, and if it is alive in the designated location
                     validate_spill_load(scratch_temp, source_temp, spill_loc, &mut alive);
@@ -116,13 +118,14 @@ pub fn validate_regalloc(cf: &CompiledFunction,
                             if reg >= MACHINE_ID_END {
                                 use_temps.push(reg)
                             }
-                        };
+                        }
 
                         assert!(use_temps.len() == 1);
 
                         use_temps[0]
                     };
-                    let source_temp = get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
+                    let source_temp =
+                        get_source_temp_for_scratch(scratch_temp, &spill_scratch_regs);
 
                     // we add both scratch_temp, and source_temp as alive
                     add_spill_store(scratch_temp, source_temp, spill_loc, &mut alive);
@@ -175,11 +178,13 @@ pub fn validate_regalloc(cf: &CompiledFunction,
         debug!("{}", alive);
 
         // find succeeding blocks
-        let succeeding_blocks : Vec<MuName> = mc.get_succs(last_inst).iter()
-                                              .map(|x| match mc.is_label(*x - 1) {
-                                                  Some(label) => label,
-                                                  None => panic!("cannot find label for inst {}", *x - 1)
-                                              }).collect();
+        let succeeding_blocks: Vec<MuName> = mc.get_succs(last_inst)
+            .iter()
+            .map(|x| match mc.is_label(*x - 1) {
+                Some(label) => label,
+                None => panic!("cannot find label for inst {}", *x - 1)
+            })
+            .collect();
 
         // 1) if we have visited this block before, we need to merge (intersect alive entries)
         // alive entries is changed, we need to push successors
@@ -192,7 +197,9 @@ pub fn validate_regalloc(cf: &CompiledFunction,
             let changed = old.intersect(&alive);
 
             if changed {
-                debug!("we have visted this block before, but intersection made changes. we need to push its sucessors again. ");
+                debug!(
+                    "we have visted this block before, but intersection made changes. we need to push its sucessors again. "
+                );
                 should_push_successors = true;
             }
         } else {
@@ -247,7 +254,10 @@ pub fn validate_regalloc(cf: &CompiledFunction,
     }
 }
 
-fn get_source_temp_for_scratch(scratch: MuID, spill_scratch_temps: &LinkedHashMap<MuID, MuID>) -> MuID {
+fn get_source_temp_for_scratch(
+    scratch: MuID,
+    spill_scratch_temps: &LinkedHashMap<MuID, MuID>
+) -> MuID {
     match spill_scratch_temps.get(&scratch) {
         Some(src) => get_source_temp_for_scratch(*src, spill_scratch_temps),
         None => scratch
@@ -280,7 +290,11 @@ fn validate_use(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, alive: &Ali
         if alive.has_entries_for_temp(temp) {
             for entry in alive.find_entries_for_temp(temp).iter() {
                 if !entry.match_reg(machine_reg) {
-                    error!("Temp{}/MachineReg{} does not match at this point. ", temp, machine_reg);
+                    error!(
+                        "Temp{}/MachineReg{} does not match at this point. ",
+                        temp,
+                        machine_reg
+                    );
                     error!("Temp{} is assigned as {}", temp, entry);
 
                     panic!("validation failed: temp-reg pair doesnt match")
@@ -306,7 +320,12 @@ fn kill_reg(reg: MuID, alive: &mut AliveEntries) {
     }
 }
 
-fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, is_mov: bool, alive: &mut AliveEntries) {
+fn add_def(
+    reg: MuID,
+    reg_assigned: &LinkedHashMap<MuID, MuID>,
+    is_mov: bool,
+    alive: &mut AliveEntries
+) {
     let machine_reg = get_machine_reg(reg, reg_assigned);
     let temp = reg;
 
@@ -318,15 +337,26 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, is_mov: bool, al
         if !alive.has_entries_for_reg(reg) {
             // add new machine register
             alive.new_alive_reg(reg);
-        } else if !alive.find_entries_for_reg(reg).iter().any(|entry| entry.has_temp()) {
+        } else if !alive
+                   .find_entries_for_reg(reg)
+                   .iter()
+                   .any(|entry| entry.has_temp())
+        {
             // overwrite the value that is not used
         } else {
             for entry in alive.find_entries_for_reg(reg).iter() {
                 let old_temp = entry.get_temp().unwrap();
-                error!("Register{}/Temp{} is alive at this point, defining a new value to Register{} is incorrect", reg, old_temp, reg);
+                error!(
+                    "Register{}/Temp{} is alive at this point, defining a new value to Register{} is incorrect",
+                    reg,
+                    old_temp,
+                    reg
+                );
             }
 
-            panic!("validation failed: define a register that is already alive (value overwritten)");
+            panic!(
+                "validation failed: define a register that is already alive (value overwritten)"
+            );
         }
     } else {
         if !alive.has_entries_for_reg(machine_reg) {
@@ -347,12 +377,24 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, is_mov: bool, al
                             // overwrite value, safe
                         } else {
                             if is_mov {
-                                debug!("Temp{} and Temp{} is using the same Register{}, possibly coalesced", temp, old_temp, machine_reg);
+                                debug!(
+                                    "Temp{} and Temp{} is using the same Register{}, possibly coalesced",
+                                    temp,
+                                    old_temp,
+                                    machine_reg
+                                );
                             } else {
                                 // trying to overwrite another value, error
-                                error!("Temp{} and Temp{} try use the same Register{}", temp, old_temp, machine_reg);
+                                error!(
+                                    "Temp{} and Temp{} try use the same Register{}",
+                                    temp,
+                                    old_temp,
+                                    machine_reg
+                                );
 
-                                panic!("validation failed: define a register that is already alive");
+                                panic!(
+                                    "validation failed: define a register that is already alive"
+                                );
                             }
                         }
                     }
@@ -365,8 +407,12 @@ fn add_def(reg: MuID, reg_assigned: &LinkedHashMap<MuID, MuID>, is_mov: bool, al
     }
 }
 
-fn add_spill_store(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
-                   alive: &mut AliveEntries) {
+fn add_spill_store(
+    scratch_temp: MuID,
+    source_temp: MuID,
+    spill_loc: P<Value>,
+    alive: &mut AliveEntries
+) {
     // add source_temp with mem loc
     alive.add_temp_in_mem(source_temp, spill_loc.clone());
 
@@ -374,22 +420,38 @@ fn add_spill_store(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
     alive.add_temp_in_mem(scratch_temp, spill_loc.clone());
 }
 
-fn validate_spill_load(scratch_temp: MuID, source_temp: MuID, spill_loc: P<Value>,
-                       alive: &mut AliveEntries) {
+fn validate_spill_load(
+    scratch_temp: MuID,
+    source_temp: MuID,
+    spill_loc: P<Value>,
+    alive: &mut AliveEntries
+) {
     // verify its correct: the source temp should be alive with the mem location
     if alive.has_entries_for_temp(source_temp) {
         for entry in alive.find_entries_for_temp(source_temp).iter() {
             if entry.match_stack_loc(spill_loc.clone()) {
                 // valid
             } else {
-                error!("SourceTemp{} is alive with the following entry, loading it from {} as ScratchTemp{} is not valid", source_temp, spill_loc, scratch_temp);
+                error!(
+                    "SourceTemp{} is alive with the following entry, loading it from {} as ScratchTemp{} is not valid",
+                    source_temp,
+                    spill_loc,
+                    scratch_temp
+                );
                 debug!("{}", entry);
 
-                panic!("validation failed: load a register from a spilled location that is incorrect");
+                panic!(
+                    "validation failed: load a register from a spilled location that is incorrect"
+                );
             }
         }
     } else {
-        error!("SourceTemp{} is not alive, loading it from {} as ScratchTemp{} is not valid", scratch_temp, spill_loc, scratch_temp);
+        error!(
+            "SourceTemp{} is not alive, loading it from {} as ScratchTemp{} is not valid",
+            scratch_temp,
+            spill_loc,
+            scratch_temp
+        );
 
         panic!("validation failed: load a register from a spilled location before storing into it")
     }

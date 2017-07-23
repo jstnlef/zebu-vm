@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,7 +25,7 @@ pub struct MuVM {
 
     // Cache C strings. The C client expects `char*` from `name_of`. We assume the client won't
     // call `name_of` very often, so that we don't need to initialise this hashmap on startup.
-    name_cache: Mutex<HashMap<MuID, CString>>,
+    name_cache: Mutex<HashMap<MuID, CString>>
 }
 
 /**
@@ -47,7 +47,7 @@ impl MuVM {
             // because other threads will remove that element from the cache, even though I only
             // monotonically add elements into the `name_cache`. I can't upgrade the lock from read
             // lock to write lock, otherwise it will deadlock.
-            name_cache: Mutex::new(HashMap::new()),
+            name_cache: Mutex::new(HashMap::new())
         }
     }
 
@@ -64,7 +64,9 @@ impl MuVM {
 
         debug!("The C-visible CMuCtx struct address: {:?}", cctx);
 
-        unsafe{ (*ctx_ptr).c_struct = cctx; }
+        unsafe {
+            (*ctx_ptr).c_struct = cctx;
+        }
 
         cctx
     }
@@ -94,18 +96,22 @@ impl MuVM {
         use compiler::*;
         use linkutils::aot;
 
-        let funcs : Vec<MuID> = {
+        let funcs: Vec<MuID> = {
             let funcs = self.vm.funcs().read().unwrap();
             funcs.keys().map(|x| *x).collect()
         };
 
-        self.vm.make_boot_image_internal(funcs,
-                                         None, None,
-                                         None,
-                                         vec![], vec![],
-                                         vec![], vec![],
-                                         extra_srcs,
-                                         lib_name
+        self.vm.make_boot_image_internal(
+            funcs,
+            None,
+            None,
+            None,
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            extra_srcs,
+            lib_name
         );
     }
 
@@ -117,7 +123,6 @@ impl MuVM {
             );
         }
     }
-
 }
 
 /**
@@ -135,19 +140,19 @@ impl MuVM {
  * only see `MuCtx`, and it is enough for most of the works.
  */
 #[no_mangle]
-pub extern fn mu_fastimpl_new() -> *mut CMuVM {
+pub extern "C" fn mu_fastimpl_new() -> *mut CMuVM {
     mu_fastimpl_new_with_opts(ptr::null())
 }
 
 #[no_mangle]
-pub extern fn mu_fastimpl_new_with_opts(opts: *const c_char) -> *mut CMuVM {
+pub extern "C" fn mu_fastimpl_new_with_opts(opts: *const c_char) -> *mut CMuVM {
     info!("Creating Mu micro VM fast implementation instance...");
 
     let str_opts = {
         if opts == ptr::null() {
             ""
         } else {
-            let cstr = unsafe {CStr::from_ptr(opts)};
+            let cstr = unsafe { CStr::from_ptr(opts) };
             match cstr.to_str() {
                 Ok(str) => str,
                 Err(_) => panic!("invalid utf8 string as options: {:?}", cstr)

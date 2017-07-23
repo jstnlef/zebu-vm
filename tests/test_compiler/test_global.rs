@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -50,7 +50,11 @@ fn test_global_access() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -74,7 +78,11 @@ fn test_set_global_by_api() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -86,7 +94,11 @@ fn test_set_global_by_api() {
 
         let uint64_10_handle = vm.handle_from_uint64(10, 64);
 
-        debug!("write {:?} to location {:?}", uint64_10_handle, global_handle);
+        debug!(
+            "write {:?} to location {:?}",
+            uint64_10_handle,
+            global_handle
+        );
         vm.handle_store(MemoryOrder::Relaxed, &global_handle, &uint64_10_handle);
     }
 
@@ -95,7 +107,8 @@ fn test_set_global_by_api() {
     backend::emit_context(&vm);
 
     // link
-    let executable = aot::link_primordial(vec![Mu("set_global_by_api")], "set_global_by_api_test", &vm);
+    let executable =
+        aot::link_primordial(vec![Mu("set_global_by_api")], "set_global_by_api_test", &vm);
     let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
@@ -156,7 +169,11 @@ fn test_get_global_in_dylib() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -178,10 +195,11 @@ fn test_get_global_in_dylib() {
     // link
     let libname = &linkutils::get_dylib_name("get_global_in_dylib");
     let libpath = linkutils::aot::link_dylib(vec![Mu("get_global_in_dylib")], libname, &vm);
-    let lib     = libloading::Library::new(libpath.as_os_str()).unwrap();
+    let lib = libloading::Library::new(libpath.as_os_str()).unwrap();
 
     unsafe {
-        let get_global_in_dylib : libloading::Symbol<unsafe extern fn () -> u64> = lib.get(b"get_global_in_dylib").unwrap();
+        let get_global_in_dylib: libloading::Symbol<unsafe extern "C" fn() -> u64> =
+            lib.get(b"get_global_in_dylib").unwrap();
         let res = get_global_in_dylib();
 
         println!("my_global = {}", res);
@@ -238,26 +256,30 @@ fn test_persist_linked_list() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
 
     // create a linked list by api
-    const LINKED_LIST_SIZE : usize = 5;
+    const LINKED_LIST_SIZE: usize = 5;
     {
         let mut i = 0;
-        let mut last_node : Option<Box<handle::APIHandle>> = None;
+        let mut last_node: Option<Box<handle::APIHandle>> = None;
 
         let node_tyid = vm.id_of("node");
 
         while i < LINKED_LIST_SIZE {
             // new node
-            let node_ref  = vm.new_fixed(node_tyid);
+            let node_ref = vm.new_fixed(node_tyid);
             let node_iref = vm.handle_get_iref(&node_ref);
 
             // store i as payload
-            let payload_iref = vm.handle_get_field_iref(&node_iref, 1);  // payload is the 2nd field
+            let payload_iref = vm.handle_get_field_iref(&node_iref, 1); // payload is the 2nd field
             let int_handle = vm.handle_from_uint64(i as u64, 64);
             vm.handle_store(MemoryOrder::Relaxed, &payload_iref, &int_handle);
 
@@ -276,7 +298,11 @@ fn test_persist_linked_list() {
         let global_id = vm.id_of("my_global");
         let global_handle = vm.handle_from_global(global_id);
 
-        vm.handle_store(MemoryOrder::Relaxed, &global_handle, last_node.as_ref().unwrap());
+        vm.handle_store(
+            MemoryOrder::Relaxed,
+            &global_handle,
+            last_node.as_ref().unwrap()
+        );
     }
 
     // then emit context (global will be put into context.s
@@ -284,7 +310,11 @@ fn test_persist_linked_list() {
     backend::emit_context(&vm);
 
     // link
-    let executable = aot::link_primordial(vec![Mu("persist_linked_list")], "persist_linked_list_test", &vm);
+    let executable = aot::link_primordial(
+        vec![Mu("persist_linked_list")],
+        "persist_linked_list_test",
+        &vm
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
@@ -449,19 +479,23 @@ fn test_persist_hybrid() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
 
     // create hybrid by api
-    const HYBRID_LENGTH : usize = 5;
+    const HYBRID_LENGTH: usize = 5;
     {
         let hybrid_tyid = vm.id_of("hybrid");
-        let hybrid_len  = vm.handle_from_uint64(HYBRID_LENGTH as u64, 64);
-        let hybrid      = vm.new_hybrid(hybrid_tyid, &hybrid_len);
+        let hybrid_len = vm.handle_from_uint64(HYBRID_LENGTH as u64, 64);
+        let hybrid = vm.new_hybrid(hybrid_tyid, &hybrid_len);
 
-        let hybrid_iref    = vm.handle_get_iref(&hybrid);
+        let hybrid_iref = vm.handle_get_iref(&hybrid);
         let hybrid_varpart = vm.handle_get_var_part_iref(&hybrid_iref);
 
         // create int64 objects to fill var part
@@ -469,7 +503,7 @@ fn test_persist_hybrid() {
 
         for i in 0..HYBRID_LENGTH {
             // new node
-            let node_ref  = vm.new_fixed(int64_tyid);
+            let node_ref = vm.new_fixed(int64_tyid);
             let node_iref = vm.handle_get_iref(&node_ref);
 
             // store i into node
@@ -669,7 +703,11 @@ fn test_persist_funcref() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_ret42_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -679,7 +717,11 @@ fn test_persist_funcref() {
         let funcs = vm.funcs().read().unwrap();
         let func = funcs.get(&func_my_main_id).unwrap().read().unwrap();
         let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
 
         compiler.compile(&mut func_ver);
     }
@@ -699,11 +741,14 @@ fn test_persist_funcref() {
 
     // make boot image
     vm.make_boot_image(
-        vec![func_ret42_id, func_my_main_id],   // whitelist
-        Some(&my_main_handle), None,             // primoridal func, stack
-        None,                                   // threadlocal
-        vec![], vec![],                         // sym fields/strings
-        vec![], vec![],                         // reloc fields/strings
+        vec![func_ret42_id, func_my_main_id], // whitelist
+        Some(&my_main_handle),
+        None, // primoridal func, stack
+        None, // threadlocal
+        vec![],
+        vec![], // sym fields/strings
+        vec![],
+        vec![], // reloc fields/strings
         "test_persist_funcref".to_string()
     );
 

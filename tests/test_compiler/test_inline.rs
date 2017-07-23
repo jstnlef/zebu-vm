@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,10 +24,12 @@ use mu::utils::LinkedHashMap;
 
 #[test]
 fn test_inline_add_simple() {
-    let lib = linkutils::aot::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
+    let lib =
+        linkutils::aot::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
 
     unsafe {
-        let inline_add : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"add_trampoline").unwrap();
+        let inline_add: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"add_trampoline").unwrap();
 
         let inline_add_1_1 = inline_add(1, 1);
         println!("add(1, 1) = {}", inline_add_1_1);
@@ -96,10 +98,12 @@ fn inline_add() -> VM {
 
 #[test]
 fn test_inline_add_twice() {
-    let lib = linkutils::aot::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
+    let lib =
+        linkutils::aot::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
 
     unsafe {
-        let add_twice : libloading::Symbol<unsafe extern fn(u64, u64, u64) -> u64> = lib.get(b"add_twice").unwrap();
+        let add_twice: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64) -> u64> =
+            lib.get(b"add_twice").unwrap();
 
         let res = add_twice(1, 1, 1);
         println!("add(1, 1, 1) = {}", res);
@@ -176,10 +180,15 @@ fn inline_add_twice() -> VM {
 
 #[test]
 fn test_inline_add_with_extra_norm_args() {
-    let lib = linkutils::aot::compile_fncs("inline_add_with_extra_norm_args", vec!["add_with_extra_norm_args", "add"], &inline_add_with_extra_norm_args);
+    let lib = linkutils::aot::compile_fncs(
+        "inline_add_with_extra_norm_args",
+        vec!["add_with_extra_norm_args", "add"],
+        &inline_add_with_extra_norm_args
+    );
 
     unsafe {
-        let add_twice : libloading::Symbol<unsafe extern fn(u64, u64, u64) -> u64> = lib.get(b"add_with_extra_norm_args").unwrap();
+        let add_twice: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64) -> u64> =
+            lib.get(b"add_with_extra_norm_args").unwrap();
 
         let res = add_twice(1, 1, 1);
         println!("add(1, 1, 1) = {}", res);

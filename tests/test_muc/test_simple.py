@@ -97,14 +97,29 @@ def test_except_stack_args():
         "test_except_stack_args");
     assert(execute("test_except_stack_args") == 1);
 
-
-def test_ldp_bug():
+@pytest.mark.xfail(reason = "stack return values are not yet implemented on x86-64")
+def test_stack_pass_and_return():
     compile_bundle(
         """
-        .funcdef foo <(int<128> int<128> int<128> int<128> int<128> int<128>)->(int<128>)>
+        .funcsig sig = (int<128> int<128> int<128> int<128> int<128> int<128>) ->(int<128> int<128>)
+        .funcdef test_stack_pass_and_return <main_sig>
+        {
+            entry(<int<32>>argc <uptr<uptr<char>>>argv):
+                (res_013 res_245) = CALL <sig> stacky(<int<128>>0 <int<128>>1 <int<128>>2 <int<128>>3 <int<128>>4 <int<128>>5)
+                res_128 = ADD<int<128>> res_013 res_245
+                res = TRUNC <int<128> int<32>> res_128
+                RET res
+        }
+        
+        .funcdef stacky <sig>
         {
             entry(<int<128>>a0 <int<128>>a1 <int<128>>a2 <int<128>>a3 <int<128>>a4 <int<128>>a5):
-                RET a5
+                res_01  = ADD<int<128>> a0 a1
+                res_013 = ADD<int<128>> res_01 a3
+                
+                res_24 = MUL<int<128>> a2 a4
+                res_245 = MUL<int<128>> res_24 a5
+                RET (res_013 res_245)
         }
-        """, "test_taillcall_smaller_stack");
-assert(execute("test_taillcall_smaller_stack") == 12);
+        """, "test_stack_pass_and_return");
+    assert(execute("test_stack_pass_and_return") == 44);
