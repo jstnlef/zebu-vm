@@ -302,7 +302,7 @@ impl<'a> VM {
         };
 
         match stderrlog::new().verbosity(verbose).init() {
-            Ok(()) => info!("logger initialized")
+            Ok(()) => { info!("logger initialized") }
             Err(e) => {
                 error!(
                     "failed to init logger, probably already initialized: {:?}",
