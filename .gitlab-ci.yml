@@ -98,7 +98,7 @@ testjit:rpython:
     - git checkout mu-rewrite
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy pytest test_rpython*.py -v --color=yes
+    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=./emit RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy pytest test_rpython*.py -v --color=yes
 
 testjit:som:
   stage: test
@@ -112,7 +112,7 @@ testjit:som:
     - git checkout mu-rewrite
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=. RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_som.py -v --color=yes
+    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=./emit RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_som.py -v --color=yes
 
 rustfmt:
   stage: rustfmt
