@@ -1,11 +1,11 @@
 # Copyright 2017 The Australian National University
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,7 +15,7 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib.rmu import zebu as rmu
 from rpython.translator.platform import platform
-from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
+from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc, bin_dir
 import ctypes, py, stat, os
 import pytest
 
@@ -1057,8 +1057,8 @@ def test_make_boot_image_simple():
         c_exit(rffi.cast(rffi.INT, 0))
     return 0
 
-    res = run_boot_image(pypy_mu_entry, '/tmp/test_make_boot_image_mu', True, ['abc', '123'])
-    exe = '/tmp/test_make_boot_image_mu'
+    res = run_boot_image(pypy_mu_entry, str(bin_dir.join('test_make_boot_image_mu')), True, ['abc', '123'])
+    exe = str(bin_dir.join('test_make_boot_image_mu))'
 
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
@@ -1069,8 +1069,8 @@ def test_rpytarget_print_argv():
         print argv
         return 0
 
-    res = run_boot_image(main, '/tmp/test_printargv_mu', args = ['abc', '123'])
-    exe = '/tmp/test_printargv_mu'
+    res = run_boot_image(main, str(bin_dir.join('test_printargv_mu')), args = ['abc', '123'])
+    exe = str(bin_dir.join('test_printargv_mu))'
 
     assert res.returncode == 0, res.err
     assert res.out == '[%s, abc, 123]\n' % exe
@@ -1081,7 +1081,7 @@ def test_rpython_helloworld():
         print "hello world"
         return 0
 
-    res = run_boot_image(main, '/tmp/test_helloworld_mu')
+    res = run_boot_image(main, str(bin_dir.join('test_helloworld_mu')))
 
     assert res.returncode == 0, res.err
     assert res.out == 'hello world\n'
@@ -1093,7 +1093,7 @@ def test_rpython_print_number():
         print 233
         return 0
 
-    res = run_boot_image(main, '/tmp/test_print_number_mu')
+    res = run_boot_image(main, str(bin_dir.join('test_print_number_mu')))
 
     assert res.returncode == 0, res.err
     assert res.out == '233\n'
@@ -1104,7 +1104,7 @@ def test_rpython_print_fmt():
         print "hello world %s" % argv[1]
         return 0
 
-    res = run_boot_image(main, '/tmp/test_print_fmt', args = ['mu'])
+    res = run_boot_image(main, str(bin_dir.join('test_print_fmt')), args = ['mu'])
 
     assert res.returncode == 0, res.err
     assert res.out == 'hello world mu\n'
@@ -1114,7 +1114,7 @@ def test_rpython_main():
     def main(argv):
         return 0
 
-    res = run_boot_image(main, '/tmp/test_main')
+    res = run_boot_image(main, str(bin_dir.join('test_main')))
 
     assert res.returncode == 0, res.err
 
@@ -1128,15 +1128,16 @@ All things were made through him, and without him was not any thing made that wa
 In him was life, and the life was the light of men.
 The light shines in the darkness, and the darkness has not overcome it.
 '''
-    test_file = py.path.local('/tmp/john1.txt')
+    test_file = py.path.local(str(bin_dir.join('john1)).txt')
     with test_file.open('w') as fp:
         fp.write(john1)
 
     from rpython.translator.goal.targetsha1sum import entry_point
-    res = run_boot_image(entry_point, '/tmp/test_sha1sum_mu', args=['/tmp/john1.txt'])
+    res = run_boot_image(entry_point, str(bin_dir.join('test_sha1sum_mu')), args=[str(bin_dir.join('john1)).txt'])
 
     assert res.returncode == 0, res.err
-    assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def /tmp/john1.txt\n'
+
+    assert res.out == '53b45a7e3fb6ccb2d9e43c45cb57b6b56c784def %(test_file)s\n' % locals()
 
 @may_spawn_proc
 def test_linked_list():
@@ -1158,7 +1159,7 @@ def test_linked_list():
         print nd.data
         return 0
 
-    res = run_boot_image(main, '/tmp/test_linked_list-mu', args=['2'])
+    res = run_boot_image(main, str(bin_dir.join('test_linked_list))-mu', args=['2'])
     assert res.returncode == 0, res.err
     assert res.out == '1\n'
 
@@ -1169,7 +1170,7 @@ def test_rpytarget_richards0():
         res, t0, t1 = entry_point(int(argv[1]))
         return 0
 
-    res = run_boot_image(main, '/tmp/test_richards-mu', args=['5'])
+    res = run_boot_image(main, str(bin_dir.join('test_richards))-mu', args=['5'])
     assert res.returncode == 0, res.err
 
 @may_spawn_proc
@@ -1182,7 +1183,7 @@ def test_rpytarget_richards_measure_time():
         print 'avg time =', (t1 - t0) / iterations
         return 0
 
-    res = run_boot_image(main, '/tmp/test_richards_measure_time-mu', args=['5'])
+    res = run_boot_image(main, str(bin_dir.join('test_richards_measure_time))-mu', args=['5'])
     assert res.returncode == 0, res.err
 
 @may_spawn_proc
@@ -1192,7 +1193,7 @@ def test_rpython_print_time():
         print time.time()
         return 0
 
-    res = run_boot_image(main, '/tmp/test_print_time')
+    res = run_boot_image(main, str(bin_dir.join('test_print_time')))
     assert res.returncode == 0, res.err
 
 @may_spawn_proc
@@ -1206,7 +1207,7 @@ def test_rpython_time_diff():
         else:
             return 1
 
-    res = run_boot_image(main, '/tmp/test_time_diff')
+    res = run_boot_image(main, str(bin_dir.join('test_time_diff')))
     assert res.returncode == 0, res.err
 
 @may_spawn_proc
@@ -1217,7 +1218,7 @@ def test_dtoa():
         print_(dtoa(3.14))
         return 0
 
-    res = run_boot_image(main, '/tmp/test_print_float-mu', args=['2'])
+    res = run_boot_image(main, str(bin_dir.join('test_print_float))-mu', args=['2'])
     assert res.returncode == 0, res.err
     assert res.out == '3.14\n'
 
@@ -1225,7 +1226,7 @@ def test_dtoa():
 def test_rpytarget_testdicts():
     from rpython.translator.goal.targettestdicts import entry_point
 
-    res = run_boot_image(entry_point, '/tmp/test_testdicts-mu',
+    res = run_boot_image(entry_point, str(bin_dir.join('test_testdicts))-mu',
                          args=['d', '1534'], vmargs="--gc-immixspace-size=536870912 --gc-lospace-size=536870912")
     assert res.returncode == 0, res.err
     assert res.out == '0x5fe\n'
@@ -1354,7 +1355,7 @@ def test_nbody():
         print test_nbody(int(argv[1]))
         return 0
 
-    res = run_boot_image(main, '/tmp/test_nbody-mu', args=['5'])
+    res = run_boot_image(main, str(bin_dir.join('test_nbody))-mu', args=['5'])
     assert res.returncode == 0, res.err
     assert res.out == '-0.169080\n'
 
@@ -1415,7 +1416,7 @@ def test_float():
             print 'NULL'
         return 0
 
-    res = run_boot_image(main, '/tmp/test_float-mu', args=['5'])
+    res = run_boot_image(main, str(bin_dir.join('test_float))-mu', args=['5'])
     assert res.returncode == 0, res.err
     assert res.out == '(0.893876, 1.000000, 0.447179)\n'
 
@@ -1431,7 +1432,7 @@ All things were made through him, and without him was not any thing made that wa
 In him was life, and the life was the light of men.
 The light shines in the darkness, and the darkness has not overcome it.
 '''
-    test_file = py.path.local('/tmp/john1.txt')
+    test_file = py.path.local(str(bin_dir.join('john1)).txt')
     with test_file.open('w') as fp:
         fp.write(john1)
 
@@ -1446,7 +1447,7 @@ The light shines in the darkness, and the darkness has not overcome it.
         f.close()
         return 0
 
-    res = run_boot_image(entry_point, '/tmp/test_open_file_as_stream', args=[str(test_file)])
+    res = run_boot_image(entry_point, str(bin_dir.join('test_open_file_as_stream')), args=[str(test_file)])
 
     assert res.returncode == 0, res.err
     assert res.out == john1 + '\n'
@@ -1477,7 +1478,7 @@ def test_rpython_rethrow():
         if i != 0:
             raise OSError()
 
-    res = run_boot_image(main, '/tmp/test_rpython_rethrow')
+    res = run_boot_image(main, str(bin_dir.join('test_rpython_rethrow')))
     assert res.returncode == 0, res.err
     assert res.out == '1\n2\n3\n0\n'
 
