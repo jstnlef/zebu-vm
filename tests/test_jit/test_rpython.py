@@ -1004,10 +1004,10 @@ def run_boot_image(entry, output, has_c_main_sig = False, args = [], impl=os.get
     from rpython.translator.interactive import Translation
     from rpython.translator.platform import log as log_platform
     if has_c_main_sig:
-        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api', vmargs=vmargs)
+        t = Translation(entry, [rffi.INT, rffi.CCHARPP], backend='mu', impl=impl, codegen='api', vmargs=vmargs, suplibdir=str(bin_dir))
         t.driver.disable(['entrypoint_mu'])
     else:
-        t = Translation(entry, None, backend='mu', impl=impl, codegen='c', vmargs=vmargs)
+        t = Translation(entry, None, backend='mu', impl=impl, codegen='c', vmargs=vmargs, suplibdir=str(bin_dir))
 
     t.driver.standalone = True  # force standalone
     t.driver.exe_name = output
@@ -1057,8 +1057,9 @@ def test_make_boot_image_simple():
         c_exit(rffi.cast(rffi.INT, 0))
     return 0
 
-    res = run_boot_image(pypy_mu_entry, str(bin_dir.join('test_make_boot_image_mu')), True, ['abc', '123'])
-    exe = str(bin_dir.join('test_make_boot_image_mu))'
+    exe = str(bin_dir.join('test_make_boot_image_mu'))
+    res = run_boot_image(pypy_mu_entry, str(exe), True, ['abc', '123'])
+
 
     assert res.returncode == 0, res.err
     assert res.out == '%s\nabc\n123\n' % exe
@@ -1070,7 +1071,7 @@ def test_rpytarget_print_argv():
         return 0
 
     res = run_boot_image(main, str(bin_dir.join('test_printargv_mu')), args = ['abc', '123'])
-    exe = str(bin_dir.join('test_printargv_mu))'
+    exe = str(bin_dir.join('test_printargv_mu'))
 
     assert res.returncode == 0, res.err
     assert res.out == '[%s, abc, 123]\n' % exe
@@ -1128,12 +1129,12 @@ All things were made through him, and without him was not any thing made that wa
 In him was life, and the life was the light of men.
 The light shines in the darkness, and the darkness has not overcome it.
 '''
-    test_file = py.path.local(str(bin_dir.join('john1)).txt')
+    test_file = py.path.local(str(bin_dir.join('john1.txt')))
     with test_file.open('w') as fp:
         fp.write(john1)
 
     from rpython.translator.goal.targetsha1sum import entry_point
-    res = run_boot_image(entry_point, str(bin_dir.join('test_sha1sum_mu')), args=[str(bin_dir.join('john1)).txt'])
+    res = run_boot_image(entry_point, str(bin_dir.join('test_sha1sum_mu')), args=[str(test_file)])
 
     assert res.returncode == 0, res.err
 
@@ -1159,7 +1160,7 @@ def test_linked_list():
         print nd.data
         return 0
 
-    res = run_boot_image(main, str(bin_dir.join('test_linked_list))-mu', args=['2'])
+    res = run_boot_image(main, str(bin_dir.join('test_linked_list-mu')), args=['2'])
     assert res.returncode == 0, res.err
     assert res.out == '1\n'
 
@@ -1170,7 +1171,7 @@ def test_rpytarget_richards0():
         res, t0, t1 = entry_point(int(argv[1]))
         return 0
 
-    res = run_boot_image(main, str(bin_dir.join('test_richards))-mu', args=['5'])
+    res = run_boot_image(main, str(bin_dir.join('test_richards-mu')), args=['5'])
     assert res.returncode == 0, res.err
 
 @may_spawn_proc
@@ -1183,7 +1184,7 @@ def test_rpytarget_richards_measure_time():
         print 'avg time =', (t1 - t0) / iterations
         return 0
 
-    res = run_boot_image(main, str(bin_dir.join('test_richards_measure_time))-mu', args=['5'])
+    res = run_boot_image(main, str(bin_dir.join('test_richards_measure_time-mu')), args=['5'])
     assert res.returncode == 0, res.err
 
 @may_spawn_proc
@@ -1218,7 +1219,7 @@ def test_dtoa():
         print_(dtoa(3.14))
         return 0
 
-    res = run_boot_image(main, str(bin_dir.join('test_print_float))-mu', args=['2'])
+    res = run_boot_image(main, str(bin_dir.join('test_dtoa-mu')), args=['2'])
     assert res.returncode == 0, res.err
     assert res.out == '3.14\n'
 
@@ -1226,7 +1227,7 @@ def test_dtoa():
 def test_rpytarget_testdicts():
     from rpython.translator.goal.targettestdicts import entry_point
 
-    res = run_boot_image(entry_point, str(bin_dir.join('test_testdicts))-mu',
+    res = run_boot_image(entry_point, str(bin_dir.join('test_testdicts-mu')),
                          args=['d', '1534'], vmargs="--gc-immixspace-size=536870912 --gc-lospace-size=536870912")
     assert res.returncode == 0, res.err
     assert res.out == '0x5fe\n'
@@ -1355,7 +1356,7 @@ def test_nbody():
         print test_nbody(int(argv[1]))
         return 0
 
-    res = run_boot_image(main, str(bin_dir.join('test_nbody))-mu', args=['5'])
+    res = run_boot_image(main, str(bin_dir.join('test_nbody-mu')), args=['5'])
     assert res.returncode == 0, res.err
     assert res.out == '-0.169080\n'
 
@@ -1416,7 +1417,7 @@ def test_float():
             print 'NULL'
         return 0
 
-    res = run_boot_image(main, str(bin_dir.join('test_float))-mu', args=['5'])
+    res = run_boot_image(main, str(bin_dir.join('test_float-mu')), args=['5'])
     assert res.returncode == 0, res.err
     assert res.out == '(0.893876, 1.000000, 0.447179)\n'
 
@@ -1432,7 +1433,7 @@ All things were made through him, and without him was not any thing made that wa
 In him was life, and the life was the light of men.
 The light shines in the darkness, and the darkness has not overcome it.
 '''
-    test_file = py.path.local(str(bin_dir.join('john1)).txt')
+    test_file = py.path.local(str(bin_dir.join('john1.txt')))
     with test_file.open('w') as fp:
         fp.write(john1)
 
@@ -1482,10 +1483,10 @@ def test_rpython_rethrow():
     assert res.returncode == 0, res.err
     assert res.out == '1\n2\n3\n0\n'
 
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('testfnc', help="Test function name")
-    opts = parser.parse_args()
+# if __name__ == '__main__':
+#     import argparse
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument('testfnc', help="Test function name")
+#     opts = parser.parse_args()
 
-    globals()[opts.testfnc]()
+#     globals()[opts.testfnc]()
