@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <assert.h>
 
 int tls_initialized = 0;
 
@@ -61,6 +62,10 @@ int32_t mu_retval;
 
 void muentry_set_retval(int32_t x) {
     mu_retval = x;
+}
+
+int32_t muentry_get_retval() {
+    return mu_retval;
 }
 
 int32_t c_check_result() {

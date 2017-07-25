@@ -320,6 +320,7 @@ impl fmt::Display for MuThread {
 
 #[cfg(target_arch = "aarch64")]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[link(name = "swap_stack")]
 extern "C" {
     fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
@@ -331,6 +332,7 @@ extern "C" {
 
 #[cfg(target_arch = "aarch64")]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[link(name = "runtime")]
 #[allow(improper_ctypes)]
 extern "C" {
@@ -341,6 +343,7 @@ extern "C" {
 
 #[cfg(target_arch = "x86_64")]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[link(name = "runtime")]
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
@@ -350,6 +353,7 @@ extern "C" {
 
 #[cfg(target_arch = "x86_64")]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[link(name = "swap_stack")]
 extern "C" {
     fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
@@ -360,7 +364,8 @@ extern "C" {
 }
 
 #[cfg(target_arch = "x86_64")]
-#[cfg(feature = "sel4-rumprun")]
+//#[cfg(all(target_os = "netbsd", target_vendor = "rumprun"))]
+#[cfg(feature = "sel4-rumprun-target-side")]
 #[link(name = "runtime")]
 extern "C" {
     pub fn set_thread_local(thread: *mut MuThread);
@@ -369,7 +374,8 @@ extern "C" {
 }
 
 #[cfg(target_arch = "x86_64")]
-#[cfg(feature = "sel4-rumprun")]
+//#[cfg(all(target_os = "netbsd", target_vendor = "rumprun"))]
+#[cfg(feature = "sel4-rumprun-target-side")]
 #[link(name = "swap_stack")]
 extern "C" {
     fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);

@@ -29,6 +29,7 @@ use mu::utils::LinkedHashMap;
 
 // NOTE: aarch64 has 2 more parameter registers than x86-64 so it needs different test cases for stack arguments
 
+#[cfg(not(feature = "sel4-rumprun"))]
 #[test]
 fn test_ccall_exit() {
     VM::start_logging_trace();

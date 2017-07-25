@@ -44,7 +44,8 @@ pub mod exception;
 // consider using libloading crate instead of the raw c functions for dynalic libraries
 // however i am not sure if libloading can load symbols from current process (not from an actual dylib)
 // so here i use dlopen/dlsym from C
-#[cfg(not(feature = "sel4-rumprun"))]
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
+//#[cfg(not(all(target_os = "netbsd", target_vendor = "rumprun")))]
 #[link(name="dl")]
 extern "C" {
     fn dlopen(filename: *const c_char, flags: isize) -> *const c_void;
@@ -52,7 +53,8 @@ extern "C" {
     fn dlerror() -> *const c_char;
 }
 
-#[cfg(not(feature = "sel4-rumprun"))]
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
+//#[cfg(not(all(target_os = "netbsd", target_vendor = "rumprun")))]
 pub fn resolve_symbol(symbol: String) -> Address {
     use std::ptr;
 
@@ -76,8 +78,9 @@ pub fn resolve_symbol(symbol: String) -> Address {
 // This function is specific to sel4-rumprun platform
 // it replaces the resolve_symbol function provided by Linux and Mac
 // all other platforms (except sel4-rumprun) already provide this function
-#[cfg(feature = "sel4-rumprun")]
-#[link(name="c_helpers")]
+#[cfg(feature = "sel4-rumprun-target-side")]
+//#[cfg(all(target_os = "netbsd", target_vendor = "rumprun"))]
+#[link(name="zebu_c_helpers")]
 extern "C" {
     fn c_resolve_symbol(symbol: *const c_char) -> *const c_void;
 }
@@ -102,8 +105,10 @@ extern "C" {
 
 // TODO
 // resolve symbol is different from the one used for Linux and Mac
-#[cfg(feature = "sel4-rumprun")]
+#[cfg(feature = "sel4-rumprun-target-side")]
+//#[cfg(all(target_os = "netbsd", target_vendor = "rumprun"))]
 pub fn resolve_symbol(symbol: String) -> Address {
+    debug!("Going to resolve Symbol -{}-", symbol);
     let ret = unsafe { c_resolve_symbol(CString::new(symbol.clone()).unwrap().as_ptr()) };
     if ret.is_null() {
         panic!("failed to resolve symbol: {}", symbol.clone());
@@ -260,7 +265,7 @@ pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *
     debug!("mu_main() started...");
     
     let str_vm = unsafe{CStr::from_ptr(serialized_vm)}.to_str().unwrap();
-    
+
     let vm : Arc<VM> = Arc::new(VM::resume_vm(str_vm));
     
     let primordial = vm.primordial.read().unwrap();
@@ -271,7 +276,6 @@ pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *
         
         // create mu stack
         let stack = vm.new_stack(primordial.func_id);
-
         // if the primordial named some const arguments, we use the const args
         // otherwise we push 'argc' and 'argv' to new stack
         let args : Vec<ValueLocation> = if primordial.has_const_args {
@@ -287,11 +291,9 @@ pub extern fn mu_main(serialized_vm : *const c_char, argc: c_int, argv: *const *
 
             args
         };
-        
         // FIXME: currently assumes no user defined thread local
         // will need to fix this after we can serialize heap object
         let thread = thread::MuThread::new_thread_normal(stack, unsafe{Address::zero()}, args, vm.clone());
-        
         thread.join().unwrap();
     }
 }

@@ -15,6 +15,7 @@
 #![allow(unused_variables)]
 
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
+use compiler::backend::AOT_EMIT_SYM_TABLE_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
 use utils::Address;
@@ -2998,6 +2999,7 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_branch2(asm, dest_name);
     }
 
+    #[cfg(not(feature = "sel4-rumprun"))]
     #[cfg(target_os = "macos")]
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
         trace!("emit: call {}", func);
@@ -3012,6 +3014,7 @@ impl CodeGenerator for ASMCodeGen {
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
 
+    #[cfg(not(feature = "sel4-rumprun"))]
     #[cfg(target_os = "linux")]
     // generating Position-Independent Code using PLT
     fn emit_call_near_rel32(&mut self, callsite: String, func: MuName, pe: Option<MuName>) -> ValueLocation {
@@ -3436,11 +3439,14 @@ fn write_const_min_align(f: &mut File) {
     write_align(f, MIN_ALIGN);
 }
 
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
 fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
     f.write_fmt(format_args!("\t.align {}\n", check_min_align(align))).unwrap();
 }
+
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "macos")]
 fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
@@ -3523,6 +3529,128 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         _ => unimplemented!()
     }
 }
+
+#[cfg(not(feature = "sel4-rumprun"))]
+pub fn emit_sym_table(vm: &VM) {
+    debug!("Currently nothing to emit for --!");
+}
+
+#[cfg(feature = "sel4-rumprun")]
+pub fn emit_sym_table(vm: &VM){
+    use std::path;
+    use std::io::Write;
+    // Javad-cross-compile
+    // code to generate an asm file to resolve symbol addresses at link time!
+    // in this stage, a single sym_file is generated for each test
+    // these sym_files will be merged in build.rs\
+    // in the parent directory of sel4 side
+
+    //**************************************************
+    // Code starts here
+    // first create the asm file in the correct path
+    // _st added file name and path stands for _SymTable
+    // *************************************************
+    debug!("Going to emit Sym table for sel4-rumprun");
+    let mut file_path_st = path::PathBuf::new();
+    file_path_st.push(&vm.vm_options.flag_aot_emit_dir);
+    //just the file name is changed compared to context.s
+    // vm file name is: "fnID_sym_table.s"
+    file_path_st.push(format!("{}", AOT_EMIT_SYM_TABLE_FILE));
+
+    let mut file_st = match File::create(file_path_st.as_path()) {
+        Err(why) => panic!("couldn't create SYM TABLE file {}: {}", file_path_st.to_str().unwrap(), why),
+        Ok(file) => file
+    };
+
+    // **************************************************
+    // fnID_sym_table.s is created, but it's empty
+    // *************************************************
+    // **************************************************
+    // Code for exporting all of the required symbols \
+    // in vm, using the following fields:
+    // compiled_funcs.CompiledFunction.start
+    // compiled_funcs.CompiledFunction.end
+    // compiled_funcs.CompiledFunction.Frame. \
+    // exception_callsites[iter](src,_)
+    // compiled_funcs.CompiledFunction.Frame. \
+    // exception_callsites[iter](_,dest)
+    // ret
+    // *************************************************
+
+    let mut sym_vec: Vec<String> = Vec::new();
+    let compiled_funcs : &HashMap<_, _> = &vm.compiled_funcs().read().unwrap();
+    debug!("Number of Compiled functions: {}\n", compiled_funcs.len());
+    for (theID, theCFs) in compiled_funcs.iter() {
+        let theCF : &CompiledFunction = &theCFs.read().unwrap();
+        debug!("new theCF\n");
+        match theCF.start {
+            // CF.start can only be relocatable , otherwise panic
+            ValueLocation::Relocatable(_, ref symbol) => {
+                debug!("theCF.start, symbol = {}\n", *symbol);
+                sym_vec.push((*symbol).clone());
+            },
+            // CF.start can't reach this state
+            _ => panic!("Sym_Table_start: expecting Relocatable location, found {}", theCF.start)
+        }
+        match theCF.end {
+            // CF.start can only be relocatable , otherwise panic
+            ValueLocation::Relocatable(_, ref symbol) => {
+                debug!("theCF.end, symbol = {}\n", *symbol);
+                sym_vec.push((*symbol).clone());
+            },
+            // CF.end can't reach this state
+            _ => panic!("Sym_Table_end: expecting Relocatable location, found {}", theCF.end)
+        }
+        debug!("Number of exp callsites = {}\n", theCF.frame.get_exception_callsites().len());
+        for &(ref callsite, ref dest) in theCF.frame.get_exception_callsites().iter(){
+            debug!("exception callsite, step 1\n");
+            match *callsite {
+                ValueLocation::Relocatable(_, ref symbol) => {
+                    debug!("exception callsite, step 2, callsite symbol = {}\n", *symbol);
+                    sym_vec.push((*symbol).clone());
+                },
+                // can't reach this state
+                _ => panic!("Sym_Table_callsite: expecting Relocatable location, found {}", callsite)
+            }
+            match *dest {
+                ValueLocation::Relocatable(_, ref symbol) => {
+                    debug!("exception callsite, step 3, dest symbol = {}\n", *symbol);
+                    sym_vec.push((*symbol).clone());
+                },
+                // can't reach this state
+                _ => panic!("Sym_Table_callsite: expecting Relocatable location, found {}", dest)
+            }
+        }
+    }
+    // **************************************************
+    // To generate the following code
+    // .data
+    // .globl mu_sym_table
+    // mu_sym_table:
+    // for each symbol {
+    //      .quad "symbol_name".length()
+    //      __symbol_name:
+    //      .ascii "symbol_name"
+    //      .quad 0
+    // }
+    // *************************************************
+    file_st.write("\t.data\n".as_bytes()).unwrap();
+
+    file_st.write_fmt(format_args!("\t{}\n", directive_globl("mu_sym_table".to_string()))).unwrap();
+    file_st.write_fmt(format_args!("mu_sym_table:\n")).unwrap();
+    file_st.write_fmt(format_args!(".quad {}\n", sym_vec.len())).unwrap();
+    for i in 0..sym_vec.len(){
+        file_st.write_fmt(format_args!(".quad {}\n", sym_vec[i].len())).unwrap();
+        file_st.write_fmt(format_args!(".ascii \"{}\"\n", sym_vec[i])).unwrap();
+        //        file_st.write_fmt(format_args!("__{}:\n", sym_vec[i])).unwrap();
+        file_st.write_fmt(format_args!(".quad {}\n", sym_vec[i])).unwrap();
+    }
+    //**************************************************
+    // Javad's code for generating sym_table ends here
+    // __
+    // *************************************************
+}
+
 
 use std::collections::HashMap;
 use compiler::backend::code_emission::emit_mu_types;
@@ -3669,6 +3797,8 @@ pub fn emit_context_with_reloc(vm: &VM,
     //        let primordial = primordial.as_ref().unwrap();
     //    }
 
+    emit_sym_table(vm);
+
     debug!("---finish---");
 }
 
@@ -3706,14 +3836,18 @@ fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
     format!(".comm {},{},{}", name, size, align)
 }
 
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
 pub fn symbol(name: String) -> String {
     name
 }
+
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "macos")]
 pub fn symbol(name: String) -> String {
     format!("_{}", name)
 }
+
 // same as Linux
 #[cfg(feature = "sel4-rumprun")]
 pub fn symbol(name: String) -> String {
@@ -3722,11 +3856,13 @@ pub fn symbol(name: String) -> String {
 
 
 #[allow(dead_code)]
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
 pub fn pic_symbol(name: String) -> String {
     format!("{}@GOTPCREL", name)
 }
 #[allow(dead_code)]
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "macos")]
 pub fn pic_symbol(name: String) -> String {
     symbol(name)

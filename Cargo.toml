@@ -27,6 +27,7 @@ default = ["aot"]
 aot = []
 jit = []
 sel4-rumprun = []
+sel4-rumprun-target-side = []
 
 [build-dependencies]
 gcc = "0.3"
@@ -34,8 +35,7 @@ gcc = "0.3"
 [dependencies]
 ast = {path = "src/ast"}
 utils = {path = "src/utils"}
-gc = {path = "src/gc"}
-
+#gc = {path = "src/gc"}
 
 field-offset = "0.1.1"
 libloading = "0.3"
@@ -52,3 +52,12 @@ docopt = "0.6"
 petgraph = "0.4.1"
 extprim = "*"
 num-traits = "*"
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+gc = { path = "src/gc", default-features = false}
+
+[target.x86_64-apple-darwin.dependencies]
+gc = { path = "src/gc", default-features = false}
+
+[target.x86_64-rumprun-netbsd.dependencies]
+gc = { path = "src/gc", default-features = false, features = ["sel4-rumprun-target-side"], target = "x86_64-rumprun-netbsd"}

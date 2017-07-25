@@ -76,11 +76,13 @@ pub fn get_path_under_mu(str: &'static str) -> PathBuf {
     }
 }
 
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "macos")]
 pub fn get_dylib_name(name: &'static str) -> String {
     format!("lib{}.dylib", name)
 }
 
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
 pub fn get_dylib_name(name: &'static str) -> String {
     format!("lib{}.so", name)

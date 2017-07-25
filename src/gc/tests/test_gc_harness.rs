@@ -65,7 +65,7 @@ const FIXSIZE_REFx1_ENCODE : u64 = 0xb000000000000001u64;
 
 
 #[test]
-fn test_exhaust_alloc() {
+pub fn test_exhaust_alloc() {
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
     let mut mutator = gc::new_mutator();
 

@@ -13,9 +13,11 @@
 // limitations under the License.
 
 #include <inttypes.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <pthread.h>
 
 void* malloc_zero(size_t size) {
     void* ret = malloc(size);

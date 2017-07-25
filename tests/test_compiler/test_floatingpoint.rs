@@ -24,17 +24,22 @@ use self::mu::vm::*;
 use self::mu::testutil;
 use mu::utils::LinkedHashMap;
 
+use self::mu::compiler::*;
+use self::mu::testutil::aot;
+use std::sync::Arc;
+
 #[test]
 fn test_double_add() {
-    let lib = testutil::compile_fnc("double_add", &double_add);
-
-    unsafe {
-        let double_add : libloading::Symbol<unsafe extern fn(f64, f64) -> f64> = lib.get(b"double_add").unwrap();
-
-        let double_add_1_1 = double_add(1f64, 1f64);
-        println!("double_add(1, 1) = {}", double_add_1_1);
-        assert!(double_add_1_1 == 2f64);
-    }
+//    let lib = testutil::compile_fnc("double_add", &double_add);
+//
+//    unsafe {
+//        let double_add : libloading::Symbol<unsafe extern fn(f64, f64) -> f64> = lib.get(b"double_add").unwrap();
+//
+//        let double_add_1_1 = double_add(1f64, 1f64);
+//        println!("double_add(1, 1) = {}", double_add_1_1);
+//        assert!(double_add_1_1 == 2f64);
+//    }
+    build_and_run_test!(double_add, double_add_test1);
 }
 
 fn double_add() -> VM {
@@ -71,20 +76,24 @@ fn double_add() -> VM {
         blk_entry
     });
 
+//    emit_test!      ((vm) (double_add double_add_test1 double_add_test1_v1 DDD (double_add_sig, double(1f64), double(1f64), double(2f64))));
+    emit_test!      ((vm) (double_add double_add_test1 double_add_test1_v1 Double,Double,Double,FOEQ (double_add_sig, double(1f64), double(1f64), double(2f64))));
+    
     vm
 }
 
 #[test]
 fn test_float_add() {
-    let lib = testutil::compile_fnc("float_add", &float_add);
-
-    unsafe {
-        let float_add : libloading::Symbol<unsafe extern fn(f32, f32) -> f32> = lib.get(b"float_add").unwrap();
-
-        let float_add_1_1 = float_add(1f32, 1f32);
-        println!("float_add(1, 1) = {}", float_add_1_1);
-        assert!(float_add_1_1 == 2f32);
-    }
+//    let lib = testutil::compile_fnc("float_add", &float_add);
+//
+//    unsafe {
+//        let float_add : libloading::Symbol<unsafe extern fn(f32, f32) -> f32> = lib.get(b"float_add").unwrap();
+//
+//        let float_add_1_1 = float_add(1f32, 1f32);
+//        println!("float_add(1, 1) = {}", float_add_1_1);
+//        assert!(float_add_1_1 == 2f32);
+//    }
+    build_and_run_test!(float_add, float_add_test1);
 }
 
 fn float_add() -> VM {
@@ -121,44 +130,53 @@ fn float_add() -> VM {
         blk_entry
     });
 
+//    emit_test!      ((vm) (float_add float_add_test1 float_add_test1_v1 FFF (float_add_sig, float(1f32), float(1f32), float(2f32))));
+    emit_test!      ((vm) (float_add float_add_test1 float_add_test1_v1 Float,Float,Float,FOEQ (float_add_sig, float(1f32), float(1f32), float(2f32))));
     vm
 }
 
 #[test]
 fn test_fp_ogt_branch() {
-    let lib = testutil::compile_fnc("fp_ogt_branch", &fp_ogt_branch);
-
-    unsafe {
-        let fp_ogt : libloading::Symbol<unsafe extern fn(f64, f64) -> u32> = lib.get(b"fp_ogt_branch").unwrap();
-
-        let res = fp_ogt(-1f64, 0f64);
-        println!("fp_ogt(-1, 0) = {}", res);
-        assert!(res == 0);
-
-        let res = fp_ogt(0f64, -1f64);
-        println!("fp_ogt(0, -1) = {}", res);
-        assert!(res == 1);
-
-        let res = fp_ogt(-1f64, -1f64);
-        println!("fp_ogt(-1, -1) = {}", res);
-        assert!(res == 0);
-
-        let res = fp_ogt(-1f64, -2f64);
-        println!("fp_ogt(-1, -2) = {}", res);
-        assert!(res == 1);
-
-        let res = fp_ogt(-2f64, -1f64);
-        println!("fp_ogt(-2, -1) = {}", res);
-        assert!(res == 0);
-
-        let res = fp_ogt(1f64, 2f64);
-        println!("fp_ogt(1, 2) = {}", res);
-        assert!(res == 0);
-
-        let res = fp_ogt(2f64, 1f64);
-        println!("fp_ogt(2, 1) = {}", res);
-        assert!(res == 1);
-    }
+//    let lib = testutil::compile_fnc("fp_ogt_branch", &fp_ogt_branch);
+//
+//    unsafe {
+//        let fp_ogt : libloading::Symbol<unsafe extern fn(f64, f64) -> u32> = lib.get(b"fp_ogt_branch").unwrap();
+//
+//        let res = fp_ogt(-1f64, 0f64);
+//        println!("fp_ogt(-1, 0) = {}", res);
+//        assert!(res == 0);
+//
+//        let res = fp_ogt(0f64, -1f64);
+//        println!("fp_ogt(0, -1) = {}", res);
+//        assert!(res == 1);
+//
+//        let res = fp_ogt(-1f64, -1f64);
+//        println!("fp_ogt(-1, -1) = {}", res);
+//        assert!(res == 0);
+//
+//        let res = fp_ogt(-1f64, -2f64);
+//        println!("fp_ogt(-1, -2) = {}", res);
+//        assert!(res == 1);
+//
+//        let res = fp_ogt(-2f64, -1f64);
+//        println!("fp_ogt(-2, -1) = {}", res);
+//        assert!(res == 0);
+//
+//        let res = fp_ogt(1f64, 2f64);
+//        println!("fp_ogt(1, 2) = {}", res);
+//        assert!(res == 0);
+//
+//        let res = fp_ogt(2f64, 1f64);
+//        println!("fp_ogt(2, 1) = {}", res);
+//        assert!(res == 1);
+//    }
+//    build_and_run_test!(fp_ogt_branch, fp_ogt_branch_test1);
+    build_and_run_test!(fp_ogt_branch, fp_ogt_branch_test2);
+//    build_and_run_test!(fp_ogt_branch, fp_ogt_branch_test3);
+//    build_and_run_test!(fp_ogt_branch, fp_ogt_branch_test4);
+//    build_and_run_test!(fp_ogt_branch, fp_ogt_branch_test5);
+//    build_and_run_test!(fp_ogt_branch, fp_ogt_branch_test6);
+//    build_and_run_test!(fp_ogt_branch, fp_ogt_branch_test7);
 }
 
 fn fp_ogt_branch() -> VM {
@@ -224,29 +242,40 @@ fn fp_ogt_branch() -> VM {
     define_func_ver!((vm) fp_ogt_branch_v1 (entry: blk_entry) {
         blk_entry, blk_ret1, blk_ret0
     });
-
+    
+    emit_test!      ((vm) (fp_ogt_branch fp_ogt_branch_test1 fp_ogt_branch_test1_v1 Double,Double,Int,EQ (sig, double(-1f64), double(0f64), int32(0))));
+    emit_test!      ((vm) (fp_ogt_branch fp_ogt_branch_test2 fp_ogt_branch_test2_v1 Double,Double,Int,EQ (sig, double(0f64), double(-1f64), int32(1))));
+    emit_test!      ((vm) (fp_ogt_branch fp_ogt_branch_test3 fp_ogt_branch_test3_v1 Double,Double,Int,EQ (sig, double(-1f64), double(-1f64), int32(0))));
+    emit_test!      ((vm) (fp_ogt_branch fp_ogt_branch_test4 fp_ogt_branch_test4_v1 Double,Double,Int,EQ (sig, double(-1f64), double(-2f64), int32(1))));
+    emit_test!      ((vm) (fp_ogt_branch fp_ogt_branch_test5 fp_ogt_branch_test5_v1 Double,Double,Int,EQ (sig, double(-2f64), double(-1f64), int32(0))));
+    emit_test!      ((vm) (fp_ogt_branch fp_ogt_branch_test6 fp_ogt_branch_test6_v1 Double,Double,Int,EQ (sig, double(1f64), double(2f64), int32(0))));
+    emit_test!      ((vm) (fp_ogt_branch fp_ogt_branch_test7 fp_ogt_branch_test7_v1 Double,Double,Int,EQ (sig, double(2f64), double(1f64), int32(1))));
+    
     vm
 }
 
 #[test]
 fn test_sitofp() {
-    let lib = testutil::compile_fnc("sitofp", &sitofp);
-
-    unsafe {
-        let sitofp : libloading::Symbol<unsafe extern fn(i64) -> f64> = lib.get(b"sitofp").unwrap();
-
-        let res = sitofp(-1i64);
-        println!("sitofp(-1) = {}", res);
-        assert!(res == -1f64);
-
-        let res = sitofp(0i64);
-        println!("sitofp(0) = {}", res);
-        assert!(res == 0f64);
-
-        let res = sitofp(1i64);
-        println!("sitofp(1) = {}", res);
-        assert!(res == 1f64);
-    }
+//    let lib = testutil::compile_fnc("sitofp", &sitofp);
+//
+//    unsafe {
+//        let sitofp : libloading::Symbol<unsafe extern fn(i64) -> f64> = lib.get(b"sitofp").unwrap();
+//
+//        let res = sitofp(-1i64);
+//        println!("sitofp(-1) = {}", res);
+//        assert!(res == -1f64);
+//
+//        let res = sitofp(0i64);
+//        println!("sitofp(0) = {}", res);
+//        assert!(res == 0f64);
+//
+//        let res = sitofp(1i64);
+//        println!("sitofp(1) = {}", res);
+//        assert!(res == 1f64);
+//    }
+    build_and_run_test!(sitofp, sitofp_test1);
+    build_and_run_test!(sitofp, sitofp_test2);
+    build_and_run_test!(sitofp, sitofp_test3);
 }
 
 fn sitofp() -> VM {
@@ -277,25 +306,31 @@ fn sitofp() -> VM {
     });
 
     define_func_ver!((vm) sitofp_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (sitofp sitofp_test1 sitofp_test1_v1 Int,Double,FOEQ (sig, int64(-1i64 as u64), double(-1f64))));
+    emit_test!      ((vm) (sitofp sitofp_test2 sitofp_test2_v1 Int,Double,FOEQ (sig, int64(0i64 as u64), double(0f64))));
+    emit_test!      ((vm) (sitofp sitofp_test3 sitofp_test3_v1 Int,Double,FOEQ (sig, int64(1i64 as u64), double(1f64))));
+    
     vm
 }
 
 #[test]
 fn test_ui64tofp() {
-    let lib = testutil::compile_fnc("ui64tofp", &ui64tofp);
-
-    unsafe {
-        let ui64tofp : libloading::Symbol<unsafe extern fn(u64) -> f64> = lib.get(b"ui64tofp").unwrap();
-
-        let res = ui64tofp(0u64);
-        println!("ui64tofp(0) = {}", res);
-        assert!(res == 0f64);
-
-        let res = ui64tofp(1u64);
-        println!("ui64tofp(1) = {}", res);
-        assert!(res == 1f64);
-    }
+//    let lib = testutil::compile_fnc("ui64tofp", &ui64tofp);
+//
+//    unsafe {
+//        let ui64tofp : libloading::Symbol<unsafe extern fn(u64) -> f64> = lib.get(b"ui64tofp").unwrap();
+//
+//        let res = ui64tofp(0u64);
+//        println!("ui64tofp(0) = {}", res);
+//        assert!(res == 0f64);
+//
+//        let res = ui64tofp(1u64);
+//        println!("ui64tofp(1) = {}", res);
+//        assert!(res == 1f64);
+//    }
+    build_and_run_test!(ui64tofp, ui64tofp_test1);
+    build_and_run_test!(ui64tofp, ui64tofp_test2);
 }
 
 fn ui64tofp() -> VM {
@@ -326,25 +361,30 @@ fn ui64tofp() -> VM {
     });
 
     define_func_ver!((vm) ui64tofp_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (ui64tofp ui64tofp_test1 ui64tofp_test1_v1 Int,Double,FOEQ (sig, int64(1u64), double(1f64))));
+    emit_test!      ((vm) (ui64tofp ui64tofp_test2 ui64tofp_test2_v1 Int,Double,FOEQ (sig, int64(0u64), double(0f64))));
+    
     vm
 }
 
 #[test]
 fn test_ui64tofp_float() {
-    let lib = testutil::compile_fnc("ui64tofp_float", &ui64tofp_float);
-
-    unsafe {
-        let ui64tofp_float : libloading::Symbol<unsafe extern fn(u64) -> f32> = lib.get(b"ui64tofp_float").unwrap();
-
-        let res = ui64tofp_float(0u64);
-        println!("ui64tofp_float(0) = {}", res);
-        assert!(res == 0f32);
-
-        let res = ui64tofp_float(1u64);
-        println!("ui64tofp_float(1) = {}", res);
-        assert!(res == 1f32);
-    }
+//    let lib = testutil::compile_fnc("ui64tofp_float", &ui64tofp_float);
+//
+//    unsafe {
+//        let ui64tofp_float : libloading::Symbol<unsafe extern fn(u64) -> f32> = lib.get(b"ui64tofp_float").unwrap();
+//
+//        let res = ui64tofp_float(0u64);
+//        println!("ui64tofp_float(0) = {}", res);
+//        assert!(res == 0f32);
+//
+//        let res = ui64tofp_float(1u64);
+//        println!("ui64tofp_float(1) = {}", res);
+//        assert!(res == 1f32);
+//    }
+    build_and_run_test!(ui64tofp_float, ui64tofp_float_test1);
+    build_and_run_test!(ui64tofp_float, ui64tofp_float_test2);
 }
 
 fn ui64tofp_float() -> VM {
@@ -375,25 +415,30 @@ fn ui64tofp_float() -> VM {
     });
 
     define_func_ver!((vm) ui64tofp_float_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (ui64tofp_float ui64tofp_float_test1 ui64tofp_float_test1_v1 Int,Float,FOEQ (sig, int64(1u64), float(1f32))));
+    emit_test!      ((vm) (ui64tofp_float ui64tofp_float_test2 ui64tofp_float_test2_v1 Int,Float,FOEQ (sig, int64(0u64), float(0f32))));
+    
     vm
 }
 
 #[test]
 fn test_ui32tofp() {
-    let lib = testutil::compile_fnc("ui32tofp", &ui32tofp);
-
-    unsafe {
-        let ui32tofp : libloading::Symbol<unsafe extern fn(u32) -> f64> = lib.get(b"ui32tofp").unwrap();
-
-        let res = ui32tofp(0u32);
-        println!("ui32tofp(0) = {}", res);
-        assert!(res == 0f64);
-
-        let res = ui32tofp(1u32);
-        println!("ui32tofp(1) = {}", res);
-        assert!(res == 1f64);
-    }
+//    let lib = testutil::compile_fnc("ui32tofp", &ui32tofp);
+//
+//    unsafe {
+//        let ui32tofp : libloading::Symbol<unsafe extern fn(u32) -> f64> = lib.get(b"ui32tofp").unwrap();
+//
+//        let res = ui32tofp(0u32);
+//        println!("ui32tofp(0) = {}", res);
+//        assert!(res == 0f64);
+//
+//        let res = ui32tofp(1u32);
+//        println!("ui32tofp(1) = {}", res);
+//        assert!(res == 1f64);
+//    }
+    build_and_run_test!(ui32tofp, ui32tofp_test1);
+    build_and_run_test!(ui32tofp, ui32tofp_test2);
 }
 
 fn ui32tofp() -> VM {
@@ -424,25 +469,30 @@ fn ui32tofp() -> VM {
     });
 
     define_func_ver!((vm) ui32tofp_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (ui32tofp ui32tofp_test1 ui32tofp_test1_v1 Int,Double,FOEQ (sig, int32(1u32 as u64), double(1f64))));
+    emit_test!      ((vm) (ui32tofp ui32tofp_test2 ui32tofp_test2_v1 Int,Double,FOEQ (sig, int32(0u32 as u64), double(0f64))));
+    
     vm
 }
 
 #[test]
 fn test_ui16tofp() {
-    let lib = testutil::compile_fnc("ui16tofp", &ui16tofp);
-
-    unsafe {
-        let ui16tofp : libloading::Symbol<unsafe extern fn(u16) -> f64> = lib.get(b"ui16tofp").unwrap();
-
-        let res = ui16tofp(0u16);
-        println!("ui16tofp(0) = {}", res);
-        assert!(res == 0f64);
-
-        let res = ui16tofp(1u16);
-        println!("ui16tofp(1) = {}", res);
-        assert!(res == 1f64);
-    }
+//    let lib = testutil::compile_fnc("ui16tofp", &ui16tofp);
+//
+//    unsafe {
+//        let ui16tofp : libloading::Symbol<unsafe extern fn(u16) -> f64> = lib.get(b"ui16tofp").unwrap();
+//
+//        let res = ui16tofp(0u16);
+//        println!("ui16tofp(0) = {}", res);
+//        assert!(res == 0f64);
+//
+//        let res = ui16tofp(1u16);
+//        println!("ui16tofp(1) = {}", res);
+//        assert!(res == 1f64);
+//    }
+    build_and_run_test!(ui16tofp, ui16tofp_test1);
+    build_and_run_test!(ui16tofp, ui16tofp_test2);
 }
 
 fn ui16tofp() -> VM {
@@ -473,25 +523,30 @@ fn ui16tofp() -> VM {
     });
 
     define_func_ver!((vm) ui16tofp_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (ui16tofp ui16tofp_test1 ui16tofp_test1_v1 Int,Double,FOEQ (sig, int16(1u16 as u64), double(1f64))));
+    emit_test!      ((vm) (ui16tofp ui16tofp_test2 ui16tofp_test2_v1 Int,Double,FOEQ (sig, int16(0u16 as u64), double(0f64))));
+    
     vm
 }
 
 #[test]
 fn test_ui8tofp() {
-    let lib = testutil::compile_fnc("ui8tofp", &ui8tofp);
-
-    unsafe {
-        let ui8tofp : libloading::Symbol<unsafe extern fn(u8) -> f64> = lib.get(b"ui8tofp").unwrap();
-
-        let res = ui8tofp(0u8);
-        println!("ui8tofp(0) = {}", res);
-        assert!(res == 0f64);
-
-        let res = ui8tofp(1u8);
-        println!("ui8tofp(1) = {}", res);
-        assert!(res == 1f64);
-    }
+//    let lib = testutil::compile_fnc("ui8tofp", &ui8tofp);
+//
+//    unsafe {
+//        let ui8tofp : libloading::Symbol<unsafe extern fn(u8) -> f64> = lib.get(b"ui8tofp").unwrap();
+//
+//        let res = ui8tofp(0u8);
+//        println!("ui8tofp(0) = {}", res);
+//        assert!(res == 0f64);
+//
+//        let res = ui8tofp(1u8);
+//        println!("ui8tofp(1) = {}", res);
+//        assert!(res == 1f64);
+//    }
+    build_and_run_test!(ui8tofp, ui8tofp_test1);
+    build_and_run_test!(ui8tofp, ui8tofp_test2);
 }
 
 fn ui8tofp() -> VM {
@@ -499,20 +554,20 @@ fn ui8tofp() -> VM {
 
     typedef!    ((vm) int8 = mu_int(8));
     typedef!    ((vm) double = mu_double);
-
+    
     funcsig!    ((vm) sig = (int8) -> (double));
     funcdecl!   ((vm) <sig> ui8tofp);
     funcdef!    ((vm) <sig> ui8tofp VERSION ui8tofp_v1);
-
+    
     // blk entry
     block!      ((vm, ui8tofp_v1) blk_entry);
     ssa!        ((vm, ui8tofp_v1) <int8> x);
-
+    
     ssa!        ((vm, ui8tofp_v1) <double> res);
     inst!       ((vm, ui8tofp_v1) blk_entry_conv:
         res = CONVOP (ConvOp::UITOFP) <int8 double> x
     );
-
+    
     inst!       ((vm, ui8tofp_v1) blk_entry_ret:
         RET (res)
     );
@@ -522,25 +577,30 @@ fn ui8tofp() -> VM {
     });
 
     define_func_ver!((vm) ui8tofp_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (ui8tofp ui8tofp_test1 ui8tofp_test1_v1 Int,Double,FOEQ (sig, int8(1u8 as u64), double(1f64))));
+    emit_test!      ((vm) (ui8tofp ui8tofp_test2 ui8tofp_test2_v1 Int,Double,FOEQ (sig, int8(0u8 as u64), double(0f64))));
+    
     vm
 }
 
 #[test]
 fn test_fptoui64() {
-    let lib = testutil::compile_fnc("fptoui64", &fptoui64);
-
-    unsafe {
-        let fptoui64 : libloading::Symbol<unsafe extern fn(f64) -> u64> = lib.get(b"fptoui64").unwrap();
-
-        let res = fptoui64(0f64);
-        println!("fptoui64(0) = {}", res);
-        assert!(res == 0u64);
-
-        let res = fptoui64(1f64);
-        println!("fptoui64(1) = {}", res);
-        assert!(res == 1u64);
-    }
+//    let lib = testutil::compile_fnc("fptoui64", &fptoui64);
+//
+//    unsafe {
+//        let fptoui64 : libloading::Symbol<unsafe extern fn(f64) -> u64> = lib.get(b"fptoui64").unwrap();
+//
+//        let res = fptoui64(0f64);
+//        println!("fptoui64(0) = {}", res);
+//        assert!(res == 0u64);
+//
+//        let res = fptoui64(1f64);
+//        println!("fptoui64(1) = {}", res);
+//        assert!(res == 1u64);
+//    }
+    build_and_run_test!(fptoui64, fptoui64_test1);
+    build_and_run_test!(fptoui64, fptoui64_test2);
 }
 
 fn fptoui64() -> VM {
@@ -571,25 +631,30 @@ fn fptoui64() -> VM {
     });
 
     define_func_ver!((vm) fptoui64_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (fptoui64 fptoui64_test1 fptoui64_test1_v1 Double,Int,EQ (sig, double(1f64), int64(1u64))));
+    emit_test!      ((vm) (fptoui64 fptoui64_test2 fptoui64_test2_v1 Double,Int,EQ (sig, double(0f64), int64(0u64))));
+    
     vm
 }
 
 #[test]
 fn test_fptoui32() {
-    let lib = testutil::compile_fnc("fptoui32", &fptoui32);
-
-    unsafe {
-        let fptoui32 : libloading::Symbol<unsafe extern fn(f64) -> u32> = lib.get(b"fptoui32").unwrap();
-
-        let res = fptoui32(0f64);
-        println!("fptoui32(0) = {}", res);
-        assert!(res == 0u32);
-
-        let res = fptoui32(1f64);
-        println!("fptoui32(1) = {}", res);
-        assert!(res == 1u32);
-    }
+//    let lib = testutil::compile_fnc("fptoui32", &fptoui32);
+//
+//    unsafe {
+//        let fptoui32 : libloading::Symbol<unsafe extern fn(f64) -> u32> = lib.get(b"fptoui32").unwrap();
+//
+//        let res = fptoui32(0f64);
+//        println!("fptoui32(0) = {}", res);
+//        assert!(res == 0u32);
+//
+//        let res = fptoui32(1f64);
+//        println!("fptoui32(1) = {}", res);
+//        assert!(res == 1u32);
+//    }
+    build_and_run_test!(fptoui32, fptoui32_test1);
+    build_and_run_test!(fptoui32, fptoui32_test2);
 }
 
 fn fptoui32() -> VM {
@@ -620,25 +685,30 @@ fn fptoui32() -> VM {
     });
 
     define_func_ver!((vm) fptoui32_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (fptoui32 fptoui32_test1 fptoui32_test1_v1 Double,Int,EQ (sig, double(1f64), int32(1u32 as u64))));
+    emit_test!      ((vm) (fptoui32 fptoui32_test2 fptoui32_test2_v1 Double,Int,EQ (sig, double(0f64), int32(0u32 as u64))));
+    
     vm
 }
 
 #[test]
 fn test_fptoui16() {
-    let lib = testutil::compile_fnc("fptoui16", &fptoui16);
-
-    unsafe {
-        let fptoui16 : libloading::Symbol<unsafe extern fn(f64) -> u16> = lib.get(b"fptoui16").unwrap();
-
-        let res = fptoui16(0f64);
-        println!("fptoui16(0) = {}", res);
-        assert!(res == 0u16);
-
-        let res = fptoui16(1f64);
-        println!("fptoui16(1) = {}", res);
-        assert!(res == 1u16);
-    }
+//    let lib = testutil::compile_fnc("fptoui16", &fptoui16);
+//
+//    unsafe {
+//        let fptoui16 : libloading::Symbol<unsafe extern fn(f64) -> u16> = lib.get(b"fptoui16").unwrap();
+//
+//        let res = fptoui16(0f64);
+//        println!("fptoui16(0) = {}", res);
+//        assert!(res == 0u16);
+//
+//        let res = fptoui16(1f64);
+//        println!("fptoui16(1) = {}", res);
+//        assert!(res == 1u16);
+//    }
+    build_and_run_test!(fptoui16, fptoui16_test1);
+    build_and_run_test!(fptoui16, fptoui16_test2);
 }
 
 fn fptoui16() -> VM {
@@ -669,25 +739,30 @@ fn fptoui16() -> VM {
     });
 
     define_func_ver!((vm) fptoui16_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (fptoui16 fptoui16_test1 fptoui16_test1_v1 Double,Int,EQ (sig, double(1f64), int16(1u16 as u64))));
+    emit_test!      ((vm) (fptoui16 fptoui16_test2 fptoui16_test2_v1 Double,Int,EQ (sig, double(0f64), int16(0u16 as u64))));
+    
     vm
 }
 
 #[test]
 fn test_fptoui8() {
-    let lib = testutil::compile_fnc("fptoui8", &fptoui8);
-
-    unsafe {
-        let fptoui8 : libloading::Symbol<unsafe extern fn(f64) -> u8> = lib.get(b"fptoui8").unwrap();
-
-        let res = fptoui8(0f64);
-        println!("fptoui8(0) = {}", res);
-        assert!(res == 0u8);
-
-        let res = fptoui8(1f64);
-        println!("fptoui8(1) = {}", res);
-        assert!(res == 1u8);
-    }
+//    let lib = testutil::compile_fnc("fptoui8", &fptoui8);
+//
+//    unsafe {
+//        let fptoui8 : libloading::Symbol<unsafe extern fn(f64) -> u8> = lib.get(b"fptoui8").unwrap();
+//
+//        let res = fptoui8(0f64);
+//        println!("fptoui8(0) = {}", res);
+//        assert!(res == 0u8);
+//
+//        let res = fptoui8(1f64);
+//        println!("fptoui8(1) = {}", res);
+//        assert!(res == 1u8);
+//    }
+    build_and_run_test!(fptoui8, fptoui8_test1);
+    build_and_run_test!(fptoui8, fptoui8_test2);
 }
 
 fn fptoui8() -> VM {
@@ -718,6 +793,9 @@ fn fptoui8() -> VM {
     });
 
     define_func_ver!((vm) fptoui8_v1 (entry: blk_entry) {blk_entry});
+    
+    emit_test!      ((vm) (fptoui8 fptoui8_test1 fptoui8_test1_v1 Double,Int,EQ (sig, double(1f64), int8(1u8 as u64))));
+    emit_test!      ((vm) (fptoui8 fptoui8_test2 fptoui8_test2_v1 Double,Int,EQ (sig, double(0f64), int8(0u8 as u64))));
 
     vm
 }

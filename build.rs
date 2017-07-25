@@ -13,7 +13,9 @@
 // limitations under the License.
 
 extern crate gcc;
+use std::env;
 
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[cfg(target_arch = "x86_64")]
 fn main() {
@@ -24,6 +26,7 @@ fn main() {
                      .compile("libswap_stack.a"); 
 }
 
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 fn main() {
@@ -35,6 +38,7 @@ fn main() {
 }
 
 // This is here to enable cross compiling from windows/x86_64 to linux/aarch64
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(target_os = "windows")]
 #[cfg(target_arch = "x86_64")]
 fn main() {
@@ -45,9 +49,14 @@ fn main() {
         .compile("libswap_stack.a");
 }
 
-#[cfg(feature = "sel4-rumprun")]
+
+//#[cfg(all(target_os = "netbsd", target_vendor = "rumprun"))]
+#[cfg(feature = "sel4-rumprun-target-side")]
 #[cfg(target_arch = "x86_64")]
 fn main() {
+//    env::set_var("ZEBU_TARGET", "x86_64-rumprun-netbsd");
+//    println!("*****ENV VAR SET*****");
+    use std::path::Path;
     let mut compiler_name = String::new();
     compiler_name.push_str("x86_64-rumprun-netbsd-gcc");
     gcc::Config::new().flag("-O3").flag("-c")
@@ -56,10 +65,10 @@ fn main() {
         .compile("libruntime.a");
     gcc::Config::new().flag("-O3").flag("-c")
         .compiler(Path::new(compiler_name.as_str()))
-        .file("src/runtime/swap_stack_x64_sysv.S")
+        .file("src/runtime/swap_stack_x64_sel4_rumprun_sysv.S")
         .compile("libswap_stack.a");
     gcc::Config::new().flag("-O3").flag("-c")
         .compiler(Path::new(compiler_name.as_str()))
-        .file("c_helpers.c")
-        .compile("libc_helpers.a");
+        .file("zebu_c_helpers.c")
+        .compile("libzebu_c_helpers.a");
 }

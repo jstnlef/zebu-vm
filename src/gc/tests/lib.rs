@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod test_gc_harness;
+pub mod test_gc_harness;
 mod test_gcbench;
 mod test_gc_linked_list;

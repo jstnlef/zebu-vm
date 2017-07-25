@@ -27,6 +27,8 @@ pub const WORD_SIZE : ByteSize = 8;
 
 pub const AOT_EMIT_CONTEXT_FILE : &'static str = "context.s";
 
+pub const AOT_EMIT_SYM_TABLE_FILE : &'static str = "mu_sym_table.s";
+
 // this is not full name, but pro/epilogue name is generated from this
 pub const PROLOGUE_BLOCK_NAME: &'static str = "prologue";
 pub const EPILOGUE_BLOCK_NAME: &'static str = "epilogue";

@@ -3943,13 +3943,13 @@ impl <'a> InstructionSelection {
                                 self.backend.emit_mov_r64_imm64(&tmp_h, vals[1] as i64);
                             },
                             &Constant::FuncRef(func_id) => {
-                                if cfg!(target_os = "macos") {
+                                if cfg!(feature = "sel4-rumprun") {
+                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    self.backend.emit_mov_r_mem(&tmp, &mem);
+                                } else if cfg!(target_os = "macos") {
                                     let mem = self.get_mem_for_funcref(func_id, vm);
                                     self.backend.emit_lea_r64(&tmp, &mem);
                                 } else if cfg!(target_os = "linux") {
-                                    let mem = self.get_mem_for_funcref(func_id, vm);
-                                    self.backend.emit_mov_r_mem(&tmp, &mem);
-                                } else if cfg!(feature = "sel4-rumprun") {
                                     let mem = self.get_mem_for_funcref(func_id, vm);
                                     self.backend.emit_mov_r_mem(&tmp, &mem);
                                 } else {
@@ -4117,17 +4117,7 @@ impl <'a> InstructionSelection {
                             unimplemented!()
                         } else {
                             // symbolic
-                            if cfg!(target_os = "macos") {
-                                P(Value {
-                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                    ty: types::get_referent_ty(&pv.ty).unwrap(),
-                                    v: Value_::Memory(MemoryLocation::Symbolic {
-                                        base: Some(x86_64::RIP.clone()),
-                                        label: pv.name().unwrap(),
-                                        is_global: true,
-                                    })
-                                })
-                            } else if cfg!(target_os = "linux") {
+                            if cfg!(feature = "sel4-rumprun") {
                                 // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
                                 // then load from the address.
                                 // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
@@ -4146,7 +4136,17 @@ impl <'a> InstructionSelection {
                                 self.emit_move_value_to_value(&actual_loc, &got_loc);
 
                                 self.make_memory_op_base_offset(&actual_loc, 0, types::get_referent_ty(&pv.ty).unwrap(), vm)
-                            } else if cfg!(feature = "sel4-rumprun") {
+                            } else if cfg!(target_os = "macos") {
+                                P(Value {
+                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                    ty: types::get_referent_ty(&pv.ty).unwrap(),
+                                    v: Value_::Memory(MemoryLocation::Symbolic {
+                                        base: Some(x86_64::RIP.clone()),
+                                        label: pv.name().unwrap(),
+                                        is_global: true,
+                                    })
+                                })
+                            } else if cfg!(target_os = "linux") {
                                 // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
                                 // then load from the address.
                                 // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)

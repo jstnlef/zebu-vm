@@ -493,7 +493,7 @@ impl <'a> VM {
     fn new_internal(options: VMOptions) -> VM {
         VM::start_logging(options.flag_log_level);
 
-        let ret = VM {
+        let mut ret = VM {
             next_id: ATOMIC_USIZE_INIT,
             is_running: ATOMIC_BOOL_INIT,
             vm_options: options,
