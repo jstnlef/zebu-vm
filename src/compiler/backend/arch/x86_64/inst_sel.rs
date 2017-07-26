@@ -40,6 +40,7 @@ use compiler::frame::Frame;
 
 use utils::math;
 use utils::POINTER_SIZE;
+use utils::BitSize;
 
 use std::collections::HashMap;
 use std::collections::LinkedList;
@@ -852,9 +853,19 @@ impl<'a> InstructionSelection {
                                                 let (res_l, res_h) =
                                                     self.split_int128(&tmp_res, f_context, vm);
 
-                                                self.backend.emit_mov_r_r(&res_l, unsafe {
-                                                    &tmp_op.as_type(UINT64_TYPE.clone())
-                                                });
+                                                // use the temp as 64bit temp, mask it
+                                                let tmp_op64 =
+                                                    unsafe { &tmp_op.as_type(UINT64_TYPE.clone()) };
+                                                self.emit_apply_mask(
+                                                    &tmp_op64,
+                                                    from_ty_size * 8,
+                                                    f_context,
+                                                    vm
+                                                );
+
+                                                // use temp as lower bits
+                                                // clear higher bits
+                                                self.backend.emit_mov_r_r(&res_l, &tmp_op64);
                                                 self.backend.emit_mov_r_imm(&res_h, 0);
                                             }
                                             // other cases
@@ -908,9 +919,7 @@ impl<'a> InstructionSelection {
 
                                                 // mov res_l -> res_h
                                                 // sar res_h 63
-                                                self.backend.emit_mov_r_r(&res_h, unsafe {
-                                                    &res_l.as_type(UINT32_TYPE.clone())
-                                                });
+                                                self.backend.emit_mov_r_r(&res_h, &res_l);
                                                 self.backend.emit_sar_r_imm8(&res_h, 63i8);
                                             }
                                             _ => self.backend.emit_movs_r_r(&tmp_res, &tmp_op)
@@ -1053,6 +1062,15 @@ impl<'a> InstructionSelection {
                                             2 | 1 => {
                                                 let tmp_op32 =
                                                     unsafe { tmp_op.as_type(UINT32_TYPE.clone()) };
+
+                                                // apply mask, otherwise higher bits are arbitrary
+                                                self.emit_apply_mask(
+                                                    &tmp_op32,
+                                                    op_ty_size * 8,
+                                                    f_context,
+                                                    vm
+                                                );
+
                                                 self.backend
                                                     .emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
                                             }
@@ -1148,6 +1166,14 @@ impl<'a> InstructionSelection {
                                             2 | 1 => {
                                                 let tmp_op32 =
                                                     unsafe { tmp_op.as_type(UINT32_TYPE.clone()) };
+
+                                                // apply mask, otherwise higher bits are arbitrary
+                                                self.emit_apply_mask(
+                                                    &tmp_op32,
+                                                    op_ty_size * 8,
+                                                    f_context,
+                                                    vm
+                                                );
 
                                                 // cvtsi2ss %tmp_op32 -> %tmp_res
                                                 self.backend
@@ -5782,6 +5808,43 @@ impl<'a> InstructionSelection {
                 .set_split(vec![arg_l.clone(), arg_h.clone()]);
 
             (arg_l, arg_h)
+        }
+    }
+
+    /// apply mask on an integer register
+    fn emit_apply_mask(
+        &mut self,
+        reg: &P<Value>,
+        length: BitSize,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) {
+        if length <= 32 {
+            let mask = if length == 32 {
+                use std::u32;
+                u32::MAX as i32
+            } else {
+                ((1u32 << length) - 1) as i32
+            };
+            self.backend.emit_and_r_imm(reg, mask);
+        } else if length <= 64 {
+            // the mask cannot be an immediate, we need to put it to a temp
+            let mask = if length == 64 {
+                use std::u64;
+                u64::MAX as i64
+            } else {
+                ((1u64 << length) - 1) as i64
+            };
+            let tmp_mask = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+            self.backend.emit_mov_r64_imm64(&tmp_mask, mask);
+
+            // apply mask
+            self.backend.emit_and_r_r(reg, &tmp_mask);
+        } else {
+            panic!(
+                "expect masking an integer register with length <= 64, found {}",
+                length
+            );
         }
     }
 
