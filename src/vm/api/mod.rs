@@ -42,6 +42,9 @@ pub use self::api_impl::mu_fastimpl_new;
 /// See vm_options.rs for supported options.
 pub use self::api_impl::mu_fastimpl_new_with_opts;
 
+/// returns a version string for current Zebu build
+pub use self::api_impl::mu_get_version;
+
 mod deps {
     pub use ast::ir::WPID;
     pub use ast::ir::MuID;

@@ -29,6 +29,7 @@ jit = []
 
 [build-dependencies]
 gcc = "*"
+built = "0.1"
 
 [dependencies]
 mu_ast = {path = "src/ast"}
@@ -54,3 +55,4 @@ docopt = "*"
 petgraph = "*"
 extprim = "*"
 num-traits = "*"
+built = "0.1"

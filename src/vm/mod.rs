@@ -22,6 +22,9 @@ pub use vm::vm::VM;
 /// vm_options defines commandline flags to create a new Zebu instance
 mod vm_options;
 
+/// built info from cargo
+pub mod built_info;
+
 /// api module implements the C functions in muapi.h exposed as Mu API
 pub mod api;
 

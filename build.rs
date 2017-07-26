@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate built;
 extern crate gcc;
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -24,6 +25,8 @@ fn main() {
         .flag("-c")
         .file("src/runtime/runtime_asm_x64_sysv.S")
         .compile("libruntime_asm.a");
+
+    built();
 }
 
 #[cfg(target_os = "linux")]
@@ -36,4 +39,10 @@ fn main() {
         .flag("-c")
         .file("src/runtime/runtime_asm_aarch64_sysv.S")
         .compile("libruntime_asm.a");
+
+    built();
+}
+
+fn built() {
+    built::write_built_file().expect("Failed to acquire build-time information");
 }
