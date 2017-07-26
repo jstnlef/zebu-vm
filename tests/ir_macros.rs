@@ -639,4 +639,14 @@ macro_rules! inst {
             v: Instruction_::SetRetval(0)
         });
     };
+
+    // MOVE
+    (($vm: expr, $fv: ident) $name: ident: MOVE $src: ident -> $dst: ident) => {
+        let $name = $fv.new_inst(Instruction {
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: Some(vec![$dst.clone_value()]),
+            ops: vec![$src],
+            v: Instruction_::Move(0)
+        });
+    };
 }
