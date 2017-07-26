@@ -530,3 +530,252 @@ pub fn run_test(vm: &VM, test_name: &str, tester_name: &str){
 
     assert!(test_succeeded == 1);
 }
+
+#[cfg(not(feature = "sel4-rumprun"))]
+pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str){
+    let output_name = test_name.to_string()+ "_" + tester_name;
+    let executable = link_test_primordial(vec![test_name.to_string(), dep_name.to_string(), tester_name.to_string()], output_name.as_str(), vm);
+    execute(executable);
+}
+
+#[cfg(feature = "sel4-rumprun")]
+pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str){
+    
+    use std::fs::File;
+    
+    //  emit/add.s
+    let test_asm_file = "emit/".to_string() + test_name + ".s";
+    //  emit/add_test1.s
+    let tester_asm_file = "emit/".to_string() + tester_name + ".s";
+    //  emit/context.s
+    let context_asm_file = "emit/".to_string() + "context.s";
+    //  emit/mu_sym_table.s
+    let mu_sym_table_asm_file = "emit/".to_string() + "mu_sym_table.s";
+    //  something like emit/dummy_call.s
+    let dep_asm_file = "emit/".to_string() + dep_name + ".s";
+    
+    // clean the destination first
+    let destination_prefix = "../rumprun-sel4/apps/zebu_rt/src/emit/";
+    let output = Command::new("rm")
+        .arg("-R")
+        .arg(destination_prefix)
+        .output()
+        .expect("failed to RM dest emit");
+    
+    assert!(output.status.success());
+    
+    //  recreate the emit folder, deleted by the previous command
+    let output = Command::new("mkdir")
+        .arg(destination_prefix)
+        .output()
+        .expect("failed to RM dest emit");
+    
+    assert!(output.status.success());
+    
+    
+    // above file will be pasted in \
+    //  rumprun-sel4/apps/zebu_rt/src + the above Strings
+    let destination_prefix = "../rumprun-sel4/apps/zebu_rt/src/";
+    
+    let dest_test_asm_file = destination_prefix.to_string() + &test_asm_file;
+    let dest_tester_asm_file = destination_prefix.to_string() + &tester_asm_file;
+    let dest_context_asm_file = destination_prefix.to_string() + &context_asm_file;
+    let dest_mu_sym_table_asm_file = destination_prefix.to_string() + &mu_sym_table_asm_file;
+    let dest_dep_asm_file = destination_prefix.to_string() + &dep_asm_file;
+    
+    /*
+        The following 4 commands, copy 4 asm source files to \
+        the proper location of filesystem for sel4-rumprun runtime
+        This is currently src/emit
+    */
+    
+    let output = Command::new("cp")
+        .arg(&test_asm_file)
+        .arg(&dest_test_asm_file)
+        .output()
+        .expect("failed to copy test_asm_file");
+    
+    assert!(output.status.success());
+    
+    let output = Command::new("cp")
+        .arg(&tester_asm_file)
+        .arg(&dest_tester_asm_file)
+        .output()
+        .expect("failed to copy tester_asm_file");
+    
+    assert!(output.status.success());
+    
+    let output = Command::new("cp")
+        .arg(&context_asm_file)
+        .arg(&dest_context_asm_file)
+        .output()
+        .expect("failed to copy context_asm_file");
+    
+    assert!(output.status.success());
+    
+    let output = Command::new("cp")
+        .arg(&mu_sym_table_asm_file)
+        .arg(&dest_mu_sym_table_asm_file)
+        .output()
+        .expect("failed to copy dest_mu_sym_table_asm_file");
+    
+    assert!(output.status.success());
+    
+    let output = Command::new("cp")
+        .arg(&dep_asm_file)
+        .arg(&dest_dep_asm_file)
+        .output()
+        .expect("failed to copy dep_asm_file");
+    
+    assert!(output.status.success());
+    
+    /*
+        Everything is ready for our sel4-rumprun Zebu runtime
+        to start building the final test executable(s)
+    */
+    
+    use std::os::unix::io::FromRawFd;
+    use std::os::unix::io::AsRawFd;
+    
+    
+    let output = Command::new("rm")
+        .arg("outputs.txt")
+        .output()
+        .expect("failed to change directory2");
+    
+    let mut outputs_file = File::create("outputs.txt").unwrap();
+    
+    let rawfd = outputs_file.as_raw_fd();
+    let rawfd = unsafe { File::from_raw_fd(rawfd) };
+    
+    let output = Command::new("bash")
+        .arg("build_for_sel4_rumprun.sh")
+        .stdout(Stdio::inherit())
+        .output()
+        .expect("failed to Build");
+    
+    println!("****************************************");
+    println!("Build Output -{:?}-", output);
+    println!("****************************************");
+    
+    assert!(output.status.success());
+    
+    // First create a child process which runs qemu for testing
+    // Then, create a watchdog to check if test is finished
+    
+    let mut tester_proc = Command::new("qemu-system-x86_64")
+        .arg("-nographic")
+        .arg("-m")
+        .arg("512")
+        .arg("-kernel")
+        .arg("../rumprun-sel4/images/kernel-x86_64-pc99")
+        .arg("-initrd")
+        .arg("../rumprun-sel4/images/roottask-image-x86_64-pc99")
+        .arg("-cpu")
+        .arg("Haswell")
+        .stdout(rawfd)
+        .spawn()
+        .expect("failed to RUN");
+    
+    use std::thread;
+    use std::io;
+    use std::io::prelude::*;
+    
+    let mut child_proc_finished = 0;
+    let mut test_succeeded = 0;
+    let mut test_length = 0;
+    let test_length_max = 60;   // Maximum allowed length for a test is currently 60 seconds
+    
+    // This loop checks the output file to recognize when qemu vm \
+    // which is running the test, should be terminated
+    while child_proc_finished == 0 {
+        thread::sleep_ms(5000);
+        test_length += 5;
+        {
+            let mut results_file = File::open("outputs.txt");
+            let mut results_file = match results_file {
+                Ok(the_file) => the_file,
+                Err(error) => { panic!("Checking outputs file failed with error -{}-", error); }
+            };
+            let mut file_content = String::new();
+            
+            results_file.read_to_string(&mut file_content);
+            
+            if file_content.contains("bmk_platform_halt@kernel.c:95 All is well in the universe.") {
+                child_proc_finished = 1;
+                if file_content.contains("@#$%PASSED%$#@") {
+                    test_succeeded = 1;
+                }
+                    else if file_content.contains("@#$%FAILED%$#@") {
+                        test_succeeded = 0;
+                    }
+                        else {
+                            panic!("Invalid test outcome!");
+                        }
+            }
+                else { continue; }
+            
+            use std::str::FromStr;
+            use std::fs::OpenOptions;
+            
+            let mut lines = file_content.lines();
+            let mut search_finished = 0;
+            let mut test_name = String::new();
+            while search_finished == 0 {
+                let mut current_line = lines.next();
+                if current_line == None {
+                    panic!("Test name not found in outputs.txt");
+                }
+                let current_line = current_line.unwrap();
+                println!("{}", current_line);
+                if current_line.contains("**TEST**") {
+                    search_finished = 1;
+                    test_name = String::from_str(lines.next().unwrap()).unwrap();
+                }
+            }
+            
+            //            let mut log_file = File::create("results_log.txt");
+            let mut log_file = OpenOptions::new().write(true).append(true).open("results_log.txt");
+            let mut log_file = match log_file {
+                Ok(the_file) => the_file,
+                Err(error) => { panic!("Creating-Opening log file failed with error -{}-", error); }
+            };
+            
+            log_file.write_fmt(format_args!("******************************\n")).unwrap();
+            log_file.write_fmt(format_args!("Test time : {}\n", time::now_utc().ctime())).unwrap();
+            log_file.write_fmt(format_args!("Test name : {}\n", test_name)).unwrap();
+            if test_succeeded == 1 {
+                log_file.write_fmt(format_args!("Test result : PASSED\n")).unwrap();
+            }
+                else {
+                    log_file.write_fmt(format_args!("Test result : FAILED\n")).unwrap();
+                }
+            log_file.write_fmt(format_args!("******************************")).unwrap();
+        }
+        println!("+ 5 secs");
+        if test_length == test_length_max {
+            let output = Command::new("kill")
+                .arg("-15")
+                .arg("--")
+                .arg(tester_proc.id().to_string())
+                .output()
+                .expect("failed to kill TO");
+            
+            assert!(output.status.success());
+            
+            panic!("Test Timed Out!");
+        }
+    }
+    
+    // Terminate the test proc
+    let output = Command::new("kill")
+        .arg("-15")
+        .arg("--")
+        .arg(tester_proc.id().to_string())
+        .output()
+        .expect("failed to kill");
+    
+    assert!(output.status.success());
+    
+    assert!(test_succeeded == 1);
+}

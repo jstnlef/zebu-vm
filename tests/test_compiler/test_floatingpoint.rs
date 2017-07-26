@@ -924,5 +924,71 @@ fn fp_arraysum() -> VM {
 
     define_func_ver!    ((vm) fp_arraysum_v1 (entry: blk_entry) {blk_entry, blk1, blk2, blk3});
 
+    // tester functions for array-sum test is defined here
+    //
+//    typedef!    (($vm) int1  = mu_int(1));
+//    typedef!    (($vm) int64t  = mu_int(64));
+//    constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
+//    constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+//    constdef!   (($vm) <$ty1> Arg_0 = Constant::Vector(vec![]));
+//    constdef!   (($vm) <$ty2> f64_1 = Constant::$Arg2Type($in2));
+//    constdef!   (($vm) <$ty3> f64_2 = Constant::$Arg3Type($out));
+//
+//    funcsig!    (($vm) tester_sig = () -> ());
+//    funcdecl!   (($vm) <tester_sig> $test_name);
+//    funcdef!    (($vm) <tester_sig> $test_name VERSION $tester_name);
+//
+//    ssa!    (($vm, $tester_name) <$ty1> a);
+//    ssa!    (($vm, $tester_name) <$ty1> b);
+//
+//    typedef!    (($vm) type_funcref = mu_funcref($test_sig));
+//    constdef!   (($vm) <type_funcref> const_funcref = Constant::FuncRef($vm.id_of(stringify!($name))));
+//
+//    // blk_entry
+//    consta!     (($vm, $tester_name) f64_0_local = f64_0);
+//    consta!     (($vm, $tester_name) f64_1_local = f64_1);
+//
+//    block!      (($vm, $tester_name) blk_entry);
+//
+//    consta!     (($vm, $tester_name) const_funcref_local = const_funcref);
+//    ssa!    (($vm, $tester_name) <$ty3> result);
+//    inst!   (($vm, $tester_name) blk_entry_call:
+//            result = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_local (f64_0_local, f64_1_local)
+//        );
+//
+//    consta!     (($vm, $tester_name) f64_2_local = f64_2);
+//    consta!     (($vm, $tester_name) int64_pass_local = int64_pass);
+//    consta!     (($vm, $tester_name) int64_fail_local = int64_fail);
+//    ssa!    (($vm, $tester_name) <int1> cmp_res);
+//    inst!   (($vm, $tester_name) blk_entry_cmp:
+//            cmp_res = CMPOP (CmpOp::$CMPType) result f64_2_local
+//        );
+//
+//    ssa!    (($vm, $tester_name) <int64t> blk_entry_ret);
+//    inst!   (($vm, $tester_name) blk_entry_inst_select:
+//            blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
+//        );
+//
+//    inst!   (($vm, $tester_name) blk_entry_inst_ret:
+//             SET_RETVAL blk_entry_ret
+//        );
+//    inst!   (($vm, $tester_name) blk_entry_inst_exit:
+//            THREADEXIT
+//        );
+//
+//    define_block!   (($vm, $tester_name) blk_entry(a, b) {
+//             blk_entry_call,
+//             blk_entry_cmp,
+//             blk_entry_inst_select,
+//             blk_entry_inst_ret,
+//             blk_entry_inst_exit
+//        });
+//
+//    define_func_ver!    (($vm) $tester_name (entry: blk_entry) {
+//            blk_entry
+//        });
+    
+    //
+    
     vm
 }

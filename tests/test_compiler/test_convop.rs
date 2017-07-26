@@ -24,17 +24,22 @@ use self::mu::vm::*;
 use self::mu::testutil;
 use mu::utils::LinkedHashMap;
 
+use self::mu::compiler::*;
+use self::mu::testutil::aot;
+use std::sync::Arc;
+
 #[test]
 fn test_truncate_then_call() {
-    let lib = testutil::compile_fncs("truncate_then_call", vec!["truncate_then_call", "dummy_call"], &truncate_then_call);
-
-    unsafe {
-        let truncate_then_call : libloading::Symbol<unsafe extern fn(u64) -> u32> = lib.get(b"truncate_then_call").unwrap();
-
-        let res = truncate_then_call(1);
-        println!("truncate_then_call(1) = {}", res);
-        assert!(res == 1);
-    }
+//    let lib = testutil::compile_fncs("truncate_then_call", vec!["truncate_then_call", "dummy_call"], &truncate_then_call);
+//
+//    unsafe {
+//        let truncate_then_call : libloading::Symbol<unsafe extern fn(u64) -> u32> = lib.get(b"truncate_then_call").unwrap();
+//
+//        let res = truncate_then_call(1);
+//        println!("truncate_then_call(1) = {}", res);
+//        assert!(res == 1);
+//    }
+    build_and_run_test!(truncate_then_call AND dummy_call, truncate_then_call_test1);
 }
 
 fn truncate_then_call() -> VM {
@@ -66,7 +71,7 @@ fn truncate_then_call() -> VM {
         });
     }
 
-    {
+//    {
         // --- truncate_then_call ---
         typedef! ((vm) funcref_to_dummy = mu_funcref(dummy_call_sig));
         constdef!((vm) <funcref_to_dummy> funcref_dummy = Constant::FuncRef(dummy_call));
@@ -105,7 +110,9 @@ fn truncate_then_call() -> VM {
         define_func_ver!((vm) truncate_then_call_v1 (entry: blk_entry) {
             blk_entry
         });
-    }
-
+//    }
+    
+    emit_test!      ((vm) (truncate_then_call truncate_then_call_test1 truncate_then_call_test1_v1 Int,Int,EQ (sig, u64(1u64), u32(1u64))));
+    
     vm
 }

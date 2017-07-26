@@ -1031,9 +1031,84 @@ macro_rules! build_and_run_test {
         }
 
         backend::emit_context(&vm);
-//        let output_name = stringify!($test_name).to_string()+"_"+stringify!($tester_name);
-//        let executable = aot::link_test_primordial(vec![stringify!($test_name).to_string(), stringify!($tester_name).to_string()], output_name.as_str(), &vm);
-//        aot::execute(executable);
         aot::run_test(&vm, stringify!($test_name), stringify!($tester_name));
+    };
+    // When test name in mu IR is different from the name of rust function \
+    // which creates the vm
+    ($test_name: ident, $tester_name: ident, $fnc_name: ident) => {
+        VM::start_logging_trace();
+
+        let vm = Arc::new($fnc_name());
+
+        let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+        let func_id = vm.id_of(stringify!($tester_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+
+        vm.make_primordial_thread(func_id, true, vec![]);
+
+        let func_id = vm.id_of(stringify!($test_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+
+        backend::emit_context(&vm);
+        aot::run_test(&vm, stringify!($test_name), stringify!($tester_name));
+    };
+    // When the testee has one dependent function
+    //
+    ($test_name: ident AND $dep_name: ident, $tester_name: ident) => {
+        VM::start_logging_trace();
+
+        let vm = Arc::new($test_name());
+
+        let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+        let func_id = vm.id_of(stringify!($tester_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+
+        vm.make_primordial_thread(func_id, true, vec![]);
+
+        let func_id = vm.id_of(stringify!($test_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        
+        let func_id = vm.id_of(stringify!($dep_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+
+        backend::emit_context(&vm);
+        aot::run_test_2f(&vm, stringify!($test_name), stringify!($dep_name), stringify!($tester_name));
     };
 }
