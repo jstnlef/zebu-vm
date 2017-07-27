@@ -265,37 +265,7 @@ fn create_spill1() -> VM {
 
 #[test]
 fn test_simple_spill() {
-    VM::start_logging_trace();
-
-    let vm = Arc::new(create_simple_spill());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_id = vm.id_of("simple_spill");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-        compiler.compile(&mut func_ver);
-    }
-
-    backend::emit_context(&vm);
-
-    let dylib = aot::link_dylib(vec![Mu("simple_spill")], &testutil::get_dylib_name("simple_spill"), &vm);
-
-    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
-    unsafe {
-        let simple_spill : libloading::Symbol<unsafe extern fn() -> u64> = match lib.get(b"simple_spill") {
-            Ok(symbol) => symbol,
-            Err(e) => panic!("cannot find symbol simple_spill in dylib: {:?}", e)
-        };
-
-        let res = simple_spill();
-        println!("simple_spill() = {}", res);
-        assert!(res == 2);
-    }
+    build_and_run_test!(simple_spill, simple_spill_test1, create_simple_spill);
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -440,7 +410,9 @@ fn create_simple_spill() -> VM {
         blk_start,
         blk_ret
     });
-
+    
+    emit_test!      ((vm) (simple_spill simple_spill_test1 simple_spill_test1_v1 Int,EQ (simple_spill_sig, int64(2u64))));
+    
     vm
 }
 
@@ -795,48 +767,50 @@ fn coalesce_args() -> VM {
 
 #[test] // was x86_64 only
 fn test_coalesce_branch2_moves() {
-    VM::start_logging_trace();
-
-    let vm = Arc::new(coalesce_branch2_moves());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_id = vm.id_of("coalesce_branch2_moves");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-        compiler.compile(&mut func_ver);
-
-        // check
-        let fv_id = func_ver.id();
-
-        assert!(get_number_of_moves(fv_id, &vm) <= 3, "too many moves (some possible coalescing failed)");
-    }
-
-    backend::emit_context(&vm);
-
-    let dylib = aot::link_dylib(vec![Mu("coalesce_branch2_moves")], &testutil::get_dylib_name("coalesce_branch2_moves"), &vm);
-
-    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
-    unsafe {
-        let coalesce_branch2_moves : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64, u64, u64) -> u64> = match lib.get(b"coalesce_branch2_moves") {
-            Ok(symbol) => symbol,
-            Err(e) => panic!("cannot find symbol coalesce_branch2_moves in dylib: {:?}", e)
-        };
-
-        let res = coalesce_branch2_moves(1, 1, 10, 10, 0, 0);
-        println!("if 0 == 0 then return 1 + 1 else return 10 + 10");
-        println!("coalesce_branch2_moves(1, 1, 10, 10, 0, 0) = {}", res);
-        assert!(res == 2);
-
-        let res = coalesce_branch2_moves(1, 1, 10, 10, 1, 0);
-        println!("if 1 == 0 then return 1 + 1 else return 10 + 10");
-        println!("coalesce_branch2_moves(1, 1, 10, 10, 1, 0) = {}", res);
-        assert!(res == 20);
-    }
+//    VM::start_logging_trace();
+//
+//    let vm = Arc::new(coalesce_branch2_moves());
+//
+//    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+//
+//    let func_id = vm.id_of("coalesce_branch2_moves");
+//    {
+//        let funcs = vm.funcs().read().unwrap();
+//        let func = funcs.get(&func_id).unwrap().read().unwrap();
+//        let func_vers = vm.func_vers().read().unwrap();
+//        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+//
+//        compiler.compile(&mut func_ver);
+//
+//        // check
+//        let fv_id = func_ver.id();
+//
+//        assert!(get_number_of_moves(fv_id, &vm) <= 3, "too many moves (some possible coalescing failed)");
+//    }
+//
+//    backend::emit_context(&vm);
+//
+//    let dylib = aot::link_dylib(vec![Mu("coalesce_branch2_moves")], &testutil::get_dylib_name("coalesce_branch2_moves"), &vm);
+//
+//    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
+//    unsafe {
+//        let coalesce_branch2_moves : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64, u64, u64) -> u64> = match lib.get(b"coalesce_branch2_moves") {
+//            Ok(symbol) => symbol,
+//            Err(e) => panic!("cannot find symbol coalesce_branch2_moves in dylib: {:?}", e)
+//        };
+//
+//        let res = coalesce_branch2_moves(1, 1, 10, 10, 0, 0);
+//        println!("if 0 == 0 then return 1 + 1 else return 10 + 10");
+//        println!("coalesce_branch2_moves(1, 1, 10, 10, 0, 0) = {}", res);
+//        assert!(res == 2);
+//
+//        let res = coalesce_branch2_moves(1, 1, 10, 10, 1, 0);
+//        println!("if 1 == 0 then return 1 + 1 else return 10 + 10");
+//        println!("coalesce_branch2_moves(1, 1, 10, 10, 1, 0) = {}", res);
+//        assert!(res == 20);
+//    }
+    build_and_run_test!(coalesce_branch2_moves, coalesce_branch2_moves_test1);
+    build_and_run_test!(coalesce_branch2_moves, coalesce_branch2_moves_test2);
 }
 
 fn coalesce_branch2_moves() -> VM {
@@ -924,46 +898,50 @@ fn coalesce_branch2_moves() -> VM {
     define_func_ver!((vm) coalesce_branch2_moves_v1 (entry: blk_entry){
         blk_entry, blk_add01, blk_add23, blk_ret
     });
-
+    
+    emit_test!      ((vm) (coalesce_branch2_moves coalesce_branch2_moves_test1 coalesce_branch2_moves_test1_v1 Int,Int,Int,Int,Int,Int,Int,EQ (sig, int64(1u64), int64(1u64), int64(10u64), int64(10u64), int64(0u64), int64(0u64), int64(2u64))));
+    emit_test!      ((vm) (coalesce_branch2_moves coalesce_branch2_moves_test2 coalesce_branch2_moves_test2_v1 Int,Int,Int,Int,Int,Int,Int,EQ (sig, int64(1u64), int64(1u64), int64(10u64), int64(10u64), int64(1u64), int64(0u64), int64(20u64))));
+    
     vm
 }
 
 #[test]
 fn test_preserve_caller_saved_simple() {
-    VM::start_logging_trace();
-    let vm = Arc::new(preserve_caller_saved_simple());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_foo = vm.id_of("foo");
-    let func_preserve_caller_saved_simple = vm.id_of("preserve_caller_saved_simple");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-
-        {
-            let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-            compiler.compile(&mut func_ver);
-        }
-        {
-            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-            compiler.compile(&mut func_ver);
-        }
-    }
-
-    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
-    backend::emit_context(&vm);
-
-    let executable = aot::link_primordial(vec![Mu("foo"), Mu("preserve_caller_saved_simple")], "test_preserve_caller_saved_simple", &vm);
-    let output = aot::execute_nocheck(executable);
-
-    // add from 0 to 9
-    assert!(output.status.code().is_some());
-    assert_eq!(output.status.code().unwrap(), 45);
+//    VM::start_logging_trace();
+//    let vm = Arc::new(preserve_caller_saved_simple());
+//
+//    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+//
+//    let func_foo = vm.id_of("foo");
+//    let func_preserve_caller_saved_simple = vm.id_of("preserve_caller_saved_simple");
+//    {
+//        let funcs = vm.funcs().read().unwrap();
+//        let func_vers = vm.func_vers().read().unwrap();
+//
+//        {
+//            let func = funcs.get(&func_foo).unwrap().read().unwrap();
+//            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+//
+//            compiler.compile(&mut func_ver);
+//        }
+//        {
+//            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
+//            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+//
+//            compiler.compile(&mut func_ver);
+//        }
+//    }
+//
+//    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
+//    backend::emit_context(&vm);
+//
+//    let executable = aot::link_primordial(vec![Mu("foo"), Mu("preserve_caller_saved_simple")], "test_preserve_caller_saved_simple", &vm);
+//    let output = aot::execute_nocheck(executable);
+//
+//    // add from 0 to 9
+//    assert!(output.status.code().is_some());
+//    assert_eq!(output.status.code().unwrap(), 45);
+    build_and_run_test!(preserve_caller_saved_simple AND foo, preserve_caller_saved_simple_test1);
 }
 
 fn preserve_caller_saved_simple() -> VM {
@@ -984,7 +962,7 @@ fn preserve_caller_saved_simple() -> VM {
     constdef!   ((vm) <int64> int64_8 = Constant::Int(8));
     constdef!   ((vm) <int64> int64_9 = Constant::Int(9));
 
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> preserve_caller_saved_simple);
     funcdef!    ((vm) <sig> preserve_caller_saved_simple VERSION preserve_caller_saved_simple_v1);
 
@@ -1088,10 +1066,10 @@ fn preserve_caller_saved_simple() -> VM {
         res9 = BINOP (BinOp::Add) res8 v9
     );
 
-    let blk_main_exit = gen_ccall_exit(res9.clone(), &mut preserve_caller_saved_simple_v1, &vm);
+//    let blk_main_exit = gen_ccall_exit(res9.clone(), &mut preserve_caller_saved_simple_v1, &vm);
 
     inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_ret:
-        RET
+        RET (res9)
     );
 
     define_block!   ((vm, preserve_caller_saved_simple_v1) blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
@@ -1107,7 +1085,7 @@ fn preserve_caller_saved_simple() -> VM {
         blk_main_add8,
         blk_main_add9,
 
-        blk_main_exit,
+//        blk_main_exit,
         blk_main_ret
     });
 
@@ -1115,7 +1093,9 @@ fn preserve_caller_saved_simple() -> VM {
         blk_entry,
         blk_main
     });
-
+    
+    emit_test!      ((vm) (preserve_caller_saved_simple preserve_caller_saved_simple_test1 preserve_caller_saved_simple_test1_v1 Int,EQ (sig, int64(45u64))));
+    
     vm
 }
 
@@ -1138,40 +1118,41 @@ fn create_empty_func_foo(vm: &VM) {
 
 #[test]
 fn test_preserve_caller_saved_call_args() {
-    VM::start_logging_trace();
-    let vm = Arc::new(preserve_caller_saved_call_args());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_foo = vm.id_of("foo6");
-    let func_preserve_caller_saved_simple = vm.id_of("preserve_caller_saved_call_args");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-
-        {
-            let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-            compiler.compile(&mut func_ver);
-        }
-        {
-            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
-            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-            compiler.compile(&mut func_ver);
-        }
-    }
-
-    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
-    backend::emit_context(&vm);
-
-    let executable = aot::link_primordial(vec![Mu("foo6"), Mu("preserve_caller_saved_call_args")], "test_preserve_caller_saved_call_args", &vm);
-    let output = aot::execute_nocheck(executable);
-
-    // add from 0 to 9
-    assert!(output.status.code().is_some());
-    assert_eq!(output.status.code().unwrap(), 45);
+//    VM::start_logging_trace();
+//    let vm = Arc::new(preserve_caller_saved_call_args());
+//
+//    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+//
+//    let func_foo = vm.id_of("foo6");
+//    let func_preserve_caller_saved_simple = vm.id_of("preserve_caller_saved_call_args");
+//    {
+//        let funcs = vm.funcs().read().unwrap();
+//        let func_vers = vm.func_vers().read().unwrap();
+//
+//        {
+//            let func = funcs.get(&func_foo).unwrap().read().unwrap();
+//            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+//
+//            compiler.compile(&mut func_ver);
+//        }
+//        {
+//            let func = funcs.get(&func_preserve_caller_saved_simple).unwrap().read().unwrap();
+//            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+//
+//            compiler.compile(&mut func_ver);
+//        }
+//    }
+//
+//    vm.make_primordial_thread(func_preserve_caller_saved_simple, true, vec![]);
+//    backend::emit_context(&vm);
+//
+//    let executable = aot::link_primordial(vec![Mu("foo6"), Mu("preserve_caller_saved_call_args")], "test_preserve_caller_saved_call_args", &vm);
+//    let output = aot::execute_nocheck(executable);
+//
+//    // add from 0 to 9
+//    assert!(output.status.code().is_some());
+//    assert_eq!(output.status.code().unwrap(), 45);
+    build_and_run_test!(preserve_caller_saved_call_args AND foo6, preserve_caller_saved_call_args_test1);
 }
 
 fn preserve_caller_saved_call_args() -> VM {
@@ -1192,7 +1173,7 @@ fn preserve_caller_saved_call_args() -> VM {
     constdef!   ((vm) <int64> int64_8 = Constant::Int(8));
     constdef!   ((vm) <int64> int64_9 = Constant::Int(9));
 
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> preserve_caller_saved_call_args);
     funcdef!    ((vm) <sig> preserve_caller_saved_call_args VERSION preserve_caller_saved_call_args_v1);
 
@@ -1296,10 +1277,10 @@ fn preserve_caller_saved_call_args() -> VM {
         res9 = BINOP (BinOp::Add) res8 v9
     );
 
-    let blk_main_exit = gen_ccall_exit(res9.clone(), &mut preserve_caller_saved_call_args_v1, &vm);
+//    let blk_main_exit = gen_ccall_exit(res9.clone(), &mut preserve_caller_saved_call_args_v1, &vm);
 
     inst!       ((vm, preserve_caller_saved_call_args_v1) blk_main_ret:
-        RET
+        RET (res9)
     );
 
     define_block!   ((vm, preserve_caller_saved_call_args_v1) blk_main(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) {
@@ -1315,7 +1296,7 @@ fn preserve_caller_saved_call_args() -> VM {
         blk_main_add8,
         blk_main_add9,
 
-        blk_main_exit,
+//        blk_main_exit,
         blk_main_ret
     });
 
@@ -1323,6 +1304,8 @@ fn preserve_caller_saved_call_args() -> VM {
         blk_entry,
         blk_main
     });
+    
+    emit_test!      ((vm) (preserve_caller_saved_call_args preserve_caller_saved_call_args_test1 preserve_caller_saved_call_args_test1_v1 Int,EQ (sig, int64(45u64))));
 
     vm
 }
@@ -1351,42 +1334,43 @@ fn create_empty_func_foo6(vm: &VM) {
 #[allow(unused_variables)]
 #[allow(overflowing_literals)]
 fn test_spill_int8() {
-    VM::start_logging_trace();
-
-    let vm = Arc::new(spill_int8());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_id = vm.id_of("spill_int8");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-        compiler.compile(&mut func_ver);
-    }
-
-    backend::emit_context(&vm);
-
-    let dylib = aot::link_dylib(vec![Mu("spill_int8")], &testutil::get_dylib_name("spill_int8"), &vm);
-
-    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
-    unsafe {
-        let spill_int8 : libloading::Symbol<unsafe extern fn() -> u8> = match lib.get(b"spill_int8") {
-            Ok(symbol) => symbol,
-            Err(e) => panic!("cannot find symbol spill_int8 in dylib: {:?}", e)
-        };
-
-        let res = spill_int8();
-        println!("spill_int8() = {}", res);
-        if cfg!(target_arch = "x86_64") {
-            assert_eq!(res, 136); // add from 0 to 16
-        } else {
-            //Note: 465 does not fit in a u8
-            assert_eq!(res, 465u8); // add from 0 to 30
-        }
-    }
+//    VM::start_logging_trace();
+//
+//    let vm = Arc::new(spill_int8());
+//
+//    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+//
+//    let func_id = vm.id_of("spill_int8");
+//    {
+//        let funcs = vm.funcs().read().unwrap();
+//        let func = funcs.get(&func_id).unwrap().read().unwrap();
+//        let func_vers = vm.func_vers().read().unwrap();
+//        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+//
+//        compiler.compile(&mut func_ver);
+//    }
+//
+//    backend::emit_context(&vm);
+//
+//    let dylib = aot::link_dylib(vec![Mu("spill_int8")], &testutil::get_dylib_name("spill_int8"), &vm);
+//
+//    let lib = libloading::Library::new(dylib.as_os_str()).unwrap();
+//    unsafe {
+//        let spill_int8 : libloading::Symbol<unsafe extern fn() -> u8> = match lib.get(b"spill_int8") {
+//            Ok(symbol) => symbol,
+//            Err(e) => panic!("cannot find symbol spill_int8 in dylib: {:?}", e)
+//        };
+//
+//        let res = spill_int8();
+//        println!("spill_int8() = {}", res);
+//        if cfg!(target_arch = "x86_64") {
+//            assert_eq!(res, 136); // add from 0 to 16
+//        } else {
+//            //Note: 465 does not fit in a u8
+//            assert_eq!(res, 465u8); // add from 0 to 30
+//        }
+//    }
+    build_and_run_test!(spill_int8, spill_int8_test1);
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -1590,7 +1574,9 @@ fn spill_int8() -> VM {
         blk_entry,
         blk_ret
     });
-
+    
+    emit_test!      ((vm) (spill_int8 spill_int8_test1 spill_int8_test1_v1 Int,EQ (sig, int8(136u8 as u64))));
+    
     vm
 }
 
@@ -1937,6 +1923,8 @@ fn spill_int8() -> VM {
         blk_entry,
         blk_ret
     });
-
+    
+    emit_test!      ((vm) (spill_int8 spill_int8_test1 spill_int8_test1_v1 Int,EQ (sig, int8(465u8 as u64))));
+    
     vm
 }

@@ -30,27 +30,7 @@ use std::sync::RwLock;
 
 #[test]
 fn test_thread_create() {
-    VM::start_logging_trace();
-    
-    let vm = Arc::new(primordial_main());
-    
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-    
-    let func_id = vm.id_of("primordial_main");    
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-        
-        compiler.compile(&mut func_ver);
-    }
-    
-    vm.make_primordial_thread(func_id, true, vec![]);
-    backend::emit_context(&vm);
-    
-    let executable = aot::link_primordial(vec!["primordial_main".to_string()], "primordial_main_test", &vm);
-    aot::execute(executable);
+    build_and_run_test!(primordial_main, primordial_main_test1);
 }
 
 fn primordial_main() -> VM {
@@ -72,6 +52,8 @@ fn primordial_main() -> VM {
     define_func_ver!((vm) primordial_main_v1(entry: blk_entry) {
         blk_entry
     });
+    
+    emit_test!      ((vm) (primordial_main primordial_main_test1 primordial_main_test1_v1 (sig)));
     
     vm
 }
