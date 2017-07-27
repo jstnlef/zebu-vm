@@ -24,21 +24,14 @@ use self::mu::utils::LinkedHashMap;
 
 use mu::testutil;
 
+use self::mu::compiler::*;
+use self::mu::testutil::aot;
+use std::sync::Arc;
+
 #[test]
 fn test_add_u8() {
-    let lib = testutil::compile_fnc("add_u8", &add_u8);
-
-    unsafe {
-        let add_u8 : libloading::Symbol<unsafe extern fn(u8, u8) -> u8> = lib.get(b"add_u8").unwrap();
-
-        let add_u8_1_1 = add_u8(1, 1);
-        println!("add_u8(1, 1) = {}", add_u8_1_1);
-        assert!(add_u8_1_1 == 2);
-
-        let add_u8_255_1 = add_u8(255u8, 1u8);
-        println!("add_u8(255, 1) = {}", add_u8_255_1);
-        assert!(add_u8_255_1 == 0);
-    }
+    build_and_run_test!(add_u8, add_u8_test1);
+    build_and_run_test!(add_u8, add_u8_test2);
 }
 
 fn add_u8() -> VM {
@@ -74,21 +67,16 @@ fn add_u8() -> VM {
     define_func_ver!((vm) add_u8_v1 (entry: blk_entry) {
         blk_entry
     });
-
+    
+    emit_test!      ((vm) (add_u8 add_u8_test1 add_u8_test1_v1 Int,Int,Int,EQ (add_u8_sig, u8(1u8 as u64), u8(1u8 as u64), u8(2u8 as u64))));
+    emit_test!      ((vm) (add_u8 add_u8_test2 add_u8_test2_v1 Int,Int,Int,EQ (add_u8_sig, u8(255u8 as u64), u8(1u8 as u64), u8(0u8 as u64))));
+    
     vm
 }
 
 #[test]
 fn test_truncate() {
-    let lib = testutil::compile_fnc("truncate", &truncate);
-
-    unsafe {
-        let truncate : libloading::Symbol<unsafe extern fn(u64) -> u8> = lib.get(b"truncate").unwrap();
-
-        let res = truncate(0xF01u64);
-        println!("truncate(0xF01) = {}", res);
-        assert!(res == 1);
-    }
+    build_and_run_test!(truncate, truncate_test1);
 }
 
 fn truncate() -> VM {
@@ -125,21 +113,15 @@ fn truncate() -> VM {
     });
 
     define_func_ver! ((vm) truncate_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (truncate truncate_test1 truncate_test1_v1 Int,Int,EQ (sig, u64(0xF01u64), u64(1u64))));
+    
     vm
 }
 
 #[test]
 fn test_sext() {
-    let lib = testutil::compile_fnc("sext", &sext);
-
-    unsafe {
-        let sext : libloading::Symbol<unsafe extern fn(i8) -> i64> = lib.get(b"sext").unwrap();
-
-        let res = sext(-1);
-        println!("truncate(-1) = {}", res);
-        assert!(res == -1);
-    }
+    build_and_run_test!(sext, sext_test1);
 }
 
 fn sext() -> VM {
@@ -174,21 +156,15 @@ fn sext() -> VM {
     define_func_ver!((vm) sext_v1 (entry: blk_entry) {
         blk_entry
     });
-
+    
+    emit_test!      ((vm) (sext sext_test1 sext_test1_v1 Int,Int,EQ (sext_sig, i8(-1i8 as u64), i64(-1i64 as u64))));
+    
     vm
 }
 
 #[test]
 fn test_add_9f() {
-    let lib = testutil::compile_fnc("add_9f", &add_9f);
-
-    unsafe {
-        let add_9f : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"add_9f").unwrap();
-
-        let add_9f_1 = add_9f(1);
-        println!("add_9f(1) = {}", add_9f_1);
-        assert!(add_9f_1 == 0x1000000000);
-    }
+    build_and_run_test!(add_9f, add_9f_test1);
 }
 
 fn add_9f() -> VM {
@@ -226,6 +202,8 @@ fn add_9f() -> VM {
     define_func_ver!((vm) add_9f_v1(entry: blk_entry) {
         blk_entry
     });
-
+    
+    emit_test!      ((vm) (add_9f add_9f_test1 add_9f_test1_v1 Int,Int,EQ (add_9f_sig, u64(1u64), u64(0x1000000000u64))));
+    
     vm
 }

@@ -24,23 +24,17 @@ use mu::vm::*;
 use mu::utils::LinkedHashMap;
 use mu::testutil;
 
+use mu::compiler::*;
+use mu::testutil::aot;
+use std::sync::Arc;
+use std::u64;
+
+use self::extprim::u128::u128;
+
 #[test]
 fn test_add_u128() {
-    let lib = testutil::compile_fnc("add_u128", &add_u128);
-
-    unsafe {
-        use std::u64;
-
-        let add_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"add_u128").unwrap();
-
-        let res = add_u128(1, 0, 1, 0);
-        println!("add_u128(1, 1) = {:?}", res);
-        assert!(res == (2, 0));
-
-        let res = add_u128(u64::MAX, 0, 1, 0);
-        println!("add_u128(u64::MAX, 1) = {:?}", res);
-        assert!(res == (0, 1));
-    }
+    build_and_run_test!(add_u128, add_u128_test1);
+    build_and_run_test!(add_u128, add_u128_test2);
 }
 
 pub fn add_u128() -> VM {
@@ -71,27 +65,17 @@ pub fn add_u128() -> VM {
     });
 
     define_func_ver!((vm) add_u128_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (add_u128 add_u128_test1 add_u128_test1_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![1, 0]), u128(vec![1, 0]), u128(vec![2, 0]))));
+    emit_test!      ((vm) (add_u128 add_u128_test2 add_u128_test2_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![u64::MAX, 0]), u128(vec![1, 0]), u128(vec![0, 1]))));
+    
     vm
 }
 
 #[test]
 fn test_sub_u128() {
-    let lib = testutil::compile_fnc("sub_u128", &sub_u128);
-
-    unsafe {
-        use std::u64;
-
-        let sub_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"sub_u128").unwrap();
-
-        let res = sub_u128(1, 0, 1, 0);
-        println!("sub_u128(1, 1) = {:?}", res);
-        assert!(res == (0, 0));
-
-        let res = sub_u128(u64::MAX, 0, u64::MAX, u64::MAX);
-        println!("sub_u128(u64::MAX, -1) = {:?}", res);
-        assert!(res == (0, 1));
-    }
+    build_and_run_test!(sub_u128, sub_u128_test1);
+    build_and_run_test!(sub_u128, sub_u128_test2);
 }
 
 fn sub_u128() -> VM {
@@ -122,26 +106,16 @@ fn sub_u128() -> VM {
     });
 
     define_func_ver!((vm) sub_u128_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (sub_u128 sub_u128_test1 sub_u128_test1_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![1, 0]), u128(vec![1, 0]), u128(vec![0, 0]))));
+    emit_test!      ((vm) (sub_u128 sub_u128_test2 sub_u128_test2_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![u64::MAX, 0]), u128(vec![u64::MAX, u64::MAX]), u128(vec![0, 1]))));
+    
     vm
 }
 #[test]
 fn test_add_const_u128() {
-    let lib = testutil::compile_fnc("add_const_u128", &add_const_u128);
-
-    unsafe {
-        use std::u64;
-
-        let add_const_u128 : libloading::Symbol<unsafe extern fn(u64, u64) -> (u64, u64)> = lib.get(b"add_const_u128").unwrap();
-
-        let res = add_const_u128(1, 0);
-        println!("add_const_u128(1, 1) = {:?}", res);
-        assert!(res == (2, 0));
-
-        let res = add_const_u128(u64::MAX, 0);
-        println!("add_const_u128(u64::MAX, 1) = {:?}", res);
-        assert!(res == (0, 1));
-    }
+    build_and_run_test!(add_const_u128, add_const_u128_test1);
+    build_and_run_test!(add_const_u128, add_const_u128_test2);
 }
 
 fn add_const_u128() -> VM {
@@ -174,27 +148,17 @@ fn add_const_u128() -> VM {
     });
 
     define_func_ver!((vm) add_const_u128_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (add_const_u128 add_const_u128_test1 add_const_u128_test1_v1 IntEx,IntEx,EQ (sig, u128(vec![1, 0]), u128(vec![2, 0]))));
+    emit_test!      ((vm) (add_const_u128 add_const_u128_test2 add_const_u128_test2_v1 IntEx,IntEx,EQ (sig, u128(vec![u64::MAX, 0]), u128(vec![0, 1]))));
+    
     vm
 }
 
 #[test]
 fn test_mul_u128() {
-    let lib = testutil::compile_fnc("mul_u128", &mul_u128);
-
-    unsafe {
-        use std::u64;
-
-        let mul_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"mul_u128").unwrap();
-
-        let res = mul_u128(6, 0, 7, 0);
-        println!("mul_u128(6, 7) = {:?}", res);
-        assert!(res == (42, 0));
-
-        let res = mul_u128(6, 6, 7, 7);
-        println!("mul_u128(??, ??) = {:?}", res);
-        assert!(res == (42, 84));
-    }
+    build_and_run_test!(mul_u128, mul_u128_test1);
+    build_and_run_test!(mul_u128, mul_u128_test2);
 }
 
 fn mul_u128() -> VM {
@@ -225,33 +189,18 @@ fn mul_u128() -> VM {
     });
 
     define_func_ver!((vm) mul_u128_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (mul_u128 mul_u128_test1 mul_u128_test1_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![6, 0]), u128(vec![7, 0]), u128(vec![42, 0]))));
+    emit_test!      ((vm) (mul_u128 mul_u128_test2 mul_u128_test2_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![6, 6]), u128(vec![7, 7]), u128(vec![42, 84]))));
+    
     vm
 }
 
-#[ignore]   // this test uses runtime function, should run it as bootimage
+//#[ignore]   // this test uses runtime function, should run it as bootimage
 #[test]
 fn test_udiv_u128() {
-    let lib = testutil::compile_fnc("udiv_u128", &udiv_u128);
-
-    unsafe {
-        use self::extprim::u128::u128;
-
-        let udiv_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"udiv_u128").unwrap();
-
-        let res = udiv_u128(42, 0, 7, 0);
-        println!("udiv_u128(42, 7) = {:?}", res);
-        assert!(res == (6, 0));
-
-        let res = udiv_u128(41, 42, 6, 7);
-        let a = u128::from_parts(42, 41); // hi, lo
-        let b = u128::from_parts(7, 6);
-        let expect = a.wrapping_div(b);
-
-        println!("udiv_u128(??, ??) = {:?}", res);
-        assert!(expect.low64()  == res.0);
-        assert!(expect.high64() == res.1)
-    }
+    build_and_run_test!(udiv_u128, udiv_u128_test1);
+    build_and_run_test!(udiv_u128, udiv_u128_test2);
 }
 
 fn udiv_u128() -> VM {
@@ -282,25 +231,22 @@ fn udiv_u128() -> VM {
     });
 
     define_func_ver!((vm) udiv_u128_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (udiv_u128 udiv_u128_test1 udiv_u128_test1_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![42, 0]), u128(vec![7, 0]), u128(vec![6, 0]))));
+    let a = u128::from_parts(42, 41); // hi, lo
+    let b = u128::from_parts(7, 6);
+    let expect = a.wrapping_div(b);
+    let exp_low = expect.low64();
+    let exp_high = expect.high64();
+    emit_test!      ((vm) (udiv_u128 udiv_u128_test2 udiv_u128_test2_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![42, 41]), u128(vec![7, 6]), u128(vec![exp_low, exp_high]))));
+    
     vm
 }
 
 #[test]
 fn test_shl_u128() {
-    let lib = testutil::compile_fnc("shl_u128", &shl_u128);
-
-    unsafe {
-        let shl_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"shl_u128").unwrap();
-
-        let res = shl_u128(1, 0, 64, 0);
-        println!("shl_u128(1, 64) = {:?}", res);
-        assert!(res == (0, 1));
-
-        let res = shl_u128(1, 1, 64, 0);
-        println!("shl_u128(1, 64) = {:?}", res);
-        assert!(res == (0, 1));
-    }
+    build_and_run_test!(shl_u128, shl_u128_test1);
+    build_and_run_test!(shl_u128, shl_u128_test2);
 }
 
 fn shl_u128() -> VM {
@@ -331,25 +277,17 @@ fn shl_u128() -> VM {
     });
 
     define_func_ver!((vm) shl_u128_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (shl_u128 shl_u128_test1 shl_u128_test1_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![1, 0]), u128(vec![64, 0]), u128(vec![0, 1]))));
+    emit_test!      ((vm) (shl_u128 shl_u128_test2 shl_u128_test2_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![1, 1]), u128(vec![64, 0]), u128(vec![0, 1]))));
+    
     vm
 }
 
 #[test]
 fn test_lshr_u128() {
-    let lib = testutil::compile_fnc("lshr_u128", &lshr_u128);
-
-    unsafe {
-        let lshr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"lshr_u128").unwrap();
-
-        let res = lshr_u128(1, 1, 64, 0);
-        println!("lshr_u128(100000000000...0001, 64) = {:?}", res);
-        assert!(res == (1, 0));
-
-        let res = lshr_u128(1, 0xffffffffffffffff, 64, 0);
-        println!("lshr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}", res);
-        assert!(res == (0xffffffffffffffff, 0));
-    }
+    build_and_run_test!(lshr_u128, lshr_u128_test1);
+    build_and_run_test!(lshr_u128, lshr_u128_test2);
 }
 
 fn lshr_u128() -> VM {
@@ -380,21 +318,16 @@ fn lshr_u128() -> VM {
     });
 
     define_func_ver!((vm) lshr_u128_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (lshr_u128 lshr_u128_test1 lshr_u128_test1_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![1, 1]), u128(vec![64, 0]), u128(vec![1, 0]))));
+    emit_test!      ((vm) (lshr_u128 lshr_u128_test2 lshr_u128_test2_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![1, 0xffffffffffffffff]), u128(vec![64, 0]), u128(vec![0xffffffffffffffff, 0]))));
+    
     vm
 }
 
 #[test]
 fn test_ashr_u128() {
-    let lib = testutil::compile_fnc("ashr_u128", &ashr_u128);
-
-    unsafe {
-        let ashr_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> (u64, u64)> = lib.get(b"ashr_u128").unwrap();
-
-        let res = ashr_u128(1, 0xffffffffffffffff, 64, 0);
-        println!("ashr_u128(0xffffffffffffffff0000000000000001, 64) = {:?}", res);
-        assert!(res == (0xffffffffffffffff, 0xffffffffffffffff));
-    }
+    build_and_run_test!(ashr_u128, ashr_u128_test1);
 }
 
 fn ashr_u128() -> VM {
@@ -425,7 +358,9 @@ fn ashr_u128() -> VM {
     });
 
     define_func_ver!((vm) ashr_u128_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (ashr_u128 ashr_u128_test1 ashr_u128_test1_v1 IntEx,IntEx,IntEx,EQ (sig, u128(vec![1, 0xffffffffffffffff]), u128(vec![64, 0]), u128(vec![0xffffffffffffffff, 0xffffffffffffffff]))));
+    
     vm
 }
 
@@ -493,35 +428,12 @@ fn store_load_u128() -> VM {
 
 #[test]
 fn test_ugt_u128() {
-    let lib = testutil::compile_fnc("ugt_u128", &ugt_u128);
-
-    unsafe {
-        let ugt_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> u64> = lib.get(b"ugt_u128").unwrap();
-
-        let res = ugt_u128(1, 0, 2, 0);
-        println!("ugt_u128(1, 0, 2, 0) = {:?}", res);
-        assert!(res == 0);
-
-        let res = ugt_u128(1, 0, 1, 0);
-        println!("ugt_u128(1, 0, 1, 0) = {:?}", res);
-        assert!(res == 0);
-
-        let res = ugt_u128(1, 0, 0, 0);
-        println!("ugt_u128(1, 0, 0, 0) = {:?}", res);
-        assert!(res == 1);
-
-        let res = ugt_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff);
-        println!("ugt_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff) = {:?}", res);
-        assert!(res == 0);
-
-        let res = ugt_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff);
-        println!("ugt_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff) = {:?}", res);
-        assert!(res == 0);
-
-        let res = ugt_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff);
-        println!("ugt_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff) = {:?}", res);
-        assert!(res == 1);
-    }
+    build_and_run_test!(ugt_u128, ugt_u128_test1);
+    build_and_run_test!(ugt_u128, ugt_u128_test2);
+    build_and_run_test!(ugt_u128, ugt_u128_test3);
+    build_and_run_test!(ugt_u128, ugt_u128_test4);
+    build_and_run_test!(ugt_u128, ugt_u128_test5);
+    build_and_run_test!(ugt_u128, ugt_u128_test6);
 }
 
 fn ugt_u128() -> VM {
@@ -578,39 +490,24 @@ fn ugt_u128() -> VM {
     define_func_ver!((vm) ugt_u128_v1(entry: blk_entry) {
         blk_entry, blk_ret
     });
-
+    
+    emit_test!      ((vm) (ashr_u128 ashr_u128_test1 ashr_u128_test1_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0]), u128(vec![2, 0]), u64(0u64))));
+    emit_test!      ((vm) (ashr_u128 ashr_u128_test1 ashr_u128_test1_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0]), u128(vec![1, 0]), u64(0u64))));
+    emit_test!      ((vm) (ashr_u128 ashr_u128_test1 ashr_u128_test1_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0]), u128(vec![0, 0]), u64(1u64))));
+    emit_test!      ((vm) (ashr_u128 ashr_u128_test1 ashr_u128_test1_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0xffffffffffffffff]), u128(vec![2, 0xffffffffffffffff]), u64(0u64))));
+    emit_test!      ((vm) (ashr_u128 ashr_u128_test1 ashr_u128_test1_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0xffffffffffffffff]), u128(vec![1, 0xffffffffffffffff]), u64(0u64))));
+    emit_test!      ((vm) (ashr_u128 ashr_u128_test1 ashr_u128_test1_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0xffffffffffffffff]), u128(vec![0, 0xffffffffffffffff]), u64(1u64))));
+    
     vm
 }
 
 #[test]
 fn test_sgt_i128() {
-    let lib = testutil::compile_fnc("sgt_i128", &sgt_i128);
-
-    unsafe {
-        use self::extprim::i128::i128;
-
-        let sgt_i128 : libloading::Symbol<unsafe extern fn(i128, i128) -> u64> = lib.get(b"sgt_i128").unwrap();
-
-        let res = sgt_i128(i128::new(1i64), i128::new(2i64));
-        println!("sgt_i128(1, 2) = {:?}", res);
-        assert!(res == 0);
-
-        let res = sgt_i128(i128::new(1i64), i128::new(1i64));
-        println!("sgt_i128(1, 1) = {:?}", res);
-        assert!(res == 0);
-
-        let res = sgt_i128(i128::new(1i64), i128::new(0i64));
-        println!("sgt_i128(1, 0) = {:?}", res);
-        assert!(res == 1);
-
-        let res = sgt_i128(i128::new(-1i64), i128::new(1i64));
-        println!("sgt_i128(-1, 1) = {:?}", res);
-        assert!(res == 0);
-
-        let res = sgt_i128(i128::new(-1i64), i128::new(-2i64));
-        println!("sgt_i128(-1, -2) = {:?}", res);
-        assert!(res == 1);
-    }
+    build_and_run_test!(sgt_i128, sgt_i128_test1);
+    build_and_run_test!(sgt_i128, sgt_i128_test2);
+    build_and_run_test!(sgt_i128, sgt_i128_test3);
+    build_and_run_test!(sgt_i128, sgt_i128_test4);
+    build_and_run_test!(sgt_i128, sgt_i128_test5);
 }
 
 fn sgt_i128() -> VM {
@@ -667,41 +564,24 @@ fn sgt_i128() -> VM {
     define_func_ver!((vm) sgt_i128_v1(entry: blk_entry) {
         blk_entry, blk_ret
     });
-
+    
+    emit_test!      ((vm) (sgt_i128 sgt_i128_test1 sgt_i128_test1_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![1, 0]), i128(vec![2, 0]), u64(0u64))));
+    emit_test!      ((vm) (sgt_i128 sgt_i128_test2 sgt_i128_test2_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![1, 0]), i128(vec![1, 0]), u64(0u64))));
+    emit_test!      ((vm) (sgt_i128 sgt_i128_test3 sgt_i128_test3_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![1, 0]), i128(vec![0, 0]), u64(1u64))));
+    emit_test!      ((vm) (sgt_i128 sgt_i128_test4 sgt_i128_test4_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![0xffffffffffffffff, 0xffffffffffffffff]), i128(vec![1, 0]), u64(0u64))));
+    emit_test!      ((vm) (sgt_i128 sgt_i128_test5 sgt_i128_test5_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![0xffffffffffffffff, 0xffffffffffffffff]), i128(vec![0xfffffffffffffffe, 0xffffffffffffffff]), u64(1u64))));
+    
     vm
 }
 
 #[test]
 fn test_ult_u128() {
-    let lib = testutil::compile_fnc("ult_u128", &ult_u128);
-
-    unsafe {
-        let ult_u128 : libloading::Symbol<unsafe extern fn(u64, u64, u64, u64) -> u64> = lib.get(b"ult_u128").unwrap();
-
-        let res = ult_u128(1, 0, 2, 0);
-        println!("ult_u128(1, 0, 2, 0) = {:?}", res);
-        assert!(res == 1);
-
-        let res = ult_u128(1, 0, 1, 0);
-        println!("ult_u128(1, 0, 1, 0) = {:?}", res);
-        assert!(res == 0);
-
-        let res = ult_u128(1, 0, 0, 0);
-        println!("ult_u128(1, 0, 0, 0) = {:?}", res);
-        assert!(res == 0);
-
-        let res = ult_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff);
-        println!("ult_u128(1, 0xffffffffffffffff, 2, 0xffffffffffffffff) = {:?}", res);
-        assert!(res == 1);
-
-        let res = ult_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff);
-        println!("ult_u128(1, 0xffffffffffffffff, 1, 0xffffffffffffffff) = {:?}", res);
-        assert!(res == 0);
-
-        let res = ult_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff);
-        println!("ult_u128(1, 0xffffffffffffffff, 0, 0xffffffffffffffff) = {:?}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(ult_u128, ult_u128_test1);
+    build_and_run_test!(ult_u128, ult_u128_test2);
+    build_and_run_test!(ult_u128, ult_u128_test3);
+    build_and_run_test!(ult_u128, ult_u128_test4);
+    build_and_run_test!(ult_u128, ult_u128_test5);
+    build_and_run_test!(ult_u128, ult_u128_test6);
 }
 
 fn ult_u128() -> VM {
@@ -758,39 +638,24 @@ fn ult_u128() -> VM {
     define_func_ver!((vm) ult_u128_v1(entry: blk_entry) {
         blk_entry, blk_ret
     });
-
+    
+    emit_test!      ((vm) (ult_u128 ult_u128_test1 ult_u128_test1_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0]), u128(vec![2, 0]), u64(1u64))));
+    emit_test!      ((vm) (ult_u128 ult_u128_test2 ult_u128_test2_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0]), u128(vec![1, 0]), u64(0u64))));
+    emit_test!      ((vm) (ult_u128 ult_u128_test3 ult_u128_test3_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0]), u128(vec![0, 0]), u64(0u64))));
+    emit_test!      ((vm) (ult_u128 ult_u128_test4 ult_u128_test4_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0xffffffffffffffff]), u128(vec![2, 0xffffffffffffffff]), u64(1u64))));
+    emit_test!      ((vm) (ult_u128 ult_u128_test5 ult_u128_test5_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0xffffffffffffffff]), u128(vec![1, 0xffffffffffffffff]), u64(0u64))));
+    emit_test!      ((vm) (ult_u128 ult_u128_test6 ult_u128_test6_v1 IntEx,IntEx,Int,EQ (sig, u128(vec![1, 0xffffffffffffffff]), u128(vec![0, 0xffffffffffffffff]), u64(0u64))));
+    
     vm
 }
 
 #[test]
 fn test_slt_i128() {
-    let lib = testutil::compile_fnc("slt_i128", &slt_i128);
-
-    unsafe {
-        use self::extprim::i128::i128;
-
-        let slt_i128 : libloading::Symbol<unsafe extern fn(i128, i128) -> u64> = lib.get(b"slt_i128").unwrap();
-
-        let res = slt_i128(i128::new(1i64), i128::new(2i64));
-        println!("slt_i128(1, 2) = {:?}", res);
-        assert!(res == 1);
-
-        let res = slt_i128(i128::new(1i64), i128::new(1i64));
-        println!("slt_i128(1, 1) = {:?}", res);
-        assert!(res == 0);
-
-        let res = slt_i128(i128::new(1i64), i128::new(0i64));
-        println!("slt_i128(1, 0) = {:?}", res);
-        assert!(res == 0);
-
-        let res = slt_i128(i128::new(-1i64), i128::new(1i64));
-        println!("slt_i128(-1, 1) = {:?}", res);
-        assert!(res == 1);
-
-        let res = slt_i128(i128::new(-1i64), i128::new(-2i64));
-        println!("slt_i128(-1, -2) = {:?}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(slt_i128, slt_i128_test1);
+    build_and_run_test!(slt_i128, slt_i128_test2);
+    build_and_run_test!(slt_i128, slt_i128_test3);
+    build_and_run_test!(slt_i128, slt_i128_test4);
+    build_and_run_test!(slt_i128, slt_i128_test5);
 }
 
 fn slt_i128() -> VM {
@@ -847,6 +712,12 @@ fn slt_i128() -> VM {
     define_func_ver!((vm) slt_i128_v1(entry: blk_entry) {
         blk_entry, blk_ret
     });
-
+    
+    emit_test!      ((vm) (slt_i128 slt_i128_test1 slt_i128_test1_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![1, 0]), i128(vec![2, 0]), u64(1u64))));
+    emit_test!      ((vm) (slt_i128 slt_i128_test2 slt_i128_test2_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![1, 0]), i128(vec![1, 0]), u64(0u64))));
+    emit_test!      ((vm) (slt_i128 slt_i128_test3 slt_i128_test3_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![1, 0]), i128(vec![0, 0]), u64(0u64))));
+    emit_test!      ((vm) (slt_i128 slt_i128_test4 slt_i128_test4_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![0xffffffffffffffff, 0xffffffffffffffff]), i128(vec![1, 0]), u64(1u64))));
+    emit_test!      ((vm) (slt_i128 slt_i128_test5 slt_i128_test5_v1 IntEx,IntEx,Int,EQ (sig, i128(vec![0xffffffffffffffff, 0xffffffffffffffff]), i128(vec![0xfffffffffffffffe, 0xffffffffffffffff]), u64(0u64))));
+    
     vm
 }

@@ -22,17 +22,13 @@ use mu::vm::*;
 use mu::testutil;
 use mu::utils::LinkedHashMap;
 
+use mu::compiler::*;
+use mu::testutil::aot;
+use std::sync::Arc;
+
 #[test]
 fn test_inline_add_simple() {
-    let lib = testutil::compile_fncs("add_trampoline", vec!["add_trampoline", "add"], &inline_add);
-
-    unsafe {
-        let inline_add : libloading::Symbol<unsafe extern fn(u64, u64) -> u64> = lib.get(b"add_trampoline").unwrap();
-
-        let inline_add_1_1 = inline_add(1, 1);
-        println!("add(1, 1) = {}", inline_add_1_1);
-        assert!(inline_add_1_1 == 2);
-    }
+    build_and_run_test!(add_trampoline AND add, add_trampoline_test1, inline_add);
 }
 
 fn inline_add() -> VM {
@@ -64,7 +60,7 @@ fn inline_add() -> VM {
         define_func_ver!((vm) add_v1 (entry: blk_entry) {blk_entry});
     }
 
-    {
+//    {
         // add_trampoline
         typedef!    ((vm) funcref_to_sig = mu_funcref(sig));
         constdef!   ((vm) <funcref_to_sig> funcref_add = Constant::FuncRef(add));
@@ -89,22 +85,16 @@ fn inline_add() -> VM {
         define_block!   ((vm, add_trampoline_v1) tramp_blk_entry(tramp_x, tramp_y) {tramp_blk_call, tramp_blk_ret});
 
         define_func_ver!((vm) add_trampoline_v1 (entry: tramp_blk_entry) {tramp_blk_entry});
-    }
+//    }
+    
+    emit_test!      ((vm) (add_trampoline add_trampoline_test1 add_trampoline_test1_v1 Int,Int,Int,EQ (sig, int64(1u64), int64(1u64), int64(2u64))));
 
     vm
 }
 
 #[test]
 fn test_inline_add_twice() {
-    let lib = testutil::compile_fncs("add_twice", vec!["add_twice", "add"], &inline_add_twice);
-
-    unsafe {
-        let add_twice : libloading::Symbol<unsafe extern fn(u64, u64, u64) -> u64> = lib.get(b"add_twice").unwrap();
-
-        let res = add_twice(1, 1, 1);
-        println!("add(1, 1, 1) = {}", res);
-        assert!(res == 3);
-    }
+    build_and_run_test!(add_twice AND add, add_twice_test1, inline_add_twice);
 }
 
 fn inline_add_twice() -> VM {
@@ -136,7 +126,7 @@ fn inline_add_twice() -> VM {
         define_func_ver!((vm) add_v1 (entry: blk_entry) {blk_entry});
     }
 
-    {
+//    {
         // add_twice
         typedef!    ((vm) funcref_to_sig = mu_funcref(sig));
         constdef!   ((vm) <funcref_to_sig> funcref_add = Constant::FuncRef(add));
@@ -169,22 +159,16 @@ fn inline_add_twice() -> VM {
         define_block!   ((vm, add_twice_v1) blk_entry(x, y, z) {call, call2, ret});
 
         define_func_ver!((vm) add_twice_v1 (entry: blk_entry) {blk_entry});
-    }
-
+//    }
+    
+    emit_test!      ((vm) (add_twice add_twice_test1 add_twice_test1_v1 Int,Int,Int,Int,EQ (add_twice_sig, int64(1u64), int64(1u64), int64(1u64), int64(3u64))));
+    
     vm
 }
 
 #[test]
 fn test_inline_add_with_extra_norm_args() {
-    let lib = testutil::compile_fncs("inline_add_with_extra_norm_args", vec!["add_with_extra_norm_args", "add"], &inline_add_with_extra_norm_args);
-
-    unsafe {
-        let add_twice : libloading::Symbol<unsafe extern fn(u64, u64, u64) -> u64> = lib.get(b"add_with_extra_norm_args").unwrap();
-
-        let res = add_twice(1, 1, 1);
-        println!("add(1, 1, 1) = {}", res);
-        assert!(res == 103);
-    }
+    build_and_run_test!(add_with_extra_norm_args AND add, add_with_extra_norm_args_test1, inline_add_with_extra_norm_args);
 }
 
 fn inline_add_with_extra_norm_args() -> VM {
@@ -216,7 +200,7 @@ fn inline_add_with_extra_norm_args() -> VM {
         define_func_ver!((vm) add_v1 (entry: blk_entry) {blk_entry});
     }
 
-    {
+//    {
         // inline_add_with_extra_norm_args
         typedef!    ((vm) funcref_to_sig = mu_funcref(sig));
         constdef!   ((vm) <funcref_to_sig> funcref_add = Constant::FuncRef(add));
@@ -284,7 +268,9 @@ fn inline_add_with_extra_norm_args() -> VM {
         });
 
         define_func_ver!((vm) add_with_extra_norm_args_v1 (entry: blk_entry) {blk_entry, blk_norm, blk_exn});
-    }
+//    }
+    
+    emit_test!      ((vm) (add_with_extra_norm_args add_with_extra_norm_args_test1 add_with_extra_norm_args_test1_v1 Int,Int,Int,Int,EQ (sig_add_with_extra_norm_args, int64(1u64), int64(1u64), int64(1u64), int64(103u64))));
 
     vm
 }

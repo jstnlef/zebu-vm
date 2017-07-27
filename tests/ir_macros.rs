@@ -862,6 +862,7 @@ macro_rules! emit_test {
         });
 
     };
+    
     /*
     emit_test!      ((vm) (double_add double_add_test1 double_add_test1_v1 Double,Double,Double,FOEQ (double_add_sig, double(1f64), double(1f64), double(2f64))));
     */
@@ -1168,6 +1169,77 @@ macro_rules! emit_test {
         );
 
         define_block!   (($vm, $tester_name) blk_entry(a, b, c, d, e, f) {
+             blk_entry_call,
+             blk_entry_cmp,
+             blk_entry_inst_select,
+             blk_entry_inst_ret,
+             blk_entry_inst_exit
+        });
+
+        define_func_ver!    (($vm) $tester_name (entry: blk_entry) {
+            blk_entry
+        });
+
+    };
+    
+    /*
+    emit_test!      ((vm) (add_twice add_twice_test1 add_twice_test1_v1 Int,Int,Int,Int,EQ (add_twice_sig, int64(1u64), int64(1u64), int64(1u64), int64(3u64))));
+    */
+    (($vm: expr) ($name: ident $test_name: ident $tester_name: ident $Arg1Type: ident,$Arg2Type: ident,$Arg3Type: ident,$Arg4Type: ident,$CMPType: ident ($test_sig: ident, $ty1: ident($in1: expr), $ty2: ident($in2: expr), $ty3: ident($in3: expr), $ty4: ident($out: expr)))) => {
+        typedef!    (($vm) int1  = mu_int(1));
+        typedef!    (($vm) int64t  = mu_int(64));
+        constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+        constdef!   (($vm) <$ty1> arg_0 = Constant::$Arg1Type($in1));
+        constdef!   (($vm) <$ty2> arg_1 = Constant::$Arg2Type($in2));
+        constdef!   (($vm) <$ty2> arg_2 = Constant::$Arg3Type($in3));
+        constdef!   (($vm) <$ty3> arg_3 = Constant::$Arg3Type($out));
+
+        funcsig!    (($vm) tester_sig = () -> ());
+        funcdecl!   (($vm) <tester_sig> $test_name);
+        funcdef!    (($vm) <tester_sig> $test_name VERSION $tester_name);
+
+        ssa!    (($vm, $tester_name) <$ty1> a);
+        ssa!    (($vm, $tester_name) <$ty2> b);
+        ssa!    (($vm, $tester_name) <$ty3> c);
+
+        typedef!    (($vm) type_funcref = mu_funcref($test_sig));
+        constdef!   (($vm) <type_funcref> const_funcref = Constant::FuncRef($vm.id_of(stringify!($name))));
+
+        // blk_entry
+        consta!     (($vm, $tester_name) arg_0_local = arg_0);
+        consta!     (($vm, $tester_name) arg_1_local = arg_1);
+        consta!     (($vm, $tester_name) arg_2_local = arg_2);
+
+        block!      (($vm, $tester_name) blk_entry);
+
+        consta!     (($vm, $tester_name) const_funcref_local = const_funcref);
+        ssa!    (($vm, $tester_name) <$ty4> result);
+        inst!   (($vm, $tester_name) blk_entry_call:
+            result = EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_local (arg_0_local, arg_1_local, arg_2_local)
+        );
+
+        consta!     (($vm, $tester_name) arg_3_local = arg_3);
+        consta!     (($vm, $tester_name) int64_pass_local = int64_pass);
+        consta!     (($vm, $tester_name) int64_fail_local = int64_fail);
+        ssa!    (($vm, $tester_name) <int1> cmp_res);
+        inst!   (($vm, $tester_name) blk_entry_cmp:
+            cmp_res = CMPOP (CmpOp::$CMPType) result arg_3_local
+        );
+
+        ssa!    (($vm, $tester_name) <int64t> blk_entry_ret);
+        inst!   (($vm, $tester_name) blk_entry_inst_select:
+            blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
+        );
+
+        inst!   (($vm, $tester_name) blk_entry_inst_ret:
+             SET_RETVAL blk_entry_ret
+        );
+        inst!   (($vm, $tester_name) blk_entry_inst_exit:
+            THREADEXIT
+        );
+
+        define_block!   (($vm, $tester_name) blk_entry(a, b) {
              blk_entry_call,
              blk_entry_cmp,
              blk_entry_inst_select,
