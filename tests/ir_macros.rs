@@ -1055,6 +1055,51 @@ macro_rules! emit_test {
 
     };
     
+    /*
+    emit_test!      ((vm) (catch_exception catch_exception_test1 catch_exception_test1_v1 (catch_exception_sig)));
+    */
+    (($vm: expr) ($name: ident $test_name: ident $tester_name: ident ($test_sig: ident))) => {
+        typedef!    (($vm) int1  = mu_int(1));
+        typedef!    (($vm) int64t  = mu_int(64));
+        constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+        
+        funcsig!    (($vm) tester_sig = () -> ());
+        funcdecl!   (($vm) <tester_sig> $test_name);
+        funcdef!    (($vm) <tester_sig> $test_name VERSION $tester_name);
+
+        typedef!    (($vm) type_funcref = mu_funcref($test_sig));
+        constdef!   (($vm) <type_funcref> const_funcref = Constant::FuncRef($vm.id_of(stringify!($name))));
+
+        // blk_entry
+        block!      (($vm, $tester_name) blk_entry);
+
+        consta!     (($vm, $tester_name) const_funcref_local = const_funcref);
+        inst!   (($vm, $tester_name) blk_entry_call:
+            EXPRCALL (CallConvention::Mu, is_abort: false) const_funcref_local ()
+        );
+
+        consta!     (($vm, $tester_name) int64_pass_local = int64_pass);
+        consta!     (($vm, $tester_name) int64_fail_local = int64_fail);
+        
+        inst!   (($vm, $tester_name) blk_entry_inst_ret:
+             SET_RETVAL int64_pass_local
+        );
+        inst!   (($vm, $tester_name) blk_entry_inst_exit:
+            THREADEXIT
+        );
+
+        define_block!   (($vm, $tester_name) blk_entry() {
+             blk_entry_call,
+             blk_entry_inst_ret,
+             blk_entry_inst_exit
+        });
+
+        define_func_ver!    (($vm) $tester_name (entry: blk_entry) {
+            blk_entry
+        });
+
+    };
 }
 
 /*
@@ -1135,6 +1180,49 @@ macro_rules! build_and_run_test {
         VM::start_logging_trace();
 
         let vm = Arc::new($test_name());
+
+        let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+
+        let func_id = vm.id_of(stringify!($tester_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+
+        vm.make_primordial_thread(func_id, true, vec![]);
+
+        let func_id = vm.id_of(stringify!($test_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+        
+        let func_id = vm.id_of(stringify!($dep_name));
+        {
+            let funcs = vm.funcs().read().unwrap();
+            let func = funcs.get(&func_id).unwrap().read().unwrap();
+            let func_vers = vm.func_vers().read().unwrap();
+            let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+
+            compiler.compile(&mut func_ver);
+        }
+
+        backend::emit_context(&vm);
+        aot::run_test_2f(&vm, stringify!($test_name), stringify!($dep_name), stringify!($tester_name));
+    };
+    
+    ($test_name: ident AND $dep_name: ident, $tester_name: ident, $fnc_name: ident) => {
+        VM::start_logging_trace();
+
+        let vm = Arc::new($fnc_name());
 
         let compiler = Compiler::new(CompilerPolicy::default(), &vm);
 
