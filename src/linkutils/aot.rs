@@ -103,6 +103,7 @@ fn link_executable_internal(
         cc.arg("-lrt");
         cc.arg("-lm");
         cc.arg("-lpthread");
+        cc.arg("-lz");
     }
 
     // all the source code
