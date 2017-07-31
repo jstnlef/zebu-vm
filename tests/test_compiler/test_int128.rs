@@ -366,21 +366,22 @@ fn ashr_u128() -> VM {
 
 #[test]
 fn test_store_load_u128() {
-    let lib = testutil::compile_fnc("store_load_u128", &store_load_u128);
-
-    unsafe {
-        use mu::utils::mem::memsec::malloc;
-        let ptr = match malloc::<u64>(16) {
-            Some(ptr) => ptr,
-            None => panic!("failed to alloc memory for testing")
-        };
-
-        let store_load_u128 : libloading::Symbol<unsafe extern fn(u64, u64, *mut u64) -> (u64, u64)> = lib.get(b"store_load_u128").unwrap();
-
-        let res = store_load_u128(1, 2, ptr);
-        println!("store_load(1, 2, ptr) = {:?}", res);
-        assert!(res == (1, 2));
-    }
+//    let lib = testutil::compile_fnc("store_load_u128", &store_load_u128);
+//
+//    unsafe {
+//        use mu::utils::mem::memsec::malloc;
+//        let ptr = match malloc::<u64>(16) {
+//            Some(ptr) => ptr,
+//            None => panic!("failed to alloc memory for testing")
+//        };
+//
+//        let store_load_u128 : libloading::Symbol<unsafe extern fn(u64, u64, *mut u64) -> (u64, u64)> = lib.get(b"store_load_u128").unwrap();
+//
+//        let res = store_load_u128(1, 2, ptr);
+//        println!("store_load(1, 2, ptr) = {:?}", res);
+//        assert!(res == (1, 2));
+//    }
+    build_and_run_test!(store_load_u128, current_tester);
 }
 
 fn store_load_u128() -> VM {
@@ -422,7 +423,90 @@ fn store_load_u128() -> VM {
     define_func_ver!((vm) store_load_u128_v1(entry: blk_entry) {
         blk_entry
     });
-
+    
+    /*
+    tester function goes here
+    */
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1 = mu_int(1));
+    typedef!    ((vm) int128 = mu_int(128));
+    typedef!    ((vm) int128_ref  = mu_ref(int128));
+    constdef!   ((vm) <int64> alloc_size_const = Constant::Int(16));
+    constdef!   ((vm) <int128> expected_result_const = Constant::IntEx(vec![1, 2]));
+    constdef!   ((vm) <int64> int64_pass = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_fail = Constant::Int(1));
+    
+    funcsig!    ((vm) tester_sig = () -> ());
+    funcdecl!   ((vm) <tester_sig> current_tester);
+    funcdef!    ((vm) <tester_sig> current_tester VERSION current_tester_v1);
+    
+    funcsig!    ((vm) alloc_sig = (int64) -> (int128_ref));
+    typedef!    ((vm) ufp_alloc = mu_ufuncptr(alloc_sig));
+    // .const @alloc = EXTERN SYMBOL "alloc_mem"
+    constdef!   ((vm) <ufp_alloc> const_alloc = Constant::ExternSym(C ("alloc_mem")));
+    
+    typedef!    ((vm) ufp_test = mu_ufuncptr(sig));
+    // .const @alloc = EXTERN SYMBOL "alloc_mem"
+    constdef!   ((vm) <ufp_test> const_test = Constant::FuncRef(vm.id_of("store_load_u128")));
+    
+    block!      ((vm, current_tester_v1) blk_entry);
+    
+    consta!     ((vm, current_tester_v1) const_alloc_local = const_alloc);
+    consta!     ((vm, current_tester_v1) const_test_local = const_test);
+    consta!     ((vm, current_tester_v1) alloc_size_const_local = alloc_size_const);
+    consta!     ((vm, current_tester_v1) expected_result_const_local = expected_result_const);
+    consta!     ((vm, current_tester_v1) int64_pass_local = int64_pass);
+    consta!     ((vm, current_tester_v1) int64_fail_local = int64_fail);
+    ssa!        ((vm, current_tester_v1) <int128_ref> alloc_ref);
+    
+    /*
+    Allocate the structure before running the test function
+    */
+    inst!       ((vm, current_tester_v1) blk_entry_alloc:
+        alloc_ref = EXPRCCALL (CallConvention::Foreign(ForeignFFI::C), is_abort: false) const_alloc_local (alloc_size_const_local)
+    );
+    
+    /*
+    Run the test function on the object allocated in the previous instruction
+    */
+    ssa!        ((vm, current_tester_v1) <int128> result);
+    inst!       ((vm, current_tester_v1) blk_entry_call:
+        result = EXPRCALL (CallConvention::Mu, is_abort: false) const_test_local (expected_result_const_local, alloc_ref)
+    );
+    
+    /*
+    Just compare the returned result with the expected one (1)
+    */
+    ssa!    ((vm, current_tester_v1) <int1> cmp_res);
+    inst!   ((vm, current_tester_v1) blk_entry_cmp:
+            cmp_res = CMPOP (CmpOp::EQ) result expected_result_const_local
+        );
+    
+    ssa!    ((vm, current_tester_v1) <int64> blk_entry_ret);
+    inst!   ((vm, current_tester_v1) blk_entry_inst_select:
+            blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
+        );
+    
+    inst!   ((vm, current_tester_v1) blk_entry_inst_ret:
+             SET_RETVAL blk_entry_ret
+        );
+    inst!   ((vm, current_tester_v1) blk_entry_inst_exit:
+            THREADEXIT
+        );
+    
+    define_block!   ((vm, current_tester_v1) blk_entry() {
+             blk_entry_alloc,
+             blk_entry_call,
+             blk_entry_cmp,
+             blk_entry_inst_select,
+             blk_entry_inst_ret,
+             blk_entry_inst_exit
+        });
+    
+    define_func_ver!    ((vm) current_tester_v1 (entry: blk_entry) {
+            blk_entry
+    });
+    
     vm
 }
 

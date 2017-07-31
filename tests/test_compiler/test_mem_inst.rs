@@ -34,29 +34,7 @@ struct Foo (i8, i8, i8);
 #[test]
 #[allow(unused_variables)]
 fn test_write_int8_val() {
-    let lib = testutil::compile_fnc("write_int8", &write_int8);
-
-    unsafe {
-        let ptr : *mut Foo = Box::into_raw(Box::new(Foo(1, 2, 3)));
-        let a = (*ptr).0;
-        let b = (*ptr).1;
-        let c = (*ptr).2;
-        println!("foo.0 = {}", (*ptr).0);
-        println!("foo.1 = {}", (*ptr).1);
-        println!("foo.2 = {}", (*ptr).2);
-
-        let write_int8 : libloading::Symbol<unsafe extern fn(*mut Foo, i8)> = lib.get(b"write_int8").unwrap();
-
-        write_int8(ptr, 42);
-
-        println!("foo.0 = {}", (*ptr).0);
-        println!("foo.1 = {}", (*ptr).1);
-        println!("foo.2 = {}", (*ptr).2);
-
-        assert_eq!((*ptr).0, a);
-        assert_eq!((*ptr).1, 42);
-        assert_eq!((*ptr).2, c);
-    }
+    build_and_run_test!(write_int8, current_tester);
 }
 
 fn write_int8() -> VM {
@@ -100,35 +78,111 @@ fn write_int8() -> VM {
 
     define_func_ver!((vm) write_int8_v1 (entry: blk_entry) {blk_entry});
 
+    /*
+    tester function goes here
+    */
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1 = mu_int(1));
+    constdef!   ((vm) <int64> alloc_size_const = Constant::Int(3));
+    constdef!   ((vm) <int64> test_arg2_const = Constant::Int(42));
+    constdef!   ((vm) <int64> int64_pass = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_fail = Constant::Int(1));
+    
+    funcsig!    ((vm) tester_sig = () -> ());
+    funcdecl!   ((vm) <tester_sig> current_tester);
+    funcdef!    ((vm) <tester_sig> current_tester VERSION current_tester_v1);
+    
+    funcsig!    ((vm) alloc_sig = (int64) -> (ref_foo));
+    typedef!    ((vm) ufp_alloc = mu_ufuncptr(alloc_sig));
+    // .const @alloc = EXTERN SYMBOL "alloc_mem"
+    constdef!   ((vm) <ufp_alloc> const_alloc = Constant::ExternSym(C ("alloc_mem")));
+    
+    typedef!    ((vm) ufp_test = mu_ufuncptr(write_int8_sig));
+    // .const @alloc = EXTERN SYMBOL "alloc_mem"
+    constdef!   ((vm) <ufp_test> const_test = Constant::FuncRef(vm.id_of("write_int8")));
+    
+    block!      ((vm, current_tester_v1) blk_entry);
+    
+    consta!     ((vm, current_tester_v1) const_alloc_local = const_alloc);
+    consta!     ((vm, current_tester_v1) const_test_local = const_test);
+    consta!     ((vm, current_tester_v1) alloc_size_const_local = alloc_size_const);
+    consta!     ((vm, current_tester_v1) test_arg2_const_local = test_arg2_const);
+    consta!     ((vm, current_tester_v1) int64_pass_local = int64_pass);
+    consta!     ((vm, current_tester_v1) int64_fail_local = int64_fail);
+    ssa!        ((vm, current_tester_v1) <ref_foo> alloc_ref);
+    
+    /*
+    Allocate the structure before running the test function
+    */
+    inst!       ((vm, current_tester_v1) blk_entry_alloc:
+        alloc_ref = EXPRCCALL (CallConvention::Foreign(ForeignFFI::C), is_abort: false) const_alloc_local (alloc_size_const_local)
+    );
+    
+    /*
+    Run the test function on the object allocated in the previous instruction
+    */
+    inst!       ((vm, current_tester_v1) blk_entry_call:
+        EXPRCALL (CallConvention::Mu, is_abort: false) const_test_local (alloc_ref, test_arg2_const_local)
+    );
+    
+    /*
+    Get the iref for that specific element \
+    and put it in iref_field1
+    */
+    ssa!        ((vm, current_tester_v1) <iref_foo> alloc_iref);
+    inst!       ((vm, current_tester_v1) blk_entry_getiref:
+        alloc_iref = GETIREF alloc_ref
+    );
+    ssa!        ((vm, current_tester_v1) <iref_int8> iref_field1);
+    inst!       ((vm, current_tester_v1) blk_entry_getfieldiref:
+        iref_field1 = GETFIELDIREF alloc_iref (is_ptr: false, index: 1)
+    );
+    // load the actual value written
+    ssa!        ((vm, current_tester_v1) <int8> result);
+    inst!       ((vm, current_tester_v1) blk_entry_load:
+        result = LOAD iref_field1 (is_ptr: false, order: MemoryOrder::Relaxed)
+    );
+    
+    ssa!    ((vm, current_tester_v1) <int1> cmp_res);
+    inst!   ((vm, current_tester_v1) blk_entry_cmp:
+            cmp_res = CMPOP (CmpOp::EQ) result test_arg2_const_local
+        );
+    
+    ssa!    ((vm, current_tester_v1) <int64> blk_entry_ret);
+    inst!   ((vm, current_tester_v1) blk_entry_inst_select:
+            blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
+        );
+    
+    inst!   ((vm, current_tester_v1) blk_entry_inst_ret:
+             SET_RETVAL blk_entry_ret
+        );
+    inst!   ((vm, current_tester_v1) blk_entry_inst_exit:
+            THREADEXIT
+        );
+    
+    define_block!   ((vm, current_tester_v1) blk_entry() {
+             blk_entry_alloc,
+             blk_entry_call,
+             blk_entry_getiref,
+             blk_entry_getfieldiref,
+             blk_entry_load,
+             blk_entry_cmp,
+             blk_entry_inst_select,
+             blk_entry_inst_ret,
+             blk_entry_inst_exit
+        });
+    
+    define_func_ver!    ((vm) current_tester_v1 (entry: blk_entry) {
+            blk_entry
+    });
+    
     vm
 }
 
 #[allow(unused_variables)]
 #[test]
 fn test_write_int8_const() {
-    let lib = testutil::compile_fnc("write_int8_const", &write_int8_const);
-
-    unsafe {
-        let ptr : *mut Foo = Box::into_raw(Box::new(Foo(1, 2, 3)));
-        let a = (*ptr).0;
-        let b = (*ptr).1;
-        let c = (*ptr).2;
-        println!("foo.0 = {}", (*ptr).0);
-        println!("foo.1 = {}", (*ptr).1);
-        println!("foo.2 = {}", (*ptr).2);
-
-        let write_int8 : libloading::Symbol<unsafe extern fn(*mut Foo)> = lib.get(b"write_int8_const").unwrap();
-
-        write_int8(ptr);
-
-        println!("foo.0 = {}", (*ptr).0);
-        println!("foo.1 = {}", (*ptr).1);
-        println!("foo.2 = {}", (*ptr).2);
-
-        assert_eq!((*ptr).0, a);
-        assert_eq!((*ptr).1, 42);
-        assert_eq!((*ptr).2, c);
-    }
+    build_and_run_test!(write_int8_const, current_tester);
 }
 
 fn write_int8_const() -> VM {
@@ -173,23 +227,122 @@ fn write_int8_const() -> VM {
     });
 
     define_func_ver!((vm) write_int8_const_v1 (entry: blk_entry) {blk_entry});
-
+    
+    /*
+    tester function goes here
+    */
+    typedef!    ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1 = mu_int(1));
+    constdef!   ((vm) <int64> alloc_size_const = Constant::Int(3));
+    constdef!   ((vm) <int64> test_arg2_const = Constant::Int(42));
+    constdef!   ((vm) <int64> int64_pass = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_fail = Constant::Int(1));
+    
+    funcsig!    ((vm) tester_sig = () -> ());
+    funcdecl!   ((vm) <tester_sig> current_tester);
+    funcdef!    ((vm) <tester_sig> current_tester VERSION current_tester_v1);
+    
+    funcsig!    ((vm) alloc_sig = (int64) -> (ref_foo));
+    typedef!    ((vm) ufp_alloc = mu_ufuncptr(alloc_sig));
+    // .const @alloc = EXTERN SYMBOL "alloc_mem"
+    constdef!   ((vm) <ufp_alloc> const_alloc = Constant::ExternSym(C ("alloc_mem")));
+    
+    typedef!    ((vm) ufp_test = mu_ufuncptr(write_int8_const_sig));
+    // .const @alloc = EXTERN SYMBOL "alloc_mem"
+    constdef!   ((vm) <ufp_test> const_test = Constant::FuncRef(vm.id_of("write_int8_const")));
+    
+    block!      ((vm, current_tester_v1) blk_entry);
+    
+    consta!     ((vm, current_tester_v1) const_alloc_local = const_alloc);
+    consta!     ((vm, current_tester_v1) const_test_local = const_test);
+    consta!     ((vm, current_tester_v1) alloc_size_const_local = alloc_size_const);
+    consta!     ((vm, current_tester_v1) test_arg2_const_local = test_arg2_const);
+    consta!     ((vm, current_tester_v1) int64_pass_local = int64_pass);
+    consta!     ((vm, current_tester_v1) int64_fail_local = int64_fail);
+    ssa!        ((vm, current_tester_v1) <ref_foo> alloc_ref);
+    
+    /*
+    Allocate the structure before running the test function
+    */
+    inst!       ((vm, current_tester_v1) blk_entry_alloc:
+        alloc_ref = EXPRCCALL (CallConvention::Foreign(ForeignFFI::C), is_abort: false) const_alloc_local (alloc_size_const_local)
+    );
+    
+    /*
+    Run the test function on the object allocated in the previous instruction
+    */
+    inst!       ((vm, current_tester_v1) blk_entry_call:
+        EXPRCALL (CallConvention::Mu, is_abort: false) const_test_local (alloc_ref)
+    );
+    
+    /*
+    Get the iref for that specific element \
+    and put it in iref_field1
+    */
+    ssa!        ((vm, current_tester_v1) <iref_foo> alloc_iref);
+    inst!       ((vm, current_tester_v1) blk_entry_getiref:
+        alloc_iref = GETIREF alloc_ref
+    );
+    ssa!        ((vm, current_tester_v1) <iref_int8> iref_field1);
+    inst!       ((vm, current_tester_v1) blk_entry_getfieldiref:
+        iref_field1 = GETFIELDIREF alloc_iref (is_ptr: false, index: 1)
+    );
+    // load the actual value written
+    ssa!        ((vm, current_tester_v1) <int8> result);
+    inst!       ((vm, current_tester_v1) blk_entry_load:
+        result = LOAD iref_field1 (is_ptr: false, order: MemoryOrder::Relaxed)
+    );
+    
+    ssa!    ((vm, current_tester_v1) <int1> cmp_res);
+    inst!   ((vm, current_tester_v1) blk_entry_cmp:
+            cmp_res = CMPOP (CmpOp::EQ) result test_arg2_const_local
+        );
+    
+    ssa!    ((vm, current_tester_v1) <int64> blk_entry_ret);
+    inst!   ((vm, current_tester_v1) blk_entry_inst_select:
+            blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
+        );
+    
+    inst!   ((vm, current_tester_v1) blk_entry_inst_ret:
+             SET_RETVAL blk_entry_ret
+        );
+    inst!   ((vm, current_tester_v1) blk_entry_inst_exit:
+            THREADEXIT
+        );
+    
+    define_block!   ((vm, current_tester_v1) blk_entry() {
+             blk_entry_alloc,
+             blk_entry_call,
+             blk_entry_getiref,
+             blk_entry_getfieldiref,
+             blk_entry_load,
+             blk_entry_cmp,
+             blk_entry_inst_select,
+             blk_entry_inst_ret,
+             blk_entry_inst_exit
+        });
+    
+    define_func_ver!    ((vm) current_tester_v1 (entry: blk_entry) {
+            blk_entry
+    });
+    
     vm
 }
 
 #[test]
 fn test_get_field_iref1() {
-    let lib = testutil::compile_fnc("get_field_iref1", &get_field_iref1);
-
-    unsafe {
-        let get_field_iref1 : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"get_field_iref1").unwrap();
-
-        let addr = 0x10000000;
-        let res = get_field_iref1(addr);
-        println!("get_field_iref1({}) = {}", addr, res);
-
-        assert!(addr + 8 == res);
-    }
+//    let lib = testutil::compile_fnc("get_field_iref1", &get_field_iref1);
+//
+//    unsafe {
+//        let get_field_iref1 : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"get_field_iref1").unwrap();
+//
+//        let addr = 0x10000000;
+//        let res = get_field_iref1(addr);
+//        println!("get_field_iref1({}) = {}", addr, res);
+//
+//        assert!(addr + 8 == res);
+//    }
+    build_and_run_test!(get_field_iref1, get_field_iref1_test1);
 }
 
 fn get_field_iref1() -> VM {
@@ -230,23 +383,26 @@ fn get_field_iref1() -> VM {
     });
 
     define_func_ver!((vm) get_field_iref1_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (get_field_iref1 get_field_iref1_test1 get_field_iref1_test1_v1 Int,Int,EQ (sig, ref_mystruct(0x10000000), iref_int64(0x10000008))));
+    
     vm
 }
 
 #[test]
 fn test_get_iref() {
-    let lib = testutil::compile_fnc("get_iref", &get_iref);
-
-    unsafe {
-        let get_iref : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"get_iref").unwrap();
-
-        let addr = 0x10000000;
-        let res = get_iref(addr);
-        println!("get_iref({}) = {}", addr, res);
-
-        assert!(addr == res);
-    }
+//    let lib = testutil::compile_fnc("get_iref", &get_iref);
+//
+//    unsafe {
+//        let get_iref : libloading::Symbol<unsafe extern fn(u64) -> u64> = lib.get(b"get_iref").unwrap();
+//
+//        let addr = 0x10000000;
+//        let res = get_iref(addr);
+//        println!("get_iref({}) = {}", addr, res);
+//
+//        assert!(addr == res);
+//    }
+    build_and_run_test!(get_iref, get_iref_test1);
 }
 
 fn get_iref() -> VM {
@@ -278,39 +434,42 @@ fn get_iref() -> VM {
     });
 
     define_func_ver!((vm) get_iref_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (get_iref get_iref_test1 get_iref_test1_v1 Int,Int,EQ (sig, ref_int64(0x10000000), iref_int64(0x10000000))));
+    
     vm
 }
 
 #[test]
 fn test_struct() {
-    VM::start_logging_trace();
-
-    let vm = Arc::new(struct_insts_macro());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_id = vm.id_of("struct_insts");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-        compiler.compile(&mut func_ver);
-    }
-
-    vm.make_primordial_thread(func_id, true, vec![]);
-    backend::emit_context(&vm);
-
-    let executable = aot::link_primordial(vec!["struct_insts".to_string()], "struct_insts_test", &vm);
-    let output = aot::execute_nocheck(executable);
-
-    assert!(output.status.code().is_some());
-
-    let ret_code = output.status.code().unwrap();
-    println!("return code: {}", ret_code);
-    assert!(ret_code == 1);
+//    VM::start_logging_trace();
+//
+//    let vm = Arc::new(struct_insts_macro());
+//
+//    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+//
+//    let func_id = vm.id_of("struct_insts");
+//    {
+//        let funcs = vm.funcs().read().unwrap();
+//        let func = funcs.get(&func_id).unwrap().read().unwrap();
+//        let func_vers = vm.func_vers().read().unwrap();
+//        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+//
+//        compiler.compile(&mut func_ver);
+//    }
+//
+//    vm.make_primordial_thread(func_id, true, vec![]);
+//    backend::emit_context(&vm);
+//
+//    let executable = aot::link_primordial(vec!["struct_insts".to_string()], "struct_insts_test", &vm);
+//    let output = aot::execute_nocheck(executable);
+//
+//    assert!(output.status.code().is_some());
+//
+//    let ret_code = output.status.code().unwrap();
+//    println!("return code: {}", ret_code);
+//    assert!(ret_code == 1);
+    build_and_run_test!(struct_insts, struct_insts_test1, struct_insts_macro);
 }
 
 // this IR construction function is a replicate of struct_insts() with macros
@@ -326,7 +485,7 @@ pub fn struct_insts_macro() -> VM {
     constdef!((vm) <int64> int64_0 = Constant::Int(0));
     constdef!((vm) <int64> int64_1 = Constant::Int(1));
 
-    funcsig! ((vm) noparam_noret_sig = () -> ());
+    funcsig! ((vm) noparam_noret_sig = () -> (int64));
     funcdecl!((vm) <noparam_noret_sig> struct_insts);
 
     funcdef! ((vm) <noparam_noret_sig> struct_insts VERSION struct_insts_v1);
@@ -396,18 +555,20 @@ pub fn struct_insts_macro() -> VM {
                 blk_check_res = BINOP (BinOp::Add) blk_check_x blk_check_y
     );
 
-    let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut struct_insts_v1, &vm);
+//    let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut struct_insts_v1, &vm);
 
     inst!   ((vm, struct_insts_v1) blk_check_ret:
                 RET (blk_check_res)
     );
 
     define_block! ((vm, struct_insts_v1) blk_check(blk_check_a) {
-        blk_check_inst0, blk_check_inst1, blk_check_inst2, blk_check_inst3, blk_check_inst4, blk_check_inst5, blk_check_ccall, blk_check_ret
+        blk_check_inst0, blk_check_inst1, blk_check_inst2, blk_check_inst3, blk_check_inst4, blk_check_inst5, blk_check_ret
     });
 
     define_func_ver! ((vm) struct_insts_v1 (entry: blk_entry) {blk_entry, blk_check});
-
+    
+    emit_test!      ((vm) (struct_insts struct_insts_test1 struct_insts_test1_v1 Int,EQ (noparam_noret_sig, int64(1u64))));
+    
     vm
 }
 
@@ -539,33 +700,34 @@ pub fn struct_insts() -> VM {
 
 #[test]
 fn test_hybrid_fix_part() {
-    VM::start_logging_trace();
-
-    let vm = Arc::new(hybrid_fix_part_insts());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_id = vm.id_of("hybrid_fix_part_insts");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
-
-        compiler.compile(&mut func_ver);
-    }
-
-    vm.make_primordial_thread(func_id, true, vec![]);
-    backend::emit_context(&vm);
-
-    let executable = aot::link_primordial(vec!["hybrid_fix_part_insts".to_string()], "hybrid_fix_part_insts_test", &vm);
-    let output = aot::execute_nocheck(executable);
-
-    assert!(output.status.code().is_some());
-
-    let ret_code = output.status.code().unwrap();
-    println!("return code: {}", ret_code);
-    assert!(ret_code == 1);
+//    VM::start_logging_trace();
+//
+//    let vm = Arc::new(hybrid_fix_part_insts());
+//
+//    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+//
+//    let func_id = vm.id_of("hybrid_fix_part_insts");
+//    {
+//        let funcs = vm.funcs().read().unwrap();
+//        let func = funcs.get(&func_id).unwrap().read().unwrap();
+//        let func_vers = vm.func_vers().read().unwrap();
+//        let mut func_ver = func_vers.get(&func.cur_ver.unwrap()).unwrap().write().unwrap();
+//
+//        compiler.compile(&mut func_ver);
+//    }
+//
+//    vm.make_primordial_thread(func_id, true, vec![]);
+//    backend::emit_context(&vm);
+//
+//    let executable = aot::link_primordial(vec!["hybrid_fix_part_insts".to_string()], "hybrid_fix_part_insts_test", &vm);
+//    let output = aot::execute_nocheck(executable);
+//
+//    assert!(output.status.code().is_some());
+//
+//    let ret_code = output.status.code().unwrap();
+//    println!("return code: {}", ret_code);
+//    assert!(ret_code == 1);
+    build_and_run_test!(hybrid_fix_part_insts, hybrid_fix_part_insts_test1);
 }
 
 pub fn hybrid_fix_part_insts() -> VM {
@@ -581,7 +743,7 @@ pub fn hybrid_fix_part_insts() -> VM {
     constdef!       ((vm) <int64> int64_1  = Constant::Int(1));
     constdef!       ((vm) <int64> int64_10 = Constant::Int(10));
 
-    funcsig!        ((vm) noparam_noret_sig = () -> ());
+    funcsig!        ((vm) noparam_noret_sig = () -> (int64));
     funcdecl!       ((vm) <noparam_noret_sig> hybrid_fix_part_insts);
     funcdef!        ((vm) <noparam_noret_sig> hybrid_fix_part_insts VERSION hybrid_fix_part_insts_v1);
 
@@ -667,12 +829,12 @@ pub fn hybrid_fix_part_insts() -> VM {
     );
 
     // CCALL exit(%res)
-    let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut hybrid_fix_part_insts_v1, &vm);
+//    let blk_check_ccall = gen_ccall_exit(blk_check_res.clone(), &mut hybrid_fix_part_insts_v1, &vm);
 
     // RET <@int64> 0
     consta!         ((vm, hybrid_fix_part_insts_v1) int64_0_local = int64_0);
     inst!           ((vm, hybrid_fix_part_insts_v1) blk_check_ret:
-        RET (int64_0_local)
+        RET (blk_check_res)
     );
 
     define_block!   ((vm, hybrid_fix_part_insts_v1) blk_check(blk_check_a) {
@@ -682,7 +844,7 @@ pub fn hybrid_fix_part_insts() -> VM {
         blk_check_getfield2,
         blk_check_load2,
         blk_check_add,
-        blk_check_ccall,
+//        blk_check_ccall,
         blk_check_ret
     });
 
@@ -690,7 +852,9 @@ pub fn hybrid_fix_part_insts() -> VM {
         blk_entry,
         blk_check
     });
-
+    
+    emit_test!      ((vm) (hybrid_fix_part_insts hybrid_fix_part_insts_test1 hybrid_fix_part_insts_test1_v1 Int,EQ (noparam_noret_sig, int64(1u64))));
+    
     vm
 }
 
