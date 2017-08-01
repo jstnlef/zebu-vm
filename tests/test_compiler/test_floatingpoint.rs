@@ -968,7 +968,7 @@ fn float_to_double() -> VM {
     ssa!        ((vm, float_to_double_v1) <float> f);
 
     inst!       ((vm, float_to_double_v1) blk_entry_fpext:
-        d = CONVOP (ConvOp::FPEXT) <double float> f
+        d = CONVOP (ConvOp::FPEXT) <float double> f
     );
 
     inst!       ((vm, float_to_double_v1) blk_entry_ret:
