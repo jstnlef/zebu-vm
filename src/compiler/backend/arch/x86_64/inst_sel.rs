@@ -1349,6 +1349,45 @@ impl<'a> InstructionSelection {
                                     panic!("expect double or float")
                                 }
                             }
+                            op::ConvOp::FPTRUNC => {
+                                let tmp_res = self.get_result_value(node);
+
+                                assert!(
+                                    self.match_fpreg(op),
+                                    "unexpected op (expected fpreg): {}",
+                                    op
+                                );
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                if tmp_op.ty.is_double() && tmp_res.ty.is_float() {
+                                    self.backend.emit_cvtsd2ss_f32_f64(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!(
+                                        "FPTRUNC from {} to {} is not supported \
+                                         (only support FPTRUNC from double to float)",
+                                        tmp_op.ty,
+                                        tmp_res.ty
+                                    );
+                                }
+                            }
+                            op::ConvOp::FPEXT => {
+                                let tmp_res = self.get_result_value(node);
+                                assert!(
+                                    self.match_fpreg(op),
+                                    "unexpected op (expected fpreg): {}",
+                                    op
+                                );
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                if tmp_op.ty.is_float() && tmp_res.ty.is_double() {
+                                    self.backend.emit_cvtss2sd_f64_f32(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!(
+                                        "FPEXT from {} to {} is not supported\
+                                         (only support FPEXT from float to double)",
+                                        tmp_op.ty,
+                                        tmp_res.ty
+                                    );
+                                }
+                            }
                             _ => unimplemented!()
                         }
                     }

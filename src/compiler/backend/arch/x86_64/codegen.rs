@@ -302,6 +302,10 @@ pub trait CodeGenerator {
     fn emit_cvtsi2ss_f32_r(&mut self, dest: Reg, src: Reg);
     fn emit_cvtss2si_r_f32(&mut self, dest: Reg, src: Reg);
 
+    // fp trunc
+    fn emit_cvtsd2ss_f32_f64(&mut self, dest: Reg, src: Reg);
+    fn emit_cvtss2sd_f64_f32(&mut self, dest: Reg, src: Reg);
+
     // used for unsigned int to fp conversion
 
     fn emit_cvttsd2si_r_f64(&mut self, dest: Reg, src: Reg);

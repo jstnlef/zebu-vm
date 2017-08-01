@@ -2241,6 +2241,28 @@ impl ASMCodeGen {
         )
     }
 
+    /// emits a truncate instruction (fpreg -> fpreg)
+    fn internal_fp_trunc(&mut self, inst: &str, dest: Reg, src: Reg) {
+        let inst = inst.to_string();
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            linked_hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
     /// emits a store instruction to store a spilled register
     fn emit_spill_store_gpr(&mut self, dest: Mem, src: Reg) {
         self.internal_mov_mem_r("mov", dest, src, true, false)
@@ -3506,6 +3528,15 @@ impl CodeGenerator for ASMCodeGen {
     }
     fn emit_cvttss2si_r_f32(&mut self, dest: Reg, src: Reg) {
         self.internal_fpr_to_gpr("cvttss2si", dest, src);
+    }
+
+    // convert - fp trunc
+    fn emit_cvtsd2ss_f32_f64(&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_trunc("cvtsd2ss", dest, src)
+    }
+
+    fn emit_cvtss2sd_f64_f32(&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_trunc("cvtss2sd", dest, src)
     }
 
     // unpack low data - interleave low byte

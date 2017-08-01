@@ -875,3 +875,113 @@ fn fp_arraysum() -> VM {
 
     vm
 }
+
+#[test]
+fn test_double_to_float() {
+    let lib = linkutils::aot::compile_fnc("double_to_float", &double_to_float);
+
+    unsafe {
+        use std::f64;
+
+        let double_to_float: libloading::Symbol<unsafe extern "C" fn(f64) -> f32> =
+            lib.get(b"double_to_float").unwrap();
+
+        let res = double_to_float(0f64);
+        println!("double_fo_float(0) = {}", res);
+        assert!(res == 0f32);
+
+        let res = double_to_float(1f64);
+        println!("double_fo_float(1) = {}", res);
+        assert!(res == 1f32);
+
+        let res = double_to_float(f64::MAX);
+        println!("double_to_float(f64::MAX) = {}", res);
+        assert!(res.is_infinite());
+    }
+}
+
+fn double_to_float() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) double = mu_double);
+    typedef!    ((vm) float = mu_float);
+
+    funcsig!    ((vm) sig = (double) -> (float));
+    funcdecl!   ((vm) <sig> double_to_float);
+    funcdef!    ((vm) <sig> double_to_float VERSION double_to_float_v1);
+
+    // blk entry
+    block!      ((vm, double_to_float_v1) blk_entry);
+    ssa!        ((vm, double_to_float_v1) <double> d);
+    ssa!        ((vm, double_to_float_v1) <float> f);
+
+    inst!       ((vm, double_to_float_v1) blk_entry_fptrunc:
+        f = CONVOP (ConvOp::FPTRUNC) <double float> d
+    );
+
+    inst!       ((vm, double_to_float_v1) blk_entry_ret:
+        RET (f)
+    );
+
+    define_block!((vm, double_to_float_v1) blk_entry(d) {
+        blk_entry_fptrunc, blk_entry_ret
+    });
+
+    define_func_ver!((vm) double_to_float_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
+fn test_float_to_double() {
+    let lib = linkutils::aot::compile_fnc("float_to_double", &float_to_double);
+
+    unsafe {
+        let float_to_double: libloading::Symbol<unsafe extern "C" fn(f32) -> f64> =
+            lib.get(b"float_to_double").unwrap();
+
+        let res = float_to_double(0f32);
+        println!("float_to_double(0) = {}", 0);
+        assert!(res == 0f64);
+
+        let res = float_to_double(1f32);
+        println!("float_to_double(1) = {}", 0);
+        assert!(res == 1f64);
+    }
+}
+
+fn float_to_double() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) double = mu_double);
+    typedef!    ((vm) float = mu_float);
+
+    funcsig!    ((vm) sig = (float) -> (double));
+    funcdecl!   ((vm) <sig> float_to_double);
+    funcdef!    ((vm) <sig> float_to_double VERSION float_to_double_v1);
+
+    // blk entry
+    block!      ((vm, float_to_double_v1) blk_entry);
+    ssa!        ((vm, float_to_double_v1) <double> d);
+    ssa!        ((vm, float_to_double_v1) <float> f);
+
+    inst!       ((vm, float_to_double_v1) blk_entry_fpext:
+        d = CONVOP (ConvOp::FPEXT) <double float> f
+    );
+
+    inst!       ((vm, float_to_double_v1) blk_entry_ret:
+        RET (d)
+    );
+
+    define_block!((vm, float_to_double_v1) blk_entry(f) {
+        blk_entry_fpext, blk_entry_ret
+    });
+
+    define_func_ver!((vm) float_to_double_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
