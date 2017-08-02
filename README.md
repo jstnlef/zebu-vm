@@ -31,6 +31,7 @@ are not compliant to Mu spec.
 You will need:
 * rust version 1.19 (0ade33941 2017-07-17)
 * clang 4.0+
+* cmake 3.8+ (we do not depend on cmake, but some Rust crates use it)
 * internet connection (as Rust will download dependencies)
 
 To build Zebu with release build,
