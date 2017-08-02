@@ -112,6 +112,7 @@ fn link_executable_internal(
         cc.arg("CoreFoundation");
         cc.arg("-lz");
         cc.arg("-lSystem");
+        cc.arg("-lresolv");
         cc.arg("-lc");
         cc.arg("-lm");
     }
