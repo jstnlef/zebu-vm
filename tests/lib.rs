@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(i128_type)]
+
 extern crate mu;
 extern crate mu_utils as utils;
 #[macro_use]

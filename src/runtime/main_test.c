@@ -12,6 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod test_gc_harness;
-mod test_gcbench;
-mod test_gc_linked_list;
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <assert.h>
+
+extern void* vm;
+extern void mu_main(char*, int, char**);
+
+extern int32_t c_check_result();
+
+int main(int argc, char** argv) {
+    char* serialize_vm = (char*) &vm;
+    mu_main(serialize_vm, argc, argv);
+
+    assert(c_check_result() == 0);
+}

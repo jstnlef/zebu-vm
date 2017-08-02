@@ -21,64 +21,51 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <dlfcn.h>
 #include <pthread.h>
-#include <time.h>
+#include <assert.h>
 
-uint32_t mu_retval;
-void muentry_set_retval(uint32_t x) {
-    mu_retval = x;
-}
+int tls_initialized = 0;
 
-/*
- *         .type   mu_tls,@object          // @mu_tls
-        .section        .tbss,"awT",@nobits
-        .globl  mu_tls
-        .p2align        3
-mu_tls:
-        .xword  0
-        .size   mu_tls, 8
-
- * */
-__thread void* mu_tls;
-
-
+static pthread_key_t mu_tls;
 
 void set_thread_local(void* thread) {
-    // printf("Thread%p: setting mu_tls to %p\n", (void*) pthread_self(), thread);
-    //MRS X8, TPIDR_EL0
-    //ADD X8, X8, :tprel_hi12:mu_tls
-    //ADD X8, X8, :tprel_lo12_nc:mu_tls
-    //STR X0, [X8]
-
-
-    mu_tls = thread;
+    if(tls_initialized == 0){
+        tls_initialized = 1;
+        int result = pthread_key_create(&mu_tls, NULL);
+        if(result != 0){
+            printf("Set_Thread_Local(): PThread key create failed with error code = %d\n", result);
+            assert(0);
+        }
+    }
+    int result = pthread_setspecific(mu_tls, thread);
+    if(result != 0){
+        printf("Set_Thread_Local(): PThread set specific failed with error code = %d\n", result);
+        assert(0);
+    }
 }
 
 void* muentry_get_thread_local() {
-//    printf("Thread%p: getting mu_tls as %p\n", (void*) pthread_self(), mu_tls);
-    /*
- * //MRS X8, TPIDR_EL0
-    //ADD X8, X8, :tprel_hi12:mu_tls
-    //ADD X8, X8, :tprel_lo12_nc:mu_tls
-    //LDR X0, [X8]
-     *
-     * */
-    return mu_tls;
-}
+    if(tls_initialized == 0){
+        printf("Get_Thread_Local(): PThread key MUST be initialized before first use!!\n");
+        assert(0);
+    }
+    void * result = pthread_getspecific(mu_tls);
+    if(result == NULL){
+        printf("Get_Thread_Local(): NO pthread key found for current thread!!\n");
+        assert(0);
+    }
 
-void* resolve_symbol(const char* sym) {
-    // MOV X1, X0
-    // MOV X0, XZR
-    // B dlsym
-    // printf("%s\n", sym);
-    return dlsym(RTLD_DEFAULT, sym);
+    return result;
 }
 
 int32_t mu_retval;
 
 void muentry_set_retval(int32_t x) {
     mu_retval = x;
+}
+
+int32_t muentry_get_retval() {
+    return mu_retval;
 }
 
 int32_t c_check_result() {
