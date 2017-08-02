@@ -29,7 +29,7 @@ are not compliant to Mu spec.
 ## Building
 
 You will need:
-* rust version 1.18 (03fc9d622 2017-06-06)
+* rust version 1.19 (0ade33941 2017-07-17)
 * clang 4.0+
 * internet connection (as Rust will download dependencies)
 
