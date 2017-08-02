@@ -139,6 +139,14 @@ impl MuType {
         }
     }
 
+    /// is this type an integer type?
+    pub fn is_int(&self) -> bool {
+        match self.v {
+            MuType_::Int(_) => true,
+            _ => false
+        }
+    }
+
     /// is this type a floating point type? (float/double)
     pub fn is_fp(&self) -> bool {
         match self.v {

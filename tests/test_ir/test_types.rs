@@ -24,12 +24,6 @@ macro_rules! assert_type (
     )
 );
 
-macro_rules! println_type (
-    ($test:expr) => (
-        println!("{}", $test)
-    )
-);
-
 /// create one of each MuType
 fn create_types() -> Vec<P<MuType>> {
     let mut types = vec![];

@@ -1349,7 +1349,94 @@ impl<'a> InstructionSelection {
                                     panic!("expect double or float")
                                 }
                             }
-                            _ => unimplemented!()
+                            op::ConvOp::FPTRUNC => {
+                                let tmp_res = self.get_result_value(node);
+
+                                assert!(
+                                    self.match_fpreg(op),
+                                    "unexpected op (expected fpreg): {}",
+                                    op
+                                );
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                if from_ty.is_double() && to_ty.is_float() {
+                                    self.backend.emit_cvtsd2ss_f32_f64(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!(
+                                        "FPTRUNC from {} to {} is not supported \
+                                         (only support FPTRUNC from double to float)",
+                                        from_ty,
+                                        to_ty
+                                    );
+                                }
+                            }
+                            op::ConvOp::FPEXT => {
+                                let tmp_res = self.get_result_value(node);
+                                assert!(
+                                    self.match_fpreg(op),
+                                    "unexpected op (expected fpreg): {}",
+                                    op
+                                );
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                if from_ty.is_float() && to_ty.is_double() {
+                                    self.backend.emit_cvtss2sd_f64_f32(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!(
+                                        "FPEXT from {} to {} is not supported\
+                                         (only support FPEXT from float to double)",
+                                        from_ty,
+                                        to_ty
+                                    );
+                                }
+                            }
+                            op::ConvOp::BITCAST => {
+                                let tmp_res = self.get_result_value(node);
+                                let tmp_op = if self.match_fpreg(op) {
+                                    self.emit_fpreg(op, f_content, f_context, vm)
+                                } else if self.match_ireg(op) {
+                                    self.emit_ireg(op, f_content, f_context, vm)
+                                } else {
+                                    panic!("expected op for BITCAST (expected ireg/fpreg): {}", op)
+                                };
+
+                                let ref from_ty = tmp_op.ty;
+                                let ref to_ty = tmp_res.ty;
+
+                                let from_ty_size = vm.get_backend_type_size(from_ty.id());
+                                let to_ty_size = vm.get_backend_type_size(to_ty.id());
+                                assert!(
+                                    from_ty_size == to_ty_size,
+                                    "BITCAST only works between int/fp of same length"
+                                );
+                                assert!(
+                                    from_ty_size == 8 || from_ty_size == 4,
+                                    "BITCAST only works for int32/float or int64/double"
+                                );
+
+                                if from_ty.is_fp() && to_ty.is_int() {
+                                    if from_ty_size == 8 {
+                                        self.backend.emit_mov_r64_fpr(&tmp_res, &tmp_op);
+                                    } else if from_ty_size == 4 {
+                                        self.backend.emit_mov_r32_fpr(&tmp_res, &tmp_op);
+                                    } else {
+                                        unreachable!()
+                                    }
+                                } else if from_ty.is_int() && to_ty.is_fp() {
+                                    if from_ty_size == 8 {
+                                        self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
+                                    } else if from_ty_size == 4 {
+                                        self.backend.emit_mov_fpr_r32(&tmp_res, &tmp_op);
+                                    } else {
+                                        unreachable!()
+                                    }
+                                } else {
+                                    panic!(
+                                        "expected BITCAST between int and fp,\
+                                         found {} and {}",
+                                        from_ty,
+                                        to_ty
+                                    )
+                                }
+                            }
                         }
                     }
 
