@@ -16,16 +16,23 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 #include <assert.h>
-
 extern void* vm;
-extern void mu_main(char*, int, char**);
+extern void* RODAL_END;
+extern void mu_main(void*, void*, int, char**);
+extern void rodal_init_deallocate(void);
+extern void rodal_free(void*);
+extern void* rodal_realloc(void*, size_t);
 
-extern int32_t c_check_result();
+extern uint32_t mu_retval;
 
 int main(int argc, char** argv) {
-    char* serialize_vm = (char*) &vm;
-    mu_main(serialize_vm, argc, argv);
-
-    assert(c_check_result() == 0);
+    rodal_init_deallocate();
+    mu_main(&RODAL_END, &vm, argc, argv);
+    assert(mu_retval == 0);
+    return (int)mu_retval;
 }
+
+void free(void* ptr) { return rodal_free(ptr); };
+void* realloc(void* ptr, size_t s) { return rodal_realloc(ptr, s); };

@@ -75,12 +75,10 @@ void* resolve_symbol(const char* sym) {
     return dlsym(RTLD_DEFAULT, sym);
 }
 
-int32_t mu_retval;
-
-void muentry_set_retval(int32_t x) {
-    mu_retval = x;
-}
-
 int32_t c_check_result() {
     return mu_retval;
+}
+
+char * alloc_mem(size_t size){
+    return (char *) malloc(size);
 }

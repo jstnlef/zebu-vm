@@ -31,35 +31,7 @@ use self::mu::linkutils::aot;
 
 #[test]
 fn test_allocation_fastpath() {
-    VM::start_logging_trace();
-
-    let vm = Arc::new(allocation_fastpath());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_id = vm.id_of("allocation_fastpath");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
-
-        compiler.compile(&mut func_ver);
-    }
-
-    vm.set_primordial_thread(func_id, true, vec![]);
-    backend::emit_context(&vm);
-
-    let executable = aot::link_primordial(
-        vec!["allocation_fastpath".to_string()],
-        "allocation_fastpath_test",
-        &vm
-    );
-    linkutils::exec_path(executable);
+    build_and_run_test! (allocation_fastpath, allocation_fastpath_test1);
 }
 
 fn allocation_fastpath() -> VM {
@@ -107,37 +79,15 @@ fn allocation_fastpath() -> VM {
     });
 
     define_func_ver!((vm) allocation_fastpath_v1 (entry: blk_entry) {blk_entry});
-
+    
+    emit_test!      ((vm) (allocation_fastpath allocation_fastpath_test1 allocation_fastpath_test1_v1 --- (sig)));
+    
     vm
 }
 
 #[test]
 fn test_instruction_new() {
-    VM::start_logging_trace();
-
-    let vm = Arc::new(alloc_new());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_id = vm.id_of("alloc_new");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func = funcs.get(&func_id).unwrap().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-        let mut func_ver = func_vers
-            .get(&func.cur_ver.unwrap())
-            .unwrap()
-            .write()
-            .unwrap();
-
-        compiler.compile(&mut func_ver);
-    }
-
-    vm.set_primordial_thread(func_id, true, vec![]);
-    backend::emit_context(&vm);
-
-    let executable = aot::link_primordial(vec!["alloc_new".to_string()], "alloc_new_test", &vm);
-    linkutils::exec_path(executable);
+    build_and_run_test! (alloc_new, alloc_new_test1);
 }
 
 #[allow(dead_code)]
@@ -231,6 +181,8 @@ pub fn alloc_new() -> VM {
     define_func_ver!((vm) alloc_new_v1 (entry: blk_0) {
         blk_0
     });
-
+    
+    emit_test!      ((vm) (alloc_new alloc_new_test1 alloc_new_test1_v1 --- (alloc_new_sig)));
+    
     vm
 }

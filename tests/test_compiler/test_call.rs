@@ -123,52 +123,7 @@ fn ccall_exit() -> VM {
 
 #[test]
 fn test_pass_1arg_by_stack() {
-    VM::start_logging_trace();
-    let vm = Arc::new(pass_1arg_by_stack());
-
-    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
-
-    let func_foo = vm.id_of("foo7");
-    let func_main = vm.id_of("pass_1arg_by_stack");
-    {
-        let funcs = vm.funcs().read().unwrap();
-        let func_vers = vm.func_vers().read().unwrap();
-
-        {
-            let func = funcs.get(&func_foo).unwrap().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
-
-            compiler.compile(&mut func_ver);
-        }
-        {
-            let func = funcs.get(&func_main).unwrap().read().unwrap();
-            let mut func_ver = func_vers
-                .get(&func.cur_ver.unwrap())
-                .unwrap()
-                .write()
-                .unwrap();
-
-            compiler.compile(&mut func_ver);
-        }
-    }
-
-    vm.set_primordial_thread(func_main, true, vec![]);
-    backend::emit_context(&vm);
-
-    let executable = aot::link_primordial(
-        vec![Mu("foo7"), Mu("pass_1arg_by_stack")],
-        "test_pass_1arg_by_stack",
-        &vm
-    );
-    let output = linkutils::exec_path_nocheck(executable);
-
-    // exit with (1)
-    assert!(output.status.code().is_some());
-    assert_eq!(output.status.code().unwrap(), 1);
+    build_and_run_test!(pass_1arg_by_stack AND foo7, pass_1arg_by_stack_test1);
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -211,7 +166,7 @@ fn pass_1arg_by_stack() -> VM {
     define_func_ver!((vm) foo7_v1 (entry: blk_entry) {blk_entry});
 
     // pass_1arg_by_stack
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> pass_1arg_by_stack);
     funcdef!    ((vm) <sig> pass_1arg_by_stack VERSION pass_1arg_by_stack_v1);
 
@@ -260,15 +215,12 @@ fn pass_1arg_by_stack() -> VM {
             const_funcref_foo7_local (a0, a1, a2, a3, a4, a5, a6, a7, a8)
     );
 
-    let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_1arg_by_stack_v1, &vm);
-
     inst!       ((vm, pass_1arg_by_stack_v1) blk_main_ret:
-        RET
+        RET (retval)
     );
 
     define_block!((vm, pass_1arg_by_stack_v1) blk_main(a0, a1, a2, a3, a4, a5, a6, a7, a8) {
         blk_main_call,
-        blk_main_exit,
         blk_main_ret
     });
 
@@ -276,7 +228,9 @@ fn pass_1arg_by_stack() -> VM {
         blk_entry,
         blk_main
     });
-
+    
+    emit_test!      ((vm) (pass_1arg_by_stack pass_1arg_by_stack_test1 pass_1arg_by_stack_test1_v1 Int,EQ (sig, int64(1u64))));
+    
     vm
 }
 
@@ -316,7 +270,7 @@ fn pass_1arg_by_stack() -> VM {
     define_func_ver!((vm) foo7_v1 (entry: blk_entry) {blk_entry});
 
     // pass_1arg_by_stack
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> pass_1arg_by_stack);
     funcdef!    ((vm) <sig> pass_1arg_by_stack VERSION pass_1arg_by_stack_v1);
 
@@ -361,15 +315,12 @@ fn pass_1arg_by_stack() -> VM {
             const_funcref_foo7_local (a0, a1, a2, a3, a4, a5, a6)
     );
 
-    let blk_main_exit = gen_ccall_exit(retval.clone(), &mut pass_1arg_by_stack_v1, &vm);
-
     inst!       ((vm, pass_1arg_by_stack_v1) blk_main_ret:
-        RET
+        RET (retval)
     );
 
     define_block!((vm, pass_1arg_by_stack_v1) blk_main(a0, a1, a2, a3, a4, a5, a6) {
         blk_main_call,
-        blk_main_exit,
         blk_main_ret
     });
 
@@ -377,7 +328,9 @@ fn pass_1arg_by_stack() -> VM {
         blk_entry,
         blk_main
     });
-
+    
+    emit_test!      ((vm) (pass_1arg_by_stack pass_1arg_by_stack_test1 pass_1arg_by_stack_test1_v1 Int,EQ (sig, int64(1u64))));
+    
     vm
 }
 

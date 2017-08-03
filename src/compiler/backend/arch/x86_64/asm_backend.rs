@@ -15,6 +15,7 @@
 #![allow(unused_variables)]
 
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
+use compiler::backend::AOT_EMIT_SYM_TABLE_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
 use utils::Address;
@@ -3723,6 +3724,7 @@ fn write_const_align(f: &mut File) {
 }
 
 /// writes alignment in bytes for linux
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
 fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
@@ -3732,6 +3734,7 @@ fn write_align(f: &mut File, align: ByteSize) {
 
 /// writes alignment for macos. For macos, .align is followed by exponent
 /// (e.g. 16 bytes is 2^4, writes .align 4 on macos)
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "macos")]
 fn write_align(f: &mut File, align: ByteSize) {
     use std::io::Write;
@@ -3744,6 +3747,14 @@ fn write_align(f: &mut File, align: ByteSize) {
     };
 
     f.write_fmt(format_args!("\t.align {}\n", n)).unwrap();
+}
+
+/// writes alignment in bytes for sel4-rumprun, which is exactly the same as Linux
+#[cfg(feature = "sel4-rumprun")]
+fn write_align(f: &mut File, align: ByteSize) {
+    use std::io::Write;
+    f.write_fmt(format_args!("\t.align {}\n", check_align(align)))
+     .unwrap();
 }
 
 /// writes a constant to assembly output
@@ -3831,6 +3842,129 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
         _ => unimplemented!()
     }
 }
+
+#[cfg(not(feature = "sel4-rumprun"))]
+pub fn emit_sym_table(vm: &VM) {
+        debug!("Currently nothing to emit for --!");
+    }
+
+fn mangle_all(name_vec: &mut Vec<String>){
+    for i in 0..name_vec.len(){
+        name_vec[i] = name_vec[i].replace('.', "Zd")
+            .replace('-', "Zh")
+            .replace(':', "Zc")
+            .replace('#', "Za");
+        name_vec[i] = "__mu_".to_string() + &name_vec[i];
+    }
+}
+
+#[cfg(feature = "sel4-rumprun")]
+pub fn emit_sym_table(vm: &VM){
+    
+    use std::path;
+    use std::io::Write;
+    
+    // Here goes the code to generate an asm file to resolve symbol addresses at link time
+    // in this stage, a single sym_file is generated for the test
+    // these sym_files will be compiled in build.rs in the parent directory of sel4 side
+    
+    //**************************************************
+    // first create the asm file in the correct path
+    // _st added file name and path stands for _SymTable
+    //*************************************************
+    debug!("Going to emit Sym table for sel4-rumprun");
+    let mut file_path_st = path::PathBuf::new();
+    file_path_st.push(&vm.vm_options.flag_aot_emit_dir);
+        
+    // vm file name is: "mu_sym_table.s"
+    file_path_st.push(format!("{}", AOT_EMIT_SYM_TABLE_FILE));
+    
+    let mut file_st = match File::create(file_path_st.as_path()) {
+        Err(why) => panic!("couldn't create SYM TABLE file {}: {}", file_path_st.to_str().unwrap(), why),
+        Ok(file) => file
+    };
+
+    // **************************************************
+    // mu_sym_table.s content generation
+    // *************************************************
+    // Code for exporting all of the required symbols \
+    // in vm, using the following fields:
+    // compiled_funcs.CompiledFunction.start
+    // compiled_funcs.CompiledFunction.end
+    // compiled_funcs.CompiledFunction.Frame. \
+    // exception_callsites[iter](src,_)
+    // compiled_funcs.CompiledFunction.Frame. \
+    // exception_callsites[iter](_,dest)
+    // ret
+    // *************************************************
+
+    let mut sym_vec: Vec<String> = Vec::new();
+    let compiled_funcs : &HashMap<_, _> = &vm.compiled_funcs().read().unwrap();
+    for (theID, theCFs) in compiled_funcs.iter() {
+        let theCF : &CompiledFunction = &theCFs.read().unwrap();
+        match theCF.start {
+            // CF.start can only be relocatable , otherwise panic
+            ValueLocation::Relocatable(_, ref symbol) => {
+//                debug!("theCF.start, symbol = {}\n", *symbol);
+                sym_vec.push((*symbol).clone());
+            },
+            // CF.start can't reach this state
+            _ => panic!("Sym_Table_start: expecting Relocatable location, found {}", theCF.start)
+        }
+        match theCF.end {
+            // CF.start can only be relocatable , otherwise panic
+            ValueLocation::Relocatable(_, ref symbol) => {
+//                debug!("theCF.end, symbol = {}\n", *symbol);
+                sym_vec.push((*symbol).clone());
+            },
+            // CF.end can't reach this state
+            _ => panic!("Sym_Table_end: expecting Relocatable location, found {}", theCF.end)
+        }
+        
+//        for &(ref callsite, ref dest) in theCF.frame.get_exception_callsites().iter(){
+//            match *callsite {
+//                ValueLocation::Relocatable(_, ref symbol) => {
+//                    sym_vec.push((*symbol).clone());
+//                },
+//                // can't reach this state
+//                _ => panic!("Sym_Table_callsite: expecting Relocatable location, found {}", callsite)
+//            }
+//            match *dest {
+//                ValueLocation::Relocatable(_, ref symbol) => {
+//                    sym_vec.push((*symbol).clone());
+//                },
+//                // can't reach this state
+//                _ => panic!("Sym_Table_callsite: expecting Relocatable location, found {}", dest)
+//            }
+//        }
+    }
+    // **************************************************
+    // Generate the following code:
+    // .data
+    // .globl mu_sym_table
+    // mu_sym_table:
+    // for each symbol {
+    //      .quad "symbol_name".length()
+    //      __symbol_name:
+    //      .ascii "symbol_name"
+    //      .quad 0
+    // }
+    // *************************************************
+    
+    mangle_all(&mut sym_vec);
+    
+    file_st.write("\t.data\n".as_bytes()).unwrap();
+
+    file_st.write_fmt(format_args!("\t{}\n", directive_globl("mu_sym_table".to_string()))).unwrap();
+    file_st.write_fmt(format_args!("mu_sym_table:\n")).unwrap();
+    file_st.write_fmt(format_args!(".quad {}\n", sym_vec.len())).unwrap();
+    for i in 0..sym_vec.len(){
+        file_st.write_fmt(format_args!(".quad {}\n", sym_vec[i].len())).unwrap();
+        file_st.write_fmt(format_args!(".ascii \"{}\"\n", sym_vec[i])).unwrap();
+        file_st.write_fmt(format_args!(".quad {}\n", sym_vec[i])).unwrap();
+    }
+}
+
 
 use std::collections::HashMap;
 use compiler::backend::code_emission::emit_mu_types;
@@ -4024,7 +4158,9 @@ pub fn emit_context_with_reloc(
     dumper.dump("HYBRID_TAG_MAP", hybrid_tag_map);
 
     dumper.finish();
-
+    
+    emit_sym_table(vm);
+    
     debug!("---finish---");
 }
 
@@ -4073,25 +4209,41 @@ fn directive_comm(name: String, size: ByteSize, align: ByteSize) -> String {
 }
 
 /// returns symbol for a string (on linux, returns the same string)
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
 pub fn symbol(name: String) -> String {
     name
 }
 /// returns symbol for a string (on macos, prefixes it with a understore (_))
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "macos")]
 pub fn symbol(name: String) -> String {
     format!("_{}", name)
 }
 
+/// returns symbol for a string (on sel4-rumprun, returns the same string)
+#[cfg(feature = "sel4-rumprun")]
+pub fn symbol(name: String) -> String {
+    name
+}
+
 /// returns a position-indepdent symbol for a string (on linux, postfixes it with @GOTPCREL)
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
 pub fn pic_symbol(name: String) -> String {
     format!("{}@GOTPCREL", name)
 }
 /// returns a position-indepdent symbol for a string (on macos, returns the same string)
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "macos")]
 pub fn pic_symbol(name: String) -> String {
     symbol(name)
+}
+
+/// returns a position-indepdent symbol for a string (on sel4-rumprun, postfixes it with @GOTPCREL)
+#[cfg(feature = "sel4-rumprun")]
+pub fn pic_symbol(name: String) -> String {
+    format!("{}@GOTPCREL", name)
 }
 
 use compiler::machine_code::CompiledFunction;

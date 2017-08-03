@@ -202,6 +202,7 @@ impl<'a> VM {
     }
 
     /// internal function to create a VM with options
+    #[cfg(not(feature = "sel4-rumprun"))]
     fn new_internal(options: VMOptions) -> VM {
         VM::start_logging(options.flag_log_level);
 
@@ -243,6 +244,58 @@ impl<'a> VM {
         // init runtime
         ret.init_runtime();
 
+        ret
+    }
+    
+    /// internal function to create a VM with options for sel4-rumprun
+    /// default memory sizes are different from other platforms
+    #[cfg(feature = "sel4-rumprun")]
+    fn new_internal(options: VMOptions) -> VM {
+        VM::start_logging(options.flag_log_level);
+        
+        let mut ret = VM {
+            next_id: ATOMIC_USIZE_INIT,
+            vm_options: options,
+            id_name_map: RwLock::new(HashMap::new()),
+            name_id_map: RwLock::new(HashMap::new()),
+            constants: RwLock::new(HashMap::new()),
+            types: RwLock::new(HashMap::new()),
+            backend_type_info: RwLock::new(HashMap::new()),
+            globals: RwLock::new(HashMap::new()),
+            global_locations: RwLock::new(hashmap!{}),
+            func_sigs: RwLock::new(HashMap::new()),
+            func_vers: RwLock::new(HashMap::new()),
+            funcs: RwLock::new(HashMap::new()),
+            compiled_funcs: RwLock::new(HashMap::new()),
+            callsite_table: RwLock::new(HashMap::new()),
+            primordial: RwLock::new(None),
+            aot_pending_funcref_store: RwLock::new(HashMap::new()),
+            compiled_callsite_table: RwLock::new(HashMap::new()),
+            callsite_count: ATOMIC_USIZE_INIT
+        };
+    
+        // currently, the default sizes don't work on sel4-rumprun platform
+        // this is due to memory allocation size limitations
+        ret.vm_options.flag_gc_immixspace_size = 1<<19;
+        ret.vm_options.flag_gc_lospace_size = 1<<19;
+        
+        // insert all internal types
+        {
+            let mut types = ret.types.write().unwrap();
+            for ty in INTERNAL_TYPES.iter() {
+                types.insert(ty.id(), ty.clone());
+            }
+        }
+        
+        // starts allocating ID from USER_ID_START
+        ret.next_id.store(USER_ID_START, Ordering::Relaxed);
+        
+        // init types
+        types::init_types();
+        
+        // init runtime
+        ret.init_runtime();
+        
         ret
     }
 

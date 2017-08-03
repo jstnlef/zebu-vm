@@ -26,3 +26,4 @@ lazy_static = "*"
 log = "*"
 simple_logger = "*"
 rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = ">= 0.0.5" }
+#rodal = { path = "../../../rodal_test/rodal", version = ">= 0.0.5" }

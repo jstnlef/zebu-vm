@@ -102,13 +102,22 @@ fn exec_cmd_nocheck(mut cmd: Command) -> Output {
 }
 
 /// returns a name for dynamic library
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "macos")]
 pub fn get_dylib_name(name: &'static str) -> String {
     format!("lib{}.dylib", name)
 }
 
 /// returns a name for dynamic library
+#[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
 pub fn get_dylib_name(name: &'static str) -> String {
     format!("lib{}.so", name)
+}
+
+/// returns a name for dynamic library
+/// Must not be used for sel4-rumprun
+#[cfg(feature = "sel4-rumprun")]
+pub fn get_dylib_name(name: &'static str) -> String {
+    format!("lib{}.UNKNOWN", name)
 }
