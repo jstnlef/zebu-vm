@@ -123,3 +123,24 @@ def test_stack_pass_and_return():
         }
         """, "test_stack_pass_and_return");
     assert(execute("test_stack_pass_and_return") == 44);
+
+def test_double_inline():
+    lib = load_bundle(
+        """       
+        .funcsig new_sig = ()->(ref<void>)
+        .funcdef new_void <new_sig>
+        {
+            entry():
+                //res = NEW <ref<void>>
+                res = CCALL #DEFAULT <ufuncptr<new_sig> new_sig> <ufuncptr<new_sig>>EXTERN "malloc"()
+                RET res
+        }
+        
+        .funcdef double_inline <()->(ref<void> ref<void>)>
+        {
+            entry():
+                a = CALL <()->(ref<void>)> new_void()
+                b = CALL <()->(ref<void>)> new_void()
+                RET (a b)
+        }
+        """, "test_double_inline");

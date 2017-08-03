@@ -414,26 +414,39 @@ fn copy_inline_blocks(
         }
     };
 
-    for block in callee.blocks.values() {
-        let old_id = block.id();
-        let new_id = *block_map.get(&block.id()).unwrap();
+    for old_block in callee.blocks.values() {
+        let old_id = old_block.id();
+        let new_id = *block_map.get(&old_block.id()).unwrap();
         let mut block = Block {
             hdr: MuEntityHeader::named(
                 new_id,
-                format!("{}:inlinedblock.#{}", block.name(), new_id)
+                format!("{}:inlinedblock.#{}", old_block.name(), new_id)
             ),
-            content: block.content.clone(),
+            content: Some(old_block.content.as_ref().unwrap().clone_empty()),
             trace_hint: TraceHint::None,
             control_flow: ControlFlow::default()
         };
 
         trace!("starts copying instruction from {} to {}", old_id, new_id);
 
-        // check its last instruction
+        // Create the new blocks contents
         {
+            let old_block_content = old_block.content.as_ref().unwrap();
+            let block_name = block.name().clone();
             let block_content = block.content.as_mut().unwrap();
-            let last_inst = block_content.body.pop().unwrap();
 
+            // Copy the old_block contents (minus the last one)
+            for i in 0..old_block_content.body.len() - 1 {
+                block_content.body.push(match old_block_content.body[i].v {
+                    TreeNode_::Instruction(ref inst) => {
+                        TreeNode::new_boxed_inst(inst.clone_with_id(vm.next_id()))
+                    }
+                    _ => panic!("expect instruction as block body")
+                });
+            }
+
+            // check its last instruction
+            let last_inst = old_block_content.body.last().unwrap();
             // every inst should have a unique ID
             let inst_new_id = vm.next_id();
             let last_inst_clone = match last_inst.v {
@@ -443,22 +456,24 @@ fn copy_inline_blocks(
                 _ => panic!("expect instruction as block body")
             };
 
-            match last_inst.v {
-                TreeNode_::Instruction(inst) => {
+            match &last_inst.v {
+                &TreeNode_::Instruction(ref inst) => {
                     trace!("last instruction: {}", inst);
 
                     let hdr = inst.hdr.clone_with_id(inst_new_id);
-                    let value = inst.value;
-                    let ops = inst.ops;
-                    let v = inst.v;
+                    let inst_name = inst.name().clone();
+                    let ref value = inst.value;
+                    let ref ops = inst.ops;
+                    let ref v = inst.v;
 
+                    trace!("ISAAC: Inlining [{} -> {}] : {} -> {}", old_block.name(), block_name, inst_name, hdr.name());
                     match v {
-                        Instruction_::Return(vec) => {
+                        &Instruction_::Return(ref vec) => {
                             // change RET to a branch
                             let branch = Instruction {
                                 hdr: hdr,
-                                value: value,
-                                ops: ops,
+                                value: value.clone(),
+                                ops: ops.clone(),
                                 v: Instruction_::Branch1(Destination {
                                     target: ret_block,
                                     args: vec.iter().map(|x| DestArg::Normal(*x)).collect()
@@ -470,81 +485,80 @@ fn copy_inline_blocks(
                         }
 
                         // fix destination
-                        Instruction_::Branch1(dest) => {
+                        &Instruction_::Branch1(ref dest) => {
                             let branch = Instruction {
                                 hdr: hdr,
-                                value: value,
-                                ops: ops,
-                                v: Instruction_::Branch1(fix_dest(dest))
+                                value: value.clone(),
+                                ops: ops.clone(),
+                                v: Instruction_::Branch1(fix_dest(dest.clone()))
                             };
 
                             trace!("rewrite to: {}", branch);
                             block_content.body.push(TreeNode::new_boxed_inst(branch));
                         }
-                        Instruction_::Branch2 {
-                            cond,
-                            true_dest,
-                            false_dest,
-                            true_prob
+                        &Instruction_::Branch2 {
+                            ref cond,
+                            ref true_dest,
+                            ref false_dest,
+                            ref true_prob
                         } => {
                             let branch2 = Instruction {
                                 hdr: hdr,
-                                value: value,
-                                ops: ops,
+                                value: value.clone(),
+                                ops: ops.clone(),
                                 v: Instruction_::Branch2 {
-                                    cond: cond,
-                                    true_dest: fix_dest(true_dest),
-                                    false_dest: fix_dest(false_dest),
-                                    true_prob: true_prob
+                                    cond: *cond,
+                                    true_dest: fix_dest(true_dest.clone()),
+                                    false_dest: fix_dest(false_dest.clone()),
+                                    true_prob: *true_prob
                                 }
                             };
 
                             trace!("rewrite to: {}", branch2);
                             block_content.body.push(TreeNode::new_boxed_inst(branch2));
                         }
-                        Instruction_::Call { data, resume } => {
+                        &Instruction_::Call { ref data, ref resume } => {
                             let call = Instruction {
                                 hdr: hdr,
-                                value: value,
-                                ops: ops,
+                                value: value.clone(),
+                                ops: ops.clone(),
                                 v: Instruction_::Call {
-                                    data: data,
-                                    resume: fix_resume(resume)
+                                    data: data.clone(),
+                                    resume: fix_resume(resume.clone())
                                 }
                             };
 
                             trace!("rewrite to: {}", call);
                             block_content.body.push(TreeNode::new_boxed_inst(call));
                         }
-                        Instruction_::CCall { data, resume } => {
+                        &Instruction_::CCall { ref data, ref resume } => {
                             let call = Instruction {
                                 hdr: hdr,
-                                value: value,
-                                ops: ops,
+                                value: value.clone(),
+                                ops: ops.clone(),
                                 v: Instruction_::CCall {
-                                    data: data,
-                                    resume: fix_resume(resume)
+                                    data: data.clone(),
+                                    resume: fix_resume(resume.clone())
                                 }
                             };
 
                             trace!("rewrite to: {}", call);
                             block_content.body.push(TreeNode::new_boxed_inst(call));
                         }
-                        Instruction_::Switch {
-                            cond,
-                            default,
-                            mut branches
+                        &Instruction_::Switch {
+                            ref cond,
+                            ref default,
+                            ref branches
                         } => {
                             let switch = Instruction {
                                 hdr: hdr,
-                                value: value,
-                                ops: ops,
+                                value: value.clone(),
+                                ops: ops.clone(),
                                 v: Instruction_::Switch {
-                                    cond: cond,
-                                    default: fix_dest(default),
-                                    branches: branches
-                                        .drain(..)
-                                        .map(|(op, dest)| (op, fix_dest(dest)))
+                                    cond: *cond,
+                                    default: fix_dest(default.clone()),
+                                    branches: branches.iter()
+                                        .map(|&(ref op, ref dest)| (op.clone(), fix_dest(dest.clone())))
                                         .collect()
                                 }
                             };
@@ -553,10 +567,10 @@ fn copy_inline_blocks(
                             block_content.body.push(TreeNode::new_boxed_inst(switch));
                         }
 
-                        Instruction_::Watchpoint { .. } |
-                        Instruction_::WPBranch { .. } |
-                        Instruction_::SwapStack { .. } |
-                        Instruction_::ExnInstruction { .. } => unimplemented!(),
+                        &Instruction_::Watchpoint { .. } |
+                        &Instruction_::WPBranch { .. } |
+                        &Instruction_::SwapStack { .. } |
+                        &Instruction_::ExnInstruction { .. } => unimplemented!(),
 
                         _ => {
                             block_content.body.push(last_inst_clone);
