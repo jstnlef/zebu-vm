@@ -5823,7 +5823,8 @@ impl<'a> InstructionSelection {
             };
 
             self.current_constants.insert(id, val.clone());
-            self.current_constants_locs.insert(id, const_mem_val.clone());
+            self.current_constants_locs
+                .insert(id, const_mem_val.clone());
 
             const_mem_val
         }
