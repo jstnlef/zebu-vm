@@ -365,19 +365,13 @@ impl<'a> InstructionSelection {
                                 }
                                 // jcc - for 8-bits integer
                                 _ => {
-                                    let blk_true = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
+                                    let blk_true = make_block_name(&node.name(),
                                         "select_true"
                                     );
-                                    let blk_false = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
+                                    let blk_false = make_block_name(&node.name(),
                                         "select_false"
                                     );
-                                    let blk_end = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
+                                    let blk_end = make_block_name(&node.name(),
                                         "select_end"
                                     );
 
@@ -443,11 +437,11 @@ impl<'a> InstructionSelection {
                             let tmp_res = self.get_result_value(node);
 
                             let blk_true =
-                                make_block_name(&self.current_fv_name, node.id(), "select_true");
+                                make_block_name(&node.name(), "select_true");
                             let blk_false =
-                                make_block_name(&self.current_fv_name, node.id(), "select_false");
+                                make_block_name(&node.name(), "select_false");
                             let blk_end =
-                                make_block_name(&self.current_fv_name, node.id(), "select_end");
+                                make_block_name(&node.name(), "select_end");
 
                             // jump to blk_true if true
                             match cmpop {
@@ -602,9 +596,7 @@ impl<'a> InstructionSelection {
                                 }
 
                                 self.finish_block();
-                                let block_name = make_block_name(
-                                    &self.current_fv_name,
-                                    node.id(),
+                                let block_name = make_block_name(&node.name(),
                                     format!("switch_not_met_case_{}", case_op_index).as_str()
                                 );
                                 self.start_block(block_name);
@@ -1097,19 +1089,13 @@ impl<'a> InstructionSelection {
                                                 // testq %tmp_op %tmp_op
                                                 self.backend.emit_test_r_r(&tmp_op, &tmp_op);
 
-                                                let blk_if_signed = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                let blk_if_signed = make_block_name(&node.name(),
                                                     "uitofp_float_if_signed"
                                                 );
-                                                let blk_if_not_signed = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                let blk_if_not_signed = make_block_name(&node.name(),
                                                     "uitofp_float_if_not_signed"
                                                 );
-                                                let blk_done = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                let blk_done = make_block_name(&node.name(),
                                                     "uitofp_float_done"
                                                 );
 
@@ -3084,9 +3070,9 @@ impl<'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(&self.current_fv_name, node.id(), "alloc_large");
+            let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
             let blk_alloc_large_end =
-                make_block_name(&self.current_fv_name, node.id(), "alloc_large_end");
+                make_block_name(&node.name(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 // if the header size is not zero, we need to calculate a total size to alloc
@@ -3103,7 +3089,7 @@ impl<'a> InstructionSelection {
             self.backend.emit_jg(blk_alloc_large.clone());
 
             self.finish_block();
-            let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
+            let block_name = make_block_name(&node.name(), "allocsmall");
             self.start_block(block_name);
 
             // alloc small here
@@ -3259,12 +3245,12 @@ impl<'a> InstructionSelection {
 
             // branch to slow path if end > limit (end - limit > 0)
             // ASM: jg alloc_slow
-            let slowpath = make_block_name(&self.current_fv_name, node.id(), "allocslow");
+            let slowpath = make_block_name(&node.name(), "allocslow");
             self.backend.emit_jg(slowpath.clone());
 
             // finish current block
             self.finish_block();
-            let block_name = make_block_name(&self.current_fv_name, node.id(), "updatecursor");
+            let block_name = make_block_name(&node.name(), "updatecursor");
             self.start_block(block_name);
 
             // update cursor
@@ -3282,7 +3268,7 @@ impl<'a> InstructionSelection {
             }
 
             // ASM jmp alloc_end
-            let allocend = make_block_name(&self.current_fv_name, node.id(), "alloc_small_end");
+            let allocend = make_block_name(&node.name(), "alloc_small_end");
             self.backend.emit_jmp(allocend.clone());
 
             // finishing current block
@@ -3943,7 +3929,7 @@ impl<'a> InstructionSelection {
         inst: &Instruction,
         calldata: &CallData,
         resumption: Option<&ResumptionData>,
-        cur_node: &TreeNode,
+        node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
         vm: &VM
@@ -4005,7 +3991,7 @@ impl<'a> InstructionSelection {
                 if vm.is_doing_jit() {
                     unimplemented!()
                 } else {
-                    let callsite = self.new_callsite_label(Some(cur_node));
+                    let callsite = self.new_callsite_label(Some(node));
                     self.backend.emit_call_near_rel32(
                         callsite,
                         target.name(),
@@ -4017,13 +4003,13 @@ impl<'a> InstructionSelection {
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
 
-                let callsite = self.new_callsite_label(Some(cur_node));
+                let callsite = self.new_callsite_label(Some(node));
                 self.backend
                     .emit_call_near_r64(callsite, &target, potentially_excepting, arg_regs)
             } else if self.match_mem(func) {
                 let target = self.emit_mem(func, vm);
 
-                let callsite = self.new_callsite_label(Some(cur_node));
+                let callsite = self.new_callsite_label(Some(node));
                 self.backend
                     .emit_call_near_mem64(callsite, &target, potentially_excepting, arg_regs)
             } else {
@@ -4043,7 +4029,7 @@ impl<'a> InstructionSelection {
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
             let block_name =
-                make_block_name(&self.current_fv_name, cur_node.id(), "normal_cont_for_call");
+                make_block_name(&node.name(), "normal_cont_for_call");
             self.start_block(block_name);
         } else {
             self.current_callsites
@@ -5804,8 +5790,7 @@ impl<'a> InstructionSelection {
         let ret = {
             if cur_node.is_some() {
                 make_block_name(
-                    &self.current_fv_name,
-                    cur_node.unwrap().id(),
+                    &cur_node.unwrap().name(),
                     format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {
