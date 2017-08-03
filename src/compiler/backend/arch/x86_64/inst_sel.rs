@@ -5802,8 +5802,8 @@ impl<'a> InstructionSelection {
     fn get_mem_for_const(&mut self, val: P<Value>, vm: &VM) -> P<Value> {
         let id = val.id();
 
-        if self.current_constants.contains_key(&id) {
-            self.current_constants.get(&id).unwrap().clone()
+        if self.current_constants_locs.contains_key(&id) {
+            self.current_constants_locs.get(&id).unwrap().clone()
         } else {
             let const_value_loc = vm.allocate_const(val.clone());
             let const_mem_val = match const_value_loc {
@@ -5823,8 +5823,7 @@ impl<'a> InstructionSelection {
             };
 
             self.current_constants.insert(id, val.clone());
-            self.current_constants_locs
-                .insert(id, const_mem_val.clone());
+            self.current_constants_locs.insert(id, const_mem_val.clone());
 
             const_mem_val
         }
