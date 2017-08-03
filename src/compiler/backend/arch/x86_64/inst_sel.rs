@@ -365,15 +365,9 @@ impl<'a> InstructionSelection {
                                 }
                                 // jcc - for 8-bits integer
                                 _ => {
-                                    let blk_true = make_block_name(&node.name(),
-                                        "select_true"
-                                    );
-                                    let blk_false = make_block_name(&node.name(),
-                                        "select_false"
-                                    );
-                                    let blk_end = make_block_name(&node.name(),
-                                        "select_end"
-                                    );
+                                    let blk_true = make_block_name(&node.name(), "select_true");
+                                    let blk_false = make_block_name(&node.name(), "select_false");
+                                    let blk_end = make_block_name(&node.name(), "select_end");
 
                                     // jump to blk_true if true
                                     match cmpop {
@@ -436,12 +430,9 @@ impl<'a> InstructionSelection {
                         } else if self.match_fpreg(true_val) {
                             let tmp_res = self.get_result_value(node);
 
-                            let blk_true =
-                                make_block_name(&node.name(), "select_true");
-                            let blk_false =
-                                make_block_name(&node.name(), "select_false");
-                            let blk_end =
-                                make_block_name(&node.name(), "select_end");
+                            let blk_true = make_block_name(&node.name(), "select_true");
+                            let blk_false = make_block_name(&node.name(), "select_false");
+                            let blk_end = make_block_name(&node.name(), "select_end");
 
                             // jump to blk_true if true
                             match cmpop {
@@ -596,7 +587,8 @@ impl<'a> InstructionSelection {
                                 }
 
                                 self.finish_block();
-                                let block_name = make_block_name(&node.name(),
+                                let block_name = make_block_name(
+                                    &node.name(),
                                     format!("switch_not_met_case_{}", case_op_index).as_str()
                                 );
                                 self.start_block(block_name);
@@ -1089,13 +1081,16 @@ impl<'a> InstructionSelection {
                                                 // testq %tmp_op %tmp_op
                                                 self.backend.emit_test_r_r(&tmp_op, &tmp_op);
 
-                                                let blk_if_signed = make_block_name(&node.name(),
+                                                let blk_if_signed = make_block_name(
+                                                    &node.name(),
                                                     "uitofp_float_if_signed"
                                                 );
-                                                let blk_if_not_signed = make_block_name(&node.name(),
+                                                let blk_if_not_signed = make_block_name(
+                                                    &node.name(),
                                                     "uitofp_float_if_not_signed"
                                                 );
-                                                let blk_done = make_block_name(&node.name(),
+                                                let blk_done = make_block_name(
+                                                    &node.name(),
                                                     "uitofp_float_done"
                                                 );
 
@@ -3071,8 +3066,7 @@ impl<'a> InstructionSelection {
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
             let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
-            let blk_alloc_large_end =
-                make_block_name(&node.name(), "alloc_large_end");
+            let blk_alloc_large_end = make_block_name(&node.name(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 // if the header size is not zero, we need to calculate a total size to alloc
@@ -4028,8 +4022,7 @@ impl<'a> InstructionSelection {
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
-            let block_name =
-                make_block_name(&node.name(), "normal_cont_for_call");
+            let block_name = make_block_name(&node.name(), "normal_cont_for_call");
             self.start_block(block_name);
         } else {
             self.current_callsites

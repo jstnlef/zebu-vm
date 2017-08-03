@@ -466,7 +466,13 @@ fn copy_inline_blocks(
                     let ref ops = inst.ops;
                     let ref v = inst.v;
 
-                    trace!("ISAAC: Inlining [{} -> {}] : {} -> {}", old_block.name(), block_name, inst_name, hdr.name());
+                    trace!(
+                        "ISAAC: Inlining [{} -> {}] : {} -> {}",
+                        old_block.name(),
+                        block_name,
+                        inst_name,
+                        hdr.name()
+                    );
                     match v {
                         &Instruction_::Return(ref vec) => {
                             // change RET to a branch
@@ -517,7 +523,10 @@ fn copy_inline_blocks(
                             trace!("rewrite to: {}", branch2);
                             block_content.body.push(TreeNode::new_boxed_inst(branch2));
                         }
-                        &Instruction_::Call { ref data, ref resume } => {
+                        &Instruction_::Call {
+                            ref data,
+                            ref resume
+                        } => {
                             let call = Instruction {
                                 hdr: hdr,
                                 value: value.clone(),
@@ -531,7 +540,10 @@ fn copy_inline_blocks(
                             trace!("rewrite to: {}", call);
                             block_content.body.push(TreeNode::new_boxed_inst(call));
                         }
-                        &Instruction_::CCall { ref data, ref resume } => {
+                        &Instruction_::CCall {
+                            ref data,
+                            ref resume
+                        } => {
                             let call = Instruction {
                                 hdr: hdr,
                                 value: value.clone(),
@@ -557,8 +569,11 @@ fn copy_inline_blocks(
                                 v: Instruction_::Switch {
                                     cond: *cond,
                                     default: fix_dest(default.clone()),
-                                    branches: branches.iter()
-                                        .map(|&(ref op, ref dest)| (op.clone(), fix_dest(dest.clone())))
+                                    branches: branches
+                                        .iter()
+                                        .map(|&(ref op, ref dest)| {
+                                            (op.clone(), fix_dest(dest.clone()))
+                                        })
                                         .collect()
                                 }
                             };

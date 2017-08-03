@@ -527,13 +527,15 @@ impl<'a> InstructionSelection {
                                     MuType_::Struct(_) | MuType_::Array(_, _) => unimplemented!(),
                                     MuType_::Hybrid(_) => panic!("Can't return a hybrid"),
                                     // Integral, pointer or floating point type
-                                    _ => self.insert_bytes(
-                                        &ret_loc,
-                                        &ret_val,
-                                        offset as i64,
-                                        f_context,
-                                        vm
-                                    )
+                                    _ => {
+                                        self.insert_bytes(
+                                            &ret_loc,
+                                            &ret_val,
+                                            offset as i64,
+                                            f_context,
+                                            vm
+                                        )
+                                    }
                                 }
 
                                 i += 1;
@@ -692,55 +694,59 @@ impl<'a> InstructionSelection {
                                 self.backend.emit_mov(&tmp_res, &tmp_op);
                             }
 
-                            op::ConvOp::UITOFP => if from_ty_size == 128 {
-                                if to_ty_size == 64 {
-                                    self.emit_runtime_entry(
-                                        &entrypoints::UITOFP_U128_DOUBLE,
-                                        vec![tmp_op.clone()],
-                                        Some(vec![tmp_res.clone()]),
-                                        Some(node),
-                                        f_context,
-                                        vm
-                                    );
+                            op::ConvOp::UITOFP => {
+                                if from_ty_size == 128 {
+                                    if to_ty_size == 64 {
+                                        self.emit_runtime_entry(
+                                            &entrypoints::UITOFP_U128_DOUBLE,
+                                            vec![tmp_op.clone()],
+                                            Some(vec![tmp_res.clone()]),
+                                            Some(node),
+                                            f_context,
+                                            vm
+                                        );
+                                    } else {
+                                        self.emit_runtime_entry(
+                                            &entrypoints::UITOFP_U128_FLOAT,
+                                            vec![tmp_op.clone()],
+                                            Some(vec![tmp_res.clone()]),
+                                            Some(node),
+                                            f_context,
+                                            vm
+                                        );
+                                    }
                                 } else {
-                                    self.emit_runtime_entry(
-                                        &entrypoints::UITOFP_U128_FLOAT,
-                                        vec![tmp_op.clone()],
-                                        Some(vec![tmp_res.clone()]),
-                                        Some(node),
-                                        f_context,
-                                        vm
-                                    );
+                                    emit_zext(self.backend.as_mut(), &tmp_op);
+                                    self.backend.emit_ucvtf(&tmp_res, &tmp_op);
                                 }
-                            } else {
-                                emit_zext(self.backend.as_mut(), &tmp_op);
-                                self.backend.emit_ucvtf(&tmp_res, &tmp_op);
-                            },
+                            }
 
-                            op::ConvOp::SITOFP => if from_ty_size == 128 {
-                                if to_ty_size == 64 {
-                                    self.emit_runtime_entry(
-                                        &entrypoints::SITOFP_I128_DOUBLE,
-                                        vec![tmp_op.clone()],
-                                        Some(vec![tmp_res.clone()]),
-                                        Some(node),
-                                        f_context,
-                                        vm
-                                    );
+                            op::ConvOp::SITOFP => {
+                                if from_ty_size == 128 {
+                                    if to_ty_size == 64 {
+                                        self.emit_runtime_entry(
+                                            &entrypoints::SITOFP_I128_DOUBLE,
+                                            vec![tmp_op.clone()],
+                                            Some(vec![tmp_res.clone()]),
+                                            Some(node),
+                                            f_context,
+                                            vm
+                                        );
+                                    } else {
+                                        self.emit_runtime_entry(
+                                            &entrypoints::SITOFP_I128_FLOAT,
+                                            vec![tmp_op.clone()],
+                                            Some(vec![tmp_res.clone()]),
+                                            Some(node),
+                                            f_context,
+                                            vm
+                                        );
+                                    }
                                 } else {
-                                    self.emit_runtime_entry(
-                                        &entrypoints::SITOFP_I128_FLOAT,
-                                        vec![tmp_op.clone()],
-                                        Some(vec![tmp_res.clone()]),
-                                        Some(node),
-                                        f_context,
-                                        vm
-                                    );
+                                    emit_sext(self.backend.as_mut(), &tmp_op);
+                                    self.backend.emit_scvtf(&tmp_res, &tmp_op);
                                 }
-                            } else {
-                                emit_sext(self.backend.as_mut(), &tmp_op);
-                                self.backend.emit_scvtf(&tmp_res, &tmp_op);
-                            },
+                            }
 
                             op::ConvOp::FPTOUI => {
                                 if to_ty_size == 128 {
@@ -916,9 +922,8 @@ impl<'a> InstructionSelection {
                             // Whether to use a load acquire
                             let use_acquire = match order {
                                 MemoryOrder::Relaxed | MemoryOrder::NotAtomic => false,
-                                MemoryOrder::Consume | MemoryOrder::Acquire | MemoryOrder::SeqCst => {
-                                    true
-                                }
+                                MemoryOrder::Consume | MemoryOrder::Acquire |
+                                MemoryOrder::SeqCst => true,
                                 _ => panic!("didnt expect order {:?} with load inst", order)
                             };
 
@@ -983,10 +988,12 @@ impl<'a> InstructionSelection {
                                         MemoryOrder::Consume |
                                         MemoryOrder::Acquire |
                                         MemoryOrder::SeqCst => true,
-                                        _ => panic!(
-                                            "didnt expect order {:?} with atomic load inst",
-                                            order
-                                        )
+                                        _ => {
+                                            panic!(
+                                                "didnt expect order {:?} with atomic load inst",
+                                                order
+                                            )
+                                        }
                                     };
                                     // Whether to use a store exclusive release
                                     let use_release = match order {
@@ -994,10 +1001,12 @@ impl<'a> InstructionSelection {
                                         MemoryOrder::Consume |
                                         MemoryOrder::Acquire => false,
                                         MemoryOrder::SeqCst => true,
-                                        _ => panic!(
-                                            "didnt expect order {:?} with atomic load inst",
-                                            order
-                                        )
+                                        _ => {
+                                            panic!(
+                                                "didnt expect order {:?} with atomic load inst",
+                                                order
+                                            )
+                                        }
                                     };
 
                                     // Exclusive loads/stores, only supports a base address
@@ -1130,19 +1139,23 @@ impl<'a> InstructionSelection {
                                     let use_acquire = match order {
                                         MemoryOrder::Relaxed | MemoryOrder::Release => false,
                                         MemoryOrder::SeqCst => true,
-                                        _ => panic!(
-                                            "didnt expect order {:?} with atomic store inst",
-                                            order
-                                        )
+                                        _ => {
+                                            panic!(
+                                                "didnt expect order {:?} with atomic store inst",
+                                                order
+                                            )
+                                        }
                                     };
                                     // Whether to use a store exclusive release
                                     let use_release = match order {
                                         MemoryOrder::Relaxed => false,
                                         MemoryOrder::Release | MemoryOrder::SeqCst => true,
-                                        _ => panic!(
-                                            "didnt expect order {:?} with atomic store inst",
-                                            order
-                                        )
+                                        _ => {
+                                            panic!(
+                                                "didnt expect order {:?} with atomic store inst",
+                                                order
+                                            )
+                                        }
                                     };
 
                                     // Exclusive loads/stores, only supports a base address
@@ -1204,41 +1217,53 @@ impl<'a> InstructionSelection {
                         // Clang is slightly different and ignores the 'fail_order'
                         let use_acquire = match fail_order {
                             MemoryOrder::Acquire | MemoryOrder::SeqCst => true,
-                            MemoryOrder::Relaxed => match success_order {
-                                MemoryOrder::Acquire | MemoryOrder::AcqRel | MemoryOrder::SeqCst => {
-                                    true
+                            MemoryOrder::Relaxed => {
+                                match success_order {
+                                    MemoryOrder::Acquire |
+                                    MemoryOrder::AcqRel |
+                                    MemoryOrder::SeqCst => true,
+                                    MemoryOrder::Relaxed | MemoryOrder::Release => false,
+                                    _ => {
+                                        panic!(
+                                            "didnt expect success order {:?} for cmpxchg",
+                                            success_order
+                                        )
+                                    }
                                 }
-                                MemoryOrder::Relaxed | MemoryOrder::Release => false,
-                                _ => panic!(
-                                    "didnt expect success order {:?} for cmpxchg",
-                                    success_order
-                                )
-                            },
+                            }
                             _ => panic!("didnt expect fail order {:?} for cmpxchg", fail_order)
                         };
                         let use_release = match fail_order {
-                            MemoryOrder::Acquire => match success_order {
-                                MemoryOrder::Relaxed |
-                                MemoryOrder::Release |
-                                MemoryOrder::AcqRel |
-                                MemoryOrder::SeqCst => true,
-                                MemoryOrder::Acquire => false,
-                                _ => panic!(
-                                    "didnt expect success order {:?} for cmpxchg",
-                                    success_order
-                                )
-                            },
-                            MemoryOrder::SeqCst => true,
-                            MemoryOrder::Relaxed => match success_order {
-                                MemoryOrder::Release | MemoryOrder::AcqRel | MemoryOrder::SeqCst => {
-                                    true
+                            MemoryOrder::Acquire => {
+                                match success_order {
+                                    MemoryOrder::Relaxed |
+                                    MemoryOrder::Release |
+                                    MemoryOrder::AcqRel |
+                                    MemoryOrder::SeqCst => true,
+                                    MemoryOrder::Acquire => false,
+                                    _ => {
+                                        panic!(
+                                            "didnt expect success order {:?} for cmpxchg",
+                                            success_order
+                                        )
+                                    }
                                 }
-                                MemoryOrder::Relaxed | MemoryOrder::Acquire => false,
-                                _ => panic!(
-                                    "didnt expect success order {:?} for cmpxchg",
-                                    success_order
-                                )
-                            },
+                            }
+                            MemoryOrder::SeqCst => true,
+                            MemoryOrder::Relaxed => {
+                                match success_order {
+                                    MemoryOrder::Release |
+                                    MemoryOrder::AcqRel |
+                                    MemoryOrder::SeqCst => true,
+                                    MemoryOrder::Relaxed | MemoryOrder::Acquire => false,
+                                    _ => {
+                                        panic!(
+                                            "didnt expect success order {:?} for cmpxchg",
+                                            success_order
+                                        )
+                                    }
+                                }
+                            }
                             _ => panic!("didnt expect fail order {:?} for cmpxchg", fail_order)
                         };
 
@@ -1542,10 +1567,12 @@ impl<'a> InstructionSelection {
                         if cfg!(debug_assertions) {
                             match ty.v {
                                 MuType_::Hybrid(_) => {}
-                                _ => panic!(
-                                    "NEWHYBRID is only for allocating hybrid types, \
-                                     use NEW for others"
-                                )
+                                _ => {
+                                    panic!(
+                                        "NEWHYBRID is only for allocating hybrid types, \
+                                         use NEW for others"
+                                    )
+                                }
                             }
                         }
 
@@ -1640,10 +1667,12 @@ impl<'a> InstructionSelection {
                         if cfg!(debug_assertions) {
                             match ty.v {
                                 MuType_::Hybrid(_) => {}
-                                _ => panic!(
-                                    "ALLOCAHYBRID is only for allocating hybrid types, \
-                                     use ALLOCA for others"
-                                )
+                                _ => {
+                                    panic!(
+                                        "ALLOCAHYBRID is only for allocating hybrid types, \
+                                         use ALLOCA for others"
+                                    )
+                                }
                             }
                         }
 
@@ -1873,7 +1902,7 @@ impl<'a> InstructionSelection {
                                 &tmp_res,
                                 0x7FF0000000000001 |
                                     (((int_val & 0x8000000000000) << 12) |
-                                        (int_val & 0x7ffffffffffffu64) << 1)
+                                         (int_val & 0x7ffffffffffffu64) << 1)
                             );
                         } else {
                             let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
@@ -1903,7 +1932,7 @@ impl<'a> InstructionSelection {
                                 self.backend.as_mut(),
                                 &tmp_res,
                                 (0x7ff0000000000002u64 | ((tag & 0x3eu64) << 46) |
-                                    ((tag & 0x1) << 2))
+                                     ((tag & 0x1) << 2))
                             );
                         } else {
                             let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -3708,22 +3737,24 @@ impl<'a> InstructionSelection {
                 Hybrid(_) => panic!("hybrid argument not supported"),
 
                 Vector(_, _) => unimplemented!(),
-                Float | Double => if nsrn < 8 {
-                    locations.push(get_alias_for_length(
-                        ARGUMENT_FPRS[nsrn].id(),
-                        get_bit_size(&t, vm)
-                    ));
-                    nsrn += 1;
-                } else {
-                    nsrn = 8;
-                    locations.push(make_value_base_offset(
-                        &stack,
-                        offset + (nsaa as i64),
-                        &t,
-                        vm
-                    ));
-                    nsaa += size;
-                },
+                Float | Double => {
+                    if nsrn < 8 {
+                        locations.push(get_alias_for_length(
+                            ARGUMENT_FPRS[nsrn].id(),
+                            get_bit_size(&t, vm)
+                        ));
+                        nsrn += 1;
+                    } else {
+                        nsrn = 8;
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64),
+                            &t,
+                            vm
+                        ));
+                        nsaa += size;
+                    }
+                }
                 Struct(_) | Array(_, _) => {
                     let hfa_n = hfa_length(&t);
                     if hfa_n > 0 {
@@ -4342,11 +4373,13 @@ impl<'a> InstructionSelection {
                                 vm
                             );
                         }
-                        _ => panic!(
-                            "expect a ufuncptr to be either address constant, \
-                             or symbol constant, we have {}",
-                            pv
-                        )
+                        _ => {
+                            panic!(
+                                "expect a ufuncptr to be either address constant, \
+                                 or symbol constant, we have {}",
+                                pv
+                            )
+                        }
                     }
                 }
                 _ => unimplemented!()
@@ -4748,10 +4781,12 @@ impl<'a> InstructionSelection {
 
     fn match_cmp_res(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Instruction(ref inst) => match inst.v {
-                Instruction_::CmpOp(_, _, _) => true,
-                _ => false
-            },
+            TreeNode_::Instruction(ref inst) => {
+                match inst.v {
+                    Instruction_::CmpOp(_, _, _) => true,
+                    _ => false
+                }
+            }
             TreeNode_::Value(_) => false
         }
     }
@@ -4788,11 +4823,14 @@ impl<'a> InstructionSelection {
                 let ref ops = inst.ops;
 
                 match inst.v {
-                    Instruction_::CmpOp(op, op1, ..) => if op.is_int_cmp() {
-                        node_type(&ops[op1]).get_int_length().unwrap() == 128 && !op.is_symmetric()
-                    } else {
-                        false
-                    },
+                    Instruction_::CmpOp(op, op1, ..) => {
+                        if op.is_int_cmp() {
+                            node_type(&ops[op1]).get_int_length().unwrap() == 128 &&
+                                !op.is_symmetric()
+                        } else {
+                            false
+                        }
+                    }
                     _ => panic!("expect cmp res to emit")
                 }
             }
@@ -4982,21 +5020,23 @@ impl<'a> InstructionSelection {
 
     fn match_ireg(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Instruction(ref inst) => if inst.value.is_some() {
-                if inst.value.as_ref().unwrap().len() > 1 {
-                    return false;
-                }
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        return false;
+                    }
 
-                let ref value = inst.value.as_ref().unwrap()[0];
+                    let ref value = inst.value.as_ref().unwrap()[0];
 
-                if is_int_reg(&value) {
-                    true
+                    if is_int_reg(&value) {
+                        true
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
-            } else {
-                false
-            },
+            }
 
             TreeNode_::Value(ref pv) => is_int_reg(&pv) || pv.is_int_const()
         }
@@ -5004,21 +5044,23 @@ impl<'a> InstructionSelection {
 
     fn match_ireg_ex(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Instruction(ref inst) => if inst.value.is_some() {
-                if inst.value.as_ref().unwrap().len() > 1 {
-                    return false;
-                }
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        return false;
+                    }
 
-                let ref value = inst.value.as_ref().unwrap()[0];
+                    let ref value = inst.value.as_ref().unwrap()[0];
 
-                if is_int_ex_reg(&value) {
-                    true
+                    if is_int_ex_reg(&value) {
+                        true
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
-            } else {
-                false
-            },
+            }
 
             TreeNode_::Value(ref pv) => is_int_ex_reg(&pv) || pv.is_int_ex_const()
         }
@@ -5026,21 +5068,23 @@ impl<'a> InstructionSelection {
 
     fn match_reg(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Instruction(ref inst) => if inst.value.is_some() {
-                if inst.value.as_ref().unwrap().len() > 1 {
-                    return false;
-                }
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        return false;
+                    }
 
-                let ref value = inst.value.as_ref().unwrap()[0];
+                    let ref value = inst.value.as_ref().unwrap()[0];
 
-                if value.is_reg() {
-                    true
+                    if value.is_reg() {
+                        true
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
-            } else {
-                false
-            },
+            }
 
             TreeNode_::Value(ref pv) => pv.is_reg() || pv.is_const()
         }
@@ -5048,21 +5092,23 @@ impl<'a> InstructionSelection {
 
     fn match_fpreg(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Instruction(ref inst) => if inst.value.is_some() {
-                if inst.value.as_ref().unwrap().len() > 1 {
-                    return false;
-                }
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    if inst.value.as_ref().unwrap().len() > 1 {
+                        return false;
+                    }
 
-                let ref value = inst.value.as_ref().unwrap()[0];
+                    let ref value = inst.value.as_ref().unwrap()[0];
 
-                if is_fp_reg(&value) {
-                    true
+                    if is_fp_reg(&value) {
+                        true
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
-            } else {
-                false
-            },
+            }
 
             TreeNode_::Value(ref pv) => is_fp_reg(&pv) || pv.is_fp_const()
         }
@@ -5220,11 +5266,13 @@ impl<'a> InstructionSelection {
                             let ref iref_or_uptr_ty = ops[base].clone_value().ty;
                             match iref_or_uptr_ty.v {
                                 MuType_::IRef(ref ty) | MuType_::UPtr(ref ty) => ty.clone(),
-                                _ => panic!(
-                                    "expected the base for GetFieldIRef has a type of \
-                                     iref or uptr, found type: {}",
-                                    iref_or_uptr_ty
-                                )
+                                _ => {
+                                    panic!(
+                                        "expected the base for GetFieldIRef has a type of \
+                                         iref or uptr, found type: {}",
+                                        iref_or_uptr_ty
+                                    )
+                                }
                             }
                         };
                         let field_offset = self.get_field_offset(&struct_ty, index, vm);
@@ -5447,10 +5495,12 @@ impl<'a> InstructionSelection {
 
     fn node_funcref_const_to_id(&mut self, op: &TreeNode) -> MuID {
         match op.v {
-            TreeNode_::Value(ref pv) => match pv.v {
-                Value_::Constant(Constant::FuncRef(id)) => id,
-                _ => panic!("expected a funcref const")
-            },
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::Constant(Constant::FuncRef(id)) => id,
+                    _ => panic!("expected a funcref const")
+                }
+            }
             _ => panic!("expected a funcref const")
         }
     }
@@ -5458,27 +5508,33 @@ impl<'a> InstructionSelection {
     #[allow(dead_code)]
     fn match_mem(&mut self, op: &TreeNode) -> bool {
         match op.v {
-            TreeNode_::Value(ref pv) => match pv.v {
-                Value_::Memory(_) => true,
-                Value_::Global(_) => true,
-                _ => false
-            },
-            TreeNode_::Instruction(ref inst) => match inst.v {
-                Instruction_::Load { .. } => true,
-                _ => false
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::Memory(_) => true,
+                    Value_::Global(_) => true,
+                    _ => false
+                }
+            }
+            TreeNode_::Instruction(ref inst) => {
+                match inst.v {
+                    Instruction_::Load { .. } => true,
+                    _ => false
+                }
             }
         }
     }
 
     fn get_result_value(&mut self, node: &TreeNode, index: usize) -> P<Value> {
         match node.v {
-            TreeNode_::Instruction(ref inst) => if inst.value.is_some() {
-                let ref value = inst.value.as_ref().unwrap()[index];
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    let ref value = inst.value.as_ref().unwrap()[index];
 
-                value.clone()
-            } else {
-                panic!("expected result from the node {}", node);
-            },
+                    value.clone()
+                } else {
+                    panic!("expected result from the node {}", node);
+                }
+            }
 
             TreeNode_::Value(ref pv) => {
                 if index > 0 {
@@ -5693,10 +5749,12 @@ impl CompilerPass for InstructionSelection {
         // insert exception branch info
         let frame = match self.current_frame.take() {
             Some(frame) => frame,
-            None => panic!(
-                "no current_frame for function {} that is being compiled",
-                func_name
-            )
+            None => {
+                panic!(
+                    "no current_frame for function {} that is being compiled",
+                    func_name
+                )
+            }
         };
 
         for &(ref callsite, block_id, stack_arg_size) in self.current_callsites.iter() {
