@@ -25,7 +25,7 @@ use std;
 use utils::ByteSize;
 use utils::math::align_up;
 use runtime::mm;
-use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern};
+use runtime::mm::common::gctype::{GCType, RefPattern, GCTYPE_INIT_ID};
 use num::integer::lcm;
 
 /// for ahead-of-time compilation (boot image making), the file contains a persisted VM,
@@ -232,46 +232,44 @@ impl BackendType {
     pub fn resolve(ty: &MuType, vm: &VM) -> BackendType {
         match ty.v {
             // integer
-            MuType_::Int(size_in_bit) => {
-                match size_in_bit {
-                    1...8 => BackendType {
-                        size: 1,
-                        alignment: 1,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
-                    },
-                    9...16 => BackendType {
-                        size: 2,
-                        alignment: 2,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
-                    },
-                    17...32 => BackendType {
-                        size: 4,
-                        alignment: 4,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
-                    },
-                    33...64 => BackendType {
-                        size: 8,
-                        alignment: 8,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
-                    },
-                    128 => BackendType {
-                        size: 16,
-                        alignment: 16,
-                        struct_layout: None,
-                        elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(16, 16))
-                    },
-                    _ => unimplemented!()
-                }
-            }
+            MuType_::Int(size_in_bit) => match size_in_bit {
+                1...8 => BackendType {
+                    size: 1,
+                    alignment: 1,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
+                },
+                9...16 => BackendType {
+                    size: 2,
+                    alignment: 2,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
+                },
+                17...32 => BackendType {
+                    size: 4,
+                    alignment: 4,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
+                },
+                33...64 => BackendType {
+                    size: 8,
+                    alignment: 8,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
+                },
+                128 => BackendType {
+                    size: 16,
+                    alignment: 16,
+                    struct_layout: None,
+                    elem_size: None,
+                    gc_type: mm::add_gc_type(GCType::new_noreftype(16, 16))
+                },
+                _ => unimplemented!()
+            },
             // reference of any type
             MuType_::Ref(_) | MuType_::IRef(_) | MuType_::WeakRef(_) => BackendType {
                 size: 8,
@@ -534,6 +532,6 @@ impl RegGroup {
     }
 }
 
-fn make_block_name(fv_name: &String, id: MuID, label: &str) -> MuName {
-    format!("{}.#{}:{}", fv_name, id, label)
+fn make_block_name(inst: &MuName, label: &str) -> MuName {
+    format!("{}:{}", inst, label)
 }
