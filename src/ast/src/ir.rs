@@ -819,7 +819,7 @@ impl BlockContent {
             args: self.args.clone(),
             exn_arg: self.exn_arg.clone(),
             body: vec![],
-            keepalives: self.keepalives.clone(),
+            keepalives: self.keepalives.clone()
         }
     }
 }
