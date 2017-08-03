@@ -44,6 +44,7 @@ end_func immmix_get_stack_ptr
 #                         W0
 begin_func get_registers_count
     MOV X0, 31
+    RET
 end_func get_registers_count
 
 # get_registers() -> uintptr_t*
@@ -67,20 +68,19 @@ begin_func get_registers
 	push_pair X6, X5
 	push_pair X4, X3
 	push_pair X2, X1
-	push_pair XZR, X0
+	push_pair X0, XZR
 
     # sizeof(uintptr_t) * 31
-	MOV X0, #244 // 244 bytes to allocate
-	BL malloc
-        
-    # Now X0 contains the value returned by malloc
-    # ret[0] = x0; (use X2 and X3 as temporaries)
+	MOV X0, #248 // 248 bytes to allocate
+	BL malloc // X0 = malloc(244)
+
 	MOV X1, X0 // Make a copy of X0, that can be freely modified (X0 will be returned)
-	LDP XZR, X2, [SP],#16 // X2 = original value of X0
+
+    pop_pair XZR, X2
 	STR X2, [X1],#8 // X1[0] = original value of X0
 
-    # Pop the top two registers from the stack, and store them in X1, and increment x1
-    # (do this 15 times for each pair of register (ignoring X0, which was popped above)
+    # Pop the top two registers from the stack, and store them in X1, and increment X1 and SP
+    # (do this 15 times for each pair of register (ignoring X0, which was popped above))
 	LDP X2, X3, [SP],#16
 	STP X2, X3, [X1],#16
 	LDP X2, X3, [SP],#16
@@ -109,8 +109,9 @@ begin_func get_registers
 	STP X2, X3, [X1],#16
 	LDP X2, X3, [SP],#16
 	STP X2, X3, [X1],#16
-	LDP X2, X3, [SP],#16 // These will be the frame pointer and link register
-	STP X2, X3, [X1],#16
+
+	pop_pair X29, X30 // Restore the FP and LR and save them
+	STP X29, X30, [X1]
 
     # X0 contains the value returned from malloc
     # The frame pointer and link register were popped above, so they have now been restored

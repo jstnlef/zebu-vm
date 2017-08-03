@@ -1,11 +1,11 @@
 # Copyright 2017 The Australian National University
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,7 +15,7 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib.rmu import zebu as rmu
 from rpython.translator.platform import platform
-from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
+from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc, bin_dir
 import ctypes, py, stat, os
 import pytest
 
@@ -37,7 +37,7 @@ def test_RPySOM():
 
     RPYSOM = os.environ.get('RPYSOM', str(py.path.local(__file__).join('..', 'RPySOM')))
 
-    res = run_boot_image(entry_point, '/tmp/RPySOM-no-jit-mu',
+    res = run_boot_image(entry_point, str(bin_dir.join('RPySOM-no-jit-mu')),
                          args=['-cp', '%(RPYSOM)s/Smalltalk' % locals(),
                                '%(RPYSOM)s/TestSuite/TestHarness.som' % locals()])
     assert res.returncode == 0, res.err

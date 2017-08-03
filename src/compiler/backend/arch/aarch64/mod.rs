@@ -47,6 +47,7 @@ use compiler::backend::RegGroup;
 use vm::VM;
 
 use utils::ByteSize;
+use utils::math::align_up;
 use utils::LinkedHashMap;
 use std::collections::HashMap;
 
@@ -131,7 +132,6 @@ GPR_ALIAS!(SP_ALIAS: (62, SP)  -> WSP); // Special register(only some instructio
 GPR_ALIAS!(XZR_ALIAS: (64, XZR)  -> WZR); // Pseudo register, not to be used by register allocator
 
 // Aliases
-
 // Indirect result location register (points to a location in memory to write return values to)
 ALIAS!(X8 -> XR);
 // Intra proecdure call register 0
@@ -146,7 +146,6 @@ ALIAS!(X18 -> PR);
 ALIAS!(X29 -> FP);
 // Link Register (not supposed to be used for any other purpose)
 ALIAS!(X30 -> LR);
-
 
 lazy_static! {
     pub static ref GPR_ALIAS_TABLE : LinkedHashMap<MuID, Vec<P<Value>>> = {
@@ -328,7 +327,7 @@ pub fn get_type_alignment(ty: &P<MuType>, vm: &VM) -> usize {
 #[inline(always)]
 pub fn primitive_byte_size(ty: &P<MuType>) -> usize {
     match ty.get_int_length() {
-        Some(val) => (round_up(val, 8) / 8).next_power_of_two(),
+        Some(val) => (align_up(val, 8) / 8).next_power_of_two(),
         None => {
             match ty.v {
                 MuType_::Float => 4,
@@ -1179,7 +1178,7 @@ fn get_condition_codes(op: op::CmpOp) -> Vec<&'static str> {
 // where each element is the same floating-point type, and there are at most 4 elements)
 // returns the number of elements, otherwise returns 0
 
-fn hfa_length(t: P<MuType>) -> usize {
+fn hfa_length(t: &P<MuType>) -> usize {
     match t.v {
         MuType_::Struct(ref name) => {
             let read_lock = STRUCT_TAG_MAP.read().unwrap();
@@ -1223,8 +1222,8 @@ pub fn is_valid_immediate_offset(val: i64, n: usize) -> bool {
     if n <= 8 {
         (val >= -(1 << 8) && val < (1 << 8)) || // Valid 9 bit signed unscaled offset
             // Valid unsigned 12-bit scalled offset
-            (val >= 0 && (val as u64) % (n_align as u64) == 0 &&
-                ((val as u64) / (n_align as u64) < (1 << 12)))
+            val >= 0 && (val as u64) % (n_align as u64) == 0 &&
+                ((val as u64) / (n_align as u64) < (1 << 12))
     } else {
         // Will be using a load/store-pair
         // Is val a signed 7 bit multiple of n_align
@@ -1241,12 +1240,6 @@ pub fn is_valid_immediate_scale(val: u64, n: usize) -> bool {
 #[inline(always)]
 pub fn is_valid_immediate_extension(val: u64) -> bool {
     val <= 4
-}
-
-// Rounds n to the next multiple of d
-#[inline(always)]
-pub fn round_up(n: usize, d: usize) -> usize {
-    ((n + d - 1) / d) * d
 }
 
 #[inline(always)]

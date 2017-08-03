@@ -21,6 +21,7 @@ use ast::inst::*;
 use ast::op;
 use ast::op::*;
 use ast::types::*;
+use utils::math::align_up;
 use vm::VM;
 use runtime::mm;
 use runtime::mm::OBJECT_HEADER_SIZE;
@@ -51,6 +52,9 @@ pub struct InstructionSelection {
     name: &'static str,
     backend: Box<CodeGenerator>,
 
+    // The key is the function signature id, the value is the combined return type
+    combined_return_types: HashMap<MuID, P<MuType>>,
+    current_return_type: Option<P<MuType>>,
     current_fv_id: MuID,
     current_fv_name: MuName,
     current_callsite_id: usize,
@@ -80,7 +84,8 @@ impl<'a> InstructionSelection {
         InstructionSelection {
             name: "Instruction Selection (aarch64)",
             backend: Box::new(ASMCodeGen::new()),
-
+            combined_return_types: HashMap::new(),
+            current_return_type: None,
             current_fv_id: 0,
             current_fv_name: String::new(),
             current_callsite_id: 0,
@@ -360,8 +365,7 @@ impl<'a> InstructionSelection {
 
                                 self.finish_block();
                                 let block_name = make_block_name(
-                                    &self.current_fv_name,
-                                    node.id(),
+                                    &node.name(),
                                     format!("switch_not_met_case_{}", case_op_index).as_str()
                                 );
                                 self.start_block(block_name);
@@ -464,10 +468,8 @@ impl<'a> InstructionSelection {
                         // TODO: Are vals in the same order as the return types in the
                         // functions signature?
 
-                        let ret_tys = vals.iter().map(|i| node_type(&ops[*i])).collect();
-                        let ret_type = self.combine_return_types(&ret_tys, vm);
-
-                        let n = ret_tys.len(); // number of return values
+                        let ret_type = self.current_return_type.as_ref().unwrap().clone();
+                        let n = vals.len(); // number of return values
                         let xr_value = self.current_xr_value.as_ref().unwrap().clone();
 
                         if n == 0 {
@@ -668,7 +670,7 @@ impl<'a> InstructionSelection {
                                             0,
                                             from_ty_size as u8
                                         );
-                                        // res_h = ASHR src, 63
+                                        // res_h = ASR src, 63
                                         self.backend.emit_asr_imm(&res_h, &tmp_op, 63);
 
                                     } else {
@@ -768,9 +770,9 @@ impl<'a> InstructionSelection {
                                     }
                                 } else {
                                     self.backend.emit_fcvtzu(&tmp_res, &tmp_op);
-
                                     // We have to emmit code to handle the case when the real result
                                     // overflows to_ty_size, but not to_ty_reg_size
+
                                     // The size of the aarch64 register
                                     let to_ty_reg_size = check_op_len(&tmp_res.ty);
                                     if to_ty_size != to_ty_reg_size {
@@ -826,21 +828,11 @@ impl<'a> InstructionSelection {
                                     // The size of the aarch64 register
                                     let to_ty_reg_size = check_op_len(&tmp_res.ty);
                                     if to_ty_size != to_ty_reg_size {
-                                        let blk_positive = make_block_name(
-                                            &self.current_fv_name,
-                                            node.id(),
-                                            "positive"
-                                        );
-                                        let blk_negative = make_block_name(
-                                            &self.current_fv_name,
-                                            node.id(),
-                                            "negative"
-                                        );
-                                        let blk_end = make_block_name(
-                                            &self.current_fv_name,
-                                            node.id(),
-                                            "end"
-                                        );
+                                        let blk_positive =
+                                            make_block_name(&node.name(), "positive");
+                                        let blk_negative =
+                                            make_block_name(&node.name(), "negative");
+                                        let blk_end = make_block_name(&node.name(), "end");
                                         let tmp = make_temporary(f_context, to_ty.clone(), vm);
 
                                         self.backend.emit_tbnz(
@@ -892,6 +884,7 @@ impl<'a> InstructionSelection {
                                             self.finish_block();
                                         }
                                         self.start_block(blk_end.clone());
+
                                     }
                                 }
                             }
@@ -1015,11 +1008,8 @@ impl<'a> InstructionSelection {
 
                                     self.finish_block();
 
-                                    let blk_load_start = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "load_start"
-                                    );
+                                    let blk_load_start =
+                                        make_block_name(&node.name(), "load_start");
 
                                     // load_start:
                                     self.start_block(blk_load_start.clone());
@@ -1164,11 +1154,8 @@ impl<'a> InstructionSelection {
 
                                     self.finish_block();
 
-                                    let blk_store_start = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "store_start"
-                                    );
+                                    let blk_store_start =
+                                        make_block_name(&node.name(), "store_start");
 
                                     // store_start:
                                     self.start_block(blk_store_start.clone());
@@ -1274,12 +1261,10 @@ impl<'a> InstructionSelection {
                         let res_value = self.get_result_value(node, 0);
                         let res_success = self.get_result_value(node, 1);
 
-                        let blk_cmpxchg_start =
-                            make_block_name(&self.current_fv_name, node.id(), "cmpxchg_start");
-                        let blk_cmpxchg_failed =
-                            make_block_name(&self.current_fv_name, node.id(), "cmpxchg_failed");
+                        let blk_cmpxchg_start = make_block_name(&node.name(), "cmpxchg_start");
+                        let blk_cmpxchg_failed = make_block_name(&node.name(), "cmpxchg_failed");
                         let blk_cmpxchg_succeded =
-                            make_block_name(&self.current_fv_name, node.id(), "cmpxchg_succeded");
+                            make_block_name(&node.name(), "cmpxchg_succeded");
 
                         self.finish_block();
 
@@ -3337,7 +3322,7 @@ impl<'a> InstructionSelection {
         let align = lcm(align, 16); // This is always going to be 16
 
         // The stack pointer has to be 16 bytes aligned
-        let alloc_size = round_up(size, align) as u64;
+        let alloc_size = align_up(size, align) as u64;
         if size <= 64 {
             // Note: this is the same threshold clang -O3 uses to decide whether to call memset
 
@@ -3416,9 +3401,8 @@ impl<'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(&self.current_fv_name, node.id(), "alloc_large");
-            let blk_alloc_large_end =
-                make_block_name(&self.current_fv_name, node.id(), "alloc_large_end");
+            let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
+            let blk_alloc_large_end = make_block_name(&node.name(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 let size_with_hdr = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -3447,7 +3431,7 @@ impl<'a> InstructionSelection {
             self.backend.emit_b_cond("GT", blk_alloc_large.clone());
             self.finish_block();
 
-            let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
+            let block_name = make_block_name(&node.name(), "allocsmall");
             self.start_block(block_name);
             self.emit_alloc_sequence_small(
                 tmp_allocator.clone(),
@@ -3594,35 +3578,48 @@ impl<'a> InstructionSelection {
     // Note: if tys has more than 1 element, then this will return a new struct type
     // , but each call will generate a different name for this struct type
     // (but the layout will be identical)
-    fn combine_return_types(&self, tys: &Vec<P<MuType>>, vm: &VM) -> P<MuType> {
-        let n = tys.len();
-        if n == 0 {
-            VOID_TYPE.clone()
-        } else if n == 1 {
-            tys[0].clone()
-        } else {
-            //declare_type(&self, entity: MuEntityHeader, ty: MuType_)
-            let id = new_internal_id();
-            let name = format!("return_type:#{}", id);
-            let header = MuEntityHeader::named(new_internal_id(), name.clone());
-            vm.declare_type(header, MuType_::mustruct(name, tys.to_vec()))
+    fn combine_return_types(&mut self, sig: &P<MuFuncSig>, vm: &VM) -> P<MuType> {
+        let (res, new_res) = match self.combined_return_types.get(&sig.id()) {
+            Some(ty) => (ty.clone(), false),
+            None => {
+                let n = sig.ret_tys.len();
+
+                (
+                    if n == 0 {
+                        VOID_TYPE.clone()
+                    } else if n == 1 {
+                        sig.ret_tys[0].clone()
+                    } else {
+                        //declare_type(&self, entity: MuEntityHeader, ty: MuType_)
+                        let id = new_internal_id();
+                        let name = format!("return_type:#{}", id);
+                        let header = MuEntityHeader::named(new_internal_id(), name.clone());
+                        vm.declare_type(header, MuType_::mustruct(name, sig.ret_tys.to_vec()))
+                    },
+                    true
+                )
+            }
+        };
+        if new_res {
+            self.combined_return_types.insert(sig.id(), res.clone());
         }
+        res
     }
 
     // How much space needs to be allocated on the stack to hold the return value
     // (returns 0 if no space needs to be allocated)
     fn compute_return_allocation(&self, t: &P<MuType>, vm: &VM) -> usize {
         use ast::types::MuType_::*;
-        let size = round_up(vm.get_backend_type_size(t.id()), 8);
+        let size = align_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
             Vector(_, _) => unimplemented!(),
             Float | Double => 0, // Can return in FPR
             Hybrid(_) => panic!("cant return a hybrid"), // don't know how much space to reserve
             Struct(_) | Array(_, _) => {
-                if hfa_length(t.clone()) > 0 || size <= 16 {
+                if hfa_length(t) > 0 || size <= 16 {
                     0 // Can return in register (or multiple registers)
                 } else {
-                    round_up(size, 16)
+                    align_up(size, 16)
                 }
             }
 
@@ -3634,21 +3631,21 @@ impl<'a> InstructionSelection {
 
     fn compute_return_locations(&mut self, t: &P<MuType>, loc: &P<Value>, vm: &VM) -> P<Value> {
         use ast::types::MuType_::*;
-        let size = round_up(vm.get_backend_type_size(t.id()), 8);
+        let size = align_up(vm.get_backend_type_size(t.id()), 8);
         match t.v {
             Vector(_, _) => unimplemented!(),
             Float | Double => get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(t, vm)),
             Hybrid(_) => panic!("cant return a hybrid"),
             Struct(_) | Array(_, _) => {
-                let hfa_n = hfa_length(t.clone());
+                let hfa_n = hfa_length(t);
                 if hfa_n > 0 {
                     // Return in a sequence of FPRs
                     get_alias_for_length(RETURN_FPRS[0].id(), get_bit_size(t, vm) / hfa_n)
                 } else if size <= 8 {
-                    // Return in a singe GRPs
+                    // Return in a singe GRP
                     get_alias_for_length(RETURN_GPRS[0].id(), get_bit_size(t, vm))
                 } else if size <= 16 {
-                    // Return in 2 GPRS
+                    // Return in 2 GPRs
                     RETURN_GPRS[0].clone()
                 } else {
                     // Return at the location pointed to by loc
@@ -3691,11 +3688,11 @@ impl<'a> InstructionSelection {
         let mut reference: Vec<bool> = vec![];
         for t in arg_types {
             reference.push(
-                hfa_length(t.clone()) == 0 && // HFA's aren't converted to IRef's
+                hfa_length(t) == 0 && // HFA's aren't converted to IRef's
                     match t.v {
                         // size can't be statically determined
                         Hybrid(_) => panic!("Hybrid argument not supported"),
-                        // type is too large
+                        //  type is too large
                         Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true,
                         Vector(_, _)  => unimplemented!(),
                         _ => false
@@ -3714,7 +3711,7 @@ impl<'a> InstructionSelection {
             } else {
                 arg_types[i].clone()
             };
-            let size = round_up(vm.get_backend_type_size(t.id()), 8);
+            let size = align_up(vm.get_backend_type_size(t.id()), 8);
             let align = get_type_alignment(&t, vm);
             match t.v {
                 Hybrid(_) => panic!("hybrid argument not supported"),
@@ -3739,7 +3736,7 @@ impl<'a> InstructionSelection {
                     }
                 }
                 Struct(_) | Array(_, _) => {
-                    let hfa_n = hfa_length(t.clone());
+                    let hfa_n = hfa_length(&t);
                     if hfa_n > 0 {
                         if nsrn + hfa_n <= 8 {
                             // Note: the argument will occupy succesiv registers
@@ -3761,7 +3758,7 @@ impl<'a> InstructionSelection {
                         }
                     } else {
                         if align == 16 {
-                            ngrn = round_up(ngrn, 2); // align NGRN to the next even number
+                            ngrn = align_up(ngrn, 2); // align NGRN to the next even number
                         }
 
                         if size <= 8 * (8 - ngrn) {
@@ -3777,7 +3774,7 @@ impl<'a> InstructionSelection {
                             };
                         } else {
                             ngrn = 8;
-                            nsaa = round_up(nsaa, round_up(align, 8));
+                            nsaa = align_up(nsaa, align_up(align, 8));
                             locations.push(make_value_base_offset(
                                 &stack,
                                 offset + (nsaa as i64) as i64,
@@ -3801,7 +3798,7 @@ impl<'a> InstructionSelection {
                             ));
                             ngrn += 1;
                         } else {
-                            nsaa = round_up(nsaa, round_up(align, 8));
+                            nsaa = align_up(nsaa, align_up(align, 8));
                             locations.push(make_value_base_offset(
                                 &stack,
                                 offset + (nsaa as i64) as i64,
@@ -3812,14 +3809,14 @@ impl<'a> InstructionSelection {
                         }
 
                     } else if size == 16 {
-                        ngrn = round_up(ngrn, 2); // align NGRN to the next even number
+                        ngrn = align_up(ngrn, 2); // align NGRN to the next even number
 
                         if ngrn < 7 {
                             locations.push(ARGUMENT_GPRS[ngrn].clone());
                             ngrn += 2;
                         } else {
                             ngrn = 8;
-                            nsaa = round_up(nsaa, 16);
+                            nsaa = align_up(nsaa, 16);
                             locations.push(make_value_base_offset(
                                 &stack,
                                 offset + (nsaa as i64) as i64,
@@ -3835,7 +3832,7 @@ impl<'a> InstructionSelection {
             }
         }
 
-        (reference, locations, round_up(nsaa, 16) as usize)
+        (reference, locations, align_up(nsaa, 16) as usize)
     }
 
 
@@ -3851,7 +3848,7 @@ impl<'a> InstructionSelection {
         vm: &VM
     ) -> (usize, Vec<P<Value>>) {
         // If we're tail calling, use the current frame's argument location instead
-        let mut reg_args = Vec::<P<Value>>::new();
+        let mut arg_regs = Vec::<P<Value>>::new();
         let (arg_base, arg_offset) = if is_tail { (&*FP, 16) } else { (&*SP, 0) };
         let (_, locations, stack_size) =
             self.compute_argument_locations(&arg_tys, arg_base, arg_offset, &vm);
@@ -3874,9 +3871,12 @@ impl<'a> InstructionSelection {
 
                 // XR needs to point to where the callee should return arguments
                 self.backend.emit_mov(&XR, &SP);
+                arg_regs.push(XR.clone());
             }
-            // Reserve space on the stack for all stack arguments
-            emit_sub_u64(self.backend.as_mut(), &SP, &SP, stack_size as u64);
+            if stack_size > 0 {
+                // Reserve space on the stack for all stack arguments
+                emit_sub_u64(self.backend.as_mut(), &SP, &SP, stack_size as u64);
+            }
         }
         // Write the arguments to where they belong on the stack
         for i in 0..args.len() {
@@ -3896,14 +3896,17 @@ impl<'a> InstructionSelection {
 
                 // Everything else is simple
                 _ => {
+                    if arg_loc.is_reg() {
+                        arg_regs.push(arg_loc.clone());
+                    }
+
                     // Need to pass in two registers
                     if is_int_ex_reg(&arg_val) && arg_loc.is_reg() {
                         let arg_val =
                             emit_reg_value(self.backend.as_mut(), &arg_val, f_context, vm);
                         let (val_l, val_h) = split_int128(&arg_val, f_context, vm);
                         let arg_loc_h = get_register_from_id(arg_loc.id() + 2);
-                        reg_args.push(arg_loc.clone());
-                        reg_args.push(arg_loc_h.clone());
+                        arg_regs.push(arg_loc_h.clone());
 
                         emit_move_value_to_value(
                             self.backend.as_mut(),
@@ -3920,9 +3923,6 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     } else {
-                        if arg_loc.is_reg() {
-                            reg_args.push(arg_loc.clone());
-                        }
                         emit_move_value_to_value(
                             self.backend.as_mut(),
                             &arg_loc,
@@ -3935,7 +3935,7 @@ impl<'a> InstructionSelection {
             }
         }
 
-        (stack_size, reg_args)
+        (stack_size, arg_regs)
     }
 
     fn emit_postcall_convention(
@@ -4032,7 +4032,7 @@ impl<'a> InstructionSelection {
                         f_context,
                         vm
                     );
-                    make_value_from_memory(mem, &dest.ty, vm)
+                    make_value_from_memory(mem, &src.ty, vm)
                 }
                 _ => panic!("Wrong kind of memory value")
             };
@@ -4141,7 +4141,6 @@ impl<'a> InstructionSelection {
     ) {
         if src.is_mem() {
             let src_loc = match src.v {
-
                 Value_::Memory(ref mem) => {
                     let mem = memory_location_shift(
                         self.backend.as_mut(),
@@ -4150,7 +4149,7 @@ impl<'a> InstructionSelection {
                         f_context,
                         vm
                     );
-                    make_value_from_memory(mem, &src.ty, vm)
+                    make_value_from_memory(mem, &dest.ty, vm)
                 }
                 _ => panic!("Wrong kind of memory value")
             };
@@ -4253,7 +4252,7 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> Vec<P<Value>> {
-        let return_type = self.combine_return_types(&sig.ret_tys, vm);
+        let return_type = self.combine_return_types(&sig, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) =
             self.emit_precall_convention(false, &args, &sig.arg_tys, return_size, f_context, vm);
@@ -4425,7 +4424,7 @@ impl<'a> InstructionSelection {
                 unimplemented!();
             }
         }
-        let return_type = self.combine_return_types(&func_sig.ret_tys, vm);
+        let return_type = self.combine_return_types(&func_sig, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) = self.emit_precall_convention(
             is_tail,
@@ -4586,7 +4585,8 @@ impl<'a> InstructionSelection {
         self.backend.emit_frame_grow(); // will include space for callee saved registers
 
         // We need to return arguments in the memory area pointed to by XR, so we need to save it
-        let ret_ty = self.combine_return_types(&sig.ret_tys, vm);
+        let ret_ty = self.combine_return_types(&sig, vm);
+        self.current_return_type = Some(ret_ty.clone());
 
         // This should impose no overhead if it's never used
         self.current_xr_value = Some(make_temporary(f_context, ADDRESS_TYPE.clone(), vm));
@@ -5595,8 +5595,7 @@ impl<'a> InstructionSelection {
         let ret = {
             if cur_node.is_some() {
                 make_block_name(
-                    &self.current_fv_name,
-                    cur_node.unwrap().id(),
+                    &cur_node.unwrap().name(),
                     format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {

@@ -107,7 +107,7 @@ impl MuLogLevel {
             "info" => MuLogLevel::Info,
             "debug" => MuLogLevel::Debug,
             "trace" => MuLogLevel::Trace,
-            _ => panic!("Unrecognised log level {}", s),
+            _ => panic!("Unrecognised log level {}", s)
         }
     }
 }

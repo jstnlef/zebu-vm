@@ -813,6 +813,15 @@ impl BlockContent {
 
         ret
     }
+
+    pub fn clone_empty(&self) -> BlockContent {
+        BlockContent {
+            args: self.args.clone(),
+            exn_arg: self.exn_arg.clone(),
+            body: vec![],
+            keepalives: self.keepalives.clone()
+        }
+    }
 }
 
 /// TreeNode represents a node in the AST, it could either be an instruction,

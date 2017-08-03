@@ -29,3 +29,4 @@ mod test_mem_inst;
 mod test_inline;
 mod test_convop;
 mod test_int128;
+mod test_misc;

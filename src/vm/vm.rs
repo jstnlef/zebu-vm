@@ -87,6 +87,7 @@ pub struct VM {
     funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>, // +456
     /// primordial function that is set to make boot image
     primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
+
     /// current options for this VM
     pub vm_options: VMOptions, // +624
 

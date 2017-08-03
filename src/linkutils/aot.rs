@@ -103,6 +103,18 @@ fn link_executable_internal(
         cc.arg("-lrt");
         cc.arg("-lm");
         cc.arg("-lpthread");
+        cc.arg("-lz");
+    } else if cfg!(target_os = "macos") {
+        cc.arg("-liconv");
+        cc.arg("-framework");
+        cc.arg("Security");
+        cc.arg("-framework");
+        cc.arg("CoreFoundation");
+        cc.arg("-lz");
+        cc.arg("-lSystem");
+        cc.arg("-lresolv");
+        cc.arg("-lc");
+        cc.arg("-lm");
     }
 
     // all the source code

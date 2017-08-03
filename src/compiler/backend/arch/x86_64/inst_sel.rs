@@ -40,6 +40,7 @@ use compiler::frame::Frame;
 
 use utils::math;
 use utils::POINTER_SIZE;
+use utils::BitSize;
 
 use std::collections::HashMap;
 use std::collections::LinkedList;
@@ -364,21 +365,9 @@ impl<'a> InstructionSelection {
                                 }
                                 // jcc - for 8-bits integer
                                 _ => {
-                                    let blk_true = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "select_true"
-                                    );
-                                    let blk_false = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "select_false"
-                                    );
-                                    let blk_end = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "select_end"
-                                    );
+                                    let blk_true = make_block_name(&node.name(), "select_true");
+                                    let blk_false = make_block_name(&node.name(), "select_false");
+                                    let blk_end = make_block_name(&node.name(), "select_end");
 
                                     // jump to blk_true if true
                                     match cmpop {
@@ -441,12 +430,9 @@ impl<'a> InstructionSelection {
                         } else if self.match_fpreg(true_val) {
                             let tmp_res = self.get_result_value(node);
 
-                            let blk_true =
-                                make_block_name(&self.current_fv_name, node.id(), "select_true");
-                            let blk_false =
-                                make_block_name(&self.current_fv_name, node.id(), "select_false");
-                            let blk_end =
-                                make_block_name(&self.current_fv_name, node.id(), "select_end");
+                            let blk_true = make_block_name(&node.name(), "select_true");
+                            let blk_false = make_block_name(&node.name(), "select_false");
+                            let blk_end = make_block_name(&node.name(), "select_end");
 
                             // jump to blk_true if true
                             match cmpop {
@@ -602,8 +588,7 @@ impl<'a> InstructionSelection {
 
                                 self.finish_block();
                                 let block_name = make_block_name(
-                                    &self.current_fv_name,
-                                    node.id(),
+                                    &node.name(),
                                     format!("switch_not_met_case_{}", case_op_index).as_str()
                                 );
                                 self.start_block(block_name);
@@ -852,9 +837,19 @@ impl<'a> InstructionSelection {
                                                 let (res_l, res_h) =
                                                     self.split_int128(&tmp_res, f_context, vm);
 
-                                                self.backend.emit_mov_r_r(&res_l, unsafe {
-                                                    &tmp_op.as_type(UINT64_TYPE.clone())
-                                                });
+                                                // use the temp as 64bit temp, mask it
+                                                let tmp_op64 =
+                                                    unsafe { &tmp_op.as_type(UINT64_TYPE.clone()) };
+                                                self.emit_apply_mask(
+                                                    &tmp_op64,
+                                                    from_ty_size * 8,
+                                                    f_context,
+                                                    vm
+                                                );
+
+                                                // use temp as lower bits
+                                                // clear higher bits
+                                                self.backend.emit_mov_r_r(&res_l, &tmp_op64);
                                                 self.backend.emit_mov_r_imm(&res_h, 0);
                                             }
                                             // other cases
@@ -908,9 +903,7 @@ impl<'a> InstructionSelection {
 
                                                 // mov res_l -> res_h
                                                 // sar res_h 63
-                                                self.backend.emit_mov_r_r(&res_h, unsafe {
-                                                    &res_l.as_type(UINT32_TYPE.clone())
-                                                });
+                                                self.backend.emit_mov_r_r(&res_h, &res_l);
                                                 self.backend.emit_sar_r_imm8(&res_h, 63i8);
                                             }
                                             _ => self.backend.emit_movs_r_r(&tmp_res, &tmp_op)
@@ -1053,6 +1046,15 @@ impl<'a> InstructionSelection {
                                             2 | 1 => {
                                                 let tmp_op32 =
                                                     unsafe { tmp_op.as_type(UINT32_TYPE.clone()) };
+
+                                                // apply mask, otherwise higher bits are arbitrary
+                                                self.emit_apply_mask(
+                                                    &tmp_op32,
+                                                    op_ty_size * 8,
+                                                    f_context,
+                                                    vm
+                                                );
+
                                                 self.backend
                                                     .emit_cvtsi2sd_f64_r(&tmp_res, &tmp_op32);
                                             }
@@ -1080,18 +1082,15 @@ impl<'a> InstructionSelection {
                                                 self.backend.emit_test_r_r(&tmp_op, &tmp_op);
 
                                                 let blk_if_signed = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                    &node.name(),
                                                     "uitofp_float_if_signed"
                                                 );
                                                 let blk_if_not_signed = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                    &node.name(),
                                                     "uitofp_float_if_not_signed"
                                                 );
                                                 let blk_done = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                    &node.name(),
                                                     "uitofp_float_done"
                                                 );
 
@@ -1148,6 +1147,14 @@ impl<'a> InstructionSelection {
                                             2 | 1 => {
                                                 let tmp_op32 =
                                                     unsafe { tmp_op.as_type(UINT32_TYPE.clone()) };
+
+                                                // apply mask, otherwise higher bits are arbitrary
+                                                self.emit_apply_mask(
+                                                    &tmp_op32,
+                                                    op_ty_size * 8,
+                                                    f_context,
+                                                    vm
+                                                );
 
                                                 // cvtsi2ss %tmp_op32 -> %tmp_res
                                                 self.backend
@@ -1323,7 +1330,94 @@ impl<'a> InstructionSelection {
                                     panic!("expect double or float")
                                 }
                             }
-                            _ => unimplemented!()
+                            op::ConvOp::FPTRUNC => {
+                                let tmp_res = self.get_result_value(node);
+
+                                assert!(
+                                    self.match_fpreg(op),
+                                    "unexpected op (expected fpreg): {}",
+                                    op
+                                );
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                if from_ty.is_double() && to_ty.is_float() {
+                                    self.backend.emit_cvtsd2ss_f32_f64(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!(
+                                        "FPTRUNC from {} to {} is not supported \
+                                         (only support FPTRUNC from double to float)",
+                                        from_ty,
+                                        to_ty
+                                    );
+                                }
+                            }
+                            op::ConvOp::FPEXT => {
+                                let tmp_res = self.get_result_value(node);
+                                assert!(
+                                    self.match_fpreg(op),
+                                    "unexpected op (expected fpreg): {}",
+                                    op
+                                );
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                if from_ty.is_float() && to_ty.is_double() {
+                                    self.backend.emit_cvtss2sd_f64_f32(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!(
+                                        "FPEXT from {} to {} is not supported\
+                                         (only support FPEXT from float to double)",
+                                        from_ty,
+                                        to_ty
+                                    );
+                                }
+                            }
+                            op::ConvOp::BITCAST => {
+                                let tmp_res = self.get_result_value(node);
+                                let tmp_op = if self.match_fpreg(op) {
+                                    self.emit_fpreg(op, f_content, f_context, vm)
+                                } else if self.match_ireg(op) {
+                                    self.emit_ireg(op, f_content, f_context, vm)
+                                } else {
+                                    panic!("expected op for BITCAST (expected ireg/fpreg): {}", op)
+                                };
+
+                                let ref from_ty = tmp_op.ty;
+                                let ref to_ty = tmp_res.ty;
+
+                                let from_ty_size = vm.get_backend_type_size(from_ty.id());
+                                let to_ty_size = vm.get_backend_type_size(to_ty.id());
+                                assert!(
+                                    from_ty_size == to_ty_size,
+                                    "BITCAST only works between int/fp of same length"
+                                );
+                                assert!(
+                                    from_ty_size == 8 || from_ty_size == 4,
+                                    "BITCAST only works for int32/float or int64/double"
+                                );
+
+                                if from_ty.is_fp() && to_ty.is_int() {
+                                    if from_ty_size == 8 {
+                                        self.backend.emit_mov_r64_fpr(&tmp_res, &tmp_op);
+                                    } else if from_ty_size == 4 {
+                                        self.backend.emit_mov_r32_fpr(&tmp_res, &tmp_op);
+                                    } else {
+                                        unreachable!()
+                                    }
+                                } else if from_ty.is_int() && to_ty.is_fp() {
+                                    if from_ty_size == 8 {
+                                        self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
+                                    } else if from_ty_size == 4 {
+                                        self.backend.emit_mov_fpr_r32(&tmp_res, &tmp_op);
+                                    } else {
+                                        unreachable!()
+                                    }
+                                } else {
+                                    panic!(
+                                        "expected BITCAST between int and fp,\
+                                         found {} and {}",
+                                        from_ty,
+                                        to_ty
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -2971,9 +3065,8 @@ impl<'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(&self.current_fv_name, node.id(), "alloc_large");
-            let blk_alloc_large_end =
-                make_block_name(&self.current_fv_name, node.id(), "alloc_large_end");
+            let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
+            let blk_alloc_large_end = make_block_name(&node.name(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 // if the header size is not zero, we need to calculate a total size to alloc
@@ -2990,7 +3083,7 @@ impl<'a> InstructionSelection {
             self.backend.emit_jg(blk_alloc_large.clone());
 
             self.finish_block();
-            let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
+            let block_name = make_block_name(&node.name(), "allocsmall");
             self.start_block(block_name);
 
             // alloc small here
@@ -3146,12 +3239,12 @@ impl<'a> InstructionSelection {
 
             // branch to slow path if end > limit (end - limit > 0)
             // ASM: jg alloc_slow
-            let slowpath = make_block_name(&self.current_fv_name, node.id(), "allocslow");
+            let slowpath = make_block_name(&node.name(), "allocslow");
             self.backend.emit_jg(slowpath.clone());
 
             // finish current block
             self.finish_block();
-            let block_name = make_block_name(&self.current_fv_name, node.id(), "updatecursor");
+            let block_name = make_block_name(&node.name(), "updatecursor");
             self.start_block(block_name);
 
             // update cursor
@@ -3169,7 +3262,7 @@ impl<'a> InstructionSelection {
             }
 
             // ASM jmp alloc_end
-            let allocend = make_block_name(&self.current_fv_name, node.id(), "alloc_small_end");
+            let allocend = make_block_name(&node.name(), "alloc_small_end");
             self.backend.emit_jmp(allocend.clone());
 
             // finishing current block
@@ -3466,12 +3559,14 @@ impl<'a> InstructionSelection {
         args: &Vec<P<Value>>,
         f_context: &mut FunctionContext,
         vm: &VM
-    ) -> usize {
+    ) -> (usize, Vec<P<Value>>) {
         // put args into registers if we can
         // in the meantime record args that do not fit in registers
         let mut stack_args: Vec<P<Value>> = vec![];
         let mut gpr_arg_count = 0;
         let mut fpr_arg_count = 0;
+
+        let mut arg_regs = Vec::<P<Value>>::new();
 
         for arg in args.iter() {
             let arg_reg_group = RegGroup::get_from_value(&arg);
@@ -3483,6 +3578,7 @@ impl<'a> InstructionSelection {
                         let expected_len = arg.ty.get_int_length().unwrap();
                         x86_64::get_alias_for_length(reg64.id(), expected_len)
                     };
+                    arg_regs.push(arg_gpr.clone());
 
                     self.backend.emit_mov_r_r(&arg_gpr, &arg);
                     gpr_arg_count += 1;
@@ -3499,6 +3595,7 @@ impl<'a> InstructionSelection {
                         let expected_len = arg.ty.get_int_length().unwrap();
                         x86_64::get_alias_for_length(reg64.id(), expected_len)
                     };
+                    arg_regs.push(arg_gpr.clone());
 
                     if x86_64::is_valid_x86_imm(arg) {
                         self.backend.emit_mov_r_imm(&arg_gpr, int_const as i32);
@@ -3516,6 +3613,8 @@ impl<'a> InstructionSelection {
                 if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRS.len() {
                     let arg_gpr1 = x86_64::ARGUMENT_GPRS[gpr_arg_count].clone();
                     let arg_gpr2 = x86_64::ARGUMENT_GPRS[gpr_arg_count + 1].clone();
+                    arg_regs.push(arg_gpr1.clone());
+                    arg_regs.push(arg_gpr2.clone());
 
                     let (arg_l, arg_h) = self.split_int128(&arg, f_context, vm);
 
@@ -3531,6 +3630,8 @@ impl<'a> InstructionSelection {
                 if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRS.len() {
                     let arg_gpr1 = x86_64::ARGUMENT_GPRS[gpr_arg_count].clone();
                     let arg_gpr2 = x86_64::ARGUMENT_GPRS[gpr_arg_count + 1].clone();
+                    arg_regs.push(arg_gpr1.clone());
+                    arg_regs.push(arg_gpr2.clone());
 
                     let const_vals = arg.extract_int_ex_const();
 
@@ -3547,6 +3648,7 @@ impl<'a> InstructionSelection {
             } else if arg_reg_group == RegGroup::FPR && arg.is_reg() {
                 if fpr_arg_count < x86_64::ARGUMENT_FPRS.len() {
                     let arg_fpr = x86_64::ARGUMENT_FPRS[fpr_arg_count].clone();
+                    arg_regs.push(arg_fpr.clone());
 
                     self.emit_move_value_to_value(&arg_fpr, &arg);
                     fpr_arg_count += 1;
@@ -3604,9 +3706,9 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            stack_arg_size_with_padding
+            (stack_arg_size_with_padding, arg_regs)
         } else {
-            0
+            (0, arg_regs)
         }
     }
 
@@ -3710,7 +3812,7 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> Vec<P<Value>> {
-        let stack_arg_size = self.emit_precall_convention(&args, f_context, vm);
+        let (stack_arg_size, args) = self.emit_precall_convention(&args, f_context, vm);
 
         // make call
         if vm.is_doing_jit() {
@@ -3719,7 +3821,7 @@ impl<'a> InstructionSelection {
             let callsite = self.new_callsite_label(cur_node);
             // assume ccall wont throw exception
             self.backend
-                .emit_call_near_rel32(callsite.clone(), func_name, None, true);
+                .emit_call_near_rel32(callsite.clone(), func_name, None, args, true);
 
             // TODO: What if theres an exception block?
             self.current_callsites
@@ -3821,7 +3923,7 @@ impl<'a> InstructionSelection {
         inst: &Instruction,
         calldata: &CallData,
         resumption: Option<&ResumptionData>,
-        cur_node: &TreeNode,
+        node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
         vm: &VM
@@ -3860,7 +3962,7 @@ impl<'a> InstructionSelection {
 
         // prepare args (they could be instructions, we need to emit inst and get value)
         let arg_values = self.process_call_arguments(calldata, ops, f_content, f_context, vm);
-        let stack_arg_size = self.emit_precall_convention(&arg_values, f_context, vm);
+        let (stack_arg_size, arg_regs) = self.emit_precall_convention(&arg_values, f_context, vm);
 
         // check if this call has exception clause - need to tell backend about this
         let potentially_excepting = {
@@ -3883,22 +3985,27 @@ impl<'a> InstructionSelection {
                 if vm.is_doing_jit() {
                     unimplemented!()
                 } else {
-                    let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend
-                        .emit_call_near_rel32(callsite, target.name(), potentially_excepting, false)
+                    let callsite = self.new_callsite_label(Some(node));
+                    self.backend.emit_call_near_rel32(
+                        callsite,
+                        target.name(),
+                        potentially_excepting,
+                        arg_regs,
+                        false
+                    )
                 }
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
 
-                let callsite = self.new_callsite_label(Some(cur_node));
+                let callsite = self.new_callsite_label(Some(node));
                 self.backend
-                    .emit_call_near_r64(callsite, &target, potentially_excepting)
+                    .emit_call_near_r64(callsite, &target, potentially_excepting, arg_regs)
             } else if self.match_mem(func) {
                 let target = self.emit_mem(func, vm);
 
-                let callsite = self.new_callsite_label(Some(cur_node));
+                let callsite = self.new_callsite_label(Some(node));
                 self.backend
-                    .emit_call_near_mem64(callsite, &target, potentially_excepting)
+                    .emit_call_near_mem64(callsite, &target, potentially_excepting, arg_regs)
             } else {
                 panic!("unsupported callee type for CALL: {}", func);
             }
@@ -3915,8 +4022,7 @@ impl<'a> InstructionSelection {
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
-            let block_name =
-                make_block_name(&self.current_fv_name, cur_node.id(), "normal_cont_for_call");
+            let block_name = make_block_name(&node.name(), "normal_cont_for_call");
             self.start_block(block_name);
         } else {
             self.current_callsites
@@ -5677,8 +5783,7 @@ impl<'a> InstructionSelection {
         let ret = {
             if cur_node.is_some() {
                 make_block_name(
-                    &self.current_fv_name,
-                    cur_node.unwrap().id(),
+                    &cur_node.unwrap().name(),
                     format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {
@@ -5697,8 +5802,8 @@ impl<'a> InstructionSelection {
     fn get_mem_for_const(&mut self, val: P<Value>, vm: &VM) -> P<Value> {
         let id = val.id();
 
-        if self.current_constants.contains_key(&id) {
-            self.current_constants.get(&id).unwrap().clone()
+        if self.current_constants_locs.contains_key(&id) {
+            self.current_constants_locs.get(&id).unwrap().clone()
         } else {
             let const_value_loc = vm.allocate_const(val.clone());
             let const_mem_val = match const_value_loc {
@@ -5768,6 +5873,43 @@ impl<'a> InstructionSelection {
                 .set_split(vec![arg_l.clone(), arg_h.clone()]);
 
             (arg_l, arg_h)
+        }
+    }
+
+    /// apply mask on an integer register
+    fn emit_apply_mask(
+        &mut self,
+        reg: &P<Value>,
+        length: BitSize,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) {
+        if length <= 32 {
+            let mask = if length == 32 {
+                use std::u32;
+                u32::MAX as i32
+            } else {
+                ((1u32 << length) - 1) as i32
+            };
+            self.backend.emit_and_r_imm(reg, mask);
+        } else if length <= 64 {
+            // the mask cannot be an immediate, we need to put it to a temp
+            let mask = if length == 64 {
+                use std::u64;
+                u64::MAX as i64
+            } else {
+                ((1u64 << length) - 1) as i64
+            };
+            let tmp_mask = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+            self.backend.emit_mov_r64_imm64(&tmp_mask, mask);
+
+            // apply mask
+            self.backend.emit_and_r_r(reg, &tmp_mask);
+        } else {
+            panic!(
+                "expect masking an integer register with length <= 64, found {}",
+                length
+            );
         }
     }
 

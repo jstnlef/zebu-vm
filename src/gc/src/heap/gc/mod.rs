@@ -311,7 +311,7 @@ pub fn start_trace(
     lo_space: Arc<FreeListSpace>
 ) {
     // creates root deque
-    let (mut worker, stealer) = deque();
+    let (worker, stealer) = deque();
 
     while !work_stack.is_empty() {
         worker.push(work_stack.pop().unwrap());

@@ -2461,7 +2461,7 @@ impl CodeGenerator for ASMCodeGen {
     fn emit_b_func(&mut self, func_name: MuName, args: Vec<P<Value>>) {
         trace_emit!("\tB {}({:?})", func_name, args);
 
-        let asm = format!("B {}", mangle_name(func_name.clone()));
+        let asm = format!("/*TAILCALL*/ B {}", mangle_name(func_name.clone()));
         let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
         for arg in args {
             uses.insert(arg.id(), vec![]);
@@ -2507,7 +2507,7 @@ impl CodeGenerator for ASMCodeGen {
         trace_emit!("\tBR {}({:?})", func_address, args);
 
         let (reg1, id1, loc1) = self.prepare_reg(func_address, 2 + 1);
-        let asm = format!("BR {}", reg1);
+        let asm = format!("/*TAILCALL*/ BR {}", reg1);
 
 
         let mut added_id1 = false;

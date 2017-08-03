@@ -25,7 +25,7 @@ use std;
 use utils::ByteSize;
 use utils::math::align_up;
 use runtime::mm;
-use runtime::mm::common::gctype::{GCType, GCTYPE_INIT_ID, RefPattern};
+use runtime::mm::common::gctype::{GCType, RefPattern, GCTYPE_INIT_ID};
 use num::integer::lcm;
 
 /// for ahead-of-time compilation (boot image making), the file contains a persisted VM,
@@ -534,6 +534,6 @@ impl RegGroup {
     }
 }
 
-fn make_block_name(fv_name: &String, id: MuID, label: &str) -> MuName {
-    format!("{}.#{}:{}", fv_name, id, label)
+fn make_block_name(inst: &MuName, label: &str) -> MuName {
+    format!("{}:{}", inst, label)
 }

@@ -171,3 +171,10 @@ pub extern "C" fn mu_fastimpl_new_with_opts(opts: *const c_char) -> *mut CMuVM {
 
     c_mvm
 }
+
+use vm::built_info;
+
+#[no_mangle]
+pub extern "C" fn mu_get_version() -> *const c_char {
+    built_info::ZEBU_VERSION_C_STR.as_ptr()
+}

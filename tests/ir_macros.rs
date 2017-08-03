@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(unused_macros)]
+
 macro_rules! typedef {
     // int, floating point
     (($vm: expr) $name: ident = mu_int($len: expr)) => {
@@ -637,6 +639,16 @@ macro_rules! inst {
             value: None,
             ops: vec![$val.clone()],
             v: Instruction_::SetRetval(0)
+        });
+    };
+
+    // MOVE
+    (($vm: expr, $fv: ident) $name: ident: MOVE $src: ident -> $dst: ident) => {
+        let $name = $fv.new_inst(Instruction {
+            hdr: MuEntityHeader::unnamed($vm.next_id()),
+            value: Some(vec![$dst.clone_value()]),
+            ops: vec![$src],
+            v: Instruction_::Move(0)
         });
     };
 }

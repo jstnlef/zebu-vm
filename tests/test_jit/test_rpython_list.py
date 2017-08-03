@@ -1,11 +1,11 @@
 # Copyright 2017 The Australian National University
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,7 +15,7 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib.rmu import zebu as rmu
 from rpython.translator.platform import platform
-from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc
+from util import fncptr_from_rpy_func, fncptr_from_py_script, may_spawn_proc, bin_dir
 import ctypes, py, stat
 import pytest
 
@@ -69,7 +69,7 @@ def test_rpython_image_list_append():
         c_exit(rffi.cast(rffi.INT, len(a)))
         return 0
 
-    res = run_boot_image(main, '/tmp/test_rpython_image_list_append')
+    res = run_boot_image(main, str(bin_dir.join('test_rpython_image_list_append')))
 
     assert res.returncode == 10, 'returncode = %d\n%s' % (res.returncode, res.err)
 
@@ -79,16 +79,16 @@ def test_rpython_list_iter():
         a = []
         for i in range(0, 10):
             a.append(i)
-        
+
         sum = 0
         for n in a:
             sum += n
-        
+
         c_exit(rffi.cast(rffi.INT, sum))
         return 0
-    
-    res = run_boot_image(main, '/tmp/test_rpython_list_iter')
-    
+
+    res = run_boot_image(main, str(bin_dir.join('test_rpython_list_iter')))
+
     assert res.returncode == 45, 'returncode = %d\n%s' % (res.returncode, res.err)
 
 @may_spawn_proc
@@ -98,24 +98,24 @@ def test_rpython_list_addr_check_length1():
     def check(actual, expect):
         if actual != expect:
             c_exit(rffi.cast(rffi.INT, actual))
-    
+
     def main(argv):
         a = []
         a.append(42)
-        
+
         from rpython.rtyper.lltypesystem.llmemory import cast_ptr_to_adr
         from rpython.rlib.objectmodel import keepalive_until_here
-        
+
         addr = cast_ptr_to_adr(a)
         mem  = rffi.cast(Int64Ptr, addr)
         # ignore mem[0]
         check(mem[1], 1)
         keepalive_until_here(a)
-        
+
         return 0
-        
-    res = run_boot_image(main, '/tmp/test_rpython_list_addr_check_length1')
-    
+
+    res = run_boot_image(main, str(bin_dir.join('test_rpython_list_addr_check_length1')))
+
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
 
 @may_spawn_proc
@@ -125,27 +125,27 @@ def test_rpython_list_addr_check_length2():
     def check(actual, expect):
         if actual != expect:
             c_exit(rffi.cast(rffi.INT, actual))
-    
+
     def main(argv):
         a = []
         a.append(42)
         a.append(43)
-        
+
         from rpython.rtyper.lltypesystem.llmemory import cast_ptr_to_adr
         from rpython.rlib.objectmodel import keepalive_until_here
-        
+
         addr = cast_ptr_to_adr(a)
         mem  = rffi.cast(Int64Ptr, addr)
         # ignore mem[0]
         check(mem[1], 2)
         keepalive_until_here(a)
-        
+
         return 0
-        
-    res = run_boot_image(main, '/tmp/test_rpython_list_addr_check_length2')
-    
+
+    res = run_boot_image(main, str(bin_dir.join('test_rpython_list_addr_check_length2')))
+
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
-    
+
 @may_spawn_proc
 def test_rpython_list_addr_check_length100():
     Int64Ptr = lltype.Ptr(lltype.Array(rffi.LONGLONG, hints={'nolength': True}))
@@ -153,25 +153,25 @@ def test_rpython_list_addr_check_length100():
     def check(actual, expect):
         if actual != expect:
             c_exit(rffi.cast(rffi.INT, actual))
-    
+
     def main(argv):
         a = []
         for i in range(0, 100):
             a.append(i)
-        
+
         from rpython.rtyper.lltypesystem.llmemory import cast_ptr_to_adr
         from rpython.rlib.objectmodel import keepalive_until_here
-        
+
         addr = cast_ptr_to_adr(a)
         mem  = rffi.cast(Int64Ptr, addr)
         # ignore mem[0]
         check(mem[1], 100)
         keepalive_until_here(a)
-        
+
         return 0
-        
-    res = run_boot_image(main, '/tmp/test_rpython_list_addr_check_length2')
-    
+
+    res = run_boot_image(main, str(bin_dir.join('test_rpython_list_addr_check_length2')))
+
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
 
 @may_spawn_proc
@@ -183,15 +183,15 @@ def test_rpython_list_addr_check_all10():
     def check(actual, expect):
         if actual != expect:
             c_exit(rffi.cast(rffi.INT, actual))
-    
+
     def main(argv):
         a = []
         for i in range(0, N):
             a.append(i)
-        
+
         from rpython.rtyper.lltypesystem.llmemory import cast_ptr_to_adr
         from rpython.rlib.objectmodel import keepalive_until_here
-        
+
         addr = cast_ptr_to_adr(a)
         mem  = rffi.cast(Int64Ptr, addr)
         # ignore mem[0]
@@ -202,13 +202,13 @@ def test_rpython_list_addr_check_all10():
         # inner[0], inner[1] is ignored
         for i in range(0, N):
             check(inner[2 + i], i)
-        
+
         keepalive_until_here(a)
-        
+
         return 0
-        
-    res = run_boot_image(main, '/tmp/test_rpython_list_addr_check_all10')
-    
+
+    res = run_boot_image(main, str(bin_dir.join('test_rpython_list_addr_check_all10')))
+
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)
 
 @may_spawn_proc
@@ -220,15 +220,15 @@ def test_rpython_list_addr_check_all100():
     def check(actual, expect):
         if actual != expect:
             c_exit(rffi.cast(rffi.INT, actual))
-    
+
     def main(argv):
         a = []
         for i in range(0, N):
             a.append(i)
-        
+
         from rpython.rtyper.lltypesystem.llmemory import cast_ptr_to_adr
         from rpython.rlib.objectmodel import keepalive_until_here
-        
+
         addr = cast_ptr_to_adr(a)
         mem  = rffi.cast(Int64Ptr, addr)
         # ignore mem[0]
@@ -239,11 +239,11 @@ def test_rpython_list_addr_check_all100():
         # inner[0], inner[1] is ignored
         for i in range(0, N):
             check(inner[2 + i], i)
-        
+
         keepalive_until_here(a)
-        
+
         return 0
-        
-    res = run_boot_image(main, '/tmp/test_rpython_list_addr_check_all100')
-    
+
+    res = run_boot_image(main, str(bin_dir.join('test_rpython_list_addr_check_all100')))
+
     assert res.returncode == 0, 'returncode = %d\n%s' % (res.returncode, res.err)

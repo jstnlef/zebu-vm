@@ -29,8 +29,9 @@ are not compliant to Mu spec.
 ## Building
 
 You will need:
-* rust version 1.18 (03fc9d622 2017-06-06)
+* rust version 1.19 (0ade33941 2017-07-17)
 * clang 4.0+
+* cmake 3.8+ (we do not depend on cmake, but some Rust crates use it)
 * internet connection (as Rust will download dependencies)
 
 To build Zebu with release build,
@@ -106,6 +107,17 @@ The header also includes Zebu-specific APIs, such as `mu_fastimpl_new()`.
 
 Zebu allows the user to set options when creating a new instance.
 The options can be found in [vm_options.rs](src/vm/vm_options.rs).
+
+## Contribution
+
+#### Coding style
+
+Zebu code base uses `rustfmt-nightly` default style (as defined in [Rust Style Guide](https://github.com/rust-lang-nursery/fmt-rfcs/blob/master/guide/guide.md))
+with one exception - no trailing comma (see [rustfmt.toml](rustfmt.toml)). The CI
+server marks commits as failed if the code is compliant to the style. 
+The CI server is using:
+* `rust` nightly-2017-07-19
+* `rustfmt-nightly` 0.1.9-nightly
 
 ## Bug reports
 

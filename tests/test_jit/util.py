@@ -141,9 +141,8 @@ def fncptr_from_py_script(py_fnc, heapinit_fnc, name, argtypes=[], restype=ctype
     # load libmu before rffi so to load it with RTLD_GLOBAL
     libmu = preload_libmu()
 
-    loglvl = os.environ.get('MU_LOG_LEVEL', 'none')
     emit_dir = kwargs.get('muemitdir', os.environ.get('MU_EMIT_DIR', 'emit'))
-    mu = rmu.MuVM("--log-level=%(loglvl)s --aot-emit-dir=%(emit_dir)s" % locals())
+    mu = rmu.MuVM("--aot-emit-dir=%(emit_dir)s" % locals())
     ctx = mu.new_context()
     bldr = ctx.new_ir_builder()
 
@@ -185,12 +184,13 @@ def fncptr_from_rpy_func(rpy_fnc, llargtypes, llrestype, mode=ctypes.RTLD_GLOBAL
     from rpython.config.translationoption import set_opt_level
 
     preload_libmu()
-    emit_dir = os.environ.get('MU_EMIT_DIR', 'emit')
+    emit_dir = os.environ.get('MU_EMIT_DIR', str(bin_dir))
     kwargs.setdefault('backend', 'mu')
     kwargs.setdefault('impl', 'zebu')
     kwargs.setdefault('codegen', 'api')
     kwargs.setdefault('testjit', True)
     kwargs.setdefault('vmargs', "--aot-emit-dir=" + emit_dir)
+    kwargs.setdefault('suplibdir', str(bin_dir))
     kwargs.setdefault('no_ovf', True)
 
     t = Translation(rpy_fnc, llargtypes, **kwargs)
