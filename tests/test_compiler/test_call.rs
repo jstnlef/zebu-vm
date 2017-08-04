@@ -822,7 +822,8 @@ fn pass_2_int8_args_by_stack() -> VM {
     });
 
     emit_test! ((vm)
-        pass_2_int8_args_by_stack, pass_2_int8_args_by_stack_test1, pass_2_int8_args_by_stack_test1_v1,
+        pass_2_int8_args_by_stack, pass_2_int8_args_by_stack_test1,
+        pass_2_int8_args_by_stack_test1_v1,
         RET Int,
         EQ,
         sig,
@@ -1066,7 +1067,8 @@ fn pass_mixed_args_by_stack() -> VM {
     });
 
     emit_test!((vm)
-        pass_mixed_args_by_stack, pass_mixed_args_by_stack_test1, pass_mixed_args_by_stack_test1_v1,
+        pass_mixed_args_by_stack, pass_mixed_args_by_stack_test1,
+        pass_mixed_args_by_stack_test1_v1,
         RET Int,
         EQ,
         sig,

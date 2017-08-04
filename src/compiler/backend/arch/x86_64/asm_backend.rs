@@ -3880,7 +3880,8 @@ pub fn emit_sym_table(vm: &VM){
     file_path_st.push(format!("{}", AOT_EMIT_SYM_TABLE_FILE));
     
     let mut file_st = match File::create(file_path_st.as_path()) {
-        Err(why) => panic!("couldn't create SYM TABLE file {}: {}", file_path_st.to_str().unwrap(), why),
+        Err(why) => panic!("couldn't create SYM TABLE file {}: {}",
+                           file_path_st.to_str().unwrap(), why),
         Ok(file) => file
     };
 
@@ -3927,7 +3928,8 @@ pub fn emit_sym_table(vm: &VM){
 //                    sym_vec.push((*symbol).clone());
 //                },
 //                // can't reach this state
-//                _ => panic!("Sym_Table_callsite: expecting Relocatable location, found {}", callsite)
+//                _ => panic!("Sym_Table_callsite: expecting Relocatable location, found {}",
+        //                       callsite)
 //            }
 //            match *dest {
 //                ValueLocation::Relocatable(_, ref symbol) => {
@@ -3955,7 +3957,8 @@ pub fn emit_sym_table(vm: &VM){
     
     file_st.write("\t.data\n".as_bytes()).unwrap();
 
-    file_st.write_fmt(format_args!("\t{}\n", directive_globl("mu_sym_table".to_string()))).unwrap();
+    file_st.write_fmt(format_args!("\t{}\n",
+                                   directive_globl("mu_sym_table".to_string()))).unwrap();
     file_st.write_fmt(format_args!("mu_sym_table:\n")).unwrap();
     file_st.write_fmt(format_args!(".quad {}\n", sym_vec.len())).unwrap();
     for i in 0..sym_vec.len(){
