@@ -134,7 +134,7 @@ fn switch() -> VM {
         blk_ret1,
         blk_ret2
     });
-    
+
     emit_test! ((vm)
         switch, switch_test1, switch_test1_v1,
         Int RET Int,
@@ -163,7 +163,7 @@ fn switch() -> VM {
         switch_sig,
         int64(3u64) RET int64(99u64),
     );
-    
+
     vm
 }
 
@@ -210,7 +210,7 @@ fn select_eq_zero() -> VM {
     });
 
     define_func_ver!((vm) select_v1 (entry: blk_entry) {blk_entry});
-    
+
     emit_test! ((vm)
         select_eq_zero, select_eq_zero_test1, select_eq_zero_test1_v1,
         Int RET Int,
@@ -225,7 +225,7 @@ fn select_eq_zero() -> VM {
         sig,
         int64(1u64) RET int64(0u64),
     );
-    
+
     vm
 }
 
@@ -275,7 +275,7 @@ fn select_eq_zero_double() -> VM {
     });
 
     define_func_ver!((vm) select_double_v1 (entry: blk_entry) {blk_entry});
-    
+
     emit_test! ((vm)
         select_eq_zero_double, select_eq_zero_double_test1, select_eq_zero_double_test1_v1,
         Int RET Double,
@@ -290,7 +290,7 @@ fn select_eq_zero_double() -> VM {
         sig,
         int64(1u64) RET double(0f64),
     );
-    
+
     vm
 }
 
@@ -337,7 +337,7 @@ fn select_u8_eq_zero() -> VM {
     });
 
     define_func_ver!((vm) select_u8_eq_zero_v1 (entry: blk_entry) {blk_entry});
-    
+
     emit_test! ((vm)
         select_u8_eq_zero, select_u8_eq_zero_test1, select_u8_eq_zero_test1_v1,
         Int RET Int,
@@ -352,7 +352,7 @@ fn select_u8_eq_zero() -> VM {
         sig,
         int8(1u64) RET int8(0u64),
     );
-    
+
     vm
 }
 
@@ -400,7 +400,7 @@ fn select_sge_zero() -> VM {
     });
 
     define_func_ver!((vm) select_v1 (entry: blk_entry) {blk_entry});
-    
+
     emit_test! ((vm)
         select_sge_zero, select_sge_zero_test1, select_sge_zero_test1_v1,
         Int RET Int,
@@ -422,7 +422,7 @@ fn select_sge_zero() -> VM {
         sig,
         int64(-1i64 as u64) RET int64(0u64),
     );
-    
+
     vm
 }
 
@@ -464,7 +464,7 @@ fn sgt_value() -> VM {
     });
 
     define_func_ver!((vm) sgt_value_v1 (entry: blk_entry) {blk_entry});
-    
+
     emit_test! ((vm)
         sgt_value, sgt_value_test1, sgt_value_test1_v1,
         Int, Int RET Int,
@@ -486,7 +486,7 @@ fn sgt_value() -> VM {
         sig,
         int64(0u64), int64(255u64) RET int1(0u64),
     );
-    
+
     vm
 }
 
@@ -531,7 +531,7 @@ fn sgt_u8_value() -> VM {
     });
 
     define_func_ver!((vm) sgt_u8_value_v1 (entry: blk_entry) {blk_entry});
-    
+
     emit_test! ((vm)
         sgt_u8_value, sgt_u8_value_test1, sgt_u8_value_test1_v1,
         Int, Int RET Int,
@@ -574,7 +574,7 @@ fn sgt_u8_value() -> VM {
         sig,
         int8(-1i8 as u64), int8(-2i8 as u64) RET int1(1u64),
     );
-    
+
     vm
 }
 
@@ -653,7 +653,7 @@ fn sgt_i32_branch() -> VM {
     define_func_ver!((vm) sgt_i32_branch_v1 (entry: blk_entry) {
         blk_entry, blk_ret1, blk_ret0
     });
-    
+
     emit_test! ((vm)
         sgt_i32_branch, sgt_i32_branch_test1, sgt_i32_branch_test1_v1,
         Int, Int RET Int,
@@ -717,7 +717,7 @@ fn sgt_i32_branch() -> VM {
         sig,
         int32(0i32 as u64), int32(0i32 as u64) RET int32(0u64),
     );
-    
+
     vm
 }
 
@@ -796,7 +796,7 @@ fn sge_i32_branch() -> VM {
     define_func_ver!((vm) sge_i32_branch_v1 (entry: blk_entry) {
         blk_entry, blk_ret1, blk_ret0
     });
-    
+
     emit_test! ((vm)
         sge_i32_branch, sge_i32_branch_test1, sge_i32_branch_test1_v1,
         Int, Int RET Int,
@@ -860,7 +860,7 @@ fn sge_i32_branch() -> VM {
         sig,
         int32(0i32 as u64), int32(0i32 as u64) RET int32(1u64),
     );
-    
+
     vm
 }
 
@@ -934,7 +934,7 @@ fn branch2_eq_50p_1() -> VM {
     define_func_ver!((vm) branch2_eq_50p_1_v1 (entry: blk_entry) {
         blk_entry, blk_true, blk_false
     });
-    
+
     emit_test! ((vm)
         branch2_eq_50p_1, branch2_eq_50p_1_test1, branch2_eq_50p_1_test1_v1,
         Int RET Int,
@@ -949,7 +949,7 @@ fn branch2_eq_50p_1() -> VM {
         sig,
         int8(0u64) RET int64(0u64),
     );
-    
+
     vm
 }
 
@@ -1023,7 +1023,7 @@ fn branch2_eq_50p_2() -> VM {
     define_func_ver!((vm) branch2_eq_50p_2_v1 (entry: blk_entry) {
         blk_entry, blk_false, blk_true
     });
-    
+
     emit_test! ((vm)
         branch2_eq_50p_2, branch2_eq_50p_2_test1, branch2_eq_50p_2_test1_v1,
         Int RET Int,
@@ -1038,7 +1038,7 @@ fn branch2_eq_50p_2() -> VM {
         sig,
         int8(0u64) RET int64(0u64),
     );
-    
+
     vm
 }
 
@@ -1137,7 +1137,7 @@ fn branch2_high_prob_branch_cannot_fallthrough() -> VM {
     define_func_ver!((vm) branch2_v1 (entry: blk_entry) {
         blk_entry, blk_check, blk_true, blk_false
     });
-    
+
     emit_test! ((vm)
         branch2, branch2_test1, branch2_test1_v1,
         Int RET Int,
@@ -1152,6 +1152,6 @@ fn branch2_high_prob_branch_cannot_fallthrough() -> VM {
         sig,
         int8(0u64) RET int64(0u64),
     );
-    
+
     vm
 }

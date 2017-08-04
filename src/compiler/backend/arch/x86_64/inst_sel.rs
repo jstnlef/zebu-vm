@@ -4976,11 +4976,11 @@ impl<'a> InstructionSelection {
                                         is_native: false
                                     })
                                 });
-        
+
                                 // mov (got_loc) -> actual_loc
                                 let actual_loc = self.make_temporary(f_context, pv.ty.clone(), vm);
                                 self.emit_move_value_to_value(&actual_loc, &got_loc);
-        
+
                                 self.make_memory_op_base_offset(
                                     &actual_loc,
                                     0,

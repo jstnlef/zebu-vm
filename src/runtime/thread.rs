@@ -38,7 +38,7 @@ use std::fmt;
 pub const STACK_SIZE: ByteSize = (4 << 20); // 4mb
 /// a .25mb Mu stack for sel4-rumprun
 #[cfg(feature = "sel4-rumprun")]
-pub const STACK_SIZE : ByteSize = (4 << 16); // 256kb
+pub const STACK_SIZE: ByteSize = (4 << 16); // 256kb
 
 /// operating system page size
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]

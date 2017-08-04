@@ -246,13 +246,13 @@ impl<'a> VM {
 
         ret
     }
-    
+
     /// internal function to create a VM with options for sel4-rumprun
     /// default memory sizes are different from other platforms
     #[cfg(feature = "sel4-rumprun")]
     fn new_internal(options: VMOptions) -> VM {
         VM::start_logging(options.flag_log_level);
-        
+
         let mut ret = VM {
             next_id: ATOMIC_USIZE_INIT,
             vm_options: options,
@@ -273,12 +273,12 @@ impl<'a> VM {
             compiled_callsite_table: RwLock::new(HashMap::new()),
             callsite_count: ATOMIC_USIZE_INIT
         };
-    
+
         // currently, the default sizes don't work on sel4-rumprun platform
         // this is due to memory allocation size limitations
-        ret.vm_options.flag_gc_immixspace_size = 1<<19;
-        ret.vm_options.flag_gc_lospace_size = 1<<19;
-        
+        ret.vm_options.flag_gc_immixspace_size = 1 << 19;
+        ret.vm_options.flag_gc_lospace_size = 1 << 19;
+
         // insert all internal types
         {
             let mut types = ret.types.write().unwrap();
@@ -286,16 +286,16 @@ impl<'a> VM {
                 types.insert(ty.id(), ty.clone());
             }
         }
-        
+
         // starts allocating ID from USER_ID_START
         ret.next_id.store(USER_ID_START, Ordering::Relaxed);
-        
+
         // init types
         types::init_types();
-        
+
         // init runtime
         ret.init_runtime();
-        
+
         ret
     }
 

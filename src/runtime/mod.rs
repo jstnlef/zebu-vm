@@ -104,7 +104,7 @@ use std::os::raw::c_char;
 // it replaces the resolve_symbol function provided by Linux and Mac
 // all other platforms (except sel4-rumprun) already provide this function
 #[cfg(feature = "sel4-rumprun-target-side")]
-#[link(name="zebu_c_helpers")]
+#[link(name = "zebu_c_helpers")]
 extern "C" {
     fn c_resolve_symbol(symbol: *const c_char) -> *const c_void;
 }
@@ -238,7 +238,7 @@ pub const PRIMORDIAL_ENTRY: &'static str = "src/runtime/main.c";
 
 /// a C wrapper as main function for executable test boot images"
 /// in addition to normal main.c, it checks the returned results of tests
-pub const TEST_PRIMORDIAL_ENTRY : &'static str = "src/runtime/main_test.c";
+pub const TEST_PRIMORDIAL_ENTRY: &'static str = "src/runtime/main_test.c";
 
 /// starts trace level logging, this function will be called from C
 #[no_mangle]
