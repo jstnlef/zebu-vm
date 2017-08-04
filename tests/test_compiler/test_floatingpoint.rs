@@ -24,6 +24,11 @@ use self::mu::vm::*;
 use self::mu::linkutils;
 use mu::utils::LinkedHashMap;
 
+use std::sync::Arc;
+use mu::linkutils::aot;
+use mu::runtime::thread::check_result;
+use mu::compiler::*;
+
 #[test]
 fn test_double_add() {
     build_and_run_test!(double_add, double_add_test1);
@@ -246,7 +251,7 @@ fn fp_ogt_branch() -> VM {
         Double, Double RET Int,
         EQ,
         sig,
-        double(2f64), double(1f64), int32(1),
+        double(2f64), double(1f64) RET int32(1),
     );
 
     vm
