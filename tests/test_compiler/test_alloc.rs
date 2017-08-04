@@ -31,7 +31,7 @@ use self::mu::linkutils::aot;
 
 #[test]
 fn test_allocation_fastpath() {
-    build_and_run_test! (allocation_fastpath, allocation_fastpath_test1);
+    build_and_run_test!(allocation_fastpath, allocation_fastpath_test1);
 }
 
 fn allocation_fastpath() -> VM {
@@ -79,9 +79,12 @@ fn allocation_fastpath() -> VM {
     });
 
     define_func_ver!((vm) allocation_fastpath_v1 (entry: blk_entry) {blk_entry});
-    
-    emit_test!      ((vm) (allocation_fastpath allocation_fastpath_test1 allocation_fastpath_test1_v1 --- (sig)));
-    
+
+    emit_test! ((vm)
+        allocation_fastpath, allocation_fastpath_test1, allocation_fastpath_test1_v1,
+        sig,
+    );
+
     vm
 }
 
@@ -181,8 +184,11 @@ pub fn alloc_new() -> VM {
     define_func_ver!((vm) alloc_new_v1 (entry: blk_0) {
         blk_0
     });
-    
-    emit_test!      ((vm) (alloc_new alloc_new_test1 alloc_new_test1_v1 --- (alloc_new_sig)));
-    
+
+    emit_test! ((vm)
+        alloc_new, alloc_new_test1, alloc_new_test1_v1,
+        alloc_new_sig,
+    );
+
     vm
 }

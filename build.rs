@@ -56,19 +56,25 @@ fn built() {
 #[cfg(feature = "sel4-rumprun-target-side")]
 #[cfg(target_arch = "x86_64")]
 fn main() {
-        use std::path::Path;
-        let mut compiler_name = String::new();
-        compiler_name.push_str("x86_64-rumprun-netbsd-gcc");
-        gcc::Config::new().flag("-O3").flag("-c")
-                .compiler(Path::new(compiler_name.as_str()))
-                .file("src/runtime/runtime_x64_sel4_rumprun_sysv.c")
-                .compile("libruntime_c.a");
-        gcc::Config::new().flag("-O3").flag("-c")
-                .compiler(Path::new(compiler_name.as_str()))
-                .file("src/runtime/runtime_asm_x64_sel4_rumprun_sysv.S")
-                .compile("libruntime_asm.a");
-        gcc::Config::new().flag("-O3").flag("-c")
-                .compiler(Path::new(compiler_name.as_str()))
-                .file("zebu_c_helpers.c")
-                .compile("libzebu_c_helpers.a");
+    use std::path::Path;
+    let mut compiler_name = String::new();
+    compiler_name.push_str("x86_64-rumprun-netbsd-gcc");
+    gcc::Config::new()
+        .flag("-O3")
+        .flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("src/runtime/runtime_x64_sel4_rumprun_sysv.c")
+        .compile("libruntime_c.a");
+    gcc::Config::new()
+        .flag("-O3")
+        .flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("src/runtime/runtime_asm_x64_sel4_rumprun_sysv.S")
+        .compile("libruntime_asm.a");
+    gcc::Config::new()
+        .flag("-O3")
+        .flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("zebu_c_helpers.c")
+        .compile("libzebu_c_helpers.a");
 }

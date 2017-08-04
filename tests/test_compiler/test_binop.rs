@@ -71,10 +71,23 @@ fn udiv() -> VM {
     define_func_ver!((vm) udiv_v1(entry: blk_entry) {
         blk_entry
     });
-    
-    emit_test!      ((vm) (udiv udiv_test1 udiv_test1_v1 III (udiv_sig, int64(22), int64(4), int64(5))));
-    emit_test!      ((vm) (udiv udiv_test2 udiv_test2_v1 III (udiv_sig, int64(27), int64(7), int64(3))));
-    
+
+    emit_test! ((vm)
+        udiv, udiv_test1, udiv_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        udiv_sig,
+        int64(22), int64(4) RET int64(5),
+    );
+
+    emit_test! ((vm)
+        udiv, udiv_test2, udiv_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        udiv_sig,
+        int64(27), int64(7) RET int64(3),
+    );
+
     vm
 }
 
@@ -117,10 +130,23 @@ fn sdiv() -> VM {
     define_func_ver!((vm) sdiv_v1(entry: blk_entry) {
         blk_entry
     });
-    
-    emit_test!      ((vm) (sdiv sdiv_test1 sdiv_test1_v1 III (sdiv_sig, int64(8), int64(2), int64(4))));
-    emit_test!      ((vm) (sdiv sdiv_test2 sdiv_test2_v2 III (sdiv_sig, int64(8), int64(-3i64 as u64), int64(-2i64 as u64))));
-    
+
+    emit_test! ((vm)
+        sdiv, sdiv_test1, sdiv_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sdiv_sig,
+        int64(8), int64(2) RET int64(4),
+    );
+
+    emit_test! ((vm)
+        sdiv, sdiv_test2, sdiv_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sdiv_sig,
+        int64(8), int64(-3i64 as u64) RET int64(-2i64 as u64),
+    );
+
     vm
 }
 
@@ -163,10 +189,22 @@ fn shl() -> VM {
     define_func_ver!((vm) shl_v1(entry: blk_entry) {
         blk_entry
     });
-    
-    emit_test!      ((vm) (shl shl_test1 shl_test1_v1 III (shl_sig, int64(1), int64(2), int64(4))));
-    emit_test!      ((vm) (shl shl_test2 shl_test2_v1 III (shl_sig, int64(2), int64(2), int64(8))));
-    
+
+    emit_test! ((vm)
+        shl, shl_test1, shl_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        shl_sig,
+        int64(1), int64(2) RET int64(4),
+    );
+    emit_test! ((vm)
+        shl, shl_test2, shl_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        shl_sig,
+        int64(2), int64(2) RET int64(8),
+    );
+
     vm
 }
 
@@ -208,9 +246,15 @@ fn lshr() -> VM {
     define_func_ver!((vm) lshr_v1(entry: blk_entry) {
         blk_entry
     });
-    
-    emit_test!      ((vm) (lshr lshr_test1 lshr_test1_v1 III (lshr_sig, int64(8), int64(3), int64(1))));
-    
+
+    emit_test! ((vm)
+        lshr, lshr_test1, lshr_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        lshr_sig,
+        int64(8), int64(3) RET int64(1),
+    );
+
     vm
 }
 
@@ -247,9 +291,15 @@ fn add() -> VM {
     });
 
     define_func_ver!((vm) add_v1 (entry: blk_entry) {blk_entry});
-    
-    emit_test!      ((vm) (add add_test1 add_test1_v1 III (sig, int64(22), int64(27), int64(49))));
-    
+
+    emit_test! ((vm)
+        add, add_test1, add_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(22), int64(27) RET int64(49),
+    );
+
     vm
 }
 
@@ -291,12 +341,36 @@ fn add_int64_n() -> VM {
     });
 
     define_func_ver!((vm) add_int64_n_v1 (entry: blk_entry) {blk_entry});
-    
-    emit_test!      ((vm) (add_int64_n add_int64_n_test1 add_int64_n_test1_v1 III (sig, int64(1), int64(1), int1(0))));
-    emit_test!      ((vm) (add_int64_n add_int64_n_test2 add_int64_n_test2_v1 III (sig, int64(1), int64(-2i64 as u64), int1(1))));
-    emit_test!      ((vm) (add_int64_n add_int64_n_test3 add_int64_n_test3_v1 III (sig, int64(1), int64(-1i64 as u64), int1(0))));
-    emit_test!      ((vm) (add_int64_n add_int64_n_test4 add_int64_n_test4_v1 III (sig, int64(-1i64 as u64), int64(-1i64 as u64), int1(1))));
-    
+
+    emit_test! ((vm)
+        add_int64_n, add_int64_n_test1, add_int64_n_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(1) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_n, add_int64_n_test2, add_int64_n_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(-2i64 as u64) RET int1(1),
+    );
+    emit_test! ((vm)
+        add_int64_n, add_int64_n_test3, add_int64_n_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(-1i64 as u64) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_n, add_int64_n_test4, add_int64_n_test4_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(-1i64 as u64), int64(-1i64 as u64) RET int1(1),
+    );
+
     vm
 }
 
@@ -337,11 +411,29 @@ fn add_int64_z() -> VM {
     });
 
     define_func_ver!((vm) add_int64_z_v1 (entry: blk_entry) {blk_entry});
-    
-    emit_test!      ((vm) (add_int64_z add_int64_z_test1 add_int64_z_test1_v1 III (sig, int64(1), int64(1), int1(0))));
-    emit_test!      ((vm) (add_int64_z add_int64_z_test2 add_int64_z_test2_v1 III (sig, int64(1), int64(-2i64 as u64), int1(0))));
-    emit_test!      ((vm) (add_int64_z add_int64_z_test3 add_int64_z_test3_v1 III (sig, int64(1), int64(-1i64 as u64), int1(1))));
-    
+
+    emit_test! ((vm)
+        add_int64_z, add_int64_z_test1, add_int64_z_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(1) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_z, add_int64_z_test2, add_int64_z_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(-2i64 as u64) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_z, add_int64_z_test3, add_int64_z_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(-1i64 as u64) RET int1(1),
+    );
+
     vm
 }
 
@@ -381,10 +473,22 @@ fn add_int64_c() -> VM {
     });
 
     define_func_ver!((vm) add_int64_c_v1 (entry: blk_entry) {blk_entry});
-    
-    emit_test!      ((vm) (add_int64_c add_int64_c_test1 add_int64_c_test1_v1 III (sig, int64(u64::MAX), int64(1), int1(1))));
-    emit_test!      ((vm) (add_int64_c add_int64_c_test2 add_int64_c_test2_v1 III (sig, int64(i64::MAX as u64), int64(0), int1(0))));
-    
+
+    emit_test! ((vm)
+        add_int64_c, add_int64_c_test1, add_int64_c_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(u64::MAX), int64(1) RET int1(1),
+    );
+    emit_test! ((vm)
+        add_int64_c, add_int64_c_test2, add_int64_c_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MAX as u64), int64(0) RET int1(0),
+    );
+
     vm
 }
 
@@ -426,12 +530,36 @@ fn add_int64_v() -> VM {
     });
 
     define_func_ver!((vm) add_int64_v_v1 (entry: blk_entry) {blk_entry});
-    
-    emit_test!      ((vm) (add_int64_v add_int64_v_test1 add_int64_v_test1_v1 III (sig, int64(i64::MAX as u64), int64(1), int1(1))));
-    emit_test!      ((vm) (add_int64_v add_int64_v_test2 add_int64_v_test2_v1 III (sig, int64(i64::MAX as u64), int64(0), int1(0))));
-    emit_test!      ((vm) (add_int64_v add_int64_v_test3 add_int64_v_test3_v1 III (sig, int64(i64::MIN as u64), int64(0), int1(0))));
-    emit_test!      ((vm) (add_int64_v add_int64_v_test4 add_int64_v_test4_v1 III (sig, int64(i64::MIN as u64), int64(-1i64 as u64), int1(1))));
-    
+
+    emit_test! ((vm)
+        add_int64_v, add_int64_v_test1, add_int64_v_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MAX as u64), int64(1) RET int1(1),
+    );
+    emit_test! ((vm)
+        add_int64_v, add_int64_v_test2, add_int64_v_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MAX as u64), int64(0) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_v, add_int64_v_test3, add_int64_v_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MIN as u64), int64(0) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_v, add_int64_v_test4, add_int64_v_test4_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MIN as u64), int64(-1i64 as u64) RET int1(1),
+    );
+
     vm
 }
 
@@ -504,9 +632,21 @@ fn add_int64_nzc() -> VM {
     });
 
     define_func_ver!((vm) add_int64_nzc_v1 (entry: blk_entry) {blk_entry});
-    
-    emit_test!      ((vm) (add_int64_nzc add_int64_nzc_test1 add_int64_nzc_test1_v1 III (sig, int64(u64::MAX), int64(1), int8(0b110))));
-    emit_test!      ((vm) (add_int64_nzc add_int64_nzc_test2 add_int64_nzc_test2_v1 III (sig, int64(u64::MAX), int64(0), int8(0b001))));
-    
+
+    emit_test! ((vm)
+        add_int64_nzc, add_int64_nzc_test1, add_int64_nzc_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(u64::MAX), int64(1) RET int8(0b110),
+    );
+    emit_test! ((vm)
+        add_int64_nzc, add_int64_nzc_test2, add_int64_nzc_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(u64::MAX), int64(0) RET int8(0b001),
+    );
+
     vm
 }
