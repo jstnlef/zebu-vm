@@ -337,12 +337,13 @@ impl fmt::Display for Instruction {
         if self.value.is_some() {
             write!(
                 f,
-                "{} = {}",
+                "{} = {} [{}]",
                 vec_utils::as_str(self.value.as_ref().unwrap()),
-                self.v.debug_str(ops)
+                self.v.debug_str(ops),
+                self.hdr
             )
         } else {
-            write!(f, "{}", self.v.debug_str(ops))
+            write!(f, "{} [{}]", self.v.debug_str(ops), self.hdr)
         }
     }
 }

@@ -27,7 +27,15 @@ extern void* rodal_realloc(void*, size_t);
 
 extern uint32_t mu_retval;
 
+extern void* STRUCT_TAG_MAP;
+extern void* HYBRID_TAG_MAP;
+extern void* STRUCT_TAG_MAP_LOC;
+extern void* HYBRID_TAG_MAP_LOC;
+
 int main(int argc, char** argv) {
+    STRUCT_TAG_MAP_LOC = &STRUCT_TAG_MAP;
+    HYBRID_TAG_MAP_LOC = &HYBRID_TAG_MAP;
+
     rodal_init_deallocate();
     mu_main(&RODAL_END, &vm, argc, argv);
     return (int)mu_retval;

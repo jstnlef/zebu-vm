@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(unused_macros)]
+
 macro_rules! typedef {
     // int, floating point
     (($vm: expr) $name: ident = mu_int($len: expr)) => {

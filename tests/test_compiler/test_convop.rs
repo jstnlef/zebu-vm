@@ -114,3 +114,57 @@ fn truncate_then_call() -> VM {
 
     vm
 }
+
+#[test]
+fn test_bitcast_f32_to_u32() {
+    let lib = linkutils::aot::compile_fnc("bitcast_f32_to_u32", &bitcast_f32_to_u32);
+
+    unsafe {
+        use std::f32;
+
+        let bitcast_f32_to_u32: libloading::Symbol<unsafe extern "C" fn(f32) -> u32> =
+            lib.get(b"bitcast_f32_to_u32").unwrap();
+
+        let res = bitcast_f32_to_u32(f32::MAX);
+        println!("bitcast_f32_to_u32(f32::MAX) = {}", res);
+        assert!(res == 2139095039u32);
+
+        let res = bitcast_f32_to_u32(3.1415926f32);
+        println!("bitcast_f32_to_u32(PI) = {}", res);
+        assert!(res == 1078530010u32);
+    }
+}
+
+fn bitcast_f32_to_u32() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) float = mu_float);
+    typedef!    ((vm) u32 = mu_int(32));
+
+    funcsig!    ((vm) sig = (float) -> (u32));
+    funcdecl!   ((vm) <sig> bitcast_f32_to_u32);
+    funcdef!    ((vm) <sig> bitcast_f32_to_u32 VERSION bitcast_f32_to_u32_v1);
+
+    // blk entry
+    block!      ((vm, bitcast_f32_to_u32_v1) blk_entry);
+    ssa!        ((vm, bitcast_f32_to_u32_v1) <float> f);
+    ssa!        ((vm, bitcast_f32_to_u32_v1) <u32> i);
+
+    inst!       ((vm, bitcast_f32_to_u32_v1) blk_entry_bitcast:
+        i = CONVOP (ConvOp::BITCAST) <float u32> f
+    );
+
+    inst!       ((vm, bitcast_f32_to_u32_v1) blk_entry_ret:
+        RET (i)
+    );
+
+    define_block!((vm, bitcast_f32_to_u32_v1) blk_entry(f) {
+        blk_entry_bitcast, blk_entry_ret
+    });
+
+    define_func_ver!((vm) bitcast_f32_to_u32_v1 (entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}

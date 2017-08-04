@@ -19,7 +19,8 @@ use utils::POINTER_SIZE;
 use utils::vec_utils;
 
 use std;
-use rodal;
+use std::sync::atomic::{Ordering, AtomicPtr};
+use std::ptr;
 use std::fmt;
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -134,6 +135,14 @@ impl MuType {
     pub fn is_hybrid(&self) -> bool {
         match self.v {
             MuType_::Hybrid(_) => true,
+            _ => false
+        }
+    }
+
+    /// is this type an integer type?
+    pub fn is_int(&self) -> bool {
+        match self.v {
+            MuType_::Int(_) => true,
             _ => false
         }
     }
@@ -467,13 +476,24 @@ impl fmt::Display for MuType_ {
     }
 }
 
+#[no_mangle]
+pub static STRUCT_TAG_MAP_LOC: Option<AtomicPtr<RwLock<HashMap<StructTag, StructType_>>>> = None;
+#[no_mangle]
+pub static HYBRID_TAG_MAP_LOC: Option<AtomicPtr<RwLock<HashMap<HybridTag, HybridType_>>>> = None;
+
 lazy_static! {
     /// storing a map from MuName to StructType_
     pub static ref STRUCT_TAG_MAP : RwLock<HashMap<StructTag, StructType_>> =
-        rodal::try_load_asm_name_move("STRUCT_TAG_MAP").unwrap_or(RwLock::new(HashMap::new()));
+        match &STRUCT_TAG_MAP_LOC {
+            &Some(ref ptr) => unsafe{ptr::read(ptr.load(Ordering::Relaxed))},
+            &None => RwLock::new(HashMap::new())
+        };
     /// storing a map from MuName to HybridType_
     pub static ref HYBRID_TAG_MAP : RwLock<HashMap<HybridTag, HybridType_>> =
-        rodal::try_load_asm_name_move("HYBRID_TAG_MAP").unwrap_or(RwLock::new(HashMap::new()));
+        match &HYBRID_TAG_MAP_LOC {
+            &Some(ref ptr) => unsafe{ptr::read(ptr.load(Ordering::Relaxed))},
+            &None => RwLock::new(HashMap::new())
+        };
 }
 
 rodal_struct!(StructType_{tys});

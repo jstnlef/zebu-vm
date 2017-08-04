@@ -1897,6 +1897,48 @@ impl ASMCodeGen {
         )
     }
 
+    /// emits a move instruction (reg64/32 -> fpr)
+    fn internal_mov_bitcast_fpr_r(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_reg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            linked_hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
+    /// emits a move instruction (fpr -> reg64/32)
+    fn internal_mov_bitcast_r_fpr(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_reg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            linked_hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
     /// emits a move instruction (reg -> reg)
     fn internal_mov_r_r(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
         let len = check_op_len(dest);
@@ -2242,6 +2284,28 @@ impl ASMCodeGen {
         )
     }
 
+    /// emits a truncate instruction (fpreg -> fpreg)
+    fn internal_fp_trunc(&mut self, inst: &str, dest: Reg, src: Reg) {
+        let inst = inst.to_string();
+        trace!("emit: {} {} -> {}", inst, src, dest);
+
+        let (reg1, id1, loc1) = self.prepare_fpreg(src, inst.len() + 1);
+        let (reg2, id2, loc2) = self.prepare_fpreg(dest, inst.len() + 1 + reg1.len() + 1);
+
+        let asm = format!("{} {},{}", inst, reg1, reg2);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id2 => vec![loc2]
+            },
+            linked_hashmap!{
+                id1 => vec![loc1]
+            },
+            false
+        )
+    }
+
     /// emits a store instruction to store a spilled register
     fn emit_spill_store_gpr(&mut self, dest: Mem, src: Reg) {
         self.internal_mov_mem_r("mov", dest, src, true, false)
@@ -2448,23 +2512,19 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     fn emit_mov_fpr_r64(&mut self, dest: Reg, src: Reg) {
-        trace!("emit: movq {} -> {}", src, dest);
+        self.internal_mov_bitcast_fpr_r("movq", dest, src)
+    }
 
-        let (reg1, id1, loc1) = self.prepare_reg(src, 5);
-        let (reg2, id2, loc2) = self.prepare_fpreg(dest, 5 + reg1.len() + 1);
+    fn emit_mov_fpr_r32(&mut self, dest: Reg, src: Reg) {
+        self.internal_mov_bitcast_fpr_r("movd", dest, src)
+    }
 
-        let asm = format!("movq {},{}", reg1, reg2);
+    fn emit_mov_r64_fpr(&mut self, dest: Reg, src: Reg) {
+        self.internal_mov_bitcast_r_fpr("movq", dest, src)
+    }
 
-        self.add_asm_inst(
-            asm,
-            linked_hashmap!{
-                id2 => vec![loc2]
-            },
-            linked_hashmap!{
-                id1 => vec![loc1]
-            },
-            false
-        )
+    fn emit_mov_r32_fpr(&mut self, dest: Reg, src: Reg) {
+        self.internal_mov_bitcast_r_fpr("movd", dest, src)
     }
 
     fn emit_mov_r_imm(&mut self, dest: &P<Value>, src: i32) {
@@ -3507,6 +3567,15 @@ impl CodeGenerator for ASMCodeGen {
     }
     fn emit_cvttss2si_r_f32(&mut self, dest: Reg, src: Reg) {
         self.internal_fpr_to_gpr("cvttss2si", dest, src);
+    }
+
+    // convert - fp trunc
+    fn emit_cvtsd2ss_f32_f64(&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_trunc("cvtsd2ss", dest, src)
+    }
+
+    fn emit_cvtss2sd_f64_f32(&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_trunc("cvtss2sd", dest, src)
     }
 
     // unpack low data - interleave low byte

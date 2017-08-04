@@ -365,8 +365,7 @@ impl<'a> InstructionSelection {
 
                                 self.finish_block();
                                 let block_name = make_block_name(
-                                    &self.current_fv_name,
-                                    node.id(),
+                                    &node.name(),
                                     format!("switch_not_met_case_{}", case_op_index).as_str()
                                 );
                                 self.start_block(block_name);
@@ -829,21 +828,11 @@ impl<'a> InstructionSelection {
                                     // The size of the aarch64 register
                                     let to_ty_reg_size = check_op_len(&tmp_res.ty);
                                     if to_ty_size != to_ty_reg_size {
-                                        let blk_positive = make_block_name(
-                                            &self.current_fv_name,
-                                            node.id(),
-                                            "positive"
-                                        );
-                                        let blk_negative = make_block_name(
-                                            &self.current_fv_name,
-                                            node.id(),
-                                            "negative"
-                                        );
-                                        let blk_end = make_block_name(
-                                            &self.current_fv_name,
-                                            node.id(),
-                                            "end"
-                                        );
+                                        let blk_positive =
+                                            make_block_name(&node.name(), "positive");
+                                        let blk_negative =
+                                            make_block_name(&node.name(), "negative");
+                                        let blk_end = make_block_name(&node.name(), "end");
                                         let tmp = make_temporary(f_context, to_ty.clone(), vm);
 
                                         self.backend.emit_tbnz(
@@ -1019,11 +1008,8 @@ impl<'a> InstructionSelection {
 
                                     self.finish_block();
 
-                                    let blk_load_start = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "load_start"
-                                    );
+                                    let blk_load_start =
+                                        make_block_name(&node.name(), "load_start");
 
                                     // load_start:
                                     self.start_block(blk_load_start.clone());
@@ -1168,11 +1154,8 @@ impl<'a> InstructionSelection {
 
                                     self.finish_block();
 
-                                    let blk_store_start = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "store_start"
-                                    );
+                                    let blk_store_start =
+                                        make_block_name(&node.name(), "store_start");
 
                                     // store_start:
                                     self.start_block(blk_store_start.clone());
@@ -1278,12 +1261,10 @@ impl<'a> InstructionSelection {
                         let res_value = self.get_result_value(node, 0);
                         let res_success = self.get_result_value(node, 1);
 
-                        let blk_cmpxchg_start =
-                            make_block_name(&self.current_fv_name, node.id(), "cmpxchg_start");
-                        let blk_cmpxchg_failed =
-                            make_block_name(&self.current_fv_name, node.id(), "cmpxchg_failed");
+                        let blk_cmpxchg_start = make_block_name(&node.name(), "cmpxchg_start");
+                        let blk_cmpxchg_failed = make_block_name(&node.name(), "cmpxchg_failed");
                         let blk_cmpxchg_succeded =
-                            make_block_name(&self.current_fv_name, node.id(), "cmpxchg_succeded");
+                            make_block_name(&node.name(), "cmpxchg_succeded");
 
                         self.finish_block();
 
@@ -3420,9 +3401,8 @@ impl<'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(&self.current_fv_name, node.id(), "alloc_large");
-            let blk_alloc_large_end =
-                make_block_name(&self.current_fv_name, node.id(), "alloc_large_end");
+            let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
+            let blk_alloc_large_end = make_block_name(&node.name(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 let size_with_hdr = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -3451,7 +3431,7 @@ impl<'a> InstructionSelection {
             self.backend.emit_b_cond("GT", blk_alloc_large.clone());
             self.finish_block();
 
-            let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
+            let block_name = make_block_name(&node.name(), "allocsmall");
             self.start_block(block_name);
             self.emit_alloc_sequence_small(
                 tmp_allocator.clone(),
@@ -5615,8 +5595,7 @@ impl<'a> InstructionSelection {
         let ret = {
             if cur_node.is_some() {
                 make_block_name(
-                    &self.current_fv_name,
-                    cur_node.unwrap().id(),
+                    &cur_node.unwrap().name(),
                     format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {

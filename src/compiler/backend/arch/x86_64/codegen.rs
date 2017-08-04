@@ -70,8 +70,11 @@ pub trait CodeGenerator {
 
     // mov imm64 to r64
     fn emit_mov_r64_imm64(&mut self, dest: Reg, src: i64);
-    // mov r64 to fpr
+    // bitcast between int and floatpoint of same length
     fn emit_mov_fpr_r64(&mut self, dest: Reg, src: Reg);
+    fn emit_mov_fpr_r32(&mut self, dest: Reg, src: Reg);
+    fn emit_mov_r64_fpr(&mut self, dest: Reg, src: Reg);
+    fn emit_mov_r32_fpr(&mut self, dest: Reg, src: Reg);
 
     fn emit_mov_r_imm(&mut self, dest: Reg, src: i32);
     fn emit_mov_r_mem(&mut self, dest: Reg, src: Mem); // load
@@ -301,6 +304,10 @@ pub trait CodeGenerator {
 
     fn emit_cvtsi2ss_f32_r(&mut self, dest: Reg, src: Reg);
     fn emit_cvtss2si_r_f32(&mut self, dest: Reg, src: Reg);
+
+    // fp trunc
+    fn emit_cvtsd2ss_f32_f64(&mut self, dest: Reg, src: Reg);
+    fn emit_cvtss2sd_f64_f32(&mut self, dest: Reg, src: Reg);
 
     // used for unsigned int to fp conversion
 

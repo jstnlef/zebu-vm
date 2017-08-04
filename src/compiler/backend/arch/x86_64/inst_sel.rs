@@ -365,21 +365,9 @@ impl<'a> InstructionSelection {
                                 }
                                 // jcc - for 8-bits integer
                                 _ => {
-                                    let blk_true = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "select_true"
-                                    );
-                                    let blk_false = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "select_false"
-                                    );
-                                    let blk_end = make_block_name(
-                                        &self.current_fv_name,
-                                        node.id(),
-                                        "select_end"
-                                    );
+                                    let blk_true = make_block_name(&node.name(), "select_true");
+                                    let blk_false = make_block_name(&node.name(), "select_false");
+                                    let blk_end = make_block_name(&node.name(), "select_end");
 
                                     // jump to blk_true if true
                                     match cmpop {
@@ -442,12 +430,9 @@ impl<'a> InstructionSelection {
                         } else if self.match_fpreg(true_val) {
                             let tmp_res = self.get_result_value(node);
 
-                            let blk_true =
-                                make_block_name(&self.current_fv_name, node.id(), "select_true");
-                            let blk_false =
-                                make_block_name(&self.current_fv_name, node.id(), "select_false");
-                            let blk_end =
-                                make_block_name(&self.current_fv_name, node.id(), "select_end");
+                            let blk_true = make_block_name(&node.name(), "select_true");
+                            let blk_false = make_block_name(&node.name(), "select_false");
+                            let blk_end = make_block_name(&node.name(), "select_end");
 
                             // jump to blk_true if true
                             match cmpop {
@@ -603,8 +588,7 @@ impl<'a> InstructionSelection {
 
                                 self.finish_block();
                                 let block_name = make_block_name(
-                                    &self.current_fv_name,
-                                    node.id(),
+                                    &node.name(),
                                     format!("switch_not_met_case_{}", case_op_index).as_str()
                                 );
                                 self.start_block(block_name);
@@ -1098,18 +1082,15 @@ impl<'a> InstructionSelection {
                                                 self.backend.emit_test_r_r(&tmp_op, &tmp_op);
 
                                                 let blk_if_signed = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                    &node.name(),
                                                     "uitofp_float_if_signed"
                                                 );
                                                 let blk_if_not_signed = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                    &node.name(),
                                                     "uitofp_float_if_not_signed"
                                                 );
                                                 let blk_done = make_block_name(
-                                                    &self.current_fv_name,
-                                                    node.id(),
+                                                    &node.name(),
                                                     "uitofp_float_done"
                                                 );
 
@@ -1349,7 +1330,94 @@ impl<'a> InstructionSelection {
                                     panic!("expect double or float")
                                 }
                             }
-                            _ => unimplemented!()
+                            op::ConvOp::FPTRUNC => {
+                                let tmp_res = self.get_result_value(node);
+
+                                assert!(
+                                    self.match_fpreg(op),
+                                    "unexpected op (expected fpreg): {}",
+                                    op
+                                );
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                if from_ty.is_double() && to_ty.is_float() {
+                                    self.backend.emit_cvtsd2ss_f32_f64(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!(
+                                        "FPTRUNC from {} to {} is not supported \
+                                         (only support FPTRUNC from double to float)",
+                                        from_ty,
+                                        to_ty
+                                    );
+                                }
+                            }
+                            op::ConvOp::FPEXT => {
+                                let tmp_res = self.get_result_value(node);
+                                assert!(
+                                    self.match_fpreg(op),
+                                    "unexpected op (expected fpreg): {}",
+                                    op
+                                );
+                                let tmp_op = self.emit_fpreg(op, f_content, f_context, vm);
+                                if from_ty.is_float() && to_ty.is_double() {
+                                    self.backend.emit_cvtss2sd_f64_f32(&tmp_res, &tmp_op);
+                                } else {
+                                    panic!(
+                                        "FPEXT from {} to {} is not supported\
+                                         (only support FPEXT from float to double)",
+                                        from_ty,
+                                        to_ty
+                                    );
+                                }
+                            }
+                            op::ConvOp::BITCAST => {
+                                let tmp_res = self.get_result_value(node);
+                                let tmp_op = if self.match_fpreg(op) {
+                                    self.emit_fpreg(op, f_content, f_context, vm)
+                                } else if self.match_ireg(op) {
+                                    self.emit_ireg(op, f_content, f_context, vm)
+                                } else {
+                                    panic!("expected op for BITCAST (expected ireg/fpreg): {}", op)
+                                };
+
+                                let ref from_ty = tmp_op.ty;
+                                let ref to_ty = tmp_res.ty;
+
+                                let from_ty_size = vm.get_backend_type_size(from_ty.id());
+                                let to_ty_size = vm.get_backend_type_size(to_ty.id());
+                                assert!(
+                                    from_ty_size == to_ty_size,
+                                    "BITCAST only works between int/fp of same length"
+                                );
+                                assert!(
+                                    from_ty_size == 8 || from_ty_size == 4,
+                                    "BITCAST only works for int32/float or int64/double"
+                                );
+
+                                if from_ty.is_fp() && to_ty.is_int() {
+                                    if from_ty_size == 8 {
+                                        self.backend.emit_mov_r64_fpr(&tmp_res, &tmp_op);
+                                    } else if from_ty_size == 4 {
+                                        self.backend.emit_mov_r32_fpr(&tmp_res, &tmp_op);
+                                    } else {
+                                        unreachable!()
+                                    }
+                                } else if from_ty.is_int() && to_ty.is_fp() {
+                                    if from_ty_size == 8 {
+                                        self.backend.emit_mov_fpr_r64(&tmp_res, &tmp_op);
+                                    } else if from_ty_size == 4 {
+                                        self.backend.emit_mov_fpr_r32(&tmp_res, &tmp_op);
+                                    } else {
+                                        unreachable!()
+                                    }
+                                } else {
+                                    panic!(
+                                        "expected BITCAST between int and fp,\
+                                         found {} and {}",
+                                        from_ty,
+                                        to_ty
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -2997,9 +3065,8 @@ impl<'a> InstructionSelection {
             // emit: ALLOC_LARGE:
             // emit: >> large object alloc
             // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(&self.current_fv_name, node.id(), "alloc_large");
-            let blk_alloc_large_end =
-                make_block_name(&self.current_fv_name, node.id(), "alloc_large_end");
+            let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
+            let blk_alloc_large_end = make_block_name(&node.name(), "alloc_large_end");
 
             if OBJECT_HEADER_SIZE != 0 {
                 // if the header size is not zero, we need to calculate a total size to alloc
@@ -3016,7 +3083,7 @@ impl<'a> InstructionSelection {
             self.backend.emit_jg(blk_alloc_large.clone());
 
             self.finish_block();
-            let block_name = make_block_name(&self.current_fv_name, node.id(), "allocsmall");
+            let block_name = make_block_name(&node.name(), "allocsmall");
             self.start_block(block_name);
 
             // alloc small here
@@ -3172,12 +3239,12 @@ impl<'a> InstructionSelection {
 
             // branch to slow path if end > limit (end - limit > 0)
             // ASM: jg alloc_slow
-            let slowpath = make_block_name(&self.current_fv_name, node.id(), "allocslow");
+            let slowpath = make_block_name(&node.name(), "allocslow");
             self.backend.emit_jg(slowpath.clone());
 
             // finish current block
             self.finish_block();
-            let block_name = make_block_name(&self.current_fv_name, node.id(), "updatecursor");
+            let block_name = make_block_name(&node.name(), "updatecursor");
             self.start_block(block_name);
 
             // update cursor
@@ -3195,7 +3262,7 @@ impl<'a> InstructionSelection {
             }
 
             // ASM jmp alloc_end
-            let allocend = make_block_name(&self.current_fv_name, node.id(), "alloc_small_end");
+            let allocend = make_block_name(&node.name(), "alloc_small_end");
             self.backend.emit_jmp(allocend.clone());
 
             // finishing current block
@@ -3856,7 +3923,7 @@ impl<'a> InstructionSelection {
         inst: &Instruction,
         calldata: &CallData,
         resumption: Option<&ResumptionData>,
-        cur_node: &TreeNode,
+        node: &TreeNode,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
         vm: &VM
@@ -3918,7 +3985,7 @@ impl<'a> InstructionSelection {
                 if vm.is_doing_jit() {
                     unimplemented!()
                 } else {
-                    let callsite = self.new_callsite_label(Some(cur_node));
+                    let callsite = self.new_callsite_label(Some(node));
                     self.backend.emit_call_near_rel32(
                         callsite,
                         target.name(),
@@ -3930,13 +3997,13 @@ impl<'a> InstructionSelection {
             } else if self.match_ireg(func) {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
 
-                let callsite = self.new_callsite_label(Some(cur_node));
+                let callsite = self.new_callsite_label(Some(node));
                 self.backend
                     .emit_call_near_r64(callsite, &target, potentially_excepting, arg_regs)
             } else if self.match_mem(func) {
                 let target = self.emit_mem(func, vm);
 
-                let callsite = self.new_callsite_label(Some(cur_node));
+                let callsite = self.new_callsite_label(Some(node));
                 self.backend
                     .emit_call_near_mem64(callsite, &target, potentially_excepting, arg_regs)
             } else {
@@ -3955,8 +4022,7 @@ impl<'a> InstructionSelection {
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
             self.finish_block();
-            let block_name =
-                make_block_name(&self.current_fv_name, cur_node.id(), "normal_cont_for_call");
+            let block_name = make_block_name(&node.name(), "normal_cont_for_call");
             self.start_block(block_name);
         } else {
             self.current_callsites
@@ -5747,8 +5813,7 @@ impl<'a> InstructionSelection {
         let ret = {
             if cur_node.is_some() {
                 make_block_name(
-                    &self.current_fv_name,
-                    cur_node.unwrap().id(),
+                    &cur_node.unwrap().name(),
                     format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {
@@ -5767,8 +5832,8 @@ impl<'a> InstructionSelection {
     fn get_mem_for_const(&mut self, val: P<Value>, vm: &VM) -> P<Value> {
         let id = val.id();
 
-        if self.current_constants.contains_key(&id) {
-            self.current_constants.get(&id).unwrap().clone()
+        if self.current_constants_locs.contains_key(&id) {
+            self.current_constants_locs.get(&id).unwrap().clone()
         } else {
             let const_value_loc = vm.allocate_const(val.clone());
             let const_mem_val = match const_value_loc {
