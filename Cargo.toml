@@ -60,6 +60,10 @@ extprim = "*"
 num-traits = "*"
 #built = "0.1"
 
+[target.aarch64-unknown-linux-gnu.dependencies]
+mu_gc = { path = "src/gc", default-features = false}
+built = "0.1"
+
 [target.x86_64-unknown-linux-gnu.dependencies]
 mu_gc = { path = "src/gc", default-features = false}
 built = "0.1"
@@ -70,6 +74,9 @@ built = "0.1"
 
 [target.x86_64-rumprun-netbsd.dependencies]
 mu_gc = { path = "src/gc", default-features = false, features = ["sel4-rumprun-target-side"], target = "x86_64-rumprun-netbsd"}
+
+[target.aarch64-unknown-linux-gnu.build-dependencies]
+built = "0.1"
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 built = "0.1"
