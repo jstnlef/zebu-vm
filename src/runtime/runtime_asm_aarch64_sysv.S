@@ -51,8 +51,8 @@ end_func swap_to_mu_stack
 	.type .Lentry_returned_message, @object
 	.section .rodata.str1.1,"aMS",@progbits,1
 .Lentry_returned_message:
-        .asciz  "ERROR: The entry function returned\n"
-        .size   .Lentry_returned_message, 36
+    .asciz  "ERROR: The entry function returned\n"
+    .size   .Lentry_returned_message, 36
 
 # Prints an error mesage and calls exit(1)
 begin_func entry_returned
@@ -100,13 +100,9 @@ begin_func muentry_throw_exception
          MOV FP, SP
          push_callee_saved
          MOV X1, FP // X1 is the frame pointer
-#if defined (__linux__)
          BL throw_exception_internal
-#else
-         #error "Only Linux is supported. "
-#endif
          # won't return
-
+end_func muentry_throw_exception
 # _exception_restore(dest: Address, frame_cursor: *const Word, sp: Address) -> !
 #                    X0             X1                         X2
 begin_func exception_restore
@@ -117,3 +113,89 @@ begin_func exception_restore
           MOV SP, X2
           BR X0
 end_func exception_restore
+
+# swap to the new stack whilst passing values and saving the old stack
+# muentry_swapstack_save_value(new_stack args..., new_sp: Address, old_sp_loc: &mut Adress)
+#                          X0 ... X7              X8               X9
+begin_func muentry_swapstack_save_value
+    enter_frame
+    push_callee_saved
+
+    # Save the current stack pointer
+    MOV X10, SP
+    STR X10, [X9]
+
+    # Swap to new stack
+    MOV SP, X8
+
+# On the new stack, reverse the above
+    pop_callee_saved
+    exit_frame
+    RET
+end_func
+
+# Same as swapstack_save_value except will throw an exception to the new stack instead of passing values
+# muentry_swapstack_except(exception: Address, new_sp: Address, old_sp_loc: &mut Adress)
+#                          X0                  X1               X2
+begin_func muentry_swapstack_save_exception
+    enter_frame
+    push_callee_saved
+
+    # Save the current stack pointer
+    MOV X3, SP
+    STR X3, [X2]
+
+    # Swap to new stack
+    MOV SP, X1
+
+    # The new stack will have the same layout as the stack when muentry_throw_exception
+    # calls throw_exception_internal, so we can do that directly here
+
+    # Add the total size pushed by 'push_callee_saved' to get the FP for the new stack
+    ADD FP, SP, 144
+    MOV X1, FP
+    BL throw_exception_internal
+
+    # won't return
+end_func
+
+# swap to the new stack whilst passing values and killing the old stack
+# muentry_swapstack_save_value(new_stack args..., new_sp: Address, old_stack: *mut MuStack)
+#                          X0 ... X7              X8               X9
+begin_func muentry_swapstack_kill_value
+    # Swap to new stack
+    MOV SP, X8
+
+    mov_args_to_callee_saved
+    MOV X0, X9
+    B kill_stack
+    mov_callee_saved_to_args
+
+    # On the new stack, reverse muentry_swapstack_save_value
+    pop_callee_saved
+    exit_frame
+    RET
+end_func
+
+# Same as swapstack_save_value except will throw an exception to the new stack instead of passing values
+# muentry_swapstack_except(exception: Address, new_sp: Address, old_stack: *mut MuStack)
+#                          X0                  X1               X2
+begin_func muentry_swapstack_kill_exception
+    # Swap to new stack
+    MOV SP, X1
+
+    mov_args_to_callee_saved
+    MOV X0, X9
+    B kill_stack
+    mov_callee_saved_to_args
+
+    # The new stack will have the same layout as the stack when muentry_throw_exception
+    # calls throw_exception_internal, so we can do that directly here
+
+    # Add the total size pushed by 'push_callee_saved' to get the FP for the new stack
+    ADD FP, SP, 144
+    MOV X1, FP
+    BL throw_exception_internal
+
+    # won't return
+end_func

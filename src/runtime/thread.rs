@@ -174,7 +174,7 @@ impl MuStack {
         use utils::Word;
         use utils::WORD_SIZE;
         use compiler::backend::RegGroup;
-        use compiler::backend::{ARGUMENT_GPRS, ARGUMENT_FPRS};
+        use compiler::backend::{ARGUMENT_FPRS, ARGUMENT_GPRS};
 
         let mut gpr_used = vec![];
         let mut fpr_used = vec![];
@@ -434,12 +434,10 @@ impl MuThread {
         match thread::Builder::new()
             .name(format!("Mu Thread #{}", id))
             .spawn(move || {
-                let muthread: *mut MuThread = Box::into_raw(Box::new(
-                    MuThread::new(id, mm::new_mutator(), stack, user_tls, vm)
-                ));
+                let mut muthread = MuThread::new(id, mm::new_mutator(), stack, user_tls, vm);
 
                 // set thread local
-                unsafe { set_thread_local(muthread) };
+                unsafe { set_thread_local(&mut muthread) };
 
                 let addr = unsafe { muentry_get_thread_local() };
                 let sp_threadlocal_loc = addr + *NATIVE_SP_LOC_OFFSET;
@@ -597,3 +595,39 @@ rodal_struct!(PrimordialThreadInfo {
     args,
     has_const_args
 });
+
+// This prepares a thread for a swap stack operation that saves the current stack
+// it returns the SP to swap to, and a pointer to where to save the current SP
+// (it should be called before arguments are passed to the new stack, and before
+// the new stack is swapped to)
+#[no_mangle]
+pub unsafe extern "C" fn prepare_swapstack_save(new_stack: *mut MuStack)
+    -> (Address, *mut Address) {
+    let cur_thread = MuThread::current_mut();
+    // Save the current stack, don't deallocate it
+    let cur_stack = Box::into_raw(cur_thread.stack.take().unwrap());
+    cur_thread.stack = Some(Box::from_raw(new_stack));
+    ((*new_stack).sp, &mut (*cur_stack).sp)
+}
+
+// This prepares a thread for a swap stack operation that kills the current stack
+// it returns the SP to swap to, and a pointer to the MuStack that should be dropped
+// (it should be called before arguments are passed to the new stack, and before
+// the new stack is swapped to)
+#[no_mangle]
+pub unsafe extern "C" fn prepare_swapstack_kill(new_stack: *mut MuStack)
+    -> (Address, *mut MuStack) {
+    let cur_thread = MuThread::current_mut();
+    // Save the current stack, don't deallocate it until safe to do so
+    // (i.e. when were are not on the current stack)
+    let cur_stack = Box::into_raw(cur_thread.stack.take().unwrap());
+    cur_thread.stack = Some(Box::from_raw(new_stack));
+    ((*new_stack).sp, cur_stack)
+}
+
+// Kills the given stack. WARNING! do not call this whilst on the given stack
+#[no_mangle]
+pub unsafe extern "C" fn kill_stack(stack: *mut MuStack) {
+    // This new box will be destroyed upon returning
+    Box::from_raw(stack);
+}

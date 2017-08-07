@@ -28,6 +28,10 @@
   .size \n, .-\n
   .endm
 
+  .macro global_label n
+  .globl \n
+\n:
+  .endm
 #else
   #error "Only Linux is supported."
 #endif
@@ -88,4 +92,42 @@ pop_pair d7, d6, \stack
 pop_pair d5, d4, \stack
 pop_pair d3, d2, \stack
 pop_pair d1, d0, \stack
+.endm
+
+.macro mov_args_to_callee_saved
+MOV X19, X0
+MOV X20, X1
+MOV X21, X2
+MOV X22, X3
+MOV X23, X4
+MOV X24, X5
+MOV X25, X6
+MOV X26, X7
+FMOV D8, D0
+FMOV D9, D1
+FMOV D10, D2
+FMOV D11, D3
+FMOV D12, D4
+FMOV D13, D5
+FMOV D14, D6
+FMOV D15, D7
+.endm
+
+.macro mov_callee_saved_to_args
+MOV X0, X19
+MOV X1, X20
+MOV X2, X21
+MOV X3, X22
+MOV X4, X23
+MOV X5, X24
+MOV X6, X25
+MOV X7, X26
+FMOV D0, D8
+FMOV D1, D9
+FMOV D2, D10
+FMOV D3, D11
+FMOV D4, D12
+FMOV D5, D13
+FMOV D6, D14
+FMOV D7, D15
 .endm
