@@ -34,7 +34,11 @@ use std::sync::Arc;
 use std::fmt;
 
 /// a 4mb Mu stack
+#[cfg(not(feature = "sel4-rumprun"))]
 pub const STACK_SIZE: ByteSize = (4 << 20); // 4mb
+/// a .25mb Mu stack for sel4-rumprun
+#[cfg(feature = "sel4-rumprun")]
+pub const STACK_SIZE: ByteSize = (4 << 16); // 256kb
 
 /// operating system page size
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -356,6 +360,9 @@ impl fmt::Display for MuThread {
     }
 }
 
+use std::os::raw::c_int;
+
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[link(name = "runtime_asm")]
@@ -388,6 +395,7 @@ extern "C" {
     pub fn exception_restore(dest: Address, callee_saved: *const Word, sp: Address) -> !;
 }
 
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[link(name = "runtime_c")]
@@ -403,6 +411,36 @@ extern "C" {
     /// sets return value for a Zebu executable image
     /// compiler emits calls to this for SetRetval instruction (internal use only)
     pub fn muentry_set_retval(val: u32);
+    /// a C wrapper for checking results written in asm
+    fn c_check_result() -> c_int;
+}
+
+#[cfg(feature = "sel4-rumprun-target-side")]
+#[cfg(target_arch = "x86_64")]
+#[link(name = "runtime_asm")]
+extern "C" {
+    fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
+    #[allow(dead_code)]
+    fn muentry_swap_back_to_native_stack(sp_loc: Address);
+    pub fn get_current_frame_bp() -> Address;
+    pub fn exception_restore(dest: Address, callee_saved: *const Word, sp: Address) -> !;
+}
+
+#[cfg(feature = "sel4-rumprun-target-side")]
+#[cfg(target_arch = "x86_64")]
+#[link(name = "runtime_c")]
+#[allow(improper_ctypes)]
+extern "C" {
+    pub fn set_thread_local(thread: *mut MuThread);
+    pub fn muentry_get_thread_local() -> Address;
+    pub fn muentry_set_retval(val: u32);
+    fn c_check_result() -> c_int;
+}
+
+/// a Rust wrapper for the C function which returns the last set result
+pub fn check_result() -> c_int {
+    let result = unsafe { c_check_result() };
+    result
 }
 
 impl MuThread {

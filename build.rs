@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 extern crate built;
+
 extern crate gcc;
 
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[cfg(target_arch = "x86_64")]
 fn main() {
@@ -29,6 +32,7 @@ fn main() {
     built();
 }
 
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 fn main() {
@@ -43,6 +47,34 @@ fn main() {
     built();
 }
 
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 fn built() {
     built::write_built_file().expect("Failed to acquire build-time information");
+}
+
+
+#[cfg(feature = "sel4-rumprun-target-side")]
+#[cfg(target_arch = "x86_64")]
+fn main() {
+    use std::path::Path;
+    let mut compiler_name = String::new();
+    compiler_name.push_str("x86_64-rumprun-netbsd-gcc");
+    gcc::Config::new()
+        .flag("-O3")
+        .flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("src/runtime/runtime_x64_sel4_rumprun_sysv.c")
+        .compile("libruntime_c.a");
+    gcc::Config::new()
+        .flag("-O3")
+        .flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("src/runtime/runtime_asm_x64_sel4_rumprun_sysv.S")
+        .compile("libruntime_asm.a");
+    gcc::Config::new()
+        .flag("-O3")
+        .flag("-c")
+        .compiler(Path::new(compiler_name.as_str()))
+        .file("zebu_c_helpers.c")
+        .compile("libzebu_c_helpers.a");
 }

@@ -26,16 +26,19 @@ doctest = false
 default = ["aot"]
 aot = []
 jit = []
+sel4-rumprun = []
+sel4-rumprun-target-side = []
 
 [build-dependencies]
 gcc = "*"
-built = "0.1"
+#built = "0.1"
 
 [dependencies]
 mu_ast = {path = "src/ast"}
 mu_utils = {path = "src/utils"}
-mu_gc = {path = "src/gc"}
+#mu_gc = {path = "src/gc"}
 rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = ">= 0.0.5" }
+#rodal = { path = "../rodal_test/rodal", version = ">= 0.0.5" }
 
 libc="*"
 field-offset = "*"
@@ -55,4 +58,21 @@ docopt = "*"
 petgraph = "*"
 extprim = "*"
 num-traits = "*"
+#built = "0.1"
+
+[target.x86_64-unknown-linux-gnu.dependencies]
+mu_gc = { path = "src/gc", default-features = false}
+built = "0.1"
+
+[target.x86_64-apple-darwin.dependencies]
+mu_gc = { path = "src/gc", default-features = false}
+built = "0.1"
+
+[target.x86_64-rumprun-netbsd.dependencies]
+mu_gc = { path = "src/gc", default-features = false, features = ["sel4-rumprun-target-side"], target = "x86_64-rumprun-netbsd"}
+
+[target.x86_64-unknown-linux-gnu.build-dependencies]
+built = "0.1"
+
+[target.x86_64-apple-darwin.build-dependencies]
 built = "0.1"

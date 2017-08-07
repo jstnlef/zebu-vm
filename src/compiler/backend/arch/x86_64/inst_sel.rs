@@ -4729,7 +4729,11 @@ impl<'a> InstructionSelection {
                             &Constant::FuncRef(func_id) => {
                                 // our code for linux has one more level of indirection
                                 // so we need a load for linux
-                                if cfg!(target_os = "macos") {
+                                // sel4-rumprun is the same as Linux here
+                                if cfg!(feature = "sel4-rumprun") {
+                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    self.backend.emit_mov_r_mem(&tmp, &mem);
+                                } else if cfg!(target_os = "macos") {
                                     let mem = self.get_mem_for_funcref(func_id, vm);
                                     self.backend.emit_lea_r64(&tmp, &mem);
                                 } else if cfg!(target_os = "linux") {
@@ -4957,7 +4961,33 @@ impl<'a> InstructionSelection {
                             unimplemented!()
                         } else {
                             // symbolic
-                            if cfg!(target_os = "macos") {
+                            if cfg!(feature = "sel4-rumprun") {
+                                // Same as Linux:
+                                // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
+                                // then load from the address.
+                                // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
+                                let got_loc = P(Value {
+                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                    ty: pv.ty.clone(),
+                                    v: Value_::Memory(MemoryLocation::Symbolic {
+                                        base: Some(x86_64::RIP.clone()),
+                                        label: pv.name(),
+                                        is_global: true,
+                                        is_native: false
+                                    })
+                                });
+
+                                // mov (got_loc) -> actual_loc
+                                let actual_loc = self.make_temporary(f_context, pv.ty.clone(), vm);
+                                self.emit_move_value_to_value(&actual_loc, &got_loc);
+
+                                self.make_memory_op_base_offset(
+                                    &actual_loc,
+                                    0,
+                                    pv.ty.get_referent_ty().unwrap(),
+                                    vm
+                                )
+                            } else if cfg!(target_os = "macos") {
                                 P(Value {
                                     hdr: MuEntityHeader::unnamed(vm.next_id()),
                                     ty: pv.ty.get_referent_ty().unwrap(),
@@ -5823,7 +5853,8 @@ impl<'a> InstructionSelection {
             };
 
             self.current_constants.insert(id, val.clone());
-            self.current_constants_locs.insert(id, const_mem_val.clone());
+            self.current_constants_locs
+                .insert(id, const_mem_val.clone());
 
             const_mem_val
         }

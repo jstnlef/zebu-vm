@@ -34,6 +34,8 @@ use num::integer::lcm;
 #[cfg(feature = "aot")]
 pub const AOT_EMIT_CONTEXT_FILE: &'static str = "context.S";
 
+pub const AOT_EMIT_SYM_TABLE_FILE: &'static str = "mu_sym_table.S";
+
 // type alias to make backend code more readable
 pub type Reg<'a> = &'a P<Value>;
 pub type Mem<'a> = &'a P<Value>;

@@ -12,32 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[package]
-name = "mu_gc"
-version = "0.0.1"
-authors = ["qinsoon <qinsoon@gmail.com>"]
-build = "build.rs"
+// This file provides a template so that we can define functions in ASM and also
+// let the symbols be recognised in both Linux and OSX
 
-[lib]
-crate-type = ["rlib"]
+#define CNAME(n) n
 
-[features]
-default = []
-use-sidemap = []
-sel4-rumprun = []
-sel4-rumprun-target-side = []
+  .macro begin_func n
+  .text
+  .globl CNAME(\n)
+  .type CNAME(\n),@function
+  .balign 16
+CNAME(\n):
+  .endm
 
-[build-dependencies]
-gcc = "*"
+  .macro end_func n
+  .size CNAME(\n), .-CNAME(\n)
+  .endm
 
-[dependencies]
-mu_utils = {path = "../utils"}
-time = "*"
-lazy_static = "*"
-log = "*"
-simple_logger = "*"
-aligned_alloc = "*"
-crossbeam = "*"
-field-offset = "*"
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = ">= 0.0.5" }
-#rodal = { path = "../../../rodal_test/rodal", version = ">= 0.0.5" }
+; vim: ft=asm
