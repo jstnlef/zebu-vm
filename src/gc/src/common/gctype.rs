@@ -17,6 +17,7 @@ use std;
 use std::sync::Arc;
 use utils::POINTER_SIZE;
 use utils::ByteSize;
+use utils::math::align_up;
 use objectmodel;
 use std::u32;
 pub const GCTYPE_INIT_ID: u32 = u32::MAX;
@@ -205,13 +206,14 @@ impl RefPattern {
                 for off in offsets {
                     vec.push(base + off);
                 }
-
                 base + size
             }
             &RefPattern::NestedType(ref types) => {
                 let mut cur_base = base;
 
                 for ty in types {
+                    cur_base = align_up(cur_base, ty.alignment);
+
                     let nested_offset = ty.gen_ref_offsets();
                     let mut nested_offset = nested_offset.iter().map(|x| x + cur_base).collect();
 
