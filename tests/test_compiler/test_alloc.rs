@@ -31,7 +31,7 @@ use self::mu::linkutils::aot;
 
 #[test]
 fn test_allocation_fastpath() {
-    build_and_run_test!(allocation_fastpath, allocation_fastpath_test1);
+    build_and_run_test! (allocation_fastpath, allocation_fastpath_test1);
 }
 
 fn allocation_fastpath() -> VM {
