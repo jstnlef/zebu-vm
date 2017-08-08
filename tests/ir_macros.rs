@@ -740,7 +740,7 @@ macro_rules! emit_test {
             THREADEXIT
         );
 
-        define_block!   (($vm, $tester_name) blk_entry(a, b) {
+        define_block!   (($vm, $tester_name) blk_entry() {
              blk_entry_call,
              blk_entry_cmp,
              blk_entry_inst_select,
@@ -813,7 +813,7 @@ macro_rules! emit_test {
         inst!   (($vm, $tester_name) blk_entry_inst_exit:
             THREADEXIT
         );
-        define_block!   (($vm, $tester_name) blk_entry(a) {
+        define_block!   (($vm, $tester_name) blk_entry() {
              blk_entry_call,
              blk_entry_cmp,
              blk_entry_inst_select,
@@ -1030,7 +1030,7 @@ macro_rules! emit_test {
             THREADEXIT
         );
 
-        define_block!   (($vm, $tester_name) blk_entry(a, b, c, d, e, f) {
+        define_block!   (($vm, $tester_name) blk_entry() {
              blk_entry_call,
              blk_entry_cmp,
              blk_entry_inst_select,
@@ -1112,7 +1112,7 @@ macro_rules! emit_test {
             THREADEXIT
         );
 
-        define_block!   (($vm, $tester_name) blk_entry(a, b) {
+        define_block!   (($vm, $tester_name) blk_entry() {
              blk_entry_call,
              blk_entry_cmp,
              blk_entry_inst_select,
