@@ -392,7 +392,7 @@ fn pass_2args_by_stack() -> VM {
     define_func_ver!((vm) foo8_v1 (entry: blk_entry) {blk_entry});
 
     // pass_2args_by_stack
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> pass_2args_by_stack);
     funcdef!    ((vm) <sig> pass_2args_by_stack VERSION pass_2args_by_stack_v1);
 
@@ -507,7 +507,7 @@ fn pass_2args_by_stack() -> VM {
     define_func_ver!((vm) foo8_v1 (entry: blk_entry) {blk_entry});
 
     // pass_2args_by_stack
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> pass_2args_by_stack);
     funcdef!    ((vm) <sig> pass_2args_by_stack VERSION pass_2args_by_stack_v1);
 
@@ -634,7 +634,7 @@ fn pass_2_int8_args_by_stack() -> VM {
     define_func_ver!((vm) foo8_v1 (entry: blk_entry) {blk_entry});
 
     // pass_2_int8_args_by_stack
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> pass_2_int8_args_by_stack);
     funcdef!    ((vm) <sig> pass_2_int8_args_by_stack VERSION pass_2_int8_args_by_stack_v1);
 
@@ -759,7 +759,7 @@ fn pass_2_int8_args_by_stack() -> VM {
     define_func_ver!((vm) foo8_v1 (entry: blk_entry) {blk_entry});
 
     // pass_2_int8_args_by_stack
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> pass_2_int8_args_by_stack);
     funcdef!    ((vm) <sig> pass_2_int8_args_by_stack VERSION pass_2_int8_args_by_stack_v1);
 
@@ -883,7 +883,7 @@ fn pass_mixed_args_by_stack() -> VM {
     define_func_ver!((vm) foo8_v1 (entry: blk_entry) {blk_entry});
 
     // pass_mixed_args_by_stack
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> pass_mixed_args_by_stack);
     funcdef!    ((vm) <sig> pass_mixed_args_by_stack VERSION pass_mixed_args_by_stack_v1);
 
@@ -1004,7 +1004,7 @@ fn pass_mixed_args_by_stack() -> VM {
     define_func_ver!((vm) foo8_v1 (entry: blk_entry) {blk_entry});
 
     // pass_mixed_args_by_stack
-    funcsig!    ((vm) sig = () -> ());
+    funcsig!    ((vm) sig = () -> (int64));
     funcdecl!   ((vm) <sig> pass_mixed_args_by_stack);
     funcdef!    ((vm) <sig> pass_mixed_args_by_stack VERSION pass_mixed_args_by_stack_v1);
 
@@ -1394,7 +1394,7 @@ fn call_add_u128(vm: &VM) {
     typedef!    ((vm) funcref_add_u128 = mu_funcref(add_u128_sig));
     constdef!   ((vm) <funcref_add_u128> const_funcref_add_u128 = Constant::FuncRef(add_u128_id));
 
-    funcsig!    ((vm) call_add_u128_sig = () -> ());
+    funcsig!    ((vm) call_add_u128_sig = () -> (int64));
     funcdecl!   ((vm) <call_add_u128_sig> call_add_u128);
     funcdef!    ((vm) <call_add_u128_sig> call_add_u128 VERSION call_add_u128_v1);
 
