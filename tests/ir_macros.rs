@@ -689,9 +689,9 @@ macro_rules! emit_test {
         $ty1: ident($in1: expr), $ty2: ident($in2: expr) RET $ty3: ident($out: expr),
     ) => {
         typedef!    (($vm) int1  = mu_int(1));
-        typedef!    (($vm) int64t  = mu_int(64));
-        constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
-        constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+        typedef!    (($vm) int32t  = mu_int(32));
+        constdef!   (($vm) <int32t> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <int32t> int64_fail = Constant::Int(1));
         constdef!   (($vm) <$ty1> f64_0 = Constant::$Arg1Type($in1));
         constdef!   (($vm) <$ty2> f64_1 = Constant::$Arg2Type($in2));
         constdef!   (($vm) <$ty3> f64_2 = Constant::$Arg3Type($out));
@@ -728,7 +728,7 @@ macro_rules! emit_test {
             cmp_res = CMPOP (CmpOp::$CMPType) result f64_2_local
         );
 
-        ssa!    (($vm, $tester_name) <int64t> blk_entry_ret);
+        ssa!    (($vm, $tester_name) <int32t> blk_entry_ret);
         inst!   (($vm, $tester_name) blk_entry_inst_select:
             blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
         );
@@ -769,9 +769,9 @@ macro_rules! emit_test {
         $ty1: ident($in1: expr) RET $ty3: ident($out: expr),
     ) => {
         typedef!    (($vm) int1  = mu_int(1));
-        typedef!    (($vm) int64t  = mu_int(64));
-        constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
-        constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+        typedef!    (($vm) int32t  = mu_int(32));
+        constdef!   (($vm) <int32t> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <int32t> int64_fail = Constant::Int(1));
         constdef!   (($vm) <$ty1> f64_0 = Constant::$Arg1Type($in1));
         constdef!   (($vm) <$ty3> f64_2 = Constant::$Arg3Type($out));
 
@@ -802,7 +802,7 @@ macro_rules! emit_test {
             cmp_res = CMPOP (CmpOp::$CMPType) result f64_2_local
         );
 
-        ssa!    (($vm, $tester_name) <int64t> blk_entry_ret);
+        ssa!    (($vm, $tester_name) <int32t> blk_entry_ret);
         inst!   (($vm, $tester_name) blk_entry_inst_select:
             blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
         );
@@ -838,9 +838,9 @@ macro_rules! emit_test {
         RET $ty1: ident($in1: expr),
     ) => {
         typedef!    (($vm) int1  = mu_int(1));
-        typedef!    (($vm) int64t  = mu_int(64));
-        constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
-        constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+        typedef!    (($vm) int32t  = mu_int(32));
+        constdef!   (($vm) <int32t> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <int32t> int64_fail = Constant::Int(1));
         constdef!   (($vm) <$ty1> arg_0 = Constant::$Arg1Type($in1));
         funcsig!    (($vm) tester_sig = () -> ());
         funcdecl!   (($vm) <tester_sig> $test_name);
@@ -868,7 +868,7 @@ macro_rules! emit_test {
             cmp_res = CMPOP (CmpOp::$CMPType) result arg_0_local
         );
 
-        ssa!    (($vm, $tester_name) <int64t> blk_entry_ret);
+        ssa!    (($vm, $tester_name) <int32t> blk_entry_ret);
         inst!   (($vm, $tester_name) blk_entry_inst_select:
             blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
         );
@@ -903,9 +903,9 @@ macro_rules! emit_test {
         $test_sig: ident,
     ) => {
         typedef!    (($vm) int1  = mu_int(1));
-        typedef!    (($vm) int64t  = mu_int(64));
-        constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
-        constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+        typedef!    (($vm) int32t  = mu_int(32));
+        constdef!   (($vm) <int32t> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <int32t> int64_fail = Constant::Int(1));
 
         funcsig!    (($vm) tester_sig = () -> ());
         funcdecl!   (($vm) <tester_sig> $test_name);
@@ -966,9 +966,9 @@ macro_rules! emit_test {
         RET $ty7: ident($out: expr),
     ) => {
         typedef!    (($vm) int1  = mu_int(1));
-        typedef!    (($vm) int64t  = mu_int(64));
-        constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
-        constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+        typedef!    (($vm) int32t  = mu_int(32));
+        constdef!   (($vm) <int32t> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <int32t> int64_fail = Constant::Int(1));
         constdef!   (($vm) <$ty1> arg_0 = Constant::$Arg1Type($in1));
         constdef!   (($vm) <$ty2> arg_1 = Constant::$Arg2Type($in2));
         constdef!   (($vm) <$ty3> arg_2 = Constant::$Arg3Type($in3));
@@ -1018,7 +1018,7 @@ macro_rules! emit_test {
             cmp_res = CMPOP (CmpOp::$CMPType) result arg_6_local
         );
 
-        ssa!    (($vm, $tester_name) <int64t> blk_entry_ret);
+        ssa!    (($vm, $tester_name) <int32t> blk_entry_ret);
         inst!   (($vm, $tester_name) blk_entry_inst_select:
             blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
         );
@@ -1058,9 +1058,9 @@ macro_rules! emit_test {
         RET $ty4: ident($out: expr),
     ) => {
         typedef!    (($vm) int1  = mu_int(1));
-        typedef!    (($vm) int64t  = mu_int(64));
-        constdef!   (($vm) <int64t> int64_pass = Constant::Int(0));
-        constdef!   (($vm) <int64t> int64_fail = Constant::Int(1));
+        typedef!    (($vm) int32t  = mu_int(32));
+        constdef!   (($vm) <int32t> int64_pass = Constant::Int(0));
+        constdef!   (($vm) <int32t> int64_fail = Constant::Int(1));
         constdef!   (($vm) <$ty1> arg_0 = Constant::$Arg1Type($in1));
         constdef!   (($vm) <$ty2> arg_1 = Constant::$Arg2Type($in2));
         constdef!   (($vm) <$ty2> arg_2 = Constant::$Arg3Type($in3));
@@ -1100,7 +1100,7 @@ macro_rules! emit_test {
             cmp_res = CMPOP (CmpOp::$CMPType) result arg_3_local
         );
 
-        ssa!    (($vm, $tester_name) <int64t> blk_entry_ret);
+        ssa!    (($vm, $tester_name) <int32t> blk_entry_ret);
         inst!   (($vm, $tester_name) blk_entry_inst_select:
             blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
         );
