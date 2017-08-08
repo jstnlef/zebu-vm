@@ -115,29 +115,29 @@ begin_func exception_restore
 end_func exception_restore
 
 # swap to the new stack whilst passing values and saving the old stack
-# muentry_swapstack_save_value(new_stack args..., new_sp: Address, old_sp_loc: &mut Adress)
-#                          X0 ... X7              X8               X9
-begin_func muentry_swapstack_save_value
+# muentry_swapstack_ret_pass(new_stack args..., new_sp: Address, old_sp_loc: &mut Adress)
+#                          X0 ... X7  [x8]            X9               X10
+begin_func muentry_swapstack_ret_pass
     enter_frame
     push_callee_saved
 
     # Save the current stack pointer
-    MOV X10, SP
-    STR X10, [X9]
+    MOV X11, SP
+    STR X11, [X10]
 
     # Swap to new stack
-    MOV SP, X8
+    MOV SP, X9
 
 # On the new stack, reverse the above
     pop_callee_saved
     exit_frame
     RET
-end_func
+end_func muentry_swapstack_ret_pass
 
-# Same as swapstack_save_value except will throw an exception to the new stack instead of passing values
-# muentry_swapstack_except(exception: Address, new_sp: Address, old_sp_loc: &mut Adress)
+# Same as swapstack_ret_pass except will throw an exception to the new stack instead of passing values
+# muentry_swapstack_ret_throw(exception: Address, new_sp: Address, old_sp_loc: &mut Adress)
 #                          X0                  X1               X2
-begin_func muentry_swapstack_save_exception
+begin_func muentry_swapstack_ret_throw
     enter_frame
     push_callee_saved
 
@@ -157,36 +157,36 @@ begin_func muentry_swapstack_save_exception
     BL throw_exception_internal
 
     # won't return
-end_func
+end_func muentry_swapstack_ret_throw
 
 # swap to the new stack whilst passing values and killing the old stack
-# muentry_swapstack_save_value(new_stack args..., new_sp: Address, old_stack: *mut MuStack)
-#                          X0 ... X7              X8               X9
-begin_func muentry_swapstack_kill_value
+# muentry_swapstack_kill_pass(new_stack args..., new_sp: Address, old_stack: *mut MuStack)
+#                              X0 ... X7 [x8]            X9              X10
+begin_func muentry_swapstack_kill_pass
     # Swap to new stack
-    MOV SP, X8
+    MOV SP, X9
 
     mov_args_to_callee_saved
-    MOV X0, X9
-    B kill_stack
+    MOV X0, X10
+    B muentry_kill_stack
     mov_callee_saved_to_args
 
-    # On the new stack, reverse muentry_swapstack_save_value
+    # On the new stack, reverse muentry_swapstack_ret_pass
     pop_callee_saved
     exit_frame
     RET
-end_func
+end_func muentry_swapstack_kill_pass
 
-# Same as swapstack_save_value except will throw an exception to the new stack instead of passing values
-# muentry_swapstack_except(exception: Address, new_sp: Address, old_stack: *mut MuStack)
+# Same as muentry_swapstack_kill_pass except will throw an exception to the new stack instead of passing values
+# muentry_swapstack_kill_throw(exception: Address, new_sp: Address, old_stack: *mut MuStack)
 #                          X0                  X1               X2
-begin_func muentry_swapstack_kill_exception
+begin_func muentry_swapstack_kill_throw
     # Swap to new stack
     MOV SP, X1
 
     mov_args_to_callee_saved
     MOV X0, X9
-    B kill_stack
+    B muentry_kill_stack
     mov_callee_saved_to_args
 
     # The new stack will have the same layout as the stack when muentry_throw_exception
@@ -198,4 +198,4 @@ begin_func muentry_swapstack_kill_exception
     BL throw_exception_internal
 
     # won't return
-end_func
+end_func muentry_swapstack_kill_throw
