@@ -114,6 +114,7 @@ begin_func exception_restore
           BR X0
 end_func exception_restore
 
+/*
 # swap to the new stack whilst passing values and saving the old stack
 # muentry_swapstack_ret_pass(new_stack args..., new_sp: Address, old_sp_loc: &mut Adress)
 #                          X0 ... X7  [x8]            X9               X10
@@ -199,3 +200,4 @@ begin_func muentry_swapstack_kill_throw
 
     # won't return
 end_func muentry_swapstack_kill_throw
+*/
