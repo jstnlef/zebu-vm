@@ -17,6 +17,8 @@ use ast::op::*;
 use ast::inst::*;
 use utils::LinkedHashMap;
 use utils::LinkedHashSet;
+use utils::math::align_up;
+use utils::bit_utils::bits_ones;
 use std;
 
 macro_rules! assert_ir {
@@ -1855,14 +1857,21 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
 
         let impl_ty_ = match **ty {
-            NodeType::TypeInt { id: _, len } => MuType_::Int(len as usize),
+            NodeType::TypeInt { id: _, len } => {
+                assert_ir!(len >= 1);
+                MuType_::Int(len as usize)
+            },
             NodeType::TypeFloat { id: _ } => MuType_::Float,
             NodeType::TypeDouble { id: _ } => MuType_::Double,
             NodeType::TypeUPtr { id: _, ty: toty } => {
+                // TODO: Check that toty is native safe
+                // (this is dificuilt as it requires checking all the fields in a struct
+                // which may include this type itself)
                 let impl_toty = self.ensure_type_rec(toty);
                 MuType_::UPtr(impl_toty)
             }
             NodeType::TypeUFuncPtr { id: _, sig } => {
+                // TODO: Check that the return and arg types of sig is native safe
                 let impl_sig = self.ensure_sig_rec(sig);
                 MuType_::UFuncPtr(impl_sig)
             }
@@ -1883,10 +1892,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             NodeType::TypeArray { id: _, elemty, len } => {
                 let impl_elemty = self.ensure_type_rec(elemty);
+                assert_ir!(len >= 1);
+                assert_ir!(!impl_elemty.is_hybrid() && !impl_elemty.is_void());
                 MuType_::Array(impl_elemty, len)
             }
             NodeType::TypeVector { id: _, elemty, len } => {
                 let impl_elemty = self.ensure_type_rec(elemty);
+                assert_ir!(len >= 1);
+                assert_ir!(!impl_elemty.is_hybrid() && !impl_elemty.is_void());
                 MuType_::Vector(impl_elemty, len)
             }
             NodeType::TypeVoid { id: _ } => MuType_::Void,
@@ -1951,6 +1964,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Filling struct or hybrid {} {:?}", id, ty);
 
         match **ty {
+            // TODO: Check for recursive types
             NodeType::TypeStruct {
                 id: _,
                 ref fieldtys
@@ -1960,8 +1974,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     .map(|fid| self.ensure_type_rec(*fid))
                     .collect::<Vec<_>>();
 
+                assert_ir!(fieldtys_impl.len() >= 1 && fieldtys_impl.iter().all(|x| !x.is_hybrid() && !x.is_void()));
                 MuType_::mustruct_put(tag, fieldtys_impl);
-
                 trace!(
                     "Struct {} filled: {:?}",
                     id,
@@ -1980,6 +1994,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
                 let varty_impl = self.ensure_type_rec(varty);
 
+                assert_ir!(fixedtys_impl.iter().all(|x| !x.is_hybrid() && !x.is_void()));
+                assert_ir!(!varty_impl.is_hybrid() && !varty_impl.is_void());
                 MuType_::hybrid_put(tag, fixedtys_impl, varty_impl);
 
                 trace!(
@@ -2047,6 +2063,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeConst::ConstInt { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Int(value);
+                assert_ir!(t.is_int() || t.is_ptr());
+                assert_ir!(value <= bits_ones(t.get_int_length().unwrap()));
                 (c, t)
             }
             NodeConst::ConstIntEx {
@@ -2056,21 +2074,28 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::IntEx(value.clone());
+                assert_ir!(t.is_int() || t.is_ptr());
+                assert_ir!(value.len()*64 == align_up(t.get_int_length().unwrap(), 64));
+                assert_ir!(*value.last().unwrap() <= bits_ones(t.get_int_length().unwrap() - (value.len()-1)*64));
+
                 (c, t)
             }
             NodeConst::ConstFloat { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Float(value);
+                assert_ir!(t.is_float());
                 (c, t)
             }
             NodeConst::ConstDouble { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Double(value);
+                assert_ir!(t.is_double());
                 (c, t)
             }
             NodeConst::ConstNull { id: _, ty } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::NullRef;
+                assert_ir!(t.is_ref() || t.is_iref() | t.is_funcref() | t.is_opaque_reference());
                 (c, t)
             }
             NodeConst::ConstExtern {
@@ -2080,6 +2105,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::ExternSym(symbol.clone());
+                assert_ir!(symbol.as_bytes().iter().all(|x| *x >= 33 && *x <= 126 && *x != 34));
+                assert_ir!(t.is_ptr());
                 (c, t)
             }
             ref c => panic!("{:?} not implemented", c)
@@ -2171,6 +2198,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let mut fcb: FuncCtxBuilder = Default::default();
 
+        let entry_id = *fv.bbs.first().unwrap();
         let blocks = fv.bbs
             .iter()
             .map(|bbid| {
@@ -2179,7 +2207,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             })
             .collect::<LinkedHashMap<MuID, Block>>();
 
-        let entry_id = *fv.bbs.first().unwrap();
+        assert_ir!({
+            let c = blocks[&entry_id].content.as_ref().unwrap();
+            c.args.len() == impl_sig.arg_tys.len() &&
+            c.args.iter().zip(&impl_sig.arg_tys).all(|(arg, t)| arg.ty == *t) &&
+            c.exn_arg.is_none()});
+
         let ctn = FunctionContent {
             entry: entry_id,
             blocks: blocks,
@@ -3323,7 +3356,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 //                DestArg::Normal(my_index)
 //            }
             let my_index = ops.len();
-            self.add_opnd(fcb, ops, *vid);
+            let op = self.add_opnd(fcb, ops, *vid);
             DestArg::Normal(my_index)
         }).collect::<Vec<_>>();
 
