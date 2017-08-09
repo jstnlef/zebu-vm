@@ -13,7 +13,8 @@
 // limitations under the License.
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum BinOp {
+pub
+enum BinOp {
     // BinOp Int(n) Int(n) -> Int(n)
     Add,
     Sub,
@@ -39,6 +40,19 @@ pub enum BinOp {
     FRem
 }
 
+impl BinOp {
+    pub fn is_fp(self) -> bool {
+        use op::BinOp::*;
+        match self {
+            FAdd |
+            FSub |
+            FMul |
+            FDiv |
+            FRem => true,
+            _ => false
+        }
+    }
+}
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CmpOp {
     // for Int comparison
@@ -171,6 +185,22 @@ impl CmpOp {
         match self {
             EQ | NE | SGE | SGT | SLE | SLT | UGE | UGT | ULE | ULT => true,
             _ => false
+        }
+    }
+
+    pub fn is_fp_cmp(self) -> bool { !self.is_int_cmp() }
+    pub fn is_eq_cmp(self) -> bool {
+        use op::CmpOp::*;
+        match self {
+            EQ | NE  => true,
+            _ => false
+        }
+    }
+    pub fn is_ult_cmp(self) -> bool {
+        use op::CmpOp::*;
+        match self {
+        UGE | UGT | ULE | ULT => true,
+        _ => false
         }
     }
 
