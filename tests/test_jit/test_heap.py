@@ -85,7 +85,8 @@ def test_load_ref_from_global():
             .funcdef @test_fnc VERSION @test_fnc.v1 <@sig__i64> {
                 %blk0():
                     %r = LOAD <@refi64> @gcl
-                    %res = LOAD <@i64> %r
+                    %ir = GETIREF <@i64> %r
+                    %res = LOAD <@i64> %ir
                     RET %res
             }
         :type bldr: rpython.rlib.rmu.MuIRBuilder
@@ -104,11 +105,13 @@ def test_load_ref_from_global():
         test_fnc_v1 = bldr.gen_sym("@test_fnc.v1")
         blk0 = bldr.gen_sym("@test_fnc.v1.blk0")
         r = bldr.gen_sym("@test_fnc.v1.blk0.r")
+        ir = bldr.gen_sym("@test_fnc.v1.blk0.ir")
         res = bldr.gen_sym("@test_fnc.v1.blk0.res")
         op_load1 = bldr.gen_sym(); bldr.new_load(op_load1, r, False, rmu.MuMemOrd.NOT_ATOMIC, refi64, gcl)
-        op_load2 = bldr.gen_sym(); bldr.new_load(op_load2, res, False, rmu.MuMemOrd.NOT_ATOMIC, i64, r)
+        op_getiref = bldr.gen_sym(); bldr.new_getiref(op_getiref, ir, i64, r)
+        op_load2 = bldr.gen_sym(); bldr.new_load(op_load2, res, False, rmu.MuMemOrd.NOT_ATOMIC, i64, ir)
         op_ret = bldr.gen_sym(); bldr.new_ret(op_ret, [res])
-        bldr.new_bb(blk0, [], [], rmu.MU_NO_ID, [op_load1, op_load2, op_ret])
+        bldr.new_bb(blk0, [], [], rmu.MU_NO_ID, [op_load1, op_getiref, op_load2, op_ret])
 
         bldr.new_func_ver(test_fnc_v1, test_fnc, [blk0])
 
