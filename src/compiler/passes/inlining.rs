@@ -584,7 +584,7 @@ fn copy_inline_blocks(
 
                         &Instruction_::Watchpoint { .. } |
                         &Instruction_::WPBranch { .. } |
-                        &Instruction_::SwapStack { .. } |
+                        &Instruction_::SwapStackExc { .. } | // Should be safe, just inline it like a call...
                         &Instruction_::ExnInstruction { .. } => unimplemented!(),
 
                         _ => {
