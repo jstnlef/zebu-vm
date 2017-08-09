@@ -63,6 +63,49 @@ impl Instruction {
         use inst::Instruction_::*;
 
         match self.v {
+            BinOp(_, _, _) |
+            BinOpWithStatus(_, _, _, _) |
+            CmpOp(_, _, _) |
+            ConvOp { .. } |
+            ExprCall { .. } |
+            ExprCCall { .. } |
+            Load { .. } |
+            Store { .. } |
+            CmpXchg { .. } |
+            AtomicRMW { .. } |
+            New(_) |
+            AllocA(_) |
+            NewHybrid(_, _) |
+            AllocAHybrid(_, _) |
+            NewStack(_) |
+            NewThread(_, _) |
+            NewThreadExn(_, _) |
+            NewFrameCursor(_) |
+            GetIRef(_) |
+            GetFieldIRef { .. } |
+            GetElementIRef { .. } |
+            ShiftIRef { .. } |
+            GetVarPartIRef { .. } |
+            Select { .. } |
+            Fence(_) |
+            CommonInst_GetThreadLocal |
+            CommonInst_SetThreadLocal(_) |
+            CommonInst_Pin(_) |
+            CommonInst_Unpin(_) |
+            CommonInst_GetAddr(_) |
+            CommonInst_Tr64IsFp(_) |
+            CommonInst_Tr64IsInt(_) |
+            CommonInst_Tr64IsRef(_) |
+            CommonInst_Tr64FromFp(_) |
+            CommonInst_Tr64FromInt(_) |
+            CommonInst_Tr64FromRef(_, _) |
+            CommonInst_Tr64ToFp(_) |
+            CommonInst_Tr64ToInt(_) |
+            CommonInst_Tr64ToRef(_) |
+            CommonInst_Tr64ToTag(_) |
+            Move(_) |
+            PrintHex(_) |
+            SetRetval(_) => false,
             Return(_) |
             ThreadExit |
             Throw(_) |
@@ -73,11 +116,9 @@ impl Instruction {
             WPBranch { .. } |
             Call { .. } |
             CCall { .. } |
-            SwapStackExc { .. } |
-            SwapStackKill { .. } |
+            SwapStack { .. } |
             Switch { .. } |
-            ExnInstruction { .. } => true,
-            _ => false,
+            ExnInstruction { .. } => true
         }
     }
 
@@ -94,14 +135,58 @@ impl Instruction {
         use inst::Instruction_::*;
 
         match self.v {
-            ExprCall { .. } | ExprCCall { .. } | Load { .. } | Store { .. } | CmpXchg { .. } | AtomicRMW { .. } |
-            New(_) | AllocA(_) | NewHybrid(_, _) | AllocAHybrid(_, _) | NewStack(_) | NewThread(_, _) |
-            NewThreadExn(_, _) | NewFrameCursor(_) | Fence(_) | Return(_) | ThreadExit | Throw(_) |
-            TailCall(_) | Branch1(_) | Branch2 { .. } | Watchpoint { .. } | WPBranch { .. } |
-            Call { .. } | CCall { .. }| SwapStackExpr{..}| SwapStackExc { .. } | SwapStackKill { .. } | Switch { .. } | ExnInstruction { .. } |
-            CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) | CommonInst_Pin(_) | CommonInst_Unpin(_) |
-            CommonInst_GetAddr(_) | PrintHex(_) | SetRetval(_) => true,
-            _ => false
+            BinOp(_, _, _) => false,
+            BinOpWithStatus(_, _, _, _) => false,
+            CmpOp(_, _, _) => false,
+            ConvOp { .. } => false,
+            ExprCall { .. } => true,
+            ExprCCall { .. } => true,
+            Load { .. } => true,
+            Store { .. } => true,
+            CmpXchg { .. } => true,
+            AtomicRMW { .. } => true,
+            New(_) => true,
+            AllocA(_) => true,
+            NewHybrid(_, _) => true,
+            AllocAHybrid(_, _) => true,
+            NewStack(_) => true,
+            NewThread(_, _) => true,
+            NewThreadExn(_, _) => true,
+            NewFrameCursor(_) => true,
+            GetIRef(_) => false,
+            GetFieldIRef { .. } => false,
+            GetElementIRef { .. } => false,
+            ShiftIRef { .. } => false,
+            GetVarPartIRef { .. } => false,
+            Fence(_) => true,
+            Return(_) => true,
+            ThreadExit => true,
+            Throw(_) => true,
+            TailCall(_) => true,
+            Branch1(_) => true,
+            Branch2 { .. } => true,
+            Select { .. } => false,
+            Watchpoint { .. } => true,
+            WPBranch { .. } => true,
+            Call { .. } => true,
+            CCall { .. } => true,
+            SwapStack { .. } => true,
+            Switch { .. } => true,
+            ExnInstruction { .. } => true,
+            CommonInst_GetThreadLocal => true,
+            CommonInst_SetThreadLocal(_) => true,
+            CommonInst_Pin(_) | CommonInst_Unpin(_) | CommonInst_GetAddr(_) => true,
+            CommonInst_Tr64IsFp(_) | CommonInst_Tr64IsInt(_) | CommonInst_Tr64IsRef(_) => false,
+            CommonInst_Tr64FromFp(_) | CommonInst_Tr64FromInt(_) | CommonInst_Tr64FromRef(_, _) => {
+                false
+            }
+            CommonInst_Tr64ToFp(_) |
+            CommonInst_Tr64ToInt(_) |
+            CommonInst_Tr64ToRef(_) |
+            CommonInst_Tr64ToTag(_) => false,
+            Move(_) => false,
+            PrintHex(_) => true,
+            SetRetval(_) => true
         }
     }
 
@@ -114,9 +199,60 @@ impl Instruction {
             Watchpoint { .. } |
             Call { .. } |
             CCall { .. } |
-            SwapStackExc  {..} |
+            SwapStack { .. } |
             ExnInstruction { .. } => true,
-            _ => false,
+
+            BinOp(_, _, _) |
+            BinOpWithStatus(_, _, _, _) |
+            CmpOp(_, _, _) |
+            ConvOp { .. } |
+            ExprCall { .. } |
+            ExprCCall { .. } |
+            Load { .. } |
+            Store { .. } |
+            CmpXchg { .. } |
+            AtomicRMW { .. } |
+            New(_) |
+            AllocA(_) |
+            NewHybrid(_, _) |
+            AllocAHybrid(_, _) |
+            NewStack(_) |
+            NewThread(_, _) |
+            NewThreadExn(_, _) |
+            NewFrameCursor(_) |
+            GetIRef(_) |
+            GetFieldIRef { .. } |
+            GetElementIRef { .. } |
+            ShiftIRef { .. } |
+            GetVarPartIRef { .. } |
+            Fence(_) |
+            Return(_) |
+            ThreadExit |
+            Throw(_) |
+            TailCall(_) |
+            Branch1(_) |
+            Branch2 { .. } |
+            Select { .. } |
+            WPBranch { .. } |
+            Switch { .. } |
+            CommonInst_GetThreadLocal |
+            CommonInst_SetThreadLocal(_) |
+            CommonInst_Pin(_) |
+            CommonInst_Unpin(_) |
+            CommonInst_GetAddr(_) |
+            CommonInst_Tr64IsFp(_) |
+            CommonInst_Tr64IsInt(_) |
+            CommonInst_Tr64IsRef(_) |
+            CommonInst_Tr64FromFp(_) |
+            CommonInst_Tr64FromInt(_) |
+            CommonInst_Tr64FromRef(_, _) |
+            CommonInst_Tr64ToFp(_) |
+            CommonInst_Tr64ToInt(_) |
+            CommonInst_Tr64ToRef(_) |
+            CommonInst_Tr64ToTag(_) |
+            Move(_) |
+            PrintHex(_) |
+            SetRetval(_) => false
         }
     }
 
@@ -133,9 +269,60 @@ impl Instruction {
             Watchpoint { ref resume, .. } |
             Call { ref resume, .. } |
             CCall { ref resume, .. } |
-            SwapStackExc { ref resume, ..} |
+            SwapStack { ref resume, .. } |
             ExnInstruction { ref resume, .. } => Some(resume.exn_dest.target),
-            _ => None
+
+            BinOp(_, _, _) |
+            BinOpWithStatus(_, _, _, _) |
+            CmpOp(_, _, _) |
+            ConvOp { .. } |
+            ExprCall { .. } |
+            ExprCCall { .. } |
+            Load { .. } |
+            Store { .. } |
+            CmpXchg { .. } |
+            AtomicRMW { .. } |
+            New(_) |
+            AllocA(_) |
+            NewHybrid(_, _) |
+            AllocAHybrid(_, _) |
+            NewStack(_) |
+            NewThread(_, _) |
+            NewThreadExn(_, _) |
+            NewFrameCursor(_) |
+            GetIRef(_) |
+            GetFieldIRef { .. } |
+            GetElementIRef { .. } |
+            ShiftIRef { .. } |
+            GetVarPartIRef { .. } |
+            Fence(_) |
+            Return(_) |
+            ThreadExit |
+            Throw(_) |
+            TailCall(_) |
+            Branch1(_) |
+            Branch2 { .. } |
+            Select { .. } |
+            WPBranch { .. } |
+            Switch { .. } |
+            CommonInst_GetThreadLocal |
+            CommonInst_SetThreadLocal(_) |
+            CommonInst_Pin(_) |
+            CommonInst_Unpin(_) |
+            CommonInst_GetAddr(_) |
+            CommonInst_Tr64IsFp(_) |
+            CommonInst_Tr64IsInt(_) |
+            CommonInst_Tr64IsRef(_) |
+            CommonInst_Tr64FromFp(_) |
+            CommonInst_Tr64FromInt(_) |
+            CommonInst_Tr64FromRef(_, _) |
+            CommonInst_Tr64ToFp(_) |
+            CommonInst_Tr64ToInt(_) |
+            CommonInst_Tr64ToRef(_) |
+            CommonInst_Tr64ToTag(_) |
+            Move(_) |
+            PrintHex(_) |
+            SetRetval(_) => None
         }
     }
 
@@ -352,28 +539,15 @@ pub enum Instruction_ {
         resume: ResumptionData
     },
 
-    // A swap stack with an exception clause (i.e. uses the RET_WITH form)
-    SwapStackExc {
+    /// swapstack. swap current Mu stack with the named Mu stack,
+    /// and continue with specified resumption
+    SwapStack {
         stack: OpIndex,
         is_exception: bool,
         args: Vec<OpIndex>,
         resume: ResumptionData
     },
 
-    // A swap stack without an exception clause that is not a terminator (i.e. uses the RET_WITH form)
-    SwapStackExpr {
-        stack: OpIndex,
-        is_exception: bool,
-        args: Vec<OpIndex>,
-    },
-
-    // A swapstack without an exception clause that is a terminator (i.e. one with KILL_OLD)
-    SwapStackKill {
-        stack: OpIndex,
-        is_exception: bool,
-        args: Vec<OpIndex>,
-    },
-    
     /// a multiway branch
     Switch {
         cond: OpIndex,
@@ -619,23 +793,11 @@ impl Instruction_ {
                 ref data,
                 ref resume
             } => format!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
-                &Instruction_::CCall {
+            &Instruction_::CCall {
                 ref data,
                 ref resume
             } => format!("CCALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
-            &Instruction_::SwapStackExpr {
-                stack,
-                is_exception,
-                ref args,
-            } => {
-                format!(
-                    "SWAPSTACK {} {} {}",
-                    ops[stack],
-                    is_exception,
-                    op_vector_str(args, ops),
-                )
-            }
-            &Instruction_::SwapStackExc {
+            &Instruction_::SwapStack {
                 stack,
                 is_exception,
                 ref args,
@@ -649,20 +811,6 @@ impl Instruction_ {
                     resume.debug_str(ops)
                 )
             }
-
-            &Instruction_::SwapStackKill {
-                stack,
-                is_exception,
-                ref args,
-            } => {
-                format!(
-                    "SWAPSTACK {} {} {}",
-                    ops[stack],
-                    is_exception,
-                    op_vector_str(args, ops),
-                )
-            }
-            
             &Instruction_::Switch {
                 cond,
                 ref default,
@@ -800,7 +948,7 @@ impl fmt::Debug for BinOpStatus {
     }
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum MemoryOrder {
     NotAtomic,
     Relaxed,

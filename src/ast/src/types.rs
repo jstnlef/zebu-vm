@@ -75,14 +75,6 @@ lazy_static! {
         MuType::new(new_internal_id(), MuType_::iref(VOID_TYPE.clone()))
     );
 
-    pub static ref STACKREF_TYPE : P<MuType> = P(
-        MuType::new(new_internal_id(), MuType_::StackRef)
-    );
-
-    pub static ref THREADREF_TYPE : P<MuType> = P(
-        MuType::new(new_internal_id(), MuType_::ThreadRef)
-    );
-
     pub static ref INTERNAL_TYPES : Vec<P<MuType>> = vec![
         ADDRESS_TYPE.clone(),
         UINT1_TYPE.clone(),
@@ -97,8 +89,6 @@ lazy_static! {
         VOID_TYPE.clone(),
         REF_VOID_TYPE.clone(),
         IREF_VOID_TYPE.clone(),
-        STACKREF_TYPE.clone(),
-        THREADREF_TYPE.clone(),
     ];
 }
 
@@ -116,18 +106,13 @@ pub fn init_types() {
 }
 
 /// MuType represents a Mu type
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub struct MuType {
     pub hdr: MuEntityHeader,
     pub v: MuType_
 }
 
 rodal_struct!(MuType { hdr, v });
-
-impl PartialEq for MuType {
-    fn eq(&self, other: &MuType) -> bool { self.v == other.v }
-    fn ne(&self, other: &MuType) -> bool { self.v != other.v }
-}
 
 impl MuType {
     /// creates a new Mu type
@@ -138,30 +123,10 @@ impl MuType {
         }
     }
 
-    pub fn is_tagref64(&self) -> bool {
-        match self.v {
-            MuType_::Tagref64 => true,
-            _ => false
-        }
-    }
-    pub fn is_funcref(&self) -> bool {
-        match self.v {
-            MuType_::Struct(_) => true,
-            _ => false
-        }
-    }
-
     /// is this type struct type?
     pub fn is_struct(&self) -> bool {
         match self.v {
             MuType_::Struct(_) => true,
-            _ => false
-        }
-    }
-
-    pub fn is_void(&self) -> bool {
-        match self.v {
-            MuType_::Void => true,
             _ => false
         }
     }
@@ -189,22 +154,6 @@ impl MuType {
             _ => false
         }
     }
-
-    pub fn is_opaque_reference(&self) -> bool {
-        match self.v {
-            MuType_::FuncRef(_) | MuType_::StackRef | MuType_::ThreadRef => true,
-            _ => false
-        }
-    }
-
-    pub fn is_eq_comparable(&self) -> bool {
-        self.is_int() || self.is_ptr() || self.is_iref() || self.is_ref() || self.is_opaque_reference()
-    }
-
-    pub fn is_ult_comparable(&self) -> bool {
-        self.is_int() || self.is_ptr() || self.is_iref()
-    }
-
 
     /// is this type a float type (single-precision floating point)
     pub fn is_float(&self) -> bool {
@@ -444,7 +393,7 @@ pub type StructTag = MuName;
 pub type HybridTag = MuName;
 
 /// MuType_ is used for pattern matching for MuType
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug)]
 pub enum MuType_ {
     /// int <length>
     Int(usize),
@@ -492,14 +441,7 @@ pub enum MuType_ {
     /// ufuncptr<@sig>
     UFuncPtr(P<MuFuncSig>)
 }
-impl MuType_ {
-    pub fn strong_variant(&self) -> MuType_ {
-        match self {
-            &MuType_::WeakRef(ref t) => MuType_::Ref(t.clone()),
-            _ => self.clone()
-        }
-    }
-}
+
 rodal_enum!(MuType_{(Int: size), Float, Double, (Ref: ty), (IRef: ty), (WeakRef: ty), (UPtr: ty),
     (Struct: tag), (Array: ty, size), (Hybrid: tag), Void, ThreadRef, StackRef, Tagref64,
     (Vector: ty, size), (FuncRef: ty), (UFuncPtr: ty)});

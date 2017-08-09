@@ -785,7 +785,7 @@ impl BlockContent {
                     }
                     Instruction_::Call { ref resume, .. } |
                     Instruction_::CCall { ref resume, .. } |
-                    Instruction_::SwapStackExc { ref resume, .. } |
+                    Instruction_::SwapStack { ref resume, .. } |
                     Instruction_::ExnInstruction { ref resume, .. } => {
                         let mut live_outs = vec![];
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
@@ -906,25 +906,6 @@ impl TreeNode {
         match self.v {
             TreeNode_::Instruction(inst) => Some(inst),
             _ => None
-        }
-    }
-
-    // The type of the node (for a value node)
-    pub fn ty(&self) -> P<MuType> {
-        match self.v {
-            TreeNode_::Instruction(ref inst) => {
-                if inst.value.is_some() {
-                    let ref value = inst.value.as_ref().unwrap();
-                    if value.len() != 1 {
-                        panic!("the node {} does not have one result value", self);
-                    }
-
-                    value[0].ty.clone()
-                } else {
-                    panic!("expected result from the node {}", self);
-                }
-            }
-            TreeNode_::Value(ref pv) => pv.ty.clone()
         }
     }
 }
