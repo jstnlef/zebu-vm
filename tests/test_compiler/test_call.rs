@@ -1241,12 +1241,13 @@ fn store_funcref() -> VM {
     tester function goes here
     */
     typedef!((vm) int64 = mu_int(64));
+    typedef!((vm) int32 = mu_int(32));
     typedef!((vm) int1 = mu_int(1));
     typedef!((vm) u64_ref  = mu_ref(int64));
     constdef!((vm) <int64> alloc_size_const = Constant::Int(8));
     constdef!((vm) <int64> expected_result_const = Constant::Int(1));
-    constdef!((vm) <int64> int64_pass = Constant::Int(0));
-    constdef!((vm) <int64> int64_fail = Constant::Int(1));
+    constdef!((vm) <int32> int64_pass = Constant::Int(0));
+    constdef!((vm) <int32> int64_fail = Constant::Int(1));
 
     funcsig!((vm) tester_sig = () -> ());
     funcdecl!((vm) <tester_sig> current_tester);
@@ -1295,7 +1296,7 @@ fn store_funcref() -> VM {
             cmp_res = CMPOP (CmpOp::EQ) result expected_result_const_local
         );
 
-    ssa!((vm, current_tester_v1) <int64> blk_entry_ret);
+    ssa!((vm, current_tester_v1) <int32> blk_entry_ret);
     inst!((vm, current_tester_v1) blk_entry_inst_select:
             blk_entry_ret = SELECT cmp_res int64_pass_local int64_fail_local
         );
