@@ -909,6 +909,14 @@ impl TreeNode {
         }
     }
 
+    /// consumes the TreeNode, returns the instruction in it (or None if it is not an instruction)
+    pub fn as_inst_ref(&self) -> &Instruction {
+        match &self.v {
+            &TreeNode_::Instruction(ref inst) => inst,
+            _ => panic!("expected inst")
+        }
+    }
+
     // The type of the node (for a value node)
     pub fn ty(&self) -> P<MuType> {
         match self.v {
@@ -927,6 +935,7 @@ impl TreeNode {
             TreeNode_::Value(ref pv) => pv.ty.clone()
         }
     }
+
 }
 
 impl fmt::Display for TreeNode {

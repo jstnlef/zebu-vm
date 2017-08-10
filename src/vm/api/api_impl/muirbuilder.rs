@@ -2325,11 +2325,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         blocks: &LinkedHashMap<MuID, Block>,
     ) -> Vec<Box<TreeNode>> {
         let res = self.b.bundle.bbs.get(&id).unwrap().insts.iter().map(|iid| self.build_inst(fcb, *iid, blocks)).collect::<Vec<_>>();
-        {let rl = res.last();
-        let rlar = rl.as_ref();
-        let rlaru = rlar.unwrap();
-        let rlaruii = rlaru.as_inst_ref();
-        assert_ir!(rlaruii.is_terminal_inst());}
+        assert_ir!(res.last().as_ref().unwrap().as_inst_ref().is_terminal_inst());
         res
     }
 
