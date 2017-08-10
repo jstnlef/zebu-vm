@@ -1281,7 +1281,8 @@ struct BundleLoader<'lb, 'lvm> {
     built_iref_of: IdPMap<MuType>,
     built_uptr_of: IdPMap<MuType>,
 
-    built_constint_of: HashMap<u64, P<Value>>
+    built_constint_of: HashMap<u64, P<Value>>,
+    current_sig: Option<P<MuFuncSig>>
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -1315,7 +1316,8 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
         built_uptr_of: Default::default(),
-        built_constint_of: Default::default()
+        built_constint_of: Default::default(),
+        current_sig: Default::default()
     };
 
     bl.load_bundle();
@@ -1864,14 +1866,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeType::TypeFloat { id: _ } => MuType_::Float,
             NodeType::TypeDouble { id: _ } => MuType_::Double,
             NodeType::TypeUPtr { id: _, ty: toty } => {
-                // TODO: Check that toty is native safe
-                // (this is dificuilt as it requires checking all the fields in a struct
-                // which may include this type itself)
+                // NOTE: The mu-spec requires toty to be native safe
+                // but that will break clients that ignore this rule so it is not checked for
                 let impl_toty = self.ensure_type_rec(toty);
                 MuType_::UPtr(impl_toty)
             }
             NodeType::TypeUFuncPtr { id: _, sig } => {
-                // TODO: Check that the return and arg types of sig is native safe
+                // NOTE: The mu-spec requires toty to be native safe
+                // but that will break clients that ignore this rule so it is not checked for
                 let impl_sig = self.ensure_sig_rec(sig);
                 MuType_::UFuncPtr(impl_sig)
             }
@@ -2195,17 +2197,22 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
         let func_id = fv.func;
         let impl_sig = self.get_sig_for_func(func_id);
-
+        self.current_sig = Some(impl_sig.clone());
         let mut fcb: FuncCtxBuilder = Default::default();
 
         let entry_id = *fv.bbs.first().unwrap();
-        let blocks = fv.bbs
+        let mut blocks = fv.bbs
             .iter()
             .map(|bbid| {
                 let block = self.build_block(&mut fcb, *bbid);
                 (*bbid, block)
             })
             .collect::<LinkedHashMap<MuID, Block>>();
+
+        let a = blocks.iter().map(|(bbid, block)| (*bbid, self.build_block_content(&mut fcb, *bbid, &blocks))).collect::<Vec<_>>();
+        for (bbi, body) in a {
+            blocks[&bbi].content.as_mut().unwrap().body = body;
+        }
 
         assert_ir!({
             let c = blocks[&entry_id].content.as_ref().unwrap();
@@ -2296,12 +2303,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let hdr = self.make_mu_entity_header(id);
 
-        let body = self.build_block_content(fcb, &bb.insts);
-
         let ctn = BlockContent {
             args: args,
             exn_arg: exn_arg,
-            body: body,
+            body: vec![],
             keepalives: None
         };
 
@@ -2316,15 +2321,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn build_block_content(
         &mut self,
         fcb: &mut FuncCtxBuilder,
-        insts: &Vec<MuID>
+        id: MuID,
+        blocks: &LinkedHashMap<MuID, Block>,
     ) -> Vec<Box<TreeNode>> {
-        insts
-            .iter()
-            .map(|iid| self.build_inst(fcb, *iid))
-            .collect::<Vec<_>>()
+        let res = self.b.bundle.bbs.get(&id).unwrap().insts.iter().map(|iid| self.build_inst(fcb, *iid, blocks)).collect::<Vec<_>>();
+        {let rl = res.last();
+        let rlar = rl.as_ref();
+        let rlaru = rlar.unwrap();
+        let rlaruii = rlaru.as_inst_ref();
+        assert_ir!(rlaruii.is_terminal_inst());}
+        res
     }
 
-    fn build_inst(&mut self, fcb: &mut FuncCtxBuilder, id: MuID) -> Box<TreeNode> {
+    fn build_inst(&mut self, fcb: &mut FuncCtxBuilder, id: MuID, blocks: &LinkedHashMap<MuID, Block>) -> Box<TreeNode> {
         let inst = self.b.bundle.insts.get(&id).unwrap();
 
         trace!("Building instruction {} {:?}", id, inst);
@@ -2648,7 +2657,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeInst::NodeBranch { id: _, dest } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-                let impl_dest = self.build_destination(fcb, dest, &mut ops, &[]);
+                let impl_dest = self.build_destination(fcb, dest, &mut ops, &[], blocks);
 
                 Instruction {
                     hdr: hdr,
@@ -2668,9 +2677,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd = self.add_opnd(fcb, &mut ops, cond);
                 assert_ir!(impl_opnd.ty().is_int() && impl_opnd.ty().get_int_length().unwrap() == 1);
 
-                let impl_dest_true = self.build_destination(fcb, if_true, &mut ops, &[]);
+                let impl_dest_true = self.build_destination(fcb, if_true, &mut ops, &[], blocks);
 
-                let impl_dest_false = self.build_destination(fcb, if_false, &mut ops, &[]);
+                let impl_dest_false = self.build_destination(fcb, if_false, &mut ops, &[], blocks);
 
                 Instruction {
                     hdr: hdr,
@@ -2699,7 +2708,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 assert_ir!(impl_opnd_ty.is_eq_comparable());
                 assert_ir!(impl_opnd.ty() == impl_opnd_ty);
 
-                let impl_dest_def = self.build_destination(fcb, default_dest, &mut ops, &[]);
+                let impl_dest_def = self.build_destination(fcb, default_dest, &mut ops, &[], blocks);
 
                 let impl_branches = cases
                     .iter()
@@ -2710,7 +2719,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         assert_ir!(impl_case.ty() == impl_opnd_ty && impl_case.as_value().is_const());
                         // TODO: Check that each case value is unique
 
-                        let impl_dest = self.build_destination(fcb, *did, &mut ops, &[]);
+                        let impl_dest = self.build_destination(fcb, *did, &mut ops, &[], blocks);
 
                         (case_opindex, impl_dest)
                     })
@@ -2748,7 +2757,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     exc_clause,
                     keepalive_clause,
                     false,
-                    CallConvention::Mu
+                    CallConvention::Mu,
+                    blocks
                 )
             }
             NodeInst::NodeTailCall {
@@ -2758,13 +2768,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 ref args
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
-
+                let rettys = &self.current_sig.clone().unwrap().ret_tys;
                 let signode = self.ensure_sig_rec(sig);
+                assert_ir!(*rettys == signode.ret_tys);
                 let call_data =
                     self.build_call_data(fcb, &mut ops, callee, args, &signode, false,
                                          CallConvention::Mu);
 
-                // TODO: RETURN TYPE OF CURRENT FUNCTION
                 Instruction {
                     hdr: hdr,
                     value: None,
@@ -2773,12 +2783,18 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             NodeInst::NodeRet { id: _, ref rvs } => {
+                let rettys = &self.current_sig.clone().unwrap().ret_tys;
+                assert_ir!(rettys.len() == rvs.len());
                 let ops = rvs.iter()
-                    .map(|rvid| self.get_treenode(fcb, *rvid))
+                    .zip(rettys)
+                    .map(|(rvid, rty)| {
+                        let op = self.get_treenode(fcb, *rvid);
+                        assert_ir!(op.ty() == *rty);
+                        op
+                    })
                     .collect::<Vec<_>>();
                 let op_indexes = (0..(ops.len())).collect::<Vec<_>>();
-                // each value must correspond to things...
-                // TODO: RETURN TYPE OF CURRENT FUNCTION
+
                 Instruction {
                     hdr: hdr,
                     value: None,
@@ -3202,7 +3218,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     exc_clause,
                     keepalive_clause,
                     true,
-                    CallConvention::Foreign(ForeignFFI::C)
+                    CallConvention::Foreign(ForeignFFI::C),
+                    blocks
                 )
             }
 
@@ -3259,8 +3276,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     Some(ecid) => {
                         let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
 
-                        let impl_normal_dest = self.build_destination(fcb, ecnode.nor, &mut ops, result_ids);
-                        let impl_exn_dest = self.build_destination(fcb, ecnode.exc, &mut ops, &[]);
+                        let impl_normal_dest = self.build_destination(fcb, ecnode.nor, &mut ops, result_ids, blocks);
+                        let impl_exn_dest = self.build_destination(fcb, ecnode.exc, &mut ops, &[], blocks);
 
                         Instruction {
                             hdr: hdr,
@@ -3341,13 +3358,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb: &mut FuncCtxBuilder,
         id: MuID,
         ops: &mut Vec<P<TreeNode>>,
-        inst_result_ids: &[MuID]
+        inst_result_ids: &[MuID],
+        blocks: &LinkedHashMap<MuID, Block>
     ) -> Destination {
+        // Note: according to the mu spec you can't branch to the entry block
+        // but we allow that here anyway
         let dest_clause = self.b.bundle.dest_clauses.get(&id).unwrap();
 
         let target = dest_clause.dest;
 
-        let dest_args = dest_clause.vars.iter().map(|vid| {
+        let target_block = blocks[&target].content.as_ref().unwrap();
+
+        assert_ir!(target_block.args.len() == dest_clause.vars.len());
+        let dest_args = dest_clause.vars.iter().zip(&target_block.args).map(|(vid, arg)| {
 //            if let Some(ind) = inst_result_ids.iter().position(|rid| *rid == *vid) {
 //                DestArg::Freshbound(ind)
 //            } else {
@@ -3357,6 +3380,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 //            }
             let my_index = ops.len();
             let op = self.add_opnd(fcb, ops, *vid);
+            assert_ir!(op.ty() == arg.ty);
             DestArg::Normal(my_index)
         }).collect::<Vec<_>>();
 
@@ -3432,7 +3456,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         exc_clause: Option<MuID>,
         keepalive_claue: Option<MuID>,
         is_ccall: bool,
-        call_conv: CallConvention
+        call_conv: CallConvention,
+        blocks: &LinkedHashMap<MuID, Block>
     ) -> Instruction {
         let mut ops: Vec<P<TreeNode>> = Vec::new();
 
@@ -3453,10 +3478,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             // terminating inst
             let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
 
-            let impl_normal_dest =
-                { self.build_destination(fcb, ecnode.nor, &mut ops, result_ids) };
+            let impl_normal_dest = self.build_destination(fcb, ecnode.nor, &mut ops, result_ids, blocks);
 
-            let impl_exn_dest = { self.build_destination(fcb, ecnode.exc, &mut ops, &[]) };
+            let impl_exn_dest = self.build_destination(fcb, ecnode.exc, &mut ops, &[], blocks);
 
             let resumption_data = ResumptionData {
                 normal_dest: impl_normal_dest,
