@@ -1,17 +1,3 @@
-// Copyright 2017 The Australian National University
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,58 +14,58 @@
 #endif
 #define LIB_FILE_NAME(name) "lib" name LIB_EXT
 int main(int argc, char** argv) {
-    MuVM* mu_57;
-    MuCtx* ctx_57;
-    MuIRBuilder* bldr_57;
-    MuID id_808;
-    MuID id_809;
-    MuID id_810;
-    MuID id_811;
-    MuID id_812;
-    MuID id_813;
-    MuID id_814;
-    MuID id_815;
-    MuID id_816;
-    MuID id_817;
-    MuID id_818;
-    MuID id_819;
-    MuID id_820;
-    MuID id_821;
-    MuID id_822;
-    MuID id_823;
-    mu_57 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
-    ctx_57 = mu_57->new_context(mu_57);
-    bldr_57 = ctx_57->new_ir_builder(ctx_57);
-    id_808 = bldr_57->gen_sym(bldr_57, "@i1");
-    bldr_57->new_type_int(bldr_57, id_808, 0x00000001ull);
-    id_809 = bldr_57->gen_sym(bldr_57, "@i8");
-    bldr_57->new_type_int(bldr_57, id_809, 0x00000008ull);
-    id_810 = bldr_57->gen_sym(bldr_57, "@i64");
-    bldr_57->new_type_int(bldr_57, id_810, 0x00000040ull);
-    id_811 = bldr_57->gen_sym(bldr_57, "@10_i64");
-    bldr_57->new_const_int(bldr_57, id_811, id_810, 0x000000000000000aull);
-    id_812 = bldr_57->gen_sym(bldr_57, "@20_i64");
-    bldr_57->new_const_int(bldr_57, id_812, id_810, 0x0000000000000014ull);
-    id_813 = bldr_57->gen_sym(bldr_57, "@TRUE");
-    bldr_57->new_const_int(bldr_57, id_813, id_809, 0x0000000000000001ull);
-    id_814 = bldr_57->gen_sym(bldr_57, "@sig_i8_i64");
-    bldr_57->new_funcsig(bldr_57, id_814, (MuTypeNode [1]){id_809}, 1, (MuTypeNode [1]){id_810}, 1);
-    id_815 = bldr_57->gen_sym(bldr_57, "@test_fnc");
-    bldr_57->new_func(bldr_57, id_815, id_814);
-    id_816 = bldr_57->gen_sym(bldr_57, "@test_fnc.v1");
-    id_817 = bldr_57->gen_sym(bldr_57, "@test_fnc.v1.blk0");
-    id_818 = bldr_57->gen_sym(bldr_57, "@test_fnc.v1.blk0.flag");
-    id_819 = bldr_57->gen_sym(bldr_57, "@test_fnc.v1.blk0.cmpres");
-    id_820 = bldr_57->gen_sym(bldr_57, "@test_fnc.v1.blk0.res");
-    id_821 = bldr_57->gen_sym(bldr_57, NULL);
-    bldr_57->new_cmp(bldr_57, id_821, id_819, MU_CMP_EQ, id_810, id_818, id_813);
-    id_822 = bldr_57->gen_sym(bldr_57, NULL);
-    bldr_57->new_select(bldr_57, id_822, id_820, id_808, id_810, id_819, id_811, id_812);
-    id_823 = bldr_57->gen_sym(bldr_57, NULL);
-    bldr_57->new_ret(bldr_57, id_823, (MuVarNode [1]){id_820}, 1);
-    bldr_57->new_bb(bldr_57, id_817, (MuID [1]){id_818}, (MuTypeNode [1]){id_809}, 1, MU_NO_ID, (MuInstNode [3]){id_821, id_822, id_823}, 3);
-    bldr_57->new_func_ver(bldr_57, id_816, id_815, (MuBBNode [1]){id_817}, 1);
-    bldr_57->load(bldr_57);
-    mu_57->compile_to_sharedlib(mu_57, LIB_FILE_NAME("test_select"), NULL, 0);
+    MuVM* mu_59;
+    MuCtx* ctx_59;
+    MuIRBuilder* bldr_59;
+    MuID id_911;
+    MuID id_912;
+    MuID id_913;
+    MuID id_914;
+    MuID id_915;
+    MuID id_916;
+    MuID id_917;
+    MuID id_918;
+    MuID id_919;
+    MuID id_920;
+    MuID id_921;
+    MuID id_922;
+    MuID id_923;
+    MuID id_924;
+    MuID id_925;
+    MuID id_926;
+    mu_59 = mu_fastimpl_new_with_opts("init_mu --log-level=none --aot-emit-dir=emit");
+    ctx_59 = mu_59->new_context(mu_59);
+    bldr_59 = ctx_59->new_ir_builder(ctx_59);
+    id_911 = bldr_59->gen_sym(bldr_59, "@i1");
+    bldr_59->new_type_int(bldr_59, id_911, 0x00000001ull);
+    id_912 = bldr_59->gen_sym(bldr_59, "@i8");
+    bldr_59->new_type_int(bldr_59, id_912, 0x00000008ull);
+    id_913 = bldr_59->gen_sym(bldr_59, "@i64");
+    bldr_59->new_type_int(bldr_59, id_913, 0x00000040ull);
+    id_914 = bldr_59->gen_sym(bldr_59, "@10_i64");
+    bldr_59->new_const_int(bldr_59, id_914, id_913, 0x000000000000000aull);
+    id_915 = bldr_59->gen_sym(bldr_59, "@20_i64");
+    bldr_59->new_const_int(bldr_59, id_915, id_913, 0x0000000000000014ull);
+    id_916 = bldr_59->gen_sym(bldr_59, "@TRUE");
+    bldr_59->new_const_int(bldr_59, id_916, id_912, 0x0000000000000001ull);
+    id_917 = bldr_59->gen_sym(bldr_59, "@sig_i8_i64");
+    bldr_59->new_funcsig(bldr_59, id_917, (MuTypeNode [1]){id_912}, 1, (MuTypeNode [1]){id_913}, 1);
+    id_918 = bldr_59->gen_sym(bldr_59, "@test_fnc");
+    bldr_59->new_func(bldr_59, id_918, id_917);
+    id_919 = bldr_59->gen_sym(bldr_59, "@test_fnc.v1");
+    id_920 = bldr_59->gen_sym(bldr_59, "@test_fnc.v1.blk0");
+    id_921 = bldr_59->gen_sym(bldr_59, "@test_fnc.v1.blk0.flag");
+    id_922 = bldr_59->gen_sym(bldr_59, "@test_fnc.v1.blk0.cmpres");
+    id_923 = bldr_59->gen_sym(bldr_59, "@test_fnc.v1.blk0.res");
+    id_924 = bldr_59->gen_sym(bldr_59, NULL);
+    bldr_59->new_cmp(bldr_59, id_924, id_922, MU_CMP_EQ, id_912, id_921, id_916);
+    id_925 = bldr_59->gen_sym(bldr_59, NULL);
+    bldr_59->new_select(bldr_59, id_925, id_923, id_911, id_913, id_922, id_914, id_915);
+    id_926 = bldr_59->gen_sym(bldr_59, NULL);
+    bldr_59->new_ret(bldr_59, id_926, (MuVarNode [1]){id_923}, 1);
+    bldr_59->new_bb(bldr_59, id_920, (MuID [1]){id_921}, (MuTypeNode [1]){id_912}, 1, MU_NO_ID, (MuInstNode [3]){id_924, id_925, id_926}, 3);
+    bldr_59->new_func_ver(bldr_59, id_919, id_918, (MuBBNode [1]){id_920}, 1);
+    bldr_59->load(bldr_59);
+    mu_59->compile_to_sharedlib(mu_59, LIB_FILE_NAME("test_select"), NULL, 0);
     return 0;
 }
