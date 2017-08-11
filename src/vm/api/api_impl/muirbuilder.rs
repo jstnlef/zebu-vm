@@ -2297,7 +2297,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             .collect::<Vec<_>>();
 
         let exn_arg = bb.exc_param_id.map(|arg_id| {
-            let arg_ty = self.ensure_refi64();
+            let arg_ty = self.ensure_refvoid();
             self.new_ssa(fcb, arg_id, arg_ty).clone_value()
         });
 
@@ -3558,7 +3558,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
                 let op = self.get_treenode(fcb, args[0]);
                 assert_ir!(op.ty().is_ref() && op.ty().get_referent_ty().unwrap().is_void(),
-                "@uvm.set_threadlocal expected ref<void> got {}");
+                "@uvm.set_threadlocal expected ref<void> got {}", op.ty());
 
                 Instruction {
                     hdr: hdr,
