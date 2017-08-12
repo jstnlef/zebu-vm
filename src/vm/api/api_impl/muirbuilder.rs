@@ -22,8 +22,8 @@ use utils::bit_utils::bits_ones;
 use std;
 
 macro_rules! assert_ir {
-    ( $ cond : expr ) => { assert!($cond) };
-    ($ cond : expr , $ ( $ arg : tt ) + ) => { assert!($cond, $($arg)+)};
+    ($ cond : expr ) => { debug_assert!($cond) };
+    ($ cond : expr , $ ( $ arg : tt ) + ) => { debug_assert!($cond, $($arg)+)};
 }
 
 
