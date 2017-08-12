@@ -144,6 +144,14 @@ impl MuType {
             _ => false
         }
     }
+
+    pub fn is_stackref(&self) -> bool {
+        match self.v {
+            MuType_::StackRef => true,
+            _ => false
+        }
+    }
+
     pub fn is_funcref(&self) -> bool {
         match self.v {
             MuType_::Struct(_) => true,
