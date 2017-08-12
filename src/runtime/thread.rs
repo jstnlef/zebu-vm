@@ -634,12 +634,12 @@ rodal_struct!(PrimordialThreadInfo {
     has_const_args
 });
 
-// This prepares a thread for a swap stack operation that saves the current stack
+// This prepares a thread for a swap stack operation that may return to the current stack
 // it returns the SP to swap to, and a pointer to where to save the current SP
 // (it should be called before arguments are passed to the new stack, and before
 // the new stack is swapped to)
 #[no_mangle]
-pub unsafe extern "C" fn prepare_swapstack_save(new_stack: *mut MuStack)
+pub unsafe extern "C" fn muentry_prepare_swapstack_ret(new_stack: *mut MuStack)
     -> (Address, *mut Address) {
     let cur_thread = MuThread::current_mut();
     // Save the current stack, don't deallocate it
@@ -653,7 +653,7 @@ pub unsafe extern "C" fn prepare_swapstack_save(new_stack: *mut MuStack)
 // (it should be called before arguments are passed to the new stack, and before
 // the new stack is swapped to)
 #[no_mangle]
-pub unsafe extern "C" fn prepare_swapstack_kill(new_stack: *mut MuStack)
+pub unsafe extern "C" fn muentry_prepare_swapstack_kill(new_stack: *mut MuStack)
     -> (Address, *mut MuStack) {
     let cur_thread = MuThread::current_mut();
     // Save the current stack, don't deallocate it until safe to do so
@@ -665,7 +665,7 @@ pub unsafe extern "C" fn prepare_swapstack_kill(new_stack: *mut MuStack)
 
 // Kills the given stack. WARNING! do not call this whilst on the given stack
 #[no_mangle]
-pub unsafe extern "C" fn kill_stack(stack: *mut MuStack) {
+pub unsafe extern "C" fn muentry_kill_stack(stack: *mut MuStack) {
     // This new box will be destroyed upon returning
     Box::from_raw(stack);
 }

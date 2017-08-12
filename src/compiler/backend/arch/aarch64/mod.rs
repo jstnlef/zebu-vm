@@ -909,7 +909,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
         ThreadExit => 10,
         Throw(_) => 10,
-        SwapStack { .. } => 10,
+        SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
         CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
 
@@ -1317,25 +1317,6 @@ pub fn match_value_f32imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(Constant::Float(_)) => true,
         _ => false
-    }
-}
-
-// The type of the node (for a value node)
-pub fn node_type(op: &TreeNode) -> P<MuType> {
-    match op.v {
-        TreeNode_::Instruction(ref inst) => {
-            if inst.value.is_some() {
-                let ref value = inst.value.as_ref().unwrap();
-                if value.len() != 1 {
-                    panic!("the node {} does not have one result value", op);
-                }
-
-                value[0].ty.clone()
-            } else {
-                panic!("expected result from the node {}", op);
-            }
-        }
-        TreeNode_::Value(ref pv) => pv.ty.clone()
     }
 }
 

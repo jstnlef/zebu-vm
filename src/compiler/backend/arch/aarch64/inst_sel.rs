@@ -1766,10 +1766,11 @@ impl<'a> InstructionSelection {
 
                         let ref ops = inst.ops;
                         let ref op = ops[index];
+                        let op_val = self.emit_ireg(op, f_content, f_context, vm);
 
                         self.emit_runtime_entry(
                             &entrypoints::SET_RETVAL,
-                            vec![op.clone_value()],
+                            vec![op_val],
                             None,
                             Some(node),
                             f_context,
@@ -3840,6 +3841,8 @@ impl<'a> InstructionSelection {
     // as well as a list of argument registers
     fn emit_precall_convention(
         &mut self,
+        arg_base: &P<Value>,
+        arg_offset: isize,
         is_tail: bool,
         args: &Vec<P<Value>>,
         arg_tys: &Vec<P<MuType>>,
@@ -3849,7 +3852,6 @@ impl<'a> InstructionSelection {
     ) -> (usize, Vec<P<Value>>) {
         // If we're tail calling, use the current frame's argument location instead
         let mut arg_regs = Vec::<P<Value>>::new();
-        let (arg_base, arg_offset) = if is_tail { (&*FP, 16) } else { (&*SP, 0) };
         let (_, locations, stack_size) =
             self.compute_argument_locations(&arg_tys, arg_base, arg_offset, &vm);
 
@@ -3873,11 +3875,12 @@ impl<'a> InstructionSelection {
                 self.backend.emit_mov(&XR, &SP);
                 arg_regs.push(XR.clone());
             }
-            if stack_size > 0 {
-                // Reserve space on the stack for all stack arguments
-                emit_sub_u64(self.backend.as_mut(), &SP, &SP, stack_size as u64);
-            }
         }
+        if stack_size > 0 && is_aliased(arg_base.id(), SP.id()) {
+            // Reserve space on the stack for all stack arguments
+            emit_sub_u64(self.backend.as_mut(), &SP, &SP, stack_size as u64);
+        }
+
         // Write the arguments to where they belong on the stack
         for i in 0..args.len() {
             let i = i as usize;
@@ -4255,7 +4258,7 @@ impl<'a> InstructionSelection {
         let return_type = self.combine_return_types(&sig, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) =
-            self.emit_precall_convention(false, &args, &sig.arg_tys, return_size, f_context, vm);
+            self.emit_precall_convention(&SP, 0,false, &args, &sig.arg_tys, return_size, f_context, vm);
 
         // make call
         if vm.is_doing_jit() {
@@ -4367,6 +4370,133 @@ impl<'a> InstructionSelection {
         }
     }
 
+    fn emit_swapstack(
+        &mut self,
+        is_exception: bool, // Whether we are throwing an exception to the new stack or not
+        is_kill: bool, // Whether we are killing the old stack or not
+        node: &TreeNode,
+        inst: &Instruction,
+        swapee: OpIndex,
+        args: &Vec<OpIndex>,
+        rsumption: Option<&ResumptionData>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    )
+    {
+        let ref ops = inst.ops;
+        let swapee = self.emit_ireg(&ops[swapee], f_content, f_context, vm);
+
+        let new_sp = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        let cur_stack = make_temporary(f_context, if is_kill { STACKREF_TYPE.clone() }  else { ADDRESS_TYPE.clone() }, vm);
+
+        // Prepare for stack swapping
+        self.emit_runtime_entry(
+            if is_kill { &entrypoints::PREPARE_SWAPSTACK_KILL } else { &entrypoints::PREPARE_SWAPSTACK_RET },
+            vec![swapee.clone()],
+            Some(vec![new_sp.clone(), cur_stack.clone()]),
+            Some(node),
+            f_context,
+            vm
+        );
+
+        let res_tys ; // TODO....
+        // Compute result locations
+        let (_, res_locs, res_stack_size) = self.compute_argument_locations(&res_tys, &SP, 0, &vm);
+        if !is_kill {
+            // Reserve space on the stack for the return values of the swap stack
+            emit_sub_u64(self.backend.as_mut(), &SP, &SP, res_stack_size);
+        }
+
+        if is_exception {
+            assert!(args.len() == 1);
+
+            let exc = self.emit_ireg(&ops[args[0]], f_content, f_context, vm);
+
+            // Swap the stack and throw the given exception
+            self.emit_runtime_entry( // TODO: Handle exception resumption from this functioncall
+                if is_kill { &entrypoints::SWAPSTACK_KILL_THROW } else { &entrypoints::SWAPSTACK_RET_THROW },
+                vec![exc.clone(), new_sp.clone(), cur_stack.clone()],
+                Some(vec![]),
+                Some(node),
+                f_context,
+                vm
+            );
+        } else {
+            // Pass new_sp and cur_stack in X9 and X10 respectivley
+            self.backend.emit_mov(&X9, &new_sp);
+            self.backend.emit_mov(&X10, &cur_stack);
+
+            // Prepare arguments
+            let mut arg_values = vec![];
+            let arg_nodes = args.iter().map(|a| ops[*a]).collect();
+            for ref arg in arg_nodes {
+                arg_values.push(if match_node_imm(arg) {
+                    arg_values.push(node_imm_to_value(arg));
+                } else if self.match_reg(arg) {
+                    self.emit_reg(arg, f_content, f_context, vm);
+                } else {
+                    unimplemented!();
+                })
+            }
+            let arg_tys = args.drain().map(|a| node_type(&a)).collect();
+            let (stack_arg_size, mut arg_regs) = self.emit_precall_convention(
+                &new_sp,
+                (CALLEE_SAVED_COUNT + 2)*ADDRESS_SIZE, // The frame contains space for all callee saved registers (including the FP and LR)
+                false,
+                &arg_values,
+                &arg_tys,
+                0,
+                f_context,
+                vm
+            );
+            arg_regs.push(&X9);
+            arg_regs.push(&X10);
+
+            let potentially_excepting = {
+                if resumption.is_some() {
+                    let target_id = resumption.unwrap().exn_dest.target;
+                    Some(f_content.get_block(target_id).name())
+                } else {
+                    None
+                }
+            };
+
+            // Call the function that swaps the stack...
+            let callsite = {
+                if vm.is_doing_jit() {
+                    unimplemented!()
+                } else {
+                    let callsite = self.new_callsite_label(Some(cur_node));
+                    self.backend.emit_bl(
+                        callsite,
+                        if is_kill { "muentry_swapstack_kill_pass" } else { "muentry_swapstack_ret_pass" },
+                        potentially_excepting,
+                        arg_regs,
+                        true
+                    )
+                }
+            };
+
+            if resumption.is_some() {
+                let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
+                let target_block = exn_dest.target;
+
+                self.current_callsites
+                    .push_back((callsite.to_relocatable(), target_block, stack_arg_size));
+            } else {
+                self.current_callsites
+                    .push_back((callsite.to_relocatable(), 0, stack_arg_size));
+            }
+        }
+
+        if !is_kill {
+            //EMIT prologue argument loading code... for a function with sig (ret_tys..)->()
+            //EMIT ADD SP, stack_arg_size((ret_tys...)->())
+            // Create an unload arguments function
+        }
+    }
+
     fn emit_mu_call(
         &mut self,
         is_tail: bool, // For tail calls
@@ -4427,6 +4557,8 @@ impl<'a> InstructionSelection {
         let return_type = self.combine_return_types(&func_sig, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) = self.emit_precall_convention(
+            if is_tail { &FP } else { &SP },
+            if is_tail { 16 } else { 0 },
             is_tail,
             &arg_values,
             &func_sig.arg_tys,
