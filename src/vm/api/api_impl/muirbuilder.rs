@@ -3376,7 +3376,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 //            }
             let my_index = ops.len();
             let op = self.add_opnd(fcb, ops, *vid);
-            assert_ir!(op.ty() == arg.ty);
+            assert_ir!(op.ty() == arg.ty, "{} -> {}: {} != {}", op, arg, op.ty(), arg.ty);
             DestArg::Normal(my_index)
         }).collect::<Vec<_>>();
 
