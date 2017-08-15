@@ -1198,10 +1198,13 @@ impl<'a> VM {
         let funcs = self.funcs.read().unwrap();
         let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
 
+        let func_addr = resolve_symbol(self.name_of(func_id));
+        let stack_arg_size = backend::call_stack_size(func.sig.clone(), self);
+
         Box::new(MuStack::new(
             self.next_id(),
-            self.get_address_for_func(func_id),
-            func
+            func_addr,
+            stack_arg_size
         ))
     }
 

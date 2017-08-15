@@ -19,10 +19,13 @@ use vm::VM;
 use runtime;
 use runtime::ValueLocation;
 use runtime::mm;
+use compiler::backend::CALLEE_SAVED_COUNT;
 
 use utils::ByteSize;
 use utils::Address;
 use utils::Word;
+use utils::POINTER_SIZE;
+use utils::WORD_SIZE;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
@@ -107,7 +110,7 @@ pub struct MuStack {
 
 impl MuStack {
     /// creates a new MuStack for given entry function and function address
-    pub fn new(id: MuID, func_addr: ValueLocation, func: &MuFunction) -> MuStack {
+    pub fn new(id: MuID, func_addr: Address, stack_arg_size: usize) -> MuStack {
         // allocate memory for the stack
         let anon_mmap = {
             // reserve two guard pages more than we need for the stack
@@ -141,17 +144,31 @@ impl MuStack {
             );
         }
 
-        debug!("creating stack {} with entry func {:?}", id, func);
+        debug!("creating stack {} with entry address {:?}", id, func_addr);
         debug!("overflow_guard : {}", overflow_guard);
         debug!("lower_bound    : {}", lower_bound);
         debug!("upper_bound    : {}", upper_bound);
         debug!("underflow_guard: {}", underflow_guard);
 
+        // Set up the stack
+        let mut sp = upper_bound;
+        sp -= stack_arg_size; // Allocate space for the arguments
+
+        // Push entry as the return address
+        sp -= POINTER_SIZE;
+        unsafe { sp.store(func_addr); }
+
+        // Push a null frame pointer
+        sp -= POINTER_SIZE;
+        unsafe { sp.store(Address::zero()); }
+
+        // Reserve space for callee saved registers (they will be loaded with undefined values)
+        sp -= WORD_SIZE*CALLEE_SAVED_COUNT;
+
         MuStack {
             hdr: MuEntityHeader::unnamed(id),
-            func: Some((func_addr, func.id())),
-
-            state: MuStackState::Ready(func.sig.arg_tys.clone()),
+            func: None,
+            state: MuStackState::Unknown,
 
             size: STACK_SIZE,
             overflow_guard: overflow_guard,
@@ -159,7 +176,7 @@ impl MuStack {
             upper_bound: upper_bound,
             underflow_guard: upper_bound,
 
-            sp: upper_bound,
+            sp: sp,
             bp: upper_bound,
             ip: unsafe { Address::zero() },
 
@@ -230,9 +247,6 @@ impl MuStack {
             }
         }
 
-        // save it back
-        self.sp = stack_ptr;
-
         if cfg!(debug_assertions) {
             self.print_stack(Some(20));
         }
@@ -277,7 +291,8 @@ pub enum MuStackState {
     /// running mu code
     Active,
     /// can be destroyed
-    Dead
+    Dead,
+    Unknown,
 }
 
 /// MuThread represents metadata for a Mu thread.
@@ -374,14 +389,7 @@ extern "C" {
     /// new_sp: stack pointer for the mu stack
     /// entry : entry function for the mu stack
     /// old_sp_loc: the location to store native stack pointer so we can later swap back
-    fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
-
-    /// swaps from a mu stack back to native stack
-    /// emitted by the compiler for THREADEXIT IR
-    /// args:
-    /// sp_loc: the location of native stack pointer
-#[allow(dead_code)] // we are not using this function directly, but compiler will emit calls to it
-    fn muentry_swap_back_to_native_stack(sp_loc: Address);
+    fn muthread_start_pass(new_sp: Address, old_sp_loc: Address);
 
     /// gets base poniter for current frame
     pub fn get_current_frame_bp() -> Address;
@@ -466,8 +474,6 @@ impl MuThread {
         vm: Arc<VM>
     ) -> JoinHandle<()> {
         let new_sp = stack.sp;
-        let entry = runtime::resolve_symbol(vm.name_of(stack.func.as_ref().unwrap().1));
-        debug!("entry : 0x{:x}", entry);
 
         match thread::Builder::new()
             .name(format!("Mu Thread #{}", id))
@@ -483,7 +489,7 @@ impl MuThread {
                 debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
 
                 unsafe {
-                    swap_to_mu_stack(new_sp, entry, sp_threadlocal_loc);
+                    muthread_start_pass(new_sp, sp_threadlocal_loc);
                 }
 
                 debug!("returned to Rust stack. Going to quit");
@@ -661,6 +667,13 @@ pub unsafe extern "C" fn muentry_prepare_swapstack_kill(new_stack: *mut MuStack)
     let cur_stack = Box::into_raw(cur_thread.stack.take().unwrap());
     cur_thread.stack = Some(Box::from_raw(new_stack));
     ((*new_stack).sp, cur_stack)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn muentry_new_stack(entry: Address, stack_size: usize) -> *mut MuStack {
+    let ref vm = MuThread::current_mut().vm;
+    let stack = Box::new(MuStack::new(vm.next_id(), entry, stack_size));
+    return Box::into_raw(stack);
 }
 
 // Kills the given stack. WARNING! do not call this whilst on the given stack

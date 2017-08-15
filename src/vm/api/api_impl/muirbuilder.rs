@@ -1269,6 +1269,7 @@ struct BundleLoader<'lb, 'lvm> {
     built_i6: Option<P<MuType>>,
     built_ref_void: Option<P<MuType>>,
     built_tagref64: Option<P<MuType>>,
+    built_stackref: Option<P<MuType>>,
 
     built_funcref_of: IdPMap<MuType>,
     built_ref_of: IdPMap<MuType>,
@@ -1306,6 +1307,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_i6: Default::default(),
         built_ref_void: Default::default(),
         built_tagref64: Default::default(),
+        built_stackref: Default::default(),
         built_funcref_of: Default::default(),
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
@@ -1422,6 +1424,27 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         impl_ty
     }
+
+    fn ensure_stackref(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_stackref {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::StackRef
+        });
+
+        trace!("Ensure stackref is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_stackref = Some(impl_ty.clone());
+
+        impl_ty
+    }
+
 
     fn ensure_i6(&mut self) -> P<MuType> {
         if let Some(ref impl_ty) = self.built_i6 {
@@ -3805,6 +3828,72 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     value: None,
                     ops: vec![],
                     v: Instruction_::ThreadExit
+                }
+            }
+            CMU_CI_UVM_NEW_STACK => {
+                assert_ir!(
+                    tys.is_empty() && flags.is_empty() && exc_clause.is_none() && keepalives.is_none()
+                );
+
+                assert!(sigs.len() == 1);
+                assert!(args.len() == 1);
+                assert!(result_ids.len() == 1);
+
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_sig = self.ensure_sig_rec(sigs[0]);
+
+                assert_ir!(impl_sig.ret_tys.is_empty()); // The function isn't supposed to return
+                assert_ir!(
+                    match impl_opnd.ty().v {
+                        MuType_::FuncRef(ref sig) => *sig == impl_sig,
+                        _ => false
+                    }
+                );
+
+                let impl_stackref = self.ensure_stackref();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_stackref).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::NewStack(0)
+                }
+            }
+            CMU_CI_UVM_CURRENT_STACK => {
+                assert_ir!(
+                    tys.is_empty() && args.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
+
+
+                assert!(result_ids.len() == 1);
+                let impl_stackref = self.ensure_stackref();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_stackref).clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![],
+                    v: Instruction_::CurrentStack
+                }
+            }
+            CMU_CI_UVM_KILL_STACK => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none() && keepalives.is_none()
+                    && result_ids.is_empty()
+                );
+
+                assert!(args.len() == 1);
+
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                assert_ir!(impl_opnd.ty().is_stackref());
+
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: vec![impl_opnd],
+                    v: Instruction_::NewStack(0)
                 }
             }
             CMU_CI_UVM_TR64_IS_FP => {

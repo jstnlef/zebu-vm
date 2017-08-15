@@ -94,6 +94,17 @@ pop_pair d3, d2, \stack
 pop_pair d1, d0, \stack
 .endm
 
+.macro load_arguments stack=SP
+LDP D0, D1, [\stack, #-2*8]
+LDP D2, D3, [\stack, #-4*8]
+LDP D4, D5, [\stack, #-6*8]
+LDP D6, D7, [\stack, #-8*8]
+LDP X0, X1, [\stack, #-10*8]
+LDP X2, X3, [\stack, #-12*8]
+LDP X4, X5, [\stack, #-14*8]
+LDP X6, X7, [\stack, #-16*8]
+.endm
+
 .macro mov_args_to_callee_saved
 MOV X19, X0
 MOV X20, X1

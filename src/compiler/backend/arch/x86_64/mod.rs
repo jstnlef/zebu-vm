@@ -654,7 +654,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         // runtime call
         New(_) | NewHybrid(_, _) => 10,
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
-        ThreadExit => 10,
+        ThreadExit => 10, CurrentStack => 10, KillStack(_) => 10,
         Throw(_) => 10,
         SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
@@ -667,4 +667,8 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         ExnInstruction { ref inner, .. } => estimate_insts_for_ir(&inner),
         _ => unimplemented!()
     }
+}
+
+pub fn call_stack_size(sig: P<MuFuncSig>, vm: &VM) -> usize {
+    0
 }

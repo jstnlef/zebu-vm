@@ -96,7 +96,8 @@ impl Instruction {
         match self.v {
             ExprCall { .. } | ExprCCall { .. } | Load { .. } | Store { .. } | CmpXchg { .. } | AtomicRMW { .. } |
             New(_) | AllocA(_) | NewHybrid(_, _) | AllocAHybrid(_, _) | NewStack(_) | NewThread(_, _) |
-            NewThreadExn(_, _) | NewFrameCursor(_) | Fence(_) | Return(_) | ThreadExit | Throw(_) |
+            NewThreadExn(_, _) | NewFrameCursor(_) | Fence(_) | Return(_) | ThreadExit | KillStack(_) |
+            Throw(_) |
             TailCall(_) | Branch1(_) | Branch2 { .. } | Watchpoint { .. } | WPBranch { .. } |
             Call { .. } | CCall { .. }| SwapStackExpr{..}| SwapStackExc { .. } | SwapStackKill { .. } | Switch { .. } | ExnInstruction { .. } |
             CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) | CommonInst_Pin(_) | CommonInst_Unpin(_) |
@@ -245,6 +246,12 @@ pub enum Instruction_ {
     /// create a new Mu stack, yields stack ref
     /// args: functionref of the entry function
     NewStack(OpIndex),
+
+    /// Kills the given Mu stack
+    /// args: stackref to kill
+    KillStack(OpIndex),
+
+    CurrentStack,
 
     /// create a new Mu thread, yields thread reference
     /// args: stackref of a Mu stack, a list of arguments
@@ -511,7 +518,7 @@ impl Instruction_ {
             &Instruction_::AllocA(ref ty) => format!("ALLOCA {}", ty),
             &Instruction_::NewHybrid(ref ty, len) => format!("NEWHYBRID {} {}", ty, ops[len]),
             &Instruction_::AllocAHybrid(ref ty, len) => format!("ALLOCAHYBRID {} {}", ty, ops[len]),
-            &Instruction_::NewStack(func) => format!("NEWSTACK {}", ops[func]),
+            &Instruction_::NewStack(func) => format!("NEW_STACK {}", ops[func]),
             &Instruction_::NewThread(stack, ref args) => {
                 format!(
                     "NEWTHREAD {} PASS_VALUES {}",
@@ -557,6 +564,8 @@ impl Instruction_ {
 
             &Instruction_::Return(ref vals) => format!("RET {}", op_vector_str(vals, ops)),
             &Instruction_::ThreadExit => "THREADEXIT".to_string(),
+            &Instruction_::CurrentStack => "CURRENT_STACK".to_string(),
+            &Instruction_::KillStack(s) => format!("RET {}", ops[s]),
             &Instruction_::Throw(exn_obj) => format!("THROW {}", ops[exn_obj]),
             &Instruction_::TailCall(ref call) => format!("TAILCALL {}", call.debug_str(ops)),
             &Instruction_::Branch1(ref dest) => format!("BRANCH {}", dest.debug_str(ops)),
