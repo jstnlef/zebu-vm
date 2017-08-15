@@ -1433,7 +1433,6 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     }
-
                     Instruction_::NewStack(func) => {
                         trace!("instsel on NEWSTACK");
 
@@ -1452,7 +1451,7 @@ impl<'a> InstructionSelection {
                         self.emit_runtime_entry(
                             &entrypoints::MUENTRY_NEW_STACK,
                             vec![tmp_func, make_value_int_const(stack_arg_size as u64, vm)],
-                            None,
+                            Some(vec![tmp_res]),
                             Some(node),
                             f_context,
                             vm

@@ -75,8 +75,10 @@ end_func exception_restore
 
 .macro stack_kill old_sp
     mov_args_to_callee_saved
+    push_pair X9, X10
     MOV X0, \old_sp
-    B muentry_kill_stack
+    BL muentry_kill_stack
+    pop_pair X10, X9
     mov_callee_saved_to_args
 .endm
 

@@ -3414,7 +3414,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                         let args_begin_index = ops.len();
                         let args = self.add_opnds(fcb, &mut ops, vars);
                         assert_ir!(
-                            ops.len() == tys.len() &&
+                            args.len() == tys.len() &&
                                 args.iter()
                                     .zip(tys)
                                     .all(|(arg, tid)| arg.ty() == self.get_built_type(*tid))

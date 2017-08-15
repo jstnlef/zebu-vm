@@ -1201,11 +1201,15 @@ impl<'a> VM {
         let func_addr = resolve_symbol(self.name_of(func_id));
         let stack_arg_size = backend::call_stack_size(func.sig.clone(), self);
 
-        Box::new(MuStack::new(
+        let b = Box::new(MuStack::new(
             self.next_id(),
             func_addr,
             stack_arg_size
-        ))
+        ));
+
+        let a: Address = unsafe{*(std::mem::transmute::<&Box<MuStack>, &Address>(&b))};
+        trace!("ISAAC: vm.new_stack({}) -> {}", func_addr, a);
+        b
     }
 
     /// creates a handle that we can return to the client
