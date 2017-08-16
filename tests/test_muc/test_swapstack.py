@@ -91,7 +91,6 @@ def test_swapstack_throw():
                 cs =  COMMINST uvm.current_stack()
                 s = COMMINST uvm.new_stack<[(stackref)->()]>(new_func)
                 r = SWAPSTACK s RET_WITH<int<32>> PASS_VALUES<stackref>(cs) EXC(nor_dest(r) exc_dest())
-                RET r
             nor_dest(<int<32>> r):
                 RET <int<32>>0
             exc_dest()[exc_param]:
@@ -131,7 +130,6 @@ def test_swapstack_throw_back():
                 cs =  COMMINST uvm.current_stack()
                 s = COMMINST uvm.new_stack<[(stackref)->()]>(new_func)
                 r = SWAPSTACK s RET_WITH<int<32>> PASS_VALUES<stackref>(cs) EXC(nor_dest(r) exc_dest(s))
-                RET r
             nor_dest(<int<32>> r):
                 RET <int<32>>0
             exc_dest(<stackref> s)[exc_param]:
@@ -146,4 +144,4 @@ def test_swapstack_throw_back():
                 SWAPSTACK s KILL_OLD THROW_EXC exc_param
         }
         """, "test_swapstack_throw_back");
-    assert(execute("test_swapstack_throw", []) == 3);
+    assert(execute("test_swapstack_throw_back", []) == 3);
