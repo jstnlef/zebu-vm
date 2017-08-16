@@ -935,7 +935,6 @@ impl TreeNode {
             TreeNode_::Value(ref pv) => pv.ty.clone()
         }
     }
-
 }
 
 impl fmt::Display for TreeNode {
@@ -1069,7 +1068,7 @@ impl Value {
 }
 
 const DISPLAY_ID: bool = true;
-const DISPLAY_TYPE: bool = false;
+const DISPLAY_TYPE: bool = true;
 const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {

@@ -26,7 +26,6 @@ macro_rules! assert_ir {
     ($ cond : expr , $ ( $ arg : tt ) + ) => { debug_assert!($cond, $($arg)+)};
 }
 
-
 pub struct MuIRBuilder {
     /// ref to MuVM
     mvm: *const MuVM,
@@ -2429,7 +2428,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
                 assert_ir!(
                     impl_opnd1.ty() == impl_opnd2.ty() && impl_opnd1.ty() == impl_ty,
-                    "Invalid instruction {:?}: Operand types {} and {} are not what was expected {}",
+                    "Invalid instruction {:?}: Operand types {} and {} \
+                    are not what was expected {}",
                     inst,
                     impl_opnd1.ty(),
                     impl_opnd2.ty(),
@@ -3442,7 +3442,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                             self.build_destination(fcb, ecnode.exc, &mut ops, &[], blocks);
 
                         assert_ir!(match **cur_stack_clause {
-                            NodeCurrentStackClause::KillOld { .. } => false, // Can't have an exception
+                            // Can't have an exception
+                            NodeCurrentStackClause::KillOld { .. } => false,
                             // clause
                             _ => true
                         });
@@ -3832,7 +3833,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_NEW_STACK => {
                 assert_ir!(
-                    tys.is_empty() && flags.is_empty() && exc_clause.is_none() && keepalives.is_none()
+                    tys.is_empty() && flags.is_empty() && exc_clause.is_none() &&
+                        keepalives.is_none()
                 );
 
                 assert!(sigs.len() == 1);
@@ -3843,15 +3845,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_sig = self.ensure_sig_rec(sigs[0]);
 
                 assert_ir!(impl_sig.ret_tys.is_empty()); // The function isn't supposed to return
-                assert_ir!(
-                    match impl_opnd.ty().v {
-                        MuType_::FuncRef(ref sig) => *sig == impl_sig,
-                        _ => false
-                    }
-                );
+                assert_ir!(match impl_opnd.ty().v {
+                    MuType_::FuncRef(ref sig) => *sig == impl_sig,
+                    _ => false
+                });
 
                 let impl_stackref = self.ensure_stackref();
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_stackref).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_stackref)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -3863,13 +3864,15 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CMU_CI_UVM_CURRENT_STACK => {
                 assert_ir!(
                     tys.is_empty() && args.is_empty() && sigs.is_empty() && flags.is_empty() &&
-                        exc_clause.is_none() && keepalives.is_none()
+                        exc_clause.is_none() &&
+                        keepalives.is_none()
                 );
 
 
                 assert!(result_ids.len() == 1);
                 let impl_stackref = self.ensure_stackref();
-                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_stackref).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_stackref)
+                    .clone_value();
 
                 Instruction {
                     hdr: hdr,
@@ -3880,8 +3883,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             CMU_CI_UVM_KILL_STACK => {
                 assert_ir!(
-                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && exc_clause.is_none() && keepalives.is_none()
-                    && result_ids.is_empty()
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none() &&
+                        result_ids.is_empty()
                 );
 
                 assert!(args.len() == 1);

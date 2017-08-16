@@ -16,7 +16,7 @@
 
 # swap_stack_to(new_sp: Address, entry: Address, old_sp_loc: Address)
 #               %rdi             %rsi            %rdx
-begin_func swap_to_mu_stack
+begin_func muthread_start_pass
           # -- on old stack --
           # C calling convention
           pushq %rbp
@@ -63,7 +63,7 @@ begin_func swap_to_mu_stack
           # push entry function and start it
           pushq %rax
           ret
-end_func swap_to_mu_stack
+end_func muthread_start_pass
 
 # _swap_back_to_native_stack(sp_loc: Address)
 #                            %rdi

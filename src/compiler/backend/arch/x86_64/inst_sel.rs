@@ -1584,12 +1584,16 @@ impl<'a> InstructionSelection {
 
                         // get thread local and add offset to get sp_loc
                         let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
-                        self.backend
-                            .emit_add_r_imm(&tl, *thread::NATIVE_SP_LOC_OFFSET as i32);
+                        self.emit_load_base_offset(
+                            &tl,
+                            &tl,
+                            *thread::NATIVE_SP_LOC_OFFSET as i32,
+                            vm
+                        );
 
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
                         self.emit_runtime_entry(
-                            &entrypoints::SWAP_BACK_TO_NATIVE_STACK,
+                            &entrypoints::MUENTRY_THREAD_EXIT,
                             vec![tl.clone()],
                             None,
                             Some(node),

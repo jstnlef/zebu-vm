@@ -42,6 +42,7 @@ use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
 use compiler::backend::RegGroup;
+use vm::VM;
 
 use utils::LinkedHashMap;
 use std::collections::HashMap;
@@ -654,7 +655,9 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         // runtime call
         New(_) | NewHybrid(_, _) => 10,
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
-        ThreadExit => 10, CurrentStack => 10, KillStack(_) => 10,
+        ThreadExit => 10,
+        CurrentStack => 10,
+        KillStack(_) => 10,
         Throw(_) => 10,
         SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
