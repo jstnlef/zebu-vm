@@ -10,9 +10,6 @@ before_script:
   - export CC=clang
   - source /home/gitlab-runner/ci/bin/activate
 
-after_script:
-  - deactivate
-
 build:
   stage: build
   script:
@@ -118,4 +115,4 @@ testjit:som:
 rustfmt:
   stage: rustfmt
   script:
-    - CARGO_HOME=/opt/rust rustup run nightly cargo fmt -- --write-mode=diff src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs --verbose
+    - CARGO_HOME=/home/gitlab-runner/.cargo rustup run nightly-2017-07-19 cargo fmt -- --write-mode=diff src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs --verbose
