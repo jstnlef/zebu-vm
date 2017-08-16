@@ -121,4 +121,4 @@ testjit:som:
 rustfmt:
   stage: rustfmt
   script:
-    - rustup run nightly cargo fmt -- --write-mode=diff src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs --verbose
+    - CARGO_HOME=/opt/rust rustup run nightly cargo fmt -- --write-mode=diff src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs --verbose
