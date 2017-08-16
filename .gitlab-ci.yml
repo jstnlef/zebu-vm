@@ -4,7 +4,6 @@ stages:
   - rustfmt
 
 before_script:
-  - export PATH=$PATH:/root/.cargo/bin
   - export MU_ZEBU=$CI_PROJECT_DIR
   - export ZEBU_BUILD=release
   - export CARGO_HOME=.cargo
