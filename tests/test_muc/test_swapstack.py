@@ -102,3 +102,48 @@ def test_swapstack_throw():
         }
         """, "test_swapstack_throw");
     assert(execute("test_swapstack_throw", []) == 3);
+
+def test_swapstack_throw_back():
+    compile_bundle(
+        """
+        .funcdef new_func <(stackref)->()>
+        {
+            entry(<stackref>s):
+                er = NEW <int<32>>
+                eri = GETIREF <int<32>> er
+                STORE <int<32>> eri <int<32>> 1
+                ev = REFCAST <ref<int<32>> ref<void>> er
+                r = SWAPSTACK s RET_WITH<int<32>> THROW_EXC ev EXC(nor_dest(r) exc_dest()) 
+            
+            nor_dest(<int<32>> r):
+                CCALL #DEFAULT <exit_type exit_sig> exit(<int<32>>0)
+                RET
+            exc_dest()[exc_param]:
+                e = REFCAST <ref<void> ref<int<32>>> exc_param
+                evi = GETIREF <int<32>> e
+                ev = LOAD <int<32>> evi
+                CCALL #DEFAULT <exit_type exit_sig> exit(ev)
+                RET
+        }
+        .funcdef test_swapstack_throw_back <main_sig>
+        {
+            entry(<int<32>>argc <uptr<uptr<char>>>argv):
+                cs =  COMMINST uvm.current_stack()
+                s = COMMINST uvm.new_stack<[(stackref)->()]>(new_func)
+                r = SWAPSTACK s RET_WITH<int<32>> PASS_VALUES<stackref>(cs) EXC(nor_dest(r) exc_dest(s))
+                RET r
+            nor_dest(<int<32>> r):
+                RET <int<32>>0
+            exc_dest(<stackref> s)[exc_param]:
+                e = REFCAST <ref<void> ref<int<32>>> exc_param
+                evi = GETIREF <int<32>> e
+                ev = LOAD <int<32>> evi
+                newv = ADD <int<32>> ev <int<32>> 2
+                STORE <int<32>> evi newv
+                // exc_param += 2
+                
+                // Throw back to new_func
+                SWAPSTACK s KILL_OLD THROW_EXC exc_param
+        }
+        """, "test_swapstack_throw_back");
+    assert(execute("test_swapstack_throw", []) == 3);
