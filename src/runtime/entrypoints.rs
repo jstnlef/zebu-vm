@@ -57,7 +57,7 @@ lazy_static! {
 
     // impl: runtime_asm_ARCH_OS.s
     // decl: thread.rs
-    pub static ref MUENTRY_THREAD_EXIT : RuntimeEntrypoint = RuntimeEntrypoint {
+    pub static ref THREAD_EXIT : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{
             hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
             ret_tys: vec![],
@@ -70,13 +70,24 @@ lazy_static! {
 }
 lazy_static! {
     // impl/decl: thread.rs
-    pub static ref MUENTRY_NEW_STACK: RuntimeEntrypoint = RuntimeEntrypoint {
+    pub static ref NEW_STACK: RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{
             hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
             ret_tys: vec![STACKREF_TYPE.clone()],
             arg_tys: vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone()]
         }),
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_new_stack")),
+        jit: RwLock::new(None),
+    };
+
+    // impl/decl: thread.rs
+    pub static ref KILL_STACK: RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig{
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![STACKREF_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_kill_stack")),
         jit: RwLock::new(None),
     };
 

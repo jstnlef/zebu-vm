@@ -145,3 +145,25 @@ def test_swapstack_throw_back():
         }
         """, "test_swapstack_throw_back");
     assert(execute("test_swapstack_throw_back", []) == 3);
+
+def test_kill_stack():
+    compile_bundle(
+        """
+        .funcdef new_func <(stackref)->()>
+        {
+            entry(<stackref>s):
+                COMMINST uvm.kill_stack(s)            
+                CCALL #DEFAULT <exit_type exit_sig> exit(<int<32>>3) 
+                RET
+        }        
+        .funcdef test_kill_stack <main_sig>
+        {
+            entry(<int<32>>argc <uptr<uptr<char>>>argv):
+                cs =  COMMINST uvm.current_stack()
+                s = COMMINST uvm.new_stack<[(stackref)->()]>(new_func)
+                SWAPSTACK s RET_WITH<> PASS_VALUES<stackref>(cs)
+                RET <int<32>>0
+                
+        }
+        """, "test_kill_stack");
+    assert(execute("test_kill_stack", []) == 3);

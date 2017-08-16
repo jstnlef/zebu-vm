@@ -107,26 +107,6 @@ pub struct MuStack {
     mmap: Option<memmap::Mmap>
 }
 
-impl Drop for MuStack
-{
-    fn drop(&mut self) {
-        // Reverse memory protection so that dropping will work...
-        //trace!("dropping MuStack {}", Address::from_ref(self));
-        unsafe {
-            memsec::mprotect(
-                self.overflow_guard.to_ptr_mut::<u8>(),
-                PAGE_SIZE,
-                memsec::Prot::ReadWriteExec
-            );
-            memsec::mprotect(
-                self.underflow_guard.to_ptr_mut::<u8>(),
-                PAGE_SIZE,
-                memsec::Prot::ReadWriteExec
-            );
-        }
-    }
-}
-
 impl MuStack {
     /// creates a new MuStack for given entry function and function address
     pub fn new(id: MuID, func_addr: Address, stack_arg_size: usize) -> MuStack {
@@ -673,10 +653,7 @@ pub unsafe extern "C" fn muentry_prepare_swapstack_ret(new_stack: *mut MuStack)
     // Save the current stack, don't deallocate it
     let cur_stack = Box::into_raw(cur_thread.stack.take().unwrap());
     cur_thread.stack = Some(Box::from_raw(new_stack));
-    let new_sp = (*new_stack).sp;
-    let old_sp_loc =&mut (*cur_stack).sp;
-    trace!("ISAAC: muentry_prepare_swapstack_ret({}) -> ({}, {})", Address::from_ptr(new_stack), new_sp, Address::from_ref(old_sp_loc));
-    (new_sp, old_sp_loc)
+    ((*new_stack).sp, &mut (*cur_stack).sp)
 }
 
 // This prepares a thread for a swap stack operation that kills the current stack
@@ -691,24 +668,19 @@ pub unsafe extern "C" fn muentry_prepare_swapstack_kill(new_stack: *mut MuStack)
     // (i.e. when were are not on the current stack)
     let cur_stack = Box::into_raw(cur_thread.stack.take().unwrap());
     cur_thread.stack = Some(Box::from_raw(new_stack));
-    let new_sp = (*new_stack).sp;
-    trace!("ISAAC: muentry_prepare_swapstack_kill({}) -> ({}, {})", Address::from_ptr(new_stack), new_sp, Address::from_ptr(cur_stack));
-    (new_sp, cur_stack)
+    ((*new_stack).sp, cur_stack)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn muentry_new_stack(entry: Address, stack_size: usize) -> *mut MuStack {
     let ref vm = MuThread::current_mut().vm;
     let stack = Box::new(MuStack::new(vm.next_id(), entry, stack_size));
-    let a = Box::into_raw(stack);
-    trace!("ISAAC: muentry_new_stack({}, {}) -> {}", entry, stack_size, Address::from_mut_ptr(a));
-    a
+    Box::into_raw(stack)
 }
 
 // Kills the given stack. WARNING! do not call this whilst on the given stack
 #[no_mangle]
 pub unsafe extern "C" fn muentry_kill_stack(stack: *mut MuStack) {
     // This new box will be destroyed upon returning
-    trace!("ISAAC: muentry_kill_stack({})", Address::from_mut_ptr(stack));
-    //Box::from_raw(stack);
+    Box::from_raw(stack);
 }

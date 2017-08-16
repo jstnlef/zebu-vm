@@ -1425,7 +1425,7 @@ impl<'a> InstructionSelection {
                         );
 
                         self.emit_runtime_entry(
-                            &entrypoints::MUENTRY_THREAD_EXIT,
+                            &entrypoints::THREAD_EXIT,
                             vec![tl.clone()],
                             None,
                             Some(node),
@@ -1449,9 +1449,21 @@ impl<'a> InstructionSelection {
                         let (_, _, stack_arg_size) = compute_argument_locations(&sig.arg_tys, &SP, 0, &vm);
 
                         self.emit_runtime_entry(
-                            &entrypoints::MUENTRY_NEW_STACK,
+                            &entrypoints::NEW_STACK,
                             vec![tmp_func, make_value_int_const(stack_arg_size as u64, vm)],
                             Some(vec![tmp_res]),
+                            Some(node),
+                            f_context,
+                            vm
+                        );
+                    }
+                    Instruction_::KillStack(op) => {
+                        trace!("instself on KILL_STACK");
+                        let op = self.emit_ireg(&inst.ops[op], f_content, f_context, vm);
+                        self.emit_runtime_entry(
+                            &entrypoints::KILL_STACK,
+                            vec![op],
+                            None,
                             Some(node),
                             f_context,
                             vm

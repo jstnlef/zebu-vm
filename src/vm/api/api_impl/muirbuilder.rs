@@ -3897,7 +3897,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     hdr: hdr,
                     value: None,
                     ops: vec![impl_opnd],
-                    v: Instruction_::NewStack(0)
+                    v: Instruction_::KillStack(0)
                 }
             }
             CMU_CI_UVM_TR64_IS_FP => {

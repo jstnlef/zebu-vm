@@ -2084,7 +2084,6 @@ fn split_int128(
             .unwrap()
             .set_split(vec![arg_l.clone(), arg_h.clone()]);
 
-        trace!("ISAAC <- make temporary ({}, {})", &arg_l, &arg_h);
         (arg_l, arg_h)
     }
 }
@@ -2106,13 +2105,6 @@ pub fn emit_ireg_ex_value(
             emit_mov_u64(backend, &tmp_l, val[0]);
             emit_mov_u64(backend, &tmp_h, val[1]);
 
-            trace!(
-                "ISAAC <- ({}, {}) = ({}, {})",
-                &tmp_l,
-                &tmp_h,
-                val[0],
-                val[1]
-            );
             (tmp_l, tmp_h)
         }
         _ => panic!("expected ireg_ex")
