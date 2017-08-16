@@ -163,12 +163,6 @@ impl MuStack {
             );
         }
 
-        debug!("creating stack {} with entry address {:?}", id, func_addr);
-        debug!("overflow_guard : {}", overflow_guard);
-        debug!("lower_bound    : {}", lower_bound);
-        debug!("upper_bound    : {}", upper_bound);
-        debug!("underflow_guard: {}", underflow_guard);
-
         // Set up the stack
         let mut sp = upper_bound;
         sp -= stack_arg_size; // Allocate space for the arguments
@@ -183,6 +177,13 @@ impl MuStack {
 
         // Reserve space for callee saved registers (they will be loaded with undefined values)
         sp -= WORD_SIZE*CALLEE_SAVED_COUNT;
+
+        debug!("creating stack {} with entry address {:?}", id, func_addr);
+        debug!("overflow_guard : {}", overflow_guard);
+        debug!("lower_bound    : {}", lower_bound);
+        debug!("stack_pointer  : {}", sp);
+        debug!("upper_bound    : {}", upper_bound);
+        debug!("underflow_guard: {}", underflow_guard);
 
         MuStack {
             hdr: MuEntityHeader::unnamed(id),
@@ -347,6 +348,8 @@ lazy_static! {
         offset_of!(MuThread=>native_sp_loc).get_byte_offset();
     pub static ref USER_TLS_OFFSET      : usize =
         offset_of!(MuThread=>user_tls).get_byte_offset();
+    pub static ref STACK_OFFSET      : usize =
+        offset_of!(MuThread=>stack).get_byte_offset();
     pub static ref EXCEPTION_OBJ_OFFSET : usize =
         offset_of!(MuThread=>exception_obj).get_byte_offset();
 }
@@ -670,7 +673,10 @@ pub unsafe extern "C" fn muentry_prepare_swapstack_ret(new_stack: *mut MuStack)
     // Save the current stack, don't deallocate it
     let cur_stack = Box::into_raw(cur_thread.stack.take().unwrap());
     cur_thread.stack = Some(Box::from_raw(new_stack));
-    ((*new_stack).sp, &mut (*cur_stack).sp)
+    let new_sp = (*new_stack).sp;
+    let old_sp_loc =&mut (*cur_stack).sp;
+    trace!("ISAAC: muentry_prepare_swapstack_ret({}) -> ({}, {})", Address::from_ptr(new_stack), new_sp, Address::from_ref(old_sp_loc));
+    (new_sp, old_sp_loc)
 }
 
 // This prepares a thread for a swap stack operation that kills the current stack

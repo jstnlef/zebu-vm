@@ -101,7 +101,9 @@ impl Instruction {
             TailCall(_) | Branch1(_) | Branch2 { .. } | Watchpoint { .. } | WPBranch { .. } |
             Call { .. } | CCall { .. }| SwapStackExpr{..}| SwapStackExc { .. } | SwapStackKill { .. } | Switch { .. } | ExnInstruction { .. } |
             CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) | CommonInst_Pin(_) | CommonInst_Unpin(_) |
-            CommonInst_GetAddr(_) | PrintHex(_) | SetRetval(_) => true,
+            CommonInst_GetAddr(_) | PrintHex(_) | SetRetval(_) |
+            CurrentStack // Just heir to prevent interferance with swapstacks
+            => true,
             _ => false
         }
     }

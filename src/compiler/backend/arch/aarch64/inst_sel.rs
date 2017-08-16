@@ -1457,7 +1457,25 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     }
+                    Instruction_::CurrentStack => {
+                        trace!("instsel on CURRENT_STACK");
 
+                        // get thread local
+                        let tl = self.emit_get_threadlocal(f_context, vm);
+
+                        let tmp_res = self.get_result_value(node, 0);
+
+                        // load [tl + STACK_OFFSET] -> tmp_res
+                        // WARNING: This assumes that an Option<Box<MuStack>> is actually just a pointer to a MuStack
+                        emit_load_base_offset(
+                            self.backend.as_mut(),
+                            &tmp_res,
+                            &tl,
+                            *thread::STACK_OFFSET as i64,
+                            f_context,
+                            vm
+                        );
+                    }
                     Instruction_::CommonInst_GetThreadLocal => {
                         trace!("instsel on GETTHREADLOCAL");
                         // get thread local
@@ -2044,6 +2062,7 @@ impl<'a> InstructionSelection {
                         is_exception,
                         ref args
                     } => {
+                        trace!("Instruction Selection on SWPASTACK-EXPR");
                         self.emit_swapstack(
                             is_exception, // is_exception
                             false,        // is_kill
@@ -2063,6 +2082,7 @@ impl<'a> InstructionSelection {
                         ref args,
                         ref resume
                     } => {
+                        trace!("Instruction Selection on SWPASTACK-EXC");
                         self.emit_swapstack(
                             is_exception, // is_exception
                             false,        // is_kill
@@ -2082,6 +2102,7 @@ impl<'a> InstructionSelection {
                         is_exception,
                         ref args
                     } => {
+                        trace!("Instruction Selection on SWPASTACK-KILL");
                         self.emit_swapstack(
                             is_exception, // is_exception
                             true,         // is_kill
@@ -4362,10 +4383,6 @@ impl<'a> InstructionSelection {
                 vm
             );
         } else {
-            // Pass new_sp and cur_stack in X9 and X10 respectivley
-            self.backend.emit_mov(&X9, &new_sp);
-            self.backend.emit_mov(&X10, &cur_stack);
-
             // Prepare arguments
             let mut arg_values = vec![];
             let arg_nodes = args.iter().map(|a| ops[*a].clone()).collect::<Vec<_>>();
@@ -4391,6 +4408,10 @@ impl<'a> InstructionSelection {
                 f_context,
                 vm
             );
+
+            // Pass new_sp and cur_stack in X9 and X10 respectivley
+            self.backend.emit_mov(&X9, &new_sp);
+            self.backend.emit_mov(&X10, &cur_stack);
             arg_regs.push(X9.clone());
             arg_regs.push(X10.clone());
 

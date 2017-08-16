@@ -16,6 +16,7 @@ from util import execute, compile_bundle, load_bundle, get_function;
 import pytest;
 import ctypes;
 
+# passes on aarch64
 def test_swapstack_simple():
     compile_bundle(
         """
@@ -34,19 +35,20 @@ def test_swapstack_simple():
         """, "test_swapstack_simple");
     assert(execute("test_swapstack_simple", []) == 3);
 
+# passes on aarch64
 def test_swapstack_swap_back():
     compile_bundle(
         """
         .funcdef new_func <(stackref)->()>
         {
             entry(<stackref>s):
-                SWAPSTACK s KILL_OLD PASS_VALUES<>() 
+                SWAPSTACK s KILL_OLD PASS_VALUES<>()
         }        
         .funcdef test_swapstack_swap_back <main_sig>
         {
             entry(<int<32>>argc <uptr<uptr<char>>>argv):
-                cs =  COMMINST current_stack()
-                s = COMMINST new_stack<[(stackref)->()]>(new_func)
+                cs =  COMMINST uvm.current_stack()
+                s = COMMINST uvm.new_stack<[(stackref)->()]>(new_func)
                 SWAPSTACK s RET_WITH<> PASS_VALUES<stackref>(cs)
                 RET <int<32>>3
                 
@@ -54,42 +56,26 @@ def test_swapstack_swap_back():
         """, "test_swapstack_swap_back");
     assert(execute("test_swapstack_swap_back", []) == 3);
 
+# segfaults on aarch64
 def test_swapstack_pass_vals():
     compile_bundle(
         """
         .funcdef new_func <(stackref)->()>
         {
             entry(<stackref>s):
-                SWAPSTACK s KILL_OLD PASS_VALUES<int<32>>(<int<32> 3) 
+                SWAPSTACK s KILL_OLD PASS_VALUES<int<32>>(<int<32>> 3) 
         }        
         .funcdef test_swapstack_pass_vals <main_sig>
         {
             entry(<int<32>>argc <uptr<uptr<char>>>argv):
-                s = COMMINST new_stack<[()->()]>(new_func)
-                r = SWAPSTACK s RET_WITH<int<32>> PASS_VALUES<>() EXC(body(r))
-                RET r
-        }
-        """, "test_swapstack_pass_vals");
-    assert(execute("test_swapstack_pass_vals", []) == 3);
-
-def test_swapstack_pass_vals():
-    compile_bundle(
-        """
-        .funcdef new_func <(stackref)->()>
-        {
-            entry(<stackref>s):
-                SWAPSTACK s KILL_OLD PASS_VALUES<int<32>>(<int<32> 3) 
-        }        
-        .funcdef test_swapstack_pass_vals <main_sig>
-        {
-            entry(<int<32>>argc <uptr<uptr<char>>>argv):
-                s = COMMINST new_stack<[()->()]>(new_func)
+                s = COMMINST uvm.new_stack<[(stackref)->()]>(new_func)
                 r = SWAPSTACK s RET_WITH<int<32>> PASS_VALUES<>()
                 RET r
         }
         """, "test_swapstack_pass_vals");
     assert(execute("test_swapstack_pass_vals", []) == 3);
 
+# Work in progress...
 def test_swapstack_throw():
     compile_bundle(
         """
@@ -102,8 +88,13 @@ def test_swapstack_throw():
         {
             entry(<int<32>>argc <uptr<uptr<char>>>argv):
                 s = COMMINST new_stack<[()->()]>(new_func)
-                r = SWAPSTACK s RET_WITH<int<32>> PASS_VALUES<>() EXC(norm(r))
+                r = SWAPSTACK s RET_WITH<int<32>> PASS_VALUES<>() EXC(nor_dest(r) exc_dest())
                 RET r
+            nor_dest(<int<32>>):
+                RET <int<32>>0
+            exc_dest()[exc_param]:
+                REFCAST <from_ty tot__ty>                                     
+                RET <int<32>>0
         }
         """, "test_swapstack_pass_vals");
     assert(execute("test_swapstack_pass_vals", []) == 3);
