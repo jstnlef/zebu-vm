@@ -138,9 +138,13 @@ impl HeapDump {
             let field_addr = base + *offset;
             let edge = unsafe { field_addr.load::<Address>() };
 
-            trace!("object reference from {} -> {} at +[{}]", base, 
-                edge, offset);
-                
+            trace!(
+                "object reference from {} -> {} at +[{}]",
+                base,
+                edge,
+                offset
+            );
+
             if !edge.is_zero() && !self.objects.contains_key(&edge) {
                 work_queue.push(edge);
             }
