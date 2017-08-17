@@ -493,7 +493,7 @@ impl<'a> GraphColoring<'a> {
 
         // if they are not from the same register group, we cannot coalesce them
         if self.ig.get_group_of(m.from) != self.ig.get_group_of(m.to) {
-            info!("a move instruction of two temporaries of different reigsters group");
+            info!("a move instruction of two temporaries of different register groups");
             info!("from: {:?}, to: {:?}", m.from, m.to);
 
             return;
@@ -531,6 +531,22 @@ impl<'a> GraphColoring<'a> {
             precolored_u,
             precolored_v
         );
+
+        // if u or v is a machine register that is not usable/not a color, we cannot coalesce
+        if self.precolored.contains(&u) {
+            let reg_u = self.ig.get_temp_of(u);
+            let group = backend::pick_group_for_reg(reg_u);
+            if !self.colors.get(&group).unwrap().contains(&reg_u) {
+                return;
+            }
+        }
+        if self.precolored.contains(&v) {
+            let reg_v = self.ig.get_temp_of(v);
+            let group = backend::pick_group_for_reg(reg_v);
+            if !self.colors.get(&group).unwrap().contains(&reg_v) {
+                return;
+            }
+        }
 
         if u == v {
             trace!("u == v, coalesce the move");

@@ -192,6 +192,12 @@ macro_rules! ssa {
     }
 }
 
+macro_rules! machine_reg {
+    (($vm: expr, $fv: ident) $name: ident = $mreg: expr) => {
+        let $name = $fv.new_machine_reg($mreg.clone());
+    }
+}
+
 macro_rules! consta {
     (($vm: expr, $fv: ident) $name: ident = $c: ident) => {
         let $name = $fv.new_constant($c.clone());

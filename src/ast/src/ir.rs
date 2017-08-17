@@ -273,6 +273,16 @@ impl MuFunctionVersion {
         })
     }
 
+    pub fn new_machine_reg(&mut self, v: P<Value>) -> P<TreeNode> {
+        self.context
+            .values
+            .insert(v.id(), SSAVarEntry::new(v.clone()));
+
+        P(TreeNode {
+            v: TreeNode_::Value(v)
+        })
+    }
+
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
             v: TreeNode_::Value(v)
