@@ -22,8 +22,6 @@ use compiler::backend;
 
 use std::path::PathBuf;
 use std::process::Command;
-use std::process::Stdio;
-use std::process::Output;
 
 /// links generated code for the given functions, static library of Zebu,
 /// and a main function to produce an executable of the given name

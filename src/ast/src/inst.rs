@@ -959,6 +959,9 @@ pub enum MemoryOrder {
     SeqCst
 }
 
+pub const C_CALL_CONVENTION: CallConvention = CallConvention::Foreign(ForeignFFI::C);
+pub const MU_CALL_CONVENTION: CallConvention = CallConvention::Mu;
+
 #[derive(Copy, Clone, Debug)]
 pub enum CallConvention {
     Mu,

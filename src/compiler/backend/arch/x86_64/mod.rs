@@ -26,6 +26,9 @@ use compiler::backend::x86_64::codegen::CodeGenerator;
 mod asm_backend;
 use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 
+/// call conventions
+pub mod callconv;
+
 // re-export a few functions for AOT compilation
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::emit_code;
