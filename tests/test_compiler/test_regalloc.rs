@@ -18,6 +18,7 @@ extern crate libloading;
 use mu::linkutils;
 use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
+use mu::compiler::backend::x86_64;
 use test_compiler::test_call::gen_ccall_exit;
 use self::mu::compiler::*;
 use self::mu::ast::ir::*;
@@ -2034,6 +2035,77 @@ fn spill_int8() -> VM {
     define_func_ver!((vm) spill_int8_v1 (entry: blk_entry) {
         blk_entry,
         blk_ret
+    });
+
+    vm
+}
+
+#[test]
+#[cfg(target_arch = "x86_64")]
+fn test_coalesce_unusable_reg() {
+    VM::start_logging_trace();
+
+    let vm = coalesce_unusable_reg();
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+    let func_id = vm.id_of("coalesce_unusable_reg");
+
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
+
+        compiler.compile(&mut func_ver);
+
+        let compiled_funcs = vm.compiled_funcs().read().unwrap();
+        let cf_lock = compiled_funcs.get(&func_ver.id()).unwrap();
+        let cf = cf_lock.read().unwrap();
+
+        let x_id = vm.id_of("x");
+
+        // x exists
+        assert!(cf.temps.contains_key(&x_id));
+
+        // x is not rsp
+        let x_color = *cf.temps.get(&x_id).unwrap();
+        println!("x is assigned to {}", x_color);
+        assert!(x_color != x86_64::RSP.id());
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+fn coalesce_unusable_reg() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    funcsig!    ((vm) sig = () -> (int64));
+    funcdecl!   ((vm) <sig> coalesce_unusable_reg);
+    funcdef!    ((vm) <sig> coalesce_unusable_reg VERSION coalesce_unusable_reg_v1);
+
+    block!      ((vm, coalesce_unusable_reg_v1) blk_entry);
+
+    ssa!        ((vm, coalesce_unusable_reg_v1) <int64> x);
+    machine_reg!((vm, coalesce_unusable_reg_v1) rsp = x86_64::RSP);
+    inst!       ((vm, coalesce_unusable_reg_v1) blk_entry_mov:
+        MOVE rsp -> x
+    );
+
+    inst!       ((vm, coalesce_unusable_reg_v1) blk_entry_ret:
+        RET (x)
+    );
+
+    define_block!((vm, coalesce_unusable_reg_v1) blk_entry() {
+        blk_entry_mov,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) coalesce_unusable_reg_v1 (entry: blk_entry) {
+        blk_entry
     });
 
     vm
