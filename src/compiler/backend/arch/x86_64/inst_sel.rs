@@ -28,7 +28,6 @@ use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
-use compiler::backend::BackendType;
 use compiler::backend::RegGroup;
 use compiler::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
@@ -3634,27 +3633,15 @@ impl<'a> InstructionSelection {
         }
 
         if !stack_args.is_empty() {
-            // "The end of the input argument area shall be aligned on a 16
-            // (32, if __m256 is passed on stack) byte boundary." - x86 ABI
-            // if we need to special align the args, we do it now
-            // (then the args will be put to stack following their regular alignment)
+            use compiler::backend::x86_64::callconv;
 
             let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
-            let (stack_arg_size, _, stack_arg_offsets) =
-                BackendType::sequential_layout(&stack_arg_tys, vm);
-
-            let mut stack_arg_size_with_padding = stack_arg_size;
-
-            if stack_arg_size % 16 == 0 {
-                // do not need to adjust rsp
-            } else if stack_arg_size % 8 == 0 {
-                // adjust rsp by -8
-                stack_arg_size_with_padding += 8;
-            } else {
-                let rem = stack_arg_size % 16;
-                let stack_arg_padding = 16 - rem;
-                stack_arg_size_with_padding += stack_arg_padding;
-            }
+            let (stack_arg_size_with_padding, stack_arg_offsets) = match conv {
+                CallConvention::Mu => callconv::mu::compute_stack_args(&stack_arg_tys, vm),
+                CallConvention::Foreign(ForeignFFI::C) => {
+                    callconv::c::compute_stack_args(&stack_arg_tys, vm)
+                }
+            };
 
             // now, we just put all the args on the stack
             {
@@ -4197,25 +4184,28 @@ impl<'a> InstructionSelection {
             //   arg           <- RBP + 16
             //   return addr
             //   old RBP       <- RBP
-            let stack_arg_base_offset: i32 = 16;
-            let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
-            let (_, _, stack_arg_offsets) = BackendType::sequential_layout(&arg_by_stack_tys, vm);
+            {
+                use compiler::backend::x86_64::callconv::mu;
+                let stack_arg_base_offset: i32 = 16;
+                let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
+                let (_, stack_arg_offsets) = mu::compute_stack_args(&arg_by_stack_tys, vm);
 
-            // unload the args
-            let mut i = 0;
-            for arg in arg_by_stack {
-                let stack_slot = self.emit_load_base_offset(
-                    &arg,
-                    &x86_64::RBP,
-                    (stack_arg_base_offset + stack_arg_offsets[i] as i32),
-                    vm
-                );
-                self.current_frame
-                    .as_mut()
-                    .unwrap()
-                    .add_argument_by_stack(arg.id(), stack_slot);
+                // unload the args
+                let mut i = 0;
+                for arg in arg_by_stack {
+                    let stack_slot = self.emit_load_base_offset(
+                        &arg,
+                        &x86_64::RBP,
+                        (stack_arg_base_offset + stack_arg_offsets[i] as i32),
+                        vm
+                    );
+                    self.current_frame
+                        .as_mut()
+                        .unwrap()
+                        .add_argument_by_stack(arg.id(), stack_slot);
 
-                i += 1;
+                    i += 1;
+                }
             }
         }
 
