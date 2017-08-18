@@ -2594,8 +2594,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                             (impl_from_ty.is_int() && impl_from_ty.get_int_length().unwrap() == 32 && impl_to_ty.is_float()) ||
                             (impl_from_ty.is_int() && impl_from_ty.get_int_length().unwrap() == 64 && impl_to_ty.is_double()),
                         ConvOp::REFCAST =>
-                            (impl_from_ty.is_ref() || impl_from_ty.is_iref() || impl_from_ty.is_funcref()) &&
-                            (impl_to_ty.is_ref() || impl_to_ty.is_iref() || impl_to_ty.is_funcref()),
+                            (impl_from_ty.is_ref() && impl_to_ty.is_ref()) || 
+			    (impl_from_ty.is_iref() && impl_to_ty.is_ref()) ||
+                            (impl_from_ty.is_funcref() && impl_to_ty.is_funcref()),
                        ConvOp::PTRCAST =>
                             (impl_from_ty.is_ptr() || impl_from_ty.is_int()) &&
                             (impl_to_ty.is_ptr() || impl_to_ty.is_int()) &&

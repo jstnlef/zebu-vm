@@ -146,7 +146,7 @@ impl MuType {
     }
     pub fn is_funcref(&self) -> bool {
         match self.v {
-            MuType_::Struct(_) => true,
+            MuType_::FuncRef(_) => true,
             _ => false
         }
     }
