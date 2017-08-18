@@ -28,7 +28,6 @@ use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
 
 use compiler::CompilerPass;
-use compiler::backend::BackendType;
 use compiler::backend::RegGroup;
 use compiler::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
@@ -137,6 +136,8 @@ pub struct InstructionSelection {
     current_fv_id: MuID,
     /// name of current function version being compiled
     current_fv_name: MuName,
+    /// signature of current function being compiled
+    current_sig: Option<P<MuFuncSig>>,
     /// used to create a unique callsite ID for current function
     current_callsite_id: usize,
     /// frame for current function
@@ -173,6 +174,7 @@ impl<'a> InstructionSelection {
 
             current_fv_id: 0,
             current_fv_name: String::new(),
+            current_sig: None,
             current_callsite_id: 0,
             current_frame: None,
             // which block we are generating code for
@@ -3560,133 +3562,90 @@ impl<'a> InstructionSelection {
     /// returns the stack arg offset - we will need this to collapse stack after the call
     fn emit_precall_convention(
         &mut self,
+        sig: &MuFuncSig,
         args: &Vec<P<Value>>,
+        conv: CallConvention,
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> (usize, Vec<P<Value>>) {
-        // put args into registers if we can
-        // in the meantime record args that do not fit in registers
-        let mut stack_args: Vec<P<Value>> = vec![];
-        let mut gpr_arg_count = 0;
-        let mut fpr_arg_count = 0;
+        use compiler::backend::x86_64::callconv;
+        use compiler::backend::x86_64::callconv::CallConvResult;
 
-        let mut arg_regs = Vec::<P<Value>>::new();
+        let callconv = {
+            match conv {
+                CallConvention::Mu => callconv::mu::compute_arguments(sig),
+                CallConvention::Foreign(ForeignFFI::C) => callconv::c::compute_arguments(sig)
+            }
+        };
+        assert!(callconv.len() == args.len());
 
-        for arg in args.iter() {
-            let arg_reg_group = RegGroup::get_from_value(&arg);
+        let mut stack_args = vec![];
+        let mut reg_args = vec![];
 
-            if arg_reg_group == RegGroup::GPR && arg.is_reg() {
-                if gpr_arg_count < x86_64::ARGUMENT_GPRS.len() {
-                    let arg_gpr = {
-                        let ref reg64 = x86_64::ARGUMENT_GPRS[gpr_arg_count];
-                        let expected_len = arg.ty.get_int_length().unwrap();
-                        x86_64::get_alias_for_length(reg64.id(), expected_len)
-                    };
-                    arg_regs.push(arg_gpr.clone());
+        for i in 0..callconv.len() {
+            let ref arg = args[i];
+            let ref cc = callconv[i];
 
-                    self.backend.emit_mov_r_r(&arg_gpr, &arg);
-                    gpr_arg_count += 1;
-                } else {
-                    // use stack to pass argument
-                    stack_args.push(arg.clone());
-                }
-            } else if arg_reg_group == RegGroup::GPR && arg.is_const() {
-                let int_const = arg.extract_int_const().unwrap();
-
-                if gpr_arg_count < x86_64::ARGUMENT_GPRS.len() {
-                    let arg_gpr = {
-                        let ref reg64 = x86_64::ARGUMENT_GPRS[gpr_arg_count];
-                        let expected_len = arg.ty.get_int_length().unwrap();
-                        x86_64::get_alias_for_length(reg64.id(), expected_len)
-                    };
-                    arg_regs.push(arg_gpr.clone());
-
-                    if x86_64::is_valid_x86_imm(arg) {
-                        self.backend.emit_mov_r_imm(&arg_gpr, int_const as i32);
+            match cc {
+                &CallConvResult::GPR(ref reg) => {
+                    reg_args.push(reg.clone());
+                    if arg.is_reg() {
+                        self.backend.emit_mov_r_r(reg, arg);
+                    } else if arg.is_const() {
+                        let int_const = arg.extract_int_const().unwrap();
+                        if x86_64::is_valid_x86_imm(arg) {
+                            self.backend.emit_mov_r_imm(reg, int_const as i32);
+                        } else {
+                            // FIXME: put the constant to memory
+                            self.backend.emit_mov_r64_imm64(reg, int_const as i64);
+                        }
                     } else {
-                        // FIXME: put the constant to memory
-                        self.backend.emit_mov_r64_imm64(&arg_gpr, int_const as i64);
+                        panic!("arg {} is put to GPR, but it is neither reg or const");
                     }
-                    gpr_arg_count += 1;
-                } else {
-                    // use stack to pass argument
+                }
+                &CallConvResult::GPREX(ref reg_l, ref reg_h) => {
+                    reg_args.push(reg_l.clone());
+                    reg_args.push(reg_h.clone());
+                    if arg.is_reg() {
+                        let (arg_l, arg_h) = self.split_int128(arg, f_context, vm);
+                        self.backend.emit_mov_r_r(reg_l, &arg_l);
+                        self.backend.emit_mov_r_r(reg_h, &arg_h);
+                    } else if arg.is_const() {
+                        let const_vals = arg.extract_int_ex_const();
+
+                        assert!(const_vals.len() == 2);
+                        self.backend.emit_mov_r64_imm64(reg_l, const_vals[0] as i64);
+                        self.backend.emit_mov_r64_imm64(reg_h, const_vals[1] as i64);
+                    } else {
+                        panic!("arg {} is put to GPREX, but it is neither reg or const");
+                    }
+                }
+                &CallConvResult::FPR(ref reg) => {
+                    reg_args.push(reg.clone());
+                    if arg.is_reg() {
+                        self.emit_move_value_to_value(reg, arg);
+                    } else if arg.is_const() {
+                        unimplemented!();
+                    } else {
+                        panic!("arg {} is put to FPR, but it is neither reg or const");
+                    }
+                }
+                &CallConvResult::STACK => {
                     stack_args.push(arg.clone());
                 }
-            } else if arg_reg_group == RegGroup::GPREX && arg.is_reg() {
-                // need two regsiters for this, otherwise, we need to pass on stack
-                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRS.len() {
-                    let arg_gpr1 = x86_64::ARGUMENT_GPRS[gpr_arg_count].clone();
-                    let arg_gpr2 = x86_64::ARGUMENT_GPRS[gpr_arg_count + 1].clone();
-                    arg_regs.push(arg_gpr1.clone());
-                    arg_regs.push(arg_gpr2.clone());
-
-                    let (arg_l, arg_h) = self.split_int128(&arg, f_context, vm);
-
-                    self.backend.emit_mov_r_r(&arg_gpr1, &arg_l);
-                    self.backend.emit_mov_r_r(&arg_gpr2, &arg_h);
-
-                    gpr_arg_count += 2;
-                } else {
-                    stack_args.push(arg.clone());
-                }
-            } else if arg_reg_group == RegGroup::GPREX && arg.is_const() {
-                // need two registers for this, otherwise we need to pass on stack
-                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRS.len() {
-                    let arg_gpr1 = x86_64::ARGUMENT_GPRS[gpr_arg_count].clone();
-                    let arg_gpr2 = x86_64::ARGUMENT_GPRS[gpr_arg_count + 1].clone();
-                    arg_regs.push(arg_gpr1.clone());
-                    arg_regs.push(arg_gpr2.clone());
-
-                    let const_vals = arg.extract_int_ex_const();
-
-                    assert!(const_vals.len() == 2);
-                    self.backend
-                        .emit_mov_r64_imm64(&arg_gpr1, const_vals[0] as i64);
-                    self.backend
-                        .emit_mov_r64_imm64(&arg_gpr2, const_vals[1] as i64);
-
-                    gpr_arg_count += 2;
-                } else {
-                    stack_args.push(arg.clone());
-                }
-            } else if arg_reg_group == RegGroup::FPR && arg.is_reg() {
-                if fpr_arg_count < x86_64::ARGUMENT_FPRS.len() {
-                    let arg_fpr = x86_64::ARGUMENT_FPRS[fpr_arg_count].clone();
-                    arg_regs.push(arg_fpr.clone());
-
-                    self.emit_move_value_to_value(&arg_fpr, &arg);
-                    fpr_arg_count += 1;
-                } else {
-                    stack_args.push(arg.clone());
-                }
-            } else {
-                // fp const, struct, etc
-                unimplemented!()
             }
         }
 
         if !stack_args.is_empty() {
-            // "The end of the input argument area shall be aligned on a 16
-            // (32, if __m256 is passed on stack) byte boundary." - x86 ABI
-            // if we need to special align the args, we do it now
-            // (then the args will be put to stack following their regular alignment)
+            use compiler::backend::x86_64::callconv;
 
             let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
-            let (stack_arg_size, _, stack_arg_offsets) =
-                BackendType::sequential_layout(&stack_arg_tys, vm);
-
-            let mut stack_arg_size_with_padding = stack_arg_size;
-
-            if stack_arg_size % 16 == 0 {
-                // do not need to adjust rsp
-            } else if stack_arg_size % 8 == 0 {
-                // adjust rsp by -8
-                stack_arg_size_with_padding += 8;
-            } else {
-                let rem = stack_arg_size % 16;
-                let stack_arg_padding = 16 - rem;
-                stack_arg_size_with_padding += stack_arg_padding;
-            }
+            let (stack_arg_size_with_padding, stack_arg_offsets) = match conv {
+                CallConvention::Mu => callconv::mu::compute_stack_args(&stack_arg_tys, vm),
+                CallConvention::Foreign(ForeignFFI::C) => {
+                    callconv::c::compute_stack_args(&stack_arg_tys, vm)
+                }
+            };
 
             // now, we just put all the args on the stack
             {
@@ -3710,9 +3669,9 @@ impl<'a> InstructionSelection {
                 }
             }
 
-            (stack_arg_size_with_padding, arg_regs)
+            (stack_arg_size_with_padding, reg_args)
         } else {
-            (0, arg_regs)
+            (0, reg_args)
         }
     }
 
@@ -3724,72 +3683,58 @@ impl<'a> InstructionSelection {
         sig: &P<MuFuncSig>,
         rets: &Option<Vec<P<Value>>>,
         precall_stack_arg_size: usize,
+        conv: CallConvention,
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> Vec<P<Value>> {
-        // deal with ret vals
-        let mut return_vals = vec![];
-        let mut gpr_ret_count = 0;
-        let mut fpr_ret_count = 0;
+        use compiler::backend::x86_64::callconv;
+        use compiler::backend::x86_64::callconv::CallConvResult;
 
-        for ret_index in 0..sig.ret_tys.len() {
-            let ref ty = sig.ret_tys[ret_index];
-
-            // use the given return temporary, or create a new one
-            let ret_val = match rets {
-                &Some(ref rets) => rets[ret_index].clone(),
-                &None => self.make_temporary(f_context, ty.clone(), vm)
-            };
-
-            if RegGroup::get_from_value(&ret_val) == RegGroup::GPR && ret_val.is_reg() {
-                if gpr_ret_count < x86_64::RETURN_GPRS.len() {
-                    let ret_gpr = {
-                        let ref reg64 = x86_64::RETURN_GPRS[gpr_ret_count];
-                        let expected_len = ret_val.ty.get_int_length().unwrap();
-                        x86_64::get_alias_for_length(reg64.id(), expected_len)
-                    };
-
-                    self.backend.emit_mov_r_r(&ret_val, &ret_gpr);
-                    gpr_ret_count += 1;
-                } else {
-                    // get return value by stack
-                    unimplemented!()
-                }
-            } else if RegGroup::get_from_value(&ret_val) == RegGroup::GPREX && ret_val.is_reg() {
-                if gpr_ret_count + 1 < x86_64::RETURN_GPRS.len() {
-                    let ret_gpr1 = x86_64::RETURN_GPRS[gpr_ret_count].clone();
-                    let ret_gpr2 = x86_64::RETURN_GPRS[gpr_ret_count + 1].clone();
-
-                    let (ret_val_l, ret_val_h) = self.split_int128(&ret_val, f_context, vm);
-
-                    self.backend.emit_mov_r_r(&ret_val_l, &ret_gpr1);
-                    self.backend.emit_mov_r_r(&ret_val_h, &ret_gpr2);
-                } else {
-                    // get return value by stack
-                    unimplemented!()
-                }
-            } else if RegGroup::get_from_value(&ret_val) == RegGroup::FPR && ret_val.is_reg() {
-                // floating point register
-                if fpr_ret_count < x86_64::RETURN_FPRS.len() {
-                    let ref ret_fpr = x86_64::RETURN_FPRS[fpr_ret_count];
-
-                    match ret_val.ty.v {
-                        MuType_::Double => self.backend.emit_movsd_f64_f64(&ret_val, &ret_fpr),
-                        MuType_::Float => self.backend.emit_movss_f32_f32(&ret_val, &ret_fpr),
-                        _ => panic!("expect double or float")
-                    }
-
-                    fpr_ret_count += 1;
-                } else {
-                    // get return value by stack
-                    unimplemented!()
-                }
-            } else {
-                // other type of return alue
-                unimplemented!()
+        let callconv = {
+            match conv {
+                CallConvention::Mu => callconv::mu::compute_return_values(sig),
+                CallConvention::Foreign(ForeignFFI::C) => callconv::c::compute_return_values(sig)
             }
+        };
+        if rets.is_some() {
+            assert!(callconv.len() == rets.as_ref().unwrap().len());
+        }
 
-            return_vals.push(ret_val);
+        let return_vals: Vec<P<Value>> = match rets {
+            &Some(ref rets) => rets.clone(),
+            &None => {
+                sig.ret_tys
+                    .iter()
+                    .map(|ty| self.make_temporary(f_context, ty.clone(), vm))
+                    .collect()
+            }
+        };
+
+        for i in 0..callconv.len() {
+            let ref cc = callconv[i];
+            let ref val = return_vals[i];
+            assert!(val.is_reg());
+
+            match cc {
+                &CallConvResult::GPR(ref reg) => {
+                    self.backend.emit_mov_r_r(val, reg);
+                }
+                &CallConvResult::GPREX(ref reg_l, ref reg_h) => {
+                    let (val_l, val_h) = self.split_int128(val, f_context, vm);
+                    self.backend.emit_mov_r_r(&val_l, reg_l);
+                    self.backend.emit_mov_r_r(&val_h, reg_h);
+                }
+                &CallConvResult::FPR(ref reg) => {
+                    if val.ty.is_double() {
+                        self.backend.emit_movsd_f64_f64(val, reg);
+                    } else if val.ty.is_float() {
+                        self.backend.emit_movss_f32_f32(val, reg);
+                    } else {
+                        panic!("expected double or float");
+                    }
+                }
+                &CallConvResult::STACK => unimplemented!()
+            }
         }
 
         // collapse space for stack_args
@@ -3816,7 +3761,8 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> Vec<P<Value>> {
-        let (stack_arg_size, args) = self.emit_precall_convention(&args, f_context, vm);
+        let (stack_arg_size, args) =
+            self.emit_precall_convention(&sig, &args, C_CALL_CONVENTION, f_context, vm);
 
         // make call
         if vm.is_doing_jit() {
@@ -3847,7 +3793,14 @@ impl<'a> InstructionSelection {
             }
         }
 
-        self.emit_postcall_convention(&sig, &rets, stack_arg_size, f_context, vm)
+        self.emit_postcall_convention(
+            &sig,
+            &rets,
+            stack_arg_size,
+            C_CALL_CONVENTION,
+            f_context,
+            vm
+        )
     }
 
     /// emits a CCALL
@@ -3966,7 +3919,8 @@ impl<'a> InstructionSelection {
 
         // prepare args (they could be instructions, we need to emit inst and get value)
         let arg_values = self.process_call_arguments(calldata, ops, f_content, f_context, vm);
-        let (stack_arg_size, arg_regs) = self.emit_precall_convention(&arg_values, f_context, vm);
+        let (stack_arg_size, arg_regs) =
+            self.emit_precall_convention(func_sig, &arg_values, calldata.convention, f_context, vm);
 
         // check if this call has exception clause - need to tell backend about this
         let potentially_excepting = {
@@ -4034,7 +3988,14 @@ impl<'a> InstructionSelection {
         }
 
         // deal with ret vals, collapse stack etc.
-        self.emit_postcall_convention(&func_sig, &inst.value, stack_arg_size, f_context, vm);
+        self.emit_postcall_convention(
+            &func_sig,
+            &inst.value,
+            stack_arg_size,
+            calldata.convention,
+            f_context,
+            vm
+        );
 
         // jump to target block
         if resumption.is_some() {
@@ -4119,6 +4080,7 @@ impl<'a> InstructionSelection {
     /// 4. marshalls arguments (from argument register/stack to temporaries)
     fn emit_common_prologue(
         &mut self,
+        sig: &MuFuncSig,
         args: &Vec<P<Value>>,
         f_context: &mut FunctionContext,
         vm: &VM
@@ -4161,101 +4123,94 @@ impl<'a> InstructionSelection {
         }
 
         // unload arguments by registers
-        let mut gpr_arg_count = 0;
-        let mut fpr_arg_count = 0;
-        let mut arg_by_stack = vec![];
+        {
+            use compiler::backend::x86_64::callconv::mu;
+            use compiler::backend::x86_64::callconv::CallConvResult;
 
-        for arg in args {
-            if RegGroup::get_from_value(&arg) == RegGroup::GPR && arg.is_reg() {
-                if gpr_arg_count < x86_64::ARGUMENT_GPRS.len() {
-                    let arg_gpr = {
-                        let ref reg64 = x86_64::ARGUMENT_GPRS[gpr_arg_count];
-                        let expected_len = arg.ty.get_int_length().unwrap();
-                        x86_64::get_alias_for_length(reg64.id(), expected_len)
-                    };
+            let callconv = mu::compute_arguments(sig);
+            debug!("sig = {}", sig);
+            debug!("args = {:?}", args);
+            debug!("callconv = {:?}", args);
+            debug_assert!(callconv.len() == args.len());
 
-                    self.backend.emit_mov_r_r(&arg, &arg_gpr);
-                    self.current_frame
-                        .as_mut()
-                        .unwrap()
-                        .add_argument_by_reg(arg.id(), arg_gpr.clone());
+            let mut arg_by_stack = vec![];
+            for i in 0..callconv.len() {
+                let ref cc = callconv[i];
+                let ref arg = args[i];
 
-                    gpr_arg_count += 1;
-                } else {
-                    arg_by_stack.push(arg.clone());
-                }
-            } else if RegGroup::get_from_value(&arg) == RegGroup::GPREX && arg.is_reg() {
-                if gpr_arg_count + 1 < x86_64::ARGUMENT_GPRS.len() {
-                    // we need two registers
-                    let gpr1 = x86_64::ARGUMENT_GPRS[gpr_arg_count].clone();
-                    let gpr2 = x86_64::ARGUMENT_GPRS[gpr_arg_count + 1].clone();
-
-                    let (arg_l, arg_h) = self.split_int128(&arg, f_context, vm);
-
-                    self.backend.emit_mov_r_r(&arg_l, &gpr1);
-                    self.current_frame
-                        .as_mut()
-                        .unwrap()
-                        .add_argument_by_reg(arg_l.id(), gpr1);
-                    self.backend.emit_mov_r_r(&arg_h, &gpr2);
-                    self.current_frame
-                        .as_mut()
-                        .unwrap()
-                        .add_argument_by_reg(arg_h.id(), gpr2);
-
-                    gpr_arg_count += 2;
-                } else {
-                    arg_by_stack.push(arg.clone())
-                }
-            } else if RegGroup::get_from_value(&arg) == RegGroup::FPR && arg.is_reg() {
-                if fpr_arg_count < x86_64::ARGUMENT_FPRS.len() {
-                    let arg_fpr = x86_64::ARGUMENT_FPRS[fpr_arg_count].clone();
-
-                    match arg.ty.v {
-                        MuType_::Double => self.backend.emit_movsd_f64_f64(&arg, &arg_fpr),
-                        MuType_::Float => self.backend.emit_movss_f32_f32(&arg, &arg_fpr),
-                        _ => panic!("expect double or float")
+                match cc {
+                    &CallConvResult::GPR(ref reg) => {
+                        debug_assert!(arg.is_reg());
+                        self.backend.emit_mov_r_r(arg, reg);
+                        self.current_frame
+                            .as_mut()
+                            .unwrap()
+                            .add_argument_by_reg(arg.id(), reg.clone());
                     }
+                    &CallConvResult::GPREX(ref reg_l, ref reg_h) => {
+                        debug_assert!(arg.is_reg());
+                        let (arg_l, arg_h) = self.split_int128(arg, f_context, vm);
 
+                        self.backend.emit_mov_r_r(&arg_l, reg_l);
+                        self.current_frame
+                            .as_mut()
+                            .unwrap()
+                            .add_argument_by_reg(arg_l.id(), reg_l.clone());
+
+                        self.backend.emit_mov_r_r(&arg_h, reg_h);
+                        self.current_frame
+                            .as_mut()
+                            .unwrap()
+                            .add_argument_by_reg(arg_h.id(), reg_h.clone());
+                    }
+                    &CallConvResult::FPR(ref reg) => {
+                        debug_assert!(arg.is_reg());
+                        if arg.ty.is_double() {
+                            self.backend.emit_movsd_f64_f64(arg, reg);
+                        } else if arg.ty.is_float() {
+                            self.backend.emit_movss_f32_f32(arg, reg);
+                        } else {
+                            panic!("expect double or float");
+                        }
+                        self.current_frame
+                            .as_mut()
+                            .unwrap()
+                            .add_argument_by_reg(arg.id(), reg.clone());
+                    }
+                    &CallConvResult::STACK => {
+                        arg_by_stack.push(arg.clone());
+                    }
+                }
+            }
+
+            // deal with arguments passed by stack
+            // initial stack arg is at RBP+16
+            //   arg           <- RBP + 16
+            //   return addr
+            //   old RBP       <- RBP
+            {
+                use compiler::backend::x86_64::callconv::mu;
+                let stack_arg_base_offset: i32 = 16;
+                let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
+                let (_, stack_arg_offsets) = mu::compute_stack_args(&arg_by_stack_tys, vm);
+
+                // unload the args
+                let mut i = 0;
+                for arg in arg_by_stack {
+                    let stack_slot = self.emit_load_base_offset(
+                        &arg,
+                        &x86_64::RBP,
+                        (stack_arg_base_offset + stack_arg_offsets[i] as i32),
+                        vm
+                    );
                     self.current_frame
                         .as_mut()
                         .unwrap()
-                        .add_argument_by_reg(arg.id(), arg_fpr);
+                        .add_argument_by_stack(arg.id(), stack_slot);
 
-                    fpr_arg_count += 1;
-                } else {
-                    arg_by_stack.push(arg.clone());
+                    i += 1;
                 }
-            } else {
-                // args that are not fp or int (possibly struct/array/etc)
-                unimplemented!();
             }
-        }
-
-        // deal with arguments passed by stack
-        // initial stack arg is at RBP+16
-        //   arg           <- RBP + 16
-        //   return addr
-        //   old RBP       <- RBP
-        let stack_arg_base_offset: i32 = 16;
-        let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
-        let (_, _, stack_arg_offsets) = BackendType::sequential_layout(&arg_by_stack_tys, vm);
-
-        // unload the args
-        let mut i = 0;
-        for arg in arg_by_stack {
-            let stack_slot = self.emit_load_base_offset(
-                &arg,
-                &x86_64::RBP,
-                (stack_arg_base_offset + stack_arg_offsets[i] as i32),
-                vm
-            );
-            self.current_frame
-                .as_mut()
-                .unwrap()
-                .add_argument_by_stack(arg.id(), stack_slot);
-
-            i += 1;
         }
 
         self.backend.end_block(block_name);
@@ -4276,6 +4231,9 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
+        use compiler::backend::x86_64::callconv::mu;
+        use compiler::backend::x86_64::callconv::CallConvResult;
+
         // prepare return regs
         let ref ops = ret_inst.ops;
         let ret_val_indices = match ret_inst.v {
@@ -4283,80 +4241,47 @@ impl<'a> InstructionSelection {
             _ => panic!("expected ret inst")
         };
 
-        let mut gpr_ret_count = 0;
-        let mut fpr_ret_count = 0;
-        for i in ret_val_indices {
-            let ref ret_val = ops[*i];
+        let callconv = mu::compute_return_values(self.current_sig.as_ref().unwrap());
+        debug_assert!(callconv.len() == ret_val_indices.len());
 
-            if self.match_iimm(ret_val) {
-                let imm_ret_val = self.node_iimm_to_i32(ret_val);
+        for i in 0..callconv.len() {
+            let ref cc = callconv[i];
+            let ref ret_val = ops[ret_val_indices[i]];
 
-                if gpr_ret_count < x86_64::RETURN_GPRS.len() {
-                    self.backend
-                        .emit_mov_r_imm(&x86_64::RETURN_GPRS[gpr_ret_count], imm_ret_val);
-                    gpr_ret_count += 1;
-                } else {
-                    // pass by stack
-                    unimplemented!()
-                }
-            } else if self.match_ireg(ret_val) {
-                let reg_ret_val = self.emit_ireg(ret_val, f_content, f_context, vm);
-
-                if gpr_ret_count < x86_64::RETURN_GPRS.len() {
-                    let ret_gpr = {
-                        let ref reg64 = x86_64::RETURN_GPRS[gpr_ret_count];
-                        let expected_len = reg_ret_val.ty.get_int_length().unwrap();
-                        x86_64::get_alias_for_length(reg64.id(), expected_len)
-                    };
-
-                    self.backend.emit_mov_r_r(&ret_gpr, &reg_ret_val);
-                    gpr_ret_count += 1;
-                } else {
-                    // pass by stack
-                    unimplemented!()
-                }
-            } else if self.match_ireg_ex(ret_val) {
-                let (ret_val1, ret_val2) = self.emit_ireg_ex(ret_val, f_content, f_context, vm);
-
-                if gpr_ret_count + 1 < x86_64::RETURN_GPRS.len() {
-                    let ret_gpr1 = x86_64::RETURN_GPRS[gpr_ret_count].clone();
-                    let ret_gpr2 = x86_64::RETURN_GPRS[gpr_ret_count + 1].clone();
-
-                    self.backend.emit_mov_r_r(&ret_gpr1, &ret_val1);
-                    self.backend.emit_mov_r_r(&ret_gpr2, &ret_val2);
-
-                    gpr_ret_count += 2;
-                } else {
-                    // pass by stack
-                    unimplemented!()
-                }
-            } else if self.match_fpreg(ret_val) {
-                let reg_ret_val = self.emit_fpreg(ret_val, f_content, f_context, vm);
-
-                if fpr_ret_count < x86_64::RETURN_FPRS.len() {
-                    match reg_ret_val.ty.v {
-                        MuType_::Double => {
-                            self.backend.emit_movsd_f64_f64(
-                                &x86_64::RETURN_FPRS[fpr_ret_count],
-                                &reg_ret_val
-                            )
-                        }
-                        MuType_::Float => {
-                            self.backend.emit_movss_f32_f32(
-                                &x86_64::RETURN_FPRS[fpr_ret_count],
-                                &reg_ret_val
-                            )
-                        }
-                        _ => panic!("expect double or float")
+            match cc {
+                &CallConvResult::GPR(ref reg) => {
+                    if self.match_iimm(ret_val) {
+                        let imm_ret_val = self.node_iimm_to_i32(ret_val);
+                        self.backend.emit_mov_r_imm(reg, imm_ret_val);
+                    } else if self.match_ireg(ret_val) {
+                        let reg_ret_val = self.emit_ireg(ret_val, f_content, f_context, vm);
+                        self.backend.emit_mov_r_r(reg, &reg_ret_val);
+                    } else {
+                        unreachable!()
                     }
-
-                    fpr_ret_count += 1;
-                } else {
-                    // pass by stack
-                    unimplemented!()
                 }
-            } else {
-                unimplemented!();
+                &CallConvResult::GPREX(ref reg_l, ref reg_h) => {
+                    if self.match_ireg_ex(ret_val) {
+                        let (ret_val_l, ret_val_h) =
+                            self.emit_ireg_ex(ret_val, f_content, f_context, vm);
+
+                        self.backend.emit_mov_r_r(reg_l, &ret_val_l);
+                        self.backend.emit_mov_r_r(reg_h, &ret_val_h);
+                    } else {
+                        unreachable!()
+                    }
+                }
+                &CallConvResult::FPR(ref reg) => {
+                    let reg_ret_val = self.emit_fpreg(ret_val, f_content, f_context, vm);
+                    if reg_ret_val.ty.is_double() {
+                        self.backend.emit_movsd_f64_f64(reg, &reg_ret_val);
+                    } else if reg_ret_val.ty.is_float() {
+                        self.backend.emit_movss_f32_f32(reg, &reg_ret_val);
+                    } else {
+                        unreachable!()
+                    }
+                }
+                &CallConvResult::STACK => unimplemented!()
             }
         }
 
@@ -5979,6 +5904,7 @@ impl CompilerPass for InstructionSelection {
         // set up some context
         self.current_fv_id = func_ver.id();
         self.current_fv_name = func_ver.name();
+        self.current_sig = Some(func_ver.sig.clone());
         self.current_frame = Some(Frame::new(func_ver.id()));
         self.current_func_start = Some({
             let funcs = vm.funcs().read().unwrap();
@@ -5998,7 +5924,7 @@ impl CompilerPass for InstructionSelection {
 
         // prologue (get arguments from entry block first)
         let ref args = entry_block.content.as_ref().unwrap().args;
-        self.emit_common_prologue(args, &mut func_ver.context, vm);
+        self.emit_common_prologue(&func_ver.sig, args, &mut func_ver.context, vm);
     }
 
     fn visit_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {

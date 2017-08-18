@@ -1424,7 +1424,13 @@ fn create_empty_func_foo6(vm: &VM) {
         RET
     );
 
-    define_block!   ((vm, foo6_v1) blk_entry() {
+    ssa!        ((vm, foo6_v1) <int64> t0);
+    ssa!        ((vm, foo6_v1) <int64> t1);
+    ssa!        ((vm, foo6_v1) <int64> t2);
+    ssa!        ((vm, foo6_v1) <int64> t3);
+    ssa!        ((vm, foo6_v1) <int64> t4);
+    ssa!        ((vm, foo6_v1) <int64> t5);
+    define_block!   ((vm, foo6_v1) blk_entry(t0, t1, t2, t3, t4, t5) {
         blk_entry_ret
     });
 
