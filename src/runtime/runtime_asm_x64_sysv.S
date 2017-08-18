@@ -14,28 +14,26 @@
 
 #include "asm_common_x64.S.inc"
 
-# swap_stack_to(new_sp: Address, entry: Address, old_sp_loc: Address)
-#               %rdi             %rsi            %rdx
-begin_func muthread_start_pass
+# muthread_start_normal(new_sp: Address, old_sp_loc: Address)
+#                       %rdi             %rsi
+begin_func muthread_start_normal
           # -- on old stack --
-          # C calling convention
+          # C calling convention - enter frame
           pushq %rbp
           movq %rsp, %rbp
 
-          # other callee-saved registers
+          # save callee saved registers
           pushq %rbx
           pushq %r12
           pushq %r13
           pushq %r14
           pushq %r15
 
-          # save sp to %rbx
-          movq %rsp, 0(%rdx)
+          # save sp to old_sp_loc
+          movq %rsp, 0(%rsi)
 
           # switch to new stack
           movq %rdi, %rsp
-          # save entry function in %rax
-          movq %rsi, %rax
 
           # -- on new stack --
           # arguments (reverse order of thread.rs - runtime_load_args)
@@ -56,19 +54,22 @@ begin_func muthread_start_pass
           add $64, %rsp
           # at this point new stack is clean (no intermediate values)
 
-          movq %rsp, %rbp
+          # on stack it look like this
+          # SP -> 0
+          #       entry_func
 
-          # push an empty pointer to stack, if entry fucntion tries to return, it causes a segfault
-          pushq $0
-          # push entry function and start it
-          pushq %rax
-          ret
-end_func muthread_start_pass
+          # pop 0 as rbp
+          popq %rbp
+          # pop entry func to r10 (this is a caller saved register, it is save for us to use)
+          popq %r10
 
-# _swap_back_to_native_stack(sp_loc: Address)
-#                            %rdi
-begin_func muentry_swap_back_to_native_stack
-          movq 0(%rdi), %rsp
+          call *%r10
+end_func muthread_start_normal
+
+# muentry_thread_exit(old_sp: Address)
+#                     %rdi
+begin_func muentry_thread_exit
+          movq %rdi, %rsp
 
           popq %r15
           popq %r14
@@ -78,7 +79,7 @@ begin_func muentry_swap_back_to_native_stack
 
           popq %rbp
           ret
-end_func muentry_swap_back_to_native_stack
+end_func muentry_thread_exit
 
 # _get_current_frame_bp() -> Address
 begin_func get_current_frame_bp
