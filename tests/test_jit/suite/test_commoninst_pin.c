@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     id_943 = bldr_60->gen_sym(bldr_60, "@c_bufsz");
     bldr_60->new_const_int(bldr_60, id_943, id_929, 0x0000000000000006ull);
     id_944 = bldr_60->gen_sym(bldr_60, "@sig__i64");
-    bldr_60->new_funcsig(bldr_60, id_944, (MuTypeNode [2]){id_931, id_929}, 2, (MuTypeNode [1]){id_929}, 1);
+    bldr_60->new_funcsig(bldr_60, id_944, NULL, 0, (MuTypeNode [1]){id_929}, 1);
     id_945 = bldr_60->gen_sym(bldr_60, "@sig_i32voidpi64_i64");
     bldr_60->new_funcsig(bldr_60, id_945, (MuTypeNode [3]){id_928, id_931, id_929}, 3, (MuTypeNode [1]){id_929}, 1);
     id_946 = bldr_60->gen_sym(bldr_60, "@fnpsig_i32voidpi64_i64");
