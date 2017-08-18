@@ -1101,6 +1101,7 @@ impl ASMCodeGen {
         trace!("asm: {}", demangle_text(code.clone()));
         trace!("     defines: {:?}", defines);
         trace!("     uses: {:?}", uses);
+        trace!("     target: {:?}", target);
         let mc = self.cur_mut();
 
         // put the instruction

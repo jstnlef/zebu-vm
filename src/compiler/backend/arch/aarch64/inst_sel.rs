@@ -4446,8 +4446,8 @@ impl<'a> InstructionSelection {
         let arg_tys = arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>();
         let (stack_arg_size, arg_regs) = self.emit_precall_convention(
             &new_sp,
-            // The frame contains space for all callee saved registers (including the FP and LR)
-            ((CALLEE_SAVED_COUNT + 2) * POINTER_SIZE) as isize,
+            // The frame contains space for the FP and LR
+            (2 * POINTER_SIZE) as isize,
             false,
             &arg_values,
             &arg_tys,
@@ -4488,8 +4488,11 @@ impl<'a> InstructionSelection {
             self.current_callsites.push_back((callsite.unwrap().to_relocatable(), 0, stack_arg_size));
         }
 
-
         if !is_kill {
+            self.finish_block();
+            let block_name = make_block_name(&node.name(), "stack_resumption");
+            self.start_block(block_name);
+
             self.emit_unload_arguments(inst.value.as_ref().unwrap(), res_locs, f_context, vm);
             emit_add_u64(self.backend.as_mut(), &SP, &SP, res_stack_size as u64);
         }
