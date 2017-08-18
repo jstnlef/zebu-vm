@@ -1593,7 +1593,7 @@ impl<'a> InstructionSelection {
 
                         // emit a call to swap_back_to_native_stack(sp_loc: Address)
                         self.emit_runtime_entry(
-                            &entrypoints::MUENTRY_THREAD_EXIT,
+                            &entrypoints::THREAD_EXIT,
                             vec![tl.clone()],
                             None,
                             Some(node),

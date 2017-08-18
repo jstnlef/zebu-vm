@@ -2471,8 +2471,6 @@ impl CodeGenerator for ASMCodeGen {
             mangle_name(func)
         };
 
-        let mut ret = ret;
-        ret.push(LR.clone());
         let asm = format!("/*CALL*/ B {}", func);
         self.internal_call(callsite, asm, pe, args, ret, None, may_return)
     }
@@ -2516,8 +2514,6 @@ impl CodeGenerator for ASMCodeGen {
         may_return: bool
     ) -> Option<ValueLocation> {
         trace_emit!("\tBR {}({:?})", func, args);
-        let mut ret = ret;
-        ret.push(LR.clone());
 
         let (reg1, id1, loc1) = self.prepare_reg(func, 3 + 1);
         let asm = format!("/*CALL*/ BR {}", reg1);
