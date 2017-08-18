@@ -4435,68 +4435,59 @@ impl<'a> InstructionSelection {
 
         if is_exception {
             assert!(arg_values.len() == 1);
-            //Reserve temporary space for the exception throwing routine
             emit_sub_u64(self.backend.as_mut(), &SP, &SP, (WORD_SIZE*CALLEE_SAVED_COUNT) as u64);
-
-            // Throw the exception
-            self.emit_runtime_entry(
-                &entrypoints::THROW_EXCEPTION_INTERNAL,
-                vec![arg_values[0].clone(), new_sp.clone()],
-                Some(vec![]),
-                Some(node),
-                f_context,
-                vm
-            );
+            // Pass the base of this area as an extra argument
+            arg_values.push(new_sp.clone());
         } else {
             self.backend.emit_pop_pair(&FP, &LR, &SP);
-
-            // Emit precall convention
-            let arg_tys = arg_nodes.iter().map(|a| a.ty()).collect::<Vec<_>>();
-            let (stack_arg_size, arg_regs) = self.emit_precall_convention(
-                &new_sp,
-                // The frame contains space for all callee saved registers (including the FP and LR)
-                ((CALLEE_SAVED_COUNT + 2) * POINTER_SIZE) as isize,
-                false,
-                &arg_values,
-                &arg_tys,
-                0,
-                f_context,
-                vm
-            );
-
-            let potentially_excepting = {
-                if resumption.is_some() {
-                    let target_id = resumption.unwrap().exn_dest.target;
-                    Some(f_content.get_block(target_id).name())
-                } else {
-                    None
-                }
-            };
-
-            // Call the function that swaps the stack
-            let callsite = {
-                if vm.is_doing_jit() {
-                    unimplemented!()
-                } else {
-                    let caller_saved = if is_kill {
-                        vec![]
-                    } else {
-                        ALL_USABLE_MACHINE_REGS.to_vec()
-                    };
-
-                    self.backend.emit_br_call(callsite_label, &LR, potentially_excepting, arg_regs, caller_saved, false)
-                }
-            };
-
-            if resumption.is_some() {
-                let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
-                let target_block = exn_dest.target;
-
-                self.current_callsites.push_back((callsite.unwrap().to_relocatable(), target_block, stack_arg_size));
-            } else if !is_kill {
-                self.current_callsites.push_back((callsite.unwrap().to_relocatable(), 0, stack_arg_size));
-            }
         }
+
+        // Emit precall convention
+        let arg_tys = arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>();
+        let (stack_arg_size, arg_regs) = self.emit_precall_convention(
+            &new_sp,
+            // The frame contains space for all callee saved registers (including the FP and LR)
+            ((CALLEE_SAVED_COUNT + 2) * POINTER_SIZE) as isize,
+            false,
+            &arg_values,
+            &arg_tys,
+            0,
+            f_context,
+            vm
+        );
+
+        let potentially_excepting = {
+            if resumption.is_some() {
+                let target_id = resumption.unwrap().exn_dest.target;
+                Some(f_content.get_block(target_id).name())
+            } else {
+                None
+            }
+        };
+
+        // Call the function that swaps the stack
+        let callsite = {
+            if vm.is_doing_jit() {
+                unimplemented!()
+            } else {
+                if is_exception {
+                    // Throw an exception, don't call the swapee's resumption point
+                    self.backend.emit_b_call(callsite_label, "throw_exception_internal".to_string(), potentially_excepting, arg_regs, ALL_USABLE_MACHINE_REGS.to_vec(), true, false)
+                } else {
+                    self.backend.emit_br_call(callsite_label, &LR, potentially_excepting, arg_regs, ALL_USABLE_MACHINE_REGS.to_vec(), false)
+                }
+            }
+        };
+
+        if resumption.is_some() {
+            let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
+            let target_block = exn_dest.target;
+
+            self.current_callsites.push_back((callsite.unwrap().to_relocatable(), target_block, stack_arg_size));
+        } else if !is_kill {
+            self.current_callsites.push_back((callsite.unwrap().to_relocatable(), 0, stack_arg_size));
+        }
+
 
         if !is_kill {
             self.emit_unload_arguments(inst.value.as_ref().unwrap(), res_locs, f_context, vm);

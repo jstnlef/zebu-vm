@@ -2473,7 +2473,7 @@ impl CodeGenerator for ASMCodeGen {
 
         let mut ret = ret;
         ret.push(LR.clone());
-        let asm = format!("B {}", func);
+        let asm = format!("/*CALL*/ B {}", func);
         self.internal_call(callsite, asm, pe, args, ret, None, may_return)
     }
 
@@ -2520,7 +2520,7 @@ impl CodeGenerator for ASMCodeGen {
         ret.push(LR.clone());
 
         let (reg1, id1, loc1) = self.prepare_reg(func, 3 + 1);
-        let asm = format!("BR {}", reg1);
+        let asm = format!("/*CALL*/ BR {}", reg1);
         self.internal_call(callsite, asm, pe, args, ret, Some((id1, loc1)), may_return)
     }
 

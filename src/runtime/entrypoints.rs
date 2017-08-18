@@ -179,16 +179,6 @@ lazy_static! {
         jit: RwLock::new(None),
     };
 
-    pub static ref THROW_EXCEPTION_INTERNAL : RuntimeEntrypoint = RuntimeEntrypoint {
-        sig: P(MuFuncSig {
-            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
-            ret_tys: vec![],
-            arg_tys: vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone()]
-        }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_throw_exception_internal")),
-        jit: RwLock::new(None),
-    };
-
     // impl/decl: math.rs
     pub static ref FREM32 : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{
