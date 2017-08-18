@@ -59,8 +59,16 @@ begin_func muthread_start_normal
     // Swap to the new stack
     MOV SP, X0
 
-    // Load the argument registers from the new stack
-    load_arguments SP
+    // Pop the argument registers from the new stack
+    LDP D0, D1, [SP, #14*8]
+    LDP D2, D3, [SP, #12*8]
+    LDP D4, D5, [SP, #10*8]
+    LDP D6, D7, [SP, #8*8]
+    LDP X0, X1, [SP, #6*8]
+    LDP X2, X3, [SP, #4*8]
+    LDP X4, X5, [SP, #2*8]
+    LDP X6, X7, [SP, #0*8]
+    ADD SP, SP, #16*8
 
     // Jump to the new stack
     exit_frame

@@ -207,9 +207,8 @@ impl MuStack {
         }
 
         // store floating point argument registers
-        let mut stack_ptr = self.sp;
         for i in 0..ARGUMENT_FPRS.len() {
-            stack_ptr -= WORD_SIZE;
+            self.sp -= WORD_SIZE;
             let val = {
                 if i < fpr_used.len() {
                     fpr_used[i]
@@ -218,15 +217,15 @@ impl MuStack {
                 }
             };
 
-            debug!("store {} to {}", val, stack_ptr);
+            debug!("store {} to {}", val, self.sp);
             unsafe {
-                stack_ptr.store(val);
+                self.sp.store(val);
             }
         }
 
         // store general purpose argument registers
         for i in 0..ARGUMENT_GPRS.len() {
-            stack_ptr -= WORD_SIZE;
+            self.sp -= WORD_SIZE;
             let val = {
                 if i < gpr_used.len() {
                     gpr_used[i]
@@ -235,9 +234,9 @@ impl MuStack {
                 }
             };
 
-            debug!("store {} to {}", val, stack_ptr);
+            debug!("store {} to {}", val, self.sp);
             unsafe {
-                stack_ptr.store(val);
+                self.sp.store(val);
             }
         }
 
