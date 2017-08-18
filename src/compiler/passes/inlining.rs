@@ -582,9 +582,30 @@ fn copy_inline_blocks(
                             block_content.body.push(TreeNode::new_boxed_inst(switch));
                         }
 
+                        &Instruction_::SwapStackExc {
+                            stack,
+                            is_exception,
+                            ref args,
+                            ref resume
+
+                        } => {
+                            let swapstack = Instruction {
+                                hdr: hdr,
+                                value: value.clone(),
+                                ops: ops.clone(),
+                                v: Instruction_::SwapStackExc {
+                                    stack: stack,
+                                    is_exception: is_exception,
+                                    args: args.clone(),
+                                    resume: fix_resume(resume.clone())
+                                }
+                            };
+
+                            trace!("rewrite to: {}", swapstack);
+                            block_content.body.push(TreeNode::new_boxed_inst(swapstack));
+                        }
                         &Instruction_::Watchpoint { .. } |
                         &Instruction_::WPBranch { .. } |
-                        &Instruction_::SwapStackExc { .. } | // Should be safe, just inline it like a call...
                         &Instruction_::ExnInstruction { .. } => unimplemented!(),
 
                         _ => {
