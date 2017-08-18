@@ -23,6 +23,7 @@ use ast::op::*;
 use ast::types::*;
 use utils::math::align_up;
 use utils::POINTER_SIZE;
+use utils::WORD_SIZE;
 use vm::VM;
 use runtime::mm;
 use runtime::mm::OBJECT_HEADER_SIZE;
@@ -1478,7 +1479,6 @@ impl<'a> InstructionSelection {
                         let tmp_res = self.get_result_value(node, 0);
 
                         // load [tl + STACK_OFFSET] -> tmp_res
-                        // WARNING: This assumes that an Option<Box<MuStack>> is actually just a pointer to a MuStack
                         emit_load_base_offset(
                             self.backend.as_mut(),
                             &tmp_res,
@@ -4216,15 +4216,8 @@ impl<'a> InstructionSelection {
         if vm.is_doing_jit() {
             unimplemented!()
         } else {
-            let callsite = self.new_callsite_label(cur_node);
-
-            self.backend
-                .emit_bl(callsite.clone(), func_name, None, arg_regs, true);
             // assume ccall wont throw exception
-
-            // TODO: What if theres an exception block?
-            self.current_callsites
-                .push_back((callsite, 0, stack_arg_size));
+            self.backend.emit_bl(None, func_name, None, arg_regs, CALLER_SAVED_REGS.to_vec(), true);
 
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -4336,80 +4329,130 @@ impl<'a> InstructionSelection {
         vm: &VM
     ) {
         let ref ops = inst.ops;
+
+        // Calsite label, that will be used to mark the resumption pointer when
+        // the current stack is swapped back
+        let callsite_label = if !is_kill {
+            Some(self.new_callsite_label(Some(node)))
+        } else {
+            None
+        };
+
+        // Compute all the arguments...
+        let mut arg_values = vec![];
+        let arg_nodes = args.iter().map(|a| ops[*a].clone()).collect::<Vec<_>>();
+        for ref arg in &arg_nodes {
+            if match_node_imm(arg) {
+                arg_values.push(node_imm_to_value(arg))
+            } else if self.match_reg(arg) {
+                arg_values.push(self.emit_reg(arg, f_content, f_context, vm))
+            } else {
+                unimplemented!()
+            };
+        }
+
+        let tl = self.emit_get_threadlocal(f_context, vm);
+
+        let cur_stackref = make_temporary(f_context, STACKREF_TYPE.clone(), vm);
+        // Load the current stackref
+        emit_load_base_offset(
+            self.backend.as_mut(),
+            &cur_stackref,
+            &tl,
+            *thread::STACK_OFFSET as i64,
+            f_context,
+            vm
+        );
+
+        // Store the new stackref
         let swapee = self.emit_ireg(&ops[swapee], f_content, f_context, vm);
-
-        let new_sp = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-        let cur_stack = make_temporary(
-            f_context,
-            if is_kill {
-                STACKREF_TYPE.clone()
-            } else {
-                ADDRESS_TYPE.clone()
-            },
-            vm
-        );
-
-        // Prepare for stack swapping
-        self.emit_runtime_entry(
-            if is_kill {
-                &entrypoints::PREPARE_SWAPSTACK_KILL
-            } else {
-                &entrypoints::PREPARE_SWAPSTACK_RET
-            },
-            vec![swapee.clone()],
-            Some(vec![new_sp.clone(), cur_stack.clone()]),
-            Some(node),
+        emit_store_base_offset(
+            self.backend.as_mut(),
+            &tl,
+            *thread::STACK_OFFSET as i64,
+            &swapee,
             f_context,
             vm
         );
 
+        // Compute the locations of return values, and how much space needs to be added to the stack
         let res_tys = match inst.value {
             Some(ref values) => values.iter().map(|v| v.ty.clone()).collect::<Vec<_>>(),
             None => vec![]
         };
-
         let (_, res_locs, res_stack_size) = compute_argument_locations(&res_tys, &SP, 0, &vm);
 
         if !is_kill {
+            // Load the callsite's address into LR
+            let callsite_value = make_value_symbolic(callsite_label.as_ref().unwrap().clone(),
+                false, &VOID_TYPE, vm);
+            self.backend.emit_adr(&LR, &callsite_value);
+
             // Reserve space on the stack for the return values of the swap stack
             emit_sub_u64(self.backend.as_mut(), &SP, &SP, res_stack_size as u64);
+
+            self.backend.emit_push_pair(&LR, &FP, &SP);
+
+            let cur_sp = make_temporary(f_context, STACKREF_TYPE.clone(), vm);
+            self.backend.emit_mov(&cur_sp, &SP);
+            // Save the current SP
+            emit_store_base_offset(
+                self.backend.as_mut(),
+                &cur_stackref,
+                *thread::MUSTACK_SP_OFFSET as i64,
+                &cur_sp,
+                f_context,
+                vm
+            );
+        }
+
+        // Load the new sp from the swapee
+        // (Note: we cant load directly into the SP, so we have to use a temporary)
+        let new_sp = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        emit_load_base_offset(
+            self.backend.as_mut(),
+            &new_sp,
+            &swapee,
+            *thread::MUSTACK_SP_OFFSET as i64,
+            f_context,
+            vm
+        );
+        // Swap to the new stack
+        self.backend.emit_mov(&SP, &new_sp);
+        // TODO: MAKE SURE THE REGISTER ALLOCATOR DOSN'T DO SPILLING AFTER THIS POINT
+
+        if is_kill {
+            // Kill the old stack
+            self.emit_runtime_entry(
+                &entrypoints::KILL_STACK,
+                vec![cur_stackref],
+                None,
+                Some(node),
+                f_context,
+                vm
+            );
         }
 
         if is_exception {
-            assert!(args.len() == 1);
+            assert!(arg_values.len() == 1);
+            //Reserve temporary space for the exception throwing routine
+            emit_sub_u64(self.backend.as_mut(), &SP, &SP, (WORD_SIZE*CALLEE_SAVED_COUNT) as u64);
 
-            let exc = self.emit_ireg(&ops[args[0]], f_content, f_context, vm);
-
-            // Swap the stack and throw the given exception
+            // Throw the exception
             self.emit_runtime_entry(
-                // TODO: Handle exception resumption from this functioncall
-                if is_kill {
-                    &entrypoints::SWAPSTACK_KILL_THROW
-                } else {
-                    &entrypoints::SWAPSTACK_RET_THROW
-                },
-                vec![exc.clone(), new_sp.clone(), cur_stack.clone()],
+                &entrypoints::THROW_EXCEPTION_INTERNAL,
+                vec![arg_values[0].clone(), new_sp.clone()],
                 Some(vec![]),
                 Some(node),
                 f_context,
                 vm
             );
         } else {
-            // Prepare arguments
-            let mut arg_values = vec![];
-            let arg_nodes = args.iter().map(|a| ops[*a].clone()).collect::<Vec<_>>();
-            for ref arg in &arg_nodes {
-                if match_node_imm(arg) {
-                    arg_values.push(node_imm_to_value(arg))
-                } else if self.match_reg(arg) {
-                    arg_values.push(self.emit_reg(arg, f_content, f_context, vm))
-                } else {
-                    unimplemented!()
-                };
-            }
+            self.backend.emit_pop_pair(&FP, &LR, &SP);
 
+            // Emit precall convention
             let arg_tys = arg_nodes.iter().map(|a| a.ty()).collect::<Vec<_>>();
-            let (stack_arg_size, mut arg_regs) = self.emit_precall_convention(
+            let (stack_arg_size, arg_regs) = self.emit_precall_convention(
                 &new_sp,
                 // The frame contains space for all callee saved registers (including the FP and LR)
                 ((CALLEE_SAVED_COUNT + 2) * POINTER_SIZE) as isize,
@@ -4420,12 +4463,6 @@ impl<'a> InstructionSelection {
                 f_context,
                 vm
             );
-
-            // Pass new_sp and cur_stack in X9 and X10 respectivley
-            self.backend.emit_mov(&X9, &new_sp);
-            self.backend.emit_mov(&X10, &cur_stack);
-            arg_regs.push(X9.clone());
-            arg_regs.push(X10.clone());
 
             let potentially_excepting = {
                 if resumption.is_some() {
@@ -4441,18 +4478,13 @@ impl<'a> InstructionSelection {
                 if vm.is_doing_jit() {
                     unimplemented!()
                 } else {
-                    let callsite = self.new_callsite_label(Some(node));
-                    self.backend.emit_bl(
-                        callsite,
-                        if is_kill {
-                            "muentry_swapstack_kill_pass".to_string()
-                        } else {
-                            "muentry_swapstack_ret_pass".to_string()
-                        },
-                        potentially_excepting,
-                        arg_regs,
-                        true
-                    )
+                    let caller_saved = if is_kill {
+                        vec![]
+                    } else {
+                        ALL_USABLE_MACHINE_REGS.to_vec()
+                    };
+
+                    self.backend.emit_br_call(callsite_label, &LR, potentially_excepting, arg_regs, caller_saved, false)
                 }
             };
 
@@ -4460,11 +4492,9 @@ impl<'a> InstructionSelection {
                 let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
                 let target_block = exn_dest.target;
 
-                self.current_callsites
-                    .push_back((callsite.to_relocatable(), target_block, stack_arg_size));
-            } else {
-                self.current_callsites
-                    .push_back((callsite.to_relocatable(), 0, stack_arg_size));
+                self.current_callsites.push_back((callsite.unwrap().to_relocatable(), target_block, stack_arg_size));
+            } else if !is_kill {
+                self.current_callsites.push_back((callsite.unwrap().to_relocatable(), 0, stack_arg_size));
             }
         }
 
@@ -4567,10 +4597,10 @@ impl<'a> InstructionSelection {
                 let target_id = self.node_funcref_const_to_id(func);
                 let funcs = vm.funcs().read().unwrap();
                 let target = funcs.get(&target_id).unwrap().read().unwrap();
-                self.backend.emit_b_func(target.name(), arg_regs);
+                self.backend.emit_b_call(None, target.name(), None, arg_regs, vec![], false, false);
             } else {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
-                self.backend.emit_br_func(&target, arg_regs);
+                self.backend.emit_br_call(None, &target, None, arg_regs, vec![], false);
             }
         } else {
             // Emit a branch with link (i.e. a call)
@@ -4585,18 +4615,18 @@ impl<'a> InstructionSelection {
                     } else {
                         let callsite = self.new_callsite_label(Some(cur_node));
                         self.backend.emit_bl(
-                            callsite,
+                            Some(callsite),
                             target.name(),
                             potentially_excepting,
                             arg_regs,
+                            CALLER_SAVED_REGS.to_vec(),
                             false
-                        )
+                        ).unwrap()
                     }
                 } else {
                     let target = self.emit_ireg(func, f_content, f_context, vm);
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend
-                        .emit_blr(callsite, &target, potentially_excepting, arg_regs)
+                    self.backend.emit_blr(Some(callsite), &target, potentially_excepting, arg_regs, CALLER_SAVED_REGS.to_vec()).unwrap()
                 }
             };
 

@@ -1037,52 +1037,6 @@ impl ASMCodeGen {
         self.cur_mut().code.push(ASMInst::symbolic(code));
     }
 
-    fn add_asm_call(
-        &mut self,
-        code: String,
-        potentially_excepting: Option<MuName>,
-        arguments: Vec<P<Value>>,
-        target: Option<(MuID, ASMLocation)>
-    ) {
-        // a call instruction will use all the argument registers
-        // do not need
-        let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        if target.is_some() {
-            let (id, loc) = target.unwrap();
-            uses.insert(id, vec![loc]);
-        }
-        for arg in arguments {
-            uses.insert(arg.id(), vec![]);
-        }
-
-        let mut defines: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for reg in CALLER_SAVED_GPRS.iter() {
-            if !defines.contains_key(&reg.id()) {
-                defines.insert(reg.id(), vec![]);
-            }
-        }
-        for reg in CALLER_SAVED_FPRS.iter() {
-            if !defines.contains_key(&reg.id()) {
-                defines.insert(reg.id(), vec![]);
-            }
-        }
-
-        self.add_asm_inst_internal(
-            code,
-            defines,
-            uses,
-            false,
-            {
-                if potentially_excepting.is_some() {
-                    ASMBranchTarget::PotentiallyExcepting(potentially_excepting.unwrap())
-                } else {
-                    ASMBranchTarget::None
-                }
-            },
-            None
-        )
-    }
-
     fn add_asm_inst(
         &mut self,
         code: String,
@@ -2162,6 +2116,48 @@ impl ASMCodeGen {
         self.add_asm_inst(asm, ignore_zero_register(id1, vec![loc1]), uses, false)
     }
 
+    fn internal_call(&mut self, callsite: Option<String>, code: String, pe: Option<MuName>, args: Vec<P<Value>>, ret: Vec<P<Value>>, target: Option<(MuID, ASMLocation)>, may_return: bool) -> Option<ValueLocation> {
+        let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
+        if target.is_some() {
+            let (id, loc) = target.unwrap();
+            uses.insert(id, vec![loc]);
+        }
+        for arg in args {
+            uses.insert(arg.id(), vec![]);
+        }
+
+        let mut defines: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
+        for ret in ret.iter() {
+            defines.insert(ret.id(), vec![]);
+        }
+
+        self.add_asm_inst_internal(
+            code,
+            defines,
+            uses,
+            false,
+            {
+                if pe.is_some() {
+                    ASMBranchTarget::PotentiallyExcepting(pe.unwrap())
+                } else if may_return {
+                    ASMBranchTarget::None
+                } else {
+                    ASMBranchTarget::Return
+                }
+            },
+            None
+        );
+
+        if callsite.is_some() {
+            let callsite_symbol = mangle_name(callsite.as_ref().unwrap().clone());
+            self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
+            self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
+            Some(ValueLocation::Relocatable(RegGroup::GPR, callsite.unwrap()))
+        } else {
+            None
+        }
+    }
+
     fn emit_ldr_spill(&mut self, dest: Reg, src: Mem) {
         self.internal_load("LDR", dest, src, false, true, false);
     }
@@ -2395,12 +2391,13 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_bl(
         &mut self,
-        callsite: String,
+        callsite: Option<String>,
         func: MuName,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
         is_native: bool
-    ) -> ValueLocation {
+    ) -> Option<ValueLocation> {
         if is_native {
             trace_emit!("\tBL /*C*/ {}({:?})", func, args);
         } else {
@@ -2413,34 +2410,27 @@ impl CodeGenerator for ASMCodeGen {
             mangle_name(func)
         };
 
+        let mut ret = ret;
+        ret.push(LR.clone());
         let asm = format!("BL {}", func);
-        self.add_asm_call(asm, pe, args, None);
-
-        let callsite_symbol = mangle_name(callsite.clone());
-        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
-
-        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+        self.internal_call(callsite, asm, pe, args, ret, None, true)
     }
 
     fn emit_blr(
         &mut self,
-        callsite: String,
+        callsite: Option<String>,
         func: Reg,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
-    ) -> ValueLocation {
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>
+    ) -> Option<ValueLocation> {
         trace_emit!("\tBLR {}({:?})", func, args);
+        let mut ret = ret;
+        ret.push(LR.clone());
 
         let (reg1, id1, loc1) = self.prepare_reg(func, 3 + 1);
         let asm = format!("BLR {}", reg1);
-        self.add_asm_call(asm, pe, args, Some((id1, loc1)));
-
-        let callsite_symbol = mangle_name(callsite.clone());
-        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
-
-        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+        self.internal_call(callsite, asm, pe, args, ret, Some((id1, loc1)), true)
     }
 
 
@@ -2458,23 +2448,35 @@ impl CodeGenerator for ASMCodeGen {
             None
         );
     }
-    fn emit_b_func(&mut self, func_name: MuName, args: Vec<P<Value>>) {
-        trace_emit!("\tB {}({:?})", func_name, args);
 
-        let asm = format!("/*TAILCALL*/ B {}", mangle_name(func_name.clone()));
-        let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for arg in args {
-            uses.insert(arg.id(), vec![]);
+    fn emit_b_call(
+        &mut self,
+        callsite: Option<String>,
+        func: MuName,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
+        is_native: bool,
+        may_return: bool
+    ) -> Option<ValueLocation> {
+        if is_native {
+            trace_emit!("\tB /*C*/ {}({:?})", func, args);
+        } else {
+            trace_emit!("\tB {}({:?})", func, args);
         }
-        self.add_asm_inst_internal(
-            asm,
-            linked_hashmap!{},
-            uses,
-            false,
-            ASMBranchTarget::Return,
-            None
-        );
+
+        let func = if is_native {
+            "/*C*/".to_string() + func.as_str()
+        } else {
+            mangle_name(func)
+        };
+
+        let mut ret = ret;
+        ret.push(LR.clone());
+        let asm = format!("B {}", func);
+        self.internal_call(callsite, asm, pe, args, ret, None, may_return)
     }
+
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName) {
         trace_emit!("\tB.{} {}", cond, dest_name);
 
@@ -2503,35 +2505,25 @@ impl CodeGenerator for ASMCodeGen {
             None
         );
     }
-    fn emit_br_func(&mut self, func_address: Reg, args: Vec<P<Value>>) {
-        trace_emit!("\tBR {}({:?})", func_address, args);
 
-        let (reg1, id1, loc1) = self.prepare_reg(func_address, 2 + 1);
-        let asm = format!("/*TAILCALL*/ BR {}", reg1);
+    fn emit_br_call(
+        &mut self,
+        callsite: Option<String>,
+        func: Reg,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
+        may_return: bool
+    ) -> Option<ValueLocation> {
+        trace_emit!("\tBR {}({:?})", func, args);
+        let mut ret = ret;
+        ret.push(LR.clone());
 
-
-        let mut added_id1 = false;
-        let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for arg in args {
-            if arg.id() == id1 {
-                uses.insert(arg.id(), vec![loc1.clone()]);
-                added_id1 = true;
-            } else {
-                uses.insert(arg.id(), vec![]);
-            }
-        }
-        if !added_id1 {
-            uses.insert(id1, vec![loc1]);
-        }
-        self.add_asm_inst_internal(
-            asm,
-            linked_hashmap!{},
-            uses,
-            false,
-            ASMBranchTarget::Return,
-            None
-        );
+        let (reg1, id1, loc1) = self.prepare_reg(func, 3 + 1);
+        let asm = format!("BR {}", reg1);
+        self.internal_call(callsite, asm, pe, args, ret, Some((id1, loc1)), may_return)
     }
+
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName) {
         self.internal_branch_op("CBNZ", src, dest_name);
     }

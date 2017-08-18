@@ -674,6 +674,54 @@ lazy_static! {
         D15.clone()
     ];
 
+    pub static ref CALLER_SAVED_REGS : [P<Value>; 42] = [
+        X0.clone(),
+        X1.clone(),
+        X2.clone(),
+        X3.clone(),
+        X4.clone(),
+        X5.clone(),
+        X6.clone(),
+        X7.clone(),
+        X8.clone(),
+        X9.clone(),
+        X10.clone(),
+        X11.clone(),
+        X12.clone(),
+        X13.clone(),
+        X14.clone(),
+        X15.clone(),
+        X16.clone(),
+        X17.clone(),
+        //X18.clone(), // Platform Register
+
+        D0.clone(),
+        D1.clone(),
+        D2.clone(),
+        D3.clone(),
+        D4.clone(),
+        D5.clone(),
+        D6.clone(),
+        D7.clone(),
+
+        D16.clone(),
+        D17.clone(),
+        D18.clone(),
+        D19.clone(),
+        D20.clone(),
+        D21.clone(),
+        D22.clone(),
+        D23.clone(),
+        D24.clone(),
+        D25.clone(),
+        D26.clone(),
+        D27.clone(),
+        D28.clone(),
+        D29.clone(),
+        D30.clone(),
+        D31.clone()
+    ];
+
     pub static ref ALL_USABLE_GPRS : Vec<P<Value>> = vec![
         X0.clone(),
         X1.clone(),

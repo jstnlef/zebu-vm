@@ -90,7 +90,6 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
             };
 
             // Check for a catch block at this callsite
-            // (there won't be one on the first iteration of this loop)
             if callsite_info.exceptional_destination.is_some() {
                 catch_address = callsite_info.exceptional_destination.unwrap();
                 trace!("Found catch block: 0x{:x}", catch_address);

@@ -45,59 +45,46 @@ begin_func exception_restore
           BR X0
 end_func exception_restore
 
-# Swapstack internals
-.macro stack_pass
-# On the new stack, reverse the above
-    pop_callee_saved
-    exit_frame
-    RET
-.endm
-
-.macro stack_throw
-    # The new stack will have the same layout as the stack when muentry_throw_exception
-    # calls throw_exception_internal, so we can do that directly here
-
-    # Add the total size pushed by 'push_callee_saved' to get the FP for the new stack
-    ADD FP, SP, 144
-    MOV X1, FP
-    BL throw_exception_internal
-.endm
-
-.macro stack_ret old_sp
+# starts a muthread that passes values to the target
+# muthread_start_normal(new_sp: Address, old_sp_loc: Address)
+#                      X0             , X1
+begin_func muthread_start_normal
     enter_frame
     push_callee_saved
 
+    // Save the current SP to old_sp_loc
     MOV X11, SP
-    STR X11, [\old_sp]
-.endm
+    STR X11, [X1]
 
-.macro stack_kill old_stack
-    mov_args_to_callee_saved
-    MOV X0, \old_stack
-    BL muentry_kill_stack
-    mov_callee_saved_to_args
-.endm
+    // Swap to the new stack
+    MOV SP, X0
 
-# starts a muthread that passes values to the target (with the given memory area containg values of argument registers)
-#               (new_sp: Address, old_sp_loc: Address)
-#               X0                  X1,
-begin_func muthread_start_pass
-    stack_ret X1
-    MOV X9, X0 # X1 will be overriden by the next instructions
-    load_arguments X9
-    MOV SP, X9
-    stack_pass
-end_func muthread_start_pass
+    // Load the argument registers from the new stack
+    load_arguments SP
+
+    // Jump to the new stack
+    exit_frame
+    BR LR
+end_func muthread_start_normal
 
 
-# Same as muentry_swapstack_ret_throw
+# starts a muthread that passes values to the target
 # muthread_start_throw(exception: Address, new_sp: Address, old_sp_loc: &mut Adress)
 #                          X0                  X1               X2
-begin_func muthread_start_throw
-    stack_ret X2
+begin_func muthread_start_exceptional
+    enter_frame
+    push_callee_saved
+
+    // Save the current SP to old_sp_loc
+    MOV X11, SP
+    STR X11, [X1]
+
+    // Swap to the new stack
     MOV SP, X1
-    stack_throw
-end_func muthread_start_throw
+    SUB SP, SP, #144 // Alocate space for callee saved registers
+    B throw_exception_internal
+    // We won't be coming back...
+end_func muthread_start_exceptional
 
 # restores the thread
 #               (new_sp: Address)
@@ -105,41 +92,9 @@ end_func muthread_start_throw
 begin_func muentry_thread_exit
 	# Rust code will be responsible for actually killing the stack
     MOV SP, X0
-    stack_pass
+
+    // Do the inverse of 'muthread_*'
+    pop_callee_saved
+    exit_frame
+    BR LR
 end_func muentry_thread_exit
-
-# swap to the new stack whilst passing values and saving the old stack
-# muentry_swapstack_ret_pass(new_stack args..., new_sp: Address, old_sp_loc: &mut Adress)
-#                          X0 ... X7  [x8]            X9               X10
-begin_func muentry_swapstack_ret_pass
-    stack_ret X10
-    MOV SP, X9
-    stack_pass
-end_func muentry_swapstack_ret_pass
-
-# Same as swapstack_ret_pass except will throw an exception to the new stack instead of passing values
-# muentry_swapstack_ret_throw(exception: Address, new_sp: Address, old_sp_loc: &mut Adress)
-#                          X0                  X1               X2
-begin_func muentry_swapstack_ret_throw
-    stack_ret X2
-    MOV SP, X1
-    stack_throw
-end_func muentry_swapstack_ret_throw
-
-# swap to the new stack whilst passing values and killing the old stack
-# muentry_swapstack_kill_pass(new_stack args..., new_sp: Address, old_stack: *mut MuStack)
-#                              X0 ... X7 [x8]            X9              X10
-begin_func muentry_swapstack_kill_pass
-    MOV SP, X9
-    stack_kill X10
-    stack_pass
-end_func muentry_swapstack_kill_pass
-
-# Same as muentry_swapstack_kill_pass except will throw an exception to the new stack instead of passing values
-# muentry_swapstack_kill_throw(exception: Address, new_sp: Address, old_stack: *mut MuStack)
-#                          X0                  X1               X2
-begin_func muentry_swapstack_kill_throw
-    MOV SP, X1
-    stack_kill X2
-    stack_throw
-end_func muentry_swapstack_kill_throw

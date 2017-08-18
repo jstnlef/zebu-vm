@@ -18,13 +18,11 @@ use ast::types::*;
 use vm::VM;
 use runtime::ValueLocation;
 use runtime::mm;
-use compiler::backend::CALLEE_SAVED_COUNT;
 
 use utils::ByteSize;
 use utils::Address;
 use utils::Word;
 use utils::POINTER_SIZE;
-use utils::WORD_SIZE;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
@@ -70,9 +68,6 @@ impl_mu_entity!(MuStack);
 pub struct MuStack {
     pub hdr: MuEntityHeader,
 
-    /// entry function for the stack, represented as (address, func id)
-    func: Option<(ValueLocation, MuID)>,
-
     /// stack size
     size: ByteSize,
 
@@ -106,7 +101,10 @@ pub struct MuStack {
     #[allow(dead_code)]
     mmap: Option<memmap::Mmap>
 }
-
+lazy_static!{
+    pub static ref MUSTACK_SP_OFFSET : usize =
+        offset_of!(MuStack=>sp).get_byte_offset();
+}
 impl MuStack {
     /// creates a new MuStack for given entry function and function address
     pub fn new(id: MuID, func_addr: Address, stack_arg_size: usize) -> MuStack {
@@ -155,9 +153,6 @@ impl MuStack {
         sp -= POINTER_SIZE;
         unsafe { sp.store(Address::zero()); }
 
-        // Reserve space for callee saved registers (they will be loaded with undefined values)
-        sp -= WORD_SIZE*CALLEE_SAVED_COUNT;
-
         debug!("creating stack {} with entry address {:?}", id, func_addr);
         debug!("overflow_guard : {}", overflow_guard);
         debug!("lower_bound    : {}", lower_bound);
@@ -167,7 +162,6 @@ impl MuStack {
 
         MuStack {
             hdr: MuEntityHeader::unnamed(id),
-            func: None,
             state: MuStackState::Unknown,
 
             size: STACK_SIZE,
@@ -308,7 +302,7 @@ pub struct MuThread {
     /// the allocator from memory manager
     pub allocator: mm::Mutator,
     /// current stack (a thread can execute different stacks, but one stack at a time)
-    pub stack: Option<Box<MuStack>>,
+    pub stack: *mut MuStack,
     /// native stack pointer before we switch to this mu stack
     /// (when the thread exits, we restore to native stack, and allow proper destruction)
     pub native_sp_loc: Address,
@@ -350,9 +344,8 @@ impl fmt::Display for MuThread {
         ).unwrap();
         write!(
             f,
-            "- stack     @{:?}: {}\n",
-            &self.stack as *const Option<Box<MuStack>>,
-            self.stack.is_some()
+            "- stack     @{:?}\n",
+            &self.stack as *const *mut MuStack
         ).unwrap();
         write!(
             f,
@@ -389,9 +382,8 @@ extern "C" {
     /// we swap to mu stack and execute the entry function
     /// args:
     /// new_sp: stack pointer for the mu stack
-    /// entry : entry function for the mu stack
     /// old_sp_loc: the location to store native stack pointer so we can later swap back
-    fn muthread_start_pass(new_sp: Address, old_sp_loc: Address);
+    fn muthread_start_normal(new_sp: Address, old_sp_loc: Address);
 
     /// gets base poniter for current frame
     pub fn get_current_frame_bp() -> Address;
@@ -484,6 +476,7 @@ impl MuThread {
 
                 // set thread local
                 unsafe { set_thread_local(&mut muthread) };
+                trace!("new MuThread @{}", Address::from_ref(&mut muthread));
 
                 let addr = unsafe { muentry_get_thread_local() };
                 let sp_threadlocal_loc = addr + *NATIVE_SP_LOC_OFFSET;
@@ -491,7 +484,7 @@ impl MuThread {
                 debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
 
                 unsafe {
-                    muthread_start_pass(new_sp, sp_threadlocal_loc);
+                    muthread_start_normal(new_sp, sp_threadlocal_loc);
                 }
 
                 debug!("returned to Rust stack. Going to quit");
@@ -512,7 +505,7 @@ impl MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator: allocator,
-            stack: Some(stack),
+            stack: Box::into_raw(stack),
             native_sp_loc: unsafe { Address::zero() },
             user_tls: user_tls,
             vm: vm,
@@ -565,8 +558,6 @@ impl MuThread {
         // fake a stack for current thread
         let fake_mu_stack_for_cur = Box::new(MuStack {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
-            // no entry function
-            func: None,
             // active state
             state: MuStackState::Active,
             // we do not know anything about current stack
@@ -590,7 +581,7 @@ impl MuThread {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             // we need a valid allocator and stack
             allocator: mm::new_mutator(),
-            stack: Some(fake_mu_stack_for_cur),
+            stack: Box::into_raw(fake_mu_stack_for_cur),
             // we do not need native_sp_loc (we do not expect the thread to call THREADEXIT)
             native_sp_loc: Address::zero(),
             // valid thread local from user
@@ -642,40 +633,13 @@ rodal_struct!(PrimordialThreadInfo {
     has_const_args
 });
 
-// This prepares a thread for a swap stack operation that may return to the current stack
-// it returns the SP to swap to, and a pointer to where to save the current SP
-// (it should be called before arguments are passed to the new stack, and before
-// the new stack is swapped to)
-#[no_mangle]
-pub unsafe extern "C" fn muentry_prepare_swapstack_ret(new_stack: *mut MuStack)
-    -> (Address, *mut Address) {
-    let cur_thread = MuThread::current_mut();
-    // Save the current stack, don't deallocate it
-    let cur_stack = Box::into_raw(cur_thread.stack.take().unwrap());
-    cur_thread.stack = Some(Box::from_raw(new_stack));
-    ((*new_stack).sp, &mut (*cur_stack).sp)
-}
-
-// This prepares a thread for a swap stack operation that kills the current stack
-// it returns the SP to swap to, and a pointer to the MuStack that should be dropped
-// (it should be called before arguments are passed to the new stack, and before
-// the new stack is swapped to)
-#[no_mangle]
-pub unsafe extern "C" fn muentry_prepare_swapstack_kill(new_stack: *mut MuStack)
-    -> (Address, *mut MuStack) {
-    let cur_thread = MuThread::current_mut();
-    // Save the current stack, don't deallocate it until safe to do so
-    // (i.e. when were are not on the current stack)
-    let cur_stack = Box::into_raw(cur_thread.stack.take().unwrap());
-    cur_thread.stack = Some(Box::from_raw(new_stack));
-    ((*new_stack).sp, cur_stack)
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn muentry_new_stack(entry: Address, stack_size: usize) -> *mut MuStack {
     let ref vm = MuThread::current_mut().vm;
     let stack = Box::new(MuStack::new(vm.next_id(), entry, stack_size));
-    Box::into_raw(stack)
+    let res = Box::into_raw(stack);
+    trace!("<- MuStack @{}", Address::from_ptr(res));
+    res
 }
 
 // Kills the given stack. WARNING! do not call this whilst on the given stack

@@ -176,8 +176,7 @@ impl Instruction {
             CommonInst_GetAddr(_) |
             PrintHex(_) |
             SetRetval(_) |
-            KillStack(_) |
-            CurrentStack => true,
+            KillStack(_) => true,
             BinOp(_, _, _) |
             BinOpWithStatus(_, _, _, _) |
             CmpOp(_, _, _) |
@@ -198,7 +197,8 @@ impl Instruction {
             CommonInst_Tr64ToInt(_) |
             CommonInst_Tr64ToRef(_) |
             CommonInst_Tr64ToTag(_) |
-            Move(_) => false
+            Move(_) |
+            CurrentStack => false
         }
     }
 

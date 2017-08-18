@@ -67,8 +67,7 @@ lazy_static! {
                                         String::from("muentry_thread_exit")),
         jit: RwLock::new(None),
     };
-}
-lazy_static! {
+
     // impl/decl: thread.rs
     pub static ref NEW_STACK: RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{
@@ -177,6 +176,16 @@ lazy_static! {
             arg_tys: vec![ADDRESS_TYPE.clone()]
         }),
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_throw_exception")),
+        jit: RwLock::new(None),
+    };
+
+    pub static ref THROW_EXCEPTION_INTERNAL : RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig {
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_throw_exception_internal")),
         jit: RwLock::new(None),
     };
 
@@ -340,50 +349,6 @@ lazy_static! {
             arg_tys: vec![IREF_VOID_TYPE.clone(), UINT64_TYPE.clone()]
         }),
         aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_mem_zero")),
-        jit: RwLock::new(None)
-    };
-
-    // impl/decl: thread.rs
-    pub static ref PREPARE_SWAPSTACK_RET : RuntimeEntrypoint = RuntimeEntrypoint {
-        sig: P(MuFuncSig {
-            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
-            ret_tys: vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone()],
-            arg_tys: vec![STACKREF_TYPE.clone()]
-        }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_prepare_swapstack_ret")),
-        jit: RwLock::new(None)
-    };
-
-    // impl/decl: thread.rs
-    pub static ref PREPARE_SWAPSTACK_KILL : RuntimeEntrypoint = RuntimeEntrypoint {
-        sig: P(MuFuncSig {
-            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
-            ret_tys: vec![ADDRESS_TYPE.clone(), STACKREF_TYPE.clone()],
-            arg_tys: vec![STACKREF_TYPE.clone()]
-        }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_prepare_swapstack_kill")),
-        jit: RwLock::new(None)
-    };
-
-    // impl/decl: thread.rs
-    pub static ref SWAPSTACK_RET_THROW : RuntimeEntrypoint = RuntimeEntrypoint {
-        sig: P(MuFuncSig {
-            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
-            ret_tys: vec![],
-            arg_tys: vec![REF_VOID_TYPE.clone(), ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone()]
-        }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_swapstack_ret_throw")),
-        jit: RwLock::new(None)
-    };
-
-    // impl/decl: thread.rs
-    pub static ref SWAPSTACK_KILL_THROW : RuntimeEntrypoint = RuntimeEntrypoint {
-        sig: P(MuFuncSig {
-            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
-            ret_tys: vec![],
-            arg_tys: vec![REF_VOID_TYPE.clone(), ADDRESS_TYPE.clone(), STACKREF_TYPE.clone()]
-        }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_swapstack_kill_throw")),
         jit: RwLock::new(None)
     };
 }

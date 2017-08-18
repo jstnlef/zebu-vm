@@ -73,6 +73,36 @@ def test_swapstack_pass_vals():
         """, "test_swapstack_pass_vals");
     assert(execute("test_swapstack_pass_vals", []) == 3);
 
+def test_swapstack_pass_stack():
+    compile_bundle(
+        """
+        .funcsig stack_sig = (stackref double double double double double double double double double double)->()
+        .funcdef new_func <stack_sig>
+        {
+            entry(<stackref>s <double>d0 <double>d1 <double>d2 <double>d3 <double>d4 <double>d5 <double>d6 <double>d7 <double> d8 <double> d9):
+                SWAPSTACK s KILL_OLD PASS_VALUES<double double double double double double double double double double>(d0 d1 d2 d3 d4 d5 d6 d7 d8 d9) 
+        }        
+        .funcdef test_swapstack_pass_stack <main_sig>
+        {
+            entry(<int<32>>argc <uptr<uptr<char>>>argv):
+                cs =  COMMINST uvm.current_stack()
+                s = COMMINST uvm.new_stack<[stack_sig]>(new_func)
+                (d0 d1 d2 d3 d4 d5 d6 d7 d8 d9) = SWAPSTACK s RET_WITH<double double double double double double double double double double> PASS_VALUES<stackref>(cs <double>0.0 d <double>1.0 d <double>2.0 d <double>3.0 d <double>4.0 d <double>5.0 d <double>6.0 d <double>7.0 d <double>8.0 d <double>9.0 d)
+                s1 = FADD <double> d0 d1
+                s2 = FADD <double> s1 d2
+                s3 = FADD <double> s2 d3
+                s4 = FADD <double> s3 d4
+                s5 = FADD <double> s4 d5
+                s6 = FADD <double> s5 d6
+                s7 = FADD <double> s6 d7
+                s8 = FADD <double> s7 d8
+                s9 = FADD <double> s8 d9
+                r = FPTOSI <double int<32>> s9
+                RET r
+        }
+        """, "test_swapstack_pass_stack");
+    assert(execute("test_swapstack_pass_stack", []) == 45);
+
 def test_swapstack_throw():
     compile_bundle(
         """
