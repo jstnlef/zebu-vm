@@ -109,7 +109,8 @@ lazy_static! {
             arg_tys: vec![STACKREF_TYPE.clone(), REF_VOID_TYPE.clone(), REF_VOID_TYPE.clone()],
             ret_tys: vec![THREADREF_TYPE.clone()],
         }),
-        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_new_thread_exceptional")),
+        aot: ValueLocation::Relocatable(RegGroup::GPR,
+            String::from("muentry_new_thread_exceptional")),
         jit: RwLock::new(None),
     };
 

@@ -92,7 +92,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread{ .. } |
+            NewThread { .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -149,7 +149,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread{ .. } |
+            NewThread { .. } |
             NewFrameCursor(_) |
             Fence(_) |
             Return(_) |
@@ -226,7 +226,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread{ .. } |
+            NewThread { .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -298,7 +298,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread{ .. } |
+            NewThread { .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -721,8 +721,15 @@ impl Instruction_ {
             &Instruction_::NewHybrid(ref ty, len) => format!("NEWHYBRID {} {}", ty, ops[len]),
             &Instruction_::AllocAHybrid(ref ty, len) => format!("ALLOCAHYBRID {} {}", ty, ops[len]),
             &Instruction_::NewStack(func) => format!("NEW_STACK {}", ops[func]),
-            &Instruction_::NewThread{stack, thread_local, is_exception, ref args} => {
-                let thread_local = thread_local.map(|t| format!("{}", ops[t])).unwrap_or("NULL".to_string());
+            &Instruction_::NewThread {
+                stack,
+                thread_local,
+                is_exception,
+                ref args
+            } => {
+                let thread_local = thread_local
+                    .map(|t| format!("{}", ops[t]))
+                    .unwrap_or("NULL".to_string());
                 format!(
                     "SWAPSTACK {} THREADLOCAL({}) {} {}",
                     ops[stack],

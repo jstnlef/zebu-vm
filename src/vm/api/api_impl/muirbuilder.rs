@@ -3283,7 +3283,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_rvtype = self.get_built_type(refty);
-                let impl_rv = self.new_ssa(fcb, result_id, self.vm.make_strong_type(impl_rvtype)).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id,
+                    self.vm.make_strong_type(impl_rvtype)).clone_value();
                 let impl_refty = self.get_built_type(refty);
 
                 assert_ir!(impl_ord != MemoryOrder::Release && impl_ord != MemoryOrder::AcqRel);
@@ -3425,7 +3426,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     })
                     .collect::<Vec<_>>();
 
-                let (is_exception, args) = self.build_new_stack_clause(new_stack_clause, fcb, &mut ops);
+                let (is_exception, args) =
+                    self.build_new_stack_clause(new_stack_clause, fcb, &mut ops);
 
                 match exc_clause {
                     Some(ecid) => {
@@ -3507,13 +3509,15 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     Some(tl) => {
                         let index = ops.len();
                         let tl = self.add_opnd(fcb, &mut ops, tl);
-                        assert_ir!(tl.ty().is_ref() && tl.ty().get_referent_ty().unwrap().is_void());
+                        assert_ir!(tl.ty().is_ref() &&
+                            tl.ty().get_referent_ty().unwrap().is_void());
                         Some(index)
                     }
                     None => None,
                 };
 
-                let (is_exception, args) = self.build_new_stack_clause(new_stack_clause, fcb, &mut ops);
+                let (is_exception, args) =
+                    self.build_new_stack_clause(new_stack_clause, fcb, &mut ops);
 
 
                 Instruction {

@@ -2141,7 +2141,12 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     }
-                    Instruction_::NewThread{stack, thread_local, is_exception, ref args} => {
+                    Instruction_::NewThread {
+                        stack,
+                        thread_local,
+                        is_exception,
+                        ref args
+                    } => {
                         trace!("Instruction Selection on NEWTHREAD");
                         let ref ops = inst.ops;
                         let res = self.get_result_value(node, 0);
@@ -2173,7 +2178,8 @@ impl<'a> InstructionSelection {
                                 vm
                             );
 
-                            let arg_values = self.emit_arg_values(&args, ops, f_content, f_context, vm);
+                            let arg_values =
+                                self.emit_arg_values(&args, ops, f_content, f_context, vm);
 
                             // Pass the arguments, stack arguments are placed below the new_sp,
                             // register arguments are placed above it
@@ -2193,7 +2199,12 @@ impl<'a> InstructionSelection {
                                 vm
                             );
 
-                            emit_sub_u64(self.backend.as_mut(), &new_sp, &new_sp, (ARGUMENT_REG_COUNT*WORD_SIZE) as u64);
+                            emit_sub_u64(
+                                self.backend.as_mut(),
+                                &new_sp,
+                                &new_sp,
+                                (ARGUMENT_REG_COUNT * WORD_SIZE) as u64
+                            );
                             emit_store_base_offset(
                                 self.backend.as_mut(),
                                 &stack,
@@ -3878,7 +3889,10 @@ impl<'a> InstructionSelection {
         modify_arg_base: bool,
         reg_args: bool,   // Whether to pass register arguments
         stack_args: bool, // Whether to pass stack arguments
-        reg_arg_base: Option<&P<Value>>, // If this is none put reg arguments in registers, otherwise store them at an offset from reg_arg_base
+
+        // If this is none put reg arguments in registers,
+        // otherwise store them at an offset from reg_arg_base
+        reg_arg_base: Option<&P<Value>>,
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> (usize, Vec<P<Value>>) {
@@ -3944,8 +3958,18 @@ impl<'a> InstructionSelection {
                         let arg_loc_h_id = arg_loc.id() + 2; //get_register_from_id();
                         let (arg_loc_l, arg_loc_h) = match reg_arg_base {
                             Some(ref b) => (
-                                make_value_base_offset(b, get_argument_reg_offset(arg_loc.id()) as i64, &arg_loc.ty, vm),
-                                make_value_base_offset(b, get_argument_reg_offset(arg_loc_h_id) as i64, &arg_loc.ty, vm)
+                                make_value_base_offset(
+                                    b,
+                                    get_argument_reg_offset(arg_loc.id()) as i64,
+                                    &arg_loc.ty,
+                                    vm
+                                ),
+                                make_value_base_offset(
+                                    b,
+                                    get_argument_reg_offset(arg_loc_h_id) as i64,
+                                    &arg_loc.ty,
+                                    vm
+                                )
                             ),
                             None => (arg_loc.clone(), get_register_from_id(arg_loc_h_id))
                         };
@@ -3969,8 +3993,15 @@ impl<'a> InstructionSelection {
                     } else {
                         if (reg_args && arg_loc.is_reg()) || (stack_args && !arg_loc.is_reg()) {
                             let arg_loc = match reg_arg_base {
-                                Some(ref b) if arg_loc.is_reg() => make_value_base_offset(b, get_argument_reg_offset(arg_loc.id()) as i64, &arg_loc.ty, vm),
-                                _ => arg_loc.clone(),
+                                Some(ref b) if arg_loc.is_reg() => {
+                                    make_value_base_offset(
+                                        b,
+                                        get_argument_reg_offset(arg_loc.id()) as i64,
+                                        &arg_loc.ty,
+                                        vm
+                                    )
+                                }
+                                _ => arg_loc.clone()
                             };
 
                             emit_move_value_to_value(
@@ -4360,7 +4391,14 @@ impl<'a> InstructionSelection {
         )
     }
 
-    fn emit_arg_values(&mut self, args: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>, f_content: &FunctionContent, f_context: &mut FunctionContext, vm: &VM) -> Vec<P<Value>> {
+    fn emit_arg_values(
+        &mut self,
+        args: &Vec<OpIndex>,
+        ops: &Vec<P<TreeNode>>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> Vec<P<Value>> {
         // prepare args (they could be instructions, we need to emit inst and get value)
         let mut arg_values = vec![];
         for arg_index in args {
@@ -4644,7 +4682,10 @@ impl<'a> InstructionSelection {
         }
     }
 
-    fn get_potentially_excepting(resumption: Option<&ResumptionData>, f_content: &FunctionContent) -> Option<MuName> {
+    fn get_potentially_excepting(
+        resumption: Option<&ResumptionData>,
+        f_content: &FunctionContent
+    ) -> Option<MuName> {
         if resumption.is_some() {
             let target_id = resumption.unwrap().exn_dest.target;
             Some(f_content.get_block(target_id).name())
@@ -4653,17 +4694,19 @@ impl<'a> InstructionSelection {
         }
     }
 
-    fn record_callsite(&mut self, resumption: Option<&ResumptionData>, callsite: ValueLocation, stack_arg_size: usize) {
+    fn record_callsite(
+        &mut self,
+        resumption: Option<&ResumptionData>,
+        callsite: ValueLocation,
+        stack_arg_size: usize
+    ) {
         let target_block = match resumption {
             Some(rd) => rd.exn_dest.target,
             None => 0
         };
 
-        self.current_callsites.push_back((
-            callsite.to_relocatable(),
-            target_block,
-            stack_arg_size
-        ));
+        self.current_callsites
+            .push_back((callsite.to_relocatable(), target_block, stack_arg_size));
     }
 
     fn emit_mu_call(

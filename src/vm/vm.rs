@@ -123,7 +123,9 @@ pub struct VM {
 
     /// Nnmber of callsites in the callsite tables
     callsite_count: AtomicUsize,
-    pub pending_joins: Mutex<LinkedList<JoinHandle<()>>> // A list of all threads currently waiting to be joined
+
+    /// A list of all threads currently waiting to be joined
+    pub pending_joins: Mutex<LinkedList<JoinHandle<()>>>
 }
 
 unsafe impl rodal::Dump for VM {
@@ -169,9 +171,7 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object(&self.callsite_count);
 
         dumper.dump_padding(&self.pending_joins);
-        dumper.dump_object_here(&Mutex::new(
-            rodal::EmptyLinkedList::<JoinHandle<()>>::new()
-        ));
+        dumper.dump_object_here(&Mutex::new(rodal::EmptyLinkedList::<JoinHandle<()>>::new()));
     }
 }
 
@@ -237,7 +237,7 @@ impl<'a> VM {
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_callsite_table: RwLock::new(HashMap::new()),
             callsite_count: ATOMIC_USIZE_INIT,
-            pending_joins: Mutex::new(LinkedList::new()),
+            pending_joins: Mutex::new(LinkedList::new())
         };
 
         // insert all internal types
