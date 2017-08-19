@@ -2352,7 +2352,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             assert_ir!(!res[i].as_inst_ref().is_terminal_inst());
         }
         // The last instruction should be a terminator
-        assert_ir!(!res[n - 1].as_inst_ref().is_terminal_inst());
+        assert_ir!(res[n - 1].as_inst_ref().is_terminal_inst());
         res
     }
 
