@@ -22,10 +22,9 @@ use utils::bit_utils::bits_ones;
 use std;
 
 macro_rules! assert_ir {
-    ( $ cond : expr ) => { assert!($cond) };
+    ($ cond : expr ) => { assert!($cond) };
     ($ cond : expr , $ ( $ arg : tt ) + ) => { assert!($cond, $($arg)+)};
 }
-
 
 pub struct MuIRBuilder {
     /// ref to MuVM
@@ -2346,13 +2345,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             .iter()
             .map(|iid| self.build_inst(fcb, *iid, blocks))
             .collect::<Vec<_>>();
-        assert_ir!(
-            res.last()
-                .as_ref()
-                .unwrap()
-                .as_inst_ref()
-                .is_terminal_inst()
-        );
+
+        let n = res.len();
+        for i in 0..(n - 1) {
+            // None of the internal instruction should be a terminator
+            assert_ir!(!res[i].as_inst_ref().is_terminal_inst());
+        }
+        // The last instruction should be a terminator
+        assert_ir!(!res[n - 1].as_inst_ref().is_terminal_inst());
         res
     }
 
@@ -2406,7 +2406,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
                 assert_ir!(
                     impl_opnd1.ty() == impl_opnd2.ty() && impl_opnd1.ty() == impl_ty,
-                    "Invalid instruction {:?}: Operand types {} and {} are not what was expected {}",
+                    "Invalid instruction {:?}: Operand types {} and {} \
+                    are not what was expected {}",
                     inst,
                     impl_opnd1.ty(),
                     impl_opnd2.ty(),
@@ -2666,9 +2667,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                                      impl_to_ty.is_double())
                         }
                         ConvOp::REFCAST => {
-                            (impl_from_ty.is_ref() && impl_to_ty.is_ref()) ||
-                                (impl_from_ty.is_iref() && impl_to_ty.is_ref()) ||
-                                (impl_from_ty.is_funcref() && impl_to_ty.is_funcref())
+                            (impl_from_ty.is_ref() || impl_from_ty.is_iref() ||
+                                 impl_from_ty.is_funcref()) &&
+                                (impl_to_ty.is_ref() || impl_to_ty.is_iref() ||
+                                     impl_to_ty.is_funcref())
                         }
                         ConvOp::PTRCAST => {
                             (impl_from_ty.is_ptr() || impl_from_ty.is_int()) &&
@@ -3237,12 +3239,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_rvtype = self.get_built_type(refty);
-                let impl_rvtype_strong = P(MuType::new(
-                    new_internal_id(),
-                    impl_rvtype.v.strong_variant()
-                ));
-                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype_strong)
-                    .clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, self.vm.make_strong_type(impl_rvtype)).clone_value();
                 let impl_refty = self.get_built_type(refty);
 
                 assert_ir!(impl_ord != MemoryOrder::Release && impl_ord != MemoryOrder::AcqRel);
@@ -3354,109 +3351,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 )
             }
 
-            NodeInst::NodeSwapStack {
-                id: _,
-                ref result_ids,
-                swappee,          // MuVarNode
-                cur_stack_clause, //MuCurStackClause
-                new_stack_clause, //MuNewStackClause
-                exc_clause,       //Option<MuExcClause>,
-                keepalive_clause  // Option<MuKeepaliveClause>,
-            } => {
-                // TODO: Validate IR
-                /*
-                    Swapee has type stackref
-                    validate cur_stack_clause and new_stack_clause
-                    exc_clause should be absent cur_stack_clause is kill old
-                */
-                let mut ops: Vec<P<TreeNode>> = vec![self.get_treenode(fcb, swappee)];
-
-                let cur_stack_clause = self.b.bundle.cs_clauses.get(&cur_stack_clause).unwrap();
-                let new_stack_clause = self.b.bundle.ns_clauses.get(&new_stack_clause).unwrap();
-
-                let empty_vec = Vec::<MuTypeNode>::new();
-                let rettys_ids = match **cur_stack_clause {
-                    NodeCurrentStackClause::RetWith { ref rettys, .. } => &rettys,
-                    NodeCurrentStackClause::KillOld { .. } => &empty_vec
-                };
-                let rvs = result_ids
-                    .iter()
-                    .zip(rettys_ids)
-                    .map(|(rvid, rvty)| {
-                        let impl_rvty = self.get_built_type(*rvty);
-                        self.new_ssa(fcb, *rvid, impl_rvty).clone_value()
-                    })
-                    .collect::<Vec<_>>();
-
-                let (is_exception, args) = match **new_stack_clause {
-                    NodeNewStackClause::PassValues {
-                        ref tys, ref vars, ..
-                    } => {
-                        let args_begin_index = ops.len();
-                        self.add_opnds(fcb, &mut ops, vars);
-                        (
-                            false,
-                            (args_begin_index..(vars.len() + 1)).collect::<Vec<_>>()
-                        )
-                    }
-                    NodeNewStackClause::ThrowExc { ref exc, .. } => {
-                        let exc_arg = ops.len();
-                        self.add_opnd(fcb, &mut ops, *exc);
-                        (true, vec![exc_arg])
-                    }
-                };
-
-
-                match exc_clause {
-                    Some(ecid) => {
-                        let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
-
-                        let impl_normal_dest =
-                            self.build_destination(fcb, ecnode.nor, &mut ops, result_ids, blocks);
-                        let impl_exn_dest =
-                            self.build_destination(fcb, ecnode.exc, &mut ops, &[], blocks);
-
-                        Instruction {
-                            hdr: hdr,
-                            value: Some(rvs),
-                            ops: ops,
-                            v: Instruction_::SwapStackExc {
-                                stack: 0,
-                                is_exception: is_exception,
-                                args: args,
-                                resume: ResumptionData {
-                                    normal_dest: impl_normal_dest,
-                                    exn_dest: impl_exn_dest
-                                }
-                            }
-                        }
-                    }
-                    None => {
-                        match **cur_stack_clause {
-                            NodeCurrentStackClause::RetWith { .. } => Instruction {
-                                hdr: hdr,
-                                value: Some(rvs),
-                                ops: ops,
-                                v: Instruction_::SwapStackExpr {
-                                    stack: 0,
-                                    is_exception: is_exception,
-                                    args: args
-                                }
-                            },
-                            NodeCurrentStackClause::KillOld { .. } => Instruction {
-                                hdr: hdr,
-                                value: Some(rvs),
-                                ops: ops,
-                                v: Instruction_::SwapStackKill {
-                                    stack: 0,
-                                    is_exception: is_exception,
-                                    args: args
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             NodeInst::NodeCommInst {
                 id,
                 ref result_ids,
@@ -3517,7 +3411,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 //            }
             let my_index = ops.len();
             let op = self.add_opnd(fcb, ops, *vid);
-            assert_ir!(op.ty() == arg.ty, "{} -> {}: {} != {}", op, arg, op.ty(), arg.ty);
+            assert_ir!(op.ty() == arg.ty);
             DestArg::Normal(my_index)
         }).collect::<Vec<_>>();
 
