@@ -295,7 +295,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: String, f_content: &FunctionCont
                             vec_utils::as_str(&enable_dest.get_arguments(&ops))
                         ).unwrap();
                     }
-                    Return(_) | Throw(_) | ThreadExit | TailCall(_) | SwapStackKill { .. } => {}
+                    Return(_) | Throw(_) | ThreadExit | TailCall(_) | SwapStackKill {..} => {}
 
                     _ => {
                         panic!("unexpected terminating instruction: {}", inst);

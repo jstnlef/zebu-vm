@@ -182,8 +182,13 @@ pub struct NodeKeepaliveClause {
 
 #[derive(Debug)]
 pub enum NodeCurrentStackClause {
-    RetWith { id: MuID, rettys: Vec<MuTypeNode> },
-    KillOld { id: MuID }
+    RetWith {
+        id: MuID,
+        rettys: Vec<MuTypeNode>
+    },
+    KillOld {
+        id: MuID,
+    }
 }
 
 #[derive(Debug)]
@@ -193,7 +198,10 @@ pub enum NodeNewStackClause {
         tys: Vec<MuTypeNode>,
         vars: Vec<MuVarNode>
     },
-    ThrowExc { id: MuID, exc: MuVarNode }
+    ThrowExc {
+        id: MuID,
+        exc: MuVarNode
+    }
 }
 
 #[derive(Debug)]
