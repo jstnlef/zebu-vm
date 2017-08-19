@@ -2048,6 +2048,7 @@ fn spill_int8() -> VM {
 #[test]
 #[cfg(target_arch = "x86_64")]
 fn test_coalesce_unusable_reg() {
+    use mu::compiler::backend::x86_64;
     VM::start_logging_trace();
 
     let vm = coalesce_unusable_reg();
@@ -2084,6 +2085,7 @@ fn test_coalesce_unusable_reg() {
 
 #[cfg(target_arch = "x86_64")]
 fn coalesce_unusable_reg() -> VM {
+    use mu::compiler::backend::x86_64;
     let vm = VM::new();
 
     typedef!    ((vm) int64 = mu_int(64));
