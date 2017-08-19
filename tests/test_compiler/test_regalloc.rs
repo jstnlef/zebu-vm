@@ -18,7 +18,6 @@ extern crate libloading;
 use mu::linkutils;
 use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
-use mu::compiler::backend::x86_64;
 use test_compiler::test_call::gen_ccall_exit;
 use self::mu::compiler::*;
 use self::mu::ast::ir::*;

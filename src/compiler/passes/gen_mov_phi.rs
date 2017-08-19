@@ -234,7 +234,12 @@ impl CompilerPass for GenMovPhi {
                                 }
                                 Instruction_::Watchpoint { .. } => unimplemented!(),
                                 Instruction_::WPBranch { .. } => unimplemented!(),
-                                Instruction_::SwapStackExc { stack, is_exception, args, resume } => {
+                                Instruction_::SwapStackExc {
+                                    stack,
+                                    is_exception,
+                                    args,
+                                    resume
+                                } => {
                                     let norm_dest = process_dest(
                                         resume.normal_dest,
                                         &mut new_blocks_to_insert,
@@ -269,7 +274,7 @@ impl CompilerPass for GenMovPhi {
 
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
-                                },
+                                }
                                 Instruction_::ExnInstruction { .. } => unimplemented!(),
                                 _ => {
                                     trace!("no rewrite");

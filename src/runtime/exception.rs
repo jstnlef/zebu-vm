@@ -38,8 +38,7 @@ use runtime::*;
 /// (and are accessed by get/set_return_address and get/set_previous_frame and may be passed
 /// real frame pointers or the frame cursor)
 #[no_mangle]
-pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor: Address) ->
-                                                                                               ! {
+pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor: Address) -> ! {
     trace!("throwing exception: {}", exception_obj);
 
     if cfg!(debug_assertions) {

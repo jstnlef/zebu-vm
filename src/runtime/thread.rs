@@ -147,11 +147,15 @@ impl MuStack {
 
         // Push entry as the return address
         sp -= POINTER_SIZE;
-        unsafe { sp.store(func_addr); }
+        unsafe {
+            sp.store(func_addr);
+        }
 
         // Push a null frame pointer
         sp -= POINTER_SIZE;
-        unsafe { sp.store(Address::zero()); }
+        unsafe {
+            sp.store(Address::zero());
+        }
 
         debug!("creating stack {} with entry address {:?}", id, func_addr);
         debug!("overflow_guard : {}", overflow_guard);
@@ -285,7 +289,7 @@ pub enum MuStackState {
     Active,
     /// can be destroyed
     Dead,
-    Unknown,
+    Unknown
 }
 
 /// MuThread represents metadata for a Mu thread.
@@ -341,11 +345,7 @@ impl fmt::Display for MuThread {
             "- allocator @{:?}\n",
             &self.allocator as *const mm::Mutator
         ).unwrap();
-        write!(
-            f,
-            "- stack     @{:?}\n",
-            &self.stack as *const *mut MuStack
-        ).unwrap();
+        write!(f, "- stack     @{:?}\n", &self.stack as *const *mut MuStack).unwrap();
         write!(
             f,
             "- native sp @{:?}: {}\n",
@@ -475,7 +475,6 @@ impl MuThread {
 
                 // set thread local
                 unsafe { set_thread_local(&mut muthread) };
-                trace!("new MuThread @{}", Address::from_ref(&mut muthread));
 
                 let addr = unsafe { muentry_get_thread_local() };
                 let sp_threadlocal_loc = addr + *NATIVE_SP_LOC_OFFSET;
@@ -636,9 +635,7 @@ rodal_struct!(PrimordialThreadInfo {
 pub unsafe extern "C" fn muentry_new_stack(entry: Address, stack_size: usize) -> *mut MuStack {
     let ref vm = MuThread::current_mut().vm;
     let stack = Box::new(MuStack::new(vm.next_id(), entry, stack_size));
-    let res = Box::into_raw(stack);
-    trace!("<- MuStack @{}", Address::from_ptr(res));
-    res
+    Box::into_raw(stack)
 }
 
 // Kills the given stack. WARNING! do not call this whilst on the given stack

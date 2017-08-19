@@ -2117,7 +2117,16 @@ impl ASMCodeGen {
         self.add_asm_inst(asm, ignore_zero_register(id1, vec![loc1]), uses, false)
     }
 
-    fn internal_call(&mut self, callsite: Option<String>, code: String, pe: Option<MuName>, args: Vec<P<Value>>, ret: Vec<P<Value>>, target: Option<(MuID, ASMLocation)>, may_return: bool) -> Option<ValueLocation> {
+    fn internal_call(
+        &mut self,
+        callsite: Option<String>,
+        code: String,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
+        target: Option<(MuID, ASMLocation)>,
+        may_return: bool
+    ) -> Option<ValueLocation> {
         let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
         if target.is_some() {
             let (id, loc) = target.unwrap();

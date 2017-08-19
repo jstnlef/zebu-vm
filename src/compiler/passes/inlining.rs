@@ -587,7 +587,6 @@ fn copy_inline_blocks(
                             is_exception,
                             ref args,
                             ref resume
-
                         } => {
                             let swapstack = Instruction {
                                 hdr: hdr,

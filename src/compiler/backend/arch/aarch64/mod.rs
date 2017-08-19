@@ -267,7 +267,9 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
 }
 
 pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
-    return id1 == id2 || (id1 < MACHINE_ID_END && id2 < MACHINE_ID_END && get_color_for_precolored(id1) == get_color_for_precolored(id2));
+    return id1 == id2 ||
+        (id1 < MACHINE_ID_END && id2 < MACHINE_ID_END &&
+             get_color_for_precolored(id1) == get_color_for_precolored(id2));
 }
 
 pub fn get_color_for_precolored(id: MuID) -> MuID {
@@ -958,7 +960,9 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         // runtime
         New(_) | NewHybrid(_, _) => 10,
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
-        ThreadExit => 10, CurrentStack => 10, KillStack(_) => 10,
+        ThreadExit => 10,
+        CurrentStack => 10,
+        KillStack(_) => 10,
         Throw(_) => 10,
         SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,

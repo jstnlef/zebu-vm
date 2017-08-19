@@ -1201,13 +1201,7 @@ impl<'a> VM {
         let func_addr = resolve_symbol(self.name_of(func_id));
         let stack_arg_size = backend::call_stack_size(func.sig.clone(), self);
 
-        let b = Box::into_raw(Box::new(MuStack::new(
-            self.next_id(),
-            func_addr,
-            stack_arg_size
-        )));
-        trace!("<- MuStack @{}", Address::from_ptr(b));
-        unsafe { Box::from_raw(b) }
+        Box::new(MuStack::new(self.next_id(), func_addr, stack_arg_size))
     }
 
     /// creates a handle that we can return to the client

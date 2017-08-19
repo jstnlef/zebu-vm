@@ -133,9 +133,9 @@ pub trait CodeGenerator {
         func: Reg,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
-        ret: Vec<P<Value>>,
+        ret: Vec<P<Value>>
     ) -> Option<ValueLocation>;
-        // Branches
+    // Branches
     fn emit_b(&mut self, dest_name: MuName);
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName);
     fn emit_br(&mut self, dest_address: Reg);

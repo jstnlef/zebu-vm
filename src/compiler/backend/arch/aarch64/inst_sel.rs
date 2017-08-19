@@ -1447,7 +1447,8 @@ impl<'a> InstructionSelection {
                             _ => panic!("expected funcref")
                         };
 
-                        let (_, _, stack_arg_size) = compute_argument_locations(&sig.arg_tys, &SP, 0, &vm);
+                        let (_, _, stack_arg_size) =
+                            compute_argument_locations(&sig.arg_tys, &SP, 0, &vm);
 
                         self.emit_runtime_entry(
                             &entrypoints::NEW_STACK,
@@ -1792,16 +1793,29 @@ impl<'a> InstructionSelection {
                     Instruction_::Throw(op_index) => {
                         trace!("instsel on THROW");
                         let ref ops = inst.ops;
-                        let ref exception_obj = ops[op_index];
 
-                        self.emit_runtime_entry(
-                            &entrypoints::THROW_EXCEPTION,
-                            vec![exception_obj.clone_value()],
+                        // Note: we are manually implementing the call here as opposed to calling
+                        // emit_runtime entry, because unlike other calls to non mu-functions this
+                        // needs a callsite record for exception handling to work
+
+                        let exc = self.emit_ireg(&*ops[op_index], f_content, f_context, vm);
+
+                        // Move the exception object to the first argument register
+                        self.backend.emit_mov(&X0, &exc);
+
+                        let callsite_label = self.new_callsite_label(Some(node));
+                        // Call muentry_throw_exception
+                        let callsite = self.backend.emit_bl(
+                            Some(callsite_label),
+                            "muentry_throw_exception".to_string(),
                             None,
-                            Some(node),
-                            f_context,
-                            vm
+                            vec![X0.clone()],
+                            CALLER_SAVED_REGS.to_vec(),
+                            true
                         );
+                        // Record the callsitte
+                        self.current_callsites
+                            .push_back((callsite.unwrap().to_relocatable(), 0, 0));
                     }
 
                     // Runtime Entry
@@ -3791,6 +3805,9 @@ impl<'a> InstructionSelection {
         args: &Vec<P<Value>>,
         arg_tys: &Vec<P<MuType>>,
         return_size: usize,
+        modify_arg_base: bool,
+        reg_args: bool,   // Whether to pass register arguments
+        stack_args: bool, // Whether to pass stack arguments
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> (usize, Vec<P<Value>>) {
@@ -3820,7 +3837,7 @@ impl<'a> InstructionSelection {
                 arg_regs.push(XR.clone());
             }
         }
-        if stack_size > 0 && is_aliased(arg_base.id(), SP.id()) {
+        if stack_size > 0 && modify_arg_base {
             // Reserve space on the stack for all stack arguments
             emit_sub_u64(self.backend.as_mut(), &SP, &SP, stack_size as u64);
         }
@@ -3848,7 +3865,7 @@ impl<'a> InstructionSelection {
                     }
 
                     // Need to pass in two registers
-                    if is_int_ex_reg(&arg_val) && arg_loc.is_reg() {
+                    if is_int_ex_reg(&arg_val) && arg_loc.is_reg() && reg_args {
                         let arg_val =
                             emit_reg_value(self.backend.as_mut(), &arg_val, f_context, vm);
                         let (val_l, val_h) = split_int128(&arg_val, f_context, vm);
@@ -3870,13 +3887,15 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     } else {
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &arg_loc,
-                            &arg_val,
-                            f_context,
-                            vm
-                        )
+                        if (reg_args && arg_loc.is_reg()) || (stack_args && !arg_loc.is_reg()) {
+                            emit_move_value_to_value(
+                                self.backend.as_mut(),
+                                &arg_loc,
+                                &arg_val,
+                                f_context,
+                                vm
+                            )
+                        }
                     }
                 }
             }
@@ -4208,6 +4227,9 @@ impl<'a> InstructionSelection {
             &args,
             &sig.arg_tys,
             return_size,
+            true,
+            true,
+            true,
             f_context,
             vm
         );
@@ -4217,7 +4239,14 @@ impl<'a> InstructionSelection {
             unimplemented!()
         } else {
             // assume ccall wont throw exception
-            self.backend.emit_bl(None, func_name, None, arg_regs, CALLER_SAVED_REGS.to_vec(), true);
+            self.backend.emit_bl(
+                None,
+                func_name,
+                None,
+                arg_regs,
+                CALLER_SAVED_REGS.to_vec(),
+                true
+            );
 
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -4384,8 +4413,12 @@ impl<'a> InstructionSelection {
 
         if !is_kill {
             // Load the callsite's address into LR
-            let callsite_value = make_value_symbolic(callsite_label.as_ref().unwrap().clone(),
-                false, &VOID_TYPE, vm);
+            let callsite_value = make_value_symbolic(
+                callsite_label.as_ref().unwrap().clone(),
+                false,
+                &VOID_TYPE,
+                vm
+            );
             self.backend.emit_adr(&LR, &callsite_value);
 
             // Reserve space on the stack for the return values of the swap stack
@@ -4419,7 +4452,29 @@ impl<'a> InstructionSelection {
         );
         // Swap to the new stack
         self.backend.emit_mov(&SP, &new_sp);
-        // TODO: MAKE SURE THE REGISTER ALLOCATOR DOSN'T DO SPILLING AFTER THIS POINT
+
+        if is_exception {
+            // Pass the stack pointer as an extra argument
+            arg_values.push(SP.clone());
+        }
+        // Emit precall convention
+        let arg_tys = arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>();
+
+        // Pass stack arguments before the old stack is killed
+        let (stack_arg_size, _) = self.emit_precall_convention(
+            &SP,
+            // The frame contains space for the FP and LR
+            (2 * POINTER_SIZE) as isize,
+            false,
+            &arg_values,
+            &arg_tys,
+            0,
+            false,
+            false, // don't pass reg args
+            true,  // pass stack args
+            f_context,
+            vm
+        );
 
         if is_kill {
             // Kill the old stack
@@ -4433,28 +4488,35 @@ impl<'a> InstructionSelection {
             );
         }
 
-        if is_exception {
-            assert!(arg_values.len() == 1);
-            emit_sub_u64(self.backend.as_mut(), &SP, &SP, (WORD_SIZE*CALLEE_SAVED_COUNT) as u64);
-            // Pass the base of this area as an extra argument
-            arg_values.push(new_sp.clone());
-        } else {
-            self.backend.emit_pop_pair(&FP, &LR, &SP);
-        }
-
-        // Emit precall convention
-        let arg_tys = arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>();
-        let (stack_arg_size, arg_regs) = self.emit_precall_convention(
-            &new_sp,
+        // Pass the rest of the arguments
+        let (_, arg_regs) = self.emit_precall_convention(
+            &SP,
             // The frame contains space for the FP and LR
             (2 * POINTER_SIZE) as isize,
             false,
             &arg_values,
             &arg_tys,
             0,
+            false,
+            true,  // don't pass stack args
+            false, // pass reg args
             f_context,
             vm
         );
+
+        if is_exception {
+            // Reserve space on the new stack for the exception handling routine to store
+            // callee saved registers
+            emit_sub_u64(
+                self.backend.as_mut(),
+                &SP,
+                &SP,
+                (WORD_SIZE * CALLEE_SAVED_COUNT) as u64
+            );
+        } else {
+            // Restore the FP and LR from the old stack
+            self.backend.emit_pop_pair(&FP, &LR, &SP);
+        }
 
         let potentially_excepting = {
             if resumption.is_some() {
@@ -4472,9 +4534,24 @@ impl<'a> InstructionSelection {
             } else {
                 if is_exception {
                     // Throw an exception, don't call the swapee's resumption point
-                    self.backend.emit_b_call(callsite_label, "throw_exception_internal".to_string(), potentially_excepting, arg_regs, ALL_USABLE_MACHINE_REGS.to_vec(), true, false)
+                    self.backend.emit_b_call(
+                        callsite_label,
+                        "throw_exception_internal".to_string(),
+                        potentially_excepting,
+                        arg_regs,
+                        ALL_USABLE_MACHINE_REGS.to_vec(),
+                        true,
+                        false
+                    )
                 } else {
-                    self.backend.emit_br_call(callsite_label, &LR, potentially_excepting, arg_regs, ALL_USABLE_MACHINE_REGS.to_vec(), false)
+                    self.backend.emit_br_call(
+                        callsite_label,
+                        &LR,
+                        potentially_excepting,
+                        arg_regs,
+                        ALL_USABLE_MACHINE_REGS.to_vec(),
+                        false
+                    )
                 }
             }
         };
@@ -4483,15 +4560,22 @@ impl<'a> InstructionSelection {
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
             let target_block = exn_dest.target;
 
-            self.current_callsites.push_back((callsite.unwrap().to_relocatable(), target_block, stack_arg_size));
+            self.current_callsites.push_back((
+                callsite.unwrap().to_relocatable(),
+                target_block,
+                stack_arg_size
+            ));
         } else if !is_kill {
-            self.current_callsites.push_back((callsite.unwrap().to_relocatable(), 0, stack_arg_size));
+            self.current_callsites
+                .push_back((callsite.unwrap().to_relocatable(), 0, stack_arg_size));
         }
 
         if !is_kill {
-            self.finish_block();
-            let block_name = make_block_name(&node.name(), "stack_resumption");
-            self.start_block(block_name);
+            if resumption.is_some() {
+                self.finish_block();
+                let block_name = make_block_name(&node.name(), "stack_resumption");
+                self.start_block(block_name);
+            }
 
             self.emit_unload_arguments(inst.value.as_ref().unwrap(), res_locs, f_context, vm);
             emit_add_u64(self.backend.as_mut(), &SP, &SP, res_stack_size as u64);
@@ -4564,6 +4648,9 @@ impl<'a> InstructionSelection {
             &arg_values,
             &func_sig.arg_tys,
             return_size,
+            !is_tail,
+            true,
+            true,
             f_context,
             vm
         );
@@ -4591,10 +4678,12 @@ impl<'a> InstructionSelection {
                 let target_id = self.node_funcref_const_to_id(func);
                 let funcs = vm.funcs().read().unwrap();
                 let target = funcs.get(&target_id).unwrap().read().unwrap();
-                self.backend.emit_b_call(None, target.name(), None, arg_regs, vec![], false, false);
+                self.backend
+                    .emit_b_call(None, target.name(), None, arg_regs, vec![], false, false);
             } else {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
-                self.backend.emit_br_call(None, &target, None, arg_regs, vec![], false);
+                self.backend
+                    .emit_br_call(None, &target, None, arg_regs, vec![], false);
             }
         } else {
             // Emit a branch with link (i.e. a call)
@@ -4608,19 +4697,29 @@ impl<'a> InstructionSelection {
                         unimplemented!()
                     } else {
                         let callsite = self.new_callsite_label(Some(cur_node));
-                        self.backend.emit_bl(
-                            Some(callsite),
-                            target.name(),
-                            potentially_excepting,
-                            arg_regs,
-                            CALLER_SAVED_REGS.to_vec(),
-                            false
-                        ).unwrap()
+                        self.backend
+                            .emit_bl(
+                                Some(callsite),
+                                target.name(),
+                                potentially_excepting,
+                                arg_regs,
+                                CALLER_SAVED_REGS.to_vec(),
+                                false
+                            )
+                            .unwrap()
                     }
                 } else {
                     let target = self.emit_ireg(func, f_content, f_context, vm);
                     let callsite = self.new_callsite_label(Some(cur_node));
-                    self.backend.emit_blr(Some(callsite), &target, potentially_excepting, arg_regs, CALLER_SAVED_REGS.to_vec()).unwrap()
+                    self.backend
+                        .emit_blr(
+                            Some(callsite),
+                            &target,
+                            potentially_excepting,
+                            arg_regs,
+                            CALLER_SAVED_REGS.to_vec()
+                        )
+                        .unwrap()
                 }
             };
 
@@ -4700,6 +4799,8 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
+        trace!("ISAAC: sig[{}] args ({:?})", sig, args);
+
         let prologue_block = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
         self.start_block(prologue_block);
 
@@ -4765,8 +4866,7 @@ impl<'a> InstructionSelection {
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
 
-        let (_, locations, stack_arg_size) =
-            compute_argument_locations(&sig.arg_tys, &FP, 16, &vm);
+        let (_, locations, stack_arg_size) = compute_argument_locations(&sig.arg_tys, &FP, 16, &vm);
         self.current_stack_arg_size = stack_arg_size;
         self.emit_unload_arguments(args, locations, f_context, vm);
         self.finish_block();
@@ -4779,6 +4879,8 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
+        trace!("ISAAC: unload_arguments args ({:?})", args);
+        trace!("ISAAC:             locations ({:?})", locations);
 
         // unload arguments
         // Read arguments starting from FP+16 (FP points to the frame record
@@ -4802,6 +4904,7 @@ impl<'a> InstructionSelection {
                     } else {
                         debug_assert!(arg_loc.is_mem());
                         // Argument is on the stack
+                        emit_load(self.backend.as_mut(), &arg_val, &arg_loc, f_context, vm);
                         self.current_frame
                             .as_mut()
                             .unwrap()
