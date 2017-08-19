@@ -53,6 +53,7 @@ use std::collections::HashMap;
 
 // Number of nromal callee saved registers (excluding FP and LR, and SP)
 pub const CALLEE_SAVED_COUNT: usize = 18;
+pub const ARGUMENT_REG_COUNT: usize = 16;
 
 macro_rules! REGISTER {
     ($id:expr, $name: expr, $ty: ident) => {
@@ -885,18 +886,18 @@ pub fn get_callee_saved_offset(reg: MuID) -> isize {
     (id as isize + 1) * (-8)
 }
 
-// Returns the callee saved register with the id...
-/*pub fn get_callee_saved_register(offset: isize) -> P<Value> {
-    debug_assert!(offset <= -8 && (-offset) % 8 == 0);
-    let id = ((offset/-8) - 1) as usize;
-    if id < CALLEE_SAVED_GPRs.len() {
-        CALLEE_SAVED_GPRs[id].clone()
-    } else if id - CALLEE_SAVED_GPRs.len() < CALLEE_SAVED_FPRs.len() {
-        CALLEE_SAVED_FPRs[id - CALLEE_SAVED_GPRs.len()].clone()
+// Gets the offset of the argument register when passed on the stack
+pub fn get_argument_reg_offset(reg: MuID) -> isize {
+    let reg = get_color_for_precolored(reg);
+
+    let id = if reg >= FPR_ID_START {
+        (reg - ARGUMENT_FPRS[0].id()) / 2
     } else {
-        panic!("There is no callee saved register with id {}", offset)
-    }
-}*/
+        (reg - ARGUMENT_GPRS[0].id()) / 2 + ARGUMENT_FPRS.len()
+    };
+
+    (id as isize + 1) * (-8)
+}
 
 pub fn is_callee_saved(reg_id: MuID) -> bool {
     for reg in CALLEE_SAVED_GPRS.iter() {
@@ -959,7 +960,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
         // runtime
         New(_) | NewHybrid(_, _) => 10,
-        NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
+        NewStack(_) | NewThread { .. } | NewFrameCursor(_) => 10,
         ThreadExit => 10,
         CurrentStack => 10,
         KillStack(_) => 10,
@@ -1523,6 +1524,14 @@ pub fn make_value_int_const(val: u64, vm: &VM) -> P<Value> {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         ty: UINT64_TYPE.clone(),
         v: Value_::Constant(Constant::Int(val))
+    })
+}
+
+pub fn make_value_nullref(vm: &VM) -> P<Value> {
+    P(Value {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        ty: REF_VOID_TYPE.clone(),
+        v: Value_::Constant(Constant::NullRef)
     })
 }
 

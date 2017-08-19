@@ -299,14 +299,22 @@ pub extern "C" fn mu_main(
         };
 
         // FIXME: currently assumes no user defined thread local - See Issue #48
-        let thread = thread::MuThread::new_thread_normal(
+        thread::MuThread::new_thread_normal(
             stack,
             unsafe { Address::zero() },
             args,
             vm.clone()
         );
 
-        thread.join().unwrap();
+        loop {
+            let thread = vm.pop_join_handle();
+            if thread.is_none() {
+                break;
+            }
+            thread.unwrap().join().unwrap();
+        }
+
+        trace!("All threads have exited, quiting...");
     }
 }
 

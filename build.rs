@@ -23,7 +23,7 @@ extern crate gcc;
 fn main() {
     gcc::compile_library("libruntime_c.a", &["src/runtime/runtime_c_x64_sysv.c"]);
 
-    gcc::Config::new()
+    gcc::Build::new()
         .flag("-O3")
         .flag("-c")
         .file("src/runtime/runtime_asm_x64_sysv.S")
@@ -38,7 +38,7 @@ fn main() {
 fn main() {
     gcc::compile_library("libruntime_c.a", &["src/runtime/runtime_c_aarch64_sysv.c"]);
 
-    gcc::Config::new()
+    gcc::Build::new()
         .flag("-O3")
         .flag("-c")
         .file("src/runtime/runtime_asm_aarch64_sysv.S")
@@ -59,19 +59,19 @@ fn main() {
     use std::path::Path;
     let mut compiler_name = String::new();
     compiler_name.push_str("x86_64-rumprun-netbsd-gcc");
-    gcc::Config::new()
+    gcc::Build::new()
         .flag("-O3")
         .flag("-c")
         .compiler(Path::new(compiler_name.as_str()))
         .file("src/runtime/runtime_x64_sel4_rumprun_sysv.c")
         .compile("libruntime_c.a");
-    gcc::Config::new()
+    gcc::Build::new()
         .flag("-O3")
         .flag("-c")
         .compiler(Path::new(compiler_name.as_str()))
         .file("src/runtime/runtime_asm_x64_sel4_rumprun_sysv.S")
         .compile("libruntime_asm.a");
-    gcc::Config::new()
+    gcc::Build::new()
         .flag("-O3")
         .flag("-c")
         .compiler(Path::new(compiler_name.as_str()))

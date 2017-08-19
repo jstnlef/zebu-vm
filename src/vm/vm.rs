@@ -38,9 +38,11 @@ use vm::vm_options::MuLogLevel;
 use log::LogLevel;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::Mutex;
 use std::sync::RwLockWriteGuard;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
-
+use std::thread::JoinHandle;
+use std::collections::LinkedList;
 use std;
 use utils::bit_utils::{bits_ones, u64_asr};
 
@@ -75,18 +77,20 @@ pub struct VM {
     name_id_map: RwLock<HashMap<MuName, MuID>>, // +64
     /// types declared to the VM
     types: RwLock<HashMap<MuID, P<MuType>>>, // +120
+    /// Ref types declared by 'make_strong_type', the key is the ID of the Referant
+    ref_types: RwLock<HashMap<MuID, P<MuType>>>,
     /// types that are resolved as BackendType
-    backend_type_info: RwLock<HashMap<MuID, Box<BackendType>>>, // +176
+    backend_type_info: RwLock<HashMap<MuID, Box<BackendType>>>,
     /// constants declared to the VM
-    constants: RwLock<HashMap<MuID, P<Value>>>, // +232
+    constants: RwLock<HashMap<MuID, P<Value>>>,
     /// globals declared to the VM
-    globals: RwLock<HashMap<MuID, P<Value>>>, // +288
+    globals: RwLock<HashMap<MuID, P<Value>>>,
     /// function signatures declared
-    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>, // +400
+    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
     /// functions declared to the VM
-    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>, // +456
+    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,
     /// primordial function that is set to make boot image
-    primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
+    primordial: RwLock<Option<PrimordialThreadInfo>>,
 
     /// current options for this VM
     pub vm_options: VMOptions, // +624
@@ -118,7 +122,8 @@ pub struct VM {
     compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
 
     /// Nnmber of callsites in the callsite tables
-    callsite_count: AtomicUsize
+    callsite_count: AtomicUsize,
+    pub pending_joins: Mutex<LinkedList<JoinHandle<()>>> // A list of all threads currently waiting to be joined
 }
 
 unsafe impl rodal::Dump for VM {
@@ -129,6 +134,7 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object(&self.id_name_map);
         dumper.dump_object(&self.name_id_map);
         dumper.dump_object(&self.types);
+        dumper.dump_object(&self.ref_types);
         dumper.dump_object(&self.backend_type_info);
         dumper.dump_object(&self.constants);
         dumper.dump_object(&self.globals);
@@ -161,6 +167,11 @@ unsafe impl rodal::Dump for VM {
             rodal::EmptyHashMap::<Address, CompiledCallsite>::new()
         ));
         dumper.dump_object(&self.callsite_count);
+
+        dumper.dump_padding(&self.pending_joins);
+        dumper.dump_object_here(&Mutex::new(
+            rodal::EmptyLinkedList::<JoinHandle<()>>::new()
+        ));
     }
 }
 
@@ -213,6 +224,7 @@ impl<'a> VM {
             name_id_map: RwLock::new(HashMap::new()),
             constants: RwLock::new(HashMap::new()),
             types: RwLock::new(HashMap::new()),
+            ref_types: RwLock::new(HashMap::new()),
             backend_type_info: RwLock::new(HashMap::new()),
             globals: RwLock::new(HashMap::new()),
             global_locations: RwLock::new(hashmap!{}),
@@ -224,7 +236,8 @@ impl<'a> VM {
             primordial: RwLock::new(None),
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_callsite_table: RwLock::new(HashMap::new()),
-            callsite_count: ATOMIC_USIZE_INIT
+            callsite_count: ATOMIC_USIZE_INIT,
+            pending_joins: Mutex::new(LinkedList::new()),
         };
 
         // insert all internal types
@@ -786,6 +799,27 @@ impl<'a> VM {
         if self.is_doing_jit() {
             // redefinition may happen, we need to check
             unimplemented!()
+        }
+    }
+
+    pub fn make_strong_type(&self, ty: P<MuType>) -> P<MuType> {
+        match &ty.v {
+            &MuType_::WeakRef(ref t) => {
+                let res = self.ref_types
+                    .read()
+                    .unwrap()
+                    .get(&t.id())
+                    .map(|x| x.clone());
+                match res {
+                    Some(ty) => ty,
+                    None => {
+                        let ty = P(MuType::new(self.next_id(), MuType_::muref(t.clone())));
+                        self.ref_types.write().unwrap().insert(t.id(), ty.clone());
+                        ty
+                    }
+                }
+            }
+            _ => ty.clone()
         }
     }
 
@@ -1679,6 +1713,12 @@ impl<'a> VM {
         })
     }
 
+    pub fn push_join_handle(&self, join_handle: JoinHandle<()>) {
+        self.pending_joins.lock().unwrap().push_front(join_handle);
+    }
+    pub fn pop_join_handle(&self) -> Option<JoinHandle<()>> {
+        self.pending_joins.lock().unwrap().pop_front()
+    }
     /// unwraps a handle to float
     pub fn handle_to_float(&self, handle: APIHandleArg) -> f32 {
         handle.v.as_float()

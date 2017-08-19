@@ -92,8 +92,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread(_, _) |
-            NewThreadExn(_, _) |
+            NewThread{ .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -150,8 +149,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread(_, _) |
-            NewThreadExn(_, _) |
+            NewThread{ .. } |
             NewFrameCursor(_) |
             Fence(_) |
             Return(_) |
@@ -228,8 +226,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread(_, _) |
-            NewThreadExn(_, _) |
+            NewThread{ .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -301,8 +298,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread(_, _) |
-            NewThreadExn(_, _) |
+            NewThread{ .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -459,11 +455,12 @@ pub enum Instruction_ {
 
     /// create a new Mu thread, yields thread reference
     /// args: stackref of a Mu stack, a list of arguments
-    NewThread(OpIndex, Vec<OpIndex>), // stack, args
-
-    /// create a new Mu thread, yields thread reference (thread resumes with exceptional value)
-    /// args: stackref of a Mu stack, an exceptional value
-    NewThreadExn(OpIndex, OpIndex), // stack, exception
+    NewThread {
+        stack: OpIndex,
+        thread_local: Option<OpIndex>,
+        is_exception: bool,
+        args: Vec<OpIndex>
+    },
 
     /// create a frame cursor reference
     /// args: stackref of a Mu stack
@@ -724,15 +721,15 @@ impl Instruction_ {
             &Instruction_::NewHybrid(ref ty, len) => format!("NEWHYBRID {} {}", ty, ops[len]),
             &Instruction_::AllocAHybrid(ref ty, len) => format!("ALLOCAHYBRID {} {}", ty, ops[len]),
             &Instruction_::NewStack(func) => format!("NEW_STACK {}", ops[func]),
-            &Instruction_::NewThread(stack, ref args) => {
+            &Instruction_::NewThread{stack, thread_local, is_exception, ref args} => {
+                let thread_local = thread_local.map(|t| format!("{}", ops[t])).unwrap_or("NULL".to_string());
                 format!(
-                    "NEWTHREAD {} PASS_VALUES {}",
+                    "SWAPSTACK {} THREADLOCAL({}) {} {}",
                     ops[stack],
-                    op_vector_str(args, ops)
+                    thread_local,
+                    is_exception,
+                    op_vector_str(args, ops),
                 )
-            }
-            &Instruction_::NewThreadExn(stack, exn) => {
-                format!("NEWTHREAD {} THROW_EXC {}", ops[stack], ops[exn])
             }
             &Instruction_::NewFrameCursor(stack) => format!("NEWFRAMECURSOR {}", ops[stack]),
             &Instruction_::GetIRef(reference) => format!("GETIREF {}", ops[reference]),

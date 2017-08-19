@@ -316,6 +316,8 @@ pub struct MuThread {
     /// a pointer to the virtual machine
     pub vm: Arc<VM>
 }
+unsafe impl Sync for MuThread {}
+unsafe impl Send for MuThread {}
 
 // a few field offsets the compiler uses
 lazy_static! {
@@ -383,6 +385,7 @@ extern "C" {
     /// new_sp: stack pointer for the mu stack
     /// old_sp_loc: the location to store native stack pointer so we can later swap back
     fn muthread_start_normal(new_sp: Address, old_sp_loc: Address);
+    fn muthread_start_exceptional(exception: Address, new_sp: Address, old_sp_loc: Address);
 
     /// gets base poniter for current frame
     pub fn get_current_frame_bp() -> Address;
@@ -451,30 +454,34 @@ impl MuThread {
         threadlocal: Address,
         vals: Vec<ValueLocation>,
         vm: Arc<VM>
-    ) -> JoinHandle<()> {
+    ) {
         // set up arguments on stack
         stack.setup_args(vals);
-
-        MuThread::mu_thread_launch(vm.next_id(), stack, threadlocal, vm)
+        let (join_handle, _) = MuThread::mu_thread_launch(vm.next_id(), stack, threadlocal, None, vm.clone());
+        vm.push_join_handle(join_handle);
     }
 
-    /// creates and launches a mu thread, returns a JoinHandle
-    #[no_mangle]
-    pub extern "C" fn mu_thread_launch(
+    /// creates and launches a mu thread, returns a JoinHandle and address to its MuThread structure
+    fn mu_thread_launch(
         id: MuID,
         stack: Box<MuStack>,
         user_tls: Address,
+        exception: Option<Address>,
         vm: Arc<VM>
-    ) -> JoinHandle<()> {
+    ) -> (JoinHandle<()>, *mut MuThread) {
         let new_sp = stack.sp;
 
-        match thread::Builder::new()
+        // The conversions between boxes and ptrs are needed here as a '*mut MuThread* can't be sent between threads
+        // but a Box can be. Also converting a Box to a ptr consumes it.
+        let muthread_ptr = Box::into_raw(Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls, vm)));
+        let muthread = unsafe {Box::from_raw(muthread_ptr)};
+
+        (match thread::Builder::new()
             .name(format!("Mu Thread #{}", id))
             .spawn(move || {
-                let mut muthread = MuThread::new(id, mm::new_mutator(), stack, user_tls, vm);
-
+                let muthread = Box::into_raw(muthread);
                 // set thread local
-                unsafe { set_thread_local(&mut muthread) };
+                unsafe { set_thread_local(muthread) };
 
                 let addr = unsafe { muentry_get_thread_local() };
                 let sp_threadlocal_loc = addr + *NATIVE_SP_LOC_OFFSET;
@@ -482,14 +489,18 @@ impl MuThread {
                 debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
 
                 unsafe {
-                    muthread_start_normal(new_sp, sp_threadlocal_loc);
-                }
+                    match exception {
+                        Some(e) => muthread_start_exceptional(e, new_sp, sp_threadlocal_loc),
+                        None => muthread_start_normal(new_sp, sp_threadlocal_loc)
+                    }
 
-                debug!("returned to Rust stack. Going to quit");
+                    // Thread finished, delete it's data
+                    Box::from_raw(muthread);
+                }
             }) {
             Ok(handle) => handle,
             Err(_) => panic!("failed to create a thread")
-        }
+        }, muthread_ptr)
     }
 
     /// creates metadata for a Mu thread
@@ -643,4 +654,22 @@ pub unsafe extern "C" fn muentry_new_stack(entry: Address, stack_size: usize) ->
 pub unsafe extern "C" fn muentry_kill_stack(stack: *mut MuStack) {
     // This new box will be destroyed upon returning
     Box::from_raw(stack);
+}
+
+// Creates a new thread
+#[no_mangle]
+pub unsafe extern "C" fn muentry_new_thread_exceptional(stack: *mut MuStack, thread_local: Address, exception: Address) -> *mut MuThread {
+    let vm = MuThread::current_mut().vm.clone();
+    let (join_handle, muthread) = MuThread::mu_thread_launch(vm.next_id(), Box::from_raw(stack), thread_local, Some(exception), vm.clone());
+    vm.push_join_handle(join_handle);
+    muthread
+}
+
+// Creates a new thread
+#[no_mangle]
+pub unsafe extern "C" fn muentry_new_thread_normal(stack: *mut MuStack, thread_local: Address) -> *mut MuThread {
+    let vm = MuThread::current_mut().vm.clone();
+    let (join_handle, muthread) = MuThread::mu_thread_launch(vm.next_id(), Box::from_raw(stack), thread_local, None, vm.clone());
+    vm.push_join_handle(join_handle);
+    muthread
 }

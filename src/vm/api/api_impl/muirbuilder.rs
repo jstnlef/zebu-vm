@@ -1269,6 +1269,7 @@ struct BundleLoader<'lb, 'lvm> {
     built_ref_void: Option<P<MuType>>,
     built_tagref64: Option<P<MuType>>,
     built_stackref: Option<P<MuType>>,
+    built_threadref: Option<P<MuType>>,
 
     built_funcref_of: IdPMap<MuType>,
     built_ref_of: IdPMap<MuType>,
@@ -1307,6 +1308,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_ref_void: Default::default(),
         built_tagref64: Default::default(),
         built_stackref: Default::default(),
+        built_threadref: Default::default(),
         built_funcref_of: Default::default(),
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
@@ -1444,6 +1446,25 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         impl_ty
     }
 
+    fn ensure_threadref(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_threadref {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::ThreadRef
+        });
+
+        trace!("Ensure threadref is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_threadref = Some(impl_ty.clone());
+
+        impl_ty
+    }
 
     fn ensure_i6(&mut self) -> P<MuType> {
         if let Some(ref impl_ty) = self.built_i6 {
@@ -2368,13 +2389,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             .iter()
             .map(|iid| self.build_inst(fcb, *iid, blocks))
             .collect::<Vec<_>>();
-        assert_ir!(
-            res.last()
-                .as_ref()
-                .unwrap()
-                .as_inst_ref()
-                .is_terminal_inst()
-        );
+
+        let n = res.len();
+        for i in 0..(n - 1) {
+            // None of the internal instruction should be a terminator
+            assert_ir!(!res[i].as_inst_ref().is_terminal_inst());
+        }
+        // The last instruction should be a terminator
+        assert_ir!(res[n - 1].as_inst_ref().is_terminal_inst());
         res
     }
 
@@ -3261,7 +3283,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_rvtype = self.get_built_type(refty);
-                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, self.vm.make_strong_type(impl_rvtype)).clone_value();
                 let impl_refty = self.get_built_type(refty);
 
                 assert_ir!(impl_ord != MemoryOrder::Release && impl_ord != MemoryOrder::AcqRel);
@@ -3382,10 +3404,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 exc_clause,       //Option<MuExcClause>,
                 keepalive_clause  // Option<MuKeepaliveClause>,
             } => {
-                // TODO: Validate IR
-                /*
-                    validate cur_stack_clause and new_stack_clause
-                */
                 let mut ops: Vec<P<TreeNode>> = vec![self.get_treenode(fcb, swappee)];
                 assert_ir!(ops[0].ty().is_stackref());
 
@@ -3407,30 +3425,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     })
                     .collect::<Vec<_>>();
 
-                let (is_exception, args) = match **new_stack_clause {
-                    NodeNewStackClause::PassValues {
-                        ref tys, ref vars, ..
-                    } => {
-                        let args_begin_index = ops.len();
-                        let args = self.add_opnds(fcb, &mut ops, vars);
-                        assert_ir!(
-                            args.len() == tys.len() &&
-                                args.iter()
-                                    .zip(tys)
-                                    .all(|(arg, tid)| arg.ty() == self.get_built_type(*tid))
-                        );
-                        (
-                            false,
-                            (args_begin_index..(vars.len() + 1)).collect::<Vec<_>>()
-                        )
-                    }
-                    NodeNewStackClause::ThrowExc { ref exc, .. } => {
-                        let exc_arg = ops.len();
-                        self.add_opnd(fcb, &mut ops, *exc);
-                        (true, vec![exc_arg])
-                    }
-                };
-
+                let (is_exception, args) = self.build_new_stack_clause(new_stack_clause, fcb, &mut ops);
 
                 match exc_clause {
                     Some(ecid) => {
@@ -3442,9 +3437,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                             self.build_destination(fcb, ecnode.exc, &mut ops, &[], blocks);
 
                         assert_ir!(match **cur_stack_clause {
-                            // Can't have an exception
+                            // Can't have an exception clause
                             NodeCurrentStackClause::KillOld { .. } => false,
-                            // clause
                             _ => true
                         });
 
@@ -3489,6 +3483,52 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     }
                 }
             }
+
+            NodeInst::NodeNewThread {
+                id: _,
+                result_id,
+                stack,
+                threadlocal,
+                new_stack_clause,
+                exc_clause
+            } => {
+                if exc_clause.is_some() {
+                    unimplemented!();
+                }
+
+                let mut ops: Vec<P<TreeNode>> = vec![self.get_treenode(fcb, stack)];
+                assert_ir!(ops[0].ty().is_stackref());
+                let new_stack_clause = self.b.bundle.ns_clauses.get(&new_stack_clause).unwrap();
+
+                let impl_threadref = self.ensure_threadref();
+                let impl_rv = self.new_ssa(fcb, result_id, impl_threadref).clone_value();
+
+                let threadlocal = match threadlocal {
+                    Some(tl) => {
+                        let index = ops.len();
+                        let tl = self.add_opnd(fcb, &mut ops, tl);
+                        assert_ir!(tl.ty().is_ref() && tl.ty().get_referent_ty().unwrap().is_void());
+                        Some(index)
+                    }
+                    None => None,
+                };
+
+                let (is_exception, args) = self.build_new_stack_clause(new_stack_clause, fcb, &mut ops);
+
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: ops,
+                    v: Instruction_::NewThread {
+                        stack: 0,
+                        thread_local: threadlocal,
+                        is_exception: is_exception,
+                        args: args
+                    }
+                }
+            }
+
             NodeInst::NodeCommInst {
                 id,
                 ref result_ids,
@@ -3583,6 +3623,37 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             res.push(self.add_opnd(fcb, ops, *opnd))
         }
         res
+    }
+
+    // Returns true indicating an exception clause
+    // and returns a list of ops
+    fn build_new_stack_clause(
+        &mut self,
+        nsc: &NodeNewStackClause,
+        fcb: &mut FuncCtxBuilder,
+        ops: &mut Vec<P<TreeNode>>
+    ) -> (bool, Vec<OpIndex>) {
+        match nsc {
+            &NodeNewStackClause::PassValues {
+                ref tys, ref vars, ..
+            } => {
+                let args_begin_index = ops.len();
+                let args = self.add_opnds(fcb, ops, vars);
+                assert_ir!(
+                    args.len() == tys.len() &&
+                        args.iter()
+                            .zip(tys)
+                            .all(|(arg, tid)| arg.ty() == self.get_built_type(*tid))
+                );
+                let arg_indices = (args_begin_index..(vars.len() + 1)).collect::<Vec<_>>();
+                (false, arg_indices)
+            }
+            &NodeNewStackClause::ThrowExc { ref exc, .. } => {
+                let exc_arg = ops.len();
+                self.add_opnd(fcb, ops, *exc);
+                (true, vec![exc_arg])
+            }
+        }
     }
 
     fn build_call_data(

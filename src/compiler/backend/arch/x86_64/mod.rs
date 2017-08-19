@@ -657,7 +657,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
         // runtime call
         New(_) | NewHybrid(_, _) => 10,
-        NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
+        NewStack(_) | NewThread { .. } | NewFrameCursor(_) => 10,
         ThreadExit => 10,
         CurrentStack => 10,
         KillStack(_) => 10,

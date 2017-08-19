@@ -56,7 +56,7 @@ fn main() {
         use std::path::Path;
         let mut compiler_name = String::new();
         compiler_name.push_str("x86_64-rumprun-netbsd-gcc");
-        gcc::Config::new().flag("-O3").flag("-c")
+        gcc::Build::new().flag("-O3").flag("-c")
             .compiler(Path::new(compiler_name.as_str()))
             .file("src/heap/gc/clib_x64_sel4_rumprun.c")
             .compile("libgc_clib_x64.a");

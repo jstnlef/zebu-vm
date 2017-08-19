@@ -90,6 +90,30 @@ lazy_static! {
         jit: RwLock::new(None),
     };
 
+    // impl/decl: thread.rs
+    pub static ref NEW_THREAD_NORMAL: RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig{
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            arg_tys: vec![STACKREF_TYPE.clone(), REF_VOID_TYPE.clone()],
+            ret_tys: vec![THREADREF_TYPE.clone()],
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_new_thread_normal")),
+        jit: RwLock::new(None),
+    };
+
+
+    // impl/decl: thread.rs
+    pub static ref NEW_THREAD_EXCEPTIONAL: RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig{
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            arg_tys: vec![STACKREF_TYPE.clone(), REF_VOID_TYPE.clone(), REF_VOID_TYPE.clone()],
+            ret_tys: vec![THREADREF_TYPE.clone()],
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_new_thread_exceptional")),
+        jit: RwLock::new(None),
+    };
+
+
     // impl/decl: gc/lib.rs
     pub static ref ALLOC_FAST : RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig {

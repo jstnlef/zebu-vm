@@ -466,13 +466,6 @@ fn copy_inline_blocks(
                     let ref ops = inst.ops;
                     let ref v = inst.v;
 
-                    trace!(
-                        "ISAAC: Inlining [{} -> {}] : {} -> {}",
-                        old_block.name(),
-                        block_name,
-                        inst_name,
-                        hdr.name()
-                    );
                     match v {
                         &Instruction_::Return(ref vec) => {
                             // change RET to a branch

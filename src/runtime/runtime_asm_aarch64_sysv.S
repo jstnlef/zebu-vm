@@ -60,10 +60,10 @@ begin_func muthread_start_normal
     MOV SP, X0
 
     // Pop the argument registers from the new stack
-    LDP D1, D0  , [SP, #14*8]
-    LDP D3, D2, [SP, #12*8]
-    LDP D5, D4, [SP, #10*8]
-    LDP D7, D6, [SP, #8*8]
+    LDP D1, D0, [SP, #14*8 ]
+    LDP D3, D2, [SP, #12*8 ]
+    LDP D5, D4, [SP, #10*8 ]
+    LDP D7, D6, [SP, #8*8 ]
     LDP X1, X0, [SP, #6*8]
     LDP X3, X2, [SP, #4*8]
     LDP X5, X4, [SP, #2*8]
