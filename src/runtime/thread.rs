@@ -185,9 +185,9 @@ impl MuStack {
     /// sets up arguments for the stack's entry function, so it is ready to be executed.
     /// We use a special calling convention for the entry function: we push all the argument
     /// registers for the platform to the stack. If the argument register is used, we get
-    /// its value and push the value. Otherwise we push an empty value (0). swap_to_mu_stack
+    /// its value and push the value. Otherwise we push an empty value (0). muthread_start_normal
     /// will consume those values on the stack by popping them one by one.
-    /// NOTE: any changes to here need to be reflected in swap_to_mu_stack, which consumes
+    /// NOTE: any changes to here need to be reflected in muthread_start_normal, which consumes
     /// those values pushed to the stack
     pub fn setup_args(&mut self, vals: Vec<ValueLocation>) {
         use utils::Word;

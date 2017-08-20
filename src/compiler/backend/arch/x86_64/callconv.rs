@@ -25,12 +25,16 @@ pub mod c {
     /// computes arguments for the function signature,
     /// returns a vector of CallConvResult for each argument type
     pub fn compute_arguments(sig: &MuFuncSig) -> Vec<CallConvResult> {
+        compute_arguments_by_type(&sig.arg_tys)
+    }
+
+    pub fn compute_arguments_by_type(tys: &Vec<P<MuType>>) -> Vec<CallConvResult> {
         let mut ret = vec![];
 
         let mut gpr_arg_count = 0;
         let mut fpr_arg_count = 0;
 
-        for ty in sig.arg_tys.iter() {
+        for ty in tys.iter() {
             let arg_reg_group = RegGroup::get_from_ty(ty);
 
             if arg_reg_group == RegGroup::GPR {
@@ -127,9 +131,24 @@ pub mod c {
         ret
     }
 
+    pub fn compute_stack_args(sig: &MuFuncSig, vm: &VM) -> (ByteSize, Vec<ByteSize>) {
+        let callconv = compute_arguments(sig);
+
+        let mut stack_arg_tys = vec![];
+        for i in 0..callconv.len() {
+            let ref cc = callconv[i];
+            match cc {
+                &CallConvResult::STACK => stack_arg_tys.push(sig.arg_tys[i].clone()),
+                _ => {}
+            }
+        }
+
+        compute_stack_args_by_type(&stack_arg_tys, vm)
+    }
+
     /// computes the return area on the stack for the function signature,
     /// returns a tuple of (size, callcand offset for each stack arguments)
-    pub fn compute_stack_args(
+    pub fn compute_stack_args_by_type(
         stack_arg_tys: &Vec<P<MuType>>,
         vm: &VM
     ) -> (ByteSize, Vec<ByteSize>) {

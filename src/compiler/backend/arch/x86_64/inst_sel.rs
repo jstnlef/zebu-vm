@@ -38,7 +38,7 @@ use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
 use utils::math;
-use utils::POINTER_SIZE;
+use utils::{POINTER_SIZE, WORD_SIZE};
 use utils::BitSize;
 
 use std::collections::HashMap;
@@ -1880,6 +1880,181 @@ impl<'a> InstructionSelection {
                         );
                     }
 
+                    Instruction_::NewStack(func) => {
+                        trace!("instsel on NEWSTACK");
+
+                        let ref ops = inst.ops;
+                        let ref func = ops[func];
+
+                        let tmp_res = self.get_result_value(node);
+                        let tmp_func = self.emit_ireg(func, f_content, f_context, vm);
+
+                        let sig = match tmp_func.ty.v {
+                            MuType_::FuncRef(ref sig) => sig.clone(),
+                            _ => panic!("expected funcref")
+                        };
+
+                        let tmp_stack_arg_size = {
+                            use compiler::backend::x86_64::callconv;
+                            let (size, _) = callconv::mu::compute_stack_args(&sig, vm);
+                            self.make_int_const(size as u64, vm)
+                        };
+
+                        self.emit_runtime_entry(
+                            &entrypoints::NEW_STACK,
+                            vec![tmp_func, tmp_stack_arg_size],
+                            Some(vec![tmp_res]),
+                            Some(node),
+                            f_content,
+                            f_context,
+                            vm
+                        );
+                    }
+
+                    Instruction_::NewThread {
+                        stack,
+                        thread_local,
+                        is_exception,
+                        ref args
+                    } => {
+                        trace!("instsel on NEWTHREAD");
+
+                        let ref ops = inst.ops;
+                        let res = self.get_result_value(node);
+                        let stack = self.emit_ireg(&ops[stack], f_content, f_context, vm);
+                        let tl = match thread_local {
+                            Some(tl) => self.emit_ireg(&ops[tl], f_content, f_context, vm),
+                            None => self.make_nullref(vm)
+                        };
+
+                        if is_exception {
+                            let exc = self.emit_ireg(&ops[args[0]], f_content, f_context, vm);
+                            self.emit_runtime_entry(
+                                &entrypoints::NEW_THREAD_EXCEPTIONAL,
+                                vec![stack, tl, exc],
+                                Some(vec![res]),
+                                Some(node),
+                                f_content,
+                                f_context,
+                                vm
+                            );
+                        } else {
+                            let new_sp = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+                            self.emit_load_base_offset(
+                                &new_sp,
+                                &stack,
+                                *thread::MUSTACK_SP_OFFSET as i32,
+                                vm
+                            );
+
+                            // prepare arguments on the new stack in the generated code
+                            // check thread::MuStack::setup_args() for how we do it in the runtime
+                            //
+                            // 1. the stack arguments will be put to a reserved location during
+                            //    MuStack::new(), it is from (new_sp - 2*POINTER_SIZE) to
+                            //    (new_sp - 2*POINTER_SIZE - stack_arg_size)
+                            // 2. the register arguments will be pushed to current SP, the start
+                            //    function will consume them.
+                            {
+                                use compiler::backend::x86_64::callconv;
+                                use compiler::backend::x86_64::callconv::CallConvResult;
+                                use compiler::backend::x86_64::{ARGUMENT_GPRS, ARGUMENT_FPRS};
+
+                                let arg_values =
+                                    self.process_arguments(&args, ops, f_content, f_context, vm);
+
+                                // compute call convention
+                                let arg_tys = arg_values.iter().map(|x| x.ty.clone()).collect();
+                                let callconv = callconv::mu::compute_arguments_by_type(&arg_tys);
+
+                                let mut gpr_args = vec![];
+                                let mut fpr_args = vec![];
+                                let mut stack_args = vec![];
+
+                                for i in 0..callconv.len() {
+                                    let ref arg = arg_values[i];
+                                    let ref cc = callconv[i];
+
+                                    match cc {
+                                        &CallConvResult::GPR(_) => gpr_args.push(arg.clone()),
+                                        &CallConvResult::GPREX(_, _) => {
+                                            let (arg_l, arg_h) =
+                                                self.split_int128(arg, f_context, vm);
+                                            gpr_args.push(arg_l);
+                                            gpr_args.push(arg_h);
+                                        }
+                                        &CallConvResult::FPR(_) => fpr_args.push(arg.clone()),
+                                        &CallConvResult::STACK => stack_args.push(arg.clone())
+                                    }
+                                }
+
+                                // for arguments that are not used, we push a 0
+                                let zero = self.make_int_const(0, vm);
+                                let mut word_pushed = 0;
+                                for i in 0..ARGUMENT_FPRS.len() {
+                                    let val = {
+                                        if i < fpr_args.len() {
+                                            &fpr_args[i]
+                                        } else {
+                                            &zero
+                                        }
+                                    };
+                                    word_pushed += 1;
+                                    self.emit_store_base_offset(
+                                        &new_sp,
+                                        -(word_pushed * WORD_SIZE as i32),
+                                        val,
+                                        vm
+                                    );
+                                }
+                                for i in 0..ARGUMENT_GPRS.len() {
+                                    let val = {
+                                        if i < gpr_args.len() {
+                                            &gpr_args[i]
+                                        } else {
+                                            &zero
+                                        }
+                                    };
+                                    word_pushed += 1;
+                                    self.emit_store_base_offset(
+                                        &new_sp,
+                                        -(word_pushed * WORD_SIZE as i32),
+                                        val,
+                                        vm
+                                    );
+                                }
+
+                                if !stack_args.is_empty() {
+                                    // need to put stack arguments to the preserved space
+                                    unimplemented!()
+                                }
+
+                                // adjust sp - we have pushed all argument registers
+                                // (some could be 0 though)
+                                self.backend
+                                    .emit_sub_r_imm(&new_sp, word_pushed * WORD_SIZE as i32);
+                                // store the sp back to MuStack
+                                self.emit_store_base_offset(
+                                    &stack,
+                                    *thread::MUSTACK_SP_OFFSET as i32,
+                                    &new_sp,
+                                    vm
+                                );
+
+                                // call runtime entry
+                                self.emit_runtime_entry(
+                                    &entrypoints::NEW_THREAD_NORMAL,
+                                    vec![stack, tl],
+                                    Some(vec![res.clone()]),
+                                    Some(node),
+                                    f_content,
+                                    f_context,
+                                    vm
+                                );
+                            }
+                        }
+                    }
+
                     Instruction_::PrintHex(index) => {
                         trace!("instsel on PRINTHEX");
 
@@ -1995,6 +2170,15 @@ impl<'a> InstructionSelection {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: UINT64_TYPE.clone(),
             v: Value_::Constant(Constant::Int(val))
+        })
+    }
+
+    /// makes a refvoid-typed null ref
+    fn make_nullref(&mut self, vm: &VM) -> P<Value> {
+        P(Value {
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty: REF_VOID_TYPE.clone(),
+            v: Value_::Constant(Constant::NullRef)
         })
     }
 
@@ -3641,9 +3825,9 @@ impl<'a> InstructionSelection {
 
             let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
             let (stack_arg_size_with_padding, stack_arg_offsets) = match conv {
-                CallConvention::Mu => callconv::mu::compute_stack_args(&stack_arg_tys, vm),
+                CallConvention::Mu => callconv::mu::compute_stack_args_by_type(&stack_arg_tys, vm),
                 CallConvention::Foreign(ForeignFFI::C) => {
-                    callconv::c::compute_stack_args(&stack_arg_tys, vm)
+                    callconv::c::compute_stack_args_by_type(&stack_arg_tys, vm)
                 }
             };
 
@@ -4015,9 +4199,21 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> Vec<P<Value>> {
+        self.process_arguments(&calldata.args, ops, f_content, f_context, vm)
+    }
+
+    /// process arguments - gets P<Value> from P<TreeNode>, emits code if necessary
+    fn process_arguments(
+        &mut self,
+        args: &Vec<OpIndex>,
+        ops: &Vec<P<TreeNode>>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> Vec<P<Value>> {
         let mut ret = vec![];
 
-        for arg_index in calldata.args.iter() {
+        for arg_index in args {
             let ref arg = ops[*arg_index];
 
             if self.match_iimm(arg) {
@@ -4192,7 +4388,7 @@ impl<'a> InstructionSelection {
                 use compiler::backend::x86_64::callconv::mu;
                 let stack_arg_base_offset: i32 = 16;
                 let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
-                let (_, stack_arg_offsets) = mu::compute_stack_args(&arg_by_stack_tys, vm);
+                let (_, stack_arg_offsets) = mu::compute_stack_args_by_type(&arg_by_stack_tys, vm);
 
                 // unload the args
                 let mut i = 0;
@@ -5645,8 +5841,21 @@ impl<'a> InstructionSelection {
                 self.backend.emit_mov_mem_r(dest, src);
             } else if dest.is_mem() && src.is_const() {
                 // imm -> mem
-                let (imm, len) = self.value_iimm_to_i32_with_len(src);
-                self.backend.emit_mov_mem_imm(dest, imm, len);
+                if x86_64::is_valid_x86_imm(src) {
+                    let (imm, len) = self.value_iimm_to_i32_with_len(src);
+                    self.backend.emit_mov_mem_imm(dest, imm, len);
+                } else {
+                    if src.is_const_zero() {
+                        self.backend.emit_mov_mem_imm(dest, 0, WORD_SIZE * 8);
+                    } else {
+                        unimplemented!()
+                        // TODO: we need f_context to create temporaries
+                        // let imm64 = src.extract_int_const().unwrap();
+                        // let tmp = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                        // self.backend.emit_mov_r64_imm64(&tmp, imm64);
+                        // self.backend.emit_mov_mem_r(&dest, &tmp);
+                    }
+                }
             } else if dest.is_mem() && src.is_mem() {
                 // mem -> mem (need a temporary)
                 unimplemented!();

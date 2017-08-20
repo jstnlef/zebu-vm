@@ -17,36 +17,50 @@
 
 #if defined (__linux__)
 
-#define CNAME(n) n
+    #define CNAME(n) n
 
-  .macro begin_func n
-  .text
-  .globl CNAME(\n)
-  .type CNAME(\n),@function
-  .balign 16
+    .macro begin_func n
+        .text
+        .globl CNAME(\n)
+        .type CNAME(\n),@function
+        .balign 16
 CNAME(\n):
-  .endm
+    .endm
 
-  .macro end_func n
-  .size CNAME(\n), .-CNAME(\n)
-  .endm
+    .macro end_func n
+        .size CNAME(\n), .-CNAME(\n)
+    .endm
+
+    .macro jmp_to target
+        jmp CNAME(\target@PLT)
+    .endm
+
+    .macro call_to target
+        call CNAME(\target@PLT)
+    .endm
 
 #elif defined (__APPLE__)
 
-#define CNAME(n) _##n
+    #define CNAME(n) _##n
 
-  .macro begin_func n
-  .text
-  .globl CNAME(\n)
-  .balign 4
+    .macro begin_func n
+        .text
+        .globl CNAME(\n)
+        .balign 4
 CNAME(\n):
-  .endm
+    .endm
 
-  .macro end_func n
-  .endm
+    .macro end_func n
+    .endm
+
+    .macro jmp_to target
+        jmp CNAME(\target)
+    .endm
+
+    .macro call_to target
+        call CNAME(\target)
+    .endm
 
 #else
-  #error "Only Linux and OSX are supported."
+    #error "Only Linux and OSX are supported."
 #endif
-
-; vim: ft=asm

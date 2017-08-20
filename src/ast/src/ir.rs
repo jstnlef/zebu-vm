@@ -1012,6 +1012,23 @@ impl Value {
         }
     }
 
+    pub fn is_const_zero(&self) -> bool {
+        match self.v {
+            Value_::Constant(Constant::Int(val)) if val == 0 => true,
+            Value_::Constant(Constant::Double(val)) if val == 0f64 => true,
+            Value_::Constant(Constant::Float(val)) if val == 0f32 => true,
+            Value_::Constant(Constant::IntEx(ref vec)) => {
+                if vec.iter().all(|x| *x == 0) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Value_::Constant(Constant::NullRef) => true,
+            _ => false
+        }
+    }
+
     /// disguises a value as another type.
     /// This is usually used for treat an integer type as an integer of a different length
     /// This method is unsafe

@@ -75,10 +75,9 @@ begin_func muthread_start_normal
     BR LR
 end_func muthread_start_normal
 
-
-# starts a muthread that passes values to the target
-# muthread_start_throw(exception: Address, new_sp: Address, old_sp_loc: &mut Adress)
-#                          X0                  X1               X2
+# starts a muthread with an exception thrown
+# muthread_start_exceptional(exception: Address, new_sp: Address, old_sp_loc: &mut Adress)
+#                            X0                  X1               X2
 begin_func muthread_start_exceptional
     enter_frame
     push_callee_saved
