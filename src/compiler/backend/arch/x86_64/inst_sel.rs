@@ -2055,6 +2055,31 @@ impl<'a> InstructionSelection {
                         }
                     }
 
+                    Instruction_::CurrentStack => {
+                        trace!("instsel on CURRENT_STACK");
+
+                        // get thread local
+                        let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+                        let tmp_res = self.get_result_value(node);
+
+                        self.emit_load_base_offset(&tmp_res, &tl, *thread::STACK_OFFSET as i32, vm);
+                    }
+
+                    Instruction_::KillStack(op) => {
+                        trace!("instsel on KILL_STACK");
+
+                        let op = self.emit_ireg(&inst.ops[op], f_content, f_context, vm);
+                        self.emit_runtime_entry(
+                            &entrypoints::KILL_STACK,
+                            vec![op],
+                            None,
+                            Some(node),
+                            f_content,
+                            f_context,
+                            vm
+                        );
+                    }
+
                     Instruction_::PrintHex(index) => {
                         trace!("instsel on PRINTHEX");
 
