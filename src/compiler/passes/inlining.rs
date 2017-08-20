@@ -432,7 +432,6 @@ fn copy_inline_blocks(
         // Create the new blocks contents
         {
             let old_block_content = old_block.content.as_ref().unwrap();
-            let block_name = block.name().clone();
             let block_content = block.content.as_mut().unwrap();
 
             // Copy the old_block contents (minus the last one)
@@ -461,7 +460,6 @@ fn copy_inline_blocks(
                     trace!("last instruction: {}", inst);
 
                     let hdr = inst.hdr.clone_with_id(inst_new_id);
-                    let inst_name = inst.name().clone();
                     let ref value = inst.value;
                     let ref ops = inst.ops;
                     let ref v = inst.v;
