@@ -57,8 +57,6 @@ pub struct TransientBundle {
     insts: IdBMap<NodeInst>,
     dest_clauses: IdBMap<NodeDestClause>,
     exc_clauses: IdBMap<NodeExcClause>,
-    cs_clauses: IdBMap<NodeCurrentStackClause>,
-    ns_clauses: IdBMap<NodeNewStackClause>,
     ka_clauses: IdBMap<NodeKeepaliveClause>
 }
 
@@ -2378,7 +2376,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 ty,
                 opnd1,
                 opnd2,
-                exc_clause
+                exc_clause: _
             } => {
                 let impl_optr = match optr {
                     CMU_BINOP_ADD => BinOp::Add,
@@ -2425,10 +2423,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
 
                 let impl_rv = self.new_ssa(fcb, result_id, impl_ty).clone_value();
-
-                if exc_clause.is_some() {
-                    unimplemented!()
-                }
 
                 if flags == 0 {
                     // binop
@@ -2567,7 +2561,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_i1 = self.ensure_i1();
                 let impl_opnd1 = self.get_treenode(fcb, opnd1);
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
-                let impl_ty = self.get_built_type(ty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_i1).clone_value();
 
                 assert_ir!(
@@ -2716,9 +2709,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_rv = self.new_ssa(fcb, result_id, impl_opnd_ty.clone())
                     .clone_value();
 
-                assert_ir!(impl_cond_ty.is_int() && impl_cond_ty.get_int_length().unwrap() == 1);
-                assert_ir!(impl_if_true.ty() == impl_opnd_ty && impl_if_false.ty() == impl_opnd_ty);
-
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -2781,10 +2771,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-                let impl_opnd = self.add_opnd(fcb, &mut ops, opnd);
-                let impl_opnd_ty = self.get_built_type(opnd_ty);
-                assert_ir!(impl_opnd_ty.is_eq_comparable());
-                assert_ir!(impl_opnd.ty() == impl_opnd_ty);
+                self.add_opnd(fcb, &mut ops, opnd);
 
                 let impl_dest_def =
                     self.build_destination(fcb, default_dest, &mut ops, &[], blocks);
@@ -2826,13 +2813,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 exc_clause,
                 keepalive_clause
             } => {
-                let impl_sig = self.ensure_sig_rec(sig);
-
                 self.build_call_or_ccall(
                     fcb,
                     hdr,
                     result_ids,
-                    &impl_sig,
+                    sig,
                     callee,
                     args,
                     exc_clause,
@@ -2891,7 +2876,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             NodeInst::NodeThrow { id: _, exc } => {
                 let impl_exc = self.get_treenode(fcb, exc);
-                assert_ir!(impl_exc.ty().is_ref());
+
                 Instruction {
                     hdr: hdr,
                     value: None,
@@ -2910,7 +2895,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     "exc_clause is not implemented for NEW"
                 );
                 let impl_allocty = self.get_built_type(allocty);
-                assert_ir!(!impl_allocty.is_hybrid());
                 let impl_rvtype = self.ensure_ref(allocty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
                 Instruction {
@@ -2933,14 +2917,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     "exc_clause is not implemented for NEWHYBRID"
                 );
                 let impl_allocty = self.get_built_type(allocty);
-                let impl_lenty = self.get_built_type(lenty);
                 let impl_length = self.get_treenode(fcb, length);
                 let impl_rvtype = self.ensure_ref(allocty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
-
-                assert_ir!(impl_allocty.is_hybrid() && impl_lenty.is_int());
-                assert_ir!(impl_lenty == impl_length.ty());
-
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -2961,8 +2940,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_allocty = self.get_built_type(allocty);
                 let impl_rvtype = self.ensure_iref(allocty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
-                assert_ir!(!impl_allocty.is_hybrid());
-
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -2983,14 +2960,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     "exc_clause is not implemented for ALLOCAHYBRID"
                 );
                 let impl_allocty = self.get_built_type(allocty);
-                let impl_lenty = self.get_built_type(lenty);
                 let impl_length = self.get_treenode(fcb, length);
                 let impl_rvtype = self.ensure_iref(allocty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
-
-                assert_ir!(impl_allocty.is_hybrid() && impl_lenty.is_int());
-                assert_ir!(impl_lenty == impl_length.ty());
-
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -3004,16 +2976,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 refty,
                 opnd
             } => {
-                let impl_refty = self.get_built_type(refty);
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_rvtype = self.ensure_iref(refty);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
-
-                assert_ir!(match impl_opnd.ty().v {
-                    MuType_::Ref(ref r) => *r == impl_refty,
-                    _ => false
-                });
-
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -3031,7 +2996,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let index = index as usize;
-                let impl_refty = self.get_built_type(refty);
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
 
                 assert_ir!(
@@ -3083,14 +3047,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 result_id,
                 is_ptr,
                 refty,
-                indty,
+                indty: _,
                 opnd,
                 index
             } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_index = self.get_treenode(fcb, index);
-                let impl_refty = self.get_built_type(refty);
-                let impl_indty = self.get_built_type(indty);
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
 
                 assert_ir!(impl_indty.is_int() && impl_index.ty() == impl_indty);
@@ -3143,7 +3105,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 result_id,
                 is_ptr,
                 refty,
-                offty,
+                offty: _,
                 opnd,
                 offset
             } => {
@@ -3320,8 +3282,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeInst::NodeCCall {
                 id: _,
                 ref result_ids,
-                callconv,
-                callee_ty,
+                callconv: _,
+                callee_ty: _,
                 sig,
                 callee,
                 ref args,
@@ -3341,7 +3303,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     fcb,
                     hdr,
                     result_ids,
-                    &impl_sig,
+                    sig,
                     callee,
                     args,
                     exc_clause,
@@ -3431,8 +3393,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         opnd: MuID
     ) -> P<TreeNode> {
         let impl_opnd = self.get_treenode(fcb, opnd);
-        ops.push(impl_opnd.clone());
-        impl_opnd
+        ops.push(impl_opnd);
     }
 
     fn add_opnds(
@@ -3443,9 +3404,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     ) -> Vec<P<TreeNode>> {
         let mut res = Vec::<P<TreeNode>>::new();
         for opnd in opnds {
-            res.push(self.add_opnd(fcb, ops, *opnd))
+            self.add_opnd(fcb, ops, *opnd)
         }
-        res
     }
 
     fn build_call_data(
@@ -3454,12 +3414,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         ops: &mut Vec<P<TreeNode>>,
         callee: MuID,
         args: &[MuID],
-        sig: &P<MuFuncSig>,
-        is_ccall: bool,
         call_conv: CallConvention
     ) -> CallData {
         let func_index = ops.len();
-        let callee = self.add_opnd(fcb, ops, callee);
+        self.add_opnd(fcb, ops, callee);
 
         let args_begin_index = ops.len();
         let impl_args = self.add_opnds(fcb, ops, args);
@@ -3492,7 +3450,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb: &mut FuncCtxBuilder,
         hdr: MuEntityHeader,
         result_ids: &[MuID],
-        sig: &P<MuFuncSig>,
+        sig: MuID,
         callee: MuID,
         args: &[MuID],
         exc_clause: Option<MuID>,
@@ -3513,13 +3471,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             CallConvention::Mu
         );
 
-        let rettys = &sig.ret_tys;
-        assert_ir!(result_ids.len() == rettys.len());
         let rvs = result_ids
             .iter()
-            .zip(rettys)
-            .map(|(rvid, rty)| {
-                self.new_ssa(fcb, *rvid, rty.clone()).clone_value()
+            .zip(rettys_ids)
+            .map(|(rvid, rvty)| {
+                let impl_rvty = self.get_built_type(*rvty);
+                self.new_ssa(fcb, *rvid, impl_rvty).clone_value()
             })
             .collect::<Vec<_>>();
 
@@ -3643,8 +3600,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
                 let op_ty = self.ensure_type_rec(tys[0]);
                 let op = self.get_treenode(fcb, args[0]);
-                assert_ir!(op_ty.is_iref() || op_ty.is_ref());
-                assert_ir!(op.ty() == op_ty);
 
                 let referent_ty = match op_ty.get_referent_ty() {
                     Some(ty) => ty,
@@ -3671,8 +3626,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
                 let op_ty = self.ensure_type_rec(tys[0]);
                 let op = self.get_treenode(fcb, args[0]);
-                assert_ir!(op_ty.is_iref() || op_ty.is_ref());
-                assert_ir!(op.ty() == op_ty);
 
                 Instruction {
                     hdr: hdr,
@@ -3701,12 +3654,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // int<1>
                 let impl_i1 = self.ensure_i1();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
-                assert_ir!(impl_opnd.ty().is_tagref64());
 
                 Instruction {
                     hdr: hdr,
@@ -3722,12 +3675,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // int<1>
                 let impl_i1 = self.ensure_i1();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
-                assert_ir!(impl_opnd.ty().is_tagref64());
 
                 Instruction {
                     hdr: hdr,
@@ -3743,12 +3696,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // int<1>
                 let impl_i1 = self.ensure_i1();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_i1).clone_value();
-                assert_ir!(impl_opnd.ty().is_tagref64());
 
                 Instruction {
                     hdr: hdr,
@@ -3764,13 +3717,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_tagref64();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
                     .clone_value();
-                assert_ir!(impl_opnd.ty().is_double());
 
                 Instruction {
                     hdr: hdr,
@@ -3786,6 +3739,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_tagref64();
@@ -3810,6 +3764,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 2);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_tagref64();
@@ -3839,13 +3794,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_double();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
                     .clone_value();
-                assert_ir!(impl_opnd.ty().is_tagref64());
 
                 Instruction {
                     hdr: hdr,
@@ -3861,13 +3816,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_i52();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
                     .clone_value();
-                assert_ir!(impl_opnd.ty().is_tagref64());
 
                 Instruction {
                     hdr: hdr,
@@ -3883,13 +3838,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_ref_void();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
                     .clone_value();
-                assert_ir!(impl_opnd.ty().is_tagref64());
 
                 Instruction {
                     hdr: hdr,
@@ -3905,13 +3860,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
+                assert!(tys.len() == 0);
 
                 // tagref64
                 let impl_tagref64 = self.ensure_i6();
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
                     .clone_value();
-                assert_ir!(impl_opnd.ty().is_tagref64());
 
                 Instruction {
                     hdr: hdr,

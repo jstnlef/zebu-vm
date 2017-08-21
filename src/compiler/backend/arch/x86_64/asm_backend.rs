@@ -15,7 +15,6 @@
 #![allow(unused_variables)]
 
 use compiler::backend::AOT_EMIT_CONTEXT_FILE;
-use compiler::backend::AOT_EMIT_SYM_TABLE_FILE;
 use compiler::backend::RegGroup;
 use utils::ByteSize;
 use utils::Address;

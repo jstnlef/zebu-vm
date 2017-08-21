@@ -22,8 +22,6 @@ use compiler::backend;
 
 use std::path::PathBuf;
 use std::process::Command;
-use std::process::Stdio;
-use std::process::Output;
 
 /// links generated code for the given functions, static library of Zebu,
 /// and a main function to produce an executable of the given name
@@ -657,8 +655,8 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
     let output_name = test_name.to_string() + "_" + tester_name;
     let executable = link_test_primordial(
         vec![
-            test_name.to_string(),
             dep_name.to_string(),
+            test_name.to_string(),
             tester_name.to_string(),
         ],
         output_name.as_str(),

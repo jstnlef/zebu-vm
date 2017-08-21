@@ -273,6 +273,16 @@ impl MuFunctionVersion {
         })
     }
 
+    pub fn new_machine_reg(&mut self, v: P<Value>) -> P<TreeNode> {
+        self.context
+            .values
+            .insert(v.id(), SSAVarEntry::new(v.clone()));
+
+        P(TreeNode {
+            v: TreeNode_::Value(v)
+        })
+    }
+
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
             v: TreeNode_::Value(v)
@@ -785,7 +795,7 @@ impl BlockContent {
                     }
                     Instruction_::Call { ref resume, .. } |
                     Instruction_::CCall { ref resume, .. } |
-                    Instruction_::SwapStackExc { ref resume, .. } |
+                    Instruction_::SwapStack { ref resume, .. } |
                     Instruction_::ExnInstruction { ref resume, .. } => {
                         let mut live_outs = vec![];
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
@@ -1067,8 +1077,8 @@ impl Value {
     }
 }
 
-const DISPLAY_ID: bool = true;
-const DISPLAY_TYPE: bool = false;
+const DISPLAY_ID: bool = false;
+const DISPLAY_TYPE: bool = true;
 const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {

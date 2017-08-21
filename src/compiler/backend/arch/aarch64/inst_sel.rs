@@ -1766,10 +1766,11 @@ impl<'a> InstructionSelection {
 
                         let ref ops = inst.ops;
                         let ref op = ops[index];
+                        let op_val = self.emit_ireg(op, f_content, f_context, vm);
 
                         self.emit_runtime_entry(
                             &entrypoints::SET_RETVAL,
-                            vec![op.clone_value()],
+                            vec![op_val],
                             None,
                             Some(node),
                             f_context,
@@ -4637,6 +4638,7 @@ impl<'a> InstructionSelection {
         // (the previous FP and LR)
         let (_, locations, stack_arg_size) =
             self.compute_argument_locations(&sig.arg_tys, &FP, 16, &vm);
+        trace!("ISAAC: [{:?}] {:?} -> {:?}", args, sig, locations);
         self.current_stack_arg_size = stack_arg_size;
         for i in 0..args.len() {
             let i = i as usize;
