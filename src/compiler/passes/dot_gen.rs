@@ -216,7 +216,6 @@ fn emit_muir_dot_inner(file: &mut File, f_name: String, f_content: &FunctionCont
                     }
                     Call { ref resume, .. } |
                     CCall { ref resume, .. } |
-                    SwapStackExc { ref resume, .. } |
                     ExnInstruction { ref resume, .. } => {
                         let ref normal = resume.normal_dest;
                         let ref exn = resume.exn_dest;
@@ -295,7 +294,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: String, f_content: &FunctionCont
                             vec_utils::as_str(&enable_dest.get_arguments(&ops))
                         ).unwrap();
                     }
-                    Return(_) | Throw(_) | ThreadExit | TailCall(_) | SwapStackKill { .. } => {}
+                    Return(_) | Throw(_) | TailCall(_) => {}
 
                     _ => {
                         panic!("unexpected terminating instruction: {}", inst);

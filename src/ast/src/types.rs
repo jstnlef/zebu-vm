@@ -75,6 +75,14 @@ lazy_static! {
         MuType::new(new_internal_id(), MuType_::iref(VOID_TYPE.clone()))
     );
 
+    pub static ref STACKREF_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::StackRef)
+    );
+
+    pub static ref THREADREF_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::ThreadRef)
+    );
+
     pub static ref INTERNAL_TYPES : Vec<P<MuType>> = vec![
         ADDRESS_TYPE.clone(),
         UINT1_TYPE.clone(),
@@ -89,6 +97,8 @@ lazy_static! {
         VOID_TYPE.clone(),
         REF_VOID_TYPE.clone(),
         IREF_VOID_TYPE.clone(),
+        STACKREF_TYPE.clone(),
+        THREADREF_TYPE.clone(),
     ];
 }
 
@@ -106,7 +116,7 @@ pub fn init_types() {
 }
 
 /// MuType represents a Mu type
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub struct MuType {
     pub hdr: MuEntityHeader,
     pub v: MuType_
@@ -138,9 +148,17 @@ impl MuType {
             _ => false
         }
     }
+
+    pub fn is_stackref(&self) -> bool {
+        match self.v {
+            MuType_::StackRef => true,
+            _ => false
+        }
+    }
+
     pub fn is_funcref(&self) -> bool {
         match self.v {
-            MuType_::FuncRef(_) => true,
+            MuType_::Struct(_) => true,
             _ => false
         }
     }
@@ -149,6 +167,13 @@ impl MuType {
     pub fn is_struct(&self) -> bool {
         match self.v {
             MuType_::Struct(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_void(&self) -> bool {
+        match self.v {
+            MuType_::Void => true,
             _ => false
         }
     }
@@ -432,7 +457,7 @@ pub type StructTag = MuName;
 pub type HybridTag = MuName;
 
 /// MuType_ is used for pattern matching for MuType
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum MuType_ {
     /// int <length>
     Int(usize),
@@ -480,7 +505,14 @@ pub enum MuType_ {
     /// ufuncptr<@sig>
     UFuncPtr(P<MuFuncSig>)
 }
-
+impl MuType_ {
+    pub fn strong_variant(&self) -> MuType_ {
+        match self {
+            &MuType_::WeakRef(ref t) => MuType_::Ref(t.clone()),
+            _ => self.clone()
+        }
+    }
+}
 rodal_enum!(MuType_{(Int: size), Float, Double, (Ref: ty), (IRef: ty), (WeakRef: ty), (UPtr: ty),
     (Struct: tag), (Array: ty, size), (Hybrid: tag), Void, ThreadRef, StackRef, Tagref64,
     (Vector: ty, size), (FuncRef: ty), (UFuncPtr: ty)});

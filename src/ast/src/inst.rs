@@ -948,7 +948,7 @@ impl fmt::Debug for BinOpStatus {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MemoryOrder {
     NotAtomic,
     Relaxed,

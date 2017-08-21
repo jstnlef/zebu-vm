@@ -234,8 +234,6 @@ impl CompilerPass for GenMovPhi {
                                 }
                                 Instruction_::Watchpoint { .. } => unimplemented!(),
                                 Instruction_::WPBranch { .. } => unimplemented!(),
-                                Instruction_::SwapStackExc { .. } |
-                                Instruction_::SwapStackKill { .. } => unimplemented!(),
                                 Instruction_::ExnInstruction { .. } => unimplemented!(),
                                 _ => {
                                     trace!("no rewrite");
