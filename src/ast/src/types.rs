@@ -125,8 +125,12 @@ pub struct MuType {
 rodal_struct!(MuType { hdr, v });
 
 impl PartialEq for MuType {
-    fn eq(&self, other: &MuType) -> bool { self.v == other.v }
-    fn ne(&self, other: &MuType) -> bool { self.v != other.v }
+    fn eq(&self, other: &MuType) -> bool {
+        self.v == other.v
+    }
+    fn ne(&self, other: &MuType) -> bool {
+        self.v != other.v
+    }
 }
 
 impl MuType {
@@ -198,7 +202,8 @@ impl MuType {
     }
 
     pub fn is_eq_comparable(&self) -> bool {
-        self.is_int() || self.is_ptr() || self.is_iref() || self.is_ref() || self.is_opaque_reference()
+        self.is_int() || self.is_ptr() || self.is_iref() || self.is_ref() ||
+            self.is_opaque_reference()
     }
 
     pub fn is_ult_comparable(&self) -> bool {

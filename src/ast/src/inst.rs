@@ -77,7 +77,7 @@ impl Instruction {
             SwapStackKill { .. } |
             Switch { .. } |
             ExnInstruction { .. } => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -94,13 +94,43 @@ impl Instruction {
         use inst::Instruction_::*;
 
         match self.v {
-            ExprCall { .. } | ExprCCall { .. } | Load { .. } | Store { .. } | CmpXchg { .. } | AtomicRMW { .. } |
-            New(_) | AllocA(_) | NewHybrid(_, _) | AllocAHybrid(_, _) | NewStack(_) | NewThread(_, _) |
-            NewThreadExn(_, _) | NewFrameCursor(_) | Fence(_) | Return(_) | ThreadExit | Throw(_) |
-            TailCall(_) | Branch1(_) | Branch2 { .. } | Watchpoint { .. } | WPBranch { .. } |
-            Call { .. } | CCall { .. }| SwapStackExpr{..}| SwapStackExc { .. } | SwapStackKill { .. } | Switch { .. } | ExnInstruction { .. } |
-            CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) | CommonInst_Pin(_) | CommonInst_Unpin(_) |
-            CommonInst_GetAddr(_) | PrintHex(_) | SetRetval(_) => true,
+            ExprCall { .. } |
+            ExprCCall { .. } |
+            Load { .. } |
+            Store { .. } |
+            CmpXchg { .. } |
+            AtomicRMW { .. } |
+            New(_) |
+            AllocA(_) |
+            NewHybrid(_, _) |
+            AllocAHybrid(_, _) |
+            NewStack(_) |
+            NewThread(_, _) |
+            NewThreadExn(_, _) |
+            NewFrameCursor(_) |
+            Fence(_) |
+            Return(_) |
+            ThreadExit |
+            Throw(_) |
+            TailCall(_) |
+            Branch1(_) |
+            Branch2 { .. } |
+            Watchpoint { .. } |
+            WPBranch { .. } |
+            Call { .. } |
+            CCall { .. } |
+            SwapStackExpr { .. } |
+            SwapStackExc { .. } |
+            SwapStackKill { .. } |
+            Switch { .. } |
+            ExnInstruction { .. } |
+            CommonInst_GetThreadLocal |
+            CommonInst_SetThreadLocal(_) |
+            CommonInst_Pin(_) |
+            CommonInst_Unpin(_) |
+            CommonInst_GetAddr(_) |
+            PrintHex(_) |
+            SetRetval(_) => true,
             _ => false
         }
     }
@@ -114,9 +144,9 @@ impl Instruction {
             Watchpoint { .. } |
             Call { .. } |
             CCall { .. } |
-            SwapStackExc  {..} |
+            SwapStackExc { .. } |
             ExnInstruction { .. } => true,
-            _ => false,
+            _ => false
         }
     }
 
@@ -133,7 +163,7 @@ impl Instruction {
             Watchpoint { ref resume, .. } |
             Call { ref resume, .. } |
             CCall { ref resume, .. } |
-            SwapStackExc { ref resume, ..} |
+            SwapStackExc { ref resume, .. } |
             ExnInstruction { ref resume, .. } => Some(resume.exn_dest.target),
             _ => None
         }
@@ -352,7 +382,7 @@ pub enum Instruction_ {
         resume: ResumptionData
     },
 
-    // A swap stack with an exception clause (i.e. uses the RET_WITH form)
+    /// A swap stack with an exception clause (i.e. uses the RET_WITH form)
     SwapStackExc {
         stack: OpIndex,
         is_exception: bool,
@@ -360,20 +390,21 @@ pub enum Instruction_ {
         resume: ResumptionData
     },
 
-    // A swap stack without an exception clause that is not a terminator (i.e. uses the RET_WITH form)
+    /// A swap stack without an exception clause that is not a terminator
+    /// (i.e. uses the RET_WITH form)
     SwapStackExpr {
         stack: OpIndex,
         is_exception: bool,
-        args: Vec<OpIndex>,
+        args: Vec<OpIndex>
     },
 
-    // A swapstack without an exception clause that is a terminator (i.e. one with KILL_OLD)
+    /// A swapstack without an exception clause that is a terminator (i.e. one with KILL_OLD)
     SwapStackKill {
         stack: OpIndex,
         is_exception: bool,
-        args: Vec<OpIndex>,
+        args: Vec<OpIndex>
     },
-    
+
     /// a multiway branch
     Switch {
         cond: OpIndex,
@@ -619,14 +650,14 @@ impl Instruction_ {
                 ref data,
                 ref resume
             } => format!("CALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
-                &Instruction_::CCall {
+            &Instruction_::CCall {
                 ref data,
                 ref resume
             } => format!("CCALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
             &Instruction_::SwapStackExpr {
                 stack,
                 is_exception,
-                ref args,
+                ref args
             } => {
                 format!(
                     "SWAPSTACK {} {} {}",
@@ -653,7 +684,7 @@ impl Instruction_ {
             &Instruction_::SwapStackKill {
                 stack,
                 is_exception,
-                ref args,
+                ref args
             } => {
                 format!(
                     "SWAPSTACK {} {} {}",
@@ -662,7 +693,7 @@ impl Instruction_ {
                     op_vector_str(args, ops),
                 )
             }
-            
+
             &Instruction_::Switch {
                 cond,
                 ref default,

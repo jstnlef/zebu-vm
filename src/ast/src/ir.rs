@@ -935,7 +935,6 @@ impl TreeNode {
             TreeNode_::Value(ref pv) => pv.ty.clone()
         }
     }
-
 }
 
 impl fmt::Display for TreeNode {

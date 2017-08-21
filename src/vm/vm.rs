@@ -1222,7 +1222,7 @@ impl<'a> VM {
     pub fn new_stack(&self, func_id: MuID) -> Box<MuStack> {
         let funcs = self.funcs.read().unwrap();
         let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
-        
+
         Box::new(MuStack::new(
             self.next_id(),
             self.get_address_for_func(func_id),

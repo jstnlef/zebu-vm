@@ -2407,7 +2407,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 assert_ir!(
                     impl_opnd1.ty() == impl_opnd2.ty() && impl_opnd1.ty() == impl_ty,
                     "Invalid instruction {:?}: Operand types {} and {} \
-                    are not what was expected {}",
+                     are not what was expected {}",
                     inst,
                     impl_opnd1.ty(),
                     impl_opnd2.ty(),
@@ -3239,7 +3239,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_rvtype = self.get_built_type(refty);
-                let impl_rv = self.new_ssa(fcb, result_id, self.vm.make_strong_type(impl_rvtype)).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, self.vm.make_strong_type(impl_rvtype))
+                    .clone_value();
                 let impl_refty = self.get_built_type(refty);
 
                 assert_ir!(impl_ord != MemoryOrder::Release && impl_ord != MemoryOrder::AcqRel);
