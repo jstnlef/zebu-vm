@@ -659,7 +659,6 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
         ThreadExit => 10,
         Throw(_) => 10,
-        SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
         CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
 
