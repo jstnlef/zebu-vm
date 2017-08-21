@@ -181,25 +181,19 @@ pub struct NodeKeepaliveClause {
 }
 
 #[derive(Debug)]
-pub struct NodeCscRetWith {
-    pub id: MuID,
-    pub rettys: Vec<MuVarNode>
-}
-#[derive(Debug)]
-pub struct NodeCscKillOld {
-    pub id: MuID
+pub enum NodeCurrentStackClause {
+    RetWith { id: MuID, rettys: Vec<MuTypeNode> },
+    KillOld { id: MuID }
 }
 
 #[derive(Debug)]
-pub struct NodeNscPassValues {
-    pub id: MuID,
-    pub tys: Vec<MuTypeNode>,
-    pub vars: Vec<MuVarNode>
-}
-#[derive(Debug)]
-pub struct NodeNscThrowExc {
-    pub id: MuID,
-    pub exc: MuVarNode
+pub enum NodeNewStackClause {
+    PassValues {
+        id: MuID,
+        tys: Vec<MuTypeNode>,
+        vars: Vec<MuVarNode>
+    },
+    ThrowExc { id: MuID, exc: MuVarNode }
 }
 
 #[derive(Debug)]

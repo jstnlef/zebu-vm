@@ -600,7 +600,7 @@ def test_new():
             .funcdef @test_fnc VERSION @test_fnc.v1 <@sig__i64> {
                 %blk0():
                     %r = NEW <@i64>
-                    %ir = GETIREF <@refi64> %r
+                    %ir = GETIREF <@i64> %r
                     STORE <@i64> %ir @1_i64
                     %res = LOAD <@i64> %ir
                     RET %res
@@ -633,7 +633,7 @@ def test_new():
         op_new = bldr.gen_sym()
         bldr.new_new(op_new, r, i64)
         op_getiref = bldr.gen_sym()
-        bldr.new_getiref(op_getiref, ir, refi64, r)
+        bldr.new_getiref(op_getiref, ir, i64, r)
         op_store = bldr.gen_sym()
         bldr.new_store(op_store, False, rmu.MuMemOrd.NOT_ATOMIC, i64, ir, c_1_i64)
         op_load = bldr.gen_sym()

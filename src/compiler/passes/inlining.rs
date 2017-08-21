@@ -584,7 +584,7 @@ fn copy_inline_blocks(
 
                         &Instruction_::Watchpoint { .. } |
                         &Instruction_::WPBranch { .. } |
-                        &Instruction_::SwapStack { .. } |
+                        &Instruction_::SwapStackExc { .. } |
                         &Instruction_::ExnInstruction { .. } => unimplemented!(),
 
                         _ => {

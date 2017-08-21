@@ -114,12 +114,34 @@ pub struct MuType {
 
 rodal_struct!(MuType { hdr, v });
 
+impl PartialEq for MuType {
+    fn eq(&self, other: &MuType) -> bool {
+        self.v == other.v
+    }
+    fn ne(&self, other: &MuType) -> bool {
+        self.v != other.v
+    }
+}
+
 impl MuType {
     /// creates a new Mu type
     pub fn new(id: MuID, v: MuType_) -> MuType {
         MuType {
             hdr: MuEntityHeader::unnamed(id),
             v: v
+        }
+    }
+
+    pub fn is_tagref64(&self) -> bool {
+        match self.v {
+            MuType_::Tagref64 => true,
+            _ => false
+        }
+    }
+    pub fn is_funcref(&self) -> bool {
+        match self.v {
+            MuType_::FuncRef(_) => true,
+            _ => false
         }
     }
 
@@ -154,6 +176,23 @@ impl MuType {
             _ => false
         }
     }
+
+    pub fn is_opaque_reference(&self) -> bool {
+        match self.v {
+            MuType_::FuncRef(_) | MuType_::StackRef | MuType_::ThreadRef => true,
+            _ => false
+        }
+    }
+
+    pub fn is_eq_comparable(&self) -> bool {
+        self.is_int() || self.is_ptr() || self.is_iref() || self.is_ref() ||
+            self.is_opaque_reference()
+    }
+
+    pub fn is_ult_comparable(&self) -> bool {
+        self.is_int() || self.is_ptr() || self.is_iref()
+    }
+
 
     /// is this type a float type (single-precision floating point)
     pub fn is_float(&self) -> bool {

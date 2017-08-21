@@ -918,6 +918,33 @@ impl TreeNode {
             _ => None
         }
     }
+
+    /// consumes the TreeNode, returns the instruction in it (or None if it is not an instruction)
+    pub fn as_inst_ref(&self) -> &Instruction {
+        match &self.v {
+            &TreeNode_::Instruction(ref inst) => inst,
+            _ => panic!("expected inst")
+        }
+    }
+
+    // The type of the node (for a value node)
+    pub fn ty(&self) -> P<MuType> {
+        match self.v {
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    let ref value = inst.value.as_ref().unwrap();
+                    if value.len() != 1 {
+                        panic!("the node {} does not have one result value", self);
+                    }
+
+                    value[0].ty.clone()
+                } else {
+                    panic!("expected result from the node {}", self);
+                }
+            }
+            TreeNode_::Value(ref pv) => pv.ty.clone()
+        }
+    }
 }
 
 impl fmt::Display for TreeNode {

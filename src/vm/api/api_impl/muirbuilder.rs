@@ -17,7 +17,14 @@ use ast::op::*;
 use ast::inst::*;
 use utils::LinkedHashMap;
 use utils::LinkedHashSet;
+use utils::math::align_up;
+use utils::bit_utils::bits_ones;
 use std;
+
+macro_rules! assert_ir {
+    ($ cond : expr ) => { assert!($cond) };
+    ($ cond : expr , $ ( $ arg : tt ) + ) => { assert!($cond, $($arg)+)};
+}
 
 pub struct MuIRBuilder {
     /// ref to MuVM
@@ -429,19 +436,37 @@ impl MuIRBuilder {
     }
 
     pub fn new_csc_ret_with(&mut self, id: MuID, rettys: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.cs_clauses.insert(
+            id,
+            Box::new(NodeCurrentStackClause::RetWith {
+                id: id,
+                rettys: rettys
+            })
+        );
     }
 
     pub fn new_csc_kill_old(&mut self, id: MuID) {
-        panic!("Not implemented")
+        self.bundle
+            .cs_clauses
+            .insert(id, Box::new(NodeCurrentStackClause::KillOld { id: id }));
     }
 
     pub fn new_nsc_pass_values(&mut self, id: MuID, tys: Vec<MuID>, vars: Vec<MuID>) {
-        panic!("Not implemented")
+        self.bundle.ns_clauses.insert(
+            id,
+            Box::new(NodeNewStackClause::PassValues {
+                id: id,
+                tys: tys,
+                vars: vars
+            })
+        );
     }
 
     pub fn new_nsc_throw_exc(&mut self, id: MuID, exc: MuID) {
-        panic!("Not implemented")
+        self.bundle.ns_clauses.insert(
+            id,
+            Box::new(NodeNewStackClause::ThrowExc { id: id, exc: exc })
+        );
     }
 
     #[inline(always)]
@@ -1247,7 +1272,8 @@ struct BundleLoader<'lb, 'lvm> {
     built_iref_of: IdPMap<MuType>,
     built_uptr_of: IdPMap<MuType>,
 
-    built_constint_of: HashMap<u64, P<Value>>
+    built_constint_of: HashMap<u64, P<Value>>,
+    current_sig: Option<P<MuFuncSig>>
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -1281,7 +1307,8 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
         built_uptr_of: Default::default(),
-        built_constint_of: Default::default()
+        built_constint_of: Default::default(),
+        current_sig: Default::default()
     };
 
     bl.load_bundle();
@@ -1823,14 +1850,21 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
 
         let impl_ty_ = match **ty {
-            NodeType::TypeInt { id: _, len } => MuType_::Int(len as usize),
+            NodeType::TypeInt { id: _, len } => {
+                assert_ir!(len >= 1);
+                MuType_::Int(len as usize)
+            }
             NodeType::TypeFloat { id: _ } => MuType_::Float,
             NodeType::TypeDouble { id: _ } => MuType_::Double,
             NodeType::TypeUPtr { id: _, ty: toty } => {
+                // NOTE: The mu-spec requires toty to be native safe
+                // but that will break clients that ignore this rule so it is not checked for
                 let impl_toty = self.ensure_type_rec(toty);
                 MuType_::UPtr(impl_toty)
             }
             NodeType::TypeUFuncPtr { id: _, sig } => {
+                // NOTE: The mu-spec requires toty to be native safe
+                // but that will break clients that ignore this rule so it is not checked for
                 let impl_sig = self.ensure_sig_rec(sig);
                 MuType_::UFuncPtr(impl_sig)
             }
@@ -1851,10 +1885,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             }
             NodeType::TypeArray { id: _, elemty, len } => {
                 let impl_elemty = self.ensure_type_rec(elemty);
+                assert_ir!(len >= 1);
+                assert_ir!(!impl_elemty.is_hybrid() && !impl_elemty.is_void());
                 MuType_::Array(impl_elemty, len)
             }
             NodeType::TypeVector { id: _, elemty, len } => {
                 let impl_elemty = self.ensure_type_rec(elemty);
+                assert_ir!(len >= 1);
+                assert_ir!(!impl_elemty.is_hybrid() && !impl_elemty.is_void());
                 MuType_::Vector(impl_elemty, len)
             }
             NodeType::TypeVoid { id: _ } => MuType_::Void,
@@ -1919,6 +1957,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Filling struct or hybrid {} {:?}", id, ty);
 
         match **ty {
+            // TODO: Check for recursive types
             NodeType::TypeStruct {
                 id: _,
                 ref fieldtys
@@ -1928,8 +1967,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     .map(|fid| self.ensure_type_rec(*fid))
                     .collect::<Vec<_>>();
 
+                assert_ir!(
+                    fieldtys_impl.len() >= 1 &&
+                        fieldtys_impl.iter().all(|x| !x.is_hybrid() && !x.is_void())
+                );
                 MuType_::mustruct_put(tag, fieldtys_impl);
-
                 trace!(
                     "Struct {} filled: {:?}",
                     id,
@@ -1948,6 +1990,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
                 let varty_impl = self.ensure_type_rec(varty);
 
+                assert_ir!(fixedtys_impl.iter().all(|x| !x.is_hybrid() && !x.is_void()));
+                assert_ir!(!varty_impl.is_hybrid() && !varty_impl.is_void());
                 MuType_::hybrid_put(tag, fixedtys_impl, varty_impl);
 
                 trace!(
@@ -2015,6 +2059,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeConst::ConstInt { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Int(value);
+                assert_ir!(t.is_int() || t.is_ptr());
+                assert_ir!(value <= bits_ones(t.get_int_length().unwrap()));
                 (c, t)
             }
             NodeConst::ConstIntEx {
@@ -2024,21 +2070,31 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::IntEx(value.clone());
+                assert_ir!(t.is_int() || t.is_ptr());
+                assert_ir!(value.len() * 64 == align_up(t.get_int_length().unwrap(), 64));
+                assert_ir!(
+                    *value.last().unwrap() <=
+                        bits_ones(t.get_int_length().unwrap() - (value.len() - 1) * 64)
+                );
+
                 (c, t)
             }
             NodeConst::ConstFloat { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Float(value);
+                assert_ir!(t.is_float());
                 (c, t)
             }
             NodeConst::ConstDouble { id: _, ty, value } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::Double(value);
+                assert_ir!(t.is_double());
                 (c, t)
             }
             NodeConst::ConstNull { id: _, ty } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::NullRef;
+                assert_ir!(t.is_ref() || t.is_iref() | t.is_funcref() | t.is_opaque_reference());
                 (c, t)
             }
             NodeConst::ConstExtern {
@@ -2048,6 +2104,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let t = self.ensure_type_rec(ty);
                 let c = Constant::ExternSym(symbol.clone());
+                assert_ir!(
+                    symbol
+                        .as_bytes()
+                        .iter()
+                        .all(|x| *x >= 33 && *x <= 126 && *x != 34)
+                );
+                assert_ir!(t.is_ptr());
                 (c, t)
             }
             ref c => panic!("{:?} not implemented", c)
@@ -2136,10 +2199,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
         let func_id = fv.func;
         let impl_sig = self.get_sig_for_func(func_id);
-
+        self.current_sig = Some(impl_sig.clone());
         let mut fcb: FuncCtxBuilder = Default::default();
 
-        let blocks = fv.bbs
+        let entry_id = *fv.bbs.first().unwrap();
+        let mut blocks = fv.bbs
             .iter()
             .map(|bbid| {
                 let block = self.build_block(&mut fcb, *bbid);
@@ -2147,7 +2211,25 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             })
             .collect::<LinkedHashMap<MuID, Block>>();
 
-        let entry_id = *fv.bbs.first().unwrap();
+        let a = blocks
+            .iter()
+            .map(|(bbid, block)| {
+                (*bbid, self.build_block_content(&mut fcb, *bbid, &blocks))
+            })
+            .collect::<Vec<_>>();
+        for (bbi, body) in a {
+            blocks[&bbi].content.as_mut().unwrap().body = body;
+        }
+
+        assert_ir!({
+            let c = blocks[&entry_id].content.as_ref().unwrap();
+            c.args.len() == impl_sig.arg_tys.len() &&
+                c.args
+                    .iter()
+                    .zip(&impl_sig.arg_tys)
+                    .all(|(arg, t)| arg.ty == *t) && c.exn_arg.is_none()
+        });
+
         let ctn = FunctionContent {
             entry: entry_id,
             blocks: blocks,
@@ -2225,18 +2307,16 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             .collect::<Vec<_>>();
 
         let exn_arg = bb.exc_param_id.map(|arg_id| {
-            let arg_ty = self.ensure_refi64();
+            let arg_ty = self.ensure_refvoid();
             self.new_ssa(fcb, arg_id, arg_ty).clone_value()
         });
 
         let hdr = self.make_mu_entity_header(id);
 
-        let body = self.build_block_content(fcb, &bb.insts);
-
         let ctn = BlockContent {
             args: args,
             exn_arg: exn_arg,
-            body: body,
+            body: vec![],
             keepalives: None
         };
 
@@ -2251,15 +2331,35 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     fn build_block_content(
         &mut self,
         fcb: &mut FuncCtxBuilder,
-        insts: &Vec<MuID>
+        id: MuID,
+        blocks: &LinkedHashMap<MuID, Block>
     ) -> Vec<Box<TreeNode>> {
-        insts
+        let res = self.b
+            .bundle
+            .bbs
+            .get(&id)
+            .unwrap()
+            .insts
             .iter()
-            .map(|iid| self.build_inst(fcb, *iid))
-            .collect::<Vec<_>>()
+            .map(|iid| self.build_inst(fcb, *iid, blocks))
+            .collect::<Vec<_>>();
+
+        let n = res.len();
+        for i in 0..(n - 1) {
+            // None of the internal instruction should be a terminator
+            assert_ir!(!res[i].as_inst_ref().is_terminal_inst());
+        }
+        // The last instruction should be a terminator
+        assert_ir!(res[n - 1].as_inst_ref().is_terminal_inst());
+        res
     }
 
-    fn build_inst(&mut self, fcb: &mut FuncCtxBuilder, id: MuID) -> Box<TreeNode> {
+    fn build_inst(
+        &mut self,
+        fcb: &mut FuncCtxBuilder,
+        id: MuID,
+        blocks: &LinkedHashMap<MuID, Block>
+    ) -> Box<TreeNode> {
         let inst = self.b.bundle.insts.get(&id).unwrap();
 
         trace!("Building instruction {} {:?}", id, inst);
@@ -2302,6 +2402,26 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_ty = self.get_built_type(ty);
                 let impl_opnd1 = self.get_treenode(fcb, opnd1);
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
+                assert_ir!(
+                    impl_opnd1.ty() == impl_opnd2.ty() && impl_opnd1.ty() == impl_ty,
+                    "Invalid instruction {:?}: Operand types {} and {} \
+                     are not what was expected {}",
+                    inst,
+                    impl_opnd1.ty(),
+                    impl_opnd2.ty(),
+                    impl_ty
+                );
+                assert_ir!(
+                    if impl_optr.is_fp() {
+                        impl_ty.is_fp()
+                    } else {
+                        impl_ty.is_int()
+                    },
+                    "Type {}, is invalid for a {:?} instruction",
+                    impl_ty,
+                    impl_optr
+                );
+
                 let impl_rv = self.new_ssa(fcb, result_id, impl_ty).clone_value();
 
                 if flags == 0 {
@@ -2324,6 +2444,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     let mut impl_flags = BinOpStatus::none();
 
                     if flags & CMU_BOS_N != 0 {
+                        assert_ir!(
+                            !impl_optr.is_fp(),
+                            "N flag is invalid for {:?} instruction.",
+                            impl_optr
+                        );
                         impl_flags.flag_n = true;
 
                         let flag_n =
@@ -2335,6 +2460,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     }
 
                     if flags & CMU_BOS_Z != 0 {
+                        assert_ir!(
+                            !impl_optr.is_fp(),
+                            "Z flag is invalid for {:?} instruction.",
+                            impl_optr
+                        );
+
                         impl_flags.flag_z = true;
 
                         let flag_z =
@@ -2346,6 +2477,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     }
 
                     if flags & CMU_BOS_C != 0 {
+                        assert_ir!(
+                            impl_optr == BinOp::Mul || impl_optr == BinOp::Add ||
+                                impl_optr == BinOp::Sub,
+                            "C flag is invalid for {:?} instruction.",
+                            impl_optr
+                        );
+
                         impl_flags.flag_c = true;
 
                         let flag_c =
@@ -2357,6 +2495,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     }
 
                     if flags & CMU_BOS_V != 0 {
+                        assert_ir!(
+                            impl_optr == BinOp::Mul || impl_optr == BinOp::Add ||
+                                impl_optr == BinOp::Sub,
+                            "V flag is invalid for {:?} instruction.",
+                            impl_optr
+                        );
+
                         impl_flags.flag_v = true;
 
                         let flag_v =
@@ -2418,6 +2563,24 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd2 = self.get_treenode(fcb, opnd2);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_i1).clone_value();
 
+                assert_ir!(
+                    impl_opnd1.ty() == impl_opnd2.ty() && impl_opnd1.ty() == impl_ty,
+                    "Operand types {} and {} are not what was expected {} (for {:?})",
+                    impl_opnd1.ty(),
+                    impl_opnd2.ty(),
+                    impl_ty,
+                    impl_optr
+                );
+                assert_ir!(if impl_optr.is_fp_cmp() {
+                    impl_ty.is_fp()
+                } else if impl_optr.is_eq_cmp() {
+                    impl_ty.is_eq_comparable()
+                } else if impl_optr.is_ult_cmp() {
+                    impl_ty.is_ult_comparable()
+                } else {
+                    impl_ty.is_int()
+                });
+
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -2453,6 +2616,67 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_to_ty.clone())
                     .clone_value();
+
+                assert_ir!(
+                    impl_opnd.ty() == impl_from_ty,
+                    "Invalid {:?} instruction: trying to \
+                     convert {}, expected types {} -> \
+                     {}",
+                    impl_optr,
+                    impl_opnd.ty(),
+                    impl_from_ty,
+                    impl_to_ty
+                );
+                assert_ir!(
+                    match impl_optr {
+                        ConvOp::TRUNC => {
+                            let from_length = impl_from_ty.get_int_length();
+                            let to_length = impl_to_ty.get_int_length();
+                            from_length.is_some() && to_length.is_some() && from_length > to_length
+                        }
+                        ConvOp::ZEXT | ConvOp::SEXT => {
+                            let from_length = impl_from_ty.get_int_length();
+                            let to_length = impl_to_ty.get_int_length();
+                            from_length.is_some() && to_length.is_some() && from_length < to_length
+                        }
+                        ConvOp::FPTRUNC => impl_from_ty.is_double() && impl_to_ty.is_float(),
+                        ConvOp::FPEXT => impl_from_ty.is_float() && impl_to_ty.is_double(),
+                        ConvOp::FPTOUI | ConvOp::FPTOSI => {
+                            impl_from_ty.is_fp() && impl_to_ty.is_int()
+                        }
+                        ConvOp::UITOFP | ConvOp::SITOFP => {
+                            impl_from_ty.is_int() && impl_to_ty.is_fp()
+                        }
+                        ConvOp::BITCAST => {
+                            (impl_from_ty.is_float() && impl_to_ty.is_int() &&
+                                 impl_to_ty.get_int_length().unwrap() == 32) ||
+                                (impl_from_ty.is_double() && impl_to_ty.is_int() &&
+                                     impl_to_ty.get_int_length().unwrap() == 64) ||
+                                (impl_from_ty.is_int() &&
+                                     impl_from_ty.get_int_length().unwrap() == 32 &&
+                                     impl_to_ty.is_float()) ||
+                                (impl_from_ty.is_int() &&
+                                     impl_from_ty.get_int_length().unwrap() == 64 &&
+                                     impl_to_ty.is_double())
+                        }
+                        ConvOp::REFCAST => {
+                            (impl_from_ty.is_ref() || impl_from_ty.is_iref() ||
+                                 impl_from_ty.is_funcref()) &&
+                                (impl_to_ty.is_ref() || impl_to_ty.is_iref() ||
+                                     impl_to_ty.is_funcref())
+                        }
+                        ConvOp::PTRCAST => {
+                            (impl_from_ty.is_ptr() || impl_from_ty.is_int()) &&
+                                (impl_to_ty.is_ptr() || impl_to_ty.is_int()) &&
+                                !(impl_from_ty.is_int() && impl_to_ty.is_int())
+                        }
+                    },
+                    "Invalid {:?} instruction: Unsupported conversion {} -> {}",
+                    impl_optr,
+                    impl_from_ty,
+                    impl_to_ty
+                );
+
 
                 Instruction {
                     hdr: hdr,
@@ -2499,7 +2723,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             NodeInst::NodeBranch { id: _, dest } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-                let impl_dest = self.build_destination(fcb, dest, &mut ops, &[]);
+                let impl_dest = self.build_destination(fcb, dest, &mut ops, &[], blocks);
 
                 Instruction {
                     hdr: hdr,
@@ -2516,11 +2740,14 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-                self.add_opnd(fcb, &mut ops, cond);
+                let impl_opnd = self.add_opnd(fcb, &mut ops, cond);
+                assert_ir!(
+                    impl_opnd.ty().is_int() && impl_opnd.ty().get_int_length().unwrap() == 1
+                );
 
-                let impl_dest_true = self.build_destination(fcb, if_true, &mut ops, &[]);
+                let impl_dest_true = self.build_destination(fcb, if_true, &mut ops, &[], blocks);
 
-                let impl_dest_false = self.build_destination(fcb, if_false, &mut ops, &[]);
+                let impl_dest_false = self.build_destination(fcb, if_false, &mut ops, &[], blocks);
 
                 Instruction {
                     hdr: hdr,
@@ -2546,16 +2773,21 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
                 self.add_opnd(fcb, &mut ops, opnd);
 
-                let impl_dest_def = self.build_destination(fcb, default_dest, &mut ops, &[]);
+                let impl_dest_def =
+                    self.build_destination(fcb, default_dest, &mut ops, &[], blocks);
 
                 let impl_branches = cases
                     .iter()
                     .zip(dests)
                     .map(|(cid, did)| {
                         let case_opindex = ops.len();
-                        self.add_opnd(fcb, &mut ops, *cid);
+                        let impl_case = self.add_opnd(fcb, &mut ops, *cid);
+                        assert_ir!(
+                            impl_case.ty() == impl_opnd_ty && impl_case.as_value().is_const()
+                        );
+                        // TODO: Check that each case value is unique
 
-                        let impl_dest = self.build_destination(fcb, *did, &mut ops, &[]);
+                        let impl_dest = self.build_destination(fcb, *did, &mut ops, &[], blocks);
 
                         (case_opindex, impl_dest)
                     })
@@ -2591,7 +2823,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     exc_clause,
                     keepalive_clause,
                     false,
-                    CallConvention::Mu
+                    CallConvention::Mu,
+                    blocks
                 )
             }
             NodeInst::NodeTailCall {
@@ -2601,9 +2834,18 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 ref args
             } => {
                 let mut ops: Vec<P<TreeNode>> = Vec::new();
-
-                let call_data =
-                    self.build_call_data(fcb, &mut ops, callee, args, CallConvention::Mu);
+                let rettys = &self.current_sig.clone().unwrap().ret_tys;
+                let signode = self.ensure_sig_rec(sig);
+                assert_ir!(*rettys == signode.ret_tys);
+                let call_data = self.build_call_data(
+                    fcb,
+                    &mut ops,
+                    callee,
+                    args,
+                    &signode,
+                    false,
+                    CallConvention::Mu
+                );
 
                 Instruction {
                     hdr: hdr,
@@ -2613,8 +2855,15 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             NodeInst::NodeRet { id: _, ref rvs } => {
+                let rettys = &self.current_sig.clone().unwrap().ret_tys;
+                assert_ir!(rettys.len() == rvs.len());
                 let ops = rvs.iter()
-                    .map(|rvid| self.get_treenode(fcb, *rvid))
+                    .zip(rettys)
+                    .map(|(rvid, rty)| {
+                        let op = self.get_treenode(fcb, *rvid);
+                        assert_ir!(op.ty() == *rty);
+                        op
+                    })
                     .collect::<Vec<_>>();
                 let op_indexes = (0..(ops.len())).collect::<Vec<_>>();
 
@@ -2748,6 +2997,20 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let index = index as usize;
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
+
+                assert_ir!(
+                    match impl_opnd.ty().v {
+                        MuType_::IRef(ref r) => !is_ptr && *r == impl_refty,
+                        MuType_::UPtr(ref r) => is_ptr && *r == impl_refty,
+                        _ => false
+                    },
+                    "Invalid GETFIELDIREF: (PTR[{}] + {}) != {}",
+                    is_ptr,
+                    impl_refty,
+                    impl_opnd.ty()
+                );
+
+
                 let field_ty_id = match **refty_node {
                     NodeType::TypeStruct {
                         id: _,
@@ -2791,6 +3054,20 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let impl_index = self.get_treenode(fcb, index);
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
+
+                assert_ir!(impl_indty.is_int() && impl_index.ty() == impl_indty);
+                assert_ir!(
+                    match impl_opnd.ty().v {
+                        MuType_::IRef(ref r) => !is_ptr && *r == impl_refty,
+                        MuType_::UPtr(ref r) => is_ptr && *r == impl_refty,
+                        _ => false
+                    },
+                    "Invalid GETELEMIREF: (PTR[{}] + {}) != {}",
+                    is_ptr,
+                    impl_refty,
+                    impl_opnd.ty()
+                );
+
                 let elem_ty_id = match **refty_node {
                     NodeType::TypeArray {
                         id: _,
@@ -2836,6 +3113,22 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_offset = self.get_treenode(fcb, offset);
                 let impl_rvtype = self.ensure_iref_or_uptr(refty, is_ptr);
                 let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                let impl_refty = self.get_built_type(refty);
+                let impl_offty = self.get_built_type(offty);
+
+                assert_ir!(impl_offty.is_int() && impl_offset.ty() == impl_offty);
+                assert_ir!(
+                    match impl_opnd.ty().v {
+                        MuType_::IRef(ref r) => !is_ptr && *r == impl_refty,
+                        MuType_::UPtr(ref r) => is_ptr && *r == impl_refty,
+                        _ => false
+                    },
+                    "Invalid SHIFTIREF: (PTR[{}] + {}) != {}",
+                    is_ptr,
+                    impl_refty,
+                    impl_opnd.ty()
+                );
+
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -2856,6 +3149,20 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             } => {
                 let impl_opnd = self.get_treenode(fcb, opnd);
                 let refty_node = self.b.bundle.types.get(&refty).unwrap();
+                let impl_refty = self.get_built_type(refty);
+
+                assert_ir!(
+                    match impl_opnd.ty().v {
+                        MuType_::IRef(ref r) => !is_ptr && *r == impl_refty,
+                        MuType_::UPtr(ref r) => is_ptr && *r == impl_refty,
+                        _ => false
+                    },
+                    "Invalid GETVARPARTIREF: (PTR[{}] + {}) != {}",
+                    is_ptr,
+                    impl_refty,
+                    impl_opnd.ty()
+                );
+
                 let elem_ty_id = match **refty_node {
                     NodeType::TypeHybrid {
                         id: _,
@@ -2894,7 +3201,24 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_rvtype = self.get_built_type(refty);
-                let impl_rv = self.new_ssa(fcb, result_id, impl_rvtype).clone_value();
+                let impl_rv = self.new_ssa(fcb, result_id, self.vm.make_strong_type(impl_rvtype))
+                    .clone_value();
+                let impl_refty = self.get_built_type(refty);
+
+                assert_ir!(impl_ord != MemoryOrder::Release && impl_ord != MemoryOrder::AcqRel);
+                assert_ir!(
+                    match impl_loc.ty().v {
+                        MuType_::IRef(ref r) => !is_ptr && *r == impl_refty,
+                        MuType_::UPtr(ref r) => is_ptr && *r == impl_refty,
+                        _ => false
+                    },
+                    "Invalid LOAD: (PTR[{}] + {}) != {}",
+                    is_ptr,
+                    impl_refty,
+                    impl_loc.ty()
+                );
+
+
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -2919,6 +3243,30 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_newval = self.get_treenode(fcb, newval);
                 let impl_rvtype = self.get_built_type(refty);
+                let impl_refty = self.get_built_type(refty);
+
+                assert_ir!(
+                    impl_ord != MemoryOrder::Acquire && impl_ord != MemoryOrder::Consume &&
+                        impl_ord != MemoryOrder::AcqRel
+                );
+                assert_ir!(
+                    match impl_loc.ty().v {
+                        MuType_::IRef(ref r) => !is_ptr && *r == impl_refty,
+                        MuType_::UPtr(ref r) => is_ptr && *r == impl_refty,
+                        _ => false
+                    },
+                    "Invalid STORE: (PTR[{}] + {}) != {}",
+                    is_ptr,
+                    impl_refty,
+                    impl_loc.ty()
+                );
+                assert_ir!(
+                    impl_newval.ty().v == impl_refty.v.strong_variant(),
+                    "Invalid STORE: Can't store a {} to a {}",
+                    impl_newval.ty(),
+                    impl_refty
+                );
+
                 Instruction {
                     hdr: hdr,
                     value: None,
@@ -2942,6 +3290,15 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 exc_clause,
                 keepalive_clause
             } => {
+                let impl_sig = self.ensure_sig_rec(sig);
+                let impl_callee_ty = self.get_built_type(callee_ty);
+
+                assert_ir!(callconv == CMU_CC_DEFAULT);
+                assert_ir!(match impl_callee_ty.v {
+                    MuType_::UFuncPtr(ref s) => *s == impl_sig,
+                    _ => false
+                });
+
                 self.build_call_or_ccall(
                     fcb,
                     hdr,
@@ -2952,9 +3309,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     exc_clause,
                     keepalive_clause,
                     true,
-                    CallConvention::Foreign(ForeignFFI::C)
+                    CallConvention::Foreign(ForeignFFI::C),
+                    blocks
                 )
             }
+
             NodeInst::NodeCommInst {
                 id,
                 ref result_ids,
@@ -2993,13 +3352,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb: &mut FuncCtxBuilder,
         id: MuID,
         ops: &mut Vec<P<TreeNode>>,
-        inst_result_ids: &[MuID]
+        inst_result_ids: &[MuID],
+        blocks: &LinkedHashMap<MuID, Block>
     ) -> Destination {
+        // Note: according to the mu spec you can't branch to the entry block
+        // but we allow that here anyway
         let dest_clause = self.b.bundle.dest_clauses.get(&id).unwrap();
 
         let target = dest_clause.dest;
 
-        let dest_args = dest_clause.vars.iter().map(|vid| {
+        let target_block = blocks[&target].content.as_ref().unwrap();
+
+        assert_ir!(target_block.args.len() == dest_clause.vars.len());
+        let dest_args = dest_clause.vars.iter().zip(&target_block.args).map(|(vid, arg)| {
 //            if let Some(ind) = inst_result_ids.iter().position(|rid| *rid == *vid) {
 //                DestArg::Freshbound(ind)
 //            } else {
@@ -3008,7 +3373,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 //                DestArg::Normal(my_index)
 //            }
             let my_index = ops.len();
-            self.add_opnd(fcb, ops, *vid);
+            let op = self.add_opnd(fcb, ops, *vid);
+            assert_ir!(op.ty() == arg.ty);
             DestArg::Normal(my_index)
         }).collect::<Vec<_>>();
 
@@ -3020,12 +3386,23 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         impl_dest
     }
 
-    fn add_opnd(&mut self, fcb: &mut FuncCtxBuilder, ops: &mut Vec<P<TreeNode>>, opnd: MuID) {
+    fn add_opnd(
+        &mut self,
+        fcb: &mut FuncCtxBuilder,
+        ops: &mut Vec<P<TreeNode>>,
+        opnd: MuID
+    ) -> P<TreeNode> {
         let impl_opnd = self.get_treenode(fcb, opnd);
         ops.push(impl_opnd);
     }
 
-    fn add_opnds(&mut self, fcb: &mut FuncCtxBuilder, ops: &mut Vec<P<TreeNode>>, opnds: &[MuID]) {
+    fn add_opnds(
+        &mut self,
+        fcb: &mut FuncCtxBuilder,
+        ops: &mut Vec<P<TreeNode>>,
+        opnds: &[MuID]
+    ) -> Vec<P<TreeNode>> {
+        let mut res = Vec::<P<TreeNode>>::new();
         for opnd in opnds {
             self.add_opnd(fcb, ops, *opnd)
         }
@@ -3043,7 +3420,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.add_opnd(fcb, ops, callee);
 
         let args_begin_index = ops.len();
-        self.add_opnds(fcb, ops, args);
+        let impl_args = self.add_opnds(fcb, ops, args);
+        assert_ir!(
+            impl_args.len() == sig.arg_tys.len() &&
+                impl_args
+                    .iter()
+                    .zip(&sig.arg_tys)
+                    .all(|(arg, t)| arg.ty() == *t)
+        );
+        assert_ir!(match callee.ty().v {
+            MuType_::FuncRef(ref s) => !is_ccall && *s == *sig,
+            MuType_::UFuncPtr(ref s) => is_ccall && *s == *sig,
+            _ => false
+        });
 
         let args_opindexes = (args_begin_index..(args.len() + 1)).collect::<Vec<_>>();
 
@@ -3067,14 +3456,20 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         exc_clause: Option<MuID>,
         keepalive_claue: Option<MuID>,
         is_ccall: bool,
-        call_conv: CallConvention
+        call_conv: CallConvention,
+        blocks: &LinkedHashMap<MuID, Block>
     ) -> Instruction {
         let mut ops: Vec<P<TreeNode>> = Vec::new();
 
-        let call_data = self.build_call_data(fcb, &mut ops, callee, args, CallConvention::Mu);
-
-        let signode = self.b.bundle.sigs.get(&sig).unwrap();
-        let rettys_ids = &signode.rettys;
+        let call_data = self.build_call_data(
+            fcb,
+            &mut ops,
+            callee,
+            args,
+            sig,
+            is_ccall,
+            CallConvention::Mu
+        );
 
         let rvs = result_ids
             .iter()
@@ -3090,9 +3485,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
 
             let impl_normal_dest =
-                { self.build_destination(fcb, ecnode.nor, &mut ops, result_ids) };
+                self.build_destination(fcb, ecnode.nor, &mut ops, result_ids, blocks);
 
-            let impl_exn_dest = { self.build_destination(fcb, ecnode.exc, &mut ops, &[]) };
+            let impl_exn_dest = self.build_destination(fcb, ecnode.exc, &mut ops, &[], blocks);
 
             let resumption_data = ResumptionData {
                 normal_dest: impl_normal_dest,
@@ -3154,6 +3549,12 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
     ) -> Instruction {
         match opcode {
             CMU_CI_UVM_GET_THREADLOCAL => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() && args.is_empty() &&
+                        exc_clause.is_none() &&
+                        keepalives.is_none()
+                );
+
                 assert!(result_ids.len() == 1);
 
                 let rv_ty = self.ensure_refvoid();
@@ -3167,9 +3568,19 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_SET_THREADLOCAL => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        result_ids.is_empty() && exc_clause.is_none() &&
+                        keepalives.is_none()
+                );
                 assert!(args.len() == 1);
 
                 let op = self.get_treenode(fcb, args[0]);
+                assert_ir!(
+                    op.ty().is_ref() && op.ty().get_referent_ty().unwrap().is_void(),
+                    "@uvm.set_threadlocal expected ref<void> got {}",
+                    op.ty()
+                );
 
                 Instruction {
                     hdr: hdr,
@@ -3179,6 +3590,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_NATIVE_PIN => {
+                assert_ir!(
+                    sigs.is_empty() && flags.is_empty() && exc_clause.is_none() &&
+                        keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 1);
@@ -3202,6 +3617,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_NATIVE_UNPIN => {
+                assert_ir!(
+                    sigs.is_empty() && flags.is_empty() && result_ids.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(args.len() == 1);
                 assert!(tys.len() == 1);
 
@@ -3216,6 +3635,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_THREAD_EXIT => {
+                assert_ir!(
+                    tys.is_empty() && args.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        result_ids.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 Instruction {
                     hdr: hdr,
                     value: None,
@@ -3224,6 +3648,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_IS_FP => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
@@ -3241,6 +3669,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_IS_INT => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
@@ -3258,6 +3690,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_IS_REF => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
@@ -3275,6 +3711,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_FROM_FP => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
@@ -3293,6 +3733,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_FROM_INT => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
@@ -3302,6 +3746,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd = self.get_treenode(fcb, args[0]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
                     .clone_value();
+                assert_ir!(
+                    impl_opnd.ty().is_int() && impl_opnd.ty().get_int_length().unwrap() == 52
+                );
 
                 Instruction {
                     hdr: hdr,
@@ -3311,6 +3758,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_FROM_REF => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 2);
                 assert!(tys.len() == 0);
@@ -3321,6 +3772,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_opnd2 = self.get_treenode(fcb, args[1]);
                 let impl_rv = self.new_ssa(fcb, result_ids[0], impl_tagref64)
                     .clone_value();
+                assert_ir!(
+                    impl_opnd1.ty().is_ref() &&
+                        impl_opnd1.ty().get_referent_ty().unwrap().is_void()
+                );
+                assert_ir!(
+                    impl_opnd2.ty().is_int() && impl_opnd2.ty().get_int_length().unwrap() == 6
+                );
 
                 Instruction {
                     hdr: hdr,
@@ -3330,6 +3788,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_TO_FP => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
@@ -3348,6 +3810,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_TO_INT => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
@@ -3366,6 +3832,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_TO_REF => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
@@ -3384,6 +3854,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 }
             }
             CMU_CI_UVM_TR64_TO_TAG => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none()
+                );
                 assert!(result_ids.len() == 1);
                 assert!(args.len() == 1);
                 assert!(tys.len() == 0);
