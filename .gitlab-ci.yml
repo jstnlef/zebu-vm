@@ -115,4 +115,5 @@ testjit:som:
 rustfmt:
   stage: rustfmt
   script:
-    - CARGO_HOME=/home/gitlab-runner/.cargo rustup run nightly-2017-07-19 cargo fmt -- --write-mode=diff src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs --verbose
+    - cargo-fmt -- --write-mode=diff --verbose -- src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs
+
