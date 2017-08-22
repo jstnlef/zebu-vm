@@ -149,29 +149,30 @@ unsafe impl rodal::Dump for VM {
 
         // Dump empty maps so that we can safely read and modify them once loaded
         dumper.dump_padding(&self.global_locations);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<MuID, ValueLocation>::new()
-        ));
+        let global_locations = RwLock::new(rodal::EmptyHashMap::<MuID, ValueLocation>::new());
+        dumper.dump_object_here(&global_locations);
 
         dumper.dump_padding(&self.func_vers);
-        dumper.dump_object_here(&RwLock::new(
+        let func_vers = RwLock::new(
             rodal::EmptyHashMap::<MuID, RwLock<MuFunctionVersion>>::new()
-        ));
+        );
+        dumper.dump_object_here(&func_vers);
 
         dumper.dump_padding(&self.aot_pending_funcref_store);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<Address, ValueLocation>::new()
-        ));
+        let aot_pending_funcref_store =
+            RwLock::new(rodal::EmptyHashMap::<Address, ValueLocation>::new());
+        dumper.dump_object_here(&aot_pending_funcref_store);
 
-        // Dump an emepty hashmap for the other hashmaps
         dumper.dump_padding(&self.compiled_callsite_table);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<Address, CompiledCallsite>::new()
-        ));
+        let compiled_callsite_table =
+            RwLock::new(rodal::EmptyHashMap::<Address, CompiledCallsite>::new());
+        dumper.dump_object_here(&compiled_callsite_table);
+
         dumper.dump_object(&self.callsite_count);
 
         dumper.dump_padding(&self.pending_joins);
-        dumper.dump_object_here(&Mutex::new(rodal::EmptyLinkedList::<JoinHandle<()>>::new()));
+        let pending_joins = Mutex::new(rodal::EmptyLinkedList::<JoinHandle<()>>::new());
+        dumper.dump_object_here(&pending_joins);
     }
 }
 

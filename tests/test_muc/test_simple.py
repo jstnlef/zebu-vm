@@ -123,6 +123,40 @@ def test_stack_pass_and_return():
         }
         """, "test_stack_pass_and_return");
     assert(execute("test_stack_pass_and_return") == 44);
+def test_stack_args():
+    lib = load_bundle(
+        """
+        .funcsig stack_sig = (double double double double double double double double double double)->(int<32>)
+        .funcdef test_stack_args <stack_sig>
+        {
+            entry(<double>d0 <double>d1 <double>d2 <double>d3 <double>d4 <double>d5 <double>d6 <double>d7 <double> d8 <double> d9):
+                ds0 = FMUL <double> d0 <double>0.0 d
+                ds1 = FMUL <double> d1 <double>1.0 d
+                ds2 = FMUL <double> d2 <double>2.0 d
+                ds3 = FMUL <double> d3 <double>3.0 d
+                ds4 = FMUL <double> d4 <double>4.0 d
+                ds5 = FMUL <double> d5 <double>5.0 d
+                ds6 = FMUL <double> d6 <double>6.0 d
+                ds7 = FMUL <double> d7 <double>7.0 d
+                ds8 = FMUL <double> d8 <double>8.0 d
+                ds9 = FMUL <double> d9 <double>9.0 d
+                s1  = FADD <double> ds0 ds1
+                s2  = FADD <double> s1 ds2
+                s3  = FADD <double> s2 ds3
+                s4  = FADD <double> s3 ds4
+                s5  = FADD <double> s4 ds5
+                s6  = FADD <double> s5 ds6
+                s7  = FADD <double> s6 ds7
+                s8  = FADD <double> s7 ds8
+                s9  = FADD <double> s8 ds9
+                r   = FPTOSI <double int<32>> s9
+                RET r 
+        }
+        """, "test_stack_args");
+    test_stack_args = get_function(lib.test_stack_args, [ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double], ctypes.c_int32);
+
+    args = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+    assert(test_stack_args(*tuple(args)) == sum(map((lambda x: x**2), args)));
 
 def test_double_inline():
     lib = load_bundle(
