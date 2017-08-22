@@ -29,7 +29,7 @@ rm -rf $MU_ZEBU/tests/test_jit/emit
 
 cargo update
 #cargo clean
-rustup run nightly cargo fmt -- --write-mode=diff src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs --verbose | tee cargo_fmt_out.txt
+cargo-fmt -- --write-mode=diff --verbose -- src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs | tee cargo_fmt_out.txt
 cargo test --release --no-run --color=always 2>&1 | tee build_out.txt
 $(exit ${PIPESTATUS[0]}) # this command will exit the shell but only if the above cargo test failed
 
