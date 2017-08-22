@@ -501,6 +501,18 @@ lazy_static! {
         ret.extend_from_slice(&ALL_USABLE_FPRS);
         ret
     };
+
+    /// all the caller saved registers
+    pub static ref ALL_CALLER_SAVED_REGS : Vec<P<Value>> = {
+        let mut ret = vec![];
+        for r in CALLER_SAVED_GPRS.iter() {
+            ret.push(r.clone());
+        }
+        for r in CALLER_SAVED_FPRS.iter() {
+            ret.push(r.clone());
+        }
+        ret
+    };
 }
 
 /// creates context for each machine register in FunctionContext

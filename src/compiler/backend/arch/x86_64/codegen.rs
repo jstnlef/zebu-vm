@@ -229,7 +229,8 @@ pub trait CodeGenerator {
         callsite: String,
         func: MuName,
         pe: Option<MuName>,
-        args: Vec<P<Value>>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>,
         is_native: bool
     ) -> ValueLocation;
     fn emit_call_near_r64(
@@ -237,14 +238,16 @@ pub trait CodeGenerator {
         callsite: String,
         func: &P<Value>,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
     ) -> ValueLocation;
     fn emit_call_near_mem64(
         &mut self,
         callsite: String,
         func: &P<Value>,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
     ) -> ValueLocation;
 
     fn emit_ret(&mut self);

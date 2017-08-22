@@ -1460,7 +1460,7 @@ impl<'a> InstructionSelection {
                         );
                     }
                     Instruction_::KillStack(op) => {
-                        trace!("instself on KILL_STACK");
+                        trace!("instsel on KILL_STACK");
                         let op = self.emit_ireg(&inst.ops[op], f_content, f_context, vm);
                         self.emit_runtime_entry(
                             &entrypoints::KILL_STACK,
@@ -2127,7 +2127,7 @@ impl<'a> InstructionSelection {
                         is_exception,
                         ref args
                     } => {
-                        trace!("Instruction Selection on SWPASTACK-KILL");
+                        trace!("Instruction Selection on SWAPSTACK-KILL");
                         self.emit_swapstack(
                             is_exception, // is_exception
                             true,         // is_kill
