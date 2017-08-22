@@ -3656,7 +3656,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 (true, vec![exc_arg])
             }
         }
-        res
     }
 
     fn build_call_data(
