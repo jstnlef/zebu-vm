@@ -4648,7 +4648,7 @@ impl<'a> InstructionSelection {
                     // Throw an exception, don't call the swapee's resumption point
                     self.backend.emit_b_call(
                         callsite_label,
-                        "throw_exception_internal".to_string(),
+                        entrypoints::THROW_EXCEPTION_INTERNAL.aot.to_relocatable(),
                         potentially_excepting,
                         arg_regs,
                         ALL_USABLE_MACHINE_REGS.to_vec(),

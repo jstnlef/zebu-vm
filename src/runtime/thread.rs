@@ -143,7 +143,9 @@ impl MuStack {
 
         // Set up the stack
         let mut sp = upper_bound;
-        sp -= stack_arg_size; // Allocate space for the arguments
+
+        // Allocate space for the arguments
+        sp -= stack_arg_size;
 
         // Push entry as the return address
         sp -= POINTER_SIZE;

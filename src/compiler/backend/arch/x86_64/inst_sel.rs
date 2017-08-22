@@ -4495,9 +4495,11 @@ impl<'a> InstructionSelection {
             if vm.is_doing_jit() {
                 unimplemented!()
             } else {
-                // reserve space on the stack for the return values of swapstack
-                self.backend
-                    .emit_sub_r_imm(&x86_64::RSP, res_stack_size as i32);
+                if res_stack_size != 0 {
+                    // reserve space on the stack for the return values of swapstack
+                    self.backend
+                        .emit_sub_r_imm(&x86_64::RSP, res_stack_size as i32);
+                }
 
                 // get return address (the instruction after the call
                 let tmp_callsite_addr_loc = self.make_memory_symbolic_normal(
@@ -4508,7 +4510,7 @@ impl<'a> InstructionSelection {
                 );
                 let tmp_callsite = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
                 self.backend
-                    .emit_mov_r_mem(&tmp_callsite, &tmp_callsite_addr_loc);
+                    .emit_lea_r64(&tmp_callsite, &tmp_callsite_addr_loc);
 
                 // push return address
                 self.backend.emit_push_r64(&tmp_callsite);
@@ -4603,7 +4605,7 @@ impl<'a> InstructionSelection {
             // throws an exception
             // we are calling the internal ones as return address and base pointer are already
             // on the stack. and also we are saving all usable registers
-            self.backend.emit_call_near_rel32(
+            self.backend.emit_call_jmp(
                 callsite_label.clone(),
                 entrypoints::THROW_EXCEPTION_INTERNAL.aot.to_relocatable(),
                 potential_exception_dest,
@@ -4618,8 +4620,12 @@ impl<'a> InstructionSelection {
             // pop resumption address into rax
             self.backend.emit_pop_r64(&x86_64::RAX);
 
-            // call to the resumption
-            self.backend.emit_call_near_r64(
+            // push 0 - a fake return address
+            // so that SP+8 is 16 bytes aligned (the same requirement as entring a function)
+            self.backend.emit_push_imm32(0i32);
+
+            // jmp to the resumption
+            self.backend.emit_call_jmp_indirect(
                 callsite_label.clone(),
                 &x86_64::RAX,
                 potential_exception_dest,
@@ -4646,6 +4652,9 @@ impl<'a> InstructionSelection {
                 self.start_block(block);
             }
 
+            // pop the fake return address
+            self.backend.emit_add_r_imm(&x86_64::RSP, 8);
+
             // unload return values (arguments)
             let return_values = res_vals;
             let return_tys = return_values.iter().map(|x| x.ty.clone()).collect();
@@ -4655,8 +4664,10 @@ impl<'a> InstructionSelection {
             self.emit_postcall_unload_vals(&return_values, &callconv, f_context, vm);
 
             // collapse return value on stack
-            self.backend
-                .emit_add_r_imm(&x86_64::RSP, res_stack_size as i32);
+            if res_stack_size != 0 {
+                self.backend
+                    .emit_add_r_imm(&x86_64::RSP, res_stack_size as i32);
+            }
         }
     }
 

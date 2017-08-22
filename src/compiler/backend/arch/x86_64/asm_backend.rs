@@ -3289,15 +3289,11 @@ impl CodeGenerator for ASMCodeGen {
         defs: Vec<P<Value>>,
         is_native: bool
     ) -> ValueLocation {
-        if is_native {
-            trace!("emit: call /*C*/ {}({:?})", func, uses);
-        } else {
-            trace!("emit: call {}({:?})", func, uses);
-        }
-
         let func = if is_native {
+            trace!("emit: call /*C*/ {}({:?})", func, uses);
             "/*C*/".to_string() + symbol(func).as_str()
         } else {
+            trace!("emit: call {}({:?})", func, uses);
             symbol(mangle_name(func))
         };
 
@@ -3343,6 +3339,54 @@ impl CodeGenerator for ASMCodeGen {
     ) -> ValueLocation {
         trace!("emit: call {}", func);
         unimplemented!()
+    }
+
+    fn emit_call_jmp(
+        &mut self,
+        callsite: String,
+        func: MuName,
+        pe: Option<MuName>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>,
+        is_native: bool
+    ) -> ValueLocation {
+        let func = if is_native {
+            trace!("emit: call/jmp /*C*/ {}({:?})", func, uses);
+            "/*C*/".to_string() + symbol(func).as_str()
+        } else {
+            trace!("emit: call/jmp {}({:?})", func, uses);
+            symbol(mangle_name(func))
+        };
+
+        let asm = if cfg!(target_os = "macos") {
+            format!("/*CALL*/ jmp {}", func)
+        } else {
+            format!("/*CALL*/ jmp {}@PLT", func)
+        };
+
+        self.add_asm_call(asm, pe, uses, defs, None);
+
+        self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+    }
+
+    fn emit_call_jmp_indirect(
+        &mut self,
+        callsite: String,
+        func: &P<Value>,
+        pe: Option<MuName>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
+    ) -> ValueLocation {
+        trace!("emit: call/jmp {}", func);
+        let (reg, id, loc) = self.prepare_reg(func, 6);
+        let asm = format!("/*CALL*/ jmp *{}", reg);
+
+        // the call uses the register
+        self.add_asm_call(asm, pe, uses, defs, Some((id, loc)));
+
+        self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
 
     fn emit_ret(&mut self) {

@@ -250,6 +250,25 @@ pub trait CodeGenerator {
         defs: Vec<P<Value>>
     ) -> ValueLocation;
 
+    // sometimes we use jmp as a call (but without pushing return address)
+    fn emit_call_jmp(
+        &mut self,
+        callsite: String,
+        func: MuName,
+        pe: Option<MuName>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>,
+        is_native: bool
+    ) -> ValueLocation;
+    fn emit_call_jmp_indirect(
+        &mut self,
+        callsite: String,
+        func: &P<Value>,
+        pe: Option<MuName>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
+    ) -> ValueLocation;
+
     fn emit_ret(&mut self);
 
     // push/pop
