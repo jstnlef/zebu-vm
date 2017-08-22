@@ -21,7 +21,11 @@ extern crate gcc;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[cfg(target_arch = "x86_64")]
 fn main() {
-    gcc::compile_library("libruntime_c.a", &["src/runtime/runtime_c_x64_sysv.c"]);
+    gcc::Build::new()
+        .flag("-O3")
+        .flag("-c")
+        .file("src/runtime/runtime_c_x64_sysv.c")
+        .compile("libruntime_c.a");
 
     gcc::Build::new()
         .flag("-O3")
@@ -36,7 +40,11 @@ fn main() {
 #[cfg(target_os = "linux")]
 #[cfg(target_arch = "aarch64")]
 fn main() {
-    gcc::compile_library("libruntime_c.a", &["src/runtime/runtime_c_aarch64_sysv.c"]);
+    gcc::Build::new()
+        .flag("-O3")
+        .flag("-c")
+        .file("src/runtime/runtime_c_aarch64_sysv.c")
+        .compile("libruntime_c.a");
 
     gcc::Build::new()
         .flag("-O3")
