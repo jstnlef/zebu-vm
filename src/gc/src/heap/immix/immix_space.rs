@@ -16,8 +16,7 @@ use heap::immix;
 use heap::gc;
 use utils::Address;
 use common::AddressMap;
-use heap::gc::malloc_zero;
-
+use utils::mem::malloc_zero;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
@@ -115,6 +114,12 @@ impl LineMarkTable {
         if line_table_index < self.len - 1 {
             self.set(line_table_index + 1, immix::LineMark::ConservLive);
         }
+    }
+}
+
+impl Drop for LineMarkTable {
+    fn drop(&mut self) {
+        unsafe { memsec::free(self.ptr) }
     }
 }
 
