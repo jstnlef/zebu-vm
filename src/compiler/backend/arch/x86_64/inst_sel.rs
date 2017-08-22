@@ -33,13 +33,16 @@ use compiler::PROLOGUE_BLOCK_NAME;
 use compiler::backend::x86_64;
 use compiler::backend::x86_64::CodeGenerator;
 use compiler::backend::x86_64::ASMCodeGen;
+use compiler::backend::x86_64::callconv;
+use compiler::backend::x86_64::callconv::CallConvResult;
+use compiler::backend::x86_64::CALLEE_SAVED_COUNT;
 use compiler::backend::make_block_name;
 use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
 use utils::math;
 use utils::{POINTER_SIZE, WORD_SIZE};
-use utils::BitSize;
+use utils::{BitSize, ByteSize};
 
 use std::collections::HashMap;
 use std::collections::LinkedList;
@@ -1895,8 +1898,8 @@ impl<'a> InstructionSelection {
                         };
 
                         let tmp_stack_arg_size = {
-                            use compiler::backend::x86_64::callconv;
-                            let (size, _) = callconv::mu::compute_stack_args(&sig, vm);
+                            use compiler::backend::x86_64::callconv::swapstack;
+                            let (size, _) = swapstack::compute_stack_args(&sig.arg_tys, vm);
                             self.make_int_const(size as u64, vm)
                         };
 
@@ -1956,7 +1959,7 @@ impl<'a> InstructionSelection {
                             // 2. the register arguments will be pushed to current SP, the start
                             //    function will consume them.
                             {
-                                use compiler::backend::x86_64::callconv;
+                                use compiler::backend::x86_64::callconv::swapstack;
                                 use compiler::backend::x86_64::callconv::CallConvResult;
                                 use compiler::backend::x86_64::{ARGUMENT_GPRS, ARGUMENT_FPRS};
 
@@ -1965,7 +1968,7 @@ impl<'a> InstructionSelection {
 
                                 // compute call convention
                                 let arg_tys = arg_values.iter().map(|x| x.ty.clone()).collect();
-                                let callconv = callconv::mu::compute_arguments_by_type(&arg_tys);
+                                let callconv = swapstack::compute_arguments(&arg_tys);
 
                                 let mut gpr_args = vec![];
                                 let mut fpr_args = vec![];
@@ -2080,6 +2083,65 @@ impl<'a> InstructionSelection {
                         );
                     }
 
+                    Instruction_::SwapStackExpr {
+                        stack,
+                        is_exception,
+                        ref args
+                    } => {
+                        trace!("instsel on SWAPSTACK_EXPR");
+                        self.emit_swapstack(
+                            is_exception,
+                            false,
+                            &node,
+                            &inst,
+                            stack,
+                            args,
+                            None,
+                            f_content,
+                            f_context,
+                            vm
+                        );
+                    }
+                    Instruction_::SwapStackExc {
+                        stack,
+                        is_exception,
+                        ref args,
+                        ref resume
+                    } => {
+                        trace!("instsel on SWAPSTACK_EXC");
+                        self.emit_swapstack(
+                            is_exception,
+                            false,
+                            &node,
+                            &inst,
+                            stack,
+                            args,
+                            Some(resume),
+                            f_content,
+                            f_context,
+                            vm
+                        );
+                    }
+                    Instruction_::SwapStackKill {
+                        stack,
+                        is_exception,
+                        ref args
+                    } => {
+                        trace!("instsel on SWAPSTACK_KILL");
+                        self.emit_swapstack(
+                            is_exception,
+                            true,
+                            &node,
+                            &inst,
+                            stack,
+                            args,
+                            None,
+                            f_content,
+                            f_context,
+                            vm
+                        );
+                    }
+
                     Instruction_::PrintHex(index) => {
                         trace!("instsel on PRINTHEX");
 
@@ -2178,6 +2240,106 @@ impl<'a> InstructionSelection {
                 scale: Some(scale)
             })
         })
+    }
+
+    /// makes a symbolic memory operand for global values
+    fn make_memory_symbolic_global(
+        &mut self,
+        name: MuName,
+        ty: P<MuType>,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> P<Value> {
+        self.make_memory_symbolic(name, ty, true, false, f_context, vm)
+    }
+
+    /// makes a symbolic memory operand for native values
+    fn make_memory_symbolic_native(
+        &mut self,
+        name: MuName,
+        ty: P<MuType>,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> P<Value> {
+        self.make_memory_symbolic(name, ty, false, true, f_context, vm)
+    }
+
+    /// makes a symbolic memory operand for a normal value (not global, not native)
+    fn make_memory_symbolic_normal(
+        &mut self,
+        name: MuName,
+        ty: P<MuType>,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> P<Value> {
+        self.make_memory_symbolic(name, ty, false, false, f_context, vm)
+    }
+
+    /// makes a symbolic memory operand
+    fn make_memory_symbolic(
+        &mut self,
+        name: MuName,
+        ty: P<MuType>,
+        is_global: bool,
+        is_native: bool,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> P<Value> {
+        if cfg!(feature = "sel4-rumprun") {
+            // Same as Linux:
+            // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
+            // then load from the address.
+            // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
+            let got_loc = P(Value {
+                hdr: MuEntityHeader::unnamed(vm.next_id()),
+                ty: ADDRESS_TYPE.clone(),
+                v: Value_::Memory(MemoryLocation::Symbolic {
+                    base: Some(x86_64::RIP.clone()),
+                    label: name,
+                    is_global: is_global,
+                    is_native: is_native
+                })
+            });
+
+            // mov (got_loc) -> actual_loc
+            let actual_loc = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            self.emit_move_value_to_value(&actual_loc, &got_loc);
+
+            self.make_memory_op_base_offset(&actual_loc, 0, ty, vm)
+        } else if cfg!(target_os = "macos") {
+            P(Value {
+                hdr: MuEntityHeader::unnamed(vm.next_id()),
+                ty: ty,
+                v: Value_::Memory(MemoryLocation::Symbolic {
+                    base: Some(x86_64::RIP.clone()),
+                    label: name,
+                    is_global: is_global,
+                    is_native: is_native
+                })
+            })
+        } else if cfg!(target_os = "linux") {
+            // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
+            // then load from the address.
+            // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
+            let got_loc = P(Value {
+                hdr: MuEntityHeader::unnamed(vm.next_id()),
+                ty: ADDRESS_TYPE.clone(),
+                v: Value_::Memory(MemoryLocation::Symbolic {
+                    base: Some(x86_64::RIP.clone()),
+                    label: name,
+                    is_global: is_global,
+                    is_native: is_native
+                })
+            });
+
+            // mov (got_loc) -> actual_loc
+            let actual_loc = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            self.emit_move_value_to_value(&actual_loc, &got_loc);
+
+            self.make_memory_op_base_offset(&actual_loc, 0, ty, vm)
+        } else {
+            panic!("unsupported OS")
+        }
     }
 
     /// makes a memory operand P<Value> from MemoryLocation
@@ -3777,17 +3939,40 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> (usize, Vec<P<Value>>) {
-        use compiler::backend::x86_64::callconv;
-        use compiler::backend::x86_64::callconv::CallConvResult;
-
         let callconv = {
             match conv {
-                CallConvention::Mu => callconv::mu::compute_arguments(sig),
-                CallConvention::Foreign(ForeignFFI::C) => callconv::c::compute_arguments(sig)
+                CallConvention::Mu => callconv::mu::compute_arguments(&sig.arg_tys),
+                CallConvention::Foreign(ForeignFFI::C) => {
+                    callconv::c::compute_arguments(&sig.arg_tys)
+                }
             }
         };
         assert!(callconv.len() == args.len());
 
+        let (reg_args, stack_args) =
+            self.emit_precall_convention_regs_only(args, &callconv, f_context, vm);
+
+        if !stack_args.is_empty() {
+            // store stack arguments
+            let size = self.emit_store_stack_values(&stack_args, None, conv, vm);
+            // offset RSP
+            self.backend.emit_sub_r_imm(&x86_64::RSP, size as i32);
+
+            (size, reg_args)
+        } else {
+            (0, reg_args)
+        }
+    }
+
+    /// emits calling convention to pass argument registers before a call instruction
+    /// returns a tuple of (machine registers used, pass-by-stack arguments)
+    fn emit_precall_convention_regs_only(
+        &mut self,
+        args: &Vec<P<Value>>,
+        callconv: &Vec<CallConvResult>,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> (Vec<P<Value>>, Vec<P<Value>>) {
         let mut stack_args = vec![];
         let mut reg_args = vec![];
 
@@ -3845,43 +4030,58 @@ impl<'a> InstructionSelection {
             }
         }
 
-        if !stack_args.is_empty() {
-            use compiler::backend::x86_64::callconv;
+        (reg_args, stack_args)
+    }
 
-            let stack_arg_tys = stack_args.iter().map(|x| x.ty.clone()).collect();
-            let (stack_arg_size_with_padding, stack_arg_offsets) = match conv {
-                CallConvention::Mu => callconv::mu::compute_stack_args_by_type(&stack_arg_tys, vm),
-                CallConvention::Foreign(ForeignFFI::C) => {
-                    callconv::c::compute_stack_args_by_type(&stack_arg_tys, vm)
-                }
-            };
+    /// emits code that store values to the stack, returns the space required on the stack
+    /// * if base is None, save values to RSP (starting from RSP-stack_val_size),
+    ///   growing upwards (to higher stack address)
+    /// * if base is Some, save values to base, growing upwards
+    fn emit_store_stack_values(
+        &mut self,
+        stack_vals: &Vec<P<Value>>,
+        base: Option<(&P<Value>, i32)>,
+        conv: CallConvention,
+        vm: &VM
+    ) -> ByteSize {
+        use compiler::backend::x86_64::callconv;
 
-            // now, we just put all the args on the stack
-            {
-                if stack_arg_size_with_padding != 0 {
-                    let mut index = 0;
+        let stack_arg_tys = stack_vals.iter().map(|x| x.ty.clone()).collect();
+        let (stack_arg_size_with_padding, stack_arg_offsets) = match conv {
+            CallConvention::Mu => callconv::mu::compute_stack_locations(&stack_arg_tys, vm),
+            CallConvention::Foreign(ForeignFFI::C) => {
+                callconv::c::compute_stack_locations(&stack_arg_tys, vm)
+            }
+        };
 
-                    let rsp_offset_before_call = -(stack_arg_size_with_padding as i32);
+        // now, we just put all the args on the stack
+        {
+            if stack_arg_size_with_padding != 0 {
+                let mut index = 0;
+                let rsp_offset_before_call = -(stack_arg_size_with_padding as i32);
 
-                    for arg in stack_args {
+                for arg in stack_vals {
+                    if let Some((base, offset)) = base {
                         self.emit_store_base_offset(
-                            &x86_64::RSP,
-                            rsp_offset_before_call + (stack_arg_offsets[index]) as i32,
+                            base,
+                            offset + (stack_arg_offsets[index]) as i32,
                             &arg,
                             vm
                         );
-                        index += 1;
+                    } else {
+                        self.emit_store_base_offset(
+                            &x86_64::RSP,
+                            rsp_offset_before_call + (stack_arg_offsets[index] as i32),
+                            &arg,
+                            vm
+                        );
                     }
-
-                    self.backend
-                        .emit_sub_r_imm(&x86_64::RSP, stack_arg_size_with_padding as i32);
+                    index += 1;
                 }
             }
-
-            (stack_arg_size_with_padding, reg_args)
-        } else {
-            (0, reg_args)
         }
+
+        stack_arg_size_with_padding
     }
 
     /// emits calling convention after a call instruction
@@ -3896,18 +4096,14 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> Vec<P<Value>> {
-        use compiler::backend::x86_64::callconv;
-        use compiler::backend::x86_64::callconv::CallConvResult;
-
         let callconv = {
             match conv {
-                CallConvention::Mu => callconv::mu::compute_return_values(sig),
-                CallConvention::Foreign(ForeignFFI::C) => callconv::c::compute_return_values(sig)
+                CallConvention::Mu => callconv::mu::compute_return_values(&sig.ret_tys),
+                CallConvention::Foreign(ForeignFFI::C) => {
+                    callconv::c::compute_return_values(&sig.ret_tys)
+                }
             }
         };
-        if rets.is_some() {
-            assert!(callconv.len() == rets.as_ref().unwrap().len());
-        }
 
         let return_vals: Vec<P<Value>> = match rets {
             &Some(ref rets) => rets.clone(),
@@ -3919,9 +4115,31 @@ impl<'a> InstructionSelection {
             }
         };
 
+        self.emit_postcall_unload_vals(&return_vals, &callconv, f_context, vm);
+
+        // collapse space for stack_args
+        if precall_stack_arg_size != 0 {
+            self.backend
+                .emit_add_r_imm(&x86_64::RSP, precall_stack_arg_size as i32);
+        }
+
+        return_vals
+    }
+
+    fn emit_postcall_unload_vals(
+        &mut self,
+        rets: &Vec<P<Value>>,
+        callconv: &Vec<CallConvResult>,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) {
+        assert!(callconv.len() == rets.len());
+
+        let mut stack_args = vec![];
+
         for i in 0..callconv.len() {
             let ref cc = callconv[i];
-            let ref val = return_vals[i];
+            let ref val = rets[i];
             assert!(val.is_reg());
 
             match cc {
@@ -3942,17 +4160,13 @@ impl<'a> InstructionSelection {
                         panic!("expected double or float");
                     }
                 }
-                &CallConvResult::STACK => unimplemented!()
+                &CallConvResult::STACK => stack_args.push(val.clone())
             }
         }
 
-        // collapse space for stack_args
-        if precall_stack_arg_size != 0 {
-            self.backend
-                .emit_add_r_imm(&x86_64::RSP, precall_stack_arg_size as i32);
+        if !stack_args.is_empty() {
+            unimplemented!()
         }
-
-        return_vals
     }
 
     /// emits a native call
@@ -3979,8 +4193,14 @@ impl<'a> InstructionSelection {
         } else {
             let callsite = self.new_callsite_label(cur_node);
             // assume ccall wont throw exception
-            self.backend
-                .emit_call_near_rel32(callsite.clone(), func_name, None, args, true);
+            self.backend.emit_call_near_rel32(
+                callsite.clone(),
+                func_name,
+                None,
+                args,
+                x86_64::ALL_CALLER_SAVED_REGS.to_vec(),
+                true
+            );
 
             // TODO: What if theres an exception block?
             self.current_callsites
@@ -4158,6 +4378,7 @@ impl<'a> InstructionSelection {
                         target.name(),
                         potentially_excepting,
                         arg_regs,
+                        x86_64::ALL_CALLER_SAVED_REGS.to_vec(),
                         false
                     )
                 }
@@ -4165,14 +4386,24 @@ impl<'a> InstructionSelection {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
 
                 let callsite = self.new_callsite_label(Some(node));
-                self.backend
-                    .emit_call_near_r64(callsite, &target, potentially_excepting, arg_regs)
+                self.backend.emit_call_near_r64(
+                    callsite,
+                    &target,
+                    potentially_excepting,
+                    arg_regs,
+                    x86_64::ALL_CALLER_SAVED_REGS.to_vec()
+                )
             } else if self.match_mem(func) {
                 let target = self.emit_mem(func, vm);
 
                 let callsite = self.new_callsite_label(Some(node));
-                self.backend
-                    .emit_call_near_mem64(callsite, &target, potentially_excepting, arg_regs)
+                self.backend.emit_call_near_mem64(
+                    callsite,
+                    &target,
+                    potentially_excepting,
+                    arg_regs,
+                    x86_64::ALL_CALLER_SAVED_REGS.to_vec()
+                )
             } else {
                 panic!("unsupported callee type for CALL: {}", func);
             }
@@ -4212,6 +4443,220 @@ impl<'a> InstructionSelection {
             let normal_target_name = f_content.get_block(normal_dest.target).name();
 
             self.backend.emit_jmp(normal_target_name);
+        }
+    }
+
+    /// emits code for swapstacks (all variants)
+    fn emit_swapstack(
+        &mut self,
+        is_exception: bool, // whether we are throwing an exception to the new stack
+        is_kill: bool,      // whether we are killing the old stack
+        node: &TreeNode,
+        inst: &Instruction,
+        swappee: OpIndex,
+        args: &Vec<OpIndex>,
+        resumption: Option<&ResumptionData>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) {
+        use compiler::backend::x86_64::callconv::swapstack;
+
+        let ref ops = inst.ops;
+
+        // callsite label that will be used to mark the resumption point when
+        // the current stack is swapped back
+        let callsite_label = self.new_callsite_label(Some(node));
+
+        // emit for all the arguments
+        let mut arg_values = self.process_arguments(args, ops, f_content, f_context, vm);
+
+        // load current stack ref
+        let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+        let cur_stackref = self.make_temporary(f_context, STACKREF_TYPE.clone(), vm);
+        self.emit_load_base_offset(&cur_stackref, &tl, *thread::STACK_OFFSET as i32, vm);
+
+        // store the new stack ref back to current MuThread
+        let swappee = self.emit_ireg(&ops[swappee], f_content, f_context, vm);
+        self.emit_store_base_offset(&tl, *thread::STACK_OFFSET as i32, &swappee, vm);
+
+        // compute the locations of return values,
+        // and how much space needs to be reserved on the stack
+        let res_vals = match inst.value {
+            Some(ref values) => values.to_vec(),
+            None => vec![]
+        };
+        let res_tys = res_vals.iter().map(|x| x.ty.clone()).collect::<Vec<_>>();
+        let (res_stack_size, res_locs) = swapstack::compute_stack_retvals(&res_tys, vm);
+
+        if !is_kill {
+            // if we are going to return to this stack, we need to push ret address, and RBP
+            // otherwise, there is no need to push those (no one would access them)
+            if vm.is_doing_jit() {
+                unimplemented!()
+            } else {
+                // reserve space on the stack for the return values of swapstack
+                self.backend
+                    .emit_sub_r_imm(&x86_64::RSP, res_stack_size as i32);
+
+                // get return address (the instruction after the call
+                let tmp_callsite_addr_loc = self.make_memory_symbolic_normal(
+                    callsite_label.clone(),
+                    ADDRESS_TYPE.clone(),
+                    f_context,
+                    vm
+                );
+                let tmp_callsite = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+                self.backend
+                    .emit_mov_r_mem(&tmp_callsite, &tmp_callsite_addr_loc);
+
+                // push return address
+                self.backend.emit_push_r64(&tmp_callsite);
+                // push base pointer
+                self.backend.emit_push_r64(&x86_64::RBP);
+
+                // save current SP
+                self.emit_store_base_offset(
+                    &cur_stackref,
+                    *thread::MUSTACK_SP_OFFSET as i32,
+                    &x86_64::RSP,
+                    vm
+                );
+            }
+        }
+
+        // load the new sp from the swappee
+        let new_sp = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        self.emit_load_base_offset(&new_sp, &swappee, *thread::MUSTACK_SP_OFFSET as i32, vm);
+        // swap to new stack
+        self.backend.emit_mov_r_r(&x86_64::RSP, &new_sp);
+
+        // now we are on the new stack
+        // prepare arguments for continuation
+
+        if is_exception {
+            // we only have one argument (the exception object)
+            debug_assert!(arg_values.len() == 1);
+            // push RSP as the second argument (as we will call throw_exception_internal(),
+            // which takes two arguments: exception object, and frame cursor)
+            let tmp_framecursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+            self.backend.emit_mov_r_r(&tmp_framecursor, &x86_64::RSP);
+            arg_values.push(tmp_framecursor);
+        }
+
+        // compute call convention
+        let arg_tys = arg_values.iter().map(|x| x.ty.clone()).collect();
+        let callconv = swapstack::compute_arguments(&arg_tys);
+
+        // store stack arguments first - as we may kill our own stack soon
+        let mut stack_args = vec![];
+        for i in 0..callconv.len() {
+            let ref cc = callconv[i];
+            let ref arg = arg_values[i];
+
+            match cc {
+                &CallConvResult::STACK => stack_args.push(arg.clone()),
+                _ => {}
+            }
+        }
+        self.emit_store_stack_values(
+            &stack_args,
+            Some((&new_sp, 2 * WORD_SIZE as i32)),
+            MU_CALL_CONVENTION,
+            vm
+        );
+
+        if is_kill {
+            // kill the old stack
+            self.emit_runtime_entry(
+                &entrypoints::KILL_STACK,
+                vec![cur_stackref],
+                None,
+                Some(node),
+                f_content,
+                f_context,
+                vm
+            );
+        }
+
+        // move arguments that can be passed by registers
+        let (arg_regs, _) =
+            self.emit_precall_convention_regs_only(&arg_values, &callconv, f_context, vm);
+
+        // arguments are ready, we are starting continuation
+        let potential_exception_dest = match resumption {
+            Some(ref resumption) => {
+                let target_id = resumption.exn_dest.target;
+                Some(f_content.get_block(target_id).name())
+            }
+            None => None
+        };
+
+        if is_exception {
+            // we will call into throw_exception_internal
+
+            // reserve space on the new stack for exception handling routine to store
+            // callee saved registers (as in muentry_throw_exception)
+            self.backend
+                .emit_sub_r_imm(&x86_64::RSP, (WORD_SIZE * CALLEE_SAVED_COUNT) as i32);
+
+            // throws an exception
+            // we are calling the internal ones as return address and base pointer are already
+            // on the stack. and also we are saving all usable registers
+            self.backend.emit_call_near_rel32(
+                callsite_label.clone(),
+                entrypoints::THROW_EXCEPTION_INTERNAL.aot.to_relocatable(),
+                potential_exception_dest,
+                arg_regs,
+                x86_64::ALL_USABLE_MACHINE_REGS.to_vec(),
+                false
+            );
+        } else {
+            // pop RBP
+            self.backend.emit_pop_r64(&x86_64::RBP);
+
+            // pop resumption address into rax
+            self.backend.emit_pop_r64(&x86_64::RAX);
+
+            // call to the resumption
+            self.backend.emit_call_near_r64(
+                callsite_label.clone(),
+                &x86_64::RAX,
+                potential_exception_dest,
+                arg_regs,
+                x86_64::ALL_USABLE_MACHINE_REGS.to_vec()
+            );
+        }
+
+        // the resumption starts here
+        if !is_kill {
+            // record this callsite
+            let target_block_id = match resumption {
+                Some(resumption) => resumption.exn_dest.target,
+                None => 0
+            };
+            self.current_callsites
+                .push_back((callsite_label, target_block_id, res_stack_size));
+
+            if resumption.is_some() {
+                // the call instruction ends the block
+                self.finish_block();
+
+                let block = make_block_name(&node.name(), "stack_resumption");
+                self.start_block(block);
+            }
+
+            // unload return values (arguments)
+            let return_values = res_vals;
+            let return_tys = return_values.iter().map(|x| x.ty.clone()).collect();
+            let callconv = callconv::swapstack::compute_return_values(&return_tys);
+
+            // values by registers
+            self.emit_postcall_unload_vals(&return_values, &callconv, f_context, vm);
+
+            // collapse return value on stack
+            self.backend
+                .emit_add_r_imm(&x86_64::RSP, res_stack_size as i32);
         }
     }
 
@@ -4346,9 +4791,8 @@ impl<'a> InstructionSelection {
         // unload arguments by registers
         {
             use compiler::backend::x86_64::callconv::mu;
-            use compiler::backend::x86_64::callconv::CallConvResult;
 
-            let callconv = mu::compute_arguments(sig);
+            let callconv = mu::compute_arguments(&sig.arg_tys);
             debug!("sig = {}", sig);
             debug!("args = {:?}", args);
             debug!("callconv = {:?}", args);
@@ -4413,7 +4857,7 @@ impl<'a> InstructionSelection {
                 use compiler::backend::x86_64::callconv::mu;
                 let stack_arg_base_offset: i32 = 16;
                 let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
-                let (_, stack_arg_offsets) = mu::compute_stack_args_by_type(&arg_by_stack_tys, vm);
+                let (_, stack_arg_offsets) = mu::compute_stack_locations(&arg_by_stack_tys, vm);
 
                 // unload the args
                 let mut i = 0;
@@ -4453,7 +4897,6 @@ impl<'a> InstructionSelection {
         vm: &VM
     ) {
         use compiler::backend::x86_64::callconv::mu;
-        use compiler::backend::x86_64::callconv::CallConvResult;
 
         // prepare return regs
         let ref ops = ret_inst.ops;
@@ -4462,7 +4905,7 @@ impl<'a> InstructionSelection {
             _ => panic!("expected ret inst")
         };
 
-        let callconv = mu::compute_return_values(self.current_sig.as_ref().unwrap());
+        let callconv = mu::compute_return_values(&self.current_sig.as_ref().unwrap().ret_tys);
         debug_assert!(callconv.len() == ret_val_indices.len());
 
         for i in 0..callconv.len() {
@@ -5110,72 +5553,12 @@ impl<'a> InstructionSelection {
                             // get address from vm
                             unimplemented!()
                         } else {
-                            // symbolic
-                            if cfg!(feature = "sel4-rumprun") {
-                                // Same as Linux:
-                                // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
-                                // then load from the address.
-                                // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
-                                let got_loc = P(Value {
-                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                    ty: pv.ty.clone(),
-                                    v: Value_::Memory(MemoryLocation::Symbolic {
-                                        base: Some(x86_64::RIP.clone()),
-                                        label: pv.name(),
-                                        is_global: true,
-                                        is_native: false
-                                    })
-                                });
-
-                                // mov (got_loc) -> actual_loc
-                                let actual_loc = self.make_temporary(f_context, pv.ty.clone(), vm);
-                                self.emit_move_value_to_value(&actual_loc, &got_loc);
-
-                                self.make_memory_op_base_offset(
-                                    &actual_loc,
-                                    0,
-                                    pv.ty.get_referent_ty().unwrap(),
-                                    vm
-                                )
-                            } else if cfg!(target_os = "macos") {
-                                P(Value {
-                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                    ty: pv.ty.get_referent_ty().unwrap(),
-                                    v: Value_::Memory(MemoryLocation::Symbolic {
-                                        base: Some(x86_64::RIP.clone()),
-                                        label: pv.name(),
-                                        is_global: true,
-                                        is_native: false
-                                    })
-                                })
-                            } else if cfg!(target_os = "linux") {
-                                // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
-                                // then load from the address.
-                                // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
-                                let got_loc = P(Value {
-                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                    ty: pv.ty.clone(),
-                                    v: Value_::Memory(MemoryLocation::Symbolic {
-                                        base: Some(x86_64::RIP.clone()),
-                                        label: pv.name(),
-                                        is_global: true,
-                                        is_native: false
-                                    })
-                                });
-
-                                // mov (got_loc) -> actual_loc
-                                let actual_loc = self.make_temporary(f_context, pv.ty.clone(), vm);
-                                self.emit_move_value_to_value(&actual_loc, &got_loc);
-
-                                self.make_memory_op_base_offset(
-                                    &actual_loc,
-                                    0,
-                                    pv.ty.get_referent_ty().unwrap(),
-                                    vm
-                                )
-                            } else {
-                                unimplemented!()
-                            }
+                            self.make_memory_symbolic_global(
+                                pv.name(),
+                                pv.ty.get_referent_ty().unwrap(),
+                                f_context,
+                                vm
+                            )
                         }
                     }
                     Value_::Memory(_) => pv.clone(),

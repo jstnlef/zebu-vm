@@ -1199,7 +1199,8 @@ impl ASMCodeGen {
         &mut self,
         code: String,
         potentially_excepting: Option<MuName>,
-        arguments: Vec<P<Value>>,
+        use_vec: Vec<P<Value>>,
+        def_vec: Vec<P<Value>>,
         target: Option<(MuID, ASMLocation)>
     ) {
         let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
@@ -1207,20 +1208,13 @@ impl ASMCodeGen {
             let (id, loc) = target.unwrap();
             uses.insert(id, vec![loc]);
         }
-        for arg in arguments {
-            uses.insert(arg.id(), vec![]);
+        for u in use_vec {
+            uses.insert(u.id(), vec![]);
         }
 
         let mut defines: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for reg in x86_64::CALLER_SAVED_GPRS.iter() {
-            if !defines.contains_key(&reg.id()) {
-                defines.insert(reg.id(), vec![]);
-            }
-        }
-        for reg in x86_64::CALLER_SAVED_FPRS.iter() {
-            if !defines.contains_key(&reg.id()) {
-                defines.insert(reg.id(), vec![]);
-            }
+        for d in def_vec {
+            defines.insert(d.id(), vec![]);
         }
 
         self.add_asm_inst_internal(
@@ -3291,13 +3285,14 @@ impl CodeGenerator for ASMCodeGen {
         callsite: String,
         func: MuName,
         pe: Option<MuName>,
-        args: Vec<P<Value>>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>,
         is_native: bool
     ) -> ValueLocation {
         if is_native {
-            trace!("emit: call /*C*/ {}({:?})", func, args);
+            trace!("emit: call /*C*/ {}({:?})", func, uses);
         } else {
-            trace!("emit: call {}({:?})", func, args);
+            trace!("emit: call {}({:?})", func, uses);
         }
 
         let func = if is_native {
@@ -3312,7 +3307,7 @@ impl CodeGenerator for ASMCodeGen {
             format!("call {}@PLT", func)
         };
 
-        self.add_asm_call(asm, pe, args, None);
+        self.add_asm_call(asm, pe, uses, defs, None);
 
         self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
@@ -3323,14 +3318,15 @@ impl CodeGenerator for ASMCodeGen {
         callsite: String,
         func: &P<Value>,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
     ) -> ValueLocation {
         trace!("emit: call {}", func);
         let (reg, id, loc) = self.prepare_reg(func, 6);
         let asm = format!("call *{}", reg);
 
         // the call uses the register
-        self.add_asm_call(asm, pe, args, Some((id, loc)));
+        self.add_asm_call(asm, pe, uses, defs, Some((id, loc)));
 
         self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
@@ -3342,7 +3338,8 @@ impl CodeGenerator for ASMCodeGen {
         callsite: String,
         func: &P<Value>,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
     ) -> ValueLocation {
         trace!("emit: call {}", func);
         unimplemented!()
