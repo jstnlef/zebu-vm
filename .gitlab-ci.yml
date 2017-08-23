@@ -125,7 +125,7 @@ mubench:
     - virtualenv -p python3 mubench_venv
     - source mubench_venv/bin/activate
     - pip install ./mu-perf-benchmarks
-    - mubench local example/mu-impl-fast.yml --dump /home/gitlab-runner/$(git log -1 --pretty="%h_%at") --pipeline ""
+    - mubench local ./mu-perf-benchmarks/example/mu-impl-fast.yml --dump /home/gitlab-runner/$(git log -1 --pretty="%h_%at") --pipeline ""
 
 rustfmt:
   stage: rustfmt
