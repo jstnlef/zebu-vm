@@ -119,7 +119,7 @@ mubench:
     - deactivate
     - git clone https://gitlab.anu.edu.au/mu/mu-perf-benchmarks.git
     - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git
-    - cd mu-client-pypy; git apply pypy.patch; git apply clang_opt_flag.patch; cd cd $CI_PROJECT_DIR
+    - cd mu-client-pypy; git apply pypy.patch; git apply clang_opt_flag.patch; cd $CI_PROJECT_DIR
     - git clone https://github.com/microvm/RPySOM.git
     - cd RPySOM; git submodule init; git submodule update; cd $CI_PROJECT_DIR
     - export RPYSOM=RPySOM
