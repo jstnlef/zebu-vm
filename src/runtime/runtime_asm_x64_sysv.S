@@ -93,7 +93,8 @@ begin_func muthread_start_exceptional
 
     # swap to new stack
     movq %rsi, %rsp
-    subq 48, %rsp
+    # make space for callee saved registers
+    subq $40, %rsp
     jmp_to throw_exception_internal
 
 end_func muthread_start_exceptional

@@ -2029,7 +2029,12 @@ impl<'a> InstructionSelection {
 
                                 if !stack_args.is_empty() {
                                     // need to put stack arguments to the preserved space
-                                    unimplemented!()
+                                    self.emit_store_stack_values(
+                                        &stack_args,
+                                        Some((&new_sp, 2 * WORD_SIZE as i32)),
+                                        MU_CALL_CONVENTION,
+                                        vm
+                                    );
                                 }
 
                                 // adjust sp - we have pushed all argument registers
@@ -4684,7 +4689,7 @@ impl<'a> InstructionSelection {
                 potential_exception_dest,
                 arg_regs,
                 x86_64::ALL_USABLE_MACHINE_REGS.to_vec(),
-                false
+                true
             );
         } else {
             // pop RBP
