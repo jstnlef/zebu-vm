@@ -91,6 +91,17 @@ lazy_static! {
     };
 
     // impl/decl: thread.rs
+    pub static ref SAFECALL_KILL_STACK: RuntimeEntrypoint = RuntimeEntrypoint {
+        sig: P(MuFuncSig{
+            hdr: MuEntityHeader::unnamed(ir::new_internal_id()),
+            ret_tys: vec![],
+            arg_tys: vec![STACKREF_TYPE.clone()]
+        }),
+        aot: ValueLocation::Relocatable(RegGroup::GPR, String::from("muentry_safecall_kill_stack")),
+        jit: RwLock::new(None),
+    };
+
+    // impl/decl: thread.rs
     pub static ref NEW_THREAD_NORMAL: RuntimeEntrypoint = RuntimeEntrypoint {
         sig: P(MuFuncSig{
             hdr: MuEntityHeader::unnamed(ir::new_internal_id()),

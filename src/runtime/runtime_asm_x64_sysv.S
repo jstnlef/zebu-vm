@@ -113,6 +113,51 @@ begin_func muentry_thread_exit
     ret
 end_func muentry_thread_exit
 
+# muentry_safecall_kill_stack(cur_stackref: Address)
+#                             %rdi
+# This function will save all registers
+begin_func muentry_safecall_kill_stack
+    pushq %rbp
+    movq %rsp, %rbp
+
+    pushq %rsi
+    pushq %rdx
+    pushq %rcx
+    pushq %r8
+    pushq %r9
+
+    subq $64, %rsp
+    movsd %xmm0, 0(%rsp)
+    movsd %xmm1, 8(%rsp)
+    movsd %xmm2, 16(%rsp)
+    movsd %xmm3, 24(%rsp)
+    movsd %xmm4, 32(%rsp)
+    movsd %xmm5, 40(%rsp)
+    movsd %xmm6, 48(%rsp)
+    movsd %xmm7, 56(%rsp)
+
+    call_to muentry_kill_stack
+
+    movsd 0(%rsp) ,%xmm0
+    movsd 8(%rsp) ,%xmm1
+    movsd 16(%rsp),%xmm2
+    movsd 24(%rsp),%xmm3
+    movsd 32(%rsp),%xmm4
+    movsd 40(%rsp),%xmm5
+    movsd 48(%rsp),%xmm6
+    movsd 56(%rsp),%xmm7
+    addq $64, %rsp
+
+    popq %r9
+    popq %r8
+    popq %rcx
+    popq %rdx
+    popq %rsi
+
+    popq %rbp
+    ret
+end_func muentry_safecall_kill_stack
+
 # muentry_throw_exception(obj: Address)
 #                         %rdi
 begin_func muentry_throw_exception

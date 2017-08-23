@@ -4636,10 +4636,17 @@ impl<'a> InstructionSelection {
             vm
         );
 
+        // move arguments that can be passed by registers
+        let (arg_regs, _) =
+            self.emit_precall_convention_regs_only(&arg_values, &callconv, f_context, vm);
+
         if is_kill {
+            // save first GPR argument
+            self.backend.emit_push_r64(&x86_64::RDI);
+
             // kill the old stack
             self.emit_runtime_entry(
-                &entrypoints::KILL_STACK,
+                &entrypoints::SAFECALL_KILL_STACK,
                 vec![cur_stackref],
                 None,
                 Some(node),
@@ -4647,11 +4654,9 @@ impl<'a> InstructionSelection {
                 f_context,
                 vm
             );
-        }
 
-        // move arguments that can be passed by registers
-        let (arg_regs, _) =
-            self.emit_precall_convention_regs_only(&arg_values, &callconv, f_context, vm);
+            self.backend.emit_pop_r64(&x86_64::RDI);
+        }
 
         // arguments are ready, we are starting continuation
         let potential_exception_dest = match resumption {
