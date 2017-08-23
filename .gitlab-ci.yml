@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - mubench
   - rustfmt
 
 before_script:
@@ -111,6 +112,20 @@ testjit:som:
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
     - MU_LOG_LEVEL=info LD_LIBRARY_PATH=./emit RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_som.py -v --color=yes
+
+mubench:
+  stage: mubench
+  script:
+    - deactivate
+    - git clone https://gitlab.anu.edu.au/mu/mu-perf-benchmarks.git
+    - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git
+    - git clone https://github.com/microvm/RPySOM.git
+    - export RPYSOM=RPySOM
+    - export PYPY=mu-client-pypy
+    - virtualenv -p python3 mubench_venv
+    - source mubench_venv/bin/activate
+    - pip install ./mu-perf-benchmarks
+    - mubench local example/mu-impl-fast.yml --dump /home/gitlab-runner/$(git log -1 --pretty="%h_%at") --pipeline ""
 
 rustfmt:
   stage: rustfmt
