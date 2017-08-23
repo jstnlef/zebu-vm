@@ -1,6 +1,6 @@
 stages:
-  - mubench
   - build
+  - mubench
   - test
   - rustfmt
 
