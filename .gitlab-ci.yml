@@ -1,5 +1,8 @@
 stages:
   - mubench
+  - build
+  - test
+  - rustfmt
 
 before_script:
   - export MU_ZEBU=$CI_PROJECT_DIR
