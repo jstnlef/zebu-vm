@@ -4115,7 +4115,27 @@ impl<'a> InstructionSelection {
             }
         };
 
-        self.emit_postcall_unload_vals(&return_vals, &callconv, f_context, vm);
+        let (_, stack_locs) = {
+            if precall_stack_arg_size != 0 {
+                match conv {
+                    CallConvention::Mu => callconv::mu::compute_stack_retvals(&sig.ret_tys, vm),
+                    CallConvention::Foreign(ForeignFFI::C) => {
+                        callconv::c::compute_stack_retvals(&sig.ret_tys, vm)
+                    }
+                }
+            } else {
+                (0, vec![])
+            }
+        };
+        self.emit_unload_values(
+            &return_vals,
+            &callconv,
+            &stack_locs,
+            None,
+            false,
+            f_context,
+            vm
+        );
 
         // collapse space for stack_args
         if precall_stack_arg_size != 0 {
@@ -4126,10 +4146,18 @@ impl<'a> InstructionSelection {
         return_vals
     }
 
-    fn emit_postcall_unload_vals(
+    /// emits code to unload values
+    /// * unloads values that are passed by register from callconv
+    /// * unloads values that are passed by stack from stack_arg_offsets
+    ///   if stack_pointer is None, unload stack arguments from current RSP
+    ///   otherwise, unload stack arguments from the base and offset in stack_pointer
+    fn emit_unload_values(
         &mut self,
         rets: &Vec<P<Value>>,
         callconv: &Vec<CallConvResult>,
+        stack_arg_offsets: &Vec<ByteSize>,
+        stack_pointer: Option<(&P<Value>, i32)>,
+        is_unloading_args: bool,
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
@@ -4145,11 +4173,27 @@ impl<'a> InstructionSelection {
             match cc {
                 &CallConvResult::GPR(ref reg) => {
                     self.backend.emit_mov_r_r(val, reg);
+                    if is_unloading_args {
+                        self.current_frame
+                            .as_mut()
+                            .unwrap()
+                            .add_argument_by_reg(val.id(), reg.clone());
+                    }
                 }
                 &CallConvResult::GPREX(ref reg_l, ref reg_h) => {
                     let (val_l, val_h) = self.split_int128(val, f_context, vm);
                     self.backend.emit_mov_r_r(&val_l, reg_l);
                     self.backend.emit_mov_r_r(&val_h, reg_h);
+                    if is_unloading_args {
+                        self.current_frame
+                            .as_mut()
+                            .unwrap()
+                            .add_argument_by_reg(val_l.id(), reg_l.clone());
+                        self.current_frame
+                            .as_mut()
+                            .unwrap()
+                            .add_argument_by_reg(val_h.id(), reg_h.clone());
+                    }
                 }
                 &CallConvResult::FPR(ref reg) => {
                     if val.ty.is_double() {
@@ -4159,13 +4203,37 @@ impl<'a> InstructionSelection {
                     } else {
                         panic!("expected double or float");
                     }
+
+                    if is_unloading_args {
+                        self.current_frame
+                            .as_mut()
+                            .unwrap()
+                            .add_argument_by_reg(val.id(), reg.clone());
+                    }
                 }
                 &CallConvResult::STACK => stack_args.push(val.clone())
             }
         }
 
+        assert!(stack_args.len() == stack_arg_offsets.len());
         if !stack_args.is_empty() {
-            unimplemented!()
+            for i in 0..stack_args.len() {
+                let ref arg = stack_args[i];
+                let offset = stack_arg_offsets[i] as i32;
+
+                let stack_slot = if let Some((base, base_offset)) = stack_pointer {
+                    self.emit_load_base_offset(arg, base, base_offset + offset, vm)
+                } else {
+                    self.emit_load_base_offset(arg, &x86_64::RSP, offset, vm)
+                };
+
+                if is_unloading_args {
+                    self.current_frame
+                        .as_mut()
+                        .unwrap()
+                        .add_argument_by_stack(arg.id(), stack_slot);
+                }
+            }
         }
     }
 
@@ -4661,7 +4729,15 @@ impl<'a> InstructionSelection {
             let callconv = callconv::swapstack::compute_return_values(&return_tys);
 
             // values by registers
-            self.emit_postcall_unload_vals(&return_values, &callconv, f_context, vm);
+            self.emit_unload_values(
+                &return_values,
+                &callconv,
+                &res_locs,
+                None,
+                false,
+                f_context,
+                vm
+            );
 
             // collapse return value on stack
             if res_stack_size != 0 {
@@ -4804,89 +4880,25 @@ impl<'a> InstructionSelection {
             use compiler::backend::x86_64::callconv::mu;
 
             let callconv = mu::compute_arguments(&sig.arg_tys);
+            let (_, stack_arg_offsets) = mu::compute_stack_args(&sig.arg_tys, vm);
             debug!("sig = {}", sig);
             debug!("args = {:?}", args);
             debug!("callconv = {:?}", args);
-            debug_assert!(callconv.len() == args.len());
-
-            let mut arg_by_stack = vec![];
-            for i in 0..callconv.len() {
-                let ref cc = callconv[i];
-                let ref arg = args[i];
-
-                match cc {
-                    &CallConvResult::GPR(ref reg) => {
-                        debug_assert!(arg.is_reg());
-                        self.backend.emit_mov_r_r(arg, reg);
-                        self.current_frame
-                            .as_mut()
-                            .unwrap()
-                            .add_argument_by_reg(arg.id(), reg.clone());
-                    }
-                    &CallConvResult::GPREX(ref reg_l, ref reg_h) => {
-                        debug_assert!(arg.is_reg());
-                        let (arg_l, arg_h) = self.split_int128(arg, f_context, vm);
-
-                        self.backend.emit_mov_r_r(&arg_l, reg_l);
-                        self.current_frame
-                            .as_mut()
-                            .unwrap()
-                            .add_argument_by_reg(arg_l.id(), reg_l.clone());
-
-                        self.backend.emit_mov_r_r(&arg_h, reg_h);
-                        self.current_frame
-                            .as_mut()
-                            .unwrap()
-                            .add_argument_by_reg(arg_h.id(), reg_h.clone());
-                    }
-                    &CallConvResult::FPR(ref reg) => {
-                        debug_assert!(arg.is_reg());
-                        if arg.ty.is_double() {
-                            self.backend.emit_movsd_f64_f64(arg, reg);
-                        } else if arg.ty.is_float() {
-                            self.backend.emit_movss_f32_f32(arg, reg);
-                        } else {
-                            panic!("expect double or float");
-                        }
-                        self.current_frame
-                            .as_mut()
-                            .unwrap()
-                            .add_argument_by_reg(arg.id(), reg.clone());
-                    }
-                    &CallConvResult::STACK => {
-                        arg_by_stack.push(arg.clone());
-                    }
-                }
-            }
 
             // deal with arguments passed by stack
             // initial stack arg is at RBP+16
             //   arg           <- RBP + 16
             //   return addr
             //   old RBP       <- RBP
-            {
-                use compiler::backend::x86_64::callconv::mu;
-                let stack_arg_base_offset: i32 = 16;
-                let arg_by_stack_tys = arg_by_stack.iter().map(|x| x.ty.clone()).collect();
-                let (_, stack_arg_offsets) = mu::compute_stack_locations(&arg_by_stack_tys, vm);
-
-                // unload the args
-                let mut i = 0;
-                for arg in arg_by_stack {
-                    let stack_slot = self.emit_load_base_offset(
-                        &arg,
-                        &x86_64::RBP,
-                        (stack_arg_base_offset + stack_arg_offsets[i] as i32),
-                        vm
-                    );
-                    self.current_frame
-                        .as_mut()
-                        .unwrap()
-                        .add_argument_by_stack(arg.id(), stack_slot);
-
-                    i += 1;
-                }
-            }
+            self.emit_unload_values(
+                args,
+                &callconv,
+                &stack_arg_offsets,
+                Some((&x86_64::RBP, 16)),
+                true,
+                f_context,
+                vm
+            );
         }
 
         self.backend.end_block(block_name);

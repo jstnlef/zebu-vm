@@ -688,5 +688,7 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 }
 
 pub fn call_stack_size(sig: P<MuFuncSig>, vm: &VM) -> usize {
-    0
+    use compiler::backend::x86_64::callconv::mu;
+    let (size, _) = mu::compute_stack_args(&sig.arg_tys, vm);
+    size
 }
