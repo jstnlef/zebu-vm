@@ -124,7 +124,7 @@ mubench:
     - export PYPY=mu-client-pypy
     - virtualenv -p python3 mubench_venv
     - source mubench_venv/bin/activate
-    - pip install ./mu-perf-benchmarks
+    - pip install -Ue ./mu-perf-benchmarks
     - mubench local ./mu-perf-benchmarks/example/mu-impl-fast.yml --dump /home/gitlab-runner/$(git log -1 --pretty="%h_%at") --pipeline ""
 
 rustfmt:
