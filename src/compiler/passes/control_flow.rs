@@ -307,6 +307,7 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                     // call
                     Call { ref resume, .. } |
                     CCall { ref resume, .. } |
+                    SwapStackExc { ref resume, .. } |
                     ExnInstruction { ref resume, .. } => {
                         let ref normal = resume.normal_dest;
                         let ref exn = resume.exn_dest;
