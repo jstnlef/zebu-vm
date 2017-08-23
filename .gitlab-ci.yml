@@ -15,7 +15,7 @@ build:
   stage: build
   script:
     - rustc --version
-    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --release --no-run --color=always
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test -j6 --release --no-run --color=always
   artifacts:
     paths:
       - target/release/libmu.so
@@ -125,7 +125,7 @@ mubench:
     - virtualenv -p python3 mubench_venv
     - source mubench_venv/bin/activate
     - pip install -Ue ./mu-perf-benchmarks
-    - mubench local ./mu-perf-benchmarks/example/mu-impl-fast.yml --dump /home/gitlab-runner/$(git log -1 --pretty="%h_%at") --pipeline ""
+    - mubench local ./mu-perf-benchmarks/example/mu-impl-fast.yml --dump /home/gitlab-runner/results/$(git log -1 --pretty="%h_%at") --pipeline ""
 
 rustfmt:
   stage: rustfmt
