@@ -129,7 +129,8 @@ mubench:
     - pip install -Ue ./mu-perf-benchmarks
     - mkdir example
     - mubench local ./mu-perf-benchmarks/example/mu-impl-fast.yml --dump /home/gitlab-runner/results/$(git log -1 --pretty="%h_%at") --pipeline ""
-
+    - rsync -a /home/gitlab-runner/results/* squirrel:~/mu-impl-fast/angus
+    
 rustfmt:
   stage: rustfmt
   script:
