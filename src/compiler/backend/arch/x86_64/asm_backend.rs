@@ -3747,8 +3747,6 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         // constants in text section
         file.write("\t.text\n".as_bytes()).unwrap();
 
-        // alignment for constant are 16 bytes
-        write_const_align(&mut file);
         // write constants
         for (id, constant) in cf.consts.iter() {
             let mem = cf.const_mem.get(id).unwrap();
@@ -3768,6 +3766,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
             Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
         }
     }
+    info!("write demangled code...");
     // Read the file we just wrote above an demangle it
     {
         let mut demangled_path = path::PathBuf::new();
@@ -3827,11 +3826,6 @@ fn check_align(align: ByteSize) -> ByteSize {
     }
 }
 
-/// writes constant alignmnet (16 bytes)
-fn write_const_align(f: &mut File) {
-    write_align(f, MAX_ALIGN);
-}
-
 /// writes alignment in bytes for linux
 #[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
@@ -3881,6 +3875,7 @@ fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
             )
         }
     };
+    write_align(f, MAX_ALIGN);
     writeln!(f, "{}:", symbol(mangle_name(label))).unwrap();
 
     // actual value
@@ -3930,16 +3925,14 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
                 .unwrap();
         }
         &Constant::Float(val) => {
-            let bytes: [u8; 4] = unsafe { mem::transmute(val) };
-            f.write("\t.long ".as_bytes()).unwrap();
-            f.write(&bytes).unwrap();
-            f.write("\n".as_bytes()).unwrap();
+            use utils::mem::f32_to_raw;
+            f.write_fmt(format_args!("\t.long {}\n", f32_to_raw(val) as u32))
+                .unwrap();
         }
         &Constant::Double(val) => {
-            let bytes: [u8; 8] = unsafe { mem::transmute(val) };
-            f.write("\t.quad ".as_bytes()).unwrap();
-            f.write(&bytes).unwrap();
-            f.write("\n".as_bytes()).unwrap();
+            use utils::mem::f64_to_raw;
+            f.write_fmt(format_args!("\t.quad {}\n", f64_to_raw(val) as u64))
+                .unwrap();
         }
         &Constant::NullRef => f.write_fmt(format_args!("\t.quad 0\n")).unwrap(),
         &Constant::ExternSym(ref name) => f.write_fmt(format_args!("\t.quad {}\n", name)).unwrap(),

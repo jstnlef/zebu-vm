@@ -1018,14 +1018,12 @@ impl<'a> InstructionSelection {
                                                 // punpckldq UITOFP_C0, tmp_res -> tmp_res
                                                 // (interleaving low bytes:
                                                 // xmm = xmm[0] mem[0] xmm[1] mem[1])
-                                                let mem_c0 =
-                                                    self.get_mem_for_const(UITOFP_C0.clone(), vm);
+                                                let mem_c0 = self.get_mem_for_const(&UITOFP_C0, vm);
                                                 self.backend
                                                     .emit_punpckldq_f64_mem128(&tmp_res, &mem_c0);
 
                                                 // subpd UITOFP_C1, tmp_res -> tmp_res
-                                                let mem_c1 =
-                                                    self.get_mem_for_const(UITOFP_C1.clone(), vm);
+                                                let mem_c1 = self.get_mem_for_const(&UITOFP_C1, vm);
                                                 self.backend
                                                     .emit_subpd_f64_mem128(&tmp_res, &mem_c1);
 
@@ -1206,7 +1204,7 @@ impl<'a> InstructionSelection {
 
                                             // movsd FPTOUI_C_DOUBLE -> %tmp1
                                             let mem_c =
-                                                self.get_mem_for_const(FPTOUI_C_DOUBLE.clone(), vm);
+                                                self.get_mem_for_const(&FPTOUI_C_DOUBLE, vm);
                                             self.backend.emit_movsd_f64_mem64(&tmp1, &mem_c);
 
                                             // movapd %tmp_op -> %tmp2
@@ -1276,8 +1274,7 @@ impl<'a> InstructionSelection {
                                             );
 
                                             // movss FPTOUI_C_FLOAT -> %tmp1
-                                            let mem_c =
-                                                self.get_mem_for_const(FPTOUI_C_FLOAT.clone(), vm);
+                                            let mem_c = self.get_mem_for_const(&FPTOUI_C_FLOAT, vm);
                                             self.backend.emit_movss_f32_mem32(&tmp1, &mem_c);
 
                                             // movaps %tmp_op -> %tmp2
@@ -3995,7 +3992,7 @@ impl<'a> InstructionSelection {
                         if x86_64::is_valid_x86_imm(arg) {
                             self.backend.emit_mov_r_imm(reg, int_const as i32);
                         } else {
-                            // FIXME: put the constant to memory
+                            assert!(reg.ty.get_int_length().unwrap() == 64);
                             self.backend.emit_mov_r64_imm64(reg, int_const as i64);
                         }
                     } else {
@@ -4623,7 +4620,7 @@ impl<'a> InstructionSelection {
         let arg_tys = arg_values.iter().map(|x| x.ty.clone()).collect();
         let callconv = swapstack::compute_arguments(&arg_tys);
 
-        // store stack arguments first - as we may kill our own stack soon
+        // pass stack arguments
         let mut stack_args = vec![];
         for i in 0..callconv.len() {
             let ref cc = callconv[i];
@@ -4660,6 +4657,7 @@ impl<'a> InstructionSelection {
                 vm
             );
 
+            // restore first GPR
             self.backend.emit_pop_r64(&x86_64::RDI);
         }
 
@@ -5458,39 +5456,16 @@ impl<'a> InstructionSelection {
             TreeNode_::Value(ref pv) => {
                 match pv.v {
                     Value_::SSAVar(_) => pv.clone(),
-                    Value_::Constant(Constant::Double(val)) => {
-                        use std::mem;
-
-                        // val into u64
-                        let val_u64: u64 = unsafe { mem::transmute(val) };
-
-                        // mov val_u64 -> tmp_int
-                        let tmp_int = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                        self.backend.emit_mov_r64_imm64(&tmp_int, val_u64 as i64);
-
-                        // movq tmp_int -> tmp_fp
+                    Value_::Constant(Constant::Double(_)) => {
+                        let mem = self.get_mem_for_const(pv, vm);
                         let tmp_fp = self.make_temporary(f_context, DOUBLE_TYPE.clone(), vm);
-                        self.backend.emit_mov_fpr_r64(&tmp_fp, &tmp_int);
-
+                        self.backend.emit_movsd_f64_mem64(&tmp_fp, &mem);
                         tmp_fp
                     }
-                    Value_::Constant(Constant::Float(val)) => {
-                        use std::mem;
-
-                        // val into u32
-                        let val_u32: u32 = unsafe { mem::transmute(val) };
-
-                        // mov val_u32 -> tmp_int
-                        let tmp_int = self.make_temporary(f_context, UINT32_TYPE.clone(), vm);
-                        self.backend.emit_mov_r_imm(&tmp_int, val_u32 as i32);
-
-                        // movq tmp_int (64) -> tmp_fp
+                    Value_::Constant(Constant::Float(_)) => {
+                        let mem = self.get_mem_for_const(pv, vm);
                         let tmp_fp = self.make_temporary(f_context, FLOAT_TYPE.clone(), vm);
-                        self.backend.emit_mov_fpr_r64(
-                            &tmp_fp,
-                            unsafe { &tmp_int.as_type(UINT64_TYPE.clone()) }
-                        );
-
+                        self.backend.emit_movss_f32_mem32(&tmp_fp, &mem);
                         tmp_fp
                     }
                     _ => panic!("expected fpreg")
@@ -6408,13 +6383,13 @@ impl<'a> InstructionSelection {
     }
 
     /// puts a constant in memory, and returns its memory location P<Value>
-    fn get_mem_for_const(&mut self, val: P<Value>, vm: &VM) -> P<Value> {
+    fn get_mem_for_const(&mut self, val: &P<Value>, vm: &VM) -> P<Value> {
         let id = val.id();
 
         if self.current_constants_locs.contains_key(&id) {
             self.current_constants_locs.get(&id).unwrap().clone()
         } else {
-            let const_value_loc = vm.allocate_const(val.clone());
+            let const_value_loc = vm.allocate_const(val);
             let const_mem_val = match const_value_loc {
                 ValueLocation::Relocatable(_, ref name) => {
                     P(Value {

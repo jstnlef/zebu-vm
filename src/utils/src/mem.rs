@@ -17,38 +17,31 @@ pub extern crate memmap;
 /// secured memory operations: memset, memzero, etc.
 pub extern crate memsec;
 
-use Word;
 #[allow(unused_imports)] // import both endianness (we may not use big endian though)
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 
 /// returns bit representations for u64
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-pub fn u64_to_raw(val: u64) -> Word {
+pub fn u64_to_raw(val: u64) -> u64 {
     let mut ret = vec![];
     ret.write_u64::<LittleEndian>(val).unwrap();
-    as_word(ret)
+    LittleEndian::read_uint(&mut ret, 8)
 }
 
 /// returns bit representations for f32
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-pub fn f32_to_raw(val: f32) -> Word {
+pub fn f32_to_raw(val: f32) -> u32 {
     let mut ret = vec![];
     ret.write_f32::<LittleEndian>(val).unwrap();
-    as_word(ret)
+    LittleEndian::read_uint(&mut ret, 4) as u32
 }
 
 /// returns bit representations for f64
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-pub fn f64_to_raw(val: f64) -> Word {
+pub fn f64_to_raw(val: f64) -> u64 {
     let mut ret = vec![];
     ret.write_f64::<LittleEndian>(val).unwrap();
-    as_word(ret)
-}
-
-/// returns bit representations for Vec<u8>
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-pub fn as_word(mut u8_array: Vec<u8>) -> Word {
-    LittleEndian::read_uint(&mut u8_array, 8) as Word
+    LittleEndian::read_uint(&mut ret, 8)
 }
 
 #[cfg(test)]

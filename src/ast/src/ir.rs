@@ -1486,7 +1486,8 @@ pub fn mangle_name(name: MuName) -> MuName {
     "__mu_".to_string() + name.as_str()
 }
 
-// WARNING: This only reverses mangle_name above when no warning is issued)
+/// demangles a Mu name
+//  WARNING: This only reverses mangle_name above when no warning is issued)
 pub fn demangle_name(mut name: MuName) -> MuName {
     let name = if cfg!(target_os = "macos") && name.starts_with("___mu_") {
         name.split_off(1)
@@ -1509,57 +1510,28 @@ pub fn demangle_name(mut name: MuName) -> MuName {
     name
 }
 
-// TODO: Why the hell isn't this working?
+extern crate regex;
+
+/// identifies mu names and demangles them
 pub fn demangle_text(text: String) -> String {
-    let text = text.as_bytes();
-    let n = text.len();
-    let mut output = String::new();
+    use self::regex::Regex;
 
-    // We have a mangled name
-    let mut last_i = 0; // The last i value that we dumped to output
-    let mut i = 0;
-    // TODO: this should work for utf-8 stuff right? (sinces all mangled names are in ascii)
-    while i < n {
-        let c = text[i] as char;
-        // We're at the beginining of the string
-        // wait for a word boundry
-        if c.is_alphanumeric() || c == '_' {
-            // We just found a mangled name
-            if text[i..].starts_with("__mu_".as_bytes()) {
-                output += std::str::from_utf8(&text[last_i..i]).unwrap();
-                let start = i;
-                // Find the end of the name
-                while i < n {
-                    let c = text[i] as char;
-                    if !c.is_alphanumeric() && c != '_' {
-                        break; // We found the end!
-                    }
-                    i += 1;
-                }
-
-                output +=
-                    demangle_name(String::from_utf8(text[start..i].to_vec()).unwrap()).as_str();
-                // Skip to the end of the name
-                last_i = i;
-                continue;
-            } else {
-                // Skip to the end of this alphanumeric sequence
-                while i < n {
-                    let c = text[i] as char;
-                    if !c.is_alphanumeric() && c != '_' {
-                        break; // We found the end!
-                    }
-                    i += 1;
-                }
-            }
-
-            continue;
-        }
-        // Not the start of mangled name, continue
-        i += 1;
+    lazy_static!{
+        static ref IDENT_NAME: Regex = if cfg!(target_os = "macos") {
+            Regex::new(r"___mu_\w+").unwrap()
+        } else {
+            Regex::new(r"__mu_\w+").unwrap()
+        };
     }
-    // Return output plus whatever is left of the string
-    output + std::str::from_utf8(&text[last_i..n]).unwrap()
+
+    let mut res = text.clone();
+    for cap in IDENT_NAME.captures_iter(&text) {
+        let name = cap.get(0).unwrap().as_str().to_string();
+        let demangled = demangle_name(name.clone());
+        res = res.replacen(&name, &demangled, 1);
+    }
+
+    res
 }
 
 

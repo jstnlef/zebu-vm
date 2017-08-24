@@ -557,7 +557,7 @@ impl<'a> VM {
     /// allocates memory for a constant that needs to be put in memory
     /// For AOT, we simply create a label for it, and let code emitter allocate the memory
     #[cfg(feature = "aot")]
-    pub fn allocate_const(&self, val: P<Value>) -> ValueLocation {
+    pub fn allocate_const(&self, val: &P<Value>) -> ValueLocation {
         let id = val.id();
         let name = format!("CONST_{}_{}", id, val.name());
 

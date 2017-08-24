@@ -196,13 +196,13 @@ impl ValueLocation {
     pub fn from_constant(c: Constant) -> ValueLocation {
         match c {
             Constant::Int(int_val) => {
-                ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val))
+                ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val) as Word)
             }
             Constant::Float(f32_val) => {
-                ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val))
+                ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val) as Word)
             }
             Constant::Double(f64_val) => {
-                ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val))
+                ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val) as Word)
             }
             _ => unimplemented!()
         }
