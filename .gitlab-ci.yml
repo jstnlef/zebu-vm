@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - mubench
   - rustfmt
 
 before_script:
@@ -14,7 +15,7 @@ build:
   stage: build
   script:
     - rustc --version
-    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test --release --no-run --color=always
+    - time CARGO_HOME=.cargo RUST_BACKTRACE=1 CC=clang cargo test -j6 --release --no-run --color=always
   artifacts:
     paths:
       - target/release/libmu.so
@@ -112,6 +113,24 @@ testjit:som:
     - cd $CI_PROJECT_DIR/tests/test_jit
     - MU_LOG_LEVEL=info LD_LIBRARY_PATH=./emit RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_som.py -v --color=yes
 
+mubench:
+  stage: mubench
+  script:
+    - deactivate
+    - git clone https://gitlab.anu.edu.au/mu/mu-perf-benchmarks.git
+    - git clone https://gitlab.anu.edu.au/mu/mu-client-pypy.git
+    - cd mu-client-pypy; git apply pypy.patch; git apply clang_opt_flag.patch; cd $CI_PROJECT_DIR
+    - git clone https://github.com/microvm/RPySOM.git
+    - cd RPySOM; git submodule init; git submodule update; cd $CI_PROJECT_DIR
+    - export RPYSOM=RPySOM
+    - export PYPY=mu-client-pypy
+    - virtualenv -p python3 mubench_venv
+    - source mubench_venv/bin/activate
+    - pip install -Ue ./mu-perf-benchmarks
+    - mkdir example
+    - mubench local ./mu-perf-benchmarks/example/mu-impl-fast.yml --dump /home/gitlab-runner/results/$(git log -1 --pretty="%h_%at") --pipeline ""
+    - rsync -a /home/gitlab-runner/results/* squirrel:~/mu-impl-fast/angus
+    
 rustfmt:
   stage: rustfmt
   script:
