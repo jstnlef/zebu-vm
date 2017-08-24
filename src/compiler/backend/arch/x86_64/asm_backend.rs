@@ -3884,7 +3884,6 @@ fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
 
 /// writes a constant value based on its type and value
 fn write_const_value(f: &mut File, constant: P<Value>) {
-    use std::mem;
     use std::io::Write;
 
     let ref ty = constant.ty;
