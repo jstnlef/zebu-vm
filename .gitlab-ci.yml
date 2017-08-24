@@ -81,7 +81,7 @@ testjit:cmpops:
 testjit:controlflow:
   stage: test
   script:
-    - RUST_BACKTRACE=1 pytest test_controlflow.py -v --color=yes
+    - RUST_BACKTRACE=1 pytest tests/test_jit/test_controlflow.py -v --color=yes
 
 testjit:convops:
   stage: test
