@@ -81,7 +81,10 @@ testjit:cmpops:
 testjit:controlflow:
   stage: test
   script:
-    - RUST_BACKTRACE=1 pytest tests/test_jit/test_controlflow.py -v --color=yes
+    # run this test under test_jit directory
+    # as a C source file is expected in a relative path to current working directory
+    - cd tests/test_jit
+    - RUST_BACKTRACE=1 test_controlflow.py -v --color=yes
 
 testjit:convops:
   stage: test
