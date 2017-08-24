@@ -50,23 +50,22 @@ testmuc:build_muc:
     - mkdir lib
     - ln -s $MU_ZEBU/target/release/libmu.so lib/
     - make
-    - cd ..
+  artifacts:
+    paths:
+      - $MU_ZEBU/tests/test_muc/mu-tool-compiler/muc
+      - $MU_ZEBU/tests/test_muc/mu-tool-compiler/lib/*
 
 testmuc:test_simple:
   stage: test
   script:
     - cd tests/test_muc
     - LD_LIBRARY_PATH=mu-tool-compiler/lib/ MUC=mu-tool-compiler/muc python2 -m pytest test_simple.py -v
-  dependencies:
-    - testmuc:build_muc
 
 testmuc:test_swapstack:
   stage: test
   script:
     - cd tests/test_muc
     - LD_LIBRARY_PATH=mu-tool-compiler/lib/ MUC=mu-tool-compiler/muc python2 -m pytest test_thread_and_stack.py -v
-  dependencies:
-    - testmuc:build_muc
 
 testjit:milestones:
   stage: test
