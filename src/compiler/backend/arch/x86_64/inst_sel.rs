@@ -2320,10 +2320,10 @@ impl<'a> InstructionSelection {
                 })
             })
         } else if cfg!(target_os = "linux") {
-            // for a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
+            // for a global: a(%RIP), we need to load its address from a@GOTPCREL(%RIP)
             // then load from the address.
             // asm_backend will emit a@GOTPCREL(%RIP) for a(%RIP)
-            let got_loc = P(Value {
+            let symbol_loc = P(Value {
                 hdr: MuEntityHeader::unnamed(vm.next_id()),
                 ty: ADDRESS_TYPE.clone(),
                 v: Value_::Memory(MemoryLocation::Symbolic {
@@ -2334,11 +2334,15 @@ impl<'a> InstructionSelection {
                 })
             });
 
-            // mov (got_loc) -> actual_loc
-            let actual_loc = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-            self.emit_move_value_to_value(&actual_loc, &got_loc);
+            if is_global {
+                // mov (got_loc) -> actual_loc
+                let actual_loc = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+                self.emit_move_value_to_value(&actual_loc, &symbol_loc);
 
-            self.make_memory_op_base_offset(&actual_loc, 0, ty, vm)
+                self.make_memory_op_base_offset(&actual_loc, 0, ty, vm)
+            } else {
+                symbol_loc
+            }
         } else {
             panic!("unsupported OS")
         }
