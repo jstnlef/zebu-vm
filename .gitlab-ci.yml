@@ -41,6 +41,33 @@ test:cargo:runtime:
   script:
     - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release --color=always test_runtime 2> /dev/null
 
+testmuc:build_muc:
+  stage: test
+  script:
+    - cd $MU_ZEBU/tests/test_muc
+    - git clone https://gitlab.anu.edu.au/mu/mu-tool-compiler
+    - cd mu-tool-compiler
+    - mkdir lib
+    - ln -s $MU_ZEBU/target/release/libmu.so lib/
+    - make
+    - cd ..
+
+testmuc:test_simple:
+  stage: test
+  script:
+    - cd tests/test_muc
+    - LD_LIBRARY_PATH=mu-tool-compiler/lib/ MUC=mu-tool-compiler/muc python2 -m pytest test_simple.py -v
+  dependencies:
+    - testmuc:build_muc
+
+testmuc:test_swapstack:
+  stage: test
+  script:
+    - cd tests/test_muc
+    - LD_LIBRARY_PATH=mu-tool-compiler/lib/ MUC=mu-tool-compiler/muc python2 -m pytest test_thread_and_stack.py -v
+  dependencies:
+    - testmuc:build_muc
+
 testjit:milestones:
   stage: test
   script:
@@ -59,7 +86,6 @@ testjit:cmpops:
 testjit:controlflow:
   stage: test
   script:
-    - cd tests/test_jit
     - RUST_BACKTRACE=1 pytest test_controlflow.py -v --color=yes
 
 testjit:convops:
