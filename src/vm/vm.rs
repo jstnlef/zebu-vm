@@ -193,6 +193,12 @@ macro_rules! gen_handle_int {
     }
 }
 
+impl Drop for VM {
+    fn drop(&mut self) {
+        self.destroy();
+    }
+}
+
 impl<'a> VM {
     /// creates a VM with default options
     pub fn new() -> VM {
@@ -368,6 +374,11 @@ impl<'a> VM {
                 )
             }
         }
+    }
+
+    /// cleans up currenet VM
+    fn destroy(&mut self) {
+        gc::gc_destoy();
     }
 
     /// adds an exception callsite and catch block

@@ -182,6 +182,12 @@ pub extern "C" fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize,
     }
 }
 
+/// destroys current GC instance
+#[no_mangle]
+pub extern "C" fn gc_destoy() {
+    *MY_GC.write().unwrap() = None;
+}
+
 /// creates a mutator
 #[no_mangle]
 pub extern "C" fn new_mutator() -> ImmixMutatorLocal {

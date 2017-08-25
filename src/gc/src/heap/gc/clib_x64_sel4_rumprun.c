@@ -19,12 +19,6 @@
 #include <assert.h>
 #include <pthread.h>
 
-void* malloc_zero(size_t size) {
-    void* ret = malloc(size);
-    memset(ret, 0, size);
-    return ret;
-}
-
 uintptr_t immmix_get_stack_ptr() {
     uintptr_t rsp;
     // get current rsp, rbp (this C func frame)

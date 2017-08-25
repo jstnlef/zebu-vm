@@ -25,14 +25,6 @@ low_water_mark:
     .xword 0
     .size low_water_mark, 8
 
-#malloc_zero(size_t size) -> void*
-#               X0            X0
-begin_func malloc_zero
-    MOV X1, X0 // X1 = size
-    MOV X0, #1
-    B calloc // tail call calloc(1, size)
-end_func malloc_zero
-
 #immmix_get_stack_ptr() -> uintptr_t 
 #                          X0
 begin_func immmix_get_stack_ptr
