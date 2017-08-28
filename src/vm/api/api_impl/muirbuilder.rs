@@ -2183,6 +2183,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
         let impl_ty = self.ensure_type_rec(global.ty); // global type
 
+        assert_ir!(!impl_ty.is_hybrid(  ));
         let impl_val = Value {
             hdr: hdr,
             ty: self.ensure_iref(impl_ty.id()), // iref to global
