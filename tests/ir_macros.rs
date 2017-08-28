@@ -405,7 +405,7 @@ macro_rules! inst {
                         target: $dest.id(),
                         args: {
                             let mut i =0;
-                            vec![$($arg.clone()),*].iter().map(|_| {
+                            vec![$($arg.clone()),*].iter().map(|_: &Arc<TreeNode>| {
                                 let ret = DestArg::Normal(i); i+=1; ret
                              }).collect()
                         }
