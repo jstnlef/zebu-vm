@@ -53,6 +53,7 @@ use std::collections::HashMap;
 
 // Number of nromal callee saved registers (excluding FP and LR, and SP)
 pub const CALLEE_SAVED_COUNT: usize = 18;
+pub const ARGUMENT_REG_COUNT: usize = 16;
 
 macro_rules! REGISTER {
     ($id:expr, $name: expr, $ty: ident) => {
@@ -267,7 +268,9 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
 }
 
 pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
-    return get_color_for_precolored(id1) == get_color_for_precolored(id2);
+    return id1 == id2 ||
+        (id1 < MACHINE_ID_END && id2 < MACHINE_ID_END &&
+             get_color_for_precolored(id1) == get_color_for_precolored(id2));
 }
 
 pub fn get_color_for_precolored(id: MuID) -> MuID {
@@ -674,6 +677,54 @@ lazy_static! {
         D15.clone()
     ];
 
+    pub static ref CALLER_SAVED_REGS : [P<Value>; 42] = [
+        X0.clone(),
+        X1.clone(),
+        X2.clone(),
+        X3.clone(),
+        X4.clone(),
+        X5.clone(),
+        X6.clone(),
+        X7.clone(),
+        X8.clone(),
+        X9.clone(),
+        X10.clone(),
+        X11.clone(),
+        X12.clone(),
+        X13.clone(),
+        X14.clone(),
+        X15.clone(),
+        X16.clone(),
+        X17.clone(),
+        //X18.clone(), // Platform Register
+
+        D0.clone(),
+        D1.clone(),
+        D2.clone(),
+        D3.clone(),
+        D4.clone(),
+        D5.clone(),
+        D6.clone(),
+        D7.clone(),
+
+        D16.clone(),
+        D17.clone(),
+        D18.clone(),
+        D19.clone(),
+        D20.clone(),
+        D21.clone(),
+        D22.clone(),
+        D23.clone(),
+        D24.clone(),
+        D25.clone(),
+        D26.clone(),
+        D27.clone(),
+        D28.clone(),
+        D29.clone(),
+        D30.clone(),
+        D31.clone()
+    ];
+
     pub static ref ALL_USABLE_GPRS : Vec<P<Value>> = vec![
         X0.clone(),
         X1.clone(),
@@ -835,21 +886,20 @@ pub fn get_callee_saved_offset(reg: MuID) -> isize {
     (id as isize + 1) * (-8)
 }
 
-// Returns the callee saved register with the id...
-/*pub fn get_callee_saved_register(offset: isize) -> P<Value> {
-    debug_assert!(offset <= -8 && (-offset) % 8 == 0);
-    let id = ((offset/-8) - 1) as usize;
-    if id < CALLEE_SAVED_GPRs.len() {
-        CALLEE_SAVED_GPRs[id].clone()
-    } else if id - CALLEE_SAVED_GPRs.len() < CALLEE_SAVED_FPRs.len() {
-        CALLEE_SAVED_FPRs[id - CALLEE_SAVED_GPRs.len()].clone()
+// Gets the offset of the argument register when passed on the stack
+pub fn get_argument_reg_offset(reg: MuID) -> isize {
+    let reg = get_color_for_precolored(reg);
+
+    let id = if reg >= FPR_ID_START {
+        (reg - ARGUMENT_FPRS[0].id()) / 2
     } else {
-        panic!("There is no callee saved register with id {}", offset)
-    }
-}*/
+        (reg - ARGUMENT_GPRS[0].id()) / 2 + ARGUMENT_FPRS.len()
+    };
+
+    (id as isize + 1) * (-8)
+}
 
 pub fn is_callee_saved(reg_id: MuID) -> bool {
-
     for reg in CALLEE_SAVED_GPRS.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {
             return true;
@@ -864,6 +914,10 @@ pub fn is_callee_saved(reg_id: MuID) -> bool {
     false
 }
 
+// The stack size needed for a call to the given function signature
+pub fn call_stack_size(sig: P<MuFuncSig>, vm: &VM) -> usize {
+    compute_argument_locations(&sig.ret_tys, &SP, 0, &vm).2
+}
 // TODO: Check that these numbers are reasonable (THEY ARE ONLY AN ESTIMATE)
 use ast::inst::*;
 pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
@@ -906,10 +960,12 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
         // runtime
         New(_) | NewHybrid(_, _) => 10,
-        NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
+        NewStack(_) | NewThread { .. } | NewFrameCursor(_) => 10,
         ThreadExit => 10,
+        CurrentStack => 10,
+        KillStack(_) => 10,
         Throw(_) => 10,
-        SwapStack { .. } => 10,
+        SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
         CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
 
@@ -1320,25 +1376,6 @@ pub fn match_value_f32imm(op: &P<Value>) -> bool {
     }
 }
 
-// The type of the node (for a value node)
-pub fn node_type(op: &TreeNode) -> P<MuType> {
-    match op.v {
-        TreeNode_::Instruction(ref inst) => {
-            if inst.value.is_some() {
-                let ref value = inst.value.as_ref().unwrap();
-                if value.len() != 1 {
-                    panic!("the node {} does not have one result value", op);
-                }
-
-                value[0].ty.clone()
-            } else {
-                panic!("expected result from the node {}", op);
-            }
-        }
-        TreeNode_::Value(ref pv) => pv.ty.clone()
-    }
-}
-
 pub fn match_value_imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(_) => true,
@@ -1487,6 +1524,14 @@ pub fn make_value_int_const(val: u64, vm: &VM) -> P<Value> {
         hdr: MuEntityHeader::unnamed(vm.next_id()),
         ty: UINT64_TYPE.clone(),
         v: Value_::Constant(Constant::Int(val))
+    })
+}
+
+pub fn make_value_nullref(vm: &VM) -> P<Value> {
+    P(Value {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        ty: REF_VOID_TYPE.clone(),
+        v: Value_::Constant(Constant::NullRef)
     })
 }
 
@@ -2100,7 +2145,6 @@ fn split_int128(
             .unwrap()
             .set_split(vec![arg_l.clone(), arg_h.clone()]);
 
-        trace!("ISAAC <- make temporary ({}, {})", &arg_l, &arg_h);
         (arg_l, arg_h)
     }
 }
@@ -2122,13 +2166,6 @@ pub fn emit_ireg_ex_value(
             emit_mov_u64(backend, &tmp_l, val[0]);
             emit_mov_u64(backend, &tmp_h, val[1]);
 
-            trace!(
-                "ISAAC <- ({}, {}) = ({}, {})",
-                &tmp_l,
-                &tmp_h,
-                val[0],
-                val[1]
-            );
             (tmp_l, tmp_h)
         }
         _ => panic!("expected ireg_ex")
@@ -2848,4 +2885,178 @@ fn is_int_ex_reg(val: &P<Value>) -> bool {
 }
 fn is_fp_reg(val: &P<Value>) -> bool {
     RegGroup::get_from_value(&val) == RegGroup::FPR && (val.is_reg() || val.is_const())
+}
+
+// TODO: Thoroughly test this
+// (compare with code generated by GCC with variouse different types???)
+// The algorithm presented here is derived from the ARM AAPCS64 reference
+// Returns a vector indicating whether each should be passed as an IRef (and not directly),
+// a vector referencing to the location of each argument (in memory or a register) and
+// the amount of stack space used
+// NOTE: It currently does not support vectors/SIMD types (or aggregates of such types)
+fn compute_argument_locations(
+    arg_types: &Vec<P<MuType>>,
+    stack: &P<Value>,
+    offset: i64,
+    vm: &VM
+) -> (Vec<bool>, Vec<P<Value>>, usize) {
+    if arg_types.len() == 0 {
+        // nothing to do
+        return (vec![], vec![], 0);
+    }
+
+    let mut ngrn = 0 as usize; // The Next General-purpose Register Number
+    let mut nsrn = 0 as usize; // The Next SIMD and Floating-point Register Number
+    let mut nsaa = 0 as usize; // The next stacked argument address (an offset from the SP)
+    use ast::types::MuType_::*;
+
+    // reference[i] = true indicates the argument is passed an IRef to a location on the stack
+    let mut reference: Vec<bool> = vec![];
+    for t in arg_types {
+        reference.push(
+            hfa_length(t) == 0 && // HFA's aren't converted to IRef's
+                match t.v {
+                    // size can't be statically determined
+                    Hybrid(_) => panic!("Hybrid argument not supported"),
+                    //  type is too large
+                    Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true,
+                    Vector(_, _)  => unimplemented!(),
+                    _ => false
+                }
+        );
+    }
+    // TODO: How does passing arguments by reference effect the stack size??
+    let mut locations: Vec<P<Value>> = vec![];
+    for i in 0..arg_types.len() {
+        let i = i as usize;
+        let t = if reference[i] {
+            P(MuType::new(
+                new_internal_id(),
+                MuType_::IRef(arg_types[i].clone())
+            ))
+        } else {
+            arg_types[i].clone()
+        };
+        let size = align_up(vm.get_backend_type_size(t.id()), 8);
+        let align = get_type_alignment(&t, vm);
+        match t.v {
+            Hybrid(_) => panic!("hybrid argument not supported"),
+
+            Vector(_, _) => unimplemented!(),
+            Float | Double => {
+                if nsrn < 8 {
+                    locations.push(get_alias_for_length(
+                        ARGUMENT_FPRS[nsrn].id(),
+                        get_bit_size(&t, vm)
+                    ));
+                    nsrn += 1;
+                } else {
+                    nsrn = 8;
+                    locations.push(make_value_base_offset(
+                        &stack,
+                        offset + (nsaa as i64),
+                        &t,
+                        vm
+                    ));
+                    nsaa += size;
+                }
+            }
+            Struct(_) | Array(_, _) => {
+                let hfa_n = hfa_length(&t);
+                if hfa_n > 0 {
+                    if nsrn + hfa_n <= 8 {
+                        // Note: the argument will occupy succesiv registers
+                        // (one for each element)
+                        locations.push(get_alias_for_length(
+                            ARGUMENT_FPRS[nsrn].id(),
+                            get_bit_size(&t, vm) / hfa_n
+                        ));
+                        nsrn += hfa_n;
+                    } else {
+                        nsrn = 8;
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64),
+                            &t,
+                            vm
+                        ));
+                        nsaa += size;
+                    }
+                } else {
+                    if align == 16 {
+                        ngrn = align_up(ngrn, 2); // align NGRN to the next even number
+                    }
+
+                    if size <= 8 * (8 - ngrn) {
+                        // The struct should be packed, starting here
+                        // (note: this may result in multiple struct fields in the same regsiter
+                        // or even floating points in a GPR)
+                        locations.push(ARGUMENT_GPRS[ngrn].clone());
+                        // How many GPRS are taken up by t
+                        ngrn += if size % 8 != 0 {
+                            size / 8 + 1
+                        } else {
+                            size / 8
+                        };
+                    } else {
+                        ngrn = 8;
+                        nsaa = align_up(nsaa, align_up(align, 8));
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64) as i64,
+                            &t,
+                            vm
+                        ));
+                        nsaa += size;
+                    }
+                }
+            }
+
+            Void => panic!("void argument not supported"),
+
+            // Integral or pointer type
+            _ => {
+                if size <= 8 {
+                    if ngrn < 8 {
+                        locations.push(get_alias_for_length(
+                            ARGUMENT_GPRS[ngrn].id(),
+                            get_bit_size(&t, vm)
+                        ));
+                        ngrn += 1;
+                    } else {
+                        nsaa = align_up(nsaa, align_up(align, 8));
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64) as i64,
+                            &t,
+                            vm
+                        ));
+                        nsaa += size;
+                    }
+
+                } else if size == 16 {
+                    ngrn = align_up(ngrn, 2); // align NGRN to the next even number
+
+                    if ngrn < 7 {
+                        locations.push(ARGUMENT_GPRS[ngrn].clone());
+                        ngrn += 2;
+                    } else {
+                        ngrn = 8;
+                        nsaa = align_up(nsaa, 16);
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64) as i64,
+                            &t,
+                            vm
+                        ));
+                        nsaa += 16;
+                    }
+                } else {
+                    unimplemented!(); // Integer type is too large
+                }
+            }
+        }
+    }
+
+    (reference, locations, align_up(nsaa, 16) as usize)
 }

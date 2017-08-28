@@ -33,6 +33,7 @@
 
 #[macro_use]
 extern crate rodal;
+extern crate log;
 extern crate simple_logger;
 #[macro_use]
 extern crate lazy_static;

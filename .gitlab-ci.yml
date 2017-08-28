@@ -42,6 +42,28 @@ test:cargo:runtime:
   script:
     - RUST_BACKTRACE=1 RUST_TEST_THREADS=1 ./test-release --color=always test_runtime 2> /dev/null
 
+.build_muc: &build_muc |
+  if [ -d "tests/test_muc/mu-tool-compiler" ]; then rm -Rf tests/test_muc/mu-tool-compiler; fi
+  cd tests/test_muc
+  git clone https://gitlab.anu.edu.au/mu/mu-tool-compiler
+  cd mu-tool-compiler
+  mkdir lib
+  ln -s $MU_ZEBU/target/release/libmu.so lib/
+  make
+  cd ..
+
+testmuc:test_simple:
+  stage: test
+  script:
+    - *build_muc
+    - LD_LIBRARY_PATH=mu-tool-compiler/lib/ MUC=mu-tool-compiler/muc python2 -m pytest test_simple.py -v
+
+testmuc:test_swapstack:
+  stage: test
+  script:
+    - *build_muc
+    - LD_LIBRARY_PATH=mu-tool-compiler/lib/ MUC=mu-tool-compiler/muc python2 -m pytest test_thread_and_stack.py -v
+
 testjit:milestones:
   stage: test
   script:
@@ -60,6 +82,8 @@ testjit:cmpops:
 testjit:controlflow:
   stage: test
   script:
+    # run this test under test_jit directory
+    # as a C source file is expected in a relative path to current working directory
     - cd tests/test_jit
     - RUST_BACKTRACE=1 pytest test_controlflow.py -v --color=yes
 

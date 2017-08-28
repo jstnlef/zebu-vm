@@ -63,6 +63,20 @@ impl Instruction {
         use inst::Instruction_::*;
 
         match self.v {
+            Return(_) |
+            ThreadExit |
+            Throw(_) |
+            TailCall(_) |
+            Branch1(_) |
+            Branch2 { .. } |
+            Watchpoint { .. } |
+            WPBranch { .. } |
+            Call { .. } |
+            CCall { .. } |
+            SwapStackExc { .. } |
+            SwapStackKill { .. } |
+            Switch { .. } |
+            ExnInstruction { .. } => true,
             BinOp(_, _, _) |
             BinOpWithStatus(_, _, _, _) |
             CmpOp(_, _, _) |
@@ -78,8 +92,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread(_, _) |
-            NewThreadExn(_, _) |
+            NewThread { .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -105,20 +118,10 @@ impl Instruction {
             CommonInst_Tr64ToTag(_) |
             Move(_) |
             PrintHex(_) |
-            SetRetval(_) => false,
-            Return(_) |
-            ThreadExit |
-            Throw(_) |
-            TailCall(_) |
-            Branch1(_) |
-            Branch2 { .. } |
-            Watchpoint { .. } |
-            WPBranch { .. } |
-            Call { .. } |
-            CCall { .. } |
-            SwapStack { .. } |
-            Switch { .. } |
-            ExnInstruction { .. } => true
+            SetRetval(_) |
+            KillStack(_) |
+            CurrentStack |
+            SwapStackExpr { .. } => false
         }
     }
 
@@ -135,58 +138,65 @@ impl Instruction {
         use inst::Instruction_::*;
 
         match self.v {
-            BinOp(_, _, _) => false,
-            BinOpWithStatus(_, _, _, _) => false,
-            CmpOp(_, _, _) => false,
-            ConvOp { .. } => false,
-            ExprCall { .. } => true,
-            ExprCCall { .. } => true,
-            Load { .. } => true,
-            Store { .. } => true,
-            CmpXchg { .. } => true,
-            AtomicRMW { .. } => true,
-            New(_) => true,
-            AllocA(_) => true,
-            NewHybrid(_, _) => true,
-            AllocAHybrid(_, _) => true,
-            NewStack(_) => true,
-            NewThread(_, _) => true,
-            NewThreadExn(_, _) => true,
-            NewFrameCursor(_) => true,
-            GetIRef(_) => false,
-            GetFieldIRef { .. } => false,
-            GetElementIRef { .. } => false,
-            ShiftIRef { .. } => false,
-            GetVarPartIRef { .. } => false,
-            Fence(_) => true,
-            Return(_) => true,
-            ThreadExit => true,
-            Throw(_) => true,
-            TailCall(_) => true,
-            Branch1(_) => true,
-            Branch2 { .. } => true,
-            Select { .. } => false,
-            Watchpoint { .. } => true,
-            WPBranch { .. } => true,
-            Call { .. } => true,
-            CCall { .. } => true,
-            SwapStack { .. } => true,
-            Switch { .. } => true,
-            ExnInstruction { .. } => true,
-            CommonInst_GetThreadLocal => true,
-            CommonInst_SetThreadLocal(_) => true,
-            CommonInst_Pin(_) | CommonInst_Unpin(_) | CommonInst_GetAddr(_) => true,
-            CommonInst_Tr64IsFp(_) | CommonInst_Tr64IsInt(_) | CommonInst_Tr64IsRef(_) => false,
-            CommonInst_Tr64FromFp(_) | CommonInst_Tr64FromInt(_) | CommonInst_Tr64FromRef(_, _) => {
-                false
-            }
+            ExprCall { .. } |
+            ExprCCall { .. } |
+            Load { .. } |
+            Store { .. } |
+            CmpXchg { .. } |
+            AtomicRMW { .. } |
+            New(_) |
+            AllocA(_) |
+            NewHybrid(_, _) |
+            AllocAHybrid(_, _) |
+            NewStack(_) |
+            NewThread { .. } |
+            NewFrameCursor(_) |
+            Fence(_) |
+            Return(_) |
+            ThreadExit |
+            Throw(_) |
+            TailCall(_) |
+            Branch1(_) |
+            Branch2 { .. } |
+            Watchpoint { .. } |
+            WPBranch { .. } |
+            Call { .. } |
+            CCall { .. } |
+            SwapStackExpr { .. } |
+            SwapStackExc { .. } |
+            SwapStackKill { .. } |
+            Switch { .. } |
+            ExnInstruction { .. } |
+            CommonInst_GetThreadLocal |
+            CommonInst_SetThreadLocal(_) |
+            CommonInst_Pin(_) |
+            CommonInst_Unpin(_) |
+            CommonInst_GetAddr(_) |
+            PrintHex(_) |
+            SetRetval(_) |
+            KillStack(_) => true,
+            BinOp(_, _, _) |
+            BinOpWithStatus(_, _, _, _) |
+            CmpOp(_, _, _) |
+            ConvOp { .. } |
+            GetIRef(_) |
+            GetFieldIRef { .. } |
+            GetElementIRef { .. } |
+            ShiftIRef { .. } |
+            GetVarPartIRef { .. } |
+            Select { .. } |
+            CommonInst_Tr64IsFp(_) |
+            CommonInst_Tr64IsInt(_) |
+            CommonInst_Tr64IsRef(_) |
+            CommonInst_Tr64FromFp(_) |
+            CommonInst_Tr64FromInt(_) |
+            CommonInst_Tr64FromRef(_, _) |
             CommonInst_Tr64ToFp(_) |
             CommonInst_Tr64ToInt(_) |
             CommonInst_Tr64ToRef(_) |
-            CommonInst_Tr64ToTag(_) => false,
-            Move(_) => false,
-            PrintHex(_) => true,
-            SetRetval(_) => true
+            CommonInst_Tr64ToTag(_) |
+            Move(_) |
+            CurrentStack => false
         }
     }
 
@@ -199,9 +209,8 @@ impl Instruction {
             Watchpoint { .. } |
             Call { .. } |
             CCall { .. } |
-            SwapStack { .. } |
+            SwapStackExc { .. } |
             ExnInstruction { .. } => true,
-
             BinOp(_, _, _) |
             BinOpWithStatus(_, _, _, _) |
             CmpOp(_, _, _) |
@@ -217,8 +226,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread(_, _) |
-            NewThreadExn(_, _) |
+            NewThread { .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -252,7 +260,11 @@ impl Instruction {
             CommonInst_Tr64ToTag(_) |
             Move(_) |
             PrintHex(_) |
-            SetRetval(_) => false
+            SetRetval(_) |
+            KillStack(_) |
+            CurrentStack |
+            SwapStackExpr { .. } |
+            SwapStackKill { .. } => false
         }
     }
 
@@ -269,9 +281,8 @@ impl Instruction {
             Watchpoint { ref resume, .. } |
             Call { ref resume, .. } |
             CCall { ref resume, .. } |
-            SwapStack { ref resume, .. } |
+            SwapStackExc { ref resume, .. } |
             ExnInstruction { ref resume, .. } => Some(resume.exn_dest.target),
-
             BinOp(_, _, _) |
             BinOpWithStatus(_, _, _, _) |
             CmpOp(_, _, _) |
@@ -287,8 +298,7 @@ impl Instruction {
             NewHybrid(_, _) |
             AllocAHybrid(_, _) |
             NewStack(_) |
-            NewThread(_, _) |
-            NewThreadExn(_, _) |
+            NewThread { .. } |
             NewFrameCursor(_) |
             GetIRef(_) |
             GetFieldIRef { .. } |
@@ -322,7 +332,11 @@ impl Instruction {
             CommonInst_Tr64ToTag(_) |
             Move(_) |
             PrintHex(_) |
-            SetRetval(_) => None
+            SetRetval(_) |
+            KillStack(_) |
+            CurrentStack |
+            SwapStackExpr { .. } |
+            SwapStackKill { .. } => None
         }
     }
 
@@ -433,13 +447,20 @@ pub enum Instruction_ {
     /// args: functionref of the entry function
     NewStack(OpIndex),
 
+    /// kill the given Mu stack
+    KillStack(OpIndex),
+
+    /// return stackref for the current stack
+    CurrentStack,
+
     /// create a new Mu thread, yields thread reference
     /// args: stackref of a Mu stack, a list of arguments
-    NewThread(OpIndex, Vec<OpIndex>), // stack, args
-
-    /// create a new Mu thread, yields thread reference (thread resumes with exceptional value)
-    /// args: stackref of a Mu stack, an exceptional value
-    NewThreadExn(OpIndex, OpIndex), // stack, exception
+    NewThread {
+        stack: OpIndex,
+        thread_local: Option<OpIndex>,
+        is_exception: bool,
+        args: Vec<OpIndex>
+    },
 
     /// create a frame cursor reference
     /// args: stackref of a Mu stack
@@ -539,13 +560,27 @@ pub enum Instruction_ {
         resume: ResumptionData
     },
 
-    /// swapstack. swap current Mu stack with the named Mu stack,
-    /// and continue with specified resumption
-    SwapStack {
+    /// A swap stack with an exception clause (i.e. uses the RET_WITH form)
+    SwapStackExc {
         stack: OpIndex,
         is_exception: bool,
         args: Vec<OpIndex>,
         resume: ResumptionData
+    },
+
+    /// A swap stack without an exception clause that is not a terminator
+    /// (i.e. uses the RET_WITH form)
+    SwapStackExpr {
+        stack: OpIndex,
+        is_exception: bool,
+        args: Vec<OpIndex>
+    },
+
+    /// A swapstack without an exception clause that is a terminator (i.e. one with KILL_OLD)
+    SwapStackKill {
+        stack: OpIndex,
+        is_exception: bool,
+        args: Vec<OpIndex>
     },
 
     /// a multiway branch
@@ -685,16 +720,23 @@ impl Instruction_ {
             &Instruction_::AllocA(ref ty) => format!("ALLOCA {}", ty),
             &Instruction_::NewHybrid(ref ty, len) => format!("NEWHYBRID {} {}", ty, ops[len]),
             &Instruction_::AllocAHybrid(ref ty, len) => format!("ALLOCAHYBRID {} {}", ty, ops[len]),
-            &Instruction_::NewStack(func) => format!("NEWSTACK {}", ops[func]),
-            &Instruction_::NewThread(stack, ref args) => {
+            &Instruction_::NewStack(func) => format!("NEW_STACK {}", ops[func]),
+            &Instruction_::NewThread {
+                stack,
+                thread_local,
+                is_exception,
+                ref args
+            } => {
+                let thread_local = thread_local
+                    .map(|t| format!("{}", ops[t]))
+                    .unwrap_or("NULL".to_string());
                 format!(
-                    "NEWTHREAD {} PASS_VALUES {}",
+                    "SWAPSTACK {} THREADLOCAL({}) {} {}",
                     ops[stack],
-                    op_vector_str(args, ops)
+                    thread_local,
+                    is_exception,
+                    op_vector_str(args, ops),
                 )
-            }
-            &Instruction_::NewThreadExn(stack, exn) => {
-                format!("NEWTHREAD {} THROW_EXC {}", ops[stack], ops[exn])
             }
             &Instruction_::NewFrameCursor(stack) => format!("NEWFRAMECURSOR {}", ops[stack]),
             &Instruction_::GetIRef(reference) => format!("GETIREF {}", ops[reference]),
@@ -731,6 +773,8 @@ impl Instruction_ {
 
             &Instruction_::Return(ref vals) => format!("RET {}", op_vector_str(vals, ops)),
             &Instruction_::ThreadExit => "THREADEXIT".to_string(),
+            &Instruction_::CurrentStack => "CURRENT_STACK".to_string(),
+            &Instruction_::KillStack(s) => format!("RET {}", ops[s]),
             &Instruction_::Throw(exn_obj) => format!("THROW {}", ops[exn_obj]),
             &Instruction_::TailCall(ref call) => format!("TAILCALL {}", call.debug_str(ops)),
             &Instruction_::Branch1(ref dest) => format!("BRANCH {}", dest.debug_str(ops)),
@@ -797,7 +841,19 @@ impl Instruction_ {
                 ref data,
                 ref resume
             } => format!("CCALL {} {}", data.debug_str(ops), resume.debug_str(ops)),
-            &Instruction_::SwapStack {
+            &Instruction_::SwapStackExpr {
+                stack,
+                is_exception,
+                ref args
+            } => {
+                format!(
+                    "SWAPSTACK {} {} {}",
+                    ops[stack],
+                    is_exception,
+                    op_vector_str(args, ops),
+                )
+            }
+            &Instruction_::SwapStackExc {
                 stack,
                 is_exception,
                 ref args,
@@ -811,6 +867,20 @@ impl Instruction_ {
                     resume.debug_str(ops)
                 )
             }
+
+            &Instruction_::SwapStackKill {
+                stack,
+                is_exception,
+                ref args
+            } => {
+                format!(
+                    "SWAPSTACK {} {} {}",
+                    ops[stack],
+                    is_exception,
+                    op_vector_str(args, ops),
+                )
+            }
+
             &Instruction_::Switch {
                 cond,
                 ref default,
@@ -948,7 +1018,7 @@ impl fmt::Debug for BinOpStatus {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum MemoryOrder {
     NotAtomic,
     Relaxed,

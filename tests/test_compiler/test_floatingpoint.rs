@@ -319,7 +319,7 @@ fn sitofp() -> VM {
 }
 
 #[test]
-fn test_ui64tofp() {
+fn test_ui64tofp_simple() {
     build_and_run_test!(ui64tofp, ui64tofp_test1);
     build_and_run_test!(ui64tofp, ui64tofp_test2);
 }

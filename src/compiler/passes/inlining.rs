@@ -432,7 +432,6 @@ fn copy_inline_blocks(
         // Create the new blocks contents
         {
             let old_block_content = old_block.content.as_ref().unwrap();
-            let block_name = block.name().clone();
             let block_content = block.content.as_mut().unwrap();
 
             // Copy the old_block contents (minus the last one)
@@ -461,18 +460,10 @@ fn copy_inline_blocks(
                     trace!("last instruction: {}", inst);
 
                     let hdr = inst.hdr.clone_with_id(inst_new_id);
-                    let inst_name = inst.name().clone();
                     let ref value = inst.value;
                     let ref ops = inst.ops;
                     let ref v = inst.v;
 
-                    trace!(
-                        "ISAAC: Inlining [{} -> {}] : {} -> {}",
-                        old_block.name(),
-                        block_name,
-                        inst_name,
-                        hdr.name()
-                    );
                     match v {
                         &Instruction_::Return(ref vec) => {
                             // change RET to a branch
@@ -582,6 +573,27 @@ fn copy_inline_blocks(
                             block_content.body.push(TreeNode::new_boxed_inst(switch));
                         }
 
+                        &Instruction_::SwapStackExc {
+                            stack,
+                            is_exception,
+                            ref args,
+                            ref resume
+                        } => {
+                            let swapstack = Instruction {
+                                hdr: hdr,
+                                value: value.clone(),
+                                ops: ops.clone(),
+                                v: Instruction_::SwapStackExc {
+                                    stack: stack,
+                                    is_exception: is_exception,
+                                    args: args.clone(),
+                                    resume: fix_resume(resume.clone())
+                                }
+                            };
+
+                            trace!("rewrite to: {}", swapstack);
+                            block_content.body.push(TreeNode::new_boxed_inst(swapstack));
+                        }
                         &Instruction_::Watchpoint { .. } |
                         &Instruction_::WPBranch { .. } |
                         &Instruction_::ExnInstruction { .. } => unimplemented!(),

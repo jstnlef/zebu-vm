@@ -1199,7 +1199,8 @@ impl ASMCodeGen {
         &mut self,
         code: String,
         potentially_excepting: Option<MuName>,
-        arguments: Vec<P<Value>>,
+        use_vec: Vec<P<Value>>,
+        def_vec: Vec<P<Value>>,
         target: Option<(MuID, ASMLocation)>
     ) {
         let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
@@ -1207,20 +1208,13 @@ impl ASMCodeGen {
             let (id, loc) = target.unwrap();
             uses.insert(id, vec![loc]);
         }
-        for arg in arguments {
-            uses.insert(arg.id(), vec![]);
+        for u in use_vec {
+            uses.insert(u.id(), vec![]);
         }
 
         let mut defines: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for reg in x86_64::CALLER_SAVED_GPRS.iter() {
-            if !defines.contains_key(&reg.id()) {
-                defines.insert(reg.id(), vec![]);
-            }
-        }
-        for reg in x86_64::CALLER_SAVED_FPRS.iter() {
-            if !defines.contains_key(&reg.id()) {
-                defines.insert(reg.id(), vec![]);
-            }
+        for d in def_vec {
+            defines.insert(d.id(), vec![]);
         }
 
         self.add_asm_inst_internal(
@@ -3291,18 +3285,15 @@ impl CodeGenerator for ASMCodeGen {
         callsite: String,
         func: MuName,
         pe: Option<MuName>,
-        args: Vec<P<Value>>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>,
         is_native: bool
     ) -> ValueLocation {
-        if is_native {
-            trace!("emit: call /*C*/ {}({:?})", func, args);
-        } else {
-            trace!("emit: call {}({:?})", func, args);
-        }
-
         let func = if is_native {
+            trace!("emit: call /*C*/ {}({:?})", func, uses);
             "/*C*/".to_string() + symbol(func).as_str()
         } else {
+            trace!("emit: call {}({:?})", func, uses);
             symbol(mangle_name(func))
         };
 
@@ -3312,7 +3303,7 @@ impl CodeGenerator for ASMCodeGen {
             format!("call {}@PLT", func)
         };
 
-        self.add_asm_call(asm, pe, args, None);
+        self.add_asm_call(asm, pe, uses, defs, None);
 
         self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
@@ -3323,14 +3314,15 @@ impl CodeGenerator for ASMCodeGen {
         callsite: String,
         func: &P<Value>,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
     ) -> ValueLocation {
         trace!("emit: call {}", func);
         let (reg, id, loc) = self.prepare_reg(func, 6);
         let asm = format!("call *{}", reg);
 
         // the call uses the register
-        self.add_asm_call(asm, pe, args, Some((id, loc)));
+        self.add_asm_call(asm, pe, uses, defs, Some((id, loc)));
 
         self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
         ValueLocation::Relocatable(RegGroup::GPR, callsite)
@@ -3342,10 +3334,59 @@ impl CodeGenerator for ASMCodeGen {
         callsite: String,
         func: &P<Value>,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
     ) -> ValueLocation {
         trace!("emit: call {}", func);
         unimplemented!()
+    }
+
+    fn emit_call_jmp(
+        &mut self,
+        callsite: String,
+        func: MuName,
+        pe: Option<MuName>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>,
+        is_native: bool
+    ) -> ValueLocation {
+        let func = if is_native {
+            trace!("emit: call/jmp /*C*/ {}({:?})", func, uses);
+            "/*C*/".to_string() + symbol(func).as_str()
+        } else {
+            trace!("emit: call/jmp {}({:?})", func, uses);
+            symbol(mangle_name(func))
+        };
+
+        let asm = if cfg!(target_os = "macos") {
+            format!("/*CALL*/ jmp {}", func)
+        } else {
+            format!("/*CALL*/ jmp {}@PLT", func)
+        };
+
+        self.add_asm_call(asm, pe, uses, defs, None);
+
+        self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+    }
+
+    fn emit_call_jmp_indirect(
+        &mut self,
+        callsite: String,
+        func: &P<Value>,
+        pe: Option<MuName>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
+    ) -> ValueLocation {
+        trace!("emit: call/jmp {}", func);
+        let (reg, id, loc) = self.prepare_reg(func, 6);
+        let asm = format!("/*CALL*/ jmp *{}", reg);
+
+        // the call uses the register
+        self.add_asm_call(asm, pe, uses, defs, Some((id, loc)));
+
+        self.add_asm_global_label(symbol(mangle_name(callsite.clone())));
+        ValueLocation::Relocatable(RegGroup::GPR, callsite)
     }
 
     fn emit_ret(&mut self) {
@@ -3706,8 +3747,6 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         // constants in text section
         file.write("\t.text\n".as_bytes()).unwrap();
 
-        // alignment for constant are 16 bytes
-        write_const_align(&mut file);
         // write constants
         for (id, constant) in cf.consts.iter() {
             let mem = cf.const_mem.get(id).unwrap();
@@ -3727,6 +3766,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
             Ok(_) => info!("emit code to {}", file_path.to_str().unwrap())
         }
     }
+    info!("write demangled code...");
     // Read the file we just wrote above an demangle it
     {
         let mut demangled_path = path::PathBuf::new();
@@ -3786,11 +3826,6 @@ fn check_align(align: ByteSize) -> ByteSize {
     }
 }
 
-/// writes constant alignmnet (16 bytes)
-fn write_const_align(f: &mut File) {
-    write_align(f, MAX_ALIGN);
-}
-
 /// writes alignment in bytes for linux
 #[cfg(not(feature = "sel4-rumprun"))]
 #[cfg(target_os = "linux")]
@@ -3840,6 +3875,7 @@ fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
             )
         }
     };
+    write_align(f, MAX_ALIGN);
     writeln!(f, "{}:", symbol(mangle_name(label))).unwrap();
 
     // actual value
@@ -3848,7 +3884,6 @@ fn write_const(f: &mut File, constant: P<Value>, loc: P<Value>) {
 
 /// writes a constant value based on its type and value
 fn write_const_value(f: &mut File, constant: P<Value>) {
-    use std::mem;
     use std::io::Write;
 
     let ref ty = constant.ty;
@@ -3889,16 +3924,14 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
                 .unwrap();
         }
         &Constant::Float(val) => {
-            let bytes: [u8; 4] = unsafe { mem::transmute(val) };
-            f.write("\t.long ".as_bytes()).unwrap();
-            f.write(&bytes).unwrap();
-            f.write("\n".as_bytes()).unwrap();
+            use utils::mem::f32_to_raw;
+            f.write_fmt(format_args!("\t.long {}\n", f32_to_raw(val) as u32))
+                .unwrap();
         }
         &Constant::Double(val) => {
-            let bytes: [u8; 8] = unsafe { mem::transmute(val) };
-            f.write("\t.quad ".as_bytes()).unwrap();
-            f.write(&bytes).unwrap();
-            f.write("\n".as_bytes()).unwrap();
+            use utils::mem::f64_to_raw;
+            f.write_fmt(format_args!("\t.quad {}\n", f64_to_raw(val) as u64))
+                .unwrap();
         }
         &Constant::NullRef => f.write_fmt(format_args!("\t.quad 0\n")).unwrap(),
         &Constant::ExternSym(ref name) => f.write_fmt(format_args!("\t.quad {}\n", name)).unwrap(),

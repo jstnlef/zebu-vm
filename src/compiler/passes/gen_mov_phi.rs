@@ -234,6 +234,47 @@ impl CompilerPass for GenMovPhi {
                                 }
                                 Instruction_::Watchpoint { .. } => unimplemented!(),
                                 Instruction_::WPBranch { .. } => unimplemented!(),
+                                Instruction_::SwapStackExc {
+                                    stack,
+                                    is_exception,
+                                    args,
+                                    resume
+                                } => {
+                                    let norm_dest = process_dest(
+                                        resume.normal_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "norm"
+                                    );
+                                    let exn_dest = process_dest(
+                                        resume.exn_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "exc"
+                                    );
+
+                                    let new_inst = func.new_inst(Instruction {
+                                        hdr: inst.hdr.clone(),
+                                        value: inst.value.clone(),
+                                        ops: ops.to_vec(),
+                                        v: Instruction_::SwapStackExc {
+                                            stack: stack,
+                                            is_exception: is_exception,
+                                            args: args,
+                                            resume: ResumptionData {
+                                                normal_dest: norm_dest,
+                                                exn_dest: exn_dest
+                                            }
+                                        }
+                                    });
+
+                                    trace!("rewrite to {}", new_inst);
+                                    new_body.push(new_inst);
+                                }
                                 Instruction_::ExnInstruction { .. } => unimplemented!(),
                                 _ => {
                                     trace!("no rewrite");

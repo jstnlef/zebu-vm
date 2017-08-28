@@ -116,6 +116,8 @@ pub use compiler::backend::x86_64::spill_rewrite;
 pub use compiler::backend::x86_64::ARGUMENT_GPRS;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::ARGUMENT_FPRS;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::call_stack_size;
 
 /// --- aarch64 backend ---
 #[cfg(target_arch = "aarch64")]
@@ -184,6 +186,8 @@ pub use compiler::backend::aarch64::spill_rewrite;
 pub use compiler::backend::aarch64::ARGUMENT_GPRS;
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::ARGUMENT_FPRS;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::call_stack_size;
 
 use vm::VM;
 use ast::types::*;

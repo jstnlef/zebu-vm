@@ -1268,6 +1268,8 @@ struct BundleLoader<'lb, 'lvm> {
     built_i6: Option<P<MuType>>,
     built_ref_void: Option<P<MuType>>,
     built_tagref64: Option<P<MuType>>,
+    built_stackref: Option<P<MuType>>,
+    built_threadref: Option<P<MuType>>,
 
     built_funcref_of: IdPMap<MuType>,
     built_ref_of: IdPMap<MuType>,
@@ -1305,6 +1307,8 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_i6: Default::default(),
         built_ref_void: Default::default(),
         built_tagref64: Default::default(),
+        built_stackref: Default::default(),
+        built_threadref: Default::default(),
         built_funcref_of: Default::default(),
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
@@ -1418,6 +1422,46 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         self.built_types.insert(id, impl_ty.clone());
         self.built_i1 = Some(impl_ty.clone());
+
+        impl_ty
+    }
+
+    fn ensure_stackref(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_stackref {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::StackRef
+        });
+
+        trace!("Ensure stackref is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_stackref = Some(impl_ty.clone());
+
+        impl_ty
+    }
+
+    fn ensure_threadref(&mut self) -> P<MuType> {
+        if let Some(ref impl_ty) = self.built_threadref {
+            return impl_ty.clone();
+        }
+
+        let id = self.vm.next_id();
+
+        let impl_ty = P(MuType {
+            hdr: MuEntityHeader::unnamed(id),
+            v: MuType_::ThreadRef
+        });
+
+        trace!("Ensure threadref is defined: {} {:?}", id, impl_ty);
+
+        self.built_types.insert(id, impl_ty.clone());
+        self.built_threadref = Some(impl_ty.clone());
 
         impl_ty
     }
@@ -3255,8 +3299,6 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     impl_refty,
                     impl_loc.ty()
                 );
-
-
                 Instruction {
                     hdr: hdr,
                     value: Some(vec![impl_rv]),
@@ -3350,6 +3392,143 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     CallConvention::Foreign(ForeignFFI::C),
                     blocks
                 )
+            }
+
+            NodeInst::NodeSwapStack {
+                id: _,
+                ref result_ids,
+                swappee,          // MuVarNode
+                cur_stack_clause, //MuCurStackClause
+                new_stack_clause, //MuNewStackClause
+                exc_clause,       //Option<MuExcClause>,
+                keepalive_clause  // Option<MuKeepaliveClause>,
+            } => {
+                let mut ops: Vec<P<TreeNode>> = vec![self.get_treenode(fcb, swappee)];
+                assert_ir!(ops[0].ty().is_stackref());
+
+                let cur_stack_clause = self.b.bundle.cs_clauses.get(&cur_stack_clause).unwrap();
+                let new_stack_clause = self.b.bundle.ns_clauses.get(&new_stack_clause).unwrap();
+
+                let empty_vec = Vec::<MuTypeNode>::new();
+                let rettys_ids = match **cur_stack_clause {
+                    NodeCurrentStackClause::RetWith { ref rettys, .. } => &rettys,
+                    NodeCurrentStackClause::KillOld { .. } => &empty_vec
+                };
+                assert_ir!(result_ids.len() == rettys_ids.len());
+                let rvs = result_ids
+                    .iter()
+                    .zip(rettys_ids)
+                    .map(|(rvid, rvty)| {
+                        let impl_rvty = self.get_built_type(*rvty);
+                        self.new_ssa(fcb, *rvid, impl_rvty).clone_value()
+                    })
+                    .collect::<Vec<_>>();
+
+                let (is_exception, args) =
+                    self.build_new_stack_clause(new_stack_clause, fcb, &mut ops);
+
+                match exc_clause {
+                    Some(ecid) => {
+                        let ecnode = self.b.bundle.exc_clauses.get(&ecid).unwrap();
+
+                        let impl_normal_dest =
+                            self.build_destination(fcb, ecnode.nor, &mut ops, result_ids, blocks);
+                        let impl_exn_dest =
+                            self.build_destination(fcb, ecnode.exc, &mut ops, &[], blocks);
+
+                        assert_ir!(match **cur_stack_clause {
+                            // Can't have an exception clause
+                            NodeCurrentStackClause::KillOld { .. } => false,
+                            _ => true
+                        });
+
+                        Instruction {
+                            hdr: hdr,
+                            value: Some(rvs),
+                            ops: ops,
+                            v: Instruction_::SwapStackExc {
+                                stack: 0,
+                                is_exception: is_exception,
+                                args: args,
+                                resume: ResumptionData {
+                                    normal_dest: impl_normal_dest,
+                                    exn_dest: impl_exn_dest
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        match **cur_stack_clause {
+                            NodeCurrentStackClause::RetWith { .. } => Instruction {
+                                hdr: hdr,
+                                value: Some(rvs),
+                                ops: ops,
+                                v: Instruction_::SwapStackExpr {
+                                    stack: 0,
+                                    is_exception: is_exception,
+                                    args: args
+                                }
+                            },
+                            NodeCurrentStackClause::KillOld { .. } => Instruction {
+                                hdr: hdr,
+                                value: Some(rvs),
+                                ops: ops,
+                                v: Instruction_::SwapStackKill {
+                                    stack: 0,
+                                    is_exception: is_exception,
+                                    args: args
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            NodeInst::NodeNewThread {
+                id: _,
+                result_id,
+                stack,
+                threadlocal,
+                new_stack_clause,
+                exc_clause
+            } => {
+                if exc_clause.is_some() {
+                    unimplemented!();
+                }
+
+                let mut ops: Vec<P<TreeNode>> = vec![self.get_treenode(fcb, stack)];
+                assert_ir!(ops[0].ty().is_stackref());
+                let new_stack_clause = self.b.bundle.ns_clauses.get(&new_stack_clause).unwrap();
+
+                let impl_threadref = self.ensure_threadref();
+                let impl_rv = self.new_ssa(fcb, result_id, impl_threadref).clone_value();
+
+                let threadlocal = match threadlocal {
+                    Some(tl) => {
+                        let index = ops.len();
+                        let tl = self.add_opnd(fcb, &mut ops, tl);
+                        assert_ir!(tl.ty().is_ref() &&
+                            tl.ty().get_referent_ty().unwrap().is_void());
+                        Some(index)
+                    }
+                    None => None,
+                };
+
+                let (is_exception, args) =
+                    self.build_new_stack_clause(new_stack_clause, fcb, &mut ops);
+
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: ops,
+                    v: Instruction_::NewThread {
+                        stack: 0,
+                        thread_local: threadlocal,
+                        is_exception: is_exception,
+                        args: args
+                    }
+                }
             }
 
             NodeInst::NodeCommInst {
@@ -3446,6 +3625,37 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
             res.push(self.add_opnd(fcb, ops, *opnd))
         }
         res
+    }
+
+    // Returns true indicating an exception clause
+    // and returns a list of ops
+    fn build_new_stack_clause(
+        &mut self,
+        nsc: &NodeNewStackClause,
+        fcb: &mut FuncCtxBuilder,
+        ops: &mut Vec<P<TreeNode>>
+    ) -> (bool, Vec<OpIndex>) {
+        match nsc {
+            &NodeNewStackClause::PassValues {
+                ref tys, ref vars, ..
+            } => {
+                let args_begin_index = ops.len();
+                let args = self.add_opnds(fcb, ops, vars);
+                assert_ir!(
+                    args.len() == tys.len() &&
+                        args.iter()
+                            .zip(tys)
+                            .all(|(arg, tid)| arg.ty() == self.get_built_type(*tid))
+                );
+                let arg_indices = (args_begin_index..(vars.len() + 1)).collect::<Vec<_>>();
+                (false, arg_indices)
+            }
+            &NodeNewStackClause::ThrowExc { ref exc, .. } => {
+                let exc_arg = ops.len();
+                self.add_opnd(fcb, ops, *exc);
+                (true, vec![exc_arg])
+            }
+        }
     }
 
     fn build_call_data(
@@ -3692,6 +3902,75 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                     value: None,
                     ops: vec![],
                     v: Instruction_::ThreadExit
+                }
+            }
+            CMU_CI_UVM_NEW_STACK => {
+                assert_ir!(
+                    tys.is_empty() && flags.is_empty() && exc_clause.is_none() &&
+                        keepalives.is_none()
+                );
+
+                assert!(sigs.len() == 1);
+                assert!(args.len() == 1);
+                assert!(result_ids.len() == 1);
+
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                let impl_sig = self.ensure_sig_rec(sigs[0]);
+
+                assert_ir!(impl_sig.ret_tys.is_empty()); // The function isn't supposed to return
+                assert_ir!(match impl_opnd.ty().v {
+                    MuType_::FuncRef(ref sig) => *sig == impl_sig,
+                    _ => false
+                });
+
+                let impl_stackref = self.ensure_stackref();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_stackref)
+                    .clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![impl_opnd],
+                    v: Instruction_::NewStack(0)
+                }
+            }
+            CMU_CI_UVM_CURRENT_STACK => {
+                assert_ir!(
+                    tys.is_empty() && args.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() &&
+                        keepalives.is_none()
+                );
+
+
+                assert!(result_ids.len() == 1);
+                let impl_stackref = self.ensure_stackref();
+                let impl_rv = self.new_ssa(fcb, result_ids[0], impl_stackref)
+                    .clone_value();
+
+                Instruction {
+                    hdr: hdr,
+                    value: Some(vec![impl_rv]),
+                    ops: vec![],
+                    v: Instruction_::CurrentStack
+                }
+            }
+            CMU_CI_UVM_KILL_STACK => {
+                assert_ir!(
+                    tys.is_empty() && sigs.is_empty() && flags.is_empty() &&
+                        exc_clause.is_none() && keepalives.is_none() &&
+                        result_ids.is_empty()
+                );
+
+                assert!(args.len() == 1);
+
+                let impl_opnd = self.get_treenode(fcb, args[0]);
+                assert_ir!(impl_opnd.ty().is_stackref());
+
+                Instruction {
+                    hdr: hdr,
+                    value: None,
+                    ops: vec![impl_opnd],
+                    v: Instruction_::KillStack(0)
                 }
             }
             CMU_CI_UVM_TR64_IS_FP => {
