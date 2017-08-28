@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use std::mem;
-
-use heap::gc::malloc_zero;
+use utils::mem::malloc_zero;
+use utils::mem::memsec::free;
 
 #[derive(Clone)]
 pub struct Bitmap {
@@ -133,6 +133,12 @@ impl Bitmap {
             debug!("{}\t0b{:64b}", i * 64, unsafe { *ptr });
             ptr = unsafe { ptr.offset(1) };
         }
+    }
+}
+
+impl Drop for Bitmap {
+    fn drop(&mut self) {
+        unsafe { free(self.bitmap) }
     }
 }
 

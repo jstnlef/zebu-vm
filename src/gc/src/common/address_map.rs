@@ -16,7 +16,8 @@ use std::mem;
 use utils::POINTER_SIZE;
 use utils::LOG_POINTER_SIZE;
 use utils::Address;
-use heap::gc::malloc_zero;
+use utils::mem::malloc_zero;
+use utils::mem::memsec::free;
 
 #[derive(Clone)]
 pub struct AddressMap<T: Copy> {
@@ -62,5 +63,14 @@ where
     pub fn get(&self, addr: Address) -> T {
         let index = ((addr - self.start) >> LOG_POINTER_SIZE) as isize;
         unsafe { *self.ptr.offset(index) }
+    }
+}
+
+impl<T> Drop for AddressMap<T>
+where
+    T: Copy
+{
+    fn drop(&mut self) {
+        unsafe { free(self.ptr) }
     }
 }

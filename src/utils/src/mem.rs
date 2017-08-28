@@ -20,6 +20,18 @@ pub extern crate memsec;
 #[allow(unused_imports)] // import both endianness (we may not use big endian though)
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
 
+/// malloc's and zeroes the memory
+pub unsafe fn malloc_zero(size: usize) -> *mut u8 {
+    use self::memsec;
+    match memsec::malloc(size) {
+        Some(ptr) => {
+            memsec::memzero(ptr, size);
+            ptr
+        }
+        None => panic!("failed to malloc_zero() {} bytes", size)
+    }
+}
+
 /// returns bit representations for u64
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub fn u64_to_raw(val: u64) -> u64 {
