@@ -120,7 +120,7 @@ pub trait CodeGenerator {
     // Calls
     fn emit_bl(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         func: MuName,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
@@ -129,7 +129,7 @@ pub trait CodeGenerator {
     ) -> Option<ValueLocation>;
     fn emit_blr(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         func: Reg,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
@@ -141,7 +141,7 @@ pub trait CodeGenerator {
     fn emit_br(&mut self, dest_address: Reg);
     fn emit_b_call(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         func: MuName,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
@@ -151,7 +151,7 @@ pub trait CodeGenerator {
     ) -> Option<ValueLocation>;
     fn emit_br_call(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         func: Reg,
         pe: Option<MuName>,
         args: Vec<P<Value>>,

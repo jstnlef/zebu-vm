@@ -88,7 +88,7 @@ impl<'a> InstructionSelection {
             combined_return_types: HashMap::new(),
             current_return_type: None,
             current_fv_id: 0,
-            current_fv_name: String::new(),
+            current_fv_name: Arc::new(String::new()),
             current_callsite_id: 0,
             current_frame: None,
             current_block: None,
@@ -1807,7 +1807,7 @@ impl<'a> InstructionSelection {
                         // Call muentry_throw_exception
                         let callsite = self.backend.emit_bl(
                             Some(callsite_label),
-                            "muentry_throw_exception".to_string(),
+                            entrypoints::THROW_EXCEPTION.aot.to_relocatable(),
                             None,
                             vec![X0.clone()],
                             CALLER_SAVED_REGS.to_vec(),
@@ -3807,7 +3807,7 @@ impl<'a> InstructionSelection {
                     } else {
                         //declare_type(&self, entity: MuEntityHeader, ty: MuType_)
                         let id = new_internal_id();
-                        let name = format!("return_type:#{}", id);
+                        let name = Arc::new(format!("return_type:#{}", id));
                         let header = MuEntityHeader::named(new_internal_id(), name.clone());
                         vm.declare_type(header, MuType_::mustruct(name, sig.ret_tys.to_vec()))
                     },
@@ -4899,7 +4899,7 @@ impl<'a> InstructionSelection {
     ) {
         trace!("ISAAC: sig[{}] args ({:?})", sig, args);
 
-        let prologue_block = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
+        let prologue_block = Arc::new(format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME));
         self.start_block(prologue_block);
 
         // Push the frame pointer and link register onto the stack
@@ -5933,7 +5933,7 @@ impl<'a> InstructionSelection {
         layout[index] as i64
     }
 
-    fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
+    fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> MuName {
         let ret = {
             if cur_node.is_some() {
                 make_block_name(
@@ -5941,11 +5941,11 @@ impl<'a> InstructionSelection {
                     format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {
-                format!(
+                Arc::new(format!(
                     "{}:callsite_{}",
                     self.current_fv_name,
                     self.current_callsite_id
-                )
+                ))
             }
         };
         self.current_callsite_id += 1;

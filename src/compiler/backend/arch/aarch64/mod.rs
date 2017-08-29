@@ -2392,9 +2392,9 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             ty: UINT64_TYPE.clone(),
                             v: Value_::Constant(Constant::ExternSym(if is_native {
-                                format!("/*C*/:got_lo12:{}", label)
+                                Arc::new(format!("/*C*/:got_lo12:{}", label))
                             } else {
-                                format!(":got_lo12:{}", mangle_name(label.clone()))
+                                Arc::new(format!(":got_lo12:{}", mangle_name(label.clone())))
                             }))
                         });
 
