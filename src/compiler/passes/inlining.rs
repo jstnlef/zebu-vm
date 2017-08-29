@@ -255,7 +255,7 @@ impl Inlining {
                                     body: vec![],
                                     keepalives: None
                                 });
-                                vm.set_name(cur_block.as_entity());
+                                //vm.set_name(cur_block.as_entity());
 
                                 // deal with the inlined function
                                 copy_inline_blocks(
@@ -312,7 +312,7 @@ impl Inlining {
                                     let mut intermediate_block = Block::new(
                                         MuEntityHeader::named(vm.next_id(), int_block_name)
                                     );
-                                    vm.set_name(intermediate_block.as_entity());
+                                    //vm.set_name(intermediate_block.as_entity());
 
                                     // branch to normal_dest with normal_dest arguments
                                     let normal_dest_args =

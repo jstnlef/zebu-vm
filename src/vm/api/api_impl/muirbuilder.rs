@@ -35,8 +35,8 @@ pub struct MuIRBuilder {
 
     /// Map IDs to names. Items are inserted during `gen_sym`. MuIRBuilder is supposed to be used
     /// by one thread, so there is no need for locking.
-    id_name_map: HashMap<MuID, MuName>,
-
+    id_name_map: HashMap<MuID, MuName>, // Note: some of these entries may be generated internally
+    name_id_map: HashMap<MuName, MuID>, // Note: only contains names and ids of things the client gives names to
     /// The "transient bundle" includes everything being built here.
     bundle: TransientBundle
 }
@@ -68,6 +68,7 @@ impl MuIRBuilder {
             mvm: mvm,
             c_struct: ptr::null_mut(),
             id_name_map: Default::default(),
+            name_id_map: Default::default(),
             bundle: Default::default()
         })
     }
@@ -132,13 +133,15 @@ impl MuIRBuilder {
         match name {
             None => {}
             Some(the_name) => {
-                let old = self.id_name_map.insert(my_id, the_name);
+                let old_name = self.id_name_map.insert(my_id, the_name.clone());
+                let old_id = self.name_id_map.insert(the_name, my_id);
+                assert_ir!(old_id.is_none());
                 debug_assert!(
-                    old.is_none(),
+                    old_name.is_none(),
                     "ID already exists: {}, new name: {}, old name: {}",
                     my_id,
                     self.id_name_map.get(&my_id).unwrap(),
-                    old.unwrap()
+                    old_name.unwrap()
                 );
             }
         };
@@ -1249,6 +1252,7 @@ struct BundleLoader<'lb, 'lvm> {
     b: &'lb MuIRBuilder,
     vm: &'lvm VM,
     id_name_map: HashMap<MuID, MuName>,
+    name_id_map: HashMap<MuName, MuID>,
     visited: HashSet<MuID>,
     built_types: IdPMap<MuType>,
     built_sigs: IdPMap<MuFuncSig>,
@@ -1283,12 +1287,14 @@ struct BundleLoader<'lb, 'lvm> {
 fn load_bundle(b: &mut MuIRBuilder) {
     let vm = b.get_vm();
 
-    let new_map = b.id_name_map.drain().collect::<HashMap<_, _>>();
+    let new_id_name_map = b.id_name_map.drain().collect::<HashMap<_, _>>();
+    let new_name_id_map = b.name_id_map.drain().collect::<HashMap<_, _>>();
 
     let mut bl = BundleLoader {
         b: b,
         vm: vm,
-        id_name_map: new_map,
+        id_name_map: new_id_name_map,
+        name_id_map: new_name_id_map,
         visited: Default::default(),
         built_types: Default::default(),
         built_sigs: Default::default(),
@@ -4224,7 +4230,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         trace!("Loading bundle to the VM...");
 
         vm.declare_many(
-            &mut self.id_name_map,
+            &mut self.name_id_map,
             &mut self.built_types,
             &mut self.built_sigs,
             &mut self.built_constants,

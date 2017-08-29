@@ -841,7 +841,7 @@ impl<'a> VM {
     /// a new function added.
     pub fn declare_many(
         &self,
-        new_id_name_map: &mut HashMap<MuID, MuName>,
+        new_name_id_map: &mut HashMap<MuName, MuID>,
         new_types: &mut HashMap<MuID, P<MuType>>,
         new_func_sigs: &mut HashMap<MuID, P<MuFuncSig>>,
         new_constants: &mut HashMap<MuID, P<Value>>,
@@ -862,7 +862,7 @@ impl<'a> VM {
             let mut funcs = self.funcs.write().unwrap();
             let mut func_vers = self.func_vers.write().unwrap();
 
-            for (id, name) in new_id_name_map.drain() {
+            for (name, id) in new_name_id_map.drain() {
                 id_name_map.insert(id, name.clone());
                 name_id_map.insert(name, id);
             }
@@ -1244,7 +1244,7 @@ impl<'a> VM {
         let funcs = self.funcs.read().unwrap();
         let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
 
-        let func_addr = resolve_symbol(self.name_of(func_id));
+        let func_addr = resolve_symbol(self.get_name_for_func(func_id));
         let stack_arg_size = backend::call_stack_size(func.sig.clone(), self);
 
         Box::new(MuStack::new(self.next_id(), func_addr, stack_arg_size))
@@ -1572,7 +1572,7 @@ impl<'a> VM {
         unsafe { addr.store::<u64>(PENDING_FUNCREF) };
 
         // and record this funcref
-        let symbol = self.name_of(func_id);
+        let symbol = self.get_name_for_func(func_id);
 
         let mut pending_funcref_guard = self.aot_pending_funcref_store.write().unwrap();
         pending_funcref_guard.insert(

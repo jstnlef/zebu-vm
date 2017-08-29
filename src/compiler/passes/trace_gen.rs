@@ -441,7 +441,7 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                     Arc::new(format!("{}:#{}:false", func.name(), node.id()));
                                 let mut block =
                                     Block::new(MuEntityHeader::named(vm.next_id(), block_name));
-                                vm.set_name(block.as_entity());
+                                //vm.set_name(block.as_entity());
 
                                 let block_args: Vec<P<TreeNode>> = false_dest
                                     .args
