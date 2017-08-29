@@ -3444,7 +3444,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     {
         let mut demangled_path = path::PathBuf::new();
         demangled_path.push(&vm.vm_options.flag_aot_emit_dir);
-        demangled_path.push(func.name() + ".demangled.S");
+        demangled_path.push(*func.name() + ".demangled.S");
 
         let mut demangled_file = match File::create(demangled_path.as_path()) {
             Err(why) => {
@@ -3577,7 +3577,7 @@ use std::collections::HashMap;
 
 pub fn emit_context_with_reloc(
     vm: &VM,
-    symbols: HashMap<Address, String>,
+    symbols: HashMap<Address, MuName>,
     fields: HashMap<Address, String>
 ) {
     use std::path;

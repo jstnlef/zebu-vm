@@ -22,21 +22,22 @@ use utils::LinkedHashSet;
 
 use std;
 use std::fmt;
+pub use std::sync::Arc;
 use std::default;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
 pub type WPID = usize;
 pub type MuID = usize;
-pub type MuName = String;
+pub type MuName = Arc<String>;
 pub type CName = MuName;
 
 #[allow(non_snake_case)]
 pub fn Mu(str: &'static str) -> MuName {
-    str.to_string()
+    Arc::new(str.to_string())
 }
 #[allow(non_snake_case)]
 pub fn C(str: &'static str) -> CName {
-    str.to_string()
+    Arc::new(str.to_string())
 }
 
 pub type OpIndex = usize;
@@ -460,7 +461,7 @@ impl FunctionContent {
         }
     }
 
-    pub fn get_block_by_name(&self, name: String) -> &Block {
+    pub fn get_block_by_name(&self, name: MuName) -> &Block {
         for block in self.blocks.values() {
             if block.name() == name {
                 return block;
@@ -1466,7 +1467,7 @@ pub fn is_valid_c_identifier(name: &MuName) -> bool {
 
 /// changes name to mangled name
 /// This will always return a valid C identifier
-pub fn mangle_name(name: MuName) -> MuName {
+pub fn mangle_name(name: MuName) -> String {
     let name = name.replace('@', "");
     if name.starts_with("__mu_") {
         // TODO: Get rid of this, since it will be triggered if a client provides a name
@@ -1488,7 +1489,7 @@ pub fn mangle_name(name: MuName) -> MuName {
 
 /// demangles a Mu name
 //  WARNING: This only reverses mangle_name above when no warning is issued)
-pub fn demangle_name(mut name: MuName) -> MuName {
+pub fn demangle_name(mut name: String) -> MuName {
     let name = if cfg!(target_os = "macos") && name.starts_with("___mu_") {
         name.split_off(1)
     } else {
@@ -1507,13 +1508,13 @@ pub fn demangle_name(mut name: MuName) -> MuName {
         .replace("Zh", "-")
         .replace("Zd", ".")
         .replace("ZZ", "Z");
-    name
+    Arc::new(name)
 }
 
 extern crate regex;
 
 /// identifies mu names and demangles them
-pub fn demangle_text(text: String) -> String {
+pub fn demangle_text(text: &String) -> String {
     use self::regex::Regex;
 
     lazy_static!{
@@ -1539,14 +1540,14 @@ impl MuEntityHeader {
     pub fn unnamed(id: MuID) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: format!("#{}", id)
+            name: Arc::new(format!("#{}", id))
         }
     }
 
     pub fn named(id: MuID, name: MuName) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: name.replace('@', "")
+            name: Arc::new(name.replace('@', ""))
         }
     }
 
@@ -1559,7 +1560,7 @@ impl MuEntityHeader {
     }
 
     /// an abbreviate (easy reading) version of the name
-    fn abbreviate_name(&self) -> MuName {
+    fn abbreviate_name(&self) -> String {
         let split: Vec<&str> = self.name.split('.').collect();
 
         let mut ret = "".to_string();
@@ -1580,7 +1581,7 @@ impl MuEntityHeader {
     pub fn clone_with_id(&self, new_id: MuID) -> MuEntityHeader {
         let mut clone = self.clone();
         clone.id = new_id;
-        clone.name = format!("{}-#{}", clone.name, clone.id);
+        clone.name = Arc::new(format!("{}-#{}", clone.name, clone.id));
         clone
     }
 }

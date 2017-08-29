@@ -146,7 +146,7 @@ fn emit_mc_dot(func: &MuFunctionVersion, vm: &VM) {
 
     // create emit directory/file
     create_emit_directory(vm);
-    let mut file = create_emit_file(func_name.clone() + ".mc.dot", &vm);
+    let mut file = create_emit_file((*func_name).clone() + ".mc.dot", &vm);
 
     // diagraph func {
     writeln!(file, "digraph {} {{", mangle_name(func_name)).unwrap();

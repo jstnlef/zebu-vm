@@ -377,7 +377,7 @@ pub fn compile_fncs<'a>(
 /// gets the path for the generated code of a Mu function
 fn get_path_for_mu_func(f: MuName, vm: &VM) -> PathBuf {
     let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
-    ret.push(f + ".S");
+    ret.push((*f).clone() + ".S");
 
     ret
 }
@@ -393,7 +393,10 @@ fn get_path_for_mu_context(vm: &VM) -> PathBuf {
 pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
     let output_name = test_name.to_string() + "_" + tester_name;
     let executable = link_test_primordial(
-        vec![test_name.to_string(), tester_name.to_string()],
+        vec![
+            Arc::new(test_name.to_string()),
+            Arc::new(tester_name.to_string()),
+        ],
         output_name.as_str(),
         vm
     );
@@ -655,9 +658,9 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
     let output_name = test_name.to_string() + "_" + tester_name;
     let executable = link_test_primordial(
         vec![
-            dep_name.to_string(),
-            test_name.to_string(),
-            tester_name.to_string(),
+            Arc::new(dep_name.to_string()),
+            Arc::new(test_name.to_string()),
+            Arc::new(tester_name.to_string()),
         ],
         output_name.as_str(),
         vm

@@ -5957,7 +5957,7 @@ impl<'a> InstructionSelection {
         self.backend.end_block(cur_block.clone());
     }
 
-    fn start_block(&mut self, block: String) {
+    fn start_block(&mut self, block: MuName) {
         self.current_block = Some(block.clone());
         self.backend.start_block(block.clone());
     }

@@ -226,7 +226,7 @@ pub trait CodeGenerator {
     // call
     fn emit_call_near_rel32(
         &mut self,
-        callsite: String,
+        callsite: MuName,
         func: MuName,
         pe: Option<MuName>,
         uses: Vec<P<Value>>,
@@ -235,7 +235,7 @@ pub trait CodeGenerator {
     ) -> ValueLocation;
     fn emit_call_near_r64(
         &mut self,
-        callsite: String,
+        callsite: MuName,
         func: &P<Value>,
         pe: Option<MuName>,
         uses: Vec<P<Value>>,
@@ -243,7 +243,7 @@ pub trait CodeGenerator {
     ) -> ValueLocation;
     fn emit_call_near_mem64(
         &mut self,
-        callsite: String,
+        callsite: MuName,
         func: &P<Value>,
         pe: Option<MuName>,
         uses: Vec<P<Value>>,
@@ -253,7 +253,7 @@ pub trait CodeGenerator {
     // sometimes we use jmp as a call (but without pushing return address)
     fn emit_call_jmp(
         &mut self,
-        callsite: String,
+        callsite: MuName,
         func: MuName,
         pe: Option<MuName>,
         uses: Vec<P<Value>>,
@@ -262,7 +262,7 @@ pub trait CodeGenerator {
     ) -> ValueLocation;
     fn emit_call_jmp_indirect(
         &mut self,
-        callsite: String,
+        callsite: MuName,
         func: &P<Value>,
         pe: Option<MuName>,
         uses: Vec<P<Value>>,

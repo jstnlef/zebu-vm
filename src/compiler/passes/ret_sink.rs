@@ -50,7 +50,7 @@ impl CompilerPass for RetSink {
 
         // create a return sink
         let return_sink = {
-            let block_name = format!("{}:{}", func.name(), EPILOGUE_BLOCK_NAME);
+            let block_name = Arc::new(format!("{}:{}", func.name(), EPILOGUE_BLOCK_NAME));
             trace!("created return sink {}", block_name);
 
             let mut block = Block::new(MuEntityHeader::named(vm.next_id(), block_name));

@@ -494,7 +494,7 @@ fn build_global_liveness(cf: &mut CompiledFunction, func: &MuFunctionVersion) {
 /// CFGBlockNode represents a basic block as a whole for global liveness analysis
 #[derive(Clone, Debug)]
 struct CFGBlockNode {
-    block: String,
+    block: MuName,
     pred: Vec<String>,
     succ: Vec<String>,
     uses: Vec<MuID>,
@@ -507,7 +507,7 @@ struct CFGBlockNode {
 /// * successors
 /// * uses
 /// * defs
-fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockNode> {
+fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<MuName, CFGBlockNode> {
     info!("---local liveness analysis---");
     let mc = cf.mc();
     let mut ret = LinkedHashMap::new();
@@ -634,7 +634,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<String, CFGBlockN
 
 /// global analysis, the iterative algorithm to compute livenss until livein/out reaches a fix point
 fn global_liveness_analysis(
-    blocks: LinkedHashMap<String, CFGBlockNode>,
+    blocks: LinkedHashMap<MuName, CFGBlockNode>,
     cf: &mut CompiledFunction,
     func: &MuFunctionVersion
 ) {
@@ -642,14 +642,14 @@ fn global_liveness_analysis(
     info!("{} blocks", blocks.len());
 
     // init live in and live out
-    let mut livein: LinkedHashMap<String, LinkedHashSet<MuID>> = {
+    let mut livein: LinkedHashMap<MuName, LinkedHashSet<MuID>> = {
         let mut ret = LinkedHashMap::new();
         for name in blocks.keys() {
             ret.insert(name.clone(), LinkedHashSet::new());
         }
         ret
     };
-    let mut liveout: LinkedHashMap<String, LinkedHashSet<MuID>> = {
+    let mut liveout: LinkedHashMap<MuName, LinkedHashSet<MuID>> = {
         let mut ret = LinkedHashMap::new();
         for name in blocks.keys() {
             ret.insert(name.clone(), LinkedHashSet::new());

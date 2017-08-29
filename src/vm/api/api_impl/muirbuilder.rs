@@ -124,7 +124,7 @@ impl MuIRBuilder {
         self.deallocate();
     }
 
-    pub fn gen_sym(&mut self, name: Option<String>) -> MuID {
+    pub fn gen_sym(&mut self, name: Option<MuName>) -> MuID {
         let my_id = self.next_id();
 
         trace!("gen_sym({:?}) -> {}", name, my_id);
@@ -351,7 +351,7 @@ impl MuIRBuilder {
         );
     }
 
-    pub fn new_const_extern(&mut self, id: MuID, ty: MuID, symbol: String) {
+    pub fn new_const_extern(&mut self, id: MuID, ty: MuID, symbol: MuName) {
         self.bundle.consts.insert(
             id,
             Box::new(NodeConst::ConstExtern {
@@ -1705,13 +1705,13 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
     fn ensure_name(&mut self, id: MuID, parent_id: Option<MuID>) {
         let prefix = match parent_id {
-            Some(parent_id) => self.get_name(parent_id) + ".",
+            Some(parent_id) => (*self.get_name(parent_id)).clone() + ".",
             None => "".to_string()
         };
         self.id_name_map.entry(id).or_insert_with(|| {
             let name = format!("{}#{}", prefix, id);
             trace!("Making name for ID {} : {}", id, name);
-            name
+            Arc::new(name)
         });
     }
 
@@ -1830,11 +1830,11 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }
     }
 
-    fn get_name(&self, id: MuID) -> String {
+    fn get_name(&self, id: MuID) -> MuName {
         self.id_name_map.get(&id).unwrap().clone()
     }
 
-    fn maybe_get_name(&self, id: MuID) -> Option<String> {
+    fn maybe_get_name(&self, id: MuID) -> Option<MuName> {
         self.id_name_map.get(&id).cloned()
     }
 
@@ -2183,7 +2183,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let hdr = self.make_mu_entity_header(id);
         let impl_ty = self.ensure_type_rec(global.ty); // global type
 
-        assert_ir!(!impl_ty.is_hybrid(  ));
+        assert_ir!(!impl_ty.is_hybrid());
         let impl_val = Value {
             hdr: hdr,
             ty: self.ensure_iref(impl_ty.id()), // iref to global

@@ -59,7 +59,7 @@ macro_rules! REGISTER {
     ($id:expr, $name: expr, $ty: ident) => {
         {
             P(Value {
-                hdr: MuEntityHeader::named($id, $name.to_string()),
+                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
                 ty: $ty.clone(),
                 v: Value_::SSAVar($id)
             })

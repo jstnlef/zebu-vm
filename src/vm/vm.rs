@@ -515,7 +515,7 @@ impl<'a> VM {
     /// due to removal of some special symbols in the MuName. See name_check() in ir.rs
     pub fn id_of(&self, name: &str) -> MuID {
         let map = self.name_id_map.read().unwrap();
-        match map.get(name) {
+        match map.get(&name.to_string()) {
             Some(id) => *id,
             None => panic!("cannot find id for name: {}", name)
         }
@@ -572,7 +572,7 @@ impl<'a> VM {
         let id = val.id();
         let name = format!("CONST_{}_{}", id, val.name());
 
-        ValueLocation::Relocatable(backend::RegGroup::GPR, name)
+        ValueLocation::Relocatable(backend::RegGroup::GPR, Arc::new(name))
     }
 
     /// declares a global
@@ -1073,9 +1073,9 @@ impl<'a> VM {
         primordial_stack: Option<&APIHandle>,
         primordial_threadlocal: Option<&APIHandle>,
         sym_fields: Vec<&APIHandle>,
-        sym_strings: Vec<String>,
+        sym_strings: Vec<MuName>,
         reloc_fields: Vec<&APIHandle>,
-        reloc_strings: Vec<String>,
+        reloc_strings: Vec<MuName>,
         output_file: String
     ) {
         self.make_boot_image_internal(
@@ -1103,9 +1103,9 @@ impl<'a> VM {
         primordial_stack: Option<&APIHandle>,
         primordial_threadlocal: Option<&APIHandle>,
         sym_fields: Vec<&APIHandle>,
-        sym_strings: Vec<String>,
+        sym_strings: Vec<MuName>,
         reloc_fields: Vec<&APIHandle>,
-        reloc_strings: Vec<String>,
+        reloc_strings: Vec<MuName>,
         extra_sources_to_link: Vec<String>,
         output_file: String
     ) {
