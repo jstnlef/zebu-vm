@@ -156,11 +156,15 @@ fn link_executable_internal(
         cc.arg(format!("-l{}", l));
     }
 
-    cc.arg(format!("-L{}", get_path_under_zebu(if cfg!(debug_assertions) {
-        "target/debug"
-    } else {
-        "target/release"
-    }).to_str().unwrap()));
+    cc.arg(format!(
+        "-L{}",
+        get_path_under_zebu(if cfg!(debug_assertions) {
+            "target/debug"
+        } else {
+            "target/release"
+        }).to_str()
+            .unwrap()
+    ));
 
     // dylibs used for linux
     if cfg!(target_os = "linux") {

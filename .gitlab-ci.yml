@@ -9,6 +9,7 @@ before_script:
   - export ZEBU_BUILD=release
   - export CARGO_HOME=.cargo
   - export CC=clang
+  - export LD_LIBRARY_PATH=$MU_ZEBU/target/$ZEBU_BUILD:$LD_LIBRARY_PATH
   - source /home/gitlab-runner/ci/bin/activate
 
 build:
