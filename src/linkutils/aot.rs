@@ -60,11 +60,11 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
+        /*ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
             "target/debug/libmu.a"
         } else {
             "target/release/libmu.a"
-        }));
+        }));*/
 
         ret
     };
@@ -116,12 +116,12 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         // include the primordial C main
         ret.push(dest);
 
-        // include mu static lib
+        /*// include mu static lib
         ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
             "target/debug/libmu.a"
         } else {
             "target/release/libmu.a"
-        }));
+        }));*/
 
         ret
     };
@@ -156,6 +156,12 @@ fn link_executable_internal(
         cc.arg(format!("-l{}", l));
     }
 
+    cc.arg(format!("-L{}", get_path_under_zebu(if cfg!(debug_assertions) {
+        "target/debug"
+    } else {
+        "target/release"
+    }).to_str().unwrap()));
+
     // dylibs used for linux
     if cfg!(target_os = "linux") {
         cc.arg("-ldl");
@@ -163,6 +169,7 @@ fn link_executable_internal(
         cc.arg("-lm");
         cc.arg("-lpthread");
         cc.arg("-lz");
+        cc.arg("-lmu");
     } else if cfg!(target_os = "macos") {
         cc.arg("-liconv");
         cc.arg("-framework");
@@ -174,6 +181,7 @@ fn link_executable_internal(
         cc.arg("-lresolv");
         cc.arg("-lc");
         cc.arg("-lm");
+        cc.arg("-lmu");
     }
 
     // all the source code

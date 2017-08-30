@@ -306,7 +306,6 @@ impl CompilerPass for GenMovPhi {
                     block_info.blk_id,
                     block_info.blk_name.clone()
                 ));
-                //vm.set_name(ret.as_entity());
 
                 let mut target_block = f_content.get_block_mut(target_id);
                 assert!(target_block.content.is_some());
