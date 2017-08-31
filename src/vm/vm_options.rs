@@ -36,7 +36,7 @@ Compiler:
 
 AOT Compiler:
   --aot-emit-dir=<dir>                  the emit directory for ahead-of-time compiling [default: emit]
-  --link_staticly                       link boot image to libmu staticly (defaults to dynamic)
+  --link-staticly                       link boot image to libmu staticly (defaults to dynamic)
   --bootimage-external-lib=<lib> ...           library that will be linked against when making bootimage [default: ]
   --bootimage-external-libpath=<path> ...      path for the libraries during bootimage generation [default: ]
 
