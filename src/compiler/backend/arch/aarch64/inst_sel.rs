@@ -22,6 +22,8 @@ use ast::op;
 use ast::op::*;
 use ast::types::*;
 use utils::math::align_up;
+use utils::POINTER_SIZE;
+use utils::WORD_SIZE;
 use vm::VM;
 use runtime::mm;
 use runtime::mm::OBJECT_HEADER_SIZE;
@@ -30,7 +32,6 @@ use runtime::ValueLocation;
 use runtime::thread;
 use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
-
 use compiler::CompilerPass;
 
 use compiler::PROLOGUE_BLOCK_NAME;
@@ -1415,11 +1416,17 @@ impl<'a> InstructionSelection {
 
                         // get thread local and add offset to get sp_loc
                         let tl = self.emit_get_threadlocal(f_context, vm);
-                        self.backend
-                            .emit_add_imm(&tl, &tl, *thread::NATIVE_SP_LOC_OFFSET as u16, false);
+                        emit_load_base_offset(
+                            self.backend.as_mut(),
+                            &tl,
+                            &tl,
+                            *thread::NATIVE_SP_LOC_OFFSET as i64,
+                            f_context,
+                            vm
+                        );
 
                         self.emit_runtime_entry(
-                            &entrypoints::SWAP_BACK_TO_NATIVE_STACK,
+                            &entrypoints::THREAD_EXIT,
                             vec![tl.clone()],
                             None,
                             Some(node),
@@ -1427,7 +1434,61 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     }
+                    Instruction_::NewStack(func) => {
+                        trace!("instsel on NEWSTACK");
 
+                        let ref ops = inst.ops;
+                        let ref func = ops[func];
+                        let tmp_res = self.get_result_value(node, 0);
+                        let tmp_func = self.emit_ireg(func, f_content, f_context, vm);
+
+                        let sig = match tmp_func.ty.v {
+                            MuType_::FuncRef(ref sig) => sig.clone(),
+                            _ => panic!("expected funcref")
+                        };
+
+                        let (_, _, stack_arg_size) =
+                            compute_argument_locations(&sig.arg_tys, &SP, 0, &vm);
+
+                        self.emit_runtime_entry(
+                            &entrypoints::NEW_STACK,
+                            vec![tmp_func, make_value_int_const(stack_arg_size as u64, vm)],
+                            Some(vec![tmp_res]),
+                            Some(node),
+                            f_context,
+                            vm
+                        );
+                    }
+                    Instruction_::KillStack(op) => {
+                        trace!("instsel on KILL_STACK");
+                        let op = self.emit_ireg(&inst.ops[op], f_content, f_context, vm);
+                        self.emit_runtime_entry(
+                            &entrypoints::KILL_STACK,
+                            vec![op],
+                            None,
+                            Some(node),
+                            f_context,
+                            vm
+                        );
+                    }
+                    Instruction_::CurrentStack => {
+                        trace!("instsel on CURRENT_STACK");
+
+                        // get thread local
+                        let tl = self.emit_get_threadlocal(f_context, vm);
+
+                        let tmp_res = self.get_result_value(node, 0);
+
+                        // load [tl + STACK_OFFSET] -> tmp_res
+                        emit_load_base_offset(
+                            self.backend.as_mut(),
+                            &tmp_res,
+                            &tl,
+                            *thread::STACK_OFFSET as i64,
+                            f_context,
+                            vm
+                        );
+                    }
                     Instruction_::CommonInst_GetThreadLocal => {
                         trace!("instsel on GETTHREADLOCAL");
                         // get thread local
@@ -1732,16 +1793,28 @@ impl<'a> InstructionSelection {
                     Instruction_::Throw(op_index) => {
                         trace!("instsel on THROW");
                         let ref ops = inst.ops;
-                        let ref exception_obj = ops[op_index];
 
-                        self.emit_runtime_entry(
-                            &entrypoints::THROW_EXCEPTION,
-                            vec![exception_obj.clone_value()],
+                        // Note: we are manually implementing the call here as opposed to calling
+                        // emit_runtime entry, because unlike other calls to non mu-functions this
+                        // needs a callsite record for exception handling to work
+
+                        let exc = self.emit_ireg(&*ops[op_index], f_content, f_context, vm);
+
+                        // Move the exception object to the first argument register
+                        self.backend.emit_mov(&X0, &exc);
+
+                        let callsite_label = self.new_callsite_label(Some(node));
+                        // Call muentry_throw_exception
+                        let callsite = self.backend.emit_bl(
+                            Some(callsite_label),
+                            "muentry_throw_exception".to_string(),
                             None,
-                            Some(node),
-                            f_context,
-                            vm
+                            vec![X0.clone()],
+                            CALLER_SAVED_REGS.to_vec(),
+                            true
                         );
+
+                        self.record_callsite(None, callsite.unwrap(), 0);
                     }
 
                     // Runtime Entry
@@ -2009,6 +2082,147 @@ impl<'a> InstructionSelection {
                         self.backend.emit_bfxil(&tmp_res, &tmp_op8, 2, 1);
                     }
 
+                    Instruction_::SwapStackExpr {
+                        stack,
+                        is_exception,
+                        ref args
+                    } => {
+                        trace!("Instruction Selection on SWPASTACK-EXPR");
+                        self.emit_swapstack(
+                            is_exception, // is_exception
+                            false,        // is_kill
+                            &node,
+                            &inst,
+                            stack,
+                            args,
+                            None, // resumption
+                            f_content,
+                            f_context,
+                            vm
+                        );
+                    }
+                    Instruction_::SwapStackExc {
+                        stack,
+                        is_exception,
+                        ref args,
+                        ref resume
+                    } => {
+                        trace!("Instruction Selection on SWPASTACK-EXC");
+                        self.emit_swapstack(
+                            is_exception, // is_exception
+                            false,        // is_kill
+                            &node,
+                            &inst,
+                            stack,
+                            args,
+                            Some(resume), // resumption
+                            f_content,
+                            f_context,
+                            vm
+                        );
+                    }
+
+                    Instruction_::SwapStackKill {
+                        stack,
+                        is_exception,
+                        ref args
+                    } => {
+                        trace!("Instruction Selection on SWAPSTACK-KILL");
+                        self.emit_swapstack(
+                            is_exception, // is_exception
+                            true,         // is_kill
+                            &node,
+                            &inst,
+                            stack,
+                            args,
+                            None, // resumption
+                            f_content,
+                            f_context,
+                            vm
+                        );
+                    }
+                    Instruction_::NewThread {
+                        stack,
+                        thread_local,
+                        is_exception,
+                        ref args
+                    } => {
+                        trace!("Instruction Selection on NEWTHREAD");
+                        let ref ops = inst.ops;
+                        let res = self.get_result_value(node, 0);
+                        let stack = self.emit_ireg(&*ops[stack], f_content, f_context, vm);
+                        let tl = match thread_local {
+                            Some(op) => self.emit_ireg(&*ops[op], f_content, f_context, vm),
+                            None => make_value_nullref(vm)
+                        };
+
+                        if is_exception {
+                            let exc = self.emit_ireg(&*ops[args[0]], f_content, f_context, vm);
+                            self.emit_runtime_entry(
+                                &entrypoints::NEW_THREAD_EXCEPTIONAL,
+                                vec![stack, tl, exc],
+                                Some(vec![res.clone()]),
+                                Some(node),
+                                f_context,
+                                vm
+                            );
+                        } else {
+                            // Load the new stack pointer
+                            let new_sp = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+                            emit_load_base_offset(
+                                self.backend.as_mut(),
+                                &new_sp,
+                                &stack,
+                                *thread::MUSTACK_SP_OFFSET as i64,
+                                f_context,
+                                vm
+                            );
+
+                            let arg_values =
+                                self.emit_arg_values(&args, ops, f_content, f_context, vm);
+
+                            // Pass the arguments, stack arguments are placed below the new_sp,
+                            // register arguments are placed above it
+                            self.emit_precall_convention(
+                                &new_sp,
+                                // The frame contains space for the FP and LR
+                                (2 * POINTER_SIZE) as isize,
+                                false,
+                                &arg_values,
+                                &arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>(),
+                                0,
+                                false,
+                                true,
+                                true,
+                                Some(&new_sp),
+                                f_context,
+                                vm
+                            );
+
+                            emit_sub_u64(
+                                self.backend.as_mut(),
+                                &new_sp,
+                                &new_sp,
+                                (ARGUMENT_REG_COUNT * WORD_SIZE) as u64
+                            );
+                            emit_store_base_offset(
+                                self.backend.as_mut(),
+                                &stack,
+                                *thread::MUSTACK_SP_OFFSET as i64,
+                                &new_sp,
+                                f_context,
+                                vm
+                            );
+                            self.emit_runtime_entry(
+                                &entrypoints::NEW_THREAD_NORMAL,
+                                vec![stack, tl],
+                                Some(vec![res.clone()]),
+                                Some(node),
+                                f_context,
+                                vm
+                            );
+                        }
+                    }
                     _ => unimplemented!()
                 } // main switch
             }
@@ -3661,198 +3875,31 @@ impl<'a> InstructionSelection {
 
         }
     }
-    // TODO: Thoroughly test this
-    // (compare with code generated by GCC with variouse different types???)
-    // The algorithm presented here is derived from the ARM AAPCS64 reference
-    // Returns a vector indicating whether each should be passed as an IRef (and not directly),
-    // a vector referencing to the location of each argument (in memory or a register) and
-    // the amount of stack space used
-    // NOTE: It currently does not support vectors/SIMD types (or aggregates of such types)
-    fn compute_argument_locations(
-        &mut self,
-        arg_types: &Vec<P<MuType>>,
-        stack: &P<Value>,
-        offset: i64,
-        vm: &VM
-    ) -> (Vec<bool>, Vec<P<Value>>, usize) {
-        if arg_types.len() == 0 {
-            // nothing to do
-            return (vec![], vec![], 0);
-        }
-
-        let mut ngrn = 0 as usize; // The Next General-purpose Register Number
-        let mut nsrn = 0 as usize; // The Next SIMD and Floating-point Register Number
-        let mut nsaa = 0 as usize; // The next stacked argument address (an offset from the SP)
-        use ast::types::MuType_::*;
-
-        // reference[i] = true indicates the argument is passed an IRef to a location on the stack
-        let mut reference: Vec<bool> = vec![];
-        for t in arg_types {
-            reference.push(
-                hfa_length(t) == 0 && // HFA's aren't converted to IRef's
-                    match t.v {
-                        // size can't be statically determined
-                        Hybrid(_) => panic!("Hybrid argument not supported"),
-                        //  type is too large
-                        Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true,
-                        Vector(_, _)  => unimplemented!(),
-                        _ => false
-                    }
-            );
-        }
-        // TODO: How does passing arguments by reference effect the stack size??
-        let mut locations: Vec<P<Value>> = vec![];
-        for i in 0..arg_types.len() {
-            let i = i as usize;
-            let t = if reference[i] {
-                P(MuType::new(
-                    new_internal_id(),
-                    MuType_::IRef(arg_types[i].clone())
-                ))
-            } else {
-                arg_types[i].clone()
-            };
-            let size = align_up(vm.get_backend_type_size(t.id()), 8);
-            let align = get_type_alignment(&t, vm);
-            match t.v {
-                Hybrid(_) => panic!("hybrid argument not supported"),
-
-                Vector(_, _) => unimplemented!(),
-                Float | Double => {
-                    if nsrn < 8 {
-                        locations.push(get_alias_for_length(
-                            ARGUMENT_FPRS[nsrn].id(),
-                            get_bit_size(&t, vm)
-                        ));
-                        nsrn += 1;
-                    } else {
-                        nsrn = 8;
-                        locations.push(make_value_base_offset(
-                            &stack,
-                            offset + (nsaa as i64),
-                            &t,
-                            vm
-                        ));
-                        nsaa += size;
-                    }
-                }
-                Struct(_) | Array(_, _) => {
-                    let hfa_n = hfa_length(&t);
-                    if hfa_n > 0 {
-                        if nsrn + hfa_n <= 8 {
-                            // Note: the argument will occupy succesiv registers
-                            // (one for each element)
-                            locations.push(get_alias_for_length(
-                                ARGUMENT_FPRS[nsrn].id(),
-                                get_bit_size(&t, vm) / hfa_n
-                            ));
-                            nsrn += hfa_n;
-                        } else {
-                            nsrn = 8;
-                            locations.push(make_value_base_offset(
-                                &stack,
-                                offset + (nsaa as i64),
-                                &t,
-                                vm
-                            ));
-                            nsaa += size;
-                        }
-                    } else {
-                        if align == 16 {
-                            ngrn = align_up(ngrn, 2); // align NGRN to the next even number
-                        }
-
-                        if size <= 8 * (8 - ngrn) {
-                            // The struct should be packed, starting here
-                            // (note: this may result in multiple struct fields in the same regsiter
-                            // or even floating points in a GPR)
-                            locations.push(ARGUMENT_GPRS[ngrn].clone());
-                            // How many GPRS are taken up by t
-                            ngrn += if size % 8 != 0 {
-                                size / 8 + 1
-                            } else {
-                                size / 8
-                            };
-                        } else {
-                            ngrn = 8;
-                            nsaa = align_up(nsaa, align_up(align, 8));
-                            locations.push(make_value_base_offset(
-                                &stack,
-                                offset + (nsaa as i64) as i64,
-                                &t,
-                                vm
-                            ));
-                            nsaa += size;
-                        }
-                    }
-                }
-
-                Void => panic!("void argument not supported"),
-
-                // Integral or pointer type
-                _ => {
-                    if size <= 8 {
-                        if ngrn < 8 {
-                            locations.push(get_alias_for_length(
-                                ARGUMENT_GPRS[ngrn].id(),
-                                get_bit_size(&t, vm)
-                            ));
-                            ngrn += 1;
-                        } else {
-                            nsaa = align_up(nsaa, align_up(align, 8));
-                            locations.push(make_value_base_offset(
-                                &stack,
-                                offset + (nsaa as i64) as i64,
-                                &t,
-                                vm
-                            ));
-                            nsaa += size;
-                        }
-
-                    } else if size == 16 {
-                        ngrn = align_up(ngrn, 2); // align NGRN to the next even number
-
-                        if ngrn < 7 {
-                            locations.push(ARGUMENT_GPRS[ngrn].clone());
-                            ngrn += 2;
-                        } else {
-                            ngrn = 8;
-                            nsaa = align_up(nsaa, 16);
-                            locations.push(make_value_base_offset(
-                                &stack,
-                                offset + (nsaa as i64) as i64,
-                                &t,
-                                vm
-                            ));
-                            nsaa += 16;
-                        }
-                    } else {
-                        unimplemented!(); // Integer type is too large
-                    }
-                }
-            }
-        }
-
-        (reference, locations, align_up(nsaa, 16) as usize)
-    }
-
 
     // returns the stack arg offset - we will need this to collapse stack after the call
     // as well as a list of argument registers
     fn emit_precall_convention(
         &mut self,
+        arg_base: &P<Value>,
+        arg_offset: isize,
         is_tail: bool,
         args: &Vec<P<Value>>,
         arg_tys: &Vec<P<MuType>>,
         return_size: usize,
+        modify_arg_base: bool,
+        reg_args: bool,   // Whether to pass register arguments
+        stack_args: bool, // Whether to pass stack arguments
+
+        // If this is none put reg arguments in registers,
+        // otherwise store them at an offset from reg_arg_base
+        reg_arg_base: Option<&P<Value>>,
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> (usize, Vec<P<Value>>) {
         // If we're tail calling, use the current frame's argument location instead
         let mut arg_regs = Vec::<P<Value>>::new();
-        let (arg_base, arg_offset) = if is_tail { (&*FP, 16) } else { (&*SP, 0) };
         let (_, locations, stack_size) =
-            self.compute_argument_locations(&arg_tys, arg_base, arg_offset, &vm);
+            compute_argument_locations(&arg_tys, arg_base, arg_offset as i64, &vm);
 
         if is_tail {
             if stack_size > self.current_stack_arg_size {
@@ -3874,11 +3921,12 @@ impl<'a> InstructionSelection {
                 self.backend.emit_mov(&XR, &SP);
                 arg_regs.push(XR.clone());
             }
-            if stack_size > 0 {
-                // Reserve space on the stack for all stack arguments
-                emit_sub_u64(self.backend.as_mut(), &SP, &SP, stack_size as u64);
-            }
         }
+        if stack_size > 0 && modify_arg_base {
+            // Reserve space on the stack for all stack arguments
+            emit_sub_u64(self.backend.as_mut(), &SP, &SP, stack_size as u64);
+        }
+
         // Write the arguments to where they belong on the stack
         for i in 0..args.len() {
             let i = i as usize;
@@ -3902,16 +3950,35 @@ impl<'a> InstructionSelection {
                     }
 
                     // Need to pass in two registers
-                    if is_int_ex_reg(&arg_val) && arg_loc.is_reg() {
+                    if is_int_ex_reg(&arg_val) && arg_loc.is_reg() && reg_args {
                         let arg_val =
                             emit_reg_value(self.backend.as_mut(), &arg_val, f_context, vm);
                         let (val_l, val_h) = split_int128(&arg_val, f_context, vm);
-                        let arg_loc_h = get_register_from_id(arg_loc.id() + 2);
+
+                        let arg_loc_h_id = arg_loc.id() + 2; //get_register_from_id();
+                        let (arg_loc_l, arg_loc_h) = match reg_arg_base {
+                            Some(ref b) => (
+                                make_value_base_offset(
+                                    b,
+                                    get_argument_reg_offset(arg_loc.id()) as i64,
+                                    &arg_loc.ty,
+                                    vm
+                                ),
+                                make_value_base_offset(
+                                    b,
+                                    get_argument_reg_offset(arg_loc_h_id) as i64,
+                                    &arg_loc.ty,
+                                    vm
+                                )
+                            ),
+                            None => (arg_loc.clone(), get_register_from_id(arg_loc_h_id))
+                        };
+
                         arg_regs.push(arg_loc_h.clone());
 
                         emit_move_value_to_value(
                             self.backend.as_mut(),
-                            &arg_loc,
+                            &arg_loc_l,
                             &val_l,
                             f_context,
                             vm
@@ -3924,13 +3991,27 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     } else {
-                        emit_move_value_to_value(
-                            self.backend.as_mut(),
-                            &arg_loc,
-                            &arg_val,
-                            f_context,
-                            vm
-                        )
+                        if (reg_args && arg_loc.is_reg()) || (stack_args && !arg_loc.is_reg()) {
+                            let arg_loc = match reg_arg_base {
+                                Some(ref b) if arg_loc.is_reg() => {
+                                    make_value_base_offset(
+                                        b,
+                                        get_argument_reg_offset(arg_loc.id()) as i64,
+                                        &arg_loc.ty,
+                                        vm
+                                    )
+                                }
+                                _ => arg_loc.clone()
+                            };
+
+                            emit_move_value_to_value(
+                                self.backend.as_mut(),
+                                &arg_loc,
+                                &arg_val,
+                                f_context,
+                                vm
+                            )
+                        }
                     }
                 }
             }
@@ -4255,22 +4336,34 @@ impl<'a> InstructionSelection {
     ) -> Vec<P<Value>> {
         let return_type = self.combine_return_types(&sig, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
-        let (stack_arg_size, arg_regs) =
-            self.emit_precall_convention(false, &args, &sig.arg_tys, return_size, f_context, vm);
+        let (stack_arg_size, arg_regs) = self.emit_precall_convention(
+            &SP,
+            0,
+            false,
+            &args,
+            &sig.arg_tys,
+            return_size,
+            true,
+            true,
+            true,
+            None,
+            f_context,
+            vm
+        );
 
         // make call
         if vm.is_doing_jit() {
             unimplemented!()
         } else {
-            let callsite = self.new_callsite_label(cur_node);
-
-            self.backend
-                .emit_bl(callsite.clone(), func_name, None, arg_regs, true);
             // assume ccall wont throw exception
-
-            // TODO: What if theres an exception block?
-            self.current_callsites
-                .push_back((callsite, 0, stack_arg_size));
+            self.backend.emit_bl(
+                None,
+                func_name,
+                None,
+                arg_regs,
+                CALLER_SAVED_REGS.to_vec(),
+                true
+            );
 
             // record exception block (CCall may have an exception block)
             if cur_node.is_some() {
@@ -4298,6 +4391,32 @@ impl<'a> InstructionSelection {
         )
     }
 
+    fn emit_arg_values(
+        &mut self,
+        args: &Vec<OpIndex>,
+        ops: &Vec<P<TreeNode>>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) -> Vec<P<Value>> {
+        // prepare args (they could be instructions, we need to emit inst and get value)
+        let mut arg_values = vec![];
+        for arg_index in args {
+            let ref arg = ops[*arg_index];
+
+            if match_node_imm(arg) {
+                let arg = node_imm_to_value(arg);
+                arg_values.push(arg);
+            } else if self.match_reg(arg) {
+                let arg = self.emit_reg(arg, f_content, f_context, vm);
+                arg_values.push(arg);
+            } else {
+                unimplemented!();
+            }
+        }
+        arg_values
+    }
+
     #[allow(unused_variables)] // resumption not implemented
     fn emit_c_call_ir(
         &mut self,
@@ -4311,22 +4430,7 @@ impl<'a> InstructionSelection {
     ) {
         let ref ops = inst.ops;
 
-        // prepare args (they could be instructions, we need to emit inst and get value)
-        let mut arg_values = vec![];
-        for arg_index in calldata.args.iter() {
-            let ref arg = ops[*arg_index];
-
-            if match_node_imm(arg) {
-                let arg = node_imm_to_value(arg);
-                arg_values.push(arg);
-            } else if self.match_reg(arg) {
-                let arg = self.emit_reg(arg, f_content, f_context, vm);
-                arg_values.push(arg);
-            } else {
-                unimplemented!();
-            }
-        }
-        let arg_values = arg_values;
+        let arg_values = self.emit_arg_values(&calldata.args, ops, f_content, f_context, vm);
 
         trace!("generating ccall");
         let ref func = ops[calldata.func];
@@ -4366,6 +4470,243 @@ impl<'a> InstructionSelection {
                 _ => unimplemented!()
             }
         }
+    }
+
+    fn emit_swapstack(
+        &mut self,
+        is_exception: bool, // Whether we are throwing an exception to the new stack or not
+        is_kill: bool,      // Whether we are killing the old stack or not
+        node: &TreeNode,
+        inst: &Instruction,
+        swapee: OpIndex,
+        args: &Vec<OpIndex>,
+        resumption: Option<&ResumptionData>,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) {
+        let ref ops = inst.ops;
+
+        // Calsite label, that will be used to mark the resumption pointer when
+        // the current stack is swapped back
+        let callsite_label = if !is_kill {
+            Some(self.new_callsite_label(Some(node)))
+        } else {
+            None
+        };
+
+        // Compute all the arguments...
+        let mut arg_values = self.emit_arg_values(&args, ops, f_content, f_context, vm);
+        let tl = self.emit_get_threadlocal(f_context, vm);
+
+        let cur_stackref = make_temporary(f_context, STACKREF_TYPE.clone(), vm);
+        // Load the current stackref
+        emit_load_base_offset(
+            self.backend.as_mut(),
+            &cur_stackref,
+            &tl,
+            *thread::STACK_OFFSET as i64,
+            f_context,
+            vm
+        );
+
+        // Store the new stackref
+        let swapee = self.emit_ireg(&ops[swapee], f_content, f_context, vm);
+        emit_store_base_offset(
+            self.backend.as_mut(),
+            &tl,
+            *thread::STACK_OFFSET as i64,
+            &swapee,
+            f_context,
+            vm
+        );
+
+        // Compute the locations of return values, and how much space needs to be added to the stack
+        let res_tys = match inst.value {
+            Some(ref values) => values.iter().map(|v| v.ty.clone()).collect::<Vec<_>>(),
+            None => vec![]
+        };
+        let (_, res_locs, res_stack_size) = compute_argument_locations(&res_tys, &SP, 0, &vm);
+
+        if !is_kill {
+            // Load the callsite's address into LR
+            let callsite_value = make_value_symbolic(
+                callsite_label.as_ref().unwrap().clone(),
+                false,
+                &VOID_TYPE,
+                vm
+            );
+            self.backend.emit_adr(&LR, &callsite_value);
+
+            // Reserve space on the stack for the return values of the swap stack
+            emit_sub_u64(self.backend.as_mut(), &SP, &SP, res_stack_size as u64);
+
+            self.backend.emit_push_pair(&LR, &FP, &SP);
+
+            let cur_sp = make_temporary(f_context, STACKREF_TYPE.clone(), vm);
+            self.backend.emit_mov(&cur_sp, &SP);
+            // Save the current SP
+            emit_store_base_offset(
+                self.backend.as_mut(),
+                &cur_stackref,
+                *thread::MUSTACK_SP_OFFSET as i64,
+                &cur_sp,
+                f_context,
+                vm
+            );
+        }
+
+        // Load the new sp from the swapee
+        // (Note: we cant load directly into the SP, so we have to use a temporary)
+        let new_sp = make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
+        emit_load_base_offset(
+            self.backend.as_mut(),
+            &new_sp,
+            &swapee,
+            *thread::MUSTACK_SP_OFFSET as i64,
+            f_context,
+            vm
+        );
+        // Swap to the new stack
+        self.backend.emit_mov(&SP, &new_sp);
+
+        if is_exception {
+            // Pass the stack pointer as an extra argument
+            arg_values.push(SP.clone());
+        }
+        // Emit precall convention
+        let arg_tys = arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>();
+
+        // Pass stack arguments before the old stack is killed
+        self.emit_precall_convention(
+            &SP,
+            // The frame contains space for the FP and LR
+            (2 * POINTER_SIZE) as isize,
+            false,
+            &arg_values,
+            &arg_tys,
+            0,
+            false,
+            false, // don't pass reg args
+            true,  // pass stack args
+            None,
+            f_context,
+            vm
+        );
+
+        if is_kill {
+            // Kill the old stack
+            self.emit_runtime_entry(
+                &entrypoints::KILL_STACK,
+                vec![cur_stackref],
+                None,
+                Some(node),
+                f_context,
+                vm
+            );
+        }
+
+        // Pass the rest of the arguments
+        let (_, arg_regs) = self.emit_precall_convention(
+            &SP,
+            // The frame contains space for the FP and LR
+            (2 * POINTER_SIZE) as isize,
+            false,
+            &arg_values,
+            &arg_tys,
+            0,
+            false,
+            true,  // don't pass stack args
+            false, // pass reg args
+            None,
+            f_context,
+            vm
+        );
+
+        if is_exception {
+            // Reserve space on the new stack for the exception handling routine to store
+            // callee saved registers
+            emit_sub_u64(
+                self.backend.as_mut(),
+                &SP,
+                &SP,
+                (WORD_SIZE * CALLEE_SAVED_COUNT) as u64
+            );
+        } else {
+            // Restore the FP and LR from the old stack
+            self.backend.emit_pop_pair(&FP, &LR, &SP);
+        }
+
+        let potentially_excepting = Self::get_potentially_excepting(resumption, f_content);
+
+        // Call the function that swaps the stack
+        let callsite = {
+            if vm.is_doing_jit() {
+                unimplemented!()
+            } else {
+                if is_exception {
+                    // Throw an exception, don't call the swapee's resumption point
+                    self.backend.emit_b_call(
+                        callsite_label,
+                        entrypoints::THROW_EXCEPTION_INTERNAL.aot.to_relocatable(),
+                        potentially_excepting,
+                        arg_regs,
+                        ALL_USABLE_MACHINE_REGS.to_vec(),
+                        true,
+                        false
+                    )
+                } else {
+                    self.backend.emit_br_call(
+                        callsite_label,
+                        &LR,
+                        potentially_excepting,
+                        arg_regs,
+                        ALL_USABLE_MACHINE_REGS.to_vec(),
+                        false
+                    )
+                }
+            }
+        };
+
+        if !is_kill {
+            self.record_callsite(resumption, callsite.unwrap(), res_stack_size);
+
+            if resumption.is_some() {
+                self.finish_block();
+                let block_name = make_block_name(&node.name(), "stack_resumption");
+                self.start_block(block_name);
+            }
+
+            self.emit_unload_arguments(inst.value.as_ref().unwrap(), res_locs, f_context, vm);
+            emit_add_u64(self.backend.as_mut(), &SP, &SP, res_stack_size as u64);
+        }
+    }
+
+    fn get_potentially_excepting(
+        resumption: Option<&ResumptionData>,
+        f_content: &FunctionContent
+    ) -> Option<MuName> {
+        if resumption.is_some() {
+            let target_id = resumption.unwrap().exn_dest.target;
+            Some(f_content.get_block(target_id).name())
+        } else {
+            None
+        }
+    }
+
+    fn record_callsite(
+        &mut self,
+        resumption: Option<&ResumptionData>,
+        callsite: ValueLocation,
+        stack_arg_size: usize
+    ) {
+        let target_block = match resumption {
+            Some(rd) => rd.exn_dest.target,
+            None => 0
+        };
+
+        self.current_callsites
+            .push_back((callsite.to_relocatable(), target_block, stack_arg_size));
     }
 
     fn emit_mu_call(
@@ -4411,40 +4752,26 @@ impl<'a> InstructionSelection {
         }
 
         // prepare args (they could be instructions, we need to emit inst and get value)
-        let mut arg_values = vec![];
-        for arg_index in calldata.args.iter() {
-            let ref arg = ops[*arg_index];
-
-            if match_node_imm(arg) {
-                let arg = node_imm_to_value(arg);
-                arg_values.push(arg);
-            } else if self.match_reg(arg) {
-                let arg = self.emit_reg(arg, f_content, f_context, vm);
-                arg_values.push(arg);
-            } else {
-                unimplemented!();
-            }
-        }
+        let arg_values = self.emit_arg_values(&calldata.args, ops, f_content, f_context, vm);
         let return_type = self.combine_return_types(&func_sig, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) = self.emit_precall_convention(
+            if is_tail { &FP } else { &SP },
+            if is_tail { 16 } else { 0 },
             is_tail,
             &arg_values,
             &func_sig.arg_tys,
             return_size,
+            !is_tail,
+            true,
+            true,
+            None,
             f_context,
             vm
         );
 
         // check if this call has exception clause - need to tell backend about this
-        let potentially_excepting = {
-            if resumption.is_some() {
-                let target_id = resumption.unwrap().exn_dest.target;
-                Some(f_content.get_block(target_id).name())
-            } else {
-                None
-            }
-        };
+        let potentially_excepting = Self::get_potentially_excepting(resumption, f_content);
 
         if is_tail {
             // Restore callee saved registers and pop the frame
@@ -4459,10 +4786,12 @@ impl<'a> InstructionSelection {
                 let target_id = self.node_funcref_const_to_id(func);
                 let funcs = vm.funcs().read().unwrap();
                 let target = funcs.get(&target_id).unwrap().read().unwrap();
-                self.backend.emit_b_func(target.name(), arg_regs);
+                self.backend
+                    .emit_b_call(None, target.name(), None, arg_regs, vec![], false, false);
             } else {
                 let target = self.emit_ireg(func, f_content, f_context, vm);
-                self.backend.emit_br_func(&target, arg_regs);
+                self.backend
+                    .emit_br_call(None, &target, None, arg_regs, vec![], false);
             }
         } else {
             // Emit a branch with link (i.e. a call)
@@ -4476,33 +4805,33 @@ impl<'a> InstructionSelection {
                         unimplemented!()
                     } else {
                         let callsite = self.new_callsite_label(Some(cur_node));
-                        self.backend.emit_bl(
-                            callsite,
-                            target.name(),
-                            potentially_excepting,
-                            arg_regs,
-                            false
-                        )
+                        self.backend
+                            .emit_bl(
+                                Some(callsite),
+                                target.name(),
+                                potentially_excepting,
+                                arg_regs,
+                                CALLER_SAVED_REGS.to_vec(),
+                                false
+                            )
+                            .unwrap()
                     }
                 } else {
                     let target = self.emit_ireg(func, f_content, f_context, vm);
                     let callsite = self.new_callsite_label(Some(cur_node));
                     self.backend
-                        .emit_blr(callsite, &target, potentially_excepting, arg_regs)
+                        .emit_blr(
+                            Some(callsite),
+                            &target,
+                            potentially_excepting,
+                            arg_regs,
+                            CALLER_SAVED_REGS.to_vec()
+                        )
+                        .unwrap()
                 }
             };
 
-            // record exception branch
-            if resumption.is_some() {
-                let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
-                let target_block = exn_dest.target;
-
-                self.current_callsites
-                    .push_back((callsite.to_relocatable(), target_block, stack_arg_size));
-            } else {
-                self.current_callsites
-                    .push_back((callsite.to_relocatable(), 0, stack_arg_size));
-            }
+            self.record_callsite(resumption, callsite, stack_arg_size);
 
             // deal with ret vals
             self.emit_postcall_convention(
@@ -4568,6 +4897,8 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
+        trace!("ISAAC: sig[{}] args ({:?})", sig, args);
+
         let prologue_block = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
         self.start_block(prologue_block);
 
@@ -4633,13 +4964,25 @@ impl<'a> InstructionSelection {
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
 
+        let (_, locations, stack_arg_size) = compute_argument_locations(&sig.arg_tys, &FP, 16, &vm);
+        self.current_stack_arg_size = stack_arg_size;
+        self.emit_unload_arguments(args, locations, f_context, vm);
+        self.finish_block();
+    }
+
+    fn emit_unload_arguments(
+        &mut self,
+        args: &Vec<P<Value>>,
+        locations: Vec<P<Value>>,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) {
+        trace!("ISAAC: unload_arguments args ({:?})", args);
+        trace!("ISAAC:             locations ({:?})", locations);
+
         // unload arguments
         // Read arguments starting from FP+16 (FP points to the frame record
         // (the previous FP and LR)
-        let (_, locations, stack_arg_size) =
-            self.compute_argument_locations(&sig.arg_tys, &FP, 16, &vm);
-        trace!("ISAAC: [{:?}] {:?} -> {:?}", args, sig, locations);
-        self.current_stack_arg_size = stack_arg_size;
         for i in 0..args.len() {
             let i = i as usize;
             let ref arg_val = args[i];
@@ -4659,6 +5002,7 @@ impl<'a> InstructionSelection {
                     } else {
                         debug_assert!(arg_loc.is_mem());
                         // Argument is on the stack
+                        emit_load(self.backend.as_mut(), &arg_val, &arg_loc, f_context, vm);
                         self.current_frame
                             .as_mut()
                             .unwrap()
@@ -4708,10 +5052,7 @@ impl<'a> InstructionSelection {
                 }
             }
         }
-
-        self.finish_block();
     }
-
     fn emit_epilogue(&mut self, f_context: &mut FunctionContext, vm: &VM) {
         // pop all callee-saved registers
         for i in (0..CALLEE_SAVED_FPRS.len()).rev() {
@@ -4807,8 +5148,7 @@ impl<'a> InstructionSelection {
                 match inst.v {
                     Instruction_::CmpOp(op, op1, ..) => {
                         if op.is_int_cmp() {
-                            node_type(&ops[op1]).get_int_length().unwrap() == 128 &&
-                                !op.is_symmetric()
+                            ops[op1].ty().get_int_length().unwrap() == 128 && !op.is_symmetric()
                         } else {
                             false
                         }
@@ -4840,7 +5180,7 @@ impl<'a> InstructionSelection {
         use std;
         let mut swap = false; // Whether op1 and op2 have been swapped
         if op.is_int_cmp() {
-            let n = node_type(op1).get_int_length().unwrap();
+            let n = op1.ty().get_int_length().unwrap();
 
             let mut imm_val = 0 as u64;
             // Is one of the arguments a valid immediate?
@@ -5217,7 +5557,7 @@ impl<'a> InstructionSelection {
 
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
-            ty: node_type(&op).clone(),
+            ty: op.ty().clone(),
             v: Value_::Memory(mem)
         })
     }

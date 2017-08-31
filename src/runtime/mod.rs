@@ -196,13 +196,13 @@ impl ValueLocation {
     pub fn from_constant(c: Constant) -> ValueLocation {
         match c {
             Constant::Int(int_val) => {
-                ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val))
+                ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val) as Word)
             }
             Constant::Float(f32_val) => {
-                ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val))
+                ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val) as Word)
             }
             Constant::Double(f64_val) => {
-                ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val))
+                ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val) as Word)
             }
             _ => unimplemented!()
         }
@@ -299,14 +299,17 @@ pub extern "C" fn mu_main(
         };
 
         // FIXME: currently assumes no user defined thread local - See Issue #48
-        let thread = thread::MuThread::new_thread_normal(
-            stack,
-            unsafe { Address::zero() },
-            args,
-            vm.clone()
-        );
+        thread::MuThread::new_thread_normal(stack, unsafe { Address::zero() }, args, vm.clone());
 
-        thread.join().unwrap();
+        loop {
+            let thread = vm.pop_join_handle();
+            if thread.is_none() {
+                break;
+            }
+            thread.unwrap().join().unwrap();
+        }
+
+        trace!("All threads have exited, quiting...");
     }
 }
 

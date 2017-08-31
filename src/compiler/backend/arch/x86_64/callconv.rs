@@ -19,18 +19,25 @@ pub mod mu {
     pub use super::c::*;
 }
 
+pub mod swapstack {
+    pub use super::c::compute_arguments;
+    pub use super::c::compute_stack_args;
+    pub use super::c::compute_arguments as compute_return_values;
+    pub use super::c::compute_stack_args as compute_stack_retvals;
+}
+
 pub mod c {
     use super::*;
 
     /// computes arguments for the function signature,
     /// returns a vector of CallConvResult for each argument type
-    pub fn compute_arguments(sig: &MuFuncSig) -> Vec<CallConvResult> {
+    pub fn compute_arguments(tys: &Vec<P<MuType>>) -> Vec<CallConvResult> {
         let mut ret = vec![];
 
         let mut gpr_arg_count = 0;
         let mut fpr_arg_count = 0;
 
-        for ty in sig.arg_tys.iter() {
+        for ty in tys.iter() {
             let arg_reg_group = RegGroup::get_from_ty(ty);
 
             if arg_reg_group == RegGroup::GPR {
@@ -76,15 +83,30 @@ pub mod c {
         ret
     }
 
+    pub fn compute_stack_args(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, Vec<ByteSize>) {
+        let callconv = compute_arguments(tys);
+
+        let mut stack_arg_tys = vec![];
+        for i in 0..callconv.len() {
+            let ref cc = callconv[i];
+            match cc {
+                &CallConvResult::STACK => stack_arg_tys.push(tys[i].clone()),
+                _ => {}
+            }
+        }
+
+        compute_stack_locations(&stack_arg_tys, vm)
+    }
+
     /// computes the return values for the function signature,
     /// returns a vector of CallConvResult for each return type
-    pub fn compute_return_values(sig: &MuFuncSig) -> Vec<CallConvResult> {
+    pub fn compute_return_values(tys: &Vec<P<MuType>>) -> Vec<CallConvResult> {
         let mut ret = vec![];
 
         let mut gpr_ret_count = 0;
         let mut fpr_ret_count = 0;
 
-        for ty in sig.ret_tys.iter() {
+        for ty in tys.iter() {
             if RegGroup::get_from_ty(ty) == RegGroup::GPR {
                 if gpr_ret_count < x86_64::RETURN_GPRS.len() {
                     let ret_gpr = {
@@ -127,14 +149,29 @@ pub mod c {
         ret
     }
 
-    /// computes the return area on the stack for the function signature,
-    /// returns a tuple of (size, callcand offset for each stack arguments)
-    pub fn compute_stack_args(
-        stack_arg_tys: &Vec<P<MuType>>,
+    pub fn compute_stack_retvals(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, Vec<ByteSize>) {
+        let callconv = compute_return_values(tys);
+
+        let mut stack_ret_val_tys = vec![];
+        for i in 0..callconv.len() {
+            let ref cc = callconv[i];
+            match cc {
+                &CallConvResult::STACK => stack_ret_val_tys.push(tys[i].clone()),
+                _ => {}
+            }
+        }
+
+        compute_stack_locations(&stack_ret_val_tys, vm)
+    }
+
+    /// computes the area on the stack for a list of types that need to put on stack,
+    /// returns a tuple of (size, offset for each values on stack)
+    pub fn compute_stack_locations(
+        stack_val_tys: &Vec<P<MuType>>,
         vm: &VM
     ) -> (ByteSize, Vec<ByteSize>) {
         let (stack_arg_size, _, stack_arg_offsets) =
-            BackendType::sequential_layout(stack_arg_tys, vm);
+            BackendType::sequential_layout(stack_val_tys, vm);
 
         // "The end of the input argument area shall be aligned on a 16
         // (32, if __m256 is passed on stack) byte boundary." - x86 ABI

@@ -22,6 +22,8 @@ extern crate gcc;
 #[cfg(target_arch = "x86_64")]
 fn main() {
     gcc::Build::new()
+        .flag("-O3")
+        .flag("-c")
         .file("src/runtime/runtime_c_x64_sysv.c")
         .compile("libruntime_c.a");
 
@@ -39,6 +41,8 @@ fn main() {
 #[cfg(target_arch = "aarch64")]
 fn main() {
     gcc::Build::new()
+        .flag("-O3")
+        .flag("-c")
         .file("src/runtime/runtime_c_aarch64_sysv.c")
         .compile("libruntime_c.a");
 

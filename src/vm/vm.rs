@@ -38,9 +38,11 @@ use vm::vm_options::MuLogLevel;
 use log::LogLevel;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::Mutex;
 use std::sync::RwLockWriteGuard;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
-
+use std::thread::JoinHandle;
+use std::collections::LinkedList;
 use std;
 use utils::bit_utils::{bits_ones, u64_asr};
 
@@ -120,7 +122,10 @@ pub struct VM {
     compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
 
     /// Nnmber of callsites in the callsite tables
-    callsite_count: AtomicUsize
+    callsite_count: AtomicUsize,
+
+    /// A list of all threads currently waiting to be joined
+    pub pending_joins: Mutex<LinkedList<JoinHandle<()>>>
 }
 
 unsafe impl rodal::Dump for VM {
@@ -144,26 +149,30 @@ unsafe impl rodal::Dump for VM {
 
         // Dump empty maps so that we can safely read and modify them once loaded
         dumper.dump_padding(&self.global_locations);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<MuID, ValueLocation>::new()
-        ));
+        let global_locations = RwLock::new(rodal::EmptyHashMap::<MuID, ValueLocation>::new());
+        dumper.dump_object_here(&global_locations);
 
         dumper.dump_padding(&self.func_vers);
-        dumper.dump_object_here(&RwLock::new(
+        let func_vers = RwLock::new(
             rodal::EmptyHashMap::<MuID, RwLock<MuFunctionVersion>>::new()
-        ));
+        );
+        dumper.dump_object_here(&func_vers);
 
         dumper.dump_padding(&self.aot_pending_funcref_store);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<Address, ValueLocation>::new()
-        ));
+        let aot_pending_funcref_store =
+            RwLock::new(rodal::EmptyHashMap::<Address, ValueLocation>::new());
+        dumper.dump_object_here(&aot_pending_funcref_store);
 
-        // Dump an emepty hashmap for the other hashmaps
         dumper.dump_padding(&self.compiled_callsite_table);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<Address, CompiledCallsite>::new()
-        ));
+        let compiled_callsite_table =
+            RwLock::new(rodal::EmptyHashMap::<Address, CompiledCallsite>::new());
+        dumper.dump_object_here(&compiled_callsite_table);
+
         dumper.dump_object(&self.callsite_count);
+
+        dumper.dump_padding(&self.pending_joins);
+        let pending_joins = Mutex::new(rodal::EmptyLinkedList::<JoinHandle<()>>::new());
+        dumper.dump_object_here(&pending_joins);
     }
 }
 
@@ -234,7 +243,8 @@ impl<'a> VM {
             primordial: RwLock::new(None),
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_callsite_table: RwLock::new(HashMap::new()),
-            callsite_count: ATOMIC_USIZE_INIT
+            callsite_count: ATOMIC_USIZE_INIT,
+            pending_joins: Mutex::new(LinkedList::new())
         };
 
         // insert all internal types
@@ -558,7 +568,7 @@ impl<'a> VM {
     /// allocates memory for a constant that needs to be put in memory
     /// For AOT, we simply create a label for it, and let code emitter allocate the memory
     #[cfg(feature = "aot")]
-    pub fn allocate_const(&self, val: P<Value>) -> ValueLocation {
+    pub fn allocate_const(&self, val: &P<Value>) -> ValueLocation {
         let id = val.id();
         let name = format!("CONST_{}_{}", id, val.name());
 
@@ -1234,11 +1244,10 @@ impl<'a> VM {
         let funcs = self.funcs.read().unwrap();
         let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
 
-        Box::new(MuStack::new(
-            self.next_id(),
-            self.get_address_for_func(func_id),
-            func
-        ))
+        let func_addr = resolve_symbol(self.name_of(func_id));
+        let stack_arg_size = backend::call_stack_size(func.sig.clone(), self);
+
+        Box::new(MuStack::new(self.next_id(), func_addr, stack_arg_size))
     }
 
     /// creates a handle that we can return to the client
@@ -1716,6 +1725,12 @@ impl<'a> VM {
         })
     }
 
+    pub fn push_join_handle(&self, join_handle: JoinHandle<()>) {
+        self.pending_joins.lock().unwrap().push_front(join_handle);
+    }
+    pub fn pop_join_handle(&self) -> Option<JoinHandle<()>> {
+        self.pending_joins.lock().unwrap().pop_front()
+    }
     /// unwraps a handle to float
     pub fn handle_to_float(&self, handle: APIHandleArg) -> f32 {
         handle.v.as_float()

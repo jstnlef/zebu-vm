@@ -55,5 +55,5 @@ else
         git -C ./RPySOM submodule init
         git -C ./RPySOM submodule update
 fi
-
-pytest test_*.py -v --color=yes 2>&1 | tee $MU_ZEBU/pytest_out.txt
+shopt -s extglob
+pytest ./test_!(pypy).py -v --color=yes 2>&1 | tee $MU_ZEBU/pytest_out.txt
