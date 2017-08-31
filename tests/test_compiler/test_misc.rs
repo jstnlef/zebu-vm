@@ -8,6 +8,7 @@ use self::mu::ast::inst::*;
 use self::mu::vm::*;
 use self::mu::linkutils;
 use self::mu::utils::LinkedHashMap;
+use std::sync::Arc;
 
 #[test]
 fn test_mov_minus_one_to_int8() {

@@ -155,12 +155,25 @@ impl PeepholeOptimization {
         let orig_inst = inst;
         // the destination we will rewrite the instruction to branch to
         let final_dest: Option<MuName> = {
+            use std::collections::HashSet;
+
             let mut cur_inst = inst;
             let mut last_dest = None;
+
+            let mut visited_labels = HashSet::new();
+
             loop {
                 let opt_dest = mc.is_jmp(cur_inst);
                 match opt_dest {
                     Some(ref dest) => {
+                        // if we have already visited this instruction
+                        // this means we met an infinite loop, we need to break
+                        if visited_labels.contains(dest) {
+                            warn!("met an infinite loop in removing jump-to-jump");
+                            warn!("we are not optimizing this case");
+                            return;
+                        }
+
                         // get the block for destination
                         let first_inst = mc.get_block_range(dest).unwrap().start;
                         debug_assert!(
@@ -179,6 +192,8 @@ impl PeepholeOptimization {
                                 // its a jump-to-jump case
                                 cur_inst = first_inst;
                                 last_dest = Some(dest2.clone());
+                                visited_labels.insert(dest2.clone());
+                                debug!("visited {}", dest2);
                             }
                             None => break
                         }
@@ -190,19 +205,7 @@ impl PeepholeOptimization {
         };
 
         if let Some(dest) = final_dest {
-            let first_inst = {
-                let start = mc.get_block_range(&dest).unwrap().start;
-                match mc.get_next_inst(start) {
-                    Some(i) => i,
-                    None => {
-                        panic!(
-                            "we are jumping to a block {}\
-                             that does not have instructions?",
-                            dest
-                        )
-                    }
-                }
-            };
+            let first_inst = mc.get_block_range(&dest).unwrap().start;
 
             info!(
                 "inst {} chain jumps to {}, rewrite as branching to {} (successor: {})",
