@@ -60,11 +60,13 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        /*ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
-            "target/debug/libmu.a"
-        } else {
-            "target/release/libmu.a"
-        }));*/
+        if vm.vm_options.flag_link_staticly {
+            ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
+                "target/debug/libmu.a"
+            } else {
+                "target/release/libmu.a"
+            }));
+        }
 
         ret
     };
@@ -73,6 +75,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     out_path.push(out);
 
     link_executable_internal(
+        !vm.vm_options.flag_link_staticly,
         files,
         &vm.vm_options.flag_bootimage_external_lib,
         &vm.vm_options.flag_bootimage_external_libpath,
@@ -116,12 +119,14 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         // include the primordial C main
         ret.push(dest);
 
-        /*// include mu static lib
-        ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
-            "target/debug/libmu.a"
-        } else {
-            "target/release/libmu.a"
-        }));*/
+        // include mu static lib
+        if vm.vm_options.flag_link_staticly {
+            ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
+                "target/debug/libmu.a"
+            } else {
+                "target/release/libmu.a"
+            }));
+        }
 
         ret
     };
@@ -130,6 +135,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     out_path.push(out);
 
     link_executable_internal(
+        !vm.vm_options.flag_link_staticly,
         files,
         &vm.vm_options.flag_bootimage_external_lib,
         &vm.vm_options.flag_bootimage_external_libpath,
@@ -139,6 +145,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
 
 /// invokes the C compiler to link code into an executable
 fn link_executable_internal(
+    link_dynamicly: bool,
     files: Vec<PathBuf>,
     lib: &Vec<String>,
     libpath: &Vec<String>,
@@ -156,16 +163,18 @@ fn link_executable_internal(
         cc.arg(format!("-l{}", l));
     }
 
-    cc.arg(format!(
-        "-L{}",
-        get_path_under_zebu(if cfg!(debug_assertions) {
-            "target/debug"
-        } else {
-            "target/release"
-        }).to_str()
-            .unwrap()
-    ));
-
+    if link_dynamicly {
+        cc.arg(format!(
+            "-L{}",
+            get_path_under_zebu(if cfg!(debug_assertions) {
+                "target/debug"
+            } else {
+                "target/release"
+            }).to_str()
+                .unwrap()
+        ));
+        cc.arg("-lmu");
+    }
     // dylibs used for linux
     if cfg!(target_os = "linux") {
         cc.arg("-ldl");
@@ -173,7 +182,6 @@ fn link_executable_internal(
         cc.arg("-lm");
         cc.arg("-lpthread");
         cc.arg("-lz");
-        cc.arg("-lmu");
     } else if cfg!(target_os = "macos") {
         cc.arg("-liconv");
         cc.arg("-framework");
@@ -185,9 +193,7 @@ fn link_executable_internal(
         cc.arg("-lresolv");
         cc.arg("-lc");
         cc.arg("-lm");
-        cc.arg("-lmu");
     }
-
     // all the source code
     for file in files {
         info!("link with {:?}", file.as_path());
