@@ -60,7 +60,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        if vm.vm_options.flag_link_staticly {
+        if vm.vm_options.flag_link_statically {
             ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
                 "target/debug/libmu.a"
             } else {
@@ -75,7 +75,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     out_path.push(out);
 
     link_executable_internal(
-        !vm.vm_options.flag_link_staticly,
+        !vm.vm_options.flag_link_statically,
         files,
         &vm.vm_options.flag_bootimage_external_lib,
         &vm.vm_options.flag_bootimage_external_libpath,
@@ -120,7 +120,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        if vm.vm_options.flag_link_staticly {
+        if vm.vm_options.flag_link_statically {
             ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
                 "target/debug/libmu.a"
             } else {
@@ -135,7 +135,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     out_path.push(out);
 
     link_executable_internal(
-        !vm.vm_options.flag_link_staticly,
+        !vm.vm_options.flag_link_statically,
         files,
         &vm.vm_options.flag_bootimage_external_lib,
         &vm.vm_options.flag_bootimage_external_libpath,
