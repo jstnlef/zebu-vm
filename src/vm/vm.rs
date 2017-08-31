@@ -141,8 +141,7 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_padding(&self.name_id_map);
         let name_id_map = RwLock::new(rodal::EmptyHashMap::<MuName, MuID>::new());
         dumper.dump_object_here(&name_id_map);
-
-        dumper.dump_object(&self.name_id_map);
+        
         dumper.dump_object(&self.types);
         dumper.dump_object(&self.ref_types);
         dumper.dump_object(&self.backend_type_info);
