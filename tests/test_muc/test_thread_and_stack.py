@@ -227,7 +227,6 @@ def test_newthread_swapstack():
                 t = NEWTHREAD s PASS_VALUES<int<32>>(<int<32>> 2)
                 BRANCH loop()
             loop():
-                a = ADD <int<1>> <int<1>>0 <int<1>>0 // needed due to issue #82
                 BRANCH loop()
         }        
         .funcdef test_newthread_swapstack <main_sig>
