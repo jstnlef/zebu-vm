@@ -28,7 +28,6 @@ use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
 
 #[test]
-#[should_panic]
 fn test_infinite_loop1() {
     VM::start_logging_trace();
 
@@ -86,7 +85,6 @@ fn infinite_loop1() -> VM {
 }
 
 #[test]
-#[should_panic]
 fn test_infinite_loop2() {
     VM::start_logging_trace();
 
