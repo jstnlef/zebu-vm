@@ -135,6 +135,7 @@ impl fmt::Display for MuFunction {
 
 // FIXME: currently part of compilation information is also stored in this data structure
 // we should move them (see Issue #18)
+rodal_named!(MuFunctionVersion);
 pub struct MuFunctionVersion {
     pub hdr: MuEntityHeader,
 
