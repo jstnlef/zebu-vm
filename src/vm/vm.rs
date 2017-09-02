@@ -128,20 +128,14 @@ pub struct VM {
     pub pending_joins: Mutex<LinkedList<JoinHandle<()>>>
 }
 
+rodal_named!(VM);
 unsafe impl rodal::Dump for VM {
     fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
-        dumper.debug_record("VM", "dump");
+        dumper.debug_record::<Self>("dump");
 
         dumper.dump_object(&self.next_id);
-
-        dumper.dump_padding(&self.id_name_map);
-        let id_name_map = RwLock::new(rodal::EmptyHashMap::<MuID, MuName>::new());
-        dumper.dump_object_here(&id_name_map);
-
-        dumper.dump_padding(&self.name_id_map);
-        let name_id_map = RwLock::new(rodal::EmptyHashMap::<MuName, MuID>::new());
-        dumper.dump_object_here(&name_id_map);
-        
+        dumper.dump_object(&self.id_name_map);
+        dumper.dump_object(&self.name_id_map);       
         dumper.dump_object(&self.types);
         dumper.dump_object(&self.ref_types);
         dumper.dump_object(&self.backend_type_info);
@@ -1117,6 +1111,26 @@ impl<'a> VM {
         output_file: String
     ) {
         info!("Making boot image...");
+
+        // Only store name info for whitelisted entities
+        {
+            let mut new_id_name_map = HashMap::<MuID, MuName>::with_capacity(whitelist.len());
+            let mut new_name_id_map = HashMap::<MuName, MuID>::with_capacity(whitelist.len());
+
+            let mut id_name_map = self.id_name_map.write().unwrap();
+            let mut name_id_map = self.name_id_map.write().unwrap();
+            for &id in whitelist.iter() {
+                match id_name_map.get(&id) {
+                    Some(name) => {
+                        new_id_name_map.insert(id, name.clone());
+                        new_name_id_map.insert(name.clone(), id);
+                    }
+                    None => {}
+                }
+            }
+            *id_name_map = new_id_name_map;
+            *name_id_map = new_name_id_map;
+        }
 
         // compile the whitelist functions
         let whitelist_funcs = {

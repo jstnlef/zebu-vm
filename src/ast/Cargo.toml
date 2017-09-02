@@ -25,6 +25,6 @@ mu_utils = {path = "../utils"}
 lazy_static = "*"
 log = "*"
 simple_logger = "*"
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = ">= 0.0.10" }
 regex = "*"
-#rodal = { path = "../../../rodal_test/rodal", version = ">= 0.0.5" }
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = "^0.1.13" }
+#rodal = { path = "../../rodal", version = "*" }
