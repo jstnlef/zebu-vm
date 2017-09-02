@@ -26,5 +26,5 @@ lazy_static = "*"
 log = "*"
 simple_logger = "*"
 regex = "*"
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = "^0.1.13" }
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", branch = "new", version = "^0.1.13" }
 #rodal = { path = "../../rodal", version = "*" }

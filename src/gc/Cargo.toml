@@ -39,5 +39,5 @@ simple_logger = "*"
 aligned_alloc = "*"
 crossbeam = "*"
 field-offset = "*"
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = "^0.1.13" }
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", branch = "new", version = "^0.1.13" }
 #rodal = { path = "../../rodal", version = "*" }
