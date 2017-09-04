@@ -135,7 +135,7 @@ unsafe impl rodal::Dump for VM {
 
         dumper.dump_object(&self.next_id);
         dumper.dump_object(&self.id_name_map);
-        dumper.dump_object(&self.name_id_map);       
+        dumper.dump_object(&self.name_id_map);
         dumper.dump_object(&self.types);
         dumper.dump_object(&self.ref_types);
         dumper.dump_object(&self.backend_type_info);
