@@ -121,6 +121,7 @@ pub struct VM {
     /// a map from callsite address to CompiledCallsite
     compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
 
+    pub primordial_threadlocal: RwLock<Option<String>>,
     /// Nnmber of callsites in the callsite tables
     callsite_count: AtomicUsize,
 
@@ -169,6 +170,7 @@ unsafe impl rodal::Dump for VM {
             RwLock::new(rodal::EmptyHashMap::<Address, CompiledCallsite>::new());
         dumper.dump_object_here(&compiled_callsite_table);
 
+        dumper.dump_object(&self.primordial_threadlocal);
         dumper.dump_object(&self.callsite_count);
 
         dumper.dump_padding(&self.pending_joins);
@@ -244,6 +246,7 @@ impl<'a> VM {
             primordial: RwLock::new(None),
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_callsite_table: RwLock::new(HashMap::new()),
+            primordial_threadlocal: RwLock::new(None),
             callsite_count: ATOMIC_USIZE_INIT,
             pending_joins: Mutex::new(LinkedList::new())
         };
@@ -1160,11 +1163,6 @@ impl<'a> VM {
             whitelist_funcs
         };
 
-        if primordial_threadlocal.is_some() {
-            // we are going to need to persist this threadlocal
-            unimplemented!()
-        }
-
         let has_primordial_func = primordial_func.is_some();
         let has_primordial_stack = primordial_stack.is_some();
 
@@ -1217,7 +1215,12 @@ impl<'a> VM {
             };
 
             // emit context (persist vm, etc)
-            backend::emit_context_with_reloc(self, symbols, fields);
+            backend::emit_context_with_reloc(
+                self,
+                symbols,
+                fields,
+                primordial_threadlocal.map(|x| x.v.as_ref().1)
+            );
 
             // link
             self.link_boot_image(whitelist_funcs, extra_sources_to_link, output_file);
