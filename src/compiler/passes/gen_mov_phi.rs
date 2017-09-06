@@ -306,7 +306,6 @@ impl CompilerPass for GenMovPhi {
                     block_info.blk_id,
                     block_info.blk_name.clone()
                 ));
-                vm.set_name(ret.as_entity());
 
                 let mut target_block = f_content.get_block_mut(target_id);
                 assert!(target_block.content.is_some());
@@ -403,7 +402,7 @@ fn process_dest(
 
         blocks_to_insert.push(IntermediateBlockInfo {
             blk_id: new_blk_id,
-            blk_name: format!("{}:{}:#{}-#{}", inst, label, new_blk_id, target),
+            blk_name: Arc::new(format!("{}:{}:#{}-#{}", inst, label, new_blk_id, target)),
             target: target,
             from_args: from_args
         });

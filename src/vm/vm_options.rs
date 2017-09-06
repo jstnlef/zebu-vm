@@ -36,7 +36,7 @@ Compiler:
 
 AOT Compiler:
   --aot-emit-dir=<dir>                  the emit directory for ahead-of-time compiling [default: emit]
-
+  --link-statically                       link boot image to libmu statically (defaults to dynamic)
   --bootimage-external-lib=<lib> ...           library that will be linked against when making bootimage [default: ]
   --bootimage-external-libpath=<path> ...      path for the libraries during bootimage generation [default: ]
 
@@ -60,11 +60,12 @@ pub struct VMOptions {
 
     // AOT compiler
     pub flag_aot_emit_dir: String,                    // +0
+    pub flag_link_statically: bool,                     // +100
     pub flag_bootimage_external_lib: Vec<String>,     // +24
     pub flag_bootimage_external_libpath: Vec<String>, // +48
 
     // GC
-    pub flag_gc_disable_collection: bool, // +100
+    pub flag_gc_disable_collection: bool, // +101
     pub flag_gc_immixspace_size: usize,   // +72
     pub flag_gc_lospace_size: usize,      // +80
     pub flag_gc_nthreads: usize,          // +88
@@ -82,6 +83,7 @@ rodal_struct!(VMOptions {
     flag_disable_inline,
     flag_disable_regalloc_validate,
     flag_emit_debug_info,
+    flag_link_statically,
     flag_gc_disable_collection
 });
 

@@ -121,7 +121,7 @@ pub enum NodeConst {
     ConstExtern {
         id: MuID,
         ty: MuTypeNode,
-        symbol: String
+        symbol: CName
     }
 }
 

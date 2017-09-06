@@ -74,7 +74,7 @@ pub fn validate_regalloc(
     let mut work_queue: LinkedHashMap<MuName, AliveEntries> = LinkedHashMap::new();
     let mut visited: LinkedHashMap<MuName, AliveEntries> = LinkedHashMap::new();
     // push entry block
-    work_queue.insert(PROLOGUE_BLOCK_NAME.to_string(), alive.clone());
+    work_queue.insert(Arc::new(PROLOGUE_BLOCK_NAME.to_string()), alive.clone());
 
     while !work_queue.is_empty() {
         // fetch next block

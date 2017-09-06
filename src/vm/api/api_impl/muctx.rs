@@ -517,9 +517,9 @@ impl MuCtx {
         primordial_stack: Option<&APIHandle>,
         primordial_threadlocal: Option<&APIHandle>,
         sym_fields: Vec<&APIHandle>,
-        sym_strings: Vec<String>,
+        sym_strings: Vec<MuName>,
         reloc_fields: Vec<&APIHandle>,
-        reloc_strings: Vec<String>,
+        reloc_strings: Vec<MuName>,
         output_file: String
     ) {
         self.get_mvm().vm.make_boot_image(

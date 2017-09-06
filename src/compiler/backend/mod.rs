@@ -541,5 +541,5 @@ impl RegGroup {
 }
 
 fn make_block_name(inst: &MuName, label: &str) -> MuName {
-    format!("{}:{}", inst, label)
+    Arc::new(format!("{}:{}", inst, label))
 }

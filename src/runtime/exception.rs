@@ -182,7 +182,7 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
                 "\tframe {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}",
                 frame_count,
                 compiled_func.start.to_address(),
-                vm.name_of(compiled_func.func_id),
+                vm.get_name_for_func(compiled_func.func_id),
                 compiled_func.func_id,
                 compiled_func.func_ver_id,
                 callsite

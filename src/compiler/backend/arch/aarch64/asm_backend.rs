@@ -105,7 +105,7 @@ impl ASMCode {
         false
     }
 
-    fn get_block_by_inst(&self, inst: usize) -> (&String, &ASMBlock) {
+    fn get_block_by_inst(&self, inst: usize) -> (&MuName, &ASMBlock) {
         for (name, block) in self.blocks.iter() {
             if inst >= block.start_inst && inst < block.end_inst {
                 return (name, block);
@@ -693,7 +693,7 @@ impl MachineCode for ASMCode {
             let asm = &mut self.code[inst];
 
             let inst = String::from(asm.code.split_whitespace().next().unwrap());
-            asm.code = format!("{} {}", inst, mangle_name(String::from(new_dest)));
+            asm.code = format!("{} {}", inst, mangle_name(Arc::new(new_dest.to_string())));
             asm.succs.clear();
             asm.succs.push(succ);
         }
@@ -816,7 +816,7 @@ impl MachineCode for ASMCode {
         trace!(
             "#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}",
             i,
-            demangle_text(self.code[i].code.clone()),
+            demangle_text(&self.code[i].code),
             self.get_inst_reg_defines(i),
             self.get_inst_reg_uses(i),
             self.code[i].preds,
@@ -825,26 +825,26 @@ impl MachineCode for ASMCode {
     }
 
     fn get_ir_block_livein(&self, block: &str) -> Option<&Vec<MuID>> {
-        match self.blocks.get(block) {
+        match self.blocks.get(&block.to_string()) {
             Some(ref block) => Some(&block.livein),
             None => None
         }
     }
 
     fn get_ir_block_liveout(&self, block: &str) -> Option<&Vec<MuID>> {
-        match self.blocks.get(block) {
+        match self.blocks.get(&block.to_string()) {
             Some(ref block) => Some(&block.liveout),
             None => None
         }
     }
 
     fn set_ir_block_livein(&mut self, block: &str, set: Vec<MuID>) {
-        let block = self.blocks.get_mut(block).unwrap();
+        let block = self.blocks.get_mut(&block.to_string()).unwrap();
         block.livein = set;
     }
 
     fn set_ir_block_liveout(&mut self, block: &str, set: Vec<MuID>) {
-        let block = self.blocks.get_mut(block).unwrap();
+        let block = self.blocks.get_mut(&block.to_string()).unwrap();
         block.liveout = set;
     }
 
@@ -857,7 +857,7 @@ impl MachineCode for ASMCode {
     }
 
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>> {
-        match self.blocks.get(block) {
+        match self.blocks.get(&block.to_string()) {
             Some(ref block) => Some(block.start_inst..block.end_inst),
             None => None
         }
@@ -1000,10 +1000,10 @@ pub struct ASMCodeGen {
 
 const REG_PLACEHOLDER_LEN: usize = 5;
 lazy_static! {
-    pub static ref REG_PLACEHOLDER : String = {
+    pub static ref REG_PLACEHOLDER : MuName = {
         let blank_spaces = [' ' as u8; REG_PLACEHOLDER_LEN];
 
-        format!("{}", str::from_utf8(&blank_spaces).unwrap())
+        Arc::new(format!("{}", str::from_utf8(&blank_spaces).unwrap()))
     };
 }
 
@@ -1033,7 +1033,7 @@ impl ASMCodeGen {
     }
 
     fn add_asm_symbolic(&mut self, code: String) {
-        trace_emit!("{}", demangle_text(code.clone()));
+        trace_emit!("{}", demangle_text(&code));
         self.cur_mut().code.push(ASMInst::symbolic(code));
     }
 
@@ -1098,7 +1098,7 @@ impl ASMCodeGen {
         target: ASMBranchTarget,
         spill_info: Option<SpillMemInfo>
     ) {
-        trace!("asm: {}", demangle_text(code.clone()));
+        trace!("asm: {}", demangle_text(&code));
         trace!("     defines: {:?}", defines);
         trace!("     uses: {:?}", uses);
         trace!("     target: {:?}", target);
@@ -1274,7 +1274,7 @@ impl ASMCodeGen {
             format!("{}", op.name())
         } else {
             // virtual register, use place holder
-            REG_PLACEHOLDER.clone()
+            (**REG_PLACEHOLDER).clone()
         }
     }
 
@@ -2119,7 +2119,7 @@ impl ASMCodeGen {
 
     fn internal_call(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         code: String,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
@@ -2192,8 +2192,8 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(format!(".type {}, @function", func_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
         if is_valid_c_identifier(&func_name) {
-            self.add_asm_symbolic(directive_globl(func_name.clone()));
-            self.add_asm_symbolic(directive_equiv(func_name.clone(), func_symbol.clone()));
+            self.add_asm_symbolic(directive_globl((*func_name).clone()));
+            self.add_asm_symbolic(directive_equiv((*func_name).clone(), func_symbol.clone()));
         }
 
         ValueLocation::Relocatable(RegGroup::GPR, func_name)
@@ -2204,9 +2204,9 @@ impl CodeGenerator for ASMCodeGen {
         func_name: MuName
     ) -> (Box<MachineCode + Sync + Send>, ValueLocation) {
         let func_end = {
-            let mut symbol = func_name.clone();
+            let mut symbol = (*func_name).clone();
             symbol.push_str(":end");
-            symbol
+            Arc::new(symbol)
         };
         let func_symbol = mangle_name(func_name.clone());
         let func_end_sym = mangle_name(func_end.clone());
@@ -2229,8 +2229,8 @@ impl CodeGenerator for ASMCodeGen {
 
     fn start_code_sequence(&mut self) {
         self.cur = Some(Box::new(ASMCode {
-            name: "snippet".to_string(),
-            entry: "none".to_string(),
+            name: Arc::new("snippet".to_string()),
+            entry: Arc::new("none".to_string()),
             code: vec![],
             blocks: linked_hashmap!{},
             frame_size_patchpoints: vec![]
@@ -2401,7 +2401,7 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_bl(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         func: MuName,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
@@ -2428,7 +2428,7 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_blr(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         func: Reg,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
@@ -2461,7 +2461,7 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_b_call(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         func: MuName,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
@@ -2516,7 +2516,7 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_br_call(
         &mut self,
-        callsite: Option<String>,
+        callsite: Option<MuName>,
         func: Reg,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
@@ -3444,7 +3444,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     {
         let mut demangled_path = path::PathBuf::new();
         demangled_path.push(&vm.vm_options.flag_aot_emit_dir);
-        demangled_path.push(func.name() + ".demangled.S");
+        demangled_path.push((*func.name()).clone() + ".demangled.S");
 
         let mut demangled_file = match File::create(demangled_path.as_path()) {
             Err(why) => {
@@ -3468,7 +3468,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         };
         let mut f = String::new();
         mangled_file.read_to_string(&mut f).unwrap();
-        let d = demangle_text(f);
+        let d = demangle_text(&f);
         match demangled_file.write_all(d.as_bytes()) {
             Err(why) => {
                 panic!(
@@ -3577,8 +3577,8 @@ use std::collections::HashMap;
 
 pub fn emit_context_with_reloc(
     vm: &VM,
-    symbols: HashMap<Address, String>,
-    fields: HashMap<Address, String>
+    symbols: HashMap<Address, MuName>,
+    fields: HashMap<Address, MuName>
 ) {
     use std::path;
     use std::io::prelude::*;
@@ -3655,6 +3655,7 @@ pub fn emit_context_with_reloc(
                 writeln!(file, "{}:", global_cell_name.clone()).unwrap();
 
                 if is_valid_c_identifier(&demangled_name) {
+                    let demangled_name = (*demangled_name).clone();
                     writeln!(file, "\t{}", directive_globl(demangled_name.clone())).unwrap();
                     writeln!(
                         file,

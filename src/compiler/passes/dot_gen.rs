@@ -73,7 +73,7 @@ fn emit_muir(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
 
     let mut file_path = path::PathBuf::new();
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
-    file_path.push(func_name.clone() + suffix + ".muir");
+    file_path.push((*func_name).clone() + suffix + ".muir");
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => {
             panic!(
@@ -96,7 +96,7 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
 
     let mut file_path = path::PathBuf::new();
     file_path.push(&vm.vm_options.flag_aot_emit_dir);
-    file_path.push(func_name.clone() + suffix + ".dot");
+    file_path.push((*func_name).clone() + suffix + ".dot");
 
     let mut file = match File::create(file_path.as_path()) {
         Err(why) => {
@@ -112,7 +112,7 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
     emit_muir_dot_inner(&mut file, func_name.clone(), func.content.as_ref().unwrap());
 }
 
-fn emit_muir_dot_inner(file: &mut File, f_name: String, f_content: &FunctionContent) {
+fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionContent) {
     use utils::vec_utils;
 
     // digraph func {

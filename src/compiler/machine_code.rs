@@ -21,6 +21,7 @@ use rodal;
 use utils::Address;
 use std::sync::Arc;
 use runtime::resolve_symbol;
+use std;
 use std::ops;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -53,9 +54,10 @@ pub struct CompiledFunction {
     /// end location of this compiled function
     pub end: ValueLocation
 }
+rodal_named!(CompiledFunction);
 unsafe impl rodal::Dump for CompiledFunction {
     fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
-        dumper.debug_record("CompiledFunction", "dump");
+        dumper.debug_record::<Self>("dump");
         dumper.dump_object(&self.func_id);
         dumper.dump_object(&self.func_ver_id);
         dumper.dump_object(&self.temps);
@@ -116,6 +118,7 @@ impl CompiledFunction {
 }
 
 // Contains information about a callsite (needed for exception handling)
+rodal_named!(CompiledCallsite);
 pub struct CompiledCallsite {
     pub exceptional_destination: Option<Address>,
     pub stack_args_size: usize,

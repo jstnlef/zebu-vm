@@ -128,9 +128,10 @@ pub struct VM {
     pub pending_joins: Mutex<LinkedList<JoinHandle<()>>>
 }
 
+rodal_named!(VM);
 unsafe impl rodal::Dump for VM {
     fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
-        dumper.debug_record("VM", "dump");
+        dumper.debug_record::<Self>("dump");
 
         dumper.dump_object(&self.next_id);
         dumper.dump_object(&self.id_name_map);
@@ -515,7 +516,7 @@ impl<'a> VM {
     /// due to removal of some special symbols in the MuName. See name_check() in ir.rs
     pub fn id_of(&self, name: &str) -> MuID {
         let map = self.name_id_map.read().unwrap();
-        match map.get(name) {
+        match map.get(&name.to_string()) {
             Some(id) => *id,
             None => panic!("cannot find id for name: {}", name)
         }
@@ -572,7 +573,7 @@ impl<'a> VM {
         let id = val.id();
         let name = format!("CONST_{}_{}", id, val.name());
 
-        ValueLocation::Relocatable(backend::RegGroup::GPR, name)
+        ValueLocation::Relocatable(backend::RegGroup::GPR, Arc::new(name))
     }
 
     /// declares a global
@@ -841,7 +842,7 @@ impl<'a> VM {
     /// a new function added.
     pub fn declare_many(
         &self,
-        new_id_name_map: &mut HashMap<MuID, MuName>,
+        new_name_id_map: &mut HashMap<MuName, MuID>,
         new_types: &mut HashMap<MuID, P<MuType>>,
         new_func_sigs: &mut HashMap<MuID, P<MuFuncSig>>,
         new_constants: &mut HashMap<MuID, P<Value>>,
@@ -862,7 +863,7 @@ impl<'a> VM {
             let mut funcs = self.funcs.write().unwrap();
             let mut func_vers = self.func_vers.write().unwrap();
 
-            for (id, name) in new_id_name_map.drain() {
+            for (name, id) in new_name_id_map.drain() {
                 id_name_map.insert(id, name.clone());
                 name_id_map.insert(name, id);
             }
@@ -1073,9 +1074,9 @@ impl<'a> VM {
         primordial_stack: Option<&APIHandle>,
         primordial_threadlocal: Option<&APIHandle>,
         sym_fields: Vec<&APIHandle>,
-        sym_strings: Vec<String>,
+        sym_strings: Vec<MuName>,
         reloc_fields: Vec<&APIHandle>,
-        reloc_strings: Vec<String>,
+        reloc_strings: Vec<MuName>,
         output_file: String
     ) {
         self.make_boot_image_internal(
@@ -1103,13 +1104,33 @@ impl<'a> VM {
         primordial_stack: Option<&APIHandle>,
         primordial_threadlocal: Option<&APIHandle>,
         sym_fields: Vec<&APIHandle>,
-        sym_strings: Vec<String>,
+        sym_strings: Vec<MuName>,
         reloc_fields: Vec<&APIHandle>,
-        reloc_strings: Vec<String>,
+        reloc_strings: Vec<MuName>,
         extra_sources_to_link: Vec<String>,
         output_file: String
     ) {
         info!("Making boot image...");
+
+        // Only store name info for whitelisted entities
+        {
+            let mut new_id_name_map = HashMap::<MuID, MuName>::with_capacity(whitelist.len());
+            let mut new_name_id_map = HashMap::<MuName, MuID>::with_capacity(whitelist.len());
+
+            let mut id_name_map = self.id_name_map.write().unwrap();
+            let mut name_id_map = self.name_id_map.write().unwrap();
+            for &id in whitelist.iter() {
+                match id_name_map.get(&id) {
+                    Some(name) => {
+                        new_id_name_map.insert(id, name.clone());
+                        new_name_id_map.insert(name.clone(), id);
+                    }
+                    None => {}
+                }
+            }
+            *id_name_map = new_id_name_map;
+            *name_id_map = new_name_id_map;
+        }
 
         // compile the whitelist functions
         let whitelist_funcs = {
@@ -1244,7 +1265,7 @@ impl<'a> VM {
         let funcs = self.funcs.read().unwrap();
         let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
 
-        let func_addr = resolve_symbol(self.name_of(func_id));
+        let func_addr = resolve_symbol(self.get_name_for_func(func_id));
         let stack_arg_size = backend::call_stack_size(func.sig.clone(), self);
 
         Box::new(MuStack::new(self.next_id(), func_addr, stack_arg_size))
@@ -1572,7 +1593,7 @@ impl<'a> VM {
         unsafe { addr.store::<u64>(PENDING_FUNCREF) };
 
         // and record this funcref
-        let symbol = self.name_of(func_id);
+        let symbol = self.get_name_for_func(func_id);
 
         let mut pending_funcref_guard = self.aot_pending_funcref_store.write().unwrap();
         pending_funcref_guard.insert(

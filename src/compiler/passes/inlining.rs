@@ -239,7 +239,7 @@ impl Inlining {
                                 // which will receive results from inlined function
                                 let old_name = cur_block.name();
                                 let new_name =
-                                    format!("{}_cont_after_inline_{}", old_name, inst_id);
+                                    Arc::new(format!("{}_cont_after_inline_{}", old_name, inst_id));
                                 trace!("create continue block for EXPRCALL/CCALL: {}", &new_name);
                                 cur_block =
                                     Block::new(MuEntityHeader::named(vm.next_id(), new_name));
@@ -255,7 +255,6 @@ impl Inlining {
                                     body: vec![],
                                     keepalives: None
                                 });
-                                vm.set_name(cur_block.as_entity());
 
                                 // deal with the inlined function
                                 copy_inline_blocks(
@@ -307,11 +306,11 @@ impl Inlining {
                                     inlined_fv_guard.sig.ret_tys.len()
                                 {
                                     debug!("need an extra block for passing normal dest arguments");
-                                    let int_block_name = format!("inline_{}_arg_pass", inst_id);
+                                    let int_block_name =
+                                        Arc::new(format!("inline_{}_arg_pass", inst_id));
                                     let mut intermediate_block = Block::new(
                                         MuEntityHeader::named(vm.next_id(), int_block_name)
                                     );
-                                    vm.set_name(intermediate_block.as_entity());
 
                                     // branch to normal_dest with normal_dest arguments
                                     let normal_dest_args =
@@ -420,7 +419,7 @@ fn copy_inline_blocks(
         let mut block = Block {
             hdr: MuEntityHeader::named(
                 new_id,
-                format!("{}:inlinedblock.#{}", old_block.name(), new_id)
+                Arc::new(format!("{}:inlinedblock.#{}", old_block.name(), new_id))
             ),
             content: Some(old_block.content.as_ref().unwrap().clone_empty()),
             trace_hint: TraceHint::None,

@@ -46,6 +46,7 @@ use ast::ir::*;
 use ast::types::*;
 use compiler::backend::RegGroup;
 use vm::VM;
+use std::sync::Arc;
 
 use utils::LinkedHashMap;
 use std::collections::HashMap;
@@ -96,7 +97,7 @@ macro_rules! GPR {
     ($id:expr, $name: expr, $ty: ident) => {
         {
             P(Value {
-                hdr: MuEntityHeader::named($id, $name.to_string()),
+                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
                 ty: $ty.clone(),
                 v: Value_::SSAVar($id)
             })
@@ -109,7 +110,7 @@ macro_rules! FPR {
     ($id:expr, $name: expr) => {
         {
             P(Value {
-                hdr: MuEntityHeader::named($id, $name.to_string()),
+                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
                 ty: DOUBLE_TYPE.clone(),
                 v: Value_::SSAVar($id)
             })

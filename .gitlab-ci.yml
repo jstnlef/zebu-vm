@@ -9,6 +9,7 @@ before_script:
   - export ZEBU_BUILD=release
   - export CARGO_HOME=.cargo
   - export CC=clang
+  - export LD_LIBRARY_PATH=$MU_ZEBU/target/$ZEBU_BUILD:$LD_LIBRARY_PATH
   - source /home/gitlab-runner/ci/bin/activate
 
 build:
@@ -121,7 +122,7 @@ testjit:rpython:
     - git checkout mu-rewrite
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=./emit RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy pytest test_rpython*.py -v --color=yes
+    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=./emit:$LD_LIBRARY_PATH RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy pytest test_rpython*.py -v --color=yes
 
 testjit:som:
   stage: test
@@ -135,7 +136,7 @@ testjit:som:
     - git checkout mu-rewrite
     - git apply pypy.patch
     - cd $CI_PROJECT_DIR/tests/test_jit
-    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=./emit RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_som.py -v --color=yes
+    - MU_LOG_LEVEL=info LD_LIBRARY_PATH=./emit:$LD_LIBRARY_PATH RUST_BACKTRACE=1 PYTHONPATH=mu-client-pypy:RPySOM/src RPYSOM=RPySOM pytest test_som.py -v --color=yes
 
 mubench:
   stage: mubench

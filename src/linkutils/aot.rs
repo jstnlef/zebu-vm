@@ -60,11 +60,13 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
-            "target/debug/libmu.a"
-        } else {
-            "target/release/libmu.a"
-        }));
+        if vm.vm_options.flag_link_statically {
+            ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
+                "target/debug/libmu.a"
+            } else {
+                "target/release/libmu.a"
+            }));
+        }
 
         ret
     };
@@ -73,6 +75,7 @@ pub fn link_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     out_path.push(out);
 
     link_executable_internal(
+        !vm.vm_options.flag_link_statically,
         files,
         &vm.vm_options.flag_bootimage_external_lib,
         &vm.vm_options.flag_bootimage_external_libpath,
@@ -117,11 +120,13 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(dest);
 
         // include mu static lib
-        ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
-            "target/debug/libmu.a"
-        } else {
-            "target/release/libmu.a"
-        }));
+        if vm.vm_options.flag_link_statically {
+            ret.push(get_path_under_zebu(if cfg!(debug_assertions) {
+                "target/debug/libmu.a"
+            } else {
+                "target/release/libmu.a"
+            }));
+        }
 
         ret
     };
@@ -130,6 +135,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
     out_path.push(out);
 
     link_executable_internal(
+        !vm.vm_options.flag_link_statically,
         files,
         &vm.vm_options.flag_bootimage_external_lib,
         &vm.vm_options.flag_bootimage_external_libpath,
@@ -139,6 +145,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
 
 /// invokes the C compiler to link code into an executable
 fn link_executable_internal(
+    link_dynamicly: bool,
     files: Vec<PathBuf>,
     lib: &Vec<String>,
     libpath: &Vec<String>,
@@ -156,6 +163,18 @@ fn link_executable_internal(
         cc.arg(format!("-l{}", l));
     }
 
+    if link_dynamicly {
+        cc.arg(format!(
+            "-L{}",
+            get_path_under_zebu(if cfg!(debug_assertions) {
+                "target/debug"
+            } else {
+                "target/release"
+            }).to_str()
+                .unwrap()
+        ));
+        cc.arg("-lmu");
+    }
     // dylibs used for linux
     if cfg!(target_os = "linux") {
         cc.arg("-ldl");
@@ -175,7 +194,6 @@ fn link_executable_internal(
         cc.arg("-lc");
         cc.arg("-lm");
     }
-
     // all the source code
     for file in files {
         info!("link with {:?}", file.as_path());
@@ -377,7 +395,7 @@ pub fn compile_fncs<'a>(
 /// gets the path for the generated code of a Mu function
 fn get_path_for_mu_func(f: MuName, vm: &VM) -> PathBuf {
     let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
-    ret.push(f + ".S");
+    ret.push((*f).clone() + ".S");
 
     ret
 }
@@ -393,7 +411,10 @@ fn get_path_for_mu_context(vm: &VM) -> PathBuf {
 pub fn run_test(vm: &VM, test_name: &str, tester_name: &str) {
     let output_name = test_name.to_string() + "_" + tester_name;
     let executable = link_test_primordial(
-        vec![test_name.to_string(), tester_name.to_string()],
+        vec![
+            Arc::new(test_name.to_string()),
+            Arc::new(tester_name.to_string()),
+        ],
         output_name.as_str(),
         vm
     );
@@ -655,9 +676,9 @@ pub fn run_test_2f(vm: &VM, test_name: &str, dep_name: &str, tester_name: &str) 
     let output_name = test_name.to_string() + "_" + tester_name;
     let executable = link_test_primordial(
         vec![
-            dep_name.to_string(),
-            test_name.to_string(),
-            tester_name.to_string(),
+            Arc::new(dep_name.to_string()),
+            Arc::new(test_name.to_string()),
+            Arc::new(tester_name.to_string()),
         ],
         output_name.as_str(),
         vm

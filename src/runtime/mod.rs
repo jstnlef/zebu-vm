@@ -42,7 +42,9 @@ pub mod entrypoints;
 /// exception handling
 pub mod exception;
 
-
+lazy_static!{
+    static ref UNKNOWN_FUNCTION_NAME : CName = Arc::new("UNKOWN".to_string());
+}
 /// returns name for a function address
 // FIXME: this actually returns the name and address of the nearest symbol (of any type)
 //        that starts before function_addr (instead we want the nearest function symbol)
@@ -62,14 +64,19 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
     }
     if !info.dli_sname.is_null() {
         (
-            unsafe { CStr::from_ptr(info.dli_sname) }
-                .to_str()
-                .unwrap()
-                .to_string(),
+            Arc::new(
+                unsafe { CStr::from_ptr(info.dli_sname) }
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            ),
             Address::from_ptr(info.dli_saddr)
         )
     } else {
-        ("UNKOWN".to_string(), Address::from_ptr(info.dli_saddr))
+        (
+            UNKNOWN_FUNCTION_NAME.clone(),
+            Address::from_ptr(info.dli_saddr)
+        )
     }
 
 }

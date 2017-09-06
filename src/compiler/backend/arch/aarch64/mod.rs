@@ -59,7 +59,7 @@ macro_rules! REGISTER {
     ($id:expr, $name: expr, $ty: ident) => {
         {
             P(Value {
-                hdr: MuEntityHeader::named($id, $name.to_string()),
+                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
                 ty: $ty.clone(),
                 v: Value_::SSAVar($id)
             })
@@ -2392,9 +2392,9 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             ty: UINT64_TYPE.clone(),
                             v: Value_::Constant(Constant::ExternSym(if is_native {
-                                format!("/*C*/:got_lo12:{}", label)
+                                Arc::new(format!("/*C*/:got_lo12:{}", label))
                             } else {
-                                format!(":got_lo12:{}", mangle_name(label.clone()))
+                                Arc::new(format!(":got_lo12:{}", mangle_name(label.clone())))
                             }))
                         });
 

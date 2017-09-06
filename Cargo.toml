@@ -37,8 +37,8 @@ gcc = "*"
 mu_ast = {path = "src/ast"}
 mu_utils = {path = "src/utils"}
 #mu_gc = {path = "src/gc"}
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = ">= 0.0.5" }
-#rodal = { path = "../rodal_test/rodal", version = ">= 0.0.5" }
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", branch = "new", version = "^0.1.13" }
+#rodal = { path = "./rodal", version = "*" }
 
 libc="*"
 field-offset = "*"

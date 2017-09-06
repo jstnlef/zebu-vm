@@ -80,7 +80,7 @@ impl MuVM {
 
         let cname = map.entry(id).or_insert_with(|| {
             let rustname = self.vm.name_of(id);
-            CString::new(rustname).unwrap()
+            CString::new((*rustname).clone()).unwrap()
         });
 
         cname.as_ptr()

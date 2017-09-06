@@ -55,7 +55,11 @@ fn test_ccall_exit() {
     vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable = aot::link_primordial(vec!["ccall_exit".to_string()], "ccall_exit_test", &vm);
+    let executable = aot::link_primordial(
+        vec![Arc::new("ccall_exit".to_string())],
+        "ccall_exit_test",
+        &vm
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());

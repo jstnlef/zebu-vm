@@ -46,7 +46,7 @@ use utils::{BitSize, ByteSize};
 
 use std::collections::HashMap;
 use std::collections::LinkedList;
-
+use std::sync::Arc;
 use std::any::Any;
 
 lazy_static! {
@@ -176,7 +176,7 @@ impl<'a> InstructionSelection {
             backend: Box::new(ASMCodeGen::new()),
 
             current_fv_id: 0,
-            current_fv_name: String::new(),
+            current_fv_name: Arc::new(String::new()),
             current_sig: None,
             current_callsite_id: 0,
             current_frame: None,
@@ -4850,7 +4850,7 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
-        let block_name = format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME);
+        let block_name = Arc::new(format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME));
         self.backend.start_block(block_name.clone());
 
         // push rbp
@@ -6367,7 +6367,7 @@ impl<'a> InstructionSelection {
     }
 
     /// creates a callsite label that is globally unique
-    fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> String {
+    fn new_callsite_label(&mut self, cur_node: Option<&TreeNode>) -> MuName {
         let ret = {
             if cur_node.is_some() {
                 make_block_name(
@@ -6375,11 +6375,11 @@ impl<'a> InstructionSelection {
                     format!("callsite_{}", self.current_callsite_id).as_str()
                 )
             } else {
-                format!(
+                Arc::new(format!(
                     "{}:callsite_{}",
                     self.current_fv_name,
                     self.current_callsite_id
-                )
+                ))
             }
         };
         self.current_callsite_id += 1;
@@ -6510,7 +6510,7 @@ impl<'a> InstructionSelection {
     }
 
     /// starts a new block
-    fn start_block(&mut self, block: String) {
+    fn start_block(&mut self, block: MuName) {
         self.current_block = Some(block.clone());
         self.backend.start_block(block);
     }

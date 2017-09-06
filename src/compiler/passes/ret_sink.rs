@@ -50,13 +50,12 @@ impl CompilerPass for RetSink {
 
         // create a return sink
         let return_sink = {
-            let block_name = format!("{}:{}", func.name(), EPILOGUE_BLOCK_NAME);
+            let block_name = Arc::new(format!("{}:{}", func.name(), EPILOGUE_BLOCK_NAME));
             trace!("created return sink {}", block_name);
 
             let mut block = Block::new(MuEntityHeader::named(vm.next_id(), block_name));
             // tell the compiler this is the return sink
             block.trace_hint = TraceHint::ReturnSink;
-            vm.set_name(block.as_entity());
 
             let sig = func.sig.clone();
             let args: Vec<P<Value>> = sig.ret_tys
