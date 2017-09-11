@@ -103,7 +103,7 @@ pub fn link_test_primordial(funcs: Vec<MuName>, out: &str, vm: &VM) -> PathBuf {
         ret.push(get_path_for_mu_context(vm));
 
         // copy primoridal entry
-        let source = get_path_under_zebu(runtime::PRIMORDIAL_ENTRY);
+        let source = get_path_under_zebu(runtime::TEST_PRIMORDIAL_ENTRY);
         let dest = {
             let mut ret = PathBuf::from(&vm.vm_options.flag_aot_emit_dir);
             ret.push("main_test.c");
