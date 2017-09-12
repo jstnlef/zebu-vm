@@ -41,14 +41,5 @@ int main(int argc, char** argv) {
     return (int)mu_retval;
 }
 
-#ifdef __APPLE__
-	typedef struct interpose_s {
-	  void *new_func;
-	  void *orig_func;
-	} interpose_t;
-	static const interpose_t rodal_free_interpose __attribute__ ((section("__DATA, __interpose"))) = { &rodal_free, &free };
-	static const interpose_t rodal_realloc_interpose __attribute__ ((section("__DATA, __interpose"))) = { &rodal_realloc, &realloc };
-#else
-	void free(void* ptr) { return rodal_free(ptr); };
-	void* realloc(void* ptr, size_t s) { return rodal_realloc(ptr, s); };
-#endif
+void free(void* ptr) { return rodal_free(ptr); };
+void* realloc(void* ptr, size_t s) { return rodal_realloc(ptr, s); };
