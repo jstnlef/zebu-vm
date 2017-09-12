@@ -309,10 +309,11 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
 
         let next_block_in_trace: Option<usize> = {
             if let Some(index) = trace.iter().position(|x| x == blk_id) {
-                if index == trace.len() {
+                if index >= trace.len() - 1 {
+                    // we do not have next block in the trace
                     None
                 } else {
-                    Some(index + 1)
+                    Some(trace[index + 1])
                 }
             } else {
                 warn!("find an unreachable block (a block exists in IR, but is not in trace");
@@ -343,6 +344,14 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
 
                         let true_label = true_dest.target;
                         let false_label = false_dest.target;
+
+                        trace_if!(LOG_TRACE_SCHEDULE, "true_label = {}", true_label);
+                        trace_if!(LOG_TRACE_SCHEDULE, "false_label = {}", false_label);
+                        trace_if!(
+                            LOG_TRACE_SCHEDULE,
+                            "next_block_in_trace = {:?}",
+                            next_block_in_trace
+                        );
 
                         if next_block_in_trace.is_some() &&
                             next_block_in_trace.unwrap() == false_label
