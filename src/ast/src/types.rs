@@ -807,7 +807,7 @@ impl MuType_ {
 #[derive(Debug)]
 pub struct MuFuncSig {
     pub hdr: MuEntityHeader,
-    pub ret_tys : Vec<P<MuType>>,
+    pub ret_tys: Vec<P<MuType>>,
     pub arg_tys: Vec<P<MuType>>
 }
 
