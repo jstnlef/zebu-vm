@@ -2672,6 +2672,12 @@ impl<'a> InstructionSelection {
                     1 | 2 | 4 | 8 => {
                         trace!("emit mul");
 
+                        // we need to emit both operands first, then move one into RAX
+                        let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+
+                        // move op1 -> RAX
                         let mreg_op1 = match op_size {
                             8 => x86_64::RAX.clone(),
                             4 => x86_64::EAX.clone(),
@@ -2679,38 +2685,10 @@ impl<'a> InstructionSelection {
                             1 => x86_64::AL.clone(),
                             _ => unimplemented!()
                         };
-
-                        if self.match_iimm(op1) {
-                            let imm_op1 = self.node_iimm_to_i32(op1);
-                            self.backend.emit_mov_r_imm(&mreg_op1, imm_op1);
-                        } else if self.match_mem(op1) {
-                            let mem_op1 = self.emit_mem(op1, vm);
-                            self.backend.emit_mov_r_mem(&mreg_op1, &mem_op1);
-                        } else if self.match_ireg(op1) {
-                            let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                            self.backend.emit_mov_r_r(&mreg_op1, &reg_op1);
-                        } else {
-                            panic!("unexpected op1 for node {:?}", node)
-                        }
+                        self.backend.emit_mov_r_r(&mreg_op1, &tmp_op1);
 
                         // mul op2
-                        if self.match_iimm(op2) {
-                            let imm_op2 = self.node_iimm_to_i32(op2);
-
-                            // put imm in a temporary
-                            // here we use result reg as temporary
-                            self.backend.emit_mov_r_imm(&res_tmp, imm_op2);
-
-                            self.backend.emit_mul_r(&res_tmp);
-                        } else if self.match_mem(op2) {
-                            let mem_op2 = self.emit_mem(op2, vm);
-                            self.backend.emit_mul_mem(&mem_op2);
-                        } else if self.match_ireg(op2) {
-                            let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
-                            self.backend.emit_mul_r(&reg_op2);
-                        } else {
-                            panic!("unexpected op2 for node {:?}", node)
-                        }
+                        self.backend.emit_mul_r(&tmp_op2);
 
                         // mov rax -> result
                         let res_size = vm.get_backend_type_size(res_tmp.ty.id());
