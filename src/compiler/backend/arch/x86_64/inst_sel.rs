@@ -1643,6 +1643,7 @@ impl<'a> InstructionSelection {
                     // FIXME: the semantic of Pin/Unpin is different from spec
                     // See Issue #33
                     Instruction_::CommonInst_Pin(op) => {
+                        use runtime::mm::GC_MOVES_OBJECT;
                         trace!("instsel on PIN");
 
                         // call pin() in GC
@@ -1653,17 +1654,23 @@ impl<'a> InstructionSelection {
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
                         let tmp_res = self.get_result_value(node);
 
-                        self.emit_runtime_entry(
-                            &entrypoints::PIN_OBJECT,
-                            vec![tmp_op.clone()],
-                            Some(vec![tmp_res]),
-                            Some(node),
-                            f_content,
-                            f_context,
-                            vm
-                        );
+                        if GC_MOVES_OBJECT {
+                            self.emit_runtime_entry(
+                                &entrypoints::PIN_OBJECT,
+                                vec![tmp_op.clone()],
+                                Some(vec![tmp_res]),
+                                Some(node),
+                                f_content,
+                                f_context,
+                                vm
+                            );
+                        } else {
+                            // FIXME: this is problematic, as we are not keeping the object alive
+                            self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
+                        }
                     }
                     Instruction_::CommonInst_Unpin(op) => {
+                        use runtime::mm::GC_MOVES_OBJECT;
                         trace!("instsel on UNPIN");
 
                         // call unpin() in GC
@@ -1673,15 +1680,17 @@ impl<'a> InstructionSelection {
                         assert!(self.match_ireg(op));
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                        self.emit_runtime_entry(
-                            &entrypoints::UNPIN_OBJECT,
-                            vec![tmp_op.clone()],
-                            None,
-                            Some(node),
-                            f_content,
-                            f_context,
-                            vm
-                        );
+                        if GC_MOVES_OBJECT {
+                            self.emit_runtime_entry(
+                                &entrypoints::UNPIN_OBJECT,
+                                vec![tmp_op.clone()],
+                                None,
+                                Some(node),
+                                f_content,
+                                f_context,
+                                vm
+                            );
+                        }
                     }
                     Instruction_::CommonInst_GetAddr(op) => {
                         trace!("instsel on GETADDR");
