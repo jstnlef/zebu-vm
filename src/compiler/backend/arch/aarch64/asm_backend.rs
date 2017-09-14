@@ -519,6 +519,14 @@ impl ASMCode {
 use std::any::Any;
 
 impl MachineCode for ASMCode {
+    fn is_nop(&self, index: usize) -> bool {
+        let ref inst = self.code[index];
+        if inst.code == "" || inst.code == "NOP" {
+            true
+        } else {
+            false
+        }
+    }
     fn as_any(&self) -> &Any {
         self
     }
