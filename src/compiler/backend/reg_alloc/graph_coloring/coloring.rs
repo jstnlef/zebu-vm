@@ -479,7 +479,7 @@ impl<'a> GraphColoring<'a> {
             for mov in self.node_moves(n).iter() {
                 let mov = *mov;
                 if self.active_moves.contains(&mov) {
-                    self.active_moves.insert(mov);
+                    self.active_moves.remove(&mov);
                     self.worklist_moves.push(mov);
                 }
             }
@@ -621,14 +621,16 @@ impl<'a> GraphColoring<'a> {
             ret
         };
 
+        let n_reg_for_group = self.n_regs_for_node(u);
+
         let mut k = 0;
         for n in nodes.iter() {
-            if self.precolored.contains(n) || self.degree(*n) >= self.n_regs_for_node(*n) {
+            if self.precolored.contains(n) || self.degree(*n) >= n_reg_for_group {
                 k += 1;
             }
         }
 
-        k < self.n_regs_for_node(u) && k < self.n_regs_for_node(v)
+        k < n_reg_for_group
     }
 
     fn combine(&mut self, u: NodeIndex, v: NodeIndex) {
@@ -796,18 +798,18 @@ impl<'a> GraphColoring<'a> {
             }
         }
 
-        for n in self.colored_nodes.iter() {
+        for n in self.coalesced_nodes.iter() {
             let n = *n;
             let alias = self.get_alias(n);
-            let alias_color = self.ig.get_color_of(alias).unwrap();
-
-            trace!(
-                "Assign color to {} based on aliased {}",
-                self.display_node(n),
-                self.display_node(alias)
-            );
-            trace!("Color {} as {}", self.display_node(n), alias_color);
-            self.ig.color_node(n, alias_color);
+            if let Some(alias_color) = self.ig.get_color_of(alias) {
+                trace!(
+                    "Assign color to {} based on aliased {}",
+                    self.display_node(n),
+                    self.display_node(alias)
+                );
+                trace!("Color {} as {}", self.display_node(n), alias_color);
+                self.ig.color_node(n, alias_color);
+            }
         }
     }
 
