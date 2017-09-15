@@ -3424,69 +3424,22 @@ impl<'a> InstructionSelection {
                 )
             }
         } else {
-            // size is unknown at compile time
-            // we need to emit both alloc small and alloc large,
-            // and it is decided at runtime
+            // directly call 'alloc'
+            let tmp_res = self.get_result_value(node);
 
-            // emit: cmp size, THRESHOLD
-            // emit: jg ALLOC_LARGE
-            // emit: >> small object alloc
-            // emit: jmp ALLOC_LARGE_END
-            // emit: ALLOC_LARGE:
-            // emit: >> large object alloc
-            // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
-            let blk_alloc_large_end = make_block_name(&node.name(), "alloc_large_end");
+            let const_align = self.make_int_const(align as u64, vm);
 
-            if OBJECT_HEADER_SIZE != 0 {
-                // if the header size is not zero, we need to calculate a total size to alloc
-                let size_with_hdr = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                self.backend.emit_mov_r_r(&size_with_hdr, &size);
-                self.backend
-                    .emit_add_r_imm(&size_with_hdr, OBJECT_HEADER_SIZE as i32);
-                self.backend
-                    .emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size_with_hdr);
-            } else {
-                self.backend
-                    .emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
-            }
-            self.backend.emit_jg(blk_alloc_large.clone());
-
-            self.finish_block();
-            let block_name = make_block_name(&node.name(), "allocsmall");
-            self.start_block(block_name);
-
-            // alloc small here
-            self.emit_alloc_sequence_small(
-                tmp_allocator.clone(),
-                size.clone(),
-                align,
-                node,
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_ANY,
+                vec![tmp_allocator.clone(), size.clone(), const_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node),
                 f_content,
                 f_context,
                 vm
             );
-            self.backend.emit_jmp(blk_alloc_large_end.clone());
-            // finishing current block
-            self.finish_block();
 
-            // alloc_large:
-            self.start_block(blk_alloc_large.clone());
-            self.emit_alloc_sequence_large(
-                tmp_allocator.clone(),
-                size,
-                align,
-                node,
-                f_content,
-                f_context,
-                vm
-            );
-            self.finish_block();
-
-            // alloc_large_end:
-            self.start_block(blk_alloc_large_end.clone());
-
-            self.get_result_value(node)
+            tmp_res
         }
     }
 

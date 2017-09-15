@@ -267,7 +267,6 @@ pub fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> Obje
 /// allocates an object in the immix space
 //  size doesn't include HEADER_SIZE
 #[no_mangle]
-#[inline(never)]
 pub extern "C" fn muentry_alloc_fast(
     mutator: *mut ImmixMutatorLocal,
     size: usize,
@@ -330,6 +329,21 @@ pub extern "C" fn muentry_alloc_large(
     );
 
     unsafe { ret.to_object_reference() }
+}
+
+#[no_mangle]
+//  size doesn't include HEADER_SIZE
+pub extern "C" fn muentry_alloc_any(
+    mutator: *mut ImmixMutatorLocal,
+    size: usize,
+    align: usize
+) -> ObjectReference {
+    let actual_size = size + OBJECT_HEADER_SIZE;
+    if actual_size >= LARGE_OBJECT_THRESHOLD {
+        muentry_alloc_fast(mutator, actual_size, align)
+    } else {
+        muentry_alloc_large(mutator, actual_size, align)
+    }
 }
 
 /// initializes a fix-sized object
