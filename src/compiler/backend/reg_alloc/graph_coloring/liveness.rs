@@ -52,7 +52,10 @@ fn is_precolored(reg: MuID) -> bool {
 
 #[inline(always)]
 fn is_usable(reg: MuID) -> bool {
-    if backend::all_usable_regs().iter().any(|x| x.id() == reg) {
+    if backend::all_usable_regs()
+        .iter()
+        .any(|x| x.id() == backend::get_color_for_precolored(reg))
+    {
         true
     } else {
         false
