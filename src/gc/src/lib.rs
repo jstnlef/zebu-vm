@@ -339,10 +339,10 @@ pub extern "C" fn muentry_alloc_any(
     align: usize
 ) -> ObjectReference {
     let actual_size = size + OBJECT_HEADER_SIZE;
-    if actual_size >= LARGE_OBJECT_THRESHOLD {
-        muentry_alloc_fast(mutator, actual_size, align)
+    if actual_size <= LARGE_OBJECT_THRESHOLD {
+        muentry_alloc_fast(mutator, size, align)
     } else {
-        muentry_alloc_large(mutator, actual_size, align)
+        muentry_alloc_large(mutator, size, align)
     }
 }
 
