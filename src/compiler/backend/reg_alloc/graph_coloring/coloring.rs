@@ -21,15 +21,10 @@ use compiler::backend::reg_alloc::graph_coloring;
 use compiler::backend::reg_alloc::graph_coloring::liveness::InterferenceGraph;
 use compiler::machine_code::CompiledFunction;
 use vm::VM;
-
 use utils::vec_utils;
 use utils::LinkedHashSet;
 use utils::LinkedHashMap;
-
-use std::cell::RefCell;
-
 use compiler::backend::reg_alloc::graph_coloring::liveness::Move;
-use compiler::backend::reg_alloc::graph_coloring::petgraph::graph::NodeIndex;
 
 const COALESCING: bool = true;
 const MAX_REWRITE_ITERATIONS_ALLOWED: usize = 10;
@@ -523,9 +518,11 @@ impl<'a> GraphColoring<'a> {
             if !precolored_v {
                 self.add_worklist(v);
             }
-        } else if (precolored_u && self.ok(u, v)) || (!precolored_u && self.conservative(u, v)) {
-            trace!("ok(u, v) = {}", self.ok(u, v));
-            trace!("conservative(u, v) = {}", self.conservative(u, v));
+        } else if (precolored_u && self.check_ok(u, v)) ||
+                   (!precolored_u && self.check_conservative(u, v))
+        {
+            trace!("ok(u, v) = {}", self.check_ok(u, v));
+            trace!("conservative(u, v) = {}", self.check_conservative(u, v));
 
             trace!(
                 "precolored_u&&ok(u,v) || !precolored_u&&conserv(u,v), \
@@ -557,12 +554,11 @@ impl<'a> GraphColoring<'a> {
         }
     }
 
-    fn ok(&self, u: MuID, v: MuID) -> bool {
+    fn check_ok(&self, u: MuID, v: MuID) -> bool {
+        debug!("LIN: check_ok(): {} {}", u, v);
         for t in self.adjacent(v).iter() {
             let t = *t;
-            if !(self.ig.get_degree_of(t) < self.n_regs_for_node(t) ||
-                     self.precolored.contains(&t) || self.ig.is_in_adj_set(t, u))
-            {
+            if !self.ok(t, u) {
                 return false;
             }
         }
@@ -570,7 +566,21 @@ impl<'a> GraphColoring<'a> {
         true
     }
 
-    fn conservative(&self, u: MuID, v: MuID) -> bool {
+    fn ok(&self, t: MuID, r: MuID) -> bool {
+        debug!("LIN: ok(t:{}, r:{})", t, r);
+
+        let degree_t = self.ig.get_degree_of(t);
+        let k = self.n_regs_for_node(t);
+
+        debug!("LIN: degree[t] = {}, K = {}", degree_t, k);
+        debug!("LIN: precolored(t) = {}", self.precolored.contains(&t));
+        debug!("LIN: adj(t, r) = {}", self.ig.is_in_adj_set(t, r));
+
+        degree_t < k || self.precolored.contains(&t) || self.ig.is_in_adj_set(t, r)
+    }
+
+    fn check_conservative(&self, u: MuID, v: MuID) -> bool {
+        debug!("LIN: check_conservative(): {}, {}", u, v);
         let adj_u = self.adjacent(u);
         let adj_v = self.adjacent(v);
         let nodes = {
@@ -579,16 +589,28 @@ impl<'a> GraphColoring<'a> {
             ret
         };
 
-        let n_reg_for_group = self.n_regs_for_node(u);
+        let n_regs_for_group = self.n_regs_for_node(u);
+        self.conservative(nodes, n_regs_for_group)
+    }
 
+    fn conservative(&self, nodes: LinkedHashSet<MuID>, n_regs_for_group: usize) -> bool {
+        debug!("LIN: conservative({:?}, K={})", nodes, n_regs_for_group);
         let mut k = 0;
         for n in nodes.iter() {
-            if self.precolored.contains(n) || self.ig.get_degree_of(*n) >= n_reg_for_group {
+            // TODO: do we check if n is precolored?
+            debug!(
+                "LIN: degree(n) = {}, K = {}",
+                self.ig.get_degree_of(*n),
+                n_regs_for_group
+            );
+            debug!("LIN: is_precolored(n) = {}", self.precolored.contains(n));
+            if self.precolored.contains(n) || self.ig.get_degree_of(*n) >= n_regs_for_group {
+                debug!("LIN: k++");
                 k += 1;
             }
         }
-
-        k < n_reg_for_group
+        debug!("LIN: k={}, K={}", k, n_regs_for_group);
+        k < n_regs_for_group
     }
 
     fn combine(&mut self, u: MuID, v: MuID) {

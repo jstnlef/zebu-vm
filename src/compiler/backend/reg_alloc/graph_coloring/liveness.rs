@@ -50,6 +50,15 @@ fn is_precolored(reg: MuID) -> bool {
     }
 }
 
+#[inline(always)]
+fn is_usable(reg: MuID) -> bool {
+    if backend::all_usable_regs().iter().any(|x| x.id() == reg) {
+        true
+    } else {
+        false
+    }
+}
+
 /// InterferenceGraph represents the interference graph, including
 /// * the graph
 /// * all the nodes and its NodeIndex (a node is referred to by NodeIndex)
@@ -136,13 +145,30 @@ impl InterferenceGraph {
 
     /// adds an interference edge between two nodes
     pub fn add_edge(&mut self, u: MuID, v: MuID) {
-        //        // adds edge to the internal graph
-        //        self.graph.update_edge(from, to, ());
-
         // if one of the node is machine register, we also add
         // interference edge to its alias
         // e.g. if we have %a - %edi interfered,
         // we also add %a - %rdi interference
+
+        let u = if is_precolored(u) {
+            if is_usable(u) {
+                backend::get_color_for_precolored(u)
+            } else {
+                // if it is not usable, we do not need to add an interference edge
+                return;
+            }
+        } else {
+            u
+        };
+        let v = if is_precolored(v) {
+            if is_usable(v) {
+                backend::get_color_for_precolored(v)
+            } else {
+                return;
+            }
+        } else {
+            v
+        };
 
         if !self.adj_set.contains(&(u, v)) && u != v {
             self.adj_set.insert((u, v));
@@ -227,7 +253,19 @@ impl InterferenceGraph {
         trace!("");
         trace!("Interference Graph");
 
-        trace!("not available");
+        trace!("nodes: ");
+        for n in self.nodes.values() {
+            trace!("{:?}", n);
+        }
+
+        trace!("edges: ");
+
+        for id in self.nodes.keys() {
+            trace!("edges for {} ({}): ", id, self.degree.get(id).unwrap());
+            for neighbour in self.get_adj_list(*id).iter() {
+                trace!("{}", neighbour)
+            }
+        }
     }
 }
 
