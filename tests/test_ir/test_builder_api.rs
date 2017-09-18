@@ -342,7 +342,7 @@ fn test_function_loading() {
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.y"));
             ((*b).new_binop)(b, id_add, id_y, CMU_BINOP_ADD, id_i32, id_x, id_const1, 0);
 
-            let id_e = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.x"));
+            let id_e = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.e"));
             ((*b).new_cmp)(b, id_eq, id_e, CMU_CMP_EQ, id_i32, id_x, id_const99);
 
             let id_dest_t = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.dest_t"));

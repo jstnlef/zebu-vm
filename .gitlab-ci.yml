@@ -159,5 +159,5 @@ mubench:
 rustfmt:
   stage: rustfmt
   script:
-    - cargo-fmt -- --write-mode=diff --verbose -- src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs
+    - cargo-fmt -- --write-mode=diff --verbose -- src/lib.rs src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs
 

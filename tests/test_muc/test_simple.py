@@ -87,7 +87,7 @@ def test_except_stack_args():
         .funcdef test_except_stack_args <main_sig>
         {
             entry(<int<32>>argc <uptr<uptr<char>>>argv):
-                CALL <stack_sig> stack_args(<int<32>>0 <int<32>>1 <int<32>>2 <int<32>>3 <int<32>>4 <int<32>>5 <int<32>>6 <int<32>>7 <int<32>>8)
+                CALL <stack_sig> stack_args(<int<64>>0 <int<64>>1 <int<64>>2 <int<64>>3 <int<64>>4 <int<64>>5 <int<64>>6 <int<64>>7 <int<64>>8)
                     EXC (exit(<int<32>> 0) exit(<int<32>> 1))
 
             exit(<int<32>> status):
