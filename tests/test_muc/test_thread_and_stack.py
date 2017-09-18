@@ -382,7 +382,7 @@ def test_swapstack_threadlocal():
         {
             entry(<int<32>>argc <uptr<uptr<char>>>argv):
                 cs =  COMMINST uvm.current_stack()
-                s = COMMINST uvm.new_stack<[()->()]>(test_swapstack_threadlocal_stack)
+                s = COMMINST uvm.new_stack<[(stackref)->()]>(test_swapstack_threadlocal_stack)
                 r = SWAPSTACK s RET_WITH<> PASS_VALUES<stackref>(cs)
                
                 tv = COMMINST uvm.get_threadlocal()
