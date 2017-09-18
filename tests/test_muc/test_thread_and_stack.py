@@ -320,7 +320,6 @@ def test_newthread_threadlocal():
         .funcdef test_newthread_threadlocal <main_sig>
         {
             entry(<int<32>>argc <uptr<uptr<char>>>argv):
-                cs =  COMMINST uvm.current_stack()
                 s = COMMINST uvm.new_stack<[()->()]>(test_newthread_threadlocal_thread)
                 
                 tr = NEW <int<32>>
@@ -363,3 +362,34 @@ def test_newthread_stack_args():
         }
         """, "test_newthread_stack_args");
     assert(execute("test_newthread_stack_args", []) == 45);
+
+
+def test_swapstack_threadlocal():
+    compile_bundle(
+        """
+        .funcdef test_swapstack_threadlocal_stack <(stackref)->()>
+        {
+            entry(<stackref>s):
+                tr = NEW <int<32>>
+                tri = GETIREF <int<32>> tr
+                STORE <int<32>> tri <int<32>> 3
+                tl = REFCAST <ref<int<32>> ref<void>> tr
+                t = NEWTHREAD s THREADLOCAL (tl) PASS_VALUES<>()
+                   
+                COMMINST uvm.thread_exit()                
+        }
+        .funcdef test_swapstack_threadlocal <main_sig>
+        {
+            entry(<int<32>>argc <uptr<uptr<char>>>argv):
+                cs =  COMMINST uvm.current_stack()
+                s = COMMINST uvm.new_stack<[()->()]>(test_swapstack_threadlocal_stack)
+                r = SWAPSTACK s RET_WITH<> PASS_VALUES<stackref>(cs)
+               
+                tv = COMMINST uvm.get_threadlocal()
+                tr = REFCAST <ref<void> ref<int<32>>> tv
+                tvi = GETIREF <int<32>> tr
+                tv = LOAD <int<32>> tvi
+                RET (tv)
+        }
+        """, "test_swapstack_threadlocal");
+    assert(execute("test_swapstack_threadlocal", []) == 3);
