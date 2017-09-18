@@ -21,9 +21,11 @@ use utils::math::align_up;
 use utils::bit_utils::bits_ones;
 use std;
 
+pub static mut VALIDATE_IR: bool = true;
+
 macro_rules! assert_ir {
-    ($ cond : expr ) => { assert!($cond) };
-    ($ cond : expr , $ ( $ arg : tt ) + ) => { assert!($cond, $($arg)+)};
+    ($ cond : expr ) => [{if unsafe{VALIDATE_IR} {assert!($cond)} }];
+    ($ cond : expr , $ ( $ arg : tt ) + ) => [{if unsafe{VALIDATE_IR} {assert!($cond, $($arg)+)} }];
 }
 
 pub struct MuIRBuilder {
