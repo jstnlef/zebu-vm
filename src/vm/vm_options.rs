@@ -33,12 +33,13 @@ VM:
 Compiler:
   --disable-inline                      disable compiler function inlining
   --disable-regalloc-validate           disable register allocation validation
+  --disable-ir-validate                 disable IR validation
   --emit-debug-info                     emit debugging information
-  --dont-validate-ir                    don't validate for invalid IR
+
 AOT Compiler:
   --aot-emit-dir=<dir>                  the emit directory for ahead-of-time compiling
                                         [default: emit]
-  --link-statically                     link boot image to libmu statically (defaults to dynamic)
+  --aot-link-static                     link boot image to libmu statically (defaults to dynamic)
   --bootimage-external-lib=<lib> ...       library that will be linked against when making bootimage
                                            [default: ]
   --bootimage-external-libpath=<path> ...  path for the libraries during bootimage generation
@@ -62,11 +63,12 @@ pub struct VMOptions {
     // Compiler
     pub flag_disable_inline: bool,
     pub flag_disable_regalloc_validate: bool,
+    pub flag_disable_ir_validate: bool,
     pub flag_emit_debug_info: bool,
-    pub flag_dont_validate_ir: bool,
+
     // AOT compiler
     pub flag_aot_emit_dir: String,
-    pub flag_link_statically: bool,
+    pub flag_aot_link_static: bool,
     pub flag_bootimage_external_lib: Vec<String>,
     pub flag_bootimage_external_libpath: Vec<String>,
 
@@ -88,9 +90,9 @@ rodal_struct!(VMOptions {
     flag_log_level,
     flag_disable_inline,
     flag_disable_regalloc_validate,
+    flag_disable_ir_validate,
     flag_emit_debug_info,
-    flag_dont_validate_ir,
-    flag_link_statically,
+    flag_aot_link_static,
     flag_gc_disable_collection
 });
 
@@ -155,13 +157,13 @@ impl VMOptions {
         }
 
         if cfg!(target_os = "macos") {
-            if !ret.flag_link_statically {
+            if !ret.flag_aot_link_static {
                 warn!("link-statically is forced to true (opposite to user setting)");
-                ret.flag_link_statically = true;
+                ret.flag_aot_link_static = true;
             }
         }
 
-        unsafe{super::api::VALIDATE_IR = !ret.flag_dont_validate_ir};
+        unsafe { super::api::VALIDATE_IR = !ret.flag_disable_ir_validate };
         ret
     }
 }
