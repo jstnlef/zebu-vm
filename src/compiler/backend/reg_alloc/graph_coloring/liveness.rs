@@ -20,13 +20,9 @@ use compiler::backend;
 use utils::LinkedHashSet;
 use utils::LinkedHashMap;
 
-use compiler::backend::reg_alloc::graph_coloring::petgraph;
-use compiler::backend::reg_alloc::graph_coloring::petgraph::Graph;
-use compiler::backend::reg_alloc::graph_coloring::petgraph::graph::NodeIndex;
-
 /// GraphNode represents a node in the interference graph.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct GraphNode {
+pub struct Node {
     /// temp ID (could be register)
     temp: MuID,
     /// assigned color
@@ -41,8 +37,29 @@ pub struct GraphNode {
 /// We need to know the moves so that we can coalesce.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Move {
-    pub from: NodeIndex,
-    pub to: NodeIndex
+    pub from: MuID,
+    pub to: MuID
+}
+
+#[inline(always)]
+fn is_precolored(reg: MuID) -> bool {
+    if reg < MACHINE_ID_END {
+        true
+    } else {
+        false
+    }
+}
+
+#[inline(always)]
+fn is_usable(reg: MuID) -> bool {
+    if backend::all_usable_regs()
+        .iter()
+        .any(|x| x.id() == backend::get_color_for_precolored(reg))
+    {
+        true
+    } else {
+        false
+    }
 }
 
 /// InterferenceGraph represents the interference graph, including
@@ -50,12 +67,11 @@ pub struct Move {
 /// * all the nodes and its NodeIndex (a node is referred to by NodeIndex)
 /// * all the moves
 pub struct InterferenceGraph {
-    /// the internal graph
-    graph: Graph<GraphNode, (), petgraph::Undirected>,
-    /// a map of all nodes (from temp ID to node index)
-    /// node index is how nodes are referred to with pet_graph
-    nodes: LinkedHashMap<MuID, NodeIndex>,
-    /// a set of all moves
+    nodes: LinkedHashMap<MuID, Node>,
+
+    adj_set: LinkedHashSet<(MuID, MuID)>,
+    adj_list: LinkedHashMap<MuID, LinkedHashSet<MuID>>,
+    degree: LinkedHashMap<MuID, usize>,
     moves: LinkedHashSet<Move>
 }
 
@@ -63,7 +79,9 @@ impl InterferenceGraph {
     /// creates a new graph
     fn new() -> InterferenceGraph {
         InterferenceGraph {
-            graph: Graph::new_undirected(),
+            adj_set: LinkedHashSet::new(),
+            adj_list: LinkedHashMap::new(),
+            degree: LinkedHashMap::new(),
             nodes: LinkedHashMap::new(),
             moves: LinkedHashSet::new()
         }
@@ -71,49 +89,34 @@ impl InterferenceGraph {
 
     /// creates a new node for a temp (if we already created a temp for the temp, returns the node)
     /// This function will increase spill cost for the node by 1 each tiem it is called for the temp
-    fn new_node(&mut self, reg_id: MuID, context: &FunctionContext) -> NodeIndex {
+    fn new_node(&mut self, reg_id: MuID, context: &FunctionContext) -> MuID {
         let entry = context.get_value(reg_id).unwrap();
 
         // if it is the first time, create the node
         if !self.nodes.contains_key(&reg_id) {
-            let node = GraphNode {
+            let node = Node {
                 temp: reg_id,
                 color: None,
                 group: backend::RegGroup::get_from_ty(entry.ty()),
                 spill_cost: 0.0f32
             };
 
-            // add to the graph
-            let index = self.graph.add_node(node);
-            // save index
-            self.nodes.insert(reg_id, index);
+            self.nodes.insert(reg_id, node);
+            self.adj_list.insert(reg_id, LinkedHashSet::new());
+            self.degree.insert(reg_id, 0);
         }
 
-        // get the node index
-        let node_index = *self.nodes.get(&reg_id).unwrap();
         // get node
-        let node_mut = self.graph.node_weight_mut(node_index).unwrap();
+        let node_mut = self.nodes.get_mut(&reg_id).unwrap();
         // increase node spill cost
         node_mut.spill_cost += 1.0f32;
 
-        node_index
-    }
-
-    /// returns the node index for a temp
-    pub fn get_node(&self, reg: MuID) -> NodeIndex {
-        match self.nodes.get(&reg) {
-            Some(index) => *index,
-            None => panic!("do not have a node for {}", reg)
-        }
+        reg_id
     }
 
     /// returns all the nodes in the graph
-    pub fn nodes(&self) -> Vec<NodeIndex> {
-        let mut ret = vec![];
-        for index in self.nodes.values() {
-            ret.push(*index);
-        }
-        ret
+    pub fn nodes(&self) -> Vec<MuID> {
+        self.nodes.keys().map(|x| *x).collect()
     }
 
     /// returns all the moves in the graph
@@ -122,23 +125,19 @@ impl InterferenceGraph {
     }
 
     /// adds a move edge between two nodes
-    fn add_move(&mut self, src: NodeIndex, dst: NodeIndex) {
+    fn add_move(&mut self, src: MuID, dst: MuID) {
         let src = {
-            let temp_src = self.get_temp_of(src);
-            if temp_src < MACHINE_ID_END {
+            if is_precolored(src) {
                 // get the color for the machine register, e.g. rax for eax/ax/al/ah
-                let alias = backend::get_color_for_precolored(temp_src);
-                self.get_node(alias)
+                backend::get_color_for_precolored(src)
             } else {
                 src
             }
         };
 
         let dst = {
-            let temp_dst = self.get_temp_of(dst);
-            if temp_dst < MACHINE_ID_END {
-                let alias = backend::get_color_for_precolored(temp_dst);
-                self.get_node(alias)
+            if is_precolored(dst) {
+                backend::get_color_for_precolored(dst)
             } else {
                 dst
             }
@@ -148,99 +147,105 @@ impl InterferenceGraph {
     }
 
     /// adds an interference edge between two nodes
-    pub fn add_interference_edge(&mut self, from: NodeIndex, to: NodeIndex) {
-        // adds edge to the internal graph
-        self.graph.update_edge(from, to, ());
-
+    pub fn add_edge(&mut self, u: MuID, v: MuID) {
         // if one of the node is machine register, we also add
         // interference edge to its alias
         // e.g. if we have %a - %edi interfered,
         // we also add %a - %rdi interference
 
-        let from_tmp = self.graph.node_weight(from).unwrap().temp;
-        let to_tmp = self.graph.node_weight(to).unwrap().temp;
-
-        if from_tmp < MACHINE_ID_END || to_tmp < MACHINE_ID_END {
-            let from_tmp = if from_tmp < MACHINE_ID_END {
-                backend::get_color_for_precolored(from_tmp)
+        let u = if is_precolored(u) {
+            if is_usable(u) {
+                backend::get_color_for_precolored(u)
             } else {
-                from_tmp
-            };
-
-            let to_tmp = if to_tmp < MACHINE_ID_END {
-                backend::get_color_for_precolored(to_tmp)
+                // if it is not usable, we do not need to add an interference edge
+                return;
+            }
+        } else {
+            u
+        };
+        let v = if is_precolored(v) {
+            if is_usable(v) {
+                backend::get_color_for_precolored(v)
             } else {
-                to_tmp
-            };
+                return;
+            }
+        } else {
+            v
+        };
 
-            let from_tmp_node = self.get_node(from_tmp);
-            let to_tmp_node = self.get_node(to_tmp);
-            self.graph.update_edge(from_tmp_node, to_tmp_node, ());
+        if !self.adj_set.contains(&(u, v)) && u != v {
+            self.adj_set.insert((u, v));
+            self.adj_set.insert((v, u));
+
+            if !is_precolored(u) {
+                self.adj_list.get_mut(&u).unwrap().insert(v);
+                let degree = self.degree.get_mut(&u).unwrap();
+                *degree = *degree + 1;
+            }
+            if !is_precolored(v) {
+                self.adj_list.get_mut(&v).unwrap().insert(u);
+                let degree = self.degree.get_mut(&v).unwrap();
+                *degree = *degree + 1;
+            }
         }
     }
 
-    /// is two nodes interfered?
-    pub fn is_interfered_with(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
-        let edge = self.graph.find_edge(node1, node2);
-        edge.is_some()
-    }
-
     /// set color for a node
-    pub fn color_node(&mut self, node: NodeIndex, color: MuID) {
-        self.graph.node_weight_mut(node).unwrap().color = Some(color);
+    pub fn color_node(&mut self, reg: MuID, color: MuID) {
+        self.nodes.get_mut(&reg).unwrap().color = Some(color);
     }
 
     /// is a node colored yet?
-    pub fn is_colored(&self, node: NodeIndex) -> bool {
-        self.graph.node_weight(node).unwrap().color.is_some()
+    pub fn is_colored(&self, reg: MuID) -> bool {
+        self.nodes.get(&reg).unwrap().color.is_some()
     }
 
     /// gets the color of a node
-    pub fn get_color_of(&self, node: NodeIndex) -> Option<MuID> {
-        self.graph.node_weight(node).unwrap().color
+    pub fn get_color_of(&self, reg: MuID) -> Option<MuID> {
+        self.nodes.get(&reg).unwrap().color
     }
 
     /// gets the reg group of a node
-    pub fn get_group_of(&self, node: NodeIndex) -> backend::RegGroup {
-        self.graph.node_weight(node).unwrap().group
+    pub fn get_group_of(&self, reg: MuID) -> backend::RegGroup {
+        self.nodes.get(&reg).unwrap().group
     }
 
     /// gets the temporary of a node
-    pub fn get_temp_of(&self, node: NodeIndex) -> MuID {
-        self.graph.node_weight(node).unwrap().temp
+    pub fn get_temp_of(&self, reg: MuID) -> MuID {
+        self.nodes.get(&reg).unwrap().temp
     }
 
     /// gets the spill cost of a node
-    pub fn get_spill_cost(&self, node: NodeIndex) -> f32 {
-        self.graph.node_weight(node).unwrap().spill_cost
+    pub fn get_spill_cost(&self, reg: MuID) -> f32 {
+        self.nodes.get(&reg).unwrap().spill_cost
     }
 
     /// are two nodes the same node?
-    fn is_same_node(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
-        node1 == node2
+    fn is_same_node(&self, reg1: MuID, reg2: MuID) -> bool {
+        reg1 == reg2
     }
 
     /// are two nodes from the same reg group?
-    fn is_same_group(&self, node1: NodeIndex, node2: NodeIndex) -> bool {
-        let node1 = self.graph.node_weight(node1).unwrap();
-        let node2 = self.graph.node_weight(node2).unwrap();
-
-        node1.group == node2.group
-    }
-
-    /// are two nodes adjacent?
-    pub fn is_adj(&self, from: NodeIndex, to: NodeIndex) -> bool {
-        self.is_interfered_with(from, to)
+    fn is_same_group(&self, reg1: MuID, reg2: MuID) -> bool {
+        self.get_group_of(reg1) == self.get_group_of(reg2)
     }
 
     /// gets edges from a node
-    pub fn get_edges_of(&self, node: NodeIndex) -> Vec<NodeIndex> {
-        self.graph.neighbors(node).collect()
+    pub fn get_adj_list(&self, reg: MuID) -> &LinkedHashSet<MuID> {
+        self.adj_list.get(&reg).unwrap()
+    }
+
+    pub fn is_in_adj_set(&self, u: MuID, v: MuID) -> bool {
+        self.adj_set.contains(&(u, v))
     }
 
     /// gets degree of a node (number of edges from the node)
-    pub fn get_degree_of(&self, node: NodeIndex) -> usize {
-        self.get_edges_of(node).len()
+    pub fn get_degree_of(&self, reg: MuID) -> usize {
+        *self.degree.get(&reg).unwrap()
+    }
+
+    pub fn set_degree_of(&mut self, reg: MuID, degree: usize) {
+        *self.degree.get_mut(&reg).unwrap() = degree;
     }
 
     /// prints current graph for debugging (via trace log)
@@ -251,23 +256,19 @@ impl InterferenceGraph {
         trace!("");
         trace!("Interference Graph");
 
-        trace!("nodes:");
+        trace!("nodes: ");
+        for n in self.nodes.values() {
+            trace!("{:?}", n);
+        }
+
+        trace!("edges: ");
+
         for id in self.nodes.keys() {
-            let val = context.get_value(*id).unwrap().value();
-            trace!("Reg {} -> {:?}", val, self.nodes.get(&id).unwrap());
+            trace!("edges for {} ({}): ", id, self.degree.get(id).unwrap());
+            for neighbour in self.get_adj_list(*id).iter() {
+                trace!("{}", neighbour)
+            }
         }
-
-        trace!("moves:");
-        for mov in self.moves.iter() {
-            trace!("Move {:?} -> {:?}", mov.from, mov.to);
-        }
-
-        trace!("graph:");
-        trace!(
-            "\n\n{:?}\n",
-            Dot::with_config(&self.graph, &[Config::EdgeNoLabel])
-        );
-        trace!("");
     }
 }
 
@@ -360,17 +361,17 @@ pub fn build_interference_graph_chaitin_briggs(
                         None
                     } else {
                         if src.len() == 1 {
-                            let node1 = ig.get_node(src[0]);
-                            let node2 = ig.get_node(dst[0]);
+                            let src = src[0];
+                            let dst = dst[0];
                             trace_if!(
                                 TRACE_LIVENESS,
                                 "add move between {} and {}",
-                                func.context.get_temp_display(src[0]),
-                                func.context.get_temp_display(dst[0])
+                                func.context.get_temp_display(src),
+                                func.context.get_temp_display(dst)
                             );
-                            ig.add_move(node1, node2);
+                            ig.add_move(src, dst);
 
-                            Some(src[0])
+                            Some(src)
                         } else {
                             None
                         }
@@ -406,12 +407,10 @@ pub fn build_interference_graph_chaitin_briggs(
                         func.context.get_temp_display(*e)
                     );
                     if src.is_none() || (src.is_some() && *e != src.unwrap()) {
-                        let from = ig.get_node(d);
-                        let to = ig.get_node(*e);
+                        let from = d;
+                        let to = *e;
 
-                        if !ig.is_same_node(from, to) && ig.is_same_group(from, to) &&
-                            !ig.is_adj(from, to)
-                        {
+                        if !ig.is_same_node(from, to) && ig.is_same_group(from, to) {
                             if !ig.is_colored(from) {
                                 trace_if!(
                                     TRACE_LIVENESS,
@@ -421,7 +420,7 @@ pub fn build_interference_graph_chaitin_briggs(
                                     func.context.get_temp_display(d),
                                     func.context.get_temp_display(*e)
                                 );
-                                ig.add_interference_edge(from, to);
+                                ig.add_edge(from, to);
                             }
                             if !ig.is_colored(to) {
                                 trace_if!(
@@ -432,7 +431,7 @@ pub fn build_interference_graph_chaitin_briggs(
                                     func.context.get_temp_display(*e),
                                     func.context.get_temp_display(d)
                                 );
-                                ig.add_interference_edge(to, from);
+                                ig.add_edge(to, from);
                             }
                         }
                     }
