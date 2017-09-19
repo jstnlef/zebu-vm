@@ -173,6 +173,8 @@ pub trait MachineCode {
     fn is_move(&self, index: usize) -> bool;
     /// is the specified index using memory operands?
     fn is_using_mem_op(&self, index: usize) -> bool;
+    /// is the specified index is a nop?
+    fn is_nop(&self, index: usize) -> bool;
     /// is the specified index a jump instruction? (unconditional jump)
     /// returns an Option for target block
     fn is_jmp(&self, index: usize) -> Option<MuName>;

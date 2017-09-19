@@ -851,6 +851,16 @@ impl MachineCode for ASMCode {
         self.code[index].code.clear();
     }
 
+    /// is the specified index is a nop?
+    fn is_nop(&self, index: usize) -> bool {
+        let ref inst = self.code[index];
+        if inst.code == "" || inst.code == "nop" {
+            true
+        } else {
+            false
+        }
+    }
+
     /// remove unnecessary push/pop if the callee saved register is not used
     /// returns what registers push/pop have been deleted, and the number of callee saved registers
     /// that weren't deleted

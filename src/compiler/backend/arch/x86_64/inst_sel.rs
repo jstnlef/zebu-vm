@@ -1643,6 +1643,7 @@ impl<'a> InstructionSelection {
                     // FIXME: the semantic of Pin/Unpin is different from spec
                     // See Issue #33
                     Instruction_::CommonInst_Pin(op) => {
+                        use runtime::mm::GC_MOVES_OBJECT;
                         trace!("instsel on PIN");
 
                         // call pin() in GC
@@ -1653,17 +1654,23 @@ impl<'a> InstructionSelection {
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
                         let tmp_res = self.get_result_value(node);
 
-                        self.emit_runtime_entry(
-                            &entrypoints::PIN_OBJECT,
-                            vec![tmp_op.clone()],
-                            Some(vec![tmp_res]),
-                            Some(node),
-                            f_content,
-                            f_context,
-                            vm
-                        );
+                        if GC_MOVES_OBJECT {
+                            self.emit_runtime_entry(
+                                &entrypoints::PIN_OBJECT,
+                                vec![tmp_op.clone()],
+                                Some(vec![tmp_res]),
+                                Some(node),
+                                f_content,
+                                f_context,
+                                vm
+                            );
+                        } else {
+                            // FIXME: this is problematic, as we are not keeping the object alive
+                            self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
+                        }
                     }
                     Instruction_::CommonInst_Unpin(op) => {
+                        use runtime::mm::GC_MOVES_OBJECT;
                         trace!("instsel on UNPIN");
 
                         // call unpin() in GC
@@ -1673,15 +1680,17 @@ impl<'a> InstructionSelection {
                         assert!(self.match_ireg(op));
                         let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
 
-                        self.emit_runtime_entry(
-                            &entrypoints::UNPIN_OBJECT,
-                            vec![tmp_op.clone()],
-                            None,
-                            Some(node),
-                            f_content,
-                            f_context,
-                            vm
-                        );
+                        if GC_MOVES_OBJECT {
+                            self.emit_runtime_entry(
+                                &entrypoints::UNPIN_OBJECT,
+                                vec![tmp_op.clone()],
+                                None,
+                                Some(node),
+                                f_content,
+                                f_context,
+                                vm
+                            );
+                        }
                     }
                     Instruction_::CommonInst_GetAddr(op) => {
                         trace!("instsel on GETADDR");
@@ -2672,6 +2681,12 @@ impl<'a> InstructionSelection {
                     1 | 2 | 4 | 8 => {
                         trace!("emit mul");
 
+                        // we need to emit both operands first, then move one into RAX
+                        let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+
+                        // move op1 -> RAX
                         let mreg_op1 = match op_size {
                             8 => x86_64::RAX.clone(),
                             4 => x86_64::EAX.clone(),
@@ -2679,38 +2694,10 @@ impl<'a> InstructionSelection {
                             1 => x86_64::AL.clone(),
                             _ => unimplemented!()
                         };
-
-                        if self.match_iimm(op1) {
-                            let imm_op1 = self.node_iimm_to_i32(op1);
-                            self.backend.emit_mov_r_imm(&mreg_op1, imm_op1);
-                        } else if self.match_mem(op1) {
-                            let mem_op1 = self.emit_mem(op1, vm);
-                            self.backend.emit_mov_r_mem(&mreg_op1, &mem_op1);
-                        } else if self.match_ireg(op1) {
-                            let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                            self.backend.emit_mov_r_r(&mreg_op1, &reg_op1);
-                        } else {
-                            panic!("unexpected op1 for node {:?}", node)
-                        }
+                        self.backend.emit_mov_r_r(&mreg_op1, &tmp_op1);
 
                         // mul op2
-                        if self.match_iimm(op2) {
-                            let imm_op2 = self.node_iimm_to_i32(op2);
-
-                            // put imm in a temporary
-                            // here we use result reg as temporary
-                            self.backend.emit_mov_r_imm(&res_tmp, imm_op2);
-
-                            self.backend.emit_mul_r(&res_tmp);
-                        } else if self.match_mem(op2) {
-                            let mem_op2 = self.emit_mem(op2, vm);
-                            self.backend.emit_mul_mem(&mem_op2);
-                        } else if self.match_ireg(op2) {
-                            let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
-                            self.backend.emit_mul_r(&reg_op2);
-                        } else {
-                            panic!("unexpected op2 for node {:?}", node)
-                        }
+                        self.backend.emit_mul_r(&tmp_op2);
 
                         // mov rax -> result
                         let res_size = vm.get_backend_type_size(res_tmp.ty.id());
@@ -3437,69 +3424,22 @@ impl<'a> InstructionSelection {
                 )
             }
         } else {
-            // size is unknown at compile time
-            // we need to emit both alloc small and alloc large,
-            // and it is decided at runtime
+            // directly call 'alloc'
+            let tmp_res = self.get_result_value(node);
 
-            // emit: cmp size, THRESHOLD
-            // emit: jg ALLOC_LARGE
-            // emit: >> small object alloc
-            // emit: jmp ALLOC_LARGE_END
-            // emit: ALLOC_LARGE:
-            // emit: >> large object alloc
-            // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
-            let blk_alloc_large_end = make_block_name(&node.name(), "alloc_large_end");
+            let const_align = self.make_int_const(align as u64, vm);
 
-            if OBJECT_HEADER_SIZE != 0 {
-                // if the header size is not zero, we need to calculate a total size to alloc
-                let size_with_hdr = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                self.backend.emit_mov_r_r(&size_with_hdr, &size);
-                self.backend
-                    .emit_add_r_imm(&size_with_hdr, OBJECT_HEADER_SIZE as i32);
-                self.backend
-                    .emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size_with_hdr);
-            } else {
-                self.backend
-                    .emit_cmp_imm_r(mm::LARGE_OBJECT_THRESHOLD as i32, &size);
-            }
-            self.backend.emit_jg(blk_alloc_large.clone());
-
-            self.finish_block();
-            let block_name = make_block_name(&node.name(), "allocsmall");
-            self.start_block(block_name);
-
-            // alloc small here
-            self.emit_alloc_sequence_small(
-                tmp_allocator.clone(),
-                size.clone(),
-                align,
-                node,
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_ANY,
+                vec![tmp_allocator.clone(), size.clone(), const_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node),
                 f_content,
                 f_context,
                 vm
             );
-            self.backend.emit_jmp(blk_alloc_large_end.clone());
-            // finishing current block
-            self.finish_block();
 
-            // alloc_large:
-            self.start_block(blk_alloc_large.clone());
-            self.emit_alloc_sequence_large(
-                tmp_allocator.clone(),
-                size,
-                align,
-                node,
-                f_content,
-                f_context,
-                vm
-            );
-            self.finish_block();
-
-            // alloc_large_end:
-            self.start_block(blk_alloc_large_end.clone());
-
-            self.get_result_value(node)
+            tmp_res
         }
     }
 

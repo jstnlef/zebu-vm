@@ -96,6 +96,10 @@ lazy_static! {
         "muentry_alloc_large",
         vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
         vec![ADDRESS_TYPE.clone()]);
+    pub static ref ALLOC_ANY : RuntimeEntrypoint = RuntimeEntrypoint::new(
+        "muentry_alloc_any",
+        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![ADDRESS_TYPE.clone()]);
     pub static ref INIT_OBJ : RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_init_object",
         vec![ADDRESS_TYPE.clone(), ADDRESS_TYPE.clone(), UINT64_TYPE.clone()],

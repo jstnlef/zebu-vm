@@ -37,10 +37,19 @@ impl CompilerPass for PeepholeOptimization {
         let compiled_funcs = vm.compiled_funcs().read().unwrap();
         let mut cf = compiled_funcs.get(&func.id()).unwrap().write().unwrap();
 
+        // remove redundant move first
         for i in 0..cf.mc().number_of_insts() {
+            cf.mc().trace_inst(i);
+
             // if two sides of a move instruction are the same,
             // it is redundant, and can be eliminated
+            trace!("trying to remove redundant move");
             self.remove_redundant_move(i, &mut cf);
+        }
+
+        // then remove jumps (because removing movs will affect this)
+        for i in 0..cf.mc().number_of_insts() {
+            cf.mc().trace_inst(i);
 
             // if a branch jumps a label that contains another jump, such as
             // ..
@@ -53,9 +62,11 @@ impl CompilerPass for PeepholeOptimization {
 
             // the order matters: we need to run this first, then remove_unnecessary_jump()
             // as this will give us more chances to remove unnecessary jumps
+            trace!("trying to remove jump-to-jump");
             self.remove_jump_to_jump(i, &mut cf);
 
             // if a branch targets a block that immediately follow it, it can be eliminated
+            trace!("trying to remove unnecessary jmp");
             self.remove_unnecessary_jump(i, &mut cf);
         }
 
@@ -74,8 +85,6 @@ impl PeepholeOptimization {
     fn remove_redundant_move(&mut self, inst: usize, cf: &mut CompiledFunction) {
         // if this instruction is a move, and move from register to register (no memory operands)
         if cf.mc().is_move(inst) && !cf.mc().is_using_mem_op(inst) {
-            cf.mc().trace_inst(inst);
-
             // get source reg/temp ID
             let src: MuID = {
                 let uses = cf.mc().get_inst_reg_uses(inst);
@@ -166,25 +175,41 @@ impl PeepholeOptimization {
                 let opt_dest = mc.is_jmp(cur_inst);
                 match opt_dest {
                     Some(ref dest) => {
+                        trace!("current instruction {} jumps to {}", cur_inst, dest);
                         // if we have already visited this instruction
                         // this means we met an infinite loop, we need to break
                         if visited_labels.contains(dest) {
                             warn!("met an infinite loop in removing jump-to-jump");
                             warn!("we are not optimizing this case");
                             return;
+                        } else {
+                            visited_labels.insert(dest.clone());
+                            debug!("visited {}", dest);
                         }
 
                         // get the block for destination
-                        let first_inst = mc.get_block_range(dest).unwrap().start;
-                        debug_assert!(
-                            mc.is_label(first_inst).is_none(),
-                            "expect start inst {} of \
-                             block {} is a inst instead of label",
+                        let first_inst = {
+                            let start = mc.get_block_range(dest).unwrap().start;
+                            let last = mc.number_of_insts();
+
+                            let mut first = start;
+                            for i in start..last {
+                                if mc.is_label(i).is_some() || mc.is_nop(i) {
+                                    continue;
+                                } else {
+                                    first = i;
+                                    break;
+                                }
+                            }
+
+                            first
+                        };
+
+                        trace!(
+                            "examining first valid inst {} from block {}",
                             first_inst,
                             dest
                         );
-
-                        trace!("examining first inst {} of block {}", first_inst, dest);
 
                         // if first instruction is jump
                         match mc.is_jmp(first_inst) {
@@ -192,8 +217,6 @@ impl PeepholeOptimization {
                                 // its a jump-to-jump case
                                 cur_inst = first_inst;
                                 last_dest = Some(dest2.clone());
-                                visited_labels.insert(dest2.clone());
-                                debug!("visited {}", dest2);
                             }
                             None => break
                         }
