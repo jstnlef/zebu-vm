@@ -804,13 +804,18 @@ impl MuType_ {
 }
 
 /// MuFuncSig represents a Mu function signature
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub struct MuFuncSig {
     pub hdr: MuEntityHeader,
     pub ret_tys: Vec<P<MuType>>,
     pub arg_tys: Vec<P<MuType>>
 }
 
+impl PartialEq for MuFuncSig {
+    fn eq(&self, other: &MuFuncSig) -> bool {
+        self.ret_tys == other.ret_tys && self.arg_tys == other.arg_tys
+    }
+}
 rodal_struct!(MuFuncSig{hdr, ret_tys, arg_tys});
 
 impl fmt::Display for MuFuncSig {

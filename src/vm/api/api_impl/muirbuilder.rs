@@ -21,9 +21,11 @@ use utils::math::align_up;
 use utils::bit_utils::bits_ones;
 use std;
 
+pub static mut VALIDATE_IR: bool = true;
+
 macro_rules! assert_ir {
-    ($ cond : expr ) => { debug_assert!($cond) };
-    ($ cond : expr , $ ( $ arg : tt ) + ) => { debug_assert!($cond, $($arg)+)};
+    ($ cond : expr ) => [{if unsafe{VALIDATE_IR} {assert!($cond)} }];
+    ($ cond : expr , $ ( $ arg : tt ) + ) => [{if unsafe{VALIDATE_IR} {assert!($cond, $($arg)+)} }];
 }
 
 pub struct MuIRBuilder {
@@ -1283,7 +1285,8 @@ struct BundleLoader<'lb, 'lvm> {
     built_uptr_of: IdPMap<MuType>,
 
     built_constint_of: HashMap<u64, P<Value>>,
-    current_sig: Option<P<MuFuncSig>>
+    current_sig: Option<P<MuFuncSig>>,
+    current_entry: MuID
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -1322,7 +1325,8 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_iref_of: Default::default(),
         built_uptr_of: Default::default(),
         built_constint_of: Default::default(),
-        current_sig: Default::default()
+        current_sig: Default::default(),
+        current_entry: Default::default()
     };
 
     bl.load_bundle();
@@ -2258,6 +2262,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let mut fcb: FuncCtxBuilder = Default::default();
 
         let entry_id = *fv.bbs.first().unwrap();
+        self.current_entry = entry_id;
         let mut blocks = fv.bbs
             .iter()
             .map(|bbid| {
@@ -3581,12 +3586,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         inst_result_ids: &[MuID],
         blocks: &LinkedHashMap<MuID, Block>
     ) -> Destination {
-        // Note: according to the mu spec you can't branch to the entry block
-        // but we allow that here anyway
         let dest_clause = self.b.bundle.dest_clauses.get(&id).unwrap();
 
         let target = dest_clause.dest;
-
+        assert_ir!(target != self.current_entry);
         let target_block = blocks[&target].content.as_ref().unwrap();
 
         assert_ir!(target_block.args.len() == dest_clause.vars.len());
