@@ -2421,6 +2421,11 @@ impl<'a> InstructionSelection {
                         swap_operands();
                     }
                 }
+                op::BinOp::FAdd | op::BinOp::FMul => {
+                    if self.match_fconst_zero(node_op1) || self.match_mem(node_op1) {
+                        swap_operands();
+                    }
+                }
                 _ => {}
             }
         }
