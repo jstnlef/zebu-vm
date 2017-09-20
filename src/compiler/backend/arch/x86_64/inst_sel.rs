@@ -2384,8 +2384,52 @@ impl<'a> InstructionSelection {
         })
     }
 
-    /// emits code for binary operations (no status flags)
+    /// emits code for binary operations
     fn emit_binop(
+        &mut self,
+        node: &TreeNode,
+        inst: &Instruction,
+        op: BinOp,
+        mut op1: OpIndex,
+        mut op2: OpIndex,
+        f_content: &FunctionContent,
+        f_context: &mut FunctionContext,
+        vm: &VM
+    ) {
+        let ref ops = inst.ops;
+
+        {
+            // symmetric operators, we want to make sure that if any of the operands
+            // will be treated specially, it is going to be op2.
+            // so we check op1, if it is special, we swap them
+
+            let ref node_op1 = ops[op1];
+
+            let mut swap_operands = || {
+                let t = op1;
+                op1 = op2;
+                op2 = t;
+            };
+
+            match op {
+                op::BinOp::Add | op::BinOp::And | op::BinOp::Or | op::BinOp::Xor |
+                op::BinOp::Mul => {
+                    if self.match_iconst_zero(node_op1) || self.match_iconst_one(node_op1) ||
+                        self.match_iimm(node_op1) ||
+                        self.match_mem(node_op1)
+                    {
+                        swap_operands();
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        self.emit_binop_internal(node, inst, op, op1, op2, f_content, f_context, vm)
+    }
+
+    /// emits code for binary operations with the assumption that op2 may be special
+    fn emit_binop_internal(
         &mut self,
         node: &TreeNode,
         inst: &Instruction,
@@ -2399,44 +2443,64 @@ impl<'a> InstructionSelection {
         let ref ops = inst.ops;
 
         let res_tmp = self.get_result_value(node);
+        let ref op1 = ops[op1];
+        let ref op2 = ops[op2];
 
         match op {
             op::BinOp::Add => {
-                if self.match_ireg(&ops[op1]) && self.match_iimm(&ops[op2]) {
+                if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    // add zero is nop
+                    trace!("emit add-ireg-0");
+
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg(op1) && self.match_iconst_one(op2) {
+                    // add one is increment
+                    trace!("emit add-ireg-1");
+
+                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
+                    self.backend.emit_inc_r(&res_tmp);
+                } else if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit add-ireg-imm");
 
-                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.node_iimm_to_i32(&ops[op2]);
+                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.node_iimm_to_i32(op2);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // add op2, res
                     self.backend.emit_add_r_imm(&res_tmp, reg_op2);
-                } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                } else if self.match_ireg(op1) && self.match_mem(op2) {
                     trace!("emit add-ireg-mem");
 
-                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.emit_mem(&ops[op2], vm);
+                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.emit_mem(op2, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // add op2 res
                     self.backend.emit_add_r_mem(&res_tmp, &reg_op2);
-                } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                } else if self.match_ireg(op1) && self.match_ireg(op2) {
                     trace!("emit add-ireg-ireg");
 
-                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
+                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // add op2 res
                     self.backend.emit_add_r_r(&res_tmp, &reg_op2);
-                } else if self.match_ireg_ex(&ops[op1]) && self.match_ireg_ex(&ops[op2]) {
+                } else if self.match_ireg_ex(op1) && self.match_iconst_zero(op2) {
+                    // add one is nop
+                    trace!("emit add-iregex-0");
+
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
                     trace!("emit add-iregex-iregex");
 
-                    let (op1_l, op1_h) = self.emit_ireg_ex(&ops[op1], f_content, f_context, vm);
-                    let (op2_l, op2_h) = self.emit_ireg_ex(&ops[op2], f_content, f_context, vm);
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
 
                     // make result split
                     // mov op1 to res
@@ -2454,41 +2518,59 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Sub => {
-                if self.match_ireg(&ops[op1]) && self.match_iimm(&ops[op2]) {
+                if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    // sub zero is nop
+                    trace!("emit sub-ireg-0");
+
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg(op1) && self.match_iconst_one(op2) {
+                    // sub one is decrement
+                    trace!("emit sub-ireg-1");
+
+                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+
+                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
+                    self.backend.emit_dec_r(&res_tmp);
+                } else if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit sub-ireg-imm");
 
-                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let imm_op2 = self.node_iimm_to_i32(&ops[op2]);
+                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let imm_op2 = self.node_iimm_to_i32(op2);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // sub op2, res
                     self.backend.emit_sub_r_imm(&res_tmp, imm_op2);
-                } else if self.match_ireg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                } else if self.match_ireg(op1) && self.match_mem(op2) {
                     trace!("emit sub-ireg-mem");
 
-                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(&ops[op2], vm);
+                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let mem_op2 = self.emit_mem(op2, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // sub op2 res
                     self.backend.emit_sub_r_mem(&res_tmp, &mem_op2);
-                } else if self.match_ireg(&ops[op1]) && self.match_ireg(&ops[op2]) {
+                } else if self.match_ireg(op1) && self.match_ireg(op2) {
                     trace!("emit sub-ireg-ireg");
 
-                    let reg_op1 = self.emit_ireg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.emit_ireg(&ops[op2], f_content, f_context, vm);
+                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
                     // add op2 res
                     self.backend.emit_sub_r_r(&res_tmp, &reg_op2);
-                } else if self.match_ireg_ex(&ops[op1]) && self.match_ireg_ex(&ops[op2]) {
+                } else if self.match_ireg_ex(op1) && self.match_iconst_zero(op2) {
+                    // sub zero is nop
+                    trace!("emit sub-iregex-0");
+
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
                     trace!("emit sub-iregex-iregex");
 
-                    let (op1_l, op1_h) = self.emit_ireg_ex(&ops[op1], f_content, f_context, vm);
-                    let (op2_l, op2_h) = self.emit_ireg_ex(&ops[op2], f_content, f_context, vm);
+                    let (op1_l, op1_h) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                    let (op2_l, op2_h) = self.emit_ireg_ex(op2, f_content, f_context, vm);
 
                     // make result split
                     // mov op1 to res
@@ -2506,10 +2588,12 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::And => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
+                if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    // and with zero is setting result as zero
+                    trace!("emit and-ireg-0");
 
-                if self.match_ireg(op1) && self.match_iimm(op2) {
+                    self.emit_clear_value(&res_tmp, f_context, vm);
+                } else if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit and-ireg-iimm");
 
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -2539,6 +2623,11 @@ impl<'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                     // and op2, res -> res
                     self.backend.emit_and_r_r(&res_tmp, &tmp_op2);
+                } else if self.match_ireg_ex(op1) && self.match_iconst_zero(op2) {
+                    // and with zero is setting result as zero
+                    trace!("emit and-iregex-0");
+
+                    self.emit_clear_value(&res_tmp, f_context, vm);
                 } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
                     trace!("emit and-iregex-iregex");
 
@@ -2561,9 +2650,12 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Or => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
+                if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    // or zero is nop
+                    trace!("emit or-ireg-0");
 
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                }
                 if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit or-ireg-iimm");
 
@@ -2594,6 +2686,10 @@ impl<'a> InstructionSelection {
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
                     // Or op2, res -> res
                     self.backend.emit_or_r_r(&res_tmp, &tmp_op2);
+                } else if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    trace!("emit or-iregex-zero");
+
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
                 } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
                     trace!("emit or-iregex-iregex");
 
@@ -2616,9 +2712,6 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Xor => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
-
                 if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit xor-ireg-iimm");
 
@@ -2671,109 +2764,121 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Mul => {
-                // mov op1 -> rax
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
+                // special cases
+                if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    // MUL with zero is zero
+                    trace!("emit mul-ireg-0");
+                    self.emit_clear_value(&res_tmp, f_context, vm);
+                } else if self.match_ireg(op1) && self.match_iconst_one(op2) {
+                    // MUL with one is the original value
+                    trace!("emit mul-ireg-1");
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg_ex(op1) && self.match_iconst_zero(op2) {
+                    // MUL with zero is zero
+                    trace!("emit mul-iregex-0");
+                    self.emit_clear_value(&res_tmp, f_context, vm);
+                } else if self.match_ireg_ex(op1) && self.match_iconst_one(op2) {
+                    // MUL with one is the original value
+                    trace!("emit mul-iregex-1");
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else {
+                    // mov op1 -> rax
+                    let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
-                let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
+                    match op_size {
+                        1 | 2 | 4 | 8 => {
+                            trace!("emit mul");
 
-                match op_size {
-                    1 | 2 | 4 | 8 => {
-                        trace!("emit mul");
+                            // we need to emit both operands first, then move one into RAX
+                            let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                            let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                        // we need to emit both operands first, then move one into RAX
-                        let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                        let tmp_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+                            // move op1 -> RAX
+                            let mreg_op1 = match op_size {
+                                8 => x86_64::RAX.clone(),
+                                4 => x86_64::EAX.clone(),
+                                2 => x86_64::AX.clone(),
+                                1 => x86_64::AL.clone(),
+                                _ => unimplemented!()
+                            };
+                            self.backend.emit_mov_r_r(&mreg_op1, &tmp_op1);
 
+                            // mul op2
+                            self.backend.emit_mul_r(&tmp_op2);
 
-                        // move op1 -> RAX
-                        let mreg_op1 = match op_size {
-                            8 => x86_64::RAX.clone(),
-                            4 => x86_64::EAX.clone(),
-                            2 => x86_64::AX.clone(),
-                            1 => x86_64::AL.clone(),
-                            _ => unimplemented!()
-                        };
-                        self.backend.emit_mov_r_r(&mreg_op1, &tmp_op1);
+                            // mov rax -> result
+                            let res_size = vm.get_backend_type_size(res_tmp.ty.id());
+                            assert!(
+                                res_size == op_size,
+                                "op and res do not have matching type: {}",
+                                node
+                            );
 
-                        // mul op2
-                        self.backend.emit_mul_r(&tmp_op2);
-
-                        // mov rax -> result
-                        let res_size = vm.get_backend_type_size(res_tmp.ty.id());
-                        assert!(
-                            res_size == op_size,
-                            "op and res do not have matching type: {}",
-                            node
-                        );
-
-                        match res_size {
-                            8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
-                            4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
-                            2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
-                            1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
-                            _ => unimplemented!()
+                            match res_size {
+                                8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                                4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                                2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                                1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                                _ => unimplemented!()
+                            }
                         }
-                    }
-                    16 => {
-                        if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
-                            trace!("emit mul128");
+                        16 => {
+                            if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
+                                trace!("emit mul128");
 
-                            //     (hi, lo)
-                            //      a   b
-                            // x    c   d
-                            // ------------
-                            //      ad  bd
-                            //  ad  bc
-                            // ------------
-                            //      t1  t2
-                            //     (hi, lo)
+                                //     (hi, lo)
+                                //      a   b
+                                // x    c   d
+                                // ------------
+                                //      ad  bd
+                                //  ad  bc
+                                // ------------
+                                //      t1  t2
+                                //     (hi, lo)
 
-                            let (b, a) = self.emit_ireg_ex(op1, f_content, f_context, vm);
-                            let (d, c) = self.emit_ireg_ex(op2, f_content, f_context, vm);
+                                let (b, a) = self.emit_ireg_ex(op1, f_content, f_context, vm);
+                                let (d, c) = self.emit_ireg_ex(op2, f_content, f_context, vm);
 
-                            // mov a -> t1
-                            let t1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                            self.backend.emit_mov_r_r(&t1, &a);
+                                // mov a -> t1
+                                let t1 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                self.backend.emit_mov_r_r(&t1, &a);
 
-                            // imul d, t1 -> t1
-                            self.backend.emit_imul_r_r(&t1, &d);
+                                // imul d, t1 -> t1
+                                self.backend.emit_imul_r_r(&t1, &d);
 
-                            // mul d, b -> (RDX:RAX) as (carry:t2)
-                            self.backend.emit_mov_r_r(&x86_64::RAX, &d);
-                            self.backend.emit_mul_r(&b);
+                                // mul d, b -> (RDX:RAX) as (carry:t2)
+                                self.backend.emit_mov_r_r(&x86_64::RAX, &d);
+                                self.backend.emit_mul_r(&b);
 
-                            let t2 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                            self.backend.emit_mov_r_r(&t2, &x86_64::RAX);
+                                let t2 = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                self.backend.emit_mov_r_r(&t2, &x86_64::RAX);
 
-                            // add t1, carry -> t1
-                            self.backend.emit_add_r_r(&t1, &x86_64::RDX);
+                                // add t1, carry -> t1
+                                self.backend.emit_add_r_r(&t1, &x86_64::RDX);
 
-                            // mov c -> tt
-                            let tt = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                            self.backend.emit_mov_r_r(&tt, &c);
+                                // mov c -> tt
+                                let tt = self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
+                                self.backend.emit_mov_r_r(&tt, &c);
 
-                            // imul b, tt -> tt
-                            self.backend.emit_imul_r_r(&tt, &b);
+                                // imul b, tt -> tt
+                                self.backend.emit_imul_r_r(&tt, &b);
 
-                            // add t1, tt -> t1
-                            self.backend.emit_add_r_r(&t1, &tt);
+                                // add t1, tt -> t1
+                                self.backend.emit_add_r_r(&t1, &tt);
 
-                            // result: t1(higher), t2(lower)
-                            let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
-                            self.backend.emit_mov_r_r(&res_l, &t2);
-                            self.backend.emit_mov_r_r(&res_h, &t1);
-                        } else {
-                            panic!("unexpected op for node {:?}, expect int128 MUL", node)
+                                // result: t1(higher), t2(lower)
+                                let (res_l, res_h) = self.split_int128(&res_tmp, f_context, vm);
+                                self.backend.emit_mov_r_r(&res_l, &t2);
+                                self.backend.emit_mov_r_r(&res_h, &t1);
+                            } else {
+                                panic!("unexpected op for node {:?}, expect int128 MUL", node)
+                            }
                         }
+                        _ => panic!("unsupported int size: {}", op_size)
                     }
-                    _ => panic!("unsupported int size: {}", op_size)
                 }
             }
             op::BinOp::Udiv => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
-
                 let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
@@ -2812,9 +2917,6 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Sdiv => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
-
                 let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
@@ -2849,9 +2951,6 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Urem => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
-
                 let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
@@ -2886,9 +2985,6 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Srem => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
-
                 let op_size = vm.get_backend_type_size(op1.as_value().ty.id());
 
                 match op_size {
@@ -2924,10 +3020,11 @@ impl<'a> InstructionSelection {
             }
 
             op::BinOp::Shl => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
+                if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    trace!("emit shl-ireg-0");
 
-                if self.match_ireg(op1) && self.match_iimm(op2) {
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit shl-ireg-iimm");
 
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -2953,6 +3050,10 @@ impl<'a> InstructionSelection {
 
                     // shl result, cl -> result
                     self.backend.emit_shl_r_cl(&res_tmp);
+                } else if self.match_ireg_ex(op1) && self.match_iconst_zero(op2) {
+                    trace!("emit shl-iregex-0");
+
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
                 } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
                     trace!("emit shl-iregex-iregex");
 
@@ -2997,10 +3098,10 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Lshr => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
-
-                if self.match_ireg(op1) && self.match_iimm(op2) {
+                if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    trace!("emit lshr-ireg-0");
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit lshr-ireg-iimm");
 
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -3026,6 +3127,9 @@ impl<'a> InstructionSelection {
 
                     // lshr result, cl -> result
                     self.backend.emit_shr_r_cl(&res_tmp);
+                } else if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    trace!("emit lshr-iregex-0");
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
                 } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
                     trace!("emit lshr-iregex-iregex");
 
@@ -3070,10 +3174,10 @@ impl<'a> InstructionSelection {
                 }
             }
             op::BinOp::Ashr => {
-                let op1 = &ops[op1];
-                let op2 = &ops[op2];
-
-                if self.match_ireg(op1) && self.match_iimm(op2) {
+                if self.match_ireg(op1) && self.match_iconst_zero(op2) {
+                    trace!("emit ashr-ireg-0");
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit ashr-ireg-iimm");
 
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
@@ -3099,6 +3203,9 @@ impl<'a> InstructionSelection {
 
                     // sar result, cl -> result
                     self.backend.emit_sar_r_cl(&res_tmp);
+                } else if self.match_ireg_ex(op1) && self.match_iconst_zero(op2) {
+                    trace!("emit ashr-iregex-0");
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
                 } else if self.match_ireg_ex(op1) && self.match_ireg_ex(op2) {
                     trace!("emit ashr-iregex-iregex");
 
@@ -3150,11 +3257,14 @@ impl<'a> InstructionSelection {
 
             // floating point
             op::BinOp::FAdd => {
-                if self.match_fpreg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                if self.match_fpreg(op1) && self.match_fconst_zero(op2) {
+                    trace!("emit add-fpreg-0");
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_fpreg(op1) && self.match_mem(op2) {
                     trace!("emit add-fpreg-mem");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(&ops[op2], vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let mem_op2 = self.emit_mem(op2, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3172,11 +3282,11 @@ impl<'a> InstructionSelection {
                         _ => panic!("expect double or float")
                     }
 
-                } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                } else if self.match_fpreg(op1) && self.match_fpreg(op2) {
                     trace!("emit add-fpreg-fpreg");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.emit_fpreg(op2, f_content, f_context, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3199,11 +3309,14 @@ impl<'a> InstructionSelection {
             }
 
             op::BinOp::FSub => {
-                if self.match_fpreg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                if self.match_fpreg(op1) && self.match_fconst_zero(op2) {
+                    trace!("emit sub-fpreg-0");
+                    self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_fpreg(op1) && self.match_mem(op2) {
                     trace!("emit sub-fpreg-mem");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(&ops[op2], vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let mem_op2 = self.emit_mem(op2, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3220,11 +3333,11 @@ impl<'a> InstructionSelection {
                         }
                         _ => panic!("expect double or float")
                     }
-                } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                } else if self.match_fpreg(op1) && self.match_fpreg(op2) {
                     trace!("emit sub-fpreg-fpreg");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.emit_fpreg(op2, f_content, f_context, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3247,11 +3360,14 @@ impl<'a> InstructionSelection {
             }
 
             op::BinOp::FMul => {
-                if self.match_fpreg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                if self.match_fpreg(op1) && self.match_fconst_zero(op2) {
+                    trace!("emit mul-fpreg-0");
+                    self.emit_clear_value(&res_tmp, f_context, vm);
+                } else if self.match_fpreg(op1) && self.match_mem(op2) {
                     trace!("emit mul-fpreg-mem");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(&ops[op2], vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let mem_op2 = self.emit_mem(op2, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3268,11 +3384,11 @@ impl<'a> InstructionSelection {
                         }
                         _ => panic!("expect double or float")
                     }
-                } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                } else if self.match_fpreg(op1) && self.match_fpreg(op2) {
                     trace!("emit mul-fpreg-fpreg");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.emit_fpreg(op2, f_content, f_context, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3295,11 +3411,11 @@ impl<'a> InstructionSelection {
             }
 
             op::BinOp::FDiv => {
-                if self.match_fpreg(&ops[op1]) && self.match_mem(&ops[op2]) {
+                if self.match_fpreg(op1) && self.match_mem(op2) {
                     trace!("emit div-fpreg-mem");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(&ops[op2], vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let mem_op2 = self.emit_mem(op2, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3316,11 +3432,11 @@ impl<'a> InstructionSelection {
                         }
                         _ => panic!("expect double or float")
                     }
-                } else if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                } else if self.match_fpreg(op1) && self.match_fpreg(op2) {
                     trace!("emit div-fpreg-fpreg");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.emit_fpreg(op2, f_content, f_context, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3343,11 +3459,11 @@ impl<'a> InstructionSelection {
             }
 
             op::BinOp::FRem => {
-                if self.match_fpreg(&ops[op1]) && self.match_fpreg(&ops[op2]) {
+                if self.match_fpreg(op1) && self.match_fpreg(op2) {
                     trace!("emit frem-fpreg-fpreg");
 
-                    let reg_op1 = self.emit_fpreg(&ops[op1], f_content, f_context, vm);
-                    let reg_op2 = self.emit_fpreg(&ops[op2], f_content, f_context, vm);
+                    let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
+                    let reg_op2 = self.emit_fpreg(op2, f_content, f_context, vm);
 
                     let reg_tmp = self.get_result_value(node);
 
@@ -5418,6 +5534,53 @@ impl<'a> InstructionSelection {
         }
     }
 
+    /// matches an integer const zero
+    fn match_iconst_zero(&mut self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Value(ref pv) if pv.is_const() => {
+                if pv.is_int_const() {
+                    pv.extract_int_const().unwrap() == 0
+                } else if pv.is_int_ex_const() {
+                    pv.extract_int_ex_const().iter().all(|x| *x == 0)
+                } else {
+                    false
+                }
+            }
+            _ => false
+        }
+    }
+
+    /// matches an integer const one
+    fn match_iconst_one(&mut self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Value(ref pv) if pv.is_const() => {
+                if pv.is_int_const() {
+                    pv.extract_int_const().unwrap() == 1
+                } else if pv.is_int_ex_const() {
+                    let vals = pv.extract_int_ex_const();
+                    vals[0] == 1 && vals[1..].iter().all(|x| *x == 0)
+                } else {
+                    false
+                }
+            }
+            _ => false
+        }
+    }
+
+    /// matches a floatingpoint zero
+    fn match_fconst_zero(&mut self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Value(ref pv) if pv.is_fp_const() => {
+                match pv.v {
+                    Value_::Constant(Constant::Float(val)) => val == 0f32,
+                    Value_::Constant(Constant::Double(val)) => val == 0f64,
+                    _ => false
+                }
+            }
+            _ => false
+        }
+    }
+
     /// matches an integer immediate number pattern
     fn match_iimm(&mut self, op: &TreeNode) -> bool {
         match op.v {
@@ -6277,6 +6440,29 @@ impl<'a> InstructionSelection {
             }
         } else {
             warn!("mov of type {} unimplemented", src_ty);
+            unimplemented!()
+        }
+    }
+
+    fn emit_clear_value(&mut self, val: &P<Value>, f_context: &mut FunctionContext, vm: &VM) {
+        let ref val_ty = val.ty;
+
+        if RegGroup::get_from_ty(val_ty) == RegGroup::GPR {
+            self.backend.emit_xor_r_r(val, val);
+        } else if RegGroup::get_from_ty(val_ty) == RegGroup::GPREX {
+            let (val_l, val_h) = self.split_int128(val, f_context, vm);
+
+            self.backend.emit_xor_r_r(&val_l, &val_l);
+            self.backend.emit_xor_r_r(&val_h, &val_h);
+        } else if RegGroup::get_from_ty(val_ty) == RegGroup::FPR {
+            if val_ty.is_float() {
+                self.backend.emit_xorps_f32_f32(val, val);
+            } else if val_ty.is_double() {
+                self.backend.emit_xorpd_f64_f64(val, val);
+            } else {
+                panic!("expect double or float")
+            }
+        } else {
             unimplemented!()
         }
     }
