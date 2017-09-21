@@ -509,7 +509,9 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                             new_body.push(new_cond_branch);
 
                             // add new false block to trace (immediate after this block)
-                            if let Some(next_block_index) = next_block_in_trace {
+                            if let Some(next_block) = next_block_in_trace {
+                                let next_block_index =
+                                    trace.iter().position(|x| *x == next_block).unwrap();
                                 trace.insert(next_block_index, new_false_block.id());
                             } else {
                                 trace.push(new_false_block.id());
