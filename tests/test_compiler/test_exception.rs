@@ -23,11 +23,7 @@ use mu::vm::*;
 use mu::compiler::*;
 use mu::utils::LinkedHashMap;
 
-use mu::linkutils;
 use mu::linkutils::aot;
-
-use test_compiler::test_call::gen_ccall_exit;
-
 use std::sync::Arc;
 
 #[test]

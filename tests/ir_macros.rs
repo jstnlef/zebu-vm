@@ -930,7 +930,6 @@ macro_rules! emit_test {
         );
 
         consta!     (($vm, $tester_name) int64_pass_local = int64_pass);
-        consta!     (($vm, $tester_name) int64_fail_local = int64_fail);
 
         inst!   (($vm, $tester_name) blk_entry_inst_ret:
              SET_RETVAL int64_pass_local

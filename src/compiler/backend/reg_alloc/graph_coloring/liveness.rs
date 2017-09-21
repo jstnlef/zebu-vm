@@ -249,10 +249,8 @@ impl InterferenceGraph {
     }
 
     /// prints current graph for debugging (via trace log)
+    #[allow(unused_variables)]
     pub fn print(&self, context: &FunctionContext) {
-        use compiler::backend::reg_alloc::graph_coloring::petgraph::dot::Dot;
-        use compiler::backend::reg_alloc::graph_coloring::petgraph::dot::Config;
-
         trace!("");
         trace!("Interference Graph");
 

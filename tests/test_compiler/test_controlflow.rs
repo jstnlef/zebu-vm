@@ -24,7 +24,6 @@ use mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
 use mu::linkutils::aot;
-use mu::runtime::thread::check_result;
 use mu::compiler::*;
 
 #[test]
@@ -1152,6 +1151,122 @@ fn branch2_high_prob_branch_cannot_fallthrough() -> VM {
         sig,
         int8(0u64) RET int64(0u64),
     );
+
+    vm
+}
+
+#[test]
+fn test_branch_adjust_follow_by_neither() {
+    VM::start_logging_trace();
+
+    linkutils::aot::compile_fnc(
+        "branch_adjust_follow_by_neither",
+        &branch_adjust_follow_by_neither
+    );
+}
+
+fn branch_adjust_follow_by_neither() -> VM {
+    let vm = VM::new();
+
+    typedef!     ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1 = mu_int(1));
+
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = () -> (int64));
+    funcdecl!   ((vm) <sig> branch_adjust_follow_by_neither);
+    funcdef!    ((vm) <sig> branch_adjust_follow_by_neither
+        VERSION branch_adjust_follow_by_neither_v1);
+
+    // blk_entry
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_entry);
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_jmp);
+
+    // BRANCH blk_jmp
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_entry_branch:
+        BRANCH blk_jmp ()
+    );
+
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_entry() {
+        blk_entry_branch
+    });
+
+    // blk_jmp
+    // BRANCH blk_check0 (1)
+    consta!     ((vm, branch_adjust_follow_by_neither_v1) int64_0_local = int64_0);
+    consta!     ((vm, branch_adjust_follow_by_neither_v1) int64_1_local = int64_1);
+
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_check0);
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_jmp_branch:
+        BRANCH blk_check0 (int64_1_local)
+    );
+
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_jmp() {
+        blk_jmp_branch
+    });
+
+    // blk_check0(a)
+    ssa!        ((vm, branch_adjust_follow_by_neither_v1) <int64> a);
+
+    // cond = EQ a 0
+    ssa!        ((vm, branch_adjust_follow_by_neither_v1) <int1> cond);
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_check0_eq:
+        cond = CMPOP (CmpOp::EQ) a int64_0_local
+    );
+
+    // BRANCH2 cond TRUE: blk_ret0 () FALSE: blk_check1 (0)
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_ret0);
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_check1);
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_check0_branch2:
+        BRANCH2 (cond, int64_0_local)
+            IF (OP 0)
+            THEN blk_ret0 (vec![]) WITH 0.6f32,
+            ELSE blk_check1 (vec![1])
+    );
+
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_check0(a) {
+        blk_check0_eq,
+        blk_check0_branch2
+    });
+
+    // blk_check1(b)
+    ssa!        ((vm, branch_adjust_follow_by_neither_v1) <int64> b);
+
+    // cond = EQ b 1
+    ssa!        ((vm, branch_adjust_follow_by_neither_v1) <int1> cond2);
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_check1_eq:
+        cond2 = CMPOP (CmpOp::EQ) b int64_1_local
+    );
+
+    // BRANCH2 cond2 TRUE: blk_ret1() FALSE: blk_jmp
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_check1_branch2:
+        BRANCH2 (cond2)
+            IF (OP 0)
+            THEN blk_ret0 (vec![]) WITH 0.4f32,
+            ELSE blk_jmp (vec![])
+    );
+
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_check1(b) {
+        blk_check1_eq,
+        blk_check1_branch2
+    });
+
+    // blk_ret0
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_ret0_ret:
+        RET (int64_0_local)
+    );
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_ret0() {
+        blk_ret0_ret
+    });
+
+    define_func_ver!((vm) branch_adjust_follow_by_neither_v1 (entry: blk_entry) {
+        blk_entry,
+        blk_jmp,
+        blk_check0,
+        blk_check1,
+        blk_ret0
+    });
 
     vm
 }

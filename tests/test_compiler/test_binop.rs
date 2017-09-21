@@ -26,7 +26,6 @@ use mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
 use self::mu::linkutils::aot;
-use self::mu::runtime::thread::check_result;
 use self::mu::compiler::*;
 
 use std::u64;

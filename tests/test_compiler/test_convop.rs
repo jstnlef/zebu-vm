@@ -21,12 +21,10 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
-use self::mu::linkutils;
 use mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
 use self::mu::linkutils::aot;
-use self::mu::runtime::thread::check_result;
 use self::mu::compiler::*;
 
 use std::f32;
