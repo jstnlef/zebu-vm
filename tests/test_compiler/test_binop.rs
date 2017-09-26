@@ -26,7 +26,6 @@ use mu::utils::LinkedHashMap;
 
 use std::sync::Arc;
 use self::mu::linkutils::aot;
-use self::mu::runtime::thread::check_result;
 use self::mu::compiler::*;
 
 use std::u64;
@@ -647,6 +646,128 @@ fn add_int64_nzc() -> VM {
         sig,
         int64(u64::MAX), int64(0) RET int8(0b001),
     );
+
+    vm
+}
+
+#[test]
+fn test_nest_mul_simple() {
+    VM::start_logging_trace();
+
+    let lib = linkutils::aot::compile_fnc("nest_mul_simple", &nest_mul_simple);
+    unsafe {
+        let nest_mul_simple: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64) -> u64> =
+            lib.get(b"nest_mul_simple").unwrap();
+
+        let res = nest_mul_simple(2, 3, 4);
+        println!("mul(2, 3, 4) = {}", res);
+        assert_eq!(res, 24);
+    }
+}
+
+fn nest_mul_simple() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    funcsig!    ((vm) sig = (int64, int64, int64) -> (int64));
+    funcdecl!   ((vm) <sig> nest_mul_simple);
+    funcdef!    ((vm) <sig> nest_mul_simple VERSION nest_mul_simple_v1);
+
+    // %entry(%x, %y, %z)
+    block!      ((vm, nest_mul_simple_v1) blk_entry);
+    ssa!        ((vm, nest_mul_simple_v1) <int64> x);
+    ssa!        ((vm, nest_mul_simple_v1) <int64> y);
+    ssa!        ((vm, nest_mul_simple_v1) <int64> z);
+
+    // %a = MUL %x %y
+    ssa!        ((vm, nest_mul_simple_v1) <int64> a);
+    inst!       ((vm, nest_mul_simple_v1) blk_entry_mul1:
+        a = BINOP (BinOp::Mul) x y
+    );
+
+    // %b = MUL %a %z
+    ssa!        ((vm, nest_mul_simple_v1) <int64> b);
+    inst!       ((vm, nest_mul_simple_v1) blk_entry_mul2:
+        b = BINOP (BinOp::Mul) a z
+    );
+
+    // RET b
+    inst!       ((vm, nest_mul_simple_v1) blk_entry_ret:
+        RET (b)
+    );
+
+    define_block!((vm, nest_mul_simple_v1) blk_entry(x, y, z) {
+        blk_entry_mul1,
+        blk_entry_mul2,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) nest_mul_simple_v1(entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
+fn test_nest_mul_times_10() {
+    VM::start_logging_trace();
+
+    let lib = linkutils::aot::compile_fnc("nest_mul_times_10", &nest_mul_times_10);
+    unsafe {
+        let nest_mul: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"nest_mul_times_10").unwrap();
+
+        let res = nest_mul(2, 3);
+        println!("mul(2, 3) x 10 = {}", res);
+        assert_eq!(res, 60);
+    }
+}
+
+fn nest_mul_times_10() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    constdef!   ((vm) <int64> int64_10 = Constant::Int(10));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int64));
+    funcdecl!   ((vm) <sig> nest_mul_times_10);
+    funcdef!    ((vm) <sig> nest_mul_times_10 VERSION nest_mul_times_10_v1);
+
+    // %entry(%x, %y)
+    block!      ((vm, nest_mul_times_10_v1) blk_entry);
+    ssa!        ((vm, nest_mul_times_10_v1) <int64> x);
+    ssa!        ((vm, nest_mul_times_10_v1) <int64> y);
+    consta!     ((vm, nest_mul_times_10_v1) int64_10_local = int64_10);
+
+    // %a = MUL %x %y
+    ssa!        ((vm, nest_mul_times_10_v1) <int64> a);
+    inst!       ((vm, nest_mul_times_10_v1) blk_entry_mul1:
+        a = BINOP (BinOp::Mul) x y
+    );
+
+    // %b = MUL 10 %a
+    ssa!        ((vm, nest_mul_times_10_v1) <int64> b);
+    inst!       ((vm, nest_mul_times_10_v1) blk_entry_mul2:
+        b = BINOP (BinOp::Mul) int64_10_local a
+    );
+
+    // RET b
+    inst!       ((vm, nest_mul_times_10_v1) blk_entry_ret:
+        RET (b)
+    );
+
+    define_block!((vm, nest_mul_times_10_v1) blk_entry(x, y) {
+        blk_entry_mul1,
+        blk_entry_mul2,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) nest_mul_times_10_v1(entry: blk_entry) {
+        blk_entry
+    });
 
     vm
 }

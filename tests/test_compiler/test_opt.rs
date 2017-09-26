@@ -14,17 +14,11 @@
 
 extern crate libloading;
 
-use mu::ast::types::*;
 use mu::ast::ir::*;
-use mu::ast::ptr::*;
 use mu::ast::inst::*;
-use mu::ast::op::*;
 use mu::vm::*;
-use mu::compiler::*;
 
 use std::sync::Arc;
-use mu::linkutils;
-use mu::linkutils::aot;
 use mu::utils::LinkedHashMap;
 
 #[test]

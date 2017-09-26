@@ -1287,7 +1287,7 @@ struct BundleLoader<'lb, 'lvm> {
 
     built_constint_of: HashMap<u64, P<Value>>,
     current_sig: Option<P<MuFuncSig>>,
-    current_entry: MuID,
+    current_entry: MuID
 }
 
 fn load_bundle(b: &mut MuIRBuilder) {
@@ -1328,7 +1328,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_strong_variant: Default::default(),
         built_constint_of: Default::default(),
         current_sig: Default::default(),
-        current_entry: Default::default(),
+        current_entry: Default::default()
     };
 
     bl.load_bundle();
@@ -2748,10 +2748,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                                      impl_to_ty.is_double())
                         }
                         ConvOp::REFCAST => {
-                            (impl_from_ty.is_ref() || impl_from_ty.is_iref() ||
-                                 impl_from_ty.is_funcref()) &&
-                                (impl_to_ty.is_ref() || impl_to_ty.is_iref() ||
-                                     impl_to_ty.is_funcref())
+                            (impl_from_ty.is_ref() && impl_to_ty.is_ref()) ||
+                            (impl_from_ty.is_iref() && impl_to_ty.is_iref()) ||
+                            (impl_from_ty.is_funcref() && impl_to_ty.is_funcref())
                         }
                         ConvOp::PTRCAST => {
                             (impl_from_ty.is_ptr() || impl_from_ty.is_int()) &&

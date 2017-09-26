@@ -851,6 +851,16 @@ impl MachineCode for ASMCode {
         self.code[index].code.clear();
     }
 
+    /// is the specified index is a nop?
+    fn is_nop(&self, index: usize) -> bool {
+        let ref inst = self.code[index];
+        if inst.code == "" || inst.code == "nop" {
+            true
+        } else {
+            false
+        }
+    }
+
     /// remove unnecessary push/pop if the callee saved register is not used
     /// returns what registers push/pop have been deleted, and the number of callee saved registers
     /// that weren't deleted
@@ -1598,8 +1608,8 @@ impl ASMCodeGen {
         self.cur.take().unwrap()
     }
 
-    /// emits an instruction (use 1 reg, define none)
-    fn internal_uniop_def_r(&mut self, inst: &str, op: &P<Value>) {
+    /// emits an instruction (use 0 reg, define 1)
+    fn internal_uniop_def_nouse_r(&mut self, inst: &str, op: &P<Value>) {
         trace!("emit: {} {}", inst, op);
 
         let (reg, id, loc) = self.prepare_reg(op, inst.len() + 1);
@@ -1612,6 +1622,26 @@ impl ASMCodeGen {
                 id => vec![loc]
             },
             linked_hashmap!{},
+            false
+        )
+    }
+
+    /// emits an instruction (use 1 reg, define 1 reg)
+    fn internal_uniop_def_r(&mut self, inst: &str, op: &P<Value>) {
+        trace!("emit: {} {}", inst, op);
+
+        let (reg, id, loc) = self.prepare_reg(op, inst.len() + 1);
+
+        let asm = format!("{} {}", inst, reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id => vec![loc.clone()]
+            },
+            linked_hashmap!{
+                id => vec![loc]
+            },
             false
         )
     }
@@ -2598,46 +2628,46 @@ impl CodeGenerator for ASMCodeGen {
 
     // set byte
     fn emit_sets_r8(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("sets", dest)
+        self.internal_uniop_def_nouse_r("sets", dest)
     }
     fn emit_setz_r8(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setz", dest)
+        self.internal_uniop_def_nouse_r("setz", dest)
     }
     fn emit_seto_r8(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("seto", dest)
+        self.internal_uniop_def_nouse_r("seto", dest)
     }
     fn emit_setb_r8(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setb", dest)
+        self.internal_uniop_def_nouse_r("setb", dest)
     }
     fn emit_seta_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("seta", dest)
+        self.internal_uniop_def_nouse_r("seta", dest)
     }
     fn emit_setae_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setae", dest)
+        self.internal_uniop_def_nouse_r("setae", dest)
     }
     fn emit_setb_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setb", dest)
+        self.internal_uniop_def_nouse_r("setb", dest)
     }
     fn emit_setbe_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setbe", dest)
+        self.internal_uniop_def_nouse_r("setbe", dest)
     }
     fn emit_sete_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("sete", dest)
+        self.internal_uniop_def_nouse_r("sete", dest)
     }
     fn emit_setg_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setg", dest)
+        self.internal_uniop_def_nouse_r("setg", dest)
     }
     fn emit_setge_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setge", dest)
+        self.internal_uniop_def_nouse_r("setge", dest)
     }
     fn emit_setl_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setl", dest)
+        self.internal_uniop_def_nouse_r("setl", dest)
     }
     fn emit_setle_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setle", dest)
+        self.internal_uniop_def_nouse_r("setle", dest)
     }
     fn emit_setne_r(&mut self, dest: Reg) {
-        self.internal_uniop_def_r("setne", dest)
+        self.internal_uniop_def_nouse_r("setne", dest)
     }
 
     // cmov src -> dest
@@ -2812,6 +2842,20 @@ impl CodeGenerator for ASMCodeGen {
     }
     fn emit_sbb_r_imm(&mut self, dest: Reg, src: i32) {
         self.internal_binop_def_r_imm("sbb", dest, src)
+    }
+
+    // inc and dec
+    fn emit_inc_r(&mut self, dest: Reg) {
+        self.internal_uniop_def_r("inc", dest)
+    }
+    fn emit_inc_mem(&mut self, dest: Mem) {
+        unimplemented!()
+    }
+    fn emit_dec_r(&mut self, dest: Reg) {
+        self.internal_uniop_def_r("dec", dest)
+    }
+    fn emit_dec_mem(&mut self, dest: Mem) {
+        unimplemented!()
     }
 
     fn emit_mul_r(&mut self, src: &P<Value>) {
@@ -3514,6 +3558,14 @@ impl CodeGenerator for ASMCodeGen {
     }
     fn emit_ucomiss_f32_f32(&mut self, op1: Reg, op2: Reg) {
         self.internal_fp_binop_no_def_r_r("ucomiss", op1, op2);
+    }
+
+    // bitwise - float
+    fn emit_xorps_f32_f32(&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_binop_def_r_r("xorps", &dest, &src)
+    }
+    fn emit_xorpd_f64_f64(&mut self, dest: Reg, src: Reg) {
+        self.internal_fp_binop_def_r_r("xorpd", &dest, &src)
     }
 
     // add - double
