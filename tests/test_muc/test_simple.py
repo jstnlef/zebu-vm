@@ -178,3 +178,38 @@ def test_double_inline():
                 RET (a b)
         }
         """, "test_double_inline");
+def test_funcref():
+    lib = load_bundle(
+        """
+      .funcdef triv<()->()>
+      {
+              entry():
+                      RET
+      }
+        .funcdef ret_funcref <()->(funcref<()->()>)>
+        {
+            entry():
+                RET triv
+        }
+        """, "test_funcref");
+
+def test_load():
+    lib = load_bundle(
+        """
+        .funcdef load <(iref<weakref<void>>)->(ref<void>)>
+        {
+            entry(<iref<weakref<void>>>a):
+                r = LOAD<weakref<void>> a
+		RET r
+        }
+        """, "test_load");
+def test_xor():
+    lib = load_bundle(
+            """
+            .funcdef xor<(int<8>)->(int<8>)>
+            {
+                entry(<int<8>>v):
+                    r = XOR<int<8>> v <int<8>>1
+                    RET r
+            }
+            """, "test_xor");

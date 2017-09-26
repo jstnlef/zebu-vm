@@ -1060,11 +1060,11 @@ pub fn is_valid_arithmetic_imm(val: u64) -> bool {
 // (the resulting value will be valid iff 'val' is valid, and the lower 'n' bits will equal val)
 pub fn replicate_logical_imm(val: u64, n: usize) -> u64 {
     let op_size = if n <= 32 { 32 } else { 64 };
-    let mut val = val;
+    let mut new_val = val;
     for i in 1..op_size / n {
-        val |= val << i * n;
+        new_val |= val << i * n;
     }
-    val
+    new_val
 }
 
 
@@ -1389,6 +1389,15 @@ pub fn match_value_int_imm(op: &P<Value>) -> bool {
         _ => false
     }
 }
+
+pub fn match_value_zero(op: &P<Value>) -> bool {
+    match op.v {
+        Value_::Constant(Constant::Int(x)) => x == 0,
+        Value_::Constant(Constant::NullRef) => true,
+        _ => false
+    }
+}
+
 pub fn match_value_ref_imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(Constant::NullRef) => true,
@@ -1412,6 +1421,13 @@ pub fn get_node_value(op: &TreeNode) -> P<Value> {
 pub fn match_node_int_imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match_value_int_imm(pv),
+        _ => false
+    }
+}
+
+pub fn match_node_zero(op: &TreeNode) -> bool {
+    match op.v {
+        TreeNode_::Value(ref pv) => match_value_zero(pv),
         _ => false
     }
 }
@@ -1575,6 +1591,21 @@ Just insert this immediatly before each emit_XX where XX is one the above instru
 and arg is the name of the argument that can't be the zero register (do so for each such argument)
 let arg = replace_zero_register(backend, &arg, f_context, vm);
 */
+
+pub fn replace_unexpected_zero_register(
+    backend: &mut CodeGenerator,
+    val: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM
+) -> P<Value> {
+    if is_zero_register(&val) {
+        let temp = make_temporary(f_context, val.ty.clone(), vm);
+        backend.emit_mov_imm(&temp, 0);
+        temp
+    } else {
+        val.clone()
+    }
+}
 
 pub fn replace_zero_register(
     backend: &mut CodeGenerator,
@@ -1896,6 +1927,7 @@ fn emit_cmp_u64(
     } else if is_valid_arithmetic_imm(val) {
         let imm_shift = val > 4096;
         let imm_val = if imm_shift { val >> 12 } else { val };
+        let src1 = replace_unexpected_zero_register(backend, src1, f_context, vm);
         backend.emit_cmp_imm(&src1, imm_val as u16, imm_shift);
     } else {
         let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -1919,6 +1951,7 @@ fn emit_cmn_u64(
     } else if is_valid_arithmetic_imm(val) {
         let imm_shift = val > 4096;
         let imm_val = if imm_shift { val >> 12 } else { val };
+        let src1 = replace_unexpected_zero_register(backend, src1, f_context, vm);
         backend.emit_cmn_imm(&src1, imm_val as u16, imm_shift);
     } else {
         let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -1986,61 +2019,12 @@ fn emit_reg_value(
     f_context: &mut FunctionContext,
     vm: &VM
 ) -> P<Value> {
-    match pv.v {
-        Value_::SSAVar(_) => pv.clone(),
-        Value_::Constant(ref c) => {
-            match c {
-                &Constant::Int(val) => {
-                    /*if val == 0 {
-                        // TODO emit the zero register (NOTE: it can't be used by all instructions)
-                        // Use the zero register (saves having to use a temporary)
-                        get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
-                    } else {*/
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    debug!("tmp's ty: {}", tmp.ty);
-                    emit_mov_u64(backend, &tmp, val);
-                    tmp
-                    //}
-                }
-                &Constant::IntEx(ref val) => {
-                    assert!(val.len() == 2);
-
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    let (tmp_l, tmp_h) = split_int128(&tmp, f_context, vm);
-
-                    emit_mov_u64(backend, &tmp_l, val[0]);
-                    emit_mov_u64(backend, &tmp_h, val[1]);
-
-                    tmp
-                }
-                &Constant::FuncRef(func_id) => {
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-
-                    let mem =
-                        make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
-                    emit_calculate_address(backend, &tmp, &mem, vm);
-                    tmp
-                }
-                &Constant::NullRef => {
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    backend.emit_mov_imm(&tmp, 0);
-                    tmp
-                    //get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
-                }
-                &Constant::Double(val) => {
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    emit_mov_f64(backend, &tmp, f_context, vm, val);
-                    tmp
-                }
-                &Constant::Float(val) => {
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    emit_mov_f32(backend, &tmp, f_context, vm, val);
-                    tmp
-                }
-                _ => panic!("expected fpreg or ireg")
-            }
-        }
-        _ => panic!("expected fpreg or ireg")
+    if is_int_reg(&pv) || is_int_ex_reg(&pv) {
+        emit_ireg_value(backend, pv, f_context, vm)
+    } else if is_fp_reg(&pv) {
+        emit_fpreg_value(backend, pv, f_context, vm)
+    } else {
+        unreachable!();
     }
 }
 
@@ -2056,10 +2040,8 @@ pub fn emit_ireg_value(
         Value_::Constant(ref c) => {
             match c {
                 &Constant::Int(val) => {
-                    // TODO Deal with zero case
+                    // TODO: Deal with zero case
                     /*if val == 0 {
-                        // TODO: Are there any (integer) instructions that can't use the Zero reg?
-                        // Use the zero register (saves having to use a temporary)
                         get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
                     } else {*/
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
@@ -2762,6 +2744,13 @@ fn emit_move_value_to_value(
             if src.is_int_const() {
                 let imm = value_imm_to_u64(src);
                 emit_mov_u64(backend, dest, imm);
+            } else if src.is_func_const() {
+                let func_id = match src.v {
+                    Value_::Constant(Constant::FuncRef(id)) => id,
+                    _ => unreachable!()
+                };
+                let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                emit_calculate_address(backend, &dest, &mem, vm);
             } else if is_int_reg(&src) {
                 backend.emit_mov(dest, src);
             } else if src.is_mem() {

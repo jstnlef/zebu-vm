@@ -1283,6 +1283,7 @@ struct BundleLoader<'lb, 'lvm> {
     built_ref_of: IdPMap<MuType>,
     built_iref_of: IdPMap<MuType>,
     built_uptr_of: IdPMap<MuType>,
+    built_strong_variant: IdPMap<MuType>,
 
     built_constint_of: HashMap<u64, P<Value>>,
     current_sig: Option<P<MuFuncSig>>,
@@ -1324,6 +1325,7 @@ fn load_bundle(b: &mut MuIRBuilder) {
         built_ref_of: Default::default(),
         built_iref_of: Default::default(),
         built_uptr_of: Default::default(),
+        built_strong_variant: Default::default(),
         built_constint_of: Default::default(),
         current_sig: Default::default(),
         current_entry: Default::default(),
@@ -1387,6 +1389,27 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         self.built_refvoid = Some(impl_refvoid.clone());
 
         impl_refvoid
+    }
+
+    fn ensure_strong_variant(&mut self, ty: &P<MuType>) -> P<MuType> {
+        if let Some(ref sty) = self.built_strong_variant.get(&ty.id()) {
+            return (*sty).clone();
+        }
+
+        let sty = match &ty.v {
+            &MuType_::WeakRef(ref t) => {
+                let id = self.vm.next_id();
+                let sty = P(MuType::new(id, MuType_::muref(t.clone())));
+                self.built_types.insert(id, sty.clone());
+                sty
+            },
+            _ => ty.clone()
+        };
+
+        trace!("Ensure strong variant is defined: {} {:?}", sty.id(), sty);
+
+        self.built_strong_variant.insert(ty.id(), sty.clone());
+        sty
     }
 
     fn ensure_refi64(&mut self) -> P<MuType> {
@@ -2725,9 +2748,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                                      impl_to_ty.is_double())
                         }
                         ConvOp::REFCAST => {
-                            (impl_from_ty.is_ref() && impl_to_ty.is_ref()) || 
-                            (impl_from_ty.is_iref() && impl_to_ty.is_iref()) || 
-                            (impl_from_ty.is_funcref() && impl_to_ty.is_funcref())
+                            (impl_from_ty.is_ref() || impl_from_ty.is_iref() ||
+                                 impl_from_ty.is_funcref()) &&
+                                (impl_to_ty.is_ref() || impl_to_ty.is_iref() ||
+                                     impl_to_ty.is_funcref())
                         }
                         ConvOp::PTRCAST => {
                             (impl_from_ty.is_ptr() || impl_from_ty.is_int()) &&
@@ -3296,8 +3320,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let impl_ord = self.build_mem_ord(ord);
                 let impl_loc = self.get_treenode(fcb, loc);
                 let impl_rvtype = self.get_built_type(refty);
-                let impl_rv = self.new_ssa(fcb, result_id, self.vm.make_strong_type(impl_rvtype))
-                    .clone_value();
+                let impl_actual_rvtype = self.ensure_strong_variant(&impl_rvtype);
+                let impl_rv = self.new_ssa(fcb, result_id, impl_actual_rvtype).clone_value();
                 let impl_refty = self.get_built_type(refty);
 
                 assert_ir!(impl_ord != MemoryOrder::Release && impl_ord != MemoryOrder::AcqRel);

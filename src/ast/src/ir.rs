@@ -1050,6 +1050,13 @@ impl Value {
     }
 
 
+    pub fn is_func_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(Constant::FuncRef(_)) => true,
+            _ => false
+        }
+    }
+
     pub fn is_int_const(&self) -> bool {
         match self.v {
             Value_::Constant(Constant::Int(_)) => true,
