@@ -2458,14 +2458,6 @@ impl<'a> InstructionSelection {
                     trace!("emit add-ireg-0");
 
                     self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
-                } else if self.match_ireg(op1) && self.match_iconst_one(op2) {
-                    // add one is increment
-                    trace!("emit add-ireg-1");
-
-                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-
-                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
-                    self.backend.emit_inc_r(&res_tmp);
                 } else if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit add-ireg-imm");
 
@@ -2528,14 +2520,6 @@ impl<'a> InstructionSelection {
                     trace!("emit sub-ireg-0");
 
                     self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
-                } else if self.match_ireg(op1) && self.match_iconst_one(op2) {
-                    // sub one is decrement
-                    trace!("emit sub-ireg-1");
-
-                    let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-
-                    self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
-                    self.backend.emit_dec_r(&res_tmp);
                 } else if self.match_ireg(op1) && self.match_iimm(op2) {
                     trace!("emit sub-ireg-imm");
 
