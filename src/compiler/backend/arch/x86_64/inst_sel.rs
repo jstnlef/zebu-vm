@@ -5632,14 +5632,23 @@ impl<'a> InstructionSelection {
             None => panic!("expected an int")
         };
 
-        match op.v {
+        let val = match op.v {
             Value_::Constant(Constant::Int(val)) => {
                 debug_assert!(x86_64::is_valid_x86_imm(op));
 
-                (val as i32, op_length)
+                match op_length {
+                    128 => panic!("cannot emit int128 as immediate"),
+                    64 => val as i64 as i32,
+                    32 => val as i32,
+                    16 => val as i16 as i32,
+                    1 | 8 => val as i8 as i32,
+                    _ => panic!("unsupported int types")
+                }
             }
-            _ => panic!("expected iimm")
-        }
+            _ => panic!("expect iimm")
+        };
+
+        (val, op_length)
     }
 
     /// emits a TreeNode as address
