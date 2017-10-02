@@ -530,7 +530,6 @@ impl ASMCode {
     fn add_frame_size_upper_patchpoint(&mut self, patchpoint: ASMLocation) {
         self.frame_size_upper_patchpoints.push(patchpoint);
     }
-
 }
 
 use std::any::Any;
@@ -1224,7 +1223,7 @@ impl ASMCodeGen {
                             let shift_type = if n == 64 {
                                 if signed {
                                     "LSL"
-                                    //"SXTX"
+                                //"SXTX"
                                 } else {
                                     "LSL"
                                 }
@@ -2375,7 +2374,12 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("SUB SP,SP,#{}", FRAME_SIZE_PART_PLACEHOLDER.clone());
         let line = self.line();
         self.cur_mut()
-            .add_frame_size_lower_patchpoint(ASMLocation::new(line, 11, FRAME_SIZE_PART_PLACEHOLDER_LEN, 0));
+            .add_frame_size_lower_patchpoint(ASMLocation::new(
+                line,
+                11,
+                FRAME_SIZE_PART_PLACEHOLDER_LEN,
+                0
+            ));
 
         self.add_asm_inst(
             asm,
@@ -2387,7 +2391,12 @@ impl CodeGenerator for ASMCodeGen {
         let asm = format!("SUB SP,SP,#{},LSL #12", FRAME_SIZE_PART_PLACEHOLDER.clone());
         let line = self.line();
         self.cur_mut()
-            .add_frame_size_upper_patchpoint(ASMLocation::new(line, 11, FRAME_SIZE_PART_PLACEHOLDER_LEN, 0));
+            .add_frame_size_upper_patchpoint(ASMLocation::new(
+                line,
+                11,
+                FRAME_SIZE_PART_PLACEHOLDER_LEN,
+                0
+            ));
 
         self.add_asm_inst(
             asm,

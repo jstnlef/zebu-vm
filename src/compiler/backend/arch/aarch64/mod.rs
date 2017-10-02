@@ -2749,7 +2749,8 @@ fn emit_move_value_to_value(
                     Value_::Constant(Constant::FuncRef(id)) => id,
                     _ => unreachable!()
                 };
-                let mem = make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                let mem =
+                    make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
                 emit_calculate_address(backend, &dest, &mem, vm);
             } else if is_int_reg(&src) {
                 backend.emit_mov(dest, src);

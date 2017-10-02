@@ -21,7 +21,7 @@ export MU_LOG_LEVEL=none
 export RUST_TEST_THREADS=1
 export RUST_BACKTRACE=0
 export PYTHONPATH="$MU_ZEBU/tests/test_jit/mu-client-pypy/:$MU_ZEBU/tests/test_jit/RPySOM/src"
-export LD_LIBRARY_PATH="$MU_ZEBU/tests/test_jit/:$MU_ZEBU/tests/test_jit"
+export LD_LIBRARY_PATH="$MU_ZEBU/tests/test_jit/:$MU_ZEBU/tests/test_jit:$LD_LIBRARY_PATH"
 export ZEBU_BUILD=release
 
 rm -rf $MU_ZEBU/emit
@@ -29,7 +29,7 @@ rm -rf $MU_ZEBU/tests/test_jit/emit
 
 cargo update
 #cargo clean
-cargo-fmt -- --write-mode=diff --verbose -- src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs | tee cargo_fmt_out.txt
+cargo-fmt -- --write-mode=diff --verbose -- src/lib.rs src/ast/src/lib.rs src/gc/src/lib.rs src/utils/src/lib.rs | tee cargo_fmt_out.txt
 cargo test --release --no-run --color=always 2>&1 | tee build_out.txt
 $(exit ${PIPESTATUS[0]}) # this command will exit the shell but only if the above cargo test failed
 

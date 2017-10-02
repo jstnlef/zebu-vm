@@ -1402,7 +1402,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
                 let sty = P(MuType::new(id, MuType_::muref(t.clone())));
                 self.built_types.insert(id, sty.clone());
                 sty
-            },
+            }
             _ => ty.clone()
         };
 
