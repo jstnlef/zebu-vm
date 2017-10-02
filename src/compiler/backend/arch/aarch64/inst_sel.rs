@@ -4833,6 +4833,14 @@ impl<'a> InstructionSelection {
 
             self.record_callsite(resumption, callsite, stack_arg_size);
 
+            if resumption.is_some() {
+                self.finish_block();
+                // This is needed as the above call instruction may 'branch' to the exceptional
+                // destination, branches are only supposed to occur at the end of assembly blocks
+                let block_name = make_block_name(&cur_node.name(), "normal_cont_for_call");
+                self.start_block(block_name);
+            }
+
             // deal with ret vals
             self.emit_postcall_convention(
                 &func_sig.ret_tys,
@@ -4843,6 +4851,12 @@ impl<'a> InstructionSelection {
                 f_context,
                 vm
             );
+
+            if resumption.is_some() {
+                let ref normal_dest = resumption.as_ref().unwrap().normal_dest;
+                let normal_target_name = f_content.get_block(normal_dest.target).name();
+                self.backend.emit_b(normal_target_name);
+            }
         }
     }
 

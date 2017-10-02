@@ -178,3 +178,66 @@ def test_double_inline():
                 RET (a b)
         }
         """, "test_double_inline");
+def test_funcref():
+    lib = load_bundle(
+        """
+      .funcdef triv<()->()>
+      {
+              entry():
+                      RET
+      }
+        .funcdef ret_funcref <()->(funcref<()->()>)>
+        {
+            entry():
+                RET triv
+        }
+        """, "test_funcref");
+
+def test_load():
+    lib = load_bundle(
+        """
+        .funcdef load <(iref<weakref<void>>)->(ref<void>)>
+        {
+            entry(<iref<weakref<void>>>a):
+                r = LOAD<weakref<void>> a
+		RET r
+        }
+        """, "test_load");
+def test_xor():
+    lib = load_bundle(
+            """
+            .funcdef xor<(int<8>)->(int<8>)>
+            {
+                entry(<int<8>>v):
+                    r = XOR<int<8>> v <int<8>>1
+                    RET r
+            }
+            """, "test_xor");
+
+def test_exc_pass_values():
+    compile_bundle(
+        """
+		.funcsig sig = (ref<void> int<64>)->(int<32>)
+		.funcdef test_exc_pass_values <main_sig>
+		{
+			entry(<int<32>>argc <uptr<uptr<char>>>argv):
+				BRANCH blk2(<int<64>>4 <ref<void>>NULL)
+			blk2(<int<64>> v82555 <ref<void>> container_13):
+				index_2893 = CALL <sig> excy(container_13 v82555) EXC(blk3(index_2893) blk4(v82555 container_13))
+
+			blk3(<int<32>> v82556):
+				RET v82556
+	
+			blk4(<int<64>> name_231 <ref<void>> container_14):
+				a_32 = TRUNC <int<64> int<32>> name_231
+				RET a_32
+		}
+		.funcdef excy <sig>
+		{
+			entry(<ref<void>>a0 <int<64>>a5):
+				THROW <ref<void>>NULL
+		}
+
+        """, "test_exc_pass_values");
+    assert(execute("test_exc_pass_values") == 4);
+
