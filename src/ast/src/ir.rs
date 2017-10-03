@@ -304,8 +304,8 @@ impl MuFunctionVersion {
     }
 
     /// gets call outedges in this function
-    /// returns Map(CallSiteID -> FuncID)
-    pub fn get_static_call_edges(&self) -> LinkedHashMap<MuID, MuID> {
+    /// returns Map(CallSiteID -> (FuncID, has exception clause))
+    pub fn get_static_call_edges(&self) -> LinkedHashMap<MuID, (MuID, bool)> {
         let mut ret = LinkedHashMap::new();
 
         let f_content = self.content.as_ref().unwrap();
@@ -317,7 +317,6 @@ impl MuFunctionVersion {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
                         let ref ops = inst.ops;
-
                         match inst.v {
                             Instruction_::ExprCall { ref data, .. } |
                             Instruction_::ExprCCall { ref data, .. } |
@@ -330,7 +329,10 @@ impl MuFunctionVersion {
                                     TreeNode_::Value(ref pv) => {
                                         match pv.v {
                                             Value_::Constant(Constant::FuncRef(id)) => {
-                                                ret.insert(inst.id(), id);
+                                                ret.insert(
+                                                    inst.id(),
+                                                    (id, inst.has_exception_clause())
+                                                );
                                             }
                                             _ => {}
                                         }
@@ -352,7 +354,7 @@ impl MuFunctionVersion {
 
     // TODO: It may be more efficient to compute this when the instructions
     // are added to the function version and store the result in a field
-    pub fn has_throw(&self) -> bool {
+    pub fn could_throw(&self) -> bool {
         let f_content = self.content.as_ref().unwrap();
 
         for (_, block) in f_content.blocks.iter() {
@@ -361,13 +363,11 @@ impl MuFunctionVersion {
             for inst in block_content.body.iter() {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
-                        match inst.v {
-                            Instruction_::Throw(_) => {
-                                return true;
-                            }
-                            _ => {
-                                // do nothing
-                            }
+                        if inst.is_potentially_throwing() {
+                            // TODO: Do some smarter checking
+                            // (e.g. if this is a CALL to a function where !could_throw,
+                            // or a division where the divisor can't possibly be zero..)
+                            return true;
                         }
                     }
                     _ => unreachable!()

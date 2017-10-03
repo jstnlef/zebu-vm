@@ -45,6 +45,14 @@ pub mod exception;
 lazy_static!{
     static ref UNKNOWN_FUNCTION_NAME : CName = Arc::new("UNKOWN".to_string());
 }
+/// returns the name for a symbol address (inverse of resolve_symbol)
+/// WARNING: Only use this for Mu symbols
+pub fn get_symbol_name(symbol: Address) -> CName {
+    let (name, start) = get_function_info(symbol);
+    assert!(start == symbol);
+    return demangle_name((*name).clone());
+}
+
 /// returns name for a function address
 // FIXME: this actually returns the name and address of the nearest symbol (of any type)
 //        that starts before function_addr (instead we want the nearest function symbol)
