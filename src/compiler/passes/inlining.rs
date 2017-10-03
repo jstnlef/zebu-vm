@@ -69,7 +69,7 @@ impl Inlining {
         let mut inline_something = false;
 
         // check each call from this function
-        for (func_id, (_, has_exc)) in func.get_static_call_edges() {
+        for (_, (func_id, has_exc)) in func.get_static_call_edges() {
             // check a single callsite, whether it should be inlined
             // the result is returned as boolean, and also written into 'should_inline'
             let should_inline_this =
