@@ -340,6 +340,80 @@ impl Instruction {
         }
     }
 
+    /// can this instruction throw exception?
+    /// (whether or not it containjs a ctach for it)
+    pub fn is_potentially_throwing(&self) -> bool {
+        use inst::Instruction_::*;
+
+        match self.v {
+            // Note: commented out ones are ones where we haven't implemented exceptions yet
+            Watchpoint { .. } |
+            Call { .. } |
+            CCall { .. } |
+            SwapStackExc { .. } |
+            SwapStackExpr { .. } |
+            ExnInstruction { .. } |
+            ExprCall { .. } |
+            ExprCCall { .. } |
+            //Load { .. } |
+            //Store { .. } |
+            //CmpXchg { .. } |
+            //AtomicRMW { .. } |
+            //New(_) |
+            //NewHybrid(_, _) |
+            Throw(_)  => true,
+
+            // BinOp(op, _, _) |
+            // BinOpWithStatus(op, _, _, _) if op.may_throw() => true,
+            BinOp(_, _, _) |
+            BinOpWithStatus(_, _, _, _) |
+            CmpOp(_, _, _) |
+            ConvOp { .. } |
+            AllocA(_) |
+            AllocAHybrid(_, _) |
+            NewStack(_) |
+            NewThread { .. } |
+            NewFrameCursor(_) |
+            GetIRef(_) |
+            GetFieldIRef { .. } |
+            GetElementIRef { .. } |
+            ShiftIRef { .. } |
+            GetVarPartIRef { .. } |
+            Fence(_) |
+            Return(_) |
+            ThreadExit |
+            TailCall(_) |
+            Branch1(_) |
+            Branch2 { .. } |
+            Select { .. } |
+            WPBranch { .. } |
+            Switch { .. } |
+            CommonInst_GetThreadLocal |
+            CommonInst_SetThreadLocal(_) |
+            CommonInst_Pin(_) |
+            CommonInst_Unpin(_) |
+            CommonInst_GetAddr(_) |
+            CommonInst_Tr64IsFp(_) |
+            CommonInst_Tr64IsInt(_) |
+            CommonInst_Tr64IsRef(_) |
+            CommonInst_Tr64FromFp(_) |
+            CommonInst_Tr64FromInt(_) |
+            CommonInst_Tr64FromRef(_, _) |
+            CommonInst_Tr64ToFp(_) |
+            CommonInst_Tr64ToInt(_) |
+            CommonInst_Tr64ToRef(_) |
+            CommonInst_Tr64ToTag(_) |
+            Move(_) |
+            PrintHex(_) |
+            SetRetval(_) |
+            KillStack(_) |
+            CurrentStack |
+            SwapStackKill { .. } => false,
+
+            _ => false
+        }
+    }
+
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         self.v.debug_str(ops)
     }

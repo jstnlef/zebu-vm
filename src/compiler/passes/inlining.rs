@@ -69,10 +69,11 @@ impl Inlining {
         let mut inline_something = false;
 
         // check each call from this function
-        for func_id in func.get_static_call_edges().values() {
+        for (func_id, (_, has_exc)) in func.get_static_call_edges() {
             // check a single callsite, whether it should be inlined
             // the result is returned as boolean, and also written into 'should_inline'
-            let should_inline_this = self.check_should_inline_func(*func_id, func.func_id, vm);
+            let should_inline_this =
+                self.check_should_inline_func(has_exc, func_id, func.func_id, vm);
             inline_something = inline_something || should_inline_this;
         }
 
@@ -80,7 +81,13 @@ impl Inlining {
     }
 
     /// checks whether we should inline the caller into the callee
-    fn check_should_inline_func(&mut self, callee: MuID, caller: MuID, vm: &VM) -> bool {
+    fn check_should_inline_func(
+        &mut self,
+        has_exc: bool,
+        callee: MuID,
+        caller: MuID,
+        vm: &VM
+    ) -> bool {
         // recursive call, do not inline
         if callee == caller {
             return false;
@@ -123,19 +130,21 @@ impl Inlining {
 
         // some heuristics here to decide if we should inline the function
         let n_insts = estimate_insts(&fv);
-        let out_calls = fv.get_static_call_edges();
-        let has_throw = fv.has_throw();
+        let could_throw = fv.could_throw();
         let has_tailcall = fv.has_tailcall();
 
         // simple heuristic here:
         // * estimated machine insts are fewer than 10 insts
         // * leaf in call graph (no out calls)
         // * no throw (otherwise we will need to rearrange catch)
-        let should_inline = n_insts <= 25 && out_calls.len() == 0 && !has_throw && !has_tailcall;
+        let should_inline = n_insts <= 25 && !(has_exc && could_throw) && !has_tailcall;
 
         trace!("func {} has {} insts (estimated)", callee, n_insts);
-        trace!("     has {} out calls", out_calls.len());
-        trace!("     has throws? {}", has_throw);
+        trace!(
+            "     has exception clause? {}, could throw? {}",
+            has_exc,
+            could_throw
+        );
         trace!("SO func should be inlined? {}", should_inline);
 
         self.should_inline.insert(callee, should_inline);
@@ -166,7 +175,7 @@ impl Inlining {
                 trace!("check inst: {}", inst);
                 let inst_id = inst.id();
                 if call_edges.contains_key(&inst_id) {
-                    let call_target = call_edges.get(&inst_id).unwrap();
+                    let call_target = &call_edges.get(&inst_id).unwrap().0;
                     if self.should_inline.contains_key(call_target) &&
                         *self.should_inline.get(call_target).unwrap()
                     {
@@ -178,7 +187,7 @@ impl Inlining {
                         // inline expansion starts here
 
                         // getting the function being inlined
-                        let inlined_func = *call_edges.get(&inst.id()).unwrap();
+                        let inlined_func = call_edges.get(&inst.id()).unwrap().0;
                         trace!("function being inlined is {}", inlined_func);
                         let inlined_fvid = match vm.get_cur_version_for_func(inlined_func) {
                             Some(fvid) => fvid,
