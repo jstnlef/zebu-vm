@@ -93,8 +93,11 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
             // Check for a catch block at this callsite
             if callsite_info.exceptional_destination.is_some() {
                 catch_address = callsite_info.exceptional_destination.unwrap();
-                debug!("Found catch block: 0x{:x} - {}", catch_address,
-                    get_symbol_name(catch_address));
+                debug!(
+                    "Found catch block: 0x{:x} - {}",
+                    catch_address,
+                    get_symbol_name(catch_address)
+                );
                 sp = get_previous_stack_pointer(
                     current_frame_pointer,
                     callsite_info.stack_args_size
@@ -160,7 +163,7 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
     if log::max_log_level() < log::LogLevelFilter::Debug {
         return;
     }
-	
+
     debug!("BACKTRACE: ");
     let cur_thread = thread::MuThread::current();
     let ref vm = cur_thread.vm;
@@ -206,7 +209,7 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
                 func_name,
                 callsite
             );
-	    debug!("...");
+            debug!("\tother native frames...");
             break;
         }
 
