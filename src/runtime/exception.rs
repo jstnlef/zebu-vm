@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use compiler::machine_code::CompiledCallsite;
 use runtime::*;
+use log;
 
 /// runtime function to deal with exception (unwind stack, find catch block, and restore)
 /// This function is called by muentry_throw_exception() which gets emitted for THROW instruction
@@ -65,7 +66,6 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
         // acquire lock for exception table
         let compiled_callsite_table = vm.compiled_callsite_table().read().unwrap();
 
-        /// TODO: This may segfault (but only in the case where their is a native frame...
         print_backtrace(frame_cursor, compiled_callsite_table.deref());
         loop {
 
@@ -157,8 +157,11 @@ fn print_frame(cursor: Address) {
 /// This function may segfault or panic when it reaches the bottom of the stack
 //  TODO: Determine where the bottom is without segfaulting
 fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, CompiledCallsite>) {
+    if log::max_log_level() < log::LogLevelFilter::Debug {
+        return;
+    }
+	
     debug!("BACKTRACE: ");
-
     let cur_thread = thread::MuThread::current();
     let ref vm = cur_thread.vm;
     // compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>;
@@ -203,6 +206,8 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
                 func_name,
                 callsite
             );
+	    debug!("...");
+            break;
         }
 
         frame_count += 1;
