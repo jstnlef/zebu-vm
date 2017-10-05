@@ -37,6 +37,7 @@ use std::usize;
 use std::ops;
 use std::collections::HashSet;
 use std::sync::RwLock;
+use compiler::backend::code_emission::{emit_mu_types, emit_mu_globals};
 
 macro_rules! trace_emit {
     ($arg1:tt $($arg:tt)*) => {
@@ -3643,6 +3644,9 @@ pub fn emit_context_with_reloc(
 ) {
     use std::path;
     use std::io::prelude::*;
+
+    emit_mu_types("", vm);
+    emit_mu_globals("", vm);
 
     debug!("---Emit VM Context---");
     create_emit_directory(vm);

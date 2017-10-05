@@ -130,7 +130,7 @@ macro_rules! funcdecl {
         let func = MuFunction::new(MuEntityHeader::named($vm.next_id(), Mu(stringify!($name))),
                                    $sig.clone());
         $vm.set_name(func.as_entity());
-        let $name = func.id();
+        let $name = func.hdr.clone();
         $vm.declare_func(func);
     }
 }
@@ -139,7 +139,7 @@ macro_rules! funcdef {
     (($vm: expr) <$sig: ident> $func: ident VERSION $version: ident) => {
         let mut $version = MuFunctionVersion::new(MuEntityHeader::named($vm.next_id(),
                                                                         Mu(stringify!($version))),
-                                                  $func, $sig.clone());
+                                                  $func.id(), $sig.clone());
         $vm.set_name($version.as_entity());
     }
 }
@@ -402,7 +402,7 @@ macro_rules! inst {
             value:  None,
             ops:    vec![$($arg.clone()),*],
             v:      Instruction_::Branch1(Destination{
-                        target: $dest.id(),
+                        target: $dest.hdr.clone(),
                         args: {
                             let mut i =0;
                             vec![$($arg.clone()),*].iter().map(|_: &Arc<TreeNode>| {
@@ -439,11 +439,11 @@ macro_rules! inst {
                 Instruction_::Branch2{
                     cond: $cond,
                     true_dest: Destination {
-                        target: $true_dest.id(),
+                        target: $true_dest.hdr.clone(),
                         args: true_args
                     },
                     false_dest: Destination {
-                        target: $false_dest.id(),
+                        target: $false_dest.hdr.clone(),
                         args: false_args
                     },
                     true_prob: $prob
@@ -545,11 +545,11 @@ macro_rules! inst {
                 },
                 resume: ResumptionData {
                     normal_dest: Destination {
-                        target: $norm_dest.id(),
+                        target: $norm_dest.hdr.clone(),
                         args  : $norm_args
                     },
                     exn_dest: Destination {
-                        target: $exc_dest.id(),
+                        target: $exc_dest.hdr.clone(),
                         args  : $exc_args
                     }
                 }
@@ -573,11 +573,11 @@ macro_rules! inst {
                 },
                 resume: ResumptionData {
                     normal_dest: Destination {
-                        target: $norm_dest.id(),
+                        target: $norm_dest.hdr.clone(),
                         args  : $norm_args
                     },
                     exn_dest: Destination {
-                        target: $exc_dest.id(),
+                        target: $exc_dest.hdr.clone(),
                         args  : $exc_args
                     }
                 }
@@ -711,7 +711,7 @@ macro_rules! emit_test {
 
         typedef!    (($vm) type_funcref = mu_funcref($test_sig));
         constdef!   (($vm) <type_funcref> const_funcref =
-            Constant::FuncRef($vm.id_of(stringify!($name))));
+            Constant::FuncRef($name.clone()));
 
         // blk_entry
         consta!     (($vm, $tester_name) f64_0_local = f64_0);
@@ -787,7 +787,7 @@ macro_rules! emit_test {
         ssa!    (($vm, $tester_name) <$ty1> a);
         typedef!    (($vm) type_funcref = mu_funcref($test_sig));
         constdef!   (($vm) <type_funcref> const_funcref =
-            Constant::FuncRef($vm.id_of(stringify!($name))));
+            Constant::FuncRef($name.clone()));
         // blk_entry
         consta!     (($vm, $tester_name) f64_0_local = f64_0);
 
@@ -854,7 +854,7 @@ macro_rules! emit_test {
 
         typedef!    (($vm) type_funcref = mu_funcref($test_sig));
         constdef!   (($vm) <type_funcref> const_funcref =
-            Constant::FuncRef($vm.id_of(stringify!($name))));
+            Constant::FuncRef($name.clone()));
 
         // blk_entry
         consta!     (($vm, $tester_name) arg_0_local = arg_0);
@@ -919,7 +919,7 @@ macro_rules! emit_test {
 
         typedef!    (($vm) type_funcref = mu_funcref($test_sig));
         constdef!   (($vm) <type_funcref> const_funcref =
-            Constant::FuncRef($vm.id_of(stringify!($name))));
+            Constant::FuncRef($name.clone()));
 
         // blk_entry
         block!      (($vm, $tester_name) blk_entry);
@@ -995,7 +995,7 @@ macro_rules! emit_test {
 
         typedef!    (($vm) type_funcref = mu_funcref($test_sig));
         constdef!   (($vm) <type_funcref> const_funcref =
-            Constant::FuncRef($vm.id_of(stringify!($name))));
+            Constant::FuncRef($name.clone()));
 
         // blk_entry
         consta!     (($vm, $tester_name) arg_0_local = arg_0);
@@ -1081,7 +1081,7 @@ macro_rules! emit_test {
 
         typedef!    (($vm) type_funcref = mu_funcref($test_sig));
         constdef!   (($vm) <type_funcref> const_funcref =
-            Constant::FuncRef($vm.id_of(stringify!($name))));
+            Constant::FuncRef($name.clone()));
 
         // blk_entry
         consta!     (($vm, $tester_name) arg_0_local = arg_0);

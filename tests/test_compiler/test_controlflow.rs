@@ -74,13 +74,13 @@ fn switch() -> VM {
         v: Instruction_::Switch {
             cond: 0,
             default: Destination {
-                target: blk_default.id(),
+                target: blk_default.hdr.clone(),
                 args: vec![]
             },
             branches: vec![
-                (1, Destination{target: blk_ret0.id(), args: vec![]}),
-                (2, Destination{target: blk_ret1.id(), args: vec![]}),
-                (3, Destination{target: blk_ret2.id(), args: vec![]})
+                (1, Destination{target: blk_ret0.hdr.clone(), args: vec![]}),
+                (2, Destination{target: blk_ret1.hdr.clone(), args: vec![]}),
+                (3, Destination{target: blk_ret2.hdr.clone(), args: vec![]})
             ]
         }
     });

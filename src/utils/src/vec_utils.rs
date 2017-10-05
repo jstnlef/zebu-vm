@@ -26,6 +26,17 @@ pub fn as_str<T: fmt::Display>(vec: &Vec<T>) -> String {
     ret
 }
 
+pub fn as_str_sp<T: fmt::Display>(vec: &Vec<T>) -> String {
+    let mut ret = String::new();
+    for i in 0..vec.len() {
+        ret.push_str(format!("{}", vec[i]).as_str());
+        if i != vec.len() - 1 {
+            ret.push_str(" ");
+        }
+    }
+    ret
+}
+
 /// adds a value to the vector if the vector does not contains a same value
 pub fn add_unique<T: PartialEq>(vec: &mut Vec<T>, val: T) {
     if !vec.contains(&val) {

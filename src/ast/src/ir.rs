@@ -327,11 +327,11 @@ impl MuFunctionVersion {
                                 match callee.v {
                                     TreeNode_::Instruction(_) => {}
                                     TreeNode_::Value(ref pv) => {
-                                        match pv.v {
-                                            Value_::Constant(Constant::FuncRef(id)) => {
+                                        match &pv.v {
+                                            &Value_::Constant(Constant::FuncRef(ref func)) => {
                                                 ret.insert(
                                                     inst.id(),
-                                                    (id, inst.has_exception_clause())
+                                                    (func.id(), inst.has_exception_clause())
                                                 );
                                             }
                                             _ => {}
@@ -1103,8 +1103,8 @@ impl Value {
     }
 }
 
-const DISPLAY_ID: bool = true;
-const DISPLAY_TYPE: bool = true;
+const DISPLAY_ID: bool = false;
+const DISPLAY_TYPE: bool = false;
 const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {
@@ -1117,17 +1117,17 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_TYPE {
             match self.v {
-                Value_::SSAVar(_) => write!(f, "{}(%{})", self.ty, self.hdr),
-                Value_::Constant(ref c) => write!(f, "{}({})", self.ty, c),
-                Value_::Global(ref ty) => write!(f, "{}(@{})", ty, self.hdr),
-                Value_::Memory(ref mem) => write!(f, "%{}{})", self.hdr, mem)
+                Value_::SSAVar(_) => write!(f, "<{}>{}", self.ty, self.hdr),
+                Value_::Constant(ref c) => write!(f, "<{}>{}", self.ty, c),
+                Value_::Global(ref ty) => write!(f, "<{}>@{}", ty, self.hdr),
+                Value_::Memory(ref mem) => write!(f, "<{}>{}{}", self.ty, self.hdr, mem)
             }
         } else {
             match self.v {
-                Value_::SSAVar(_) => write!(f, "%{}", self.hdr),
-                Value_::Constant(ref c) => write!(f, "{}", c),
+                Value_::SSAVar(_) => write!(f, "{}", self.hdr),
+                Value_::Constant(ref c) => write!(f, "<{}>{}", self.ty, c),
                 Value_::Global(_) => write!(f, "@{}", self.hdr),
-                Value_::Memory(ref mem) => write!(f, "%{}{}", self.hdr, mem)
+                Value_::Memory(ref mem) => write!(f, "{}{}", self.hdr, mem)
             }
         }
     }
@@ -1232,7 +1232,7 @@ pub enum Constant {
     /// double constants
     Double(f64),
     /// function reference
-    FuncRef(MuID),
+    FuncRef(MuEntityHeader),
     /// vector constant (currently not used)
     Vector(Vec<Constant>),
     /// null reference
@@ -1250,12 +1250,20 @@ impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Constant::Int(v) => write!(f, "{}", v as i64),
-            &Constant::IntEx(ref v) => write!(f, "IntEx {:?}", v),
+            &Constant::IntEx(ref v) => {
+                let mut res = format!("");
+                // Stored in little-endian order, but we need to display it in big-endian order
+                for i in 1 .. v.len() + 1 {
+                    res.push_str(format!("{:016X}", v[v.len() - i]).to_string().as_str());
+                }
+                write!(f, "0x{}", res)
+            },
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
             //            &Constant::IRef(v) => write!(f, "{}", v),
-            &Constant::FuncRef(v) => write!(f, "FuncRef {}", v),
+            &Constant::FuncRef(ref v) => write!(f, "FuncRef {}", v.name),
             &Constant::Vector(ref v) => {
+                // TODO: Make this Muc compatible?
                 write!(f, "[").unwrap();
                 for i in 0..v.len() {
                     write!(f, "{}", v[i]).unwrap();
@@ -1265,8 +1273,8 @@ impl fmt::Display for Constant {
                 }
                 write!(f, "]")
             }
-            &Constant::NullRef => write!(f, "NullRef"),
-            &Constant::ExternSym(ref name) => write!(f, "ExternSym({})", name),
+            &Constant::NullRef => write!(f, "NULL"),
+            &Constant::ExternSym(ref name) => write!(f, "EXTERN \\\"{}\\\"", name),
 
             &Constant::List(ref vec) => {
                 write!(f, "List(").unwrap();
@@ -1569,21 +1577,7 @@ impl MuEntityHeader {
 
     /// an abbreviate (easy reading) version of the name
     fn abbreviate_name(&self) -> String {
-        let split: Vec<&str> = self.name.split('.').collect();
-
-        let mut ret = "".to_string();
-
-        for i in 0..split.len() - 1 {
-            ret.push(match split[i].chars().next() {
-                Some(c) => c,
-                None => '_'
-            });
-            ret.push('.');
-        }
-
-        ret.push_str(split.last().unwrap());
-
-        ret
+        self.name.split('.').last().unwrap().to_string()
     }
 
     pub fn clone_with_id(&self, new_id: MuID) -> MuEntityHeader {

@@ -135,7 +135,7 @@ pub fn factorial() -> VM {
     funcdef!    ((vm) <fac_sig> fac VERSION fac_v1);
 
     typedef!    ((vm) funcref_fac = mu_funcref(fac_sig));
-    constdef!   ((vm) <funcref_fac> const_funcref_fac = Constant::FuncRef(vm.id_of("fac")));
+    constdef!   ((vm) <funcref_fac> const_funcref_fac = Constant::FuncRef(fac.clone()));
 
     // %blk_0(<@int_64> %n_3):
     block!      ((vm, fac_v1) blk_0);

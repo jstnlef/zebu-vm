@@ -231,7 +231,7 @@ impl<'a> InstructionSelection {
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
                         self.process_dest(&ops, branch_dest, f_content, f_context, vm);
 
-                        let branch_target = f_content.get_block(branch_dest.target).name();
+                        let branch_target = f_content.get_block(branch_dest.target.id()).name();
 
                         let ref cond = ops[cond];
                         if self.match_cmp_res(cond) {
@@ -539,7 +539,7 @@ impl<'a> InstructionSelection {
 
                         self.process_dest(&ops, dest, f_content, f_context, vm);
 
-                        let target = f_content.get_block(dest.target).name();
+                        let target = f_content.get_block(dest.target.id()).name();
                         // jmp
                         self.backend.emit_jmp(target);
                     }
@@ -567,7 +567,7 @@ impl<'a> InstructionSelection {
                                 // process dest
                                 self.process_dest(&ops, case_dest, f_content, f_context, vm);
 
-                                let target = f_content.get_block(case_dest.target).name();
+                                let target = f_content.get_block(case_dest.target.id()).name();
 
                                 if self.match_iimm(case_op) {
                                     let imm = self.node_iimm_to_i32(case_op);
@@ -602,7 +602,7 @@ impl<'a> InstructionSelection {
                             // emit default
                             self.process_dest(&ops, default, f_content, f_context, vm);
 
-                            let default_target = f_content.get_block(default.target).name();
+                            let default_target = f_content.get_block(default.target.id()).name();
                             self.backend.emit_jmp(default_target);
                         } else {
                             // other EQ-comparable types, e.g. floating point
@@ -4473,7 +4473,7 @@ impl<'a> InstructionSelection {
         // check if this call has exception clause - need to tell backend about this
         let potentially_excepting = {
             if resumption.is_some() {
-                let target_id = resumption.unwrap().exn_dest.target;
+                let target_id = resumption.unwrap().exn_dest.target.id();
                 Some(f_content.get_block(target_id).name())
             } else {
                 None
@@ -4531,10 +4531,10 @@ impl<'a> InstructionSelection {
         if resumption.is_some() {
             // record exception branch
             let ref exn_dest = resumption.as_ref().unwrap().exn_dest;
-            let target_block = exn_dest.target;
+            let target_block_id = exn_dest.target.id();
 
             self.current_callsites
-                .push_back((callsite.to_relocatable(), target_block, stack_arg_size));
+                .push_back((callsite.to_relocatable(), target_block_id, stack_arg_size));
 
             // insert an intermediate block to branch to normal
             // the branch is inserted later (because we need to deal with postcall convention)
@@ -4558,10 +4558,7 @@ impl<'a> InstructionSelection {
 
         // jump to target block
         if resumption.is_some() {
-            let ref normal_dest = resumption.as_ref().unwrap().normal_dest;
-            let normal_target_name = f_content.get_block(normal_dest.target).name();
-
-            self.backend.emit_jmp(normal_target_name);
+            self.backend.emit_jmp(resumption.as_ref().unwrap().normal_dest.target.name());
         }
     }
 
@@ -4713,7 +4710,7 @@ impl<'a> InstructionSelection {
         // arguments are ready, we are starting continuation
         let potential_exception_dest = match resumption {
             Some(ref resumption) => {
-                let target_id = resumption.exn_dest.target;
+                let target_id = resumption.exn_dest.target.id();
                 Some(f_content.get_block(target_id).name())
             }
             None => None
@@ -4763,7 +4760,7 @@ impl<'a> InstructionSelection {
         if !is_kill {
             // record this callsite
             let target_block_id = match resumption {
-                Some(resumption) => resumption.exn_dest.target,
+                Some(resumption) => resumption.exn_dest.target.id(),
                 None => 0
             };
             self.current_callsites
@@ -4868,7 +4865,7 @@ impl<'a> InstructionSelection {
                 &DestArg::Normal(op_index) => {
                     let ref arg = ops[op_index];
                     let ref target_args = f_content
-                        .get_block(dest.target)
+                        .get_block(dest.target.id())
                         .content
                         .as_ref()
                         .unwrap()
@@ -5399,18 +5396,18 @@ impl<'a> InstructionSelection {
                                 self.backend.emit_mov_r64_imm64(&tmp_h, vals[1] as i64);
                             }
                             // a function reference, loads the funcref to a temporary
-                            &Constant::FuncRef(func_id) => {
+                            &Constant::FuncRef(ref func) => {
                                 // our code for linux has one more level of indirection
                                 // so we need a load for linux
                                 // sel4-rumprun is the same as Linux here
                                 if cfg!(feature = "sel4-rumprun") {
-                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    let mem = self.get_mem_for_funcref(func.id(), vm);
                                     self.backend.emit_mov_r_mem(&tmp, &mem);
                                 } else if cfg!(target_os = "macos") {
-                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    let mem = self.get_mem_for_funcref(func.id(), vm);
                                     self.backend.emit_lea_r64(&tmp, &mem);
                                 } else if cfg!(target_os = "linux") {
-                                    let mem = self.get_mem_for_funcref(func_id, vm);
+                                    let mem = self.get_mem_for_funcref(func.id(), vm);
                                     self.backend.emit_mov_r_mem(&tmp, &mem);
                                 } else {
                                     unimplemented!()
@@ -6220,8 +6217,8 @@ impl<'a> InstructionSelection {
     fn node_funcref_const_to_id(&mut self, op: &TreeNode) -> MuID {
         match op.v {
             TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::Constant(Constant::FuncRef(id)) => id,
+                match &pv.v {
+                    &Value_::Constant(Constant::FuncRef(ref hdr)) => hdr.id(),
                     _ => panic!("expected a funcref const")
                 }
             }

@@ -2061,11 +2061,11 @@ pub fn emit_ireg_value(
 
                     tmp
                 }
-                &Constant::FuncRef(func_id) => {
+                &Constant::FuncRef(ref func) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
                     let mem =
-                        make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                        make_value_symbolic(vm.get_name_for_func(func.id()), true, &ADDRESS_TYPE, vm);
                     emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
                 }
@@ -2746,7 +2746,7 @@ fn emit_move_value_to_value(
                 emit_mov_u64(backend, dest, imm);
             } else if src.is_func_const() {
                 let func_id = match src.v {
-                    Value_::Constant(Constant::FuncRef(id)) => id,
+                    Value_::Constant(Constant::FuncRef(ref func)) => func.id(),
                     _ => unreachable!()
                 };
                 let mem =

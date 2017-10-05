@@ -342,11 +342,11 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                     }) => {
                         trace_if!(LOG_TRACE_SCHEDULE, "rewrite cond branch: {}", node);
 
-                        let true_label = true_dest.target;
-                        let false_label = false_dest.target;
+                        let true_label_id = true_dest.target.id();
+                        let false_label_id = false_dest.target.id();
 
-                        trace_if!(LOG_TRACE_SCHEDULE, "true_label = {}", true_label);
-                        trace_if!(LOG_TRACE_SCHEDULE, "false_label = {}", false_label);
+                        trace_if!(LOG_TRACE_SCHEDULE, "true_label = {}", true_label_id);
+                        trace_if!(LOG_TRACE_SCHEDULE, "false_label = {}", false_label_id);
                         trace_if!(
                             LOG_TRACE_SCHEDULE,
                             "next_block_in_trace = {:?}",
@@ -354,13 +354,13 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                         );
 
                         if next_block_in_trace.is_some() &&
-                            next_block_in_trace.unwrap() == false_label
+                            next_block_in_trace.unwrap() == false_label_id
                         {
                             // any conditional branch followed by its false label stays unchanged
                             trace_if!(LOG_TRACE_SCHEDULE, ">>stays unchanged");
                             new_body.push(node.clone());
                         } else if next_block_in_trace.is_some() &&
-                                   next_block_in_trace.unwrap() == true_label
+                                   next_block_in_trace.unwrap() == true_label_id
                         {
                             // for conditional branch followed by its true label
                             // we switch the true and false label, and negate the condition
@@ -474,7 +474,7 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                             value: None,
                                             ops: block_args,
                                             v: Instruction_::Branch1(Destination {
-                                                target: false_dest.target,
+                                                target: false_dest.target.clone(),
                                                 args: (0..block_args_len)
                                                     .map(|x| DestArg::Normal(x))
                                                     .collect()
@@ -497,7 +497,7 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                     cond: cond,
                                     true_dest: true_dest.clone(),
                                     false_dest: Destination {
-                                        target: new_false_block.id(),
+                                        target: new_false_block.hdr.clone(),
                                         args: false_dest.args.clone()
                                     },
                                     true_prob: true_prob

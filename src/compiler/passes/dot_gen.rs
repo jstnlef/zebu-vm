@@ -65,29 +65,6 @@ impl DotGen {
 }
 
 #[allow(dead_code)]
-fn emit_muir(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
-    let func_name = func.name();
-
-    // create emit directory
-    create_emit_directory(vm);
-
-    let mut file_path = path::PathBuf::new();
-    file_path.push(&vm.vm_options.flag_aot_emit_dir);
-    file_path.push((*func_name).clone() + suffix + ".muir");
-    let mut file = match File::create(file_path.as_path()) {
-        Err(why) => {
-            panic!(
-                "couldn't create muir file {}: {}",
-                file_path.to_str().unwrap(),
-                why
-            )
-        }
-        Ok(file) => file
-    };
-
-    write!(file, "{:?}", func).unwrap();
-}
-
 fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
     let func_name = func.name();
 
@@ -125,26 +102,35 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
     for (id, block) in f_content.blocks.iter() {
         let block_name = block.name();
         // BBid [label = "name
-        write!(file, "BB{} [label = \"[{}]{} ", *id, *id, &block_name).unwrap();
-
+        write!(file, "BB{} [label = \"{}", *id, &block_name).unwrap();
         let block_content = block.content.as_ref().unwrap();
 
         // (args)
-        write!(file, "{}", vec_utils::as_str(&block_content.args)).unwrap();
+        write!(file, "(").unwrap();
+        let mut first = true;
+        for arg in &block_content.args {
+            if !first {
+                write!(file, " ").unwrap();
+            }
+            first = false;
+            write!(file, "<{}> {}", arg.ty, arg).unwrap();
+        }
+        write!(file, ")").unwrap();
+
         if block_content.exn_arg.is_some() {
             // [exc_arg]
             write!(file, "[{}]", block_content.exn_arg.as_ref().unwrap()).unwrap();
         }
 
-        write!(file, ":\\l\\l").unwrap();
+        write!(file, ":\\l{{\\l").unwrap();
 
         // all the instructions
         for inst in block_content.body.iter() {
-            write!(file, "{}\\l", inst).unwrap();
+            write!(file, "    {}\\l", inst.as_inst_ref()).unwrap();
         }
 
         // "];
-        writeln!(file, "\"];").unwrap();
+        writeln!(file, "\\}}\\l\"];").unwrap();
     }
 
     // every edge
@@ -166,7 +152,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"{}\"];",
                             cur_block,
-                            dest.target,
+                            dest.target.id(),
                             vec_utils::as_str(&dest.get_arguments(&ops))
                         ).unwrap();
                     }
@@ -179,14 +165,14 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"true: {}\"]",
                             cur_block,
-                            true_dest.target,
+                            true_dest.target.id(),
                             vec_utils::as_str(&true_dest.get_arguments(&ops))
                         ).unwrap();
                         writeln!(
                             file,
                             "BB{} -> BB{} [label = \"false: {}\"]",
                             cur_block,
-                            false_dest.target,
+                            false_dest.target.id(),
                             vec_utils::as_str(&false_dest.get_arguments(&ops))
                         ).unwrap();
                     }
@@ -200,7 +186,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                                 file,
                                 "BB{} -> BB{} [label = \"case {}: {}\"]",
                                 cur_block,
-                                dest.target,
+                                dest.target.id(),
                                 ops[op],
                                 vec_utils::as_str(&dest.get_arguments(&ops))
                             ).unwrap();
@@ -210,7 +196,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"default: {}\"]",
                             cur_block,
-                            default.target,
+                            default.target.id(),
                             vec_utils::as_str(&default.get_arguments(&ops))
                         ).unwrap();
                     }
@@ -225,7 +211,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"normal: {}\"];",
                             cur_block,
-                            normal.target,
+                            normal.target.id(),
                             vec_utils::as_str(&normal.get_arguments(&ops))
                         ).unwrap();
 
@@ -233,7 +219,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"exception: {}\"];",
                             cur_block,
-                            exn.target,
+                            exn.target.id(),
                             vec_utils::as_str(&exn.get_arguments(&ops))
                         ).unwrap();
                     }
@@ -252,7 +238,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                                 file,
                                 "BB{} -> {} [label = \"disabled: {}\"];",
                                 cur_block,
-                                disable_dest.target,
+                                disable_dest.target.id(),
                                 vec_utils::as_str(&disable_dest.get_arguments(&ops))
                             ).unwrap();
                         }
@@ -262,7 +248,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"normal: {}\"];",
                             cur_block,
-                            normal.target,
+                            normal.target.id(),
                             vec_utils::as_str(&normal.get_arguments(&ops))
                         ).unwrap();
 
@@ -270,7 +256,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"exception: {}\"];",
                             cur_block,
-                            exn.target,
+                            exn.target.id(),
                             vec_utils::as_str(&exn.get_arguments(&ops))
                         ).unwrap();
                     }
@@ -283,7 +269,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"disabled: {}\"];",
                             cur_block,
-                            disable_dest.target,
+                            disable_dest.target.id(),
                             vec_utils::as_str(&disable_dest.get_arguments(&ops))
                         ).unwrap();
 
@@ -291,7 +277,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
                             file,
                             "BB{} -> BB{} [label = \"enabled: {}\"];",
                             cur_block,
-                            enable_dest.target,
+                            enable_dest.target.id(),
                             vec_utils::as_str(&enable_dest.get_arguments(&ops))
                         ).unwrap();
                     }

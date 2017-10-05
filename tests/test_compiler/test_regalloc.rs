@@ -102,7 +102,7 @@ fn create_spill1() -> VM {
 
     typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
     constdef!       ((vm) <funcref_spill1> const_funcref_spill1 =
-        Constant::FuncRef(vm.id_of("spill1")));
+        Constant::FuncRef(spill1));
 
     // %entry(<@int_64> %t1, t2, ... t10):
     block!          ((vm, spill1_v1) blk_entry);
@@ -188,7 +188,7 @@ fn create_spill1() -> VM {
 
     typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
     constdef!       ((vm) <funcref_spill1> const_funcref_spill1 =
-        Constant::FuncRef(vm.id_of("spill1")));
+        Constant::FuncRef(spill1.hdr.clone()));
 
     // %entry(<@int_64> %t1, t2, ... t10):
     block!          ((vm, spill1_v1) blk_entry);
@@ -1097,9 +1097,9 @@ fn preserve_caller_saved_simple() -> VM {
     ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v9);
 
     let foo_sig = vm.get_func_sig(vm.id_of("foo_sig"));
-    let foo_id = vm.id_of("foo");
+    let foo = MuEntityHeader::named(vm.id_of("foo"), Arc::new("foo".to_string()));
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
-    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo));
 
     consta!     ((vm, preserve_caller_saved_simple_v1) const_funcref_foo_local = const_funcref_foo);
     inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_call:
@@ -1323,9 +1323,9 @@ fn preserve_caller_saved_call_args() -> VM {
     ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v9);
 
     let foo_sig = vm.get_func_sig(vm.id_of("foo6_sig"));
-    let foo_id = vm.id_of("foo6");
+    let foo = MuEntityHeader::named(vm.id_of("foo6"), Arc::new("foo6".to_string()));
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
-    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo));
 
     consta!     ((vm, preserve_caller_saved_call_args_v1) const_funcref_foo_local
         = const_funcref_foo);

@@ -301,7 +301,7 @@ impl CompilerPass for GenMovPhi {
         for block_info in new_blocks_to_insert {
             // create intermediate block
             let block = {
-                let target_id = block_info.target;
+                let target_id = block_info.target; //
                 let mut ret = Block::new(MuEntityHeader::named(
                     block_info.blk_id,
                     block_info.blk_name.clone()
@@ -342,7 +342,7 @@ impl CompilerPass for GenMovPhi {
                             value: None,
                             ops: vec![],
                             v: Instruction_::Branch1(Destination {
-                                target: target_id,
+                                target: target_block.hdr.clone(),
                                 args: vec![]
                             })
                         });
@@ -394,16 +394,17 @@ fn process_dest(
         }
 
         let new_blk_id = vm.next_id();
+        let new_blck_name = Arc::new(format!("{}:{}:#{}-#{}", inst, label, new_blk_id, target));
 
         let dest = Destination {
-            target: new_blk_id,
+            target: MuEntityHeader::named(new_blk_id, new_blck_name.clone()),
             args: vec![]
         };
 
         blocks_to_insert.push(IntermediateBlockInfo {
             blk_id: new_blk_id,
-            blk_name: Arc::new(format!("{}:{}:#{}-#{}", inst, label, new_blk_id, target)),
-            target: target,
+            blk_name: new_blck_name,
+            target: target.id(),
             from_args: from_args
         });
 
