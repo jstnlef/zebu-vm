@@ -162,7 +162,12 @@ pub fn emit_mu_globals(suffix: &str, vm: &VM) {
         let global_guard = vm.globals().read().unwrap();
 
         for g in global_guard.values() {
-            write!(file, ".global {}<{}>", g.name(), g.ty.get_referent_ty().unwrap()).unwrap();
+            write!(
+                file,
+                ".global {}<{}>",
+                g.name(),
+                g.ty.get_referent_ty().unwrap()
+            ).unwrap();
         }
     }
 }

@@ -4853,7 +4853,8 @@ impl<'a> InstructionSelection {
             );
 
             if resumption.is_some() {
-                self.backend.emit_b(resumption.as_ref().unwrap().normal_dest.target.name());
+                self.backend
+                    .emit_b(resumption.as_ref().unwrap().normal_dest.target.name());
             }
         }
     }

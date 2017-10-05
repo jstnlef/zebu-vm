@@ -393,7 +393,7 @@ impl MuType {
     /// gets the signature of a funcref or ufuncptr type
     pub fn get_sig(&self) -> Option<P<MuFuncSig>> {
         match self.v {
-            MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig)=> Some(sig.clone()),
+            MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => Some(sig.clone()),
             _ => None
         }
     }

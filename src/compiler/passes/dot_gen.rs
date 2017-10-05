@@ -100,7 +100,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
 
     // every graph node (basic block)
     for (id, block) in f_content.blocks.iter() {
-        let block_name = block.name();
+        let block_name = block.hdr.abbreviate_name();
         // BBid [label = "name
         write!(file, "BB{} [label = \"{}", *id, &block_name).unwrap();
         let block_content = block.content.as_ref().unwrap();
@@ -122,7 +122,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
             write!(file, "[{}]", block_content.exn_arg.as_ref().unwrap()).unwrap();
         }
 
-        write!(file, ":\\l{{\\l").unwrap();
+        write!(file, ":\\l").unwrap();
 
         // all the instructions
         for inst in block_content.body.iter() {
@@ -130,7 +130,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
         }
 
         // "];
-        writeln!(file, "\\}}\\l\"];").unwrap();
+        writeln!(file, "\"];").unwrap();
     }
 
     // every edge

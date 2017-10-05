@@ -912,7 +912,7 @@ pub fn hybrid_var_part_insts() -> VM {
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_head_sum);
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_head_n);
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_head_i);
-    ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_head_a);
+    ssa!            ((vm, hybrid_var_part_insts_v1) <ref_hybrid> blk_head_a);
 
     // %cond = SLT <@int64> %i %n
     ssa!            ((vm, hybrid_var_part_insts_v1) <int1> blk_head_cond);
@@ -940,7 +940,7 @@ pub fn hybrid_var_part_insts() -> VM {
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_body_sum);
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_body_n);
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_body_i);
-    ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_body_a);
+    ssa!            ((vm, hybrid_var_part_insts_v1) <ref_hybrid> blk_body_a);
 
     // %blk_body_iref_a = GETIREF <@my_hybrid> a
     ssa!            ((vm, hybrid_var_part_insts_v1) <iref_hybrid> blk_body_iref_a);

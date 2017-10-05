@@ -2064,8 +2064,12 @@ pub fn emit_ireg_value(
                 &Constant::FuncRef(ref func) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem =
-                        make_value_symbolic(vm.get_name_for_func(func.id()), true, &ADDRESS_TYPE, vm);
+                    let mem = make_value_symbolic(
+                        vm.get_name_for_func(func.id()),
+                        true,
+                        &ADDRESS_TYPE,
+                        vm
+                    );
                     emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
                 }

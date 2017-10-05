@@ -214,7 +214,8 @@ impl Inlining {
                         );
                         // creates a new block ID
                         // which will be the entry block for the inlined function
-                        let new_inlined_entry_hdr = new_inlined_block_name(inlined_fv_content.get_entry_block().name(), vm);
+                        let new_inlined_entry_hdr =
+                            new_inlined_block_name(inlined_fv_content.get_entry_block().name(), vm);
                         // change current call instruction to a branch
                         trace!("turning CALL instruction into a branch");
                         let ref ops = inst.ops;
@@ -390,7 +391,10 @@ impl Inlining {
 
 fn new_inlined_block_name(old_block_name: MuName, vm: &VM) -> MuEntityHeader {
     let new_id = vm.next_id();
-    MuEntityHeader::named(new_id, Arc::new(format!("{}:inlinedblock.#{}", old_block_name, new_id)))
+    MuEntityHeader::named(
+        new_id,
+        Arc::new(format!("{}:inlinedblock.#{}", old_block_name, new_id))
+    )
 }
 /// copies blocks from callee to caller, with specified entry block and return block
 fn copy_inline_blocks(

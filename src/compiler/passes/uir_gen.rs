@@ -95,12 +95,18 @@ fn emit_uir(suffix: &str, func_ver: &MuFunctionVersion, vm: &VM) {
 
 fn emit_uir_inner(file: &mut File, func_name: MuName, func_ver: &MuFunctionVersion) {
     let f_content = func_ver.content.as_ref().unwrap();
-
-    writeln!(file, ".funcdef {} <{}> VERSION {}{{", func_name, func_ver.sig, func_ver.name()).unwrap();
-
+    // self.abbreviate_name()
+    writeln!(
+        file,
+        ".funcdef {} <{}> VERSION {}",
+        func_name,
+        func_ver.sig,
+        func_ver.hdr.abbreviate_name()
+    ).unwrap();
+    writeln!(file, "{{").unwrap();
     // every basic block
     for (_, block) in f_content.blocks.iter() {
-        write!(file, "\t{}", block.name()).unwrap();
+        write!(file, "\t{}", block.hdr.abbreviate_name()).unwrap();
         let block_content = block.content.as_ref().unwrap();
         // (args)
         write!(file, "(").unwrap();
@@ -119,15 +125,13 @@ fn emit_uir_inner(file: &mut File, func_name: MuName, func_ver: &MuFunctionVersi
         }
         writeln!(file, ":").unwrap();
 
-        writeln!(file, "\t{{").unwrap();
-
         // all the instructions
         for inst in block_content.body.iter() {
             writeln!(file, "\t\t{}", inst.as_inst_ref()).unwrap();
         }
 
         // "];
-        writeln!(file, "\n\t}}").unwrap();
+        writeln!(file, "").unwrap();
     }
     writeln!(file, "}}").unwrap();
 }

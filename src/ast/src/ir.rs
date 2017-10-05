@@ -1253,11 +1253,11 @@ impl fmt::Display for Constant {
             &Constant::IntEx(ref v) => {
                 let mut res = format!("");
                 // Stored in little-endian order, but we need to display it in big-endian order
-                for i in 1 .. v.len() + 1 {
+                for i in 1..v.len() + 1 {
                     res.push_str(format!("{:016X}", v[v.len() - i]).to_string().as_str());
                 }
                 write!(f, "0x{}", res)
-            },
+            }
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
             //            &Constant::IRef(v) => write!(f, "{}", v),
@@ -1576,8 +1576,12 @@ impl MuEntityHeader {
     }
 
     /// an abbreviate (easy reading) version of the name
-    fn abbreviate_name(&self) -> String {
-        self.name.split('.').last().unwrap().to_string()
+    pub fn abbreviate_name(&self) -> String {
+        if PRINT_ABBREVIATE_NAME {
+            self.name.split('.').last().unwrap().to_string()
+        } else {
+            (*self.name()).clone()
+        }
     }
 
     pub fn clone_with_id(&self, new_id: MuID) -> MuEntityHeader {
@@ -1597,17 +1601,9 @@ impl PartialEq for MuEntityHeader {
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_ID {
-            if PRINT_ABBREVIATE_NAME {
-                write!(f, "{} #{}", self.abbreviate_name(), self.id)
-            } else {
-                write!(f, "{} #{}", self.name(), self.id)
-            }
+            write!(f, "{} #{}", self.abbreviate_name(), self.id)
         } else {
-            if PRINT_ABBREVIATE_NAME {
-                write!(f, "{}", self.abbreviate_name())
-            } else {
-                write!(f, "{}", self.name())
-            }
+            write!(f, "{}", self.abbreviate_name())
         }
     }
 }

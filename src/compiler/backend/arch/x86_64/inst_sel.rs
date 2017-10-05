@@ -4558,7 +4558,8 @@ impl<'a> InstructionSelection {
 
         // jump to target block
         if resumption.is_some() {
-            self.backend.emit_jmp(resumption.as_ref().unwrap().normal_dest.target.name());
+            self.backend
+                .emit_jmp(resumption.as_ref().unwrap().normal_dest.target.name());
         }
     }
 

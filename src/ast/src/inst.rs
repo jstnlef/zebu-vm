@@ -424,7 +424,7 @@ const PRINT_INST_NAME: bool = false;
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ref ops = self.ops;
-        let value = match &self.value{
+        let value = match &self.value {
             &Some(ref v) if v.len() == 0 => format!(""),
             &Some(ref v) if v.len() == 1 => format!("{} = ", v[0]),
             &Some(ref v) => format!("({}) = ", vec_utils::as_str_sp(&v)),
@@ -718,11 +718,22 @@ pub enum Instruction_ {
 impl Instruction_ {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         match self {
-            &Instruction_::BinOp(op, op1, op2) => format!("{}<{}> {} {}", op, ops[op1].ty(), ops[op1], ops[op2]),
-            &Instruction_::BinOpWithStatus(op, status, op1, op2) => {
-                format!("{}{}<{}> {} {}", op, status, ops[op1].ty(), ops[op1], ops[op2])
+            &Instruction_::BinOp(op, op1, op2) => {
+                format!("{}<{}> {} {}", op, ops[op1].ty(), ops[op1], ops[op2])
             }
-            &Instruction_::CmpOp(op, op1, op2) => format!("{}<{}> {} {}", op, ops[op1].ty(), ops[op1], ops[op2]),
+            &Instruction_::BinOpWithStatus(op, status, op1, op2) => {
+                format!(
+                    "{}{}<{}> {} {}",
+                    op,
+                    status,
+                    ops[op1].ty(),
+                    ops[op1],
+                    ops[op2]
+                )
+            }
+            &Instruction_::CmpOp(op, op1, op2) => {
+                format!("{}<{}> {} {}", op, ops[op1].ty(), ops[op1], ops[op2])
+            }
             &Instruction_::ConvOp {
                 operation,
                 ref from_ty,
@@ -747,7 +758,13 @@ impl Instruction_ {
                 order
             } => {
                 let ptr = select_value!(is_ptr, " PTR", "");
-                format!("LOAD{} {}<{}> {}", ptr, order, ops[mem_loc].ty().get_referent_ty().unwrap(), ops[mem_loc])
+                format!(
+                    "LOAD{} {}<{}> {}",
+                    ptr,
+                    order,
+                    ops[mem_loc].ty().get_referent_ty().unwrap(),
+                    ops[mem_loc]
+                )
             }
             &Instruction_::Store {
                 value,
@@ -756,7 +773,14 @@ impl Instruction_ {
                 order
             } => {
                 let ptr = select_value!(is_ptr, " PTR", "");
-                format!("STORE{} {}<{}> {} {}", ptr, order, ops[mem_loc].ty().get_referent_ty().unwrap(), ops[mem_loc], ops[value])
+                format!(
+                    "STORE{} {}<{}> {} {}",
+                    ptr,
+                    order,
+                    ops[mem_loc].ty().get_referent_ty().unwrap(),
+                    ops[mem_loc],
+                    ops[value]
+                )
             }
             &Instruction_::CmpXchg {
                 is_ptr,
@@ -801,9 +825,19 @@ impl Instruction_ {
             }
             &Instruction_::New(ref ty) => format!("NEW<{}>", ty),
             &Instruction_::AllocA(ref ty) => format!("ALLOCA<{}>", ty),
-            &Instruction_::NewHybrid(ref ty, len) => format!("NEWHYBRID<{} {}> {}", ty, ops[len].ty(), ops[len]),
-            &Instruction_::AllocAHybrid(ref ty, len) => format!("ALLOCAHYBRID<{} {}> {}", ty, ops[len].ty(), ops[len]),
-            &Instruction_::NewStack(func) => format!("COMMINST @uvm.new_stack<[{}]>({})", ops[func].ty().get_sig().unwrap(), ops[func]),
+            &Instruction_::NewHybrid(ref ty, len) => {
+                format!("NEWHYBRID<{} {}> {}", ty, ops[len].ty(), ops[len])
+            }
+            &Instruction_::AllocAHybrid(ref ty, len) => {
+                format!("ALLOCAHYBRID<{} {}> {}", ty, ops[len].ty(), ops[len])
+            }
+            &Instruction_::NewStack(func) => {
+                format!(
+                    "COMMINST @uvm.new_stack<[{}]>({})",
+                    ops[func].ty().get_sig().unwrap(),
+                    ops[func]
+                )
+            }
             &Instruction_::NewThread {
                 stack,
                 thread_local,
@@ -821,15 +855,29 @@ impl Instruction_ {
                     new_stack_clause,
                 )
             }
-            &Instruction_::NewFrameCursor(stack) => format!("COMMINST @uvm.meta.new_cursor({})", ops[stack]),
-            &Instruction_::GetIRef(reference) => format!("GETIREF<{}> {}", ops[reference].ty().get_referent_ty().unwrap(), ops[reference]),
+            &Instruction_::NewFrameCursor(stack) => {
+                format!("COMMINST @uvm.meta.new_cursor({})", ops[stack])
+            }
+            &Instruction_::GetIRef(reference) => {
+                format!(
+                    "GETIREF<{}> {}",
+                    ops[reference].ty().get_referent_ty().unwrap(),
+                    ops[reference]
+                )
+            }
             &Instruction_::GetFieldIRef {
                 is_ptr,
                 base,
                 index
             } => {
                 let ptr = select_value!(is_ptr, " PTR", "");
-                format!("GETFIELDIREF{}<{} {}> {}", ptr, ops[base].ty().get_referent_ty().unwrap(), index, ops[base])
+                format!(
+                    "GETFIELDIREF{}<{} {}> {}",
+                    ptr,
+                    ops[base].ty().get_referent_ty().unwrap(),
+                    index,
+                    ops[base]
+                )
             }
             &Instruction_::GetElementIRef {
                 is_ptr,
@@ -837,7 +885,14 @@ impl Instruction_ {
                 index
             } => {
                 let ptr = select_value!(is_ptr, " PTR", "");
-                format!("GETELEMIREF{}<{} {}>{} {}", ptr, ops[base].ty().get_referent_ty().unwrap(), ops[index].ty(), ops[base], ops[index])
+                format!(
+                    "GETELEMIREF{}<{} {}>{} {}",
+                    ptr,
+                    ops[base].ty().get_referent_ty().unwrap(),
+                    ops[index].ty(),
+                    ops[base],
+                    ops[index]
+                )
             }
             &Instruction_::ShiftIRef {
                 is_ptr,
@@ -845,11 +900,23 @@ impl Instruction_ {
                 offset
             } => {
                 let ptr = select_value!(is_ptr, " PTR", "");
-                format!("GETELEMIREF{}<{} {}>{} {}", ptr, ops[base].ty().get_referent_ty().unwrap(), ops[offset].ty(), ops[base], ops[offset])
+                format!(
+                    "GETELEMIREF{}<{} {}>{} {}",
+                    ptr,
+                    ops[base].ty().get_referent_ty().unwrap(),
+                    ops[offset].ty(),
+                    ops[base],
+                    ops[offset]
+                )
             }
             &Instruction_::GetVarPartIRef { is_ptr, base } => {
                 let ptr = select_value!(is_ptr, " PTR", "");
-                format!("GETVARPARTIREF{}<{}> {}", ptr, ops[base].ty().get_referent_ty().unwrap(), ops[base])
+                format!(
+                    "GETVARPARTIREF{}<{}> {}",
+                    ptr,
+                    ops[base].ty().get_referent_ty().unwrap(),
+                    ops[base]
+                )
             }
 
             &Instruction_::Fence(order) => format!("FENCE {}", order),
@@ -862,7 +929,7 @@ impl Instruction_ {
                 } else {
                     format!("RET ({})", op_vector_str(vals, ops))
                 }
-            },
+            }
             &Instruction_::ThreadExit => "COMMINST @uvm.thread_exit".to_string(),
             &Instruction_::CurrentStack => "COMMINST @uvm.current_stack".to_string(),
             &Instruction_::KillStack(s) => format!("COMMINST @uvm.kill_stack({})", ops[s]),
@@ -982,7 +1049,12 @@ impl Instruction_ {
                 ref branches
             } => {
                 //SWITCH < T > opnd default { ( value dest ) rep }
-                let mut ret = format!("SWITCH<{}> {} {} {{", ops[cond].ty(), ops[cond], default.debug_str(ops));
+                let mut ret = format!(
+                    "SWITCH<{}> {} {} {{",
+                    ops[cond].ty(),
+                    ops[cond],
+                    default.debug_str(ops)
+                );
                 for i in 0..branches.len() {
                     let (op, ref dest) = branches[i];
                     ret.push_str(format!("{} {}", ops[op], dest.debug_str(ops)).as_str());
@@ -1005,13 +1077,29 @@ impl Instruction_ {
                 format!("COMMINST @uvm.set_threadlocal({})", ops[op])
             }
 
-            &Instruction_::CommonInst_Pin(op) => format!("COMMINST @uvm.native.pin<{}>({})", ops[op].ty(), ops[op]),
-            &Instruction_::CommonInst_Unpin(op) => format!("COMMINST @uvm.native.unpin<{}>({})", ops[op].ty(), ops[op]),
-            &Instruction_::CommonInst_GetAddr(op) => format!("COMMINST @uvm.native.get_addr<{}>({})", ops[op].ty(), ops[op]),
+            &Instruction_::CommonInst_Pin(op) => {
+                format!("COMMINST @uvm.native.pin<{}>({})", ops[op].ty(), ops[op])
+            }
+            &Instruction_::CommonInst_Unpin(op) => {
+                format!("COMMINST @uvm.native.unpin<{}>({})", ops[op].ty(), ops[op])
+            }
+            &Instruction_::CommonInst_GetAddr(op) => {
+                format!(
+                    "COMMINST @uvm.native.get_addr<{}>({})",
+                    ops[op].ty(),
+                    ops[op]
+                )
+            }
             // Tagerf64
-            &Instruction_::CommonInst_Tr64IsFp(op) => format!("COMMINST @uvm.tr64.is_fp({})", ops[op]),
-            &Instruction_::CommonInst_Tr64IsInt(op) => format!("COMMINST @uvm.tr64.is_int({})", ops[op]),
-            &Instruction_::CommonInst_Tr64IsRef(op) => format!("COMMINST @uvm.tr64.is_ref({})", ops[op]),
+            &Instruction_::CommonInst_Tr64IsFp(op) => {
+                format!("COMMINST @uvm.tr64.is_fp({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64IsInt(op) => {
+                format!("COMMINST @uvm.tr64.is_int({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64IsRef(op) => {
+                format!("COMMINST @uvm.tr64.is_ref({})", ops[op])
+            }
             &Instruction_::CommonInst_Tr64FromFp(op) => {
                 format!("COMMINST @uvm.tr64.from_fp({})", ops[op])
             }
@@ -1021,10 +1109,18 @@ impl Instruction_ {
             &Instruction_::CommonInst_Tr64FromRef(op1, op2) => {
                 format!("COMMINST @uvm.tr64.from_ref({} {})", ops[op1], ops[op2])
             }
-            &Instruction_::CommonInst_Tr64ToFp(op) => format!("COMMINST @uvm.tr64.to_fp({})", ops[op]),
-            &Instruction_::CommonInst_Tr64ToInt(op) => format!("COMMINST @uvm.tr64.to_int({})", ops[op]),
-            &Instruction_::CommonInst_Tr64ToRef(op) => format!("COMMINST @uvm.tr64.to_ref({})", ops[op]),
-            &Instruction_::CommonInst_Tr64ToTag(op) => format!("COMMINST @uvm.tr64.to_tag({})", ops[op]),
+            &Instruction_::CommonInst_Tr64ToFp(op) => {
+                format!("COMMINST @uvm.tr64.to_fp({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64ToInt(op) => {
+                format!("COMMINST @uvm.tr64.to_int({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64ToRef(op) => {
+                format!("COMMINST @uvm.tr64.to_ref({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64ToTag(op) => {
+                format!("COMMINST @uvm.tr64.to_tag({})", ops[op])
+            }
 
             // move
             &Instruction_::Move(from) => format!("MOVE<{}> {}", ops[from].ty(), ops[from]),
@@ -1035,7 +1131,11 @@ impl Instruction_ {
         }
     }
 }
-fn format_new_stack_clause(is_exception: bool, args: &Vec<OpIndex>, ops: &Vec<P<TreeNode>>) -> String {
+fn format_new_stack_clause(
+    is_exception: bool,
+    args: &Vec<OpIndex>,
+    ops: &Vec<P<TreeNode>>
+) -> String {
     if is_exception {
         assert!(args.len() == 1);
         format!("THROW_EXC {}", ops[args[0]])
@@ -1167,7 +1267,9 @@ pub enum MemoryOrder {
 impl fmt::Display for MemoryOrder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::MemoryOrder::*;
-        write!(f, "{}",
+        write!(
+            f,
+            "{}",
             match *self {
                 NotAtomic => "",
                 Relaxed => "RELAXED",
@@ -1193,7 +1295,7 @@ impl fmt::Display for CallConvention {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if *self == C_CALL_CONVENTION {
             write!(f, "#DEFAULT")
-        } else if *self == MU_CALL_CONVENTION{
+        } else if *self == MU_CALL_CONVENTION {
             write!(f, "#MU")
         } else {
             unimplemented!()
@@ -1216,7 +1318,11 @@ pub struct CallData {
 impl CallData {
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
         let func = &ops[self.func];
-        let conv = if self.convention == CallConvention::Mu { "".to_string() } else { format!(" {}", self.convention) };
+        let conv = if self.convention == CallConvention::Mu {
+            "".to_string()
+        } else {
+            format!(" {}", self.convention)
+        };
         format!(
             "{}<{}> {} ({})",
             conv,
