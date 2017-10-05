@@ -188,7 +188,7 @@ fn create_spill1() -> VM {
 
     typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
     constdef!       ((vm) <funcref_spill1> const_funcref_spill1 =
-        Constant::FuncRef(spill1.hdr.clone()));
+        Constant::FuncRef(spill1.clone()));
 
     // %entry(<@int_64> %t1, t2, ... t10):
     block!          ((vm, spill1_v1) blk_entry);

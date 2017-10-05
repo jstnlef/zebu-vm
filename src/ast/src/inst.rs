@@ -858,7 +858,7 @@ impl Instruction_ {
                 if vals.len() == 0 {
                     format!("RET")
                 } else if vals.len() == 1 {
-                    format!("RET {}", ops[vals[1]])
+                    format!("RET {}", ops[vals[0]])
                 } else {
                     format!("RET ({})", op_vector_str(vals, ops))
                 }
