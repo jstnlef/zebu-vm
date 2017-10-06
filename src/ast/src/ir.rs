@@ -1118,14 +1118,26 @@ impl fmt::Display for Value {
         if DISPLAY_TYPE {
             match self.v {
                 Value_::SSAVar(_) => write!(f, "<{}>{}", self.ty, self.hdr),
-                Value_::Constant(ref c) => write!(f, "<{}>{}", self.ty, c),
+                Value_::Constant(ref c) => {
+                    if self.is_func_const() {
+                        write!(f, "{}", c)
+                    } else {
+                        write!(f, "<{}>{}", self.ty, c)
+                    }
+                }
                 Value_::Global(ref ty) => write!(f, "<{}>@{}", ty, self.hdr),
                 Value_::Memory(ref mem) => write!(f, "<{}>{}{}", self.ty, self.hdr, mem)
             }
         } else {
             match self.v {
                 Value_::SSAVar(_) => write!(f, "{}", self.hdr),
-                Value_::Constant(ref c) => write!(f, "<{}>{}", self.ty, c),
+                Value_::Constant(ref c) => {
+                    if self.is_func_const() {
+                        write!(f, "{}", c)
+                    } else {
+                        write!(f, "<{}>{}", self.ty, c)
+                    }
+                }
                 Value_::Global(_) => write!(f, "@{}", self.hdr),
                 Value_::Memory(ref mem) => write!(f, "{}{}", self.hdr, mem)
             }
@@ -1261,7 +1273,7 @@ impl fmt::Display for Constant {
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
             //            &Constant::IRef(v) => write!(f, "{}", v),
-            &Constant::FuncRef(ref v) => write!(f, "FuncRef {}", v.name),
+            &Constant::FuncRef(ref v) => write!(f, "{}", v.name),
             &Constant::Vector(ref v) => {
                 // TODO: Make this Muc compatible?
                 write!(f, "[").unwrap();

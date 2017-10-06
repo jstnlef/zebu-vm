@@ -125,7 +125,7 @@ pub fn emit_mu_types(suffix: &str, vm: &VM) {
                     writeln!(file, "{}", struct_ty).unwrap();
                     writeln!(file, "\n\t/*{}*/", vm.get_backend_type_info(ty.id())).unwrap();
                 } else if ty.is_hybrid() {
-                    write!(file, "{}", ty).unwrap();
+                    write!(file, ".typedef {} = ", ty.hdr).unwrap();
                     let hybrid_ty = hybrid_map
                         .get(&ty.get_struct_hybrid_tag().unwrap())
                         .unwrap();
@@ -162,7 +162,7 @@ pub fn emit_mu_globals(suffix: &str, vm: &VM) {
         let global_guard = vm.globals().read().unwrap();
 
         for g in global_guard.values() {
-            write!(
+            writeln!(
                 file,
                 ".global {}<{}>",
                 g.name(),

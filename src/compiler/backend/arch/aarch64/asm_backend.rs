@@ -713,13 +713,13 @@ impl MachineCode for ASMCode {
         }
     }
 
-    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: usize) {
+    fn replace_branch_dest(&mut self, inst: usize, old_succ: usize, new_dest: &str, succ: usize) {
         {
             let asm = &mut self.code[inst];
 
             let inst = String::from(asm.code.split_whitespace().next().unwrap());
             asm.code = format!("{} {}", inst, mangle_name(Arc::new(new_dest.to_string())));
-            asm.succs.clear();
+            asm.succs.retain(|&x| x != old_succ);
             asm.succs.push(succ);
         }
         {
@@ -732,10 +732,7 @@ impl MachineCode for ASMCode {
     }
 
     fn set_inst_nop(&mut self, index: usize) {
-        let ref mut inst = self.code[index];
-        inst.code.clear();
-        inst.defines.clear();
-        inst.uses.clear();
+        self.code[index].code.clear();
     }
 
     fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> HashSet<MuID> {

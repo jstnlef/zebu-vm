@@ -826,7 +826,7 @@ impl MachineCode for ASMCode {
     }
 
     /// replace destination for a jump instruction
-    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: MuID) {
+    fn replace_branch_dest(&mut self, inst: usize, old_succ: usize, new_dest: &str, succ: MuID) {
         {
             let asm = &mut self.code[inst];
 
@@ -834,7 +834,7 @@ impl MachineCode for ASMCode {
                 "jmp {}",
                 symbol(&mangle_name(Arc::new(new_dest.to_string())))
             );
-            asm.succs.clear();
+            asm.succs.retain(|&x| x != old_succ);
             asm.succs.push(succ);
         }
         {

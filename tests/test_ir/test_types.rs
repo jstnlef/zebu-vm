@@ -121,7 +121,7 @@ fn test_type_constructors() {
         assert_type!(t7_struct_ty, "struct<int<8> float>");
     }
     assert_type!(*types[8], "array<int<8> 5>");
-    assert_type!(*types[9], "MyHybridTag1(hybrid)");
+    assert_type!(*types[9], "MyHybridTag1");
     assert_type!(*types[10], "void");
     assert_type!(*types[11], "threadref");
     assert_type!(*types[12], "stackref");
