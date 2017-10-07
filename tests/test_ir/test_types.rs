@@ -127,8 +127,8 @@ fn test_type_constructors() {
     assert_type!(*types[12], "stackref");
     assert_type!(*types[13], "tagref64");
     assert_type!(*types[14], "vector<int<8> 5>");
-    assert_type!(*types[15], "funcref<[int<8>, int<8>] -> [void]>");
-    assert_type!(*types[16], "ufuncref<[int<8>, int<8>] -> [void]>");
+    assert_type!(*types[15], "funcref<(int<8> int<8>)->(void)>");
+    assert_type!(*types[16], "ufuncref<(int<8> int<8>)->(void)>");
 }
 
 #[test]
