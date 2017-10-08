@@ -930,6 +930,9 @@ impl<'a> InstructionSelection {
                                 if self.match_ireg(op) {
                                     let tmp_op = self.emit_ireg(op, f_content, f_context, vm);
                                     self.backend.emit_mov_r_r(&tmp_res, &tmp_op);
+                                } else if self.match_mem(op) {
+                                    let mem_op = self.emit_mem(op, f_context, vm);
+                                    self.backend.emit_lea_r64(&tmp_res, &mem_op);
                                 } else {
                                     panic!("unexpected op (expect ireg): {}", op)
                                 }
@@ -2472,7 +2475,7 @@ impl<'a> InstructionSelection {
                     trace!("emit add-ireg-mem");
 
                     let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                    let reg_op2 = self.emit_mem(op2, vm);
+                    let reg_op2 = self.emit_mem(op2, f_context, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
@@ -2534,7 +2537,7 @@ impl<'a> InstructionSelection {
                     trace!("emit sub-ireg-mem");
 
                     let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(op2, vm);
+                    let mem_op2 = self.emit_mem(op2, f_context, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &reg_op1);
@@ -2596,7 +2599,7 @@ impl<'a> InstructionSelection {
                     trace!("emit and-ireg-mem");
 
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(op2, vm);
+                    let mem_op2 = self.emit_mem(op2, f_context, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
@@ -2659,7 +2662,7 @@ impl<'a> InstructionSelection {
                     trace!("emit or-ireg-mem");
 
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(op2, vm);
+                    let mem_op2 = self.emit_mem(op2, f_context, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
@@ -2715,7 +2718,7 @@ impl<'a> InstructionSelection {
                     trace!("emit xor-ireg-mem");
 
                     let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(op2, vm);
+                    let mem_op2 = self.emit_mem(op2, f_context, vm);
 
                     // mov op1, res
                     self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
@@ -3253,7 +3256,7 @@ impl<'a> InstructionSelection {
                     trace!("emit add-fpreg-mem");
 
                     let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(op2, vm);
+                    let mem_op2 = self.emit_mem(op2, f_context, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3305,7 +3308,7 @@ impl<'a> InstructionSelection {
                     trace!("emit sub-fpreg-mem");
 
                     let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(op2, vm);
+                    let mem_op2 = self.emit_mem(op2, f_context, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3356,7 +3359,7 @@ impl<'a> InstructionSelection {
                     trace!("emit mul-fpreg-mem");
 
                     let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(op2, vm);
+                    let mem_op2 = self.emit_mem(op2, f_context, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3404,7 +3407,7 @@ impl<'a> InstructionSelection {
                     trace!("emit div-fpreg-mem");
 
                     let reg_op1 = self.emit_fpreg(op1, f_content, f_context, vm);
-                    let mem_op2 = self.emit_mem(op2, vm);
+                    let mem_op2 = self.emit_mem(op2, f_context, vm);
 
                     match reg_op1.ty.v {
                         MuType_::Double => {
@@ -3834,7 +3837,7 @@ impl<'a> InstructionSelection {
 
         // div op2
         if self.match_mem(op2) {
-            let mem_op2 = self.emit_mem(op2, vm);
+            let mem_op2 = self.emit_mem(op2, f_context, vm);
             self.backend.emit_div_mem(&mem_op2);
         } else if self.match_iimm(op2) {
             let imm = self.node_iimm_to_i32(op2);
@@ -3900,7 +3903,7 @@ impl<'a> InstructionSelection {
 
         // idiv op2
         if self.match_mem(op2) {
-            let mem_op2 = self.emit_mem(op2, vm);
+            let mem_op2 = self.emit_mem(op2, f_context, vm);
             self.backend.emit_idiv_mem(&mem_op2);
         } else if self.match_iimm(op2) {
             let imm = self.node_iimm_to_i32(op2);
@@ -4513,7 +4516,7 @@ impl<'a> InstructionSelection {
                     x86_64::ALL_CALLER_SAVED_REGS.to_vec()
                 )
             } else if self.match_mem(func) {
-                let target = self.emit_mem(func, vm);
+                let target = self.emit_mem(func, f_context, vm);
 
                 let callsite = self.new_callsite_label(Some(node));
                 self.backend.emit_call_near_mem64(
@@ -6250,8 +6253,19 @@ impl<'a> InstructionSelection {
 
     /// emits code for a memory location pattern
     #[allow(unused_variables)]
-    fn emit_mem(&mut self, op: &TreeNode, vm: &VM) -> P<Value> {
-        unimplemented!()
+    fn emit_mem(&mut self, op: &TreeNode, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
+        match op.v {
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::Memory(_) => pv.clone(),
+                    Value_::Global(ref ty) => {
+                        self.make_memory_symbolic_global(op.name(), ty.clone(), f_context, vm)
+                    }
+                    _ => unimplemented!()
+                }
+            }
+            TreeNode_::Instruction(_) => unimplemented!()
+        }
     }
 
     /// returns the result P<Value> of a node
