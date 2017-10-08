@@ -5299,6 +5299,10 @@ impl<'a> InstructionSelection {
                     Value_::SSAVar(_) | Value_::Constant(_) => {
                         RegGroup::get_from_value(&pv) == RegGroup::GPR
                     }
+                    Value_::Global(_) => {
+                        // global is always a ireg (it is iref<T>)
+                        true
+                    }
                     _ => false
                 }
             }
