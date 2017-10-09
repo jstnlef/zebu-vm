@@ -19,9 +19,10 @@ use ast::ir::*;
 use compiler::backend;
 use utils::LinkedHashSet;
 use utils::LinkedHashMap;
+use std::fmt;
 
 /// GraphNode represents a node in the interference graph.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Node {
     /// temp ID (could be register)
     temp: MuID,
@@ -33,12 +34,31 @@ pub struct Node {
     spill_cost: f32
 }
 
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(
+            f,
+            "Node({}): color={:?}, group={:?}, spill_cost={}",
+            self.temp,
+            self.color,
+            self.group,
+            self.spill_cost
+        )
+    }
+}
+
 /// Move represents a move between two nodes (referred by index)
 /// We need to know the moves so that we can coalesce.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Move {
     pub from: MuID,
     pub to: MuID
+}
+
+impl fmt::Debug for Move {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Move ({} -> {})", self.from, self.to)
+    }
 }
 
 #[inline(always)]
@@ -148,10 +168,10 @@ impl InterferenceGraph {
 
     /// adds an interference edge between two nodes
     pub fn add_edge(&mut self, u: MuID, v: MuID) {
-        // if one of the node is machine register, we also add
+        // if one of the node is machine register, we add
         // interference edge to its alias
         // e.g. if we have %a - %edi interfered,
-        // we also add %a - %rdi interference
+        // we will add %a - %rdi interference
 
         let u = if is_precolored(u) {
             if is_usable(u) {
@@ -174,18 +194,22 @@ impl InterferenceGraph {
         };
 
         if !self.adj_set.contains(&(u, v)) && u != v {
+            trace!("add edge ({}, {})", u, v);
+
             self.adj_set.insert((u, v));
             self.adj_set.insert((v, u));
 
             if !is_precolored(u) {
                 self.adj_list.get_mut(&u).unwrap().insert(v);
-                let degree = self.degree.get_mut(&u).unwrap();
-                *degree = *degree + 1;
+                let degree = self.get_degree_of(u);
+                self.set_degree_of(u, degree + 1);
+                trace!("increase degree of {} to {}", u, degree + 1);
             }
             if !is_precolored(v) {
                 self.adj_list.get_mut(&v).unwrap().insert(u);
-                let degree = self.degree.get_mut(&v).unwrap();
-                *degree = *degree + 1;
+                let degree = self.get_degree_of(v);
+                self.set_degree_of(v, degree + 1);
+                trace!("increase degree of {} to {}", v, degree + 1);
             }
         }
     }
@@ -241,11 +265,13 @@ impl InterferenceGraph {
 
     /// gets degree of a node (number of edges from the node)
     pub fn get_degree_of(&self, reg: MuID) -> usize {
-        *self.degree.get(&reg).unwrap()
+        let ret = *self.degree.get(&reg).unwrap();
+        ret
     }
 
     pub fn set_degree_of(&mut self, reg: MuID, degree: usize) {
-        *self.degree.get_mut(&reg).unwrap() = degree;
+        debug!("DEGREE({}) SET TO {}", reg, degree);
+        self.degree.insert(reg, degree);
     }
 
     /// prints current graph for debugging (via trace log)
@@ -255,17 +281,27 @@ impl InterferenceGraph {
         trace!("Interference Graph");
 
         trace!("nodes: ");
-        for n in self.nodes.values() {
-            trace!("{:?}", n);
+        for node in self.nodes.values() {
+            trace!("{:?}", node);
         }
 
         trace!("edges: ");
-
         for id in self.nodes.keys() {
-            trace!("edges for {} ({}): ", id, self.degree.get(id).unwrap());
-            for neighbour in self.get_adj_list(*id).iter() {
-                trace!("{}", neighbour)
+            let mut s = String::new();
+            s.push_str(&format!(
+                "edges for {} ({}): ",
+                id,
+                self.degree.get(id).unwrap()
+            ));
+            let mut adj = self.get_adj_list(*id).iter();
+            if let Some(first) = adj.next() {
+                s.push_str(&format!("{:?}", first));
+                while let Some(i) = adj.next() {
+                    s.push(' ');
+                    s.push_str(&format!("{:?}", i));
+                }
             }
+            trace!("{}", s);
         }
     }
 }
