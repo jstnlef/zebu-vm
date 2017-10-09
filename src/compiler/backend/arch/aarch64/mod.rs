@@ -2082,7 +2082,21 @@ pub fn emit_ireg_value(
                 _ => panic!("expected ireg")
             }
         }
-        _ => panic!("expected ireg")
+        Value_::Global(_) => {
+            let tmp = make_temporary(f_context, pv.ty.clone(), vm);
+            let mem = make_value_symbolic(pv.name(), true, &pv.ty, vm);
+            emit_calculate_address(backend, &tmp, &mem, vm);
+            tmp
+
+        }
+        Value_::Memory(ref mem) => {
+            //make_value_from_memory(mem: MemoryLocation, ty: &P<MuType>, vm: &VM)
+            let mem = make_value_from_memory(mem.clone(), &pv.ty, vm);
+            let tmp = make_temporary(f_context, pv.ty.clone(), vm);
+            emit_calculate_address(backend, &tmp, &mem, vm);
+            tmp
+
+        }
     }
 }
 
