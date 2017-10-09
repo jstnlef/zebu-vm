@@ -679,8 +679,13 @@ impl Instruction {
                         )
                     }
                     //TRAP < Ts > excClause keepAliveClause
-                    None => format!("TRAP<{}> {}", format_value_types(&self.value),
-                                    resume.debug_str(ops))
+                    None => {
+                        format!(
+                            "TRAP<{}> {}",
+                            format_value_types(&self.value),
+                            resume.debug_str(ops)
+                        )
+                    }
                 }
             }
             &Instruction_::WPBranch {
