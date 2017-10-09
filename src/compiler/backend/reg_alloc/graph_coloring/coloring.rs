@@ -26,9 +26,15 @@ use utils::LinkedHashSet;
 use utils::LinkedHashMap;
 use compiler::backend::reg_alloc::graph_coloring::liveness::Move;
 
+/// allows coalescing
 const COALESCING: bool = true;
-const MAX_REWRITE_ITERATIONS_ALLOWED: usize = 10;
-const CHECK_INVARIANTS: bool = true;
+/// abort after N rewrite iterations
+/// (this is used to detect any possible infinite loop due to bugs)
+const MAX_REWRITE_ITERATIONS_ALLOWED: usize = 50;
+/// check invariants in every loop
+/// (this will make register allocation run extremely slow - be careful
+/// when using this with large workloads)
+const CHECK_INVARIANTS: bool = false;
 
 /// GraphColoring algorithm
 /// based on Appel's book section 11.4
