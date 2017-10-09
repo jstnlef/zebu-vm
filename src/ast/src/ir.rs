@@ -1117,16 +1117,16 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_TYPE {
             match self.v {
-                Value_::SSAVar(_) => write!(f, "<{}>{}", self.ty, self.hdr),
+                Value_::SSAVar(_) => write!(f, "/*<{}>*/{}", self.ty, self.hdr),
                 Value_::Constant(ref c) => {
                     if self.is_func_const() {
-                        write!(f, "{}", c)
+                        write!(f, "/*<{}>*/{}", self.ty, c)
                     } else {
                         write!(f, "<{}>{}", self.ty, c)
                     }
                 }
-                Value_::Global(ref ty) => write!(f, "<{}>@{}", ty, self.hdr),
-                Value_::Memory(ref mem) => write!(f, "<{}>{}{}", self.ty, self.hdr, mem)
+                Value_::Global(ref ty) => write!(f, "/*<{}>*/@{}", ty, self.hdr),
+                Value_::Memory(ref mem) => write!(f, "/*<{}>*/{}{}", self.ty, self.hdr, mem)
             }
         } else {
             match self.v {
@@ -1244,7 +1244,7 @@ pub enum Constant {
     /// double constants
     Double(f64),
     /// function reference
-    FuncRef(MuEntityHeader),
+    FuncRef(MuEntityRef),
     /// vector constant (currently not used)
     Vector(Vec<Constant>),
     /// null reference
@@ -1451,8 +1451,8 @@ pub struct MuEntityHeader {
     id: MuID,
     name: MuName
 }
-
 rodal_struct!(MuEntityHeader{id, name});
+pub type MuEntityRef = MuEntityHeader;
 
 impl Clone for MuEntityHeader {
     fn clone(&self) -> Self {
@@ -1613,7 +1613,7 @@ impl PartialEq for MuEntityHeader {
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_ID {
-            write!(f, "{} #{}", self.abbreviate_name(), self.id)
+            write!(f, "{}/*{}*/", self.abbreviate_name(), self.id)
         } else {
             write!(f, "{}", self.abbreviate_name())
         }

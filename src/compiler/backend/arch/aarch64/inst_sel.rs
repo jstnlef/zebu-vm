@@ -4929,8 +4929,6 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
-        trace!("ISAAC: sig[{}] args ({:?})", sig, args);
-
         let prologue_block = Arc::new(format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME));
         self.start_block(prologue_block);
 
@@ -5009,9 +5007,6 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
-        trace!("ISAAC: unload_arguments args ({:?})", args);
-        trace!("ISAAC:             locations ({:?})", locations);
-
         // unload arguments
         // Read arguments starting from FP+16 (FP points to the frame record
         // (the previous FP and LR)

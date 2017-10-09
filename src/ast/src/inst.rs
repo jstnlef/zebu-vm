@@ -415,7 +415,419 @@ impl Instruction {
     }
 
     fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        self.v.debug_str(ops)
+        match &self.v {
+            &Instruction_::BinOp(op, op1, op2) => {
+                format!("{}<{}> {} {}", op, ops[op1].ty(), ops[op1], ops[op2])
+            }
+            &Instruction_::BinOpWithStatus(op, status, op1, op2) => {
+                format!(
+                    "{}{}<{}> {} {}",
+                    op,
+                    status,
+                    ops[op1].ty(),
+                    ops[op1],
+                    ops[op2]
+                )
+            }
+            &Instruction_::CmpOp(op, op1, op2) => {
+                format!("{}<{}> {} {}", op, ops[op1].ty(), ops[op1], ops[op2])
+            }
+            &Instruction_::ConvOp {
+                operation,
+                ref from_ty,
+                ref to_ty,
+                operand
+            } => format!("{} <{} {}> {}", operation, from_ty, to_ty, ops[operand]),
+            &Instruction_::ExprCall { ref data, is_abort } => {
+                if is_abort {
+                    panic!("ABORT is not supported");
+                }
+                format!("CALL{}", data.debug_str(ops))
+            }
+            &Instruction_::ExprCCall { ref data, is_abort } => {
+                if is_abort {
+                    panic!("ABORT is not supported");
+                }
+                format!("CCALL{}", data.debug_str(ops))
+            }
+            &Instruction_::Load {
+                is_ptr,
+                mem_loc,
+                order
+            } => {
+                let ptr = select_value!(is_ptr, " PTR", "");
+                format!(
+                    "LOAD{} {}<{}> {}",
+                    ptr,
+                    order,
+                    ops[mem_loc].ty().get_referent_ty().unwrap(),
+                    ops[mem_loc]
+                )
+            }
+            &Instruction_::Store {
+                value,
+                is_ptr,
+                mem_loc,
+                order
+            } => {
+                let ptr = select_value!(is_ptr, " PTR", "");
+                format!(
+                    "STORE{} {}<{}> {} {}",
+                    ptr,
+                    order,
+                    ops[mem_loc].ty().get_referent_ty().unwrap(),
+                    ops[mem_loc],
+                    ops[value]
+                )
+            }
+            &Instruction_::CmpXchg {
+                is_ptr,
+                is_weak,
+                success_order,
+                fail_order,
+                mem_loc,
+                expected_value,
+                desired_value
+            } => {
+                let ptr = select_value!(is_ptr, " PTR", "");
+                let weak = select_value!(is_weak, " WEAK", "");
+                format!(
+                    "CMPXCHG{}{} {} {}<{}> {} {} {}",
+                    ptr,
+                    weak,
+                    success_order,
+                    fail_order,
+                    ops[mem_loc].ty().get_referent_ty().unwrap(),
+                    ops[mem_loc],
+                    ops[expected_value],
+                    ops[desired_value]
+                )
+            }
+            &Instruction_::AtomicRMW {
+                is_ptr,
+                order,
+                op,
+                mem_loc,
+                value
+            } => {
+                let ptr = select_value!(is_ptr, " PTR", "");
+                format!(
+                    "ATOMICRMW{} {} {}<{}> {} {}",
+                    ptr,
+                    order,
+                    op,
+                    ops[mem_loc].ty().get_referent_ty().unwrap(),
+                    ops[mem_loc],
+                    ops[value]
+                )
+            }
+            &Instruction_::New(ref ty) => format!("NEW<{}>", ty),
+            &Instruction_::AllocA(ref ty) => format!("ALLOCA<{}>", ty),
+            &Instruction_::NewHybrid(ref ty, len) => {
+                format!("NEWHYBRID<{} {}> {}", ty, ops[len].ty(), ops[len])
+            }
+            &Instruction_::AllocAHybrid(ref ty, len) => {
+                format!("ALLOCAHYBRID<{} {}> {}", ty, ops[len].ty(), ops[len])
+            }
+            &Instruction_::NewStack(func) => {
+                format!(
+                    "COMMINST @uvm.new_stack<[{}]>({})",
+                    ops[func].ty().get_sig().unwrap(),
+                    ops[func]
+                )
+            }
+            &Instruction_::NewThread {
+                stack,
+                thread_local,
+                is_exception,
+                ref args
+            } => {
+                let new_stack_clause = format_new_stack_clause(is_exception, args, ops);
+                let thread_local = thread_local
+                    .map(|t| format!(" THREADLOCAL({})", ops[t]))
+                    .unwrap_or("".to_string());
+                format!(
+                    "NEWSTACK {}{} {}",
+                    ops[stack],
+                    thread_local,
+                    new_stack_clause,
+                )
+            }
+            &Instruction_::NewFrameCursor(stack) => {
+                format!("COMMINST @uvm.meta.new_cursor({})", ops[stack])
+            }
+            &Instruction_::GetIRef(reference) => {
+                format!(
+                    "GETIREF<{}> {}",
+                    ops[reference].ty().get_referent_ty().unwrap(),
+                    ops[reference]
+                )
+            }
+            &Instruction_::GetFieldIRef {
+                is_ptr,
+                base,
+                index
+            } => {
+                let ptr = select_value!(is_ptr, " PTR", "");
+                format!(
+                    "GETFIELDIREF{}<{} {}> {}",
+                    ptr,
+                    ops[base].ty().get_referent_ty().unwrap(),
+                    index,
+                    ops[base]
+                )
+            }
+            &Instruction_::GetElementIRef {
+                is_ptr,
+                base,
+                index
+            } => {
+                let ptr = select_value!(is_ptr, " PTR", "");
+                format!(
+                    "GETELEMIREF{}<{} {}>{} {}",
+                    ptr,
+                    ops[base].ty().get_referent_ty().unwrap(),
+                    ops[index].ty(),
+                    ops[base],
+                    ops[index]
+                )
+            }
+            &Instruction_::ShiftIRef {
+                is_ptr,
+                base,
+                offset
+            } => {
+                let ptr = select_value!(is_ptr, " PTR", "");
+                format!(
+                    "GETELEMIREF{}<{} {}>{} {}",
+                    ptr,
+                    ops[base].ty().get_referent_ty().unwrap(),
+                    ops[offset].ty(),
+                    ops[base],
+                    ops[offset]
+                )
+            }
+            &Instruction_::GetVarPartIRef { is_ptr, base } => {
+                let ptr = select_value!(is_ptr, " PTR", "");
+                format!(
+                    "GETVARPARTIREF{}<{}> {}",
+                    ptr,
+                    ops[base].ty().get_referent_ty().unwrap(),
+                    ops[base]
+                )
+            }
+
+            &Instruction_::Fence(order) => format!("FENCE {}", order),
+
+            &Instruction_::Return(ref vals) => {
+                if vals.len() == 0 {
+                    format!("RET")
+                } else if vals.len() == 1 {
+                    format!("RET {}", ops[vals[0]])
+                } else {
+                    format!("RET ({})", op_vector_str(vals, ops))
+                }
+            }
+            &Instruction_::ThreadExit => "COMMINST @uvm.thread_exit".to_string(),
+            &Instruction_::CurrentStack => "COMMINST @uvm.current_stack".to_string(),
+            &Instruction_::KillStack(s) => format!("COMMINST @uvm.kill_stack({})", ops[s]),
+            &Instruction_::Throw(exn_obj) => format!("THROW {}", ops[exn_obj]),
+            &Instruction_::TailCall(ref call) => format!("TAILCALL{}", call.debug_str(ops)),
+            &Instruction_::Branch1(ref dest) => format!("BRANCH {}", dest.debug_str(ops)),
+            &Instruction_::Branch2 {
+                cond,
+                ref true_dest,
+                ref false_dest,
+                ..
+            } => {
+                format!(
+                    "BRANCH2 {} {} {}",
+                    ops[cond],
+                    true_dest.debug_str(ops),
+                    false_dest.debug_str(ops)
+                )
+            }
+            &Instruction_::Select {
+                cond,
+                true_val,
+                false_val
+            } => {
+                format!(
+                    "SELECT<{} {}> {} {} {}",
+                    ops[cond].ty(),
+                    ops[true_val].ty(),
+                    ops[cond],
+                    ops[true_val],
+                    ops[false_val]
+                )
+            }
+            &Instruction_::Watchpoint {
+                id,
+                ref disable_dest,
+                ref resume
+            } => {
+                match id {
+                    Some(id) => {
+                        format!(
+                            // TODO: WPEXC should be optional
+                            "WATCHPOINT {}<{}> {} {} WPEXC({})",
+                            id,
+                            format_value_types(&self.value),
+                            disable_dest.as_ref().unwrap().debug_str(ops),
+                            resume.normal_dest.debug_str(ops),
+                            resume.exn_dest.debug_str(ops)
+                        )
+                    }
+                    //TRAP < Ts > excClause keepAliveClause
+                    None => format!("TRAP<{}> {}", format_value_types(&self.value),
+                                    resume.debug_str(ops))
+                }
+            }
+            &Instruction_::WPBranch {
+                wp,
+                ref disable_dest,
+                ref enable_dest
+            } => {
+                format!(
+                    "WPBRANCH {} {} {}",
+                    wp,
+                    disable_dest.debug_str(ops),
+                    enable_dest.debug_str(ops)
+                )
+            }
+            &Instruction_::Call {
+                ref data,
+                ref resume
+            } => format!("CALL{} {}", data.debug_str(ops), resume.debug_str(ops)),
+            &Instruction_::CCall {
+                ref data,
+                ref resume
+            } => format!("CCALL{} {}", data.debug_str(ops), resume.debug_str(ops)),
+            &Instruction_::SwapStackExpr {
+                stack,
+                is_exception,
+                ref args
+            } => {
+                format!(
+                    "SWAPSTACK {} RET_WITH<{}> {}",
+                    ops[stack],
+                    format_value_types(&self.value),
+                    format_new_stack_clause(is_exception, args, ops)
+                )
+            }
+            &Instruction_::SwapStackExc {
+                stack,
+                is_exception,
+                ref args,
+                ref resume
+            } => {
+                format!(
+                    "SWAPSTACK {} RET_WITH<{}> {} {}",
+                    ops[stack],
+                    format_value_types(&self.value),
+                    format_new_stack_clause(is_exception, args, ops),
+                    resume.debug_str(ops)
+                )
+            }
+
+            &Instruction_::SwapStackKill {
+                stack,
+                is_exception,
+                ref args
+            } => {
+                format!(
+                    "SWAPSTACK {} KILL_OLD {}",
+                    ops[stack],
+                    format_new_stack_clause(is_exception, args, ops)
+                )
+            }
+
+            &Instruction_::Switch {
+                cond,
+                ref default,
+                ref branches
+            } => {
+                //SWITCH < T > opnd default { ( value dest ) rep }
+                let mut ret = format!(
+                    "SWITCH<{}> {} {} {{",
+                    ops[cond].ty(),
+                    ops[cond],
+                    default.debug_str(ops)
+                );
+                for i in 0..branches.len() {
+                    let (op, ref dest) = branches[i];
+                    ret.push_str(format!("{} {}", ops[op], dest.debug_str(ops)).as_str());
+                    if i != branches.len() - 1 {
+                        ret.push_str(" ");
+                    }
+                }
+                ret.push_str("}}");
+
+                ret
+            }
+            &Instruction_::ExnInstruction {
+                ref inner,
+                ref resume
+            } => format!("{} {}", inner.debug_str(ops), resume.debug_str(ops)),
+
+            // common inst
+            &Instruction_::CommonInst_GetThreadLocal => format!("COMMINST @uvm.get_threadlocal"),
+            &Instruction_::CommonInst_SetThreadLocal(op) => {
+                format!("COMMINST @uvm.set_threadlocal({})", ops[op])
+            }
+
+            &Instruction_::CommonInst_Pin(op) => {
+                format!("COMMINST @uvm.native.pin<{}>({})", ops[op].ty(), ops[op])
+            }
+            &Instruction_::CommonInst_Unpin(op) => {
+                format!("COMMINST @uvm.native.unpin<{}>({})", ops[op].ty(), ops[op])
+            }
+            &Instruction_::CommonInst_GetAddr(op) => {
+                format!(
+                    "COMMINST @uvm.native.get_addr<{}>({})",
+                    ops[op].ty(),
+                    ops[op]
+                )
+            }
+            // Tagerf64
+            &Instruction_::CommonInst_Tr64IsFp(op) => {
+                format!("COMMINST @uvm.tr64.is_fp({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64IsInt(op) => {
+                format!("COMMINST @uvm.tr64.is_int({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64IsRef(op) => {
+                format!("COMMINST @uvm.tr64.is_ref({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64FromFp(op) => {
+                format!("COMMINST @uvm.tr64.from_fp({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64FromInt(op) => {
+                format!("COMMINST @uvm.tr64.from_int({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64FromRef(op1, op2) => {
+                format!("COMMINST @uvm.tr64.from_ref({} {})", ops[op1], ops[op2])
+            }
+            &Instruction_::CommonInst_Tr64ToFp(op) => {
+                format!("COMMINST @uvm.tr64.to_fp({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64ToInt(op) => {
+                format!("COMMINST @uvm.tr64.to_int({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64ToRef(op) => {
+                format!("COMMINST @uvm.tr64.to_ref({})", ops[op])
+            }
+            &Instruction_::CommonInst_Tr64ToTag(op) => {
+                format!("COMMINST @uvm.tr64.to_tag({})", ops[op])
+            }
+
+            // move
+            &Instruction_::Move(from) => format!("MOVE<{}> {}", ops[from].ty(), ops[from]),
+            // print hex
+            &Instruction_::PrintHex(i) => format!("PRINTHEX<{}> {}", ops[i].ty(), ops[i]),
+            // set retval
+            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val])
+        }
     }
 }
 
@@ -432,9 +844,9 @@ impl fmt::Display for Instruction {
         };
 
         if PRINT_INST_NAME {
-            write!(f, "{}[{}]{}", value, self.hdr, self.v.debug_str(ops))
+            write!(f, "{}[{}]{}", value, self.hdr, self.debug_str(ops))
         } else {
-            write!(f, "{}{}", value, self.v.debug_str(ops))
+            write!(f, "{}{}", value, self.debug_str(ops))
         }
     }
 }
@@ -715,422 +1127,22 @@ pub enum Instruction_ {
     SetRetval(OpIndex)
 }
 
-impl Instruction_ {
-    fn debug_str(&self, ops: &Vec<P<TreeNode>>) -> String {
-        match self {
-            &Instruction_::BinOp(op, op1, op2) => {
-                format!("{}<{}> {} {}", op, ops[op1].ty(), ops[op1], ops[op2])
-            }
-            &Instruction_::BinOpWithStatus(op, status, op1, op2) => {
-                format!(
-                    "{}{}<{}> {} {}",
-                    op,
-                    status,
-                    ops[op1].ty(),
-                    ops[op1],
-                    ops[op2]
-                )
-            }
-            &Instruction_::CmpOp(op, op1, op2) => {
-                format!("{}<{}> {} {}", op, ops[op1].ty(), ops[op1], ops[op2])
-            }
-            &Instruction_::ConvOp {
-                operation,
-                ref from_ty,
-                ref to_ty,
-                operand
-            } => format!("{} <{} {}> {}", operation, from_ty, to_ty, ops[operand]),
-            &Instruction_::ExprCall { ref data, is_abort } => {
-                if is_abort {
-                    panic!("ABORT is not supported");
-                }
-                format!("CALL{}", data.debug_str(ops))
-            }
-            &Instruction_::ExprCCall { ref data, is_abort } => {
-                if is_abort {
-                    panic!("ABORT is not supported");
-                }
-                format!("CCALL{}", data.debug_str(ops))
-            }
-            &Instruction_::Load {
-                is_ptr,
-                mem_loc,
-                order
-            } => {
-                let ptr = select_value!(is_ptr, " PTR", "");
-                format!(
-                    "LOAD{} {}<{}> {}",
-                    ptr,
-                    order,
-                    ops[mem_loc].ty().get_referent_ty().unwrap(),
-                    ops[mem_loc]
-                )
-            }
-            &Instruction_::Store {
-                value,
-                is_ptr,
-                mem_loc,
-                order
-            } => {
-                let ptr = select_value!(is_ptr, " PTR", "");
-                format!(
-                    "STORE{} {}<{}> {} {}",
-                    ptr,
-                    order,
-                    ops[mem_loc].ty().get_referent_ty().unwrap(),
-                    ops[mem_loc],
-                    ops[value]
-                )
-            }
-            &Instruction_::CmpXchg {
-                is_ptr,
-                is_weak,
-                success_order,
-                fail_order,
-                mem_loc,
-                expected_value,
-                desired_value
-            } => {
-                let ptr = select_value!(is_ptr, " PTR", "");
-                let weak = select_value!(is_weak, " WEAK", "");
-                format!(
-                    "CMPXCHG{}{} {} {}<{}> {} {} {}",
-                    ptr,
-                    weak,
-                    success_order,
-                    fail_order,
-                    ops[mem_loc].ty().get_referent_ty().unwrap(),
-                    ops[mem_loc],
-                    ops[expected_value],
-                    ops[desired_value]
-                )
-            }
-            &Instruction_::AtomicRMW {
-                is_ptr,
-                order,
-                op,
-                mem_loc,
-                value
-            } => {
-                let ptr = select_value!(is_ptr, " PTR", "");
-                format!(
-                    "ATOMICRMW{} {} {}<{}> {} {}",
-                    ptr,
-                    order,
-                    op,
-                    ops[mem_loc].ty().get_referent_ty().unwrap(),
-                    ops[mem_loc],
-                    ops[value]
-                )
-            }
-            &Instruction_::New(ref ty) => format!("NEW<{}>", ty),
-            &Instruction_::AllocA(ref ty) => format!("ALLOCA<{}>", ty),
-            &Instruction_::NewHybrid(ref ty, len) => {
-                format!("NEWHYBRID<{} {}> {}", ty, ops[len].ty(), ops[len])
-            }
-            &Instruction_::AllocAHybrid(ref ty, len) => {
-                format!("ALLOCAHYBRID<{} {}> {}", ty, ops[len].ty(), ops[len])
-            }
-            &Instruction_::NewStack(func) => {
-                format!(
-                    "COMMINST @uvm.new_stack<[{}]>({})",
-                    ops[func].ty().get_sig().unwrap(),
-                    ops[func]
-                )
-            }
-            &Instruction_::NewThread {
-                stack,
-                thread_local,
-                is_exception,
-                ref args
-            } => {
-                let new_stack_clause = format_new_stack_clause(is_exception, args, ops);
-                let thread_local = thread_local
-                    .map(|t| format!(" THREADLOCAL({})", ops[t]))
-                    .unwrap_or("".to_string());
-                format!(
-                    "NEWSTACK {}{} {}",
-                    ops[stack],
-                    thread_local,
-                    new_stack_clause,
-                )
-            }
-            &Instruction_::NewFrameCursor(stack) => {
-                format!("COMMINST @uvm.meta.new_cursor({})", ops[stack])
-            }
-            &Instruction_::GetIRef(reference) => {
-                format!(
-                    "GETIREF<{}> {}",
-                    ops[reference].ty().get_referent_ty().unwrap(),
-                    ops[reference]
-                )
-            }
-            &Instruction_::GetFieldIRef {
-                is_ptr,
-                base,
-                index
-            } => {
-                let ptr = select_value!(is_ptr, " PTR", "");
-                format!(
-                    "GETFIELDIREF{}<{} {}> {}",
-                    ptr,
-                    ops[base].ty().get_referent_ty().unwrap(),
-                    index,
-                    ops[base]
-                )
-            }
-            &Instruction_::GetElementIRef {
-                is_ptr,
-                base,
-                index
-            } => {
-                let ptr = select_value!(is_ptr, " PTR", "");
-                format!(
-                    "GETELEMIREF{}<{} {}>{} {}",
-                    ptr,
-                    ops[base].ty().get_referent_ty().unwrap(),
-                    ops[index].ty(),
-                    ops[base],
-                    ops[index]
-                )
-            }
-            &Instruction_::ShiftIRef {
-                is_ptr,
-                base,
-                offset
-            } => {
-                let ptr = select_value!(is_ptr, " PTR", "");
-                format!(
-                    "GETELEMIREF{}<{} {}>{} {}",
-                    ptr,
-                    ops[base].ty().get_referent_ty().unwrap(),
-                    ops[offset].ty(),
-                    ops[base],
-                    ops[offset]
-                )
-            }
-            &Instruction_::GetVarPartIRef { is_ptr, base } => {
-                let ptr = select_value!(is_ptr, " PTR", "");
-                format!(
-                    "GETVARPARTIREF{}<{}> {}",
-                    ptr,
-                    ops[base].ty().get_referent_ty().unwrap(),
-                    ops[base]
-                )
-            }
-
-            &Instruction_::Fence(order) => format!("FENCE {}", order),
-
-            &Instruction_::Return(ref vals) => {
-                if vals.len() == 0 {
-                    format!("RET")
-                } else if vals.len() == 1 {
-                    format!("RET {}", ops[vals[0]])
-                } else {
-                    format!("RET ({})", op_vector_str(vals, ops))
+fn format_value_types(value: &Option<Vec<P<Value>>>) -> String {
+    match value {
+        &Some(ref v) => {
+            let mut tys = format!("");
+            for i in 0..v.len() {
+                tys.push_str(format!("{}", v[i].ty).as_str());
+                if i != v.len() - 1 {
+                    tys.push_str(" ");
                 }
             }
-            &Instruction_::ThreadExit => "COMMINST @uvm.thread_exit".to_string(),
-            &Instruction_::CurrentStack => "COMMINST @uvm.current_stack".to_string(),
-            &Instruction_::KillStack(s) => format!("COMMINST @uvm.kill_stack({})", ops[s]),
-            &Instruction_::Throw(exn_obj) => format!("THROW {}", ops[exn_obj]),
-            &Instruction_::TailCall(ref call) => format!("TAILCALL{}", call.debug_str(ops)),
-            &Instruction_::Branch1(ref dest) => format!("BRANCH {}", dest.debug_str(ops)),
-            &Instruction_::Branch2 {
-                cond,
-                ref true_dest,
-                ref false_dest,
-                ..
-            } => {
-                format!(
-                    "BRANCH2 {} {} {}",
-                    ops[cond],
-                    true_dest.debug_str(ops),
-                    false_dest.debug_str(ops)
-                )
-            }
-            &Instruction_::Select {
-                cond,
-                true_val,
-                false_val
-            } => {
-                format!(
-                    "SELECT<{} {}> {} {} {}",
-                    ops[cond].ty(),
-                    ops[true_val].ty(),
-                    ops[cond],
-                    ops[true_val],
-                    ops[false_val]
-                )
-            }
-            &Instruction_::Watchpoint {
-                id,
-                ref disable_dest,
-                ref resume
-            } => {
-                match id {
-                    Some(id) => {
-                        format!(
-                            // TODO Format properly
-                            //WATCHPOINT wpid < Ts > dis ena [WPEXC( exc )] keepAliveClause
-                            "WATCHPOINT {} {} {}",
-                            id,
-                            disable_dest.as_ref().unwrap().debug_str(ops),
-                            resume.debug_str(ops)
-                        )
-                    }
-                    // TODO Format properly
-                    //TRAP < Ts > excClause keepAliveClause
-                    None => format!("TRAP {}", resume.debug_str(ops))
-                }
-            }
-            &Instruction_::WPBranch {
-                wp,
-                ref disable_dest,
-                ref enable_dest
-            } => {
-                format!(
-                    "WPBRANCH {} {} {}",
-                    wp,
-                    disable_dest.debug_str(ops),
-                    enable_dest.debug_str(ops)
-                )
-            }
-            &Instruction_::Call {
-                ref data,
-                ref resume
-            } => format!("CALL{} {}", data.debug_str(ops), resume.debug_str(ops)),
-            &Instruction_::CCall {
-                ref data,
-                ref resume
-            } => format!("CCALL{} {}", data.debug_str(ops), resume.debug_str(ops)),
-            &Instruction_::SwapStackExpr {
-                stack,
-                is_exception,
-                ref args
-            } => {
-                format!(
-                    // TODO: Workout out return types
-                    "SWAPSTACK {} RET_WITH<...> {}",
-                    ops[stack],
-                    format_new_stack_clause(is_exception, args, ops)
-                )
-            }
-            &Instruction_::SwapStackExc {
-                stack,
-                is_exception,
-                ref args,
-                ref resume
-            } => {
-                format!(
-                    // TODO: Workout out return types
-                    "SWAPSTACK {} RET_WITH<...> {} {}",
-                    ops[stack],
-                    format_new_stack_clause(is_exception, args, ops),
-                    resume.debug_str(ops)
-                )
-            }
-
-            &Instruction_::SwapStackKill {
-                stack,
-                is_exception,
-                ref args
-            } => {
-                format!(
-                    "SWAPSTACK {} KILL_OLD {}",
-                    ops[stack],
-                    format_new_stack_clause(is_exception, args, ops)
-                )
-            }
-
-            &Instruction_::Switch {
-                cond,
-                ref default,
-                ref branches
-            } => {
-                //SWITCH < T > opnd default { ( value dest ) rep }
-                let mut ret = format!(
-                    "SWITCH<{}> {} {} {{",
-                    ops[cond].ty(),
-                    ops[cond],
-                    default.debug_str(ops)
-                );
-                for i in 0..branches.len() {
-                    let (op, ref dest) = branches[i];
-                    ret.push_str(format!("{} {}", ops[op], dest.debug_str(ops)).as_str());
-                    if i != branches.len() - 1 {
-                        ret.push_str(" ");
-                    }
-                }
-                ret.push_str("}}");
-
-                ret
-            }
-            &Instruction_::ExnInstruction {
-                ref inner,
-                ref resume
-            } => format!("{} {}", inner.debug_str(ops), resume.debug_str(ops)),
-
-            // common inst
-            &Instruction_::CommonInst_GetThreadLocal => format!("COMMINST @uvm.get_threadlocal"),
-            &Instruction_::CommonInst_SetThreadLocal(op) => {
-                format!("COMMINST @uvm.set_threadlocal({})", ops[op])
-            }
-
-            &Instruction_::CommonInst_Pin(op) => {
-                format!("COMMINST @uvm.native.pin<{}>({})", ops[op].ty(), ops[op])
-            }
-            &Instruction_::CommonInst_Unpin(op) => {
-                format!("COMMINST @uvm.native.unpin<{}>({})", ops[op].ty(), ops[op])
-            }
-            &Instruction_::CommonInst_GetAddr(op) => {
-                format!(
-                    "COMMINST @uvm.native.get_addr<{}>({})",
-                    ops[op].ty(),
-                    ops[op]
-                )
-            }
-            // Tagerf64
-            &Instruction_::CommonInst_Tr64IsFp(op) => {
-                format!("COMMINST @uvm.tr64.is_fp({})", ops[op])
-            }
-            &Instruction_::CommonInst_Tr64IsInt(op) => {
-                format!("COMMINST @uvm.tr64.is_int({})", ops[op])
-            }
-            &Instruction_::CommonInst_Tr64IsRef(op) => {
-                format!("COMMINST @uvm.tr64.is_ref({})", ops[op])
-            }
-            &Instruction_::CommonInst_Tr64FromFp(op) => {
-                format!("COMMINST @uvm.tr64.from_fp({})", ops[op])
-            }
-            &Instruction_::CommonInst_Tr64FromInt(op) => {
-                format!("COMMINST @uvm.tr64.from_int({})", ops[op])
-            }
-            &Instruction_::CommonInst_Tr64FromRef(op1, op2) => {
-                format!("COMMINST @uvm.tr64.from_ref({} {})", ops[op1], ops[op2])
-            }
-            &Instruction_::CommonInst_Tr64ToFp(op) => {
-                format!("COMMINST @uvm.tr64.to_fp({})", ops[op])
-            }
-            &Instruction_::CommonInst_Tr64ToInt(op) => {
-                format!("COMMINST @uvm.tr64.to_int({})", ops[op])
-            }
-            &Instruction_::CommonInst_Tr64ToRef(op) => {
-                format!("COMMINST @uvm.tr64.to_ref({})", ops[op])
-            }
-            &Instruction_::CommonInst_Tr64ToTag(op) => {
-                format!("COMMINST @uvm.tr64.to_tag({})", ops[op])
-            }
-
-            // move
-            &Instruction_::Move(from) => format!("MOVE<{}> {}", ops[from].ty(), ops[from]),
-            // print hex
-            &Instruction_::PrintHex(i) => format!("PRINTHEX<{}> {}", ops[i].ty(), ops[i]),
-            // set retval
-            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val])
+            tys
         }
+        &None => "".to_string()
     }
 }
+
 fn format_new_stack_clause(
     is_exception: bool,
     args: &Vec<OpIndex>,
@@ -1140,8 +1152,6 @@ fn format_new_stack_clause(
         assert!(args.len() == 1);
         format!("THROW_EXC {}", ops[args[0]])
     } else {
-
-        //
         let mut arg_tys = format!("");
         let mut arg_vals = format!("");
         for i in 0..args.len() {
@@ -1351,7 +1361,7 @@ impl ResumptionData {
 
 #[derive(Clone, Debug)]
 pub struct Destination {
-    pub target: MuEntityHeader,
+    pub target: MuEntityRef,
     pub args: Vec<DestArg>
 }
 
