@@ -5108,6 +5108,20 @@ impl<'a> InstructionSelection {
                                 self.backend.emit_cmp_imm_r(iimm_op2, &reg_op1);
 
                                 return op;
+                            } else if self.match_ireg(op1) && self.match_mem(op2) {
+                                let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                                let mem_op2 = self.emit_mem(op2, f_context, vm);
+
+                                self.backend.emit_cmp_mem_r(&mem_op2, &reg_op1);
+
+                                return op;
+                            } else if self.match_mem(op1) && self.match_ireg(op2) {
+                                let mem_op1 = self.emit_mem(op1, f_context, vm);
+                                let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
+
+                                self.backend.emit_cmp_r_mem(&mem_op1, &reg_op2);
+
+                                return op;
                             } else if self.match_ireg(op1) && self.match_ireg(op2) {
                                 // comparing two iregs (general case)
                                 let reg_op1 = self.emit_ireg(op1, f_content, f_context, vm);

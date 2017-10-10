@@ -2523,6 +2523,10 @@ impl CodeGenerator for ASMCodeGen {
         self.internal_binop_no_def_mem_r("cmp", op1, op2)
     }
 
+    fn emit_cmp_r_mem(&mut self, op1: &P<Value>, op2: &P<Value>) {
+        self.internal_binop_no_def_r_mem("cmp", op1, op2)
+    }
+
     fn emit_test_r_r(&mut self, op1: &P<Value>, op2: &P<Value>) {
         self.internal_binop_no_def_r_r("test", op1, op2)
     }
