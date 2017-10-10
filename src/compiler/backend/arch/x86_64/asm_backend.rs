@@ -826,7 +826,7 @@ impl MachineCode for ASMCode {
     }
 
     /// replace destination for a jump instruction
-    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: MuID) {
+    fn replace_branch_dest(&mut self, inst: usize, old_succ: usize, new_dest: &str, succ: MuID) {
         {
             let asm = &mut self.code[inst];
 
@@ -834,7 +834,7 @@ impl MachineCode for ASMCode {
                 "jmp {}",
                 symbol(&mangle_name(Arc::new(new_dest.to_string())))
             );
-            asm.succs.clear();
+            asm.succs.retain(|&x| x != old_succ);
             asm.succs.push(succ);
         }
         {
@@ -4143,7 +4143,7 @@ pub fn emit_sym_table(vm: &VM) {
 
 
 use std::collections::HashMap;
-use compiler::backend::code_emission::emit_mu_types;
+use compiler::backend::code_emission::{emit_mu_types, emit_mu_globals};
 
 /// emit vm context for current session, considering relocation symbols/fields from the client
 pub fn emit_context_with_reloc(
@@ -4155,6 +4155,7 @@ pub fn emit_context_with_reloc(
     use std::io::prelude::*;
 
     emit_mu_types("", vm);
+    emit_mu_globals("", vm);
 
     // creates emit directy, and file
     debug!("---Emit VM Context---");

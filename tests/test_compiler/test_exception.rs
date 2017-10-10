@@ -46,20 +46,19 @@ fn throw_catch_simple() -> VM {
 
     declare_commons(&vm);
 
-    create_throw_exception_func(&vm);
-    create_catch_exception_func(&vm, true);
+    let exc_func = create_throw_exception_func(&vm);
+    create_catch_exception_func(&vm, true, exc_func);
 
     vm
 }
 
-fn create_catch_exception_func(vm: &VM, use_exception_arg: bool) {
+fn create_catch_exception_func(vm: &VM, use_exception_arg: bool, throw_exception: MuEntityHeader) {
     // .typedef @funcref_throw_exception <@throw_exception_sig>
     let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
-    let throw_exception_id = vm.id_of("throw_exception");
 
     typedef!        ((vm) funcref_throw_exception = mu_funcref(throw_exception_sig));
     constdef!       ((vm) <funcref_throw_exception> const_funcref_throw_exception
-        = Constant::FuncRef(throw_exception_id));
+        = Constant::FuncRef(throw_exception));
 
     funcsig!        ((vm) catch_exception_sig = () -> ());
     funcdecl!       ((vm) <catch_exception_sig> catch_exception);
@@ -119,7 +118,7 @@ fn create_catch_exception_func(vm: &VM, use_exception_arg: bool) {
     );
 }
 
-fn create_throw_exception_func(vm: &VM) {
+fn create_throw_exception_func(vm: &VM) -> MuEntityHeader {
     let int64 = vm.get_type(vm.id_of("int64"));
     let ref_int64 = vm.get_type(vm.id_of("ref_int64"));
     let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
@@ -165,6 +164,8 @@ fn create_throw_exception_func(vm: &VM) {
     define_func_ver!((vm) throw_exception_v1(entry: blk_0) {
         blk_0
     });
+
+    throw_exception
 }
 
 #[test]
@@ -178,8 +179,8 @@ fn throw_catch_dont_use_exception_arg() -> VM {
 
     declare_commons(&vm);
 
-    create_throw_exception_func(&vm);
-    create_catch_exception_func(&vm, false);
+    let throw_exc = create_throw_exception_func(&vm);
+    create_catch_exception_func(&vm, false, throw_exc);
 
     vm
 }
@@ -195,15 +196,14 @@ fn throw_catch_and_add() -> VM {
 
     declare_commons(&vm);
 
-    create_throw_exception_func(&vm);
-    create_catch_exception_and_add(&vm);
+    let throw_exc = create_throw_exception_func(&vm);
+    create_catch_exception_and_add(&vm, throw_exc);
 
     vm
 }
 
-fn create_catch_exception_and_add(vm: &VM) {
+fn create_catch_exception_and_add(vm: &VM, throw_exception: MuEntityHeader) {
     let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
-    let throw_exception_id = vm.id_of("throw_exception");
 
     let int64 = vm.get_type(vm.id_of("int64"));
     constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
@@ -215,7 +215,7 @@ fn create_catch_exception_and_add(vm: &VM) {
 
     typedef!    ((vm) type_funcref_throw_exception  = mu_funcref(throw_exception_sig));
     constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception
-        = Constant::FuncRef(throw_exception_id));
+        = Constant::FuncRef(throw_exception));
 
     funcsig!    ((vm) catch_exception_sig = () -> (int64));
     funcdecl!   ((vm) <catch_exception_sig> catch_and_add);
@@ -381,23 +381,21 @@ fn throw_catch_twice() -> VM {
 
     declare_commons(&vm);
 
-    create_throw_exception_func(&vm);
-    create_catch_twice(&vm);
+    let throw_exc = create_throw_exception_func(&vm);
+    create_catch_twice(&vm, throw_exc);
 
     vm
 }
 
-fn create_catch_twice(vm: &VM) {
+fn create_catch_twice(vm: &VM, throw_exception: MuEntityHeader) {
     let throw_exception_sig = vm.get_func_sig(vm.id_of("throw_exception_sig"));
-    let throw_exception_id = vm.id_of("throw_exception");
-
     let ref_int64 = vm.get_type(vm.id_of("ref_int64"));
     let iref_int64 = vm.get_type(vm.id_of("iref_int64"));
     let int64 = vm.get_type(vm.id_of("int64"));
 
     typedef!    ((vm) type_funcref_throw_exception = mu_funcref(throw_exception_sig));
     constdef!   ((vm) <type_funcref_throw_exception> const_funcref_throw_exception
-        = Constant::FuncRef(throw_exception_id));
+        = Constant::FuncRef(throw_exception));
 
     funcsig!    ((vm) catch_exception_sig = () -> (int64));
     funcdecl!   ((vm) <catch_exception_sig> catch_twice);

@@ -390,6 +390,14 @@ impl MuType {
         }
     }
 
+    /// gets the signature of a funcref or ufuncptr type
+    pub fn get_sig(&self) -> Option<P<MuFuncSig>> {
+        match self.v {
+            MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => Some(sig.clone()),
+            _ => None
+        }
+    }
+
     /// gets a field's type of a struct type,
     /// returns None if the type is not a struct or hybrid type
     pub fn get_field_ty(&self, index: usize) -> Option<P<MuType>> {
@@ -540,9 +548,9 @@ impl fmt::Display for MuType_ {
             &MuType_::Tagref64 => write!(f, "tagref64"),
             &MuType_::Vector(ref ty, size) => write!(f, "vector<{} {}>", ty, size),
             &MuType_::FuncRef(ref sig) => write!(f, "funcref<{}>", sig),
-            &MuType_::UFuncPtr(ref sig) => write!(f, "ufuncref<{}>", sig),
-            &MuType_::Struct(ref tag) => write!(f, "{}(struct)", tag),
-            &MuType_::Hybrid(ref tag) => write!(f, "{}(hybrid)", tag)
+            &MuType_::UFuncPtr(ref sig) => write!(f, "ufuncptr<{}>", sig),
+            &MuType_::Struct(ref tag) => write!(f, "{}", tag),
+            &MuType_::Hybrid(ref tag) => write!(f, "{}", tag)
         }
     }
 }
@@ -643,7 +651,7 @@ impl fmt::Display for HybridType_ {
                 write!(f, " ").unwrap();
             }
         }
-        write!(f, "|{}>", self.var_ty)
+        write!(f, " {}>", self.var_ty)
     }
 }
 
@@ -820,8 +828,8 @@ rodal_struct!(MuFuncSig{hdr, ret_tys, arg_tys});
 
 impl fmt::Display for MuFuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{}] -> [{}]",
-               vec_utils::as_str(&self.arg_tys), vec_utils::as_str(&self.ret_tys))
+        write!(f, "({})->({})",
+            vec_utils::as_str_sp(&self.arg_tys), vec_utils::as_str_sp(&self.ret_tys))
     }
 }
 

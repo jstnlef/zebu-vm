@@ -109,7 +109,7 @@ impl CompilerPass for RetSink {
                             value: None,
                             ops: ops.clone(),
                             v: Instruction_::Branch1(Destination {
-                                target: return_sink.id(),
+                                target: return_sink.hdr.clone(),
                                 args: arg_index.iter().map(|i| DestArg::Normal(*i)).collect()
                             })
                         });

@@ -145,7 +145,7 @@ impl<'a> InstructionSelection {
                         self.process_dest(&ops, fallthrough_dest, f_content, f_context, vm);
                         self.process_dest(&ops, branch_dest, f_content, f_context, vm);
 
-                        let branch_target = f_content.get_block(branch_dest.target).name();
+                        let branch_target = f_content.get_block(branch_dest.target.id()).name();
 
                         let ref cond = ops[cond];
 
@@ -178,8 +178,11 @@ impl<'a> InstructionSelection {
                                     self.backend.emit_b(branch_target);
                                 } else {
                                     self.backend.emit_b_cond(cond[0], branch_target.clone());
-
                                     if cond.len() == 2 {
+                                        self.finish_block();
+                                        self.start_block(
+                                            make_block_name(&node.name(), "second_condition")
+                                        );
                                         self.backend.emit_b_cond(cond[1], branch_target);
                                     }
                                 }
@@ -188,6 +191,7 @@ impl<'a> InstructionSelection {
                             let cond_reg = self.emit_ireg(cond, f_content, f_context, vm);
                             self.backend.emit_tbnz(&cond_reg, 0, branch_target.clone());
                         };
+                        self.finish_block();
                     }
 
                     Instruction_::Select {
@@ -311,11 +315,12 @@ impl<'a> InstructionSelection {
 
                         self.process_dest(&ops, dest, f_content, f_context, vm);
 
-                        let target = f_content.get_block(dest.target).name();
+                        let target = f_content.get_block(dest.target.id()).name();
 
                         trace!("emit branch1");
                         // jmp
                         self.backend.emit_b(target);
+                        self.finish_block();
                     }
 
                     Instruction_::Switch {
@@ -339,7 +344,7 @@ impl<'a> InstructionSelection {
                                 // process dest
                                 self.process_dest(&ops, case_dest, f_content, f_context, vm);
 
-                                let target = f_content.get_block(case_dest.target).name();
+                                let target = f_content.get_block(case_dest.target.id()).name();
 
                                 let mut imm_val = 0 as u64;
                                 // Is one of the arguments a valid immediate?
@@ -375,8 +380,9 @@ impl<'a> InstructionSelection {
                             // emit default
                             self.process_dest(&ops, default, f_content, f_context, vm);
 
-                            let default_target = f_content.get_block(default.target).name();
+                            let default_target = f_content.get_block(default.target.id()).name();
                             self.backend.emit_b(default_target);
+                            self.finish_block();
                         } else {
                             panic!("expecting cond in switch to be ireg: {}", cond);
                         }
@@ -1015,7 +1021,6 @@ impl<'a> InstructionSelection {
                                     // load_start:
                                     self.start_block(blk_load_start.clone());
 
-
                                     // Load the value:
                                     if use_acquire {
                                         self.backend.emit_ldaxp(&res_l, &res_h, &temp_loc);
@@ -1034,7 +1039,11 @@ impl<'a> InstructionSelection {
                                     }
 
                                     // If the store failed, then branch back to 'load_start:'
-                                    self.backend.emit_cbnz(&success, blk_load_start.clone())
+                                    self.backend.emit_cbnz(&success, blk_load_start.clone());
+                                    self.finish_block();
+                                    self.start_block(
+                                        make_block_name(&node.name(), "load_finished")
+                                    );
                                 }
                             }
                         } else {
@@ -1179,7 +1188,11 @@ impl<'a> InstructionSelection {
                                     }
 
                                     // If the store failed, then branch back to 'store_start:'
-                                    self.backend.emit_cbnz(&success, blk_store_start.clone())
+                                    self.backend.emit_cbnz(&success, blk_store_start.clone());
+                                    self.finish_block();
+                                    self.start_block(
+                                        make_block_name(&node.name(), "store_finished")
+                                    )
                                 }
                             }
                         } else {
@@ -1312,7 +1325,8 @@ impl<'a> InstructionSelection {
                             self.backend.emit_fcmp(&res_value, &expected);
                         }
                         self.backend.emit_b_cond("NE", blk_cmpxchg_failed.clone());
-
+                        self.finish_block();
+                        self.start_block(make_block_name(&node.name(), "cmpxchg_store"));
                         if use_release {
                             match desired.ty.v {
                                 // Have to store a temporary GPR
@@ -1813,8 +1827,8 @@ impl<'a> InstructionSelection {
                             CALLER_SAVED_REGS.to_vec(),
                             true
                         );
-
                         self.record_callsite(None, callsite.unwrap(), 0);
+                        self.finish_block();
                     }
 
                     // Runtime Entry
@@ -4672,13 +4686,18 @@ impl<'a> InstructionSelection {
             self.record_callsite(resumption, callsite.unwrap(), res_stack_size);
 
             if resumption.is_some() {
-                self.finish_block();
                 let block_name = make_block_name(&node.name(), "stack_resumption");
                 self.start_block(block_name);
             }
 
             self.emit_unload_arguments(inst.value.as_ref().unwrap(), res_locs, f_context, vm);
             emit_add_u64(self.backend.as_mut(), &SP, &SP, res_stack_size as u64);
+
+            if resumption.is_some() {
+                self.backend
+                    .emit_b(resumption.as_ref().unwrap().normal_dest.target.name());
+                self.finish_block();
+            }
         }
     }
 
@@ -4687,7 +4706,7 @@ impl<'a> InstructionSelection {
         f_content: &FunctionContent
     ) -> Option<MuName> {
         if resumption.is_some() {
-            let target_id = resumption.unwrap().exn_dest.target;
+            let target_id = resumption.unwrap().exn_dest.target.id();
             Some(f_content.get_block(target_id).name())
         } else {
             None
@@ -4700,13 +4719,13 @@ impl<'a> InstructionSelection {
         callsite: ValueLocation,
         stack_arg_size: usize
     ) {
-        let target_block = match resumption {
-            Some(rd) => rd.exn_dest.target,
+        let target_block_id = match resumption {
+            Some(rd) => rd.exn_dest.target.id(),
             None => 0
         };
 
         self.current_callsites
-            .push_back((callsite.to_relocatable(), target_block, stack_arg_size));
+            .push_back((callsite.to_relocatable(), target_block_id, stack_arg_size));
     }
 
     fn emit_mu_call(
@@ -4853,9 +4872,8 @@ impl<'a> InstructionSelection {
             );
 
             if resumption.is_some() {
-                let ref normal_dest = resumption.as_ref().unwrap().normal_dest;
-                let normal_target_name = f_content.get_block(normal_dest.target).name();
-                self.backend.emit_b(normal_target_name);
+                self.backend
+                    .emit_b(resumption.as_ref().unwrap().normal_dest.target.name());
             }
         }
     }
@@ -4890,7 +4908,7 @@ impl<'a> InstructionSelection {
                     //                    }
                     //
                     let ref target_args = f_content
-                        .get_block(dest.target)
+                        .get_block(dest.target.id())
                         .content
                         .as_ref()
                         .unwrap()
@@ -4911,8 +4929,6 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
-        trace!("ISAAC: sig[{}] args ({:?})", sig, args);
-
         let prologue_block = Arc::new(format!("{}:{}", self.current_fv_name, PROLOGUE_BLOCK_NAME));
         self.start_block(prologue_block);
 
@@ -4991,9 +5007,6 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) {
-        trace!("ISAAC: unload_arguments args ({:?})", args);
-        trace!("ISAAC:             locations ({:?})", locations);
-
         // unload arguments
         // Read arguments starting from FP+16 (FP points to the frame record
         // (the previous FP and LR)
@@ -5832,8 +5845,8 @@ impl<'a> InstructionSelection {
     fn node_funcref_const_to_id(&mut self, op: &TreeNode) -> MuID {
         match op.v {
             TreeNode_::Value(ref pv) => {
-                match pv.v {
-                    Value_::Constant(Constant::FuncRef(id)) => id,
+                match &pv.v {
+                    &Value_::Constant(Constant::FuncRef(ref hdr)) => hdr.id(),
                     _ => panic!("expected a funcref const")
                 }
             }

@@ -175,7 +175,7 @@ fn pass_1arg_by_stack() -> VM {
     funcdef!    ((vm) <sig> pass_1arg_by_stack VERSION pass_1arg_by_stack_v1);
 
     typedef!    ((vm) type_funcref_foo7 = mu_funcref(foo7_sig));
-    constdef!   ((vm) <type_funcref_foo7> const_funcref_foo7 = Constant::FuncRef(vm.id_of("foo7")));
+    constdef!   ((vm) <type_funcref_foo7> const_funcref_foo7 = Constant::FuncRef(foo7.clone()));
 
     // blk_entry
     consta!     ((vm, pass_1arg_by_stack_v1) int64_0_local = int64_0);
@@ -285,7 +285,7 @@ fn pass_1arg_by_stack() -> VM {
     funcdef!    ((vm) <sig> pass_1arg_by_stack VERSION pass_1arg_by_stack_v1);
 
     typedef!    ((vm) type_funcref_foo7 = mu_funcref(foo7_sig));
-    constdef!   ((vm) <type_funcref_foo7> const_funcref_foo7 = Constant::FuncRef(vm.id_of("foo7")));
+    constdef!   ((vm) <type_funcref_foo7> const_funcref_foo7 = Constant::FuncRef(foo7.clone()));
 
     // blk_entry
     consta!     ((vm, pass_1arg_by_stack_v1) int64_0_local = int64_0);
@@ -401,7 +401,7 @@ fn pass_2args_by_stack() -> VM {
     funcdef!    ((vm) <sig> pass_2args_by_stack VERSION pass_2args_by_stack_v1);
 
     typedef!    ((vm) type_funcref_foo8 = mu_funcref(foo8_sig));
-    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(vm.id_of("foo8")));
+    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(foo8.clone()));
 
     // blk_entry
     consta!     ((vm, pass_2args_by_stack_v1) int64_0_local = int64_0);
@@ -516,7 +516,7 @@ fn pass_2args_by_stack() -> VM {
     funcdef!    ((vm) <sig> pass_2args_by_stack VERSION pass_2args_by_stack_v1);
 
     typedef!    ((vm) type_funcref_foo8 = mu_funcref(foo8_sig));
-    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(vm.id_of("foo8")));
+    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(foo8.clone()));
 
     // blk_entry
     consta!     ((vm, pass_2args_by_stack_v1) int64_0_local = int64_0);
@@ -643,7 +643,7 @@ fn pass_2_int8_args_by_stack() -> VM {
     funcdef!    ((vm) <sig> pass_2_int8_args_by_stack VERSION pass_2_int8_args_by_stack_v1);
 
     typedef!    ((vm) type_funcref_foo8 = mu_funcref(foo8_sig));
-    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(vm.id_of("foo8")));
+    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(foo8.clone()));
 
     // blk_entry
     consta!     ((vm, pass_2_int8_args_by_stack_v1) int64_0_local = int64_0);
@@ -768,7 +768,7 @@ fn pass_2_int8_args_by_stack() -> VM {
     funcdef!    ((vm) <sig> pass_2_int8_args_by_stack VERSION pass_2_int8_args_by_stack_v1);
 
     typedef!    ((vm) type_funcref_foo8 = mu_funcref(foo8_sig));
-    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(vm.id_of("foo8")));
+    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(foo8.clone()));
 
     // blk_entry
     consta!     ((vm, pass_2_int8_args_by_stack_v1) int64_0_local = int64_0);
@@ -892,7 +892,7 @@ fn pass_mixed_args_by_stack() -> VM {
     funcdef!    ((vm) <sig> pass_mixed_args_by_stack VERSION pass_mixed_args_by_stack_v1);
 
     typedef!    ((vm) type_funcref_foo8 = mu_funcref(foo8_sig));
-    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(vm.id_of("foo8")));
+    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(foo8.clone()));
 
     // blk_entry
     consta!     ((vm, pass_mixed_args_by_stack_v1) int64_0_local = int64_0);
@@ -1013,7 +1013,7 @@ fn pass_mixed_args_by_stack() -> VM {
     funcdef!    ((vm) <sig> pass_mixed_args_by_stack VERSION pass_mixed_args_by_stack_v1);
 
     typedef!    ((vm) type_funcref_foo8 = mu_funcref(foo8_sig));
-    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(vm.id_of("foo8")));
+    constdef!   ((vm) <type_funcref_foo8> const_funcref_foo8 = Constant::FuncRef(foo8.clone()));
 
     // blk_entry
     consta!     ((vm, pass_mixed_args_by_stack_v1) int64_0_local = int64_0);
@@ -1120,7 +1120,7 @@ fn pass_fp_arg() -> VM {
     funcdef!    ((vm) <sig> pass_fp_arg VERSION pass_fp_arg_v1);
 
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
-    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(vm.id_of("foo")));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo.clone()));
 
     // blk_entry
     ssa!        ((vm, pass_fp_arg_v1) <double> x);
@@ -1195,7 +1195,7 @@ fn store_funcref() -> VM {
 
     // store_funcref
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
-    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(vm.id_of("foo")));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo.clone()));
 
     typedef!    ((vm) uptr_funcref_foo = mu_uptr(type_funcref_foo));
 
@@ -1264,7 +1264,7 @@ fn store_funcref() -> VM {
 
     typedef!((vm) ufp_test = mu_ufuncptr(store_funcref_sig));
     // .const @alloc = EXTERN SYMBOL "alloc_mem"
-    constdef!((vm) <ufp_test> const_test = Constant::FuncRef(vm.id_of("store_funcref")));
+    constdef!((vm) <ufp_test> const_test = Constant::FuncRef(store_funcref.clone()));
 
     block!((vm, current_tester_v1) blk_entry);
 
@@ -1389,7 +1389,7 @@ fn test_call_int128_arg() {
 
 fn call_add_u128(vm: &VM) {
     let add_u128_sig = vm.get_func_sig(vm.id_of("sig"));
-    let add_u128_id = vm.id_of("add_u128");
+    let add_u128 = MuEntityHeader::named(vm.id_of("add_u128"), Arc::new("add_u128".to_string()));
 
     typedef!    ((vm) int64  = mu_int(64));
     typedef!    ((vm) int128 = mu_int(128));
@@ -1397,7 +1397,7 @@ fn call_add_u128(vm: &VM) {
     constdef!   ((vm) <int128> int128_42 = Constant::IntEx(vec![42, 0]));
 
     typedef!    ((vm) funcref_add_u128 = mu_funcref(add_u128_sig));
-    constdef!   ((vm) <funcref_add_u128> const_funcref_add_u128 = Constant::FuncRef(add_u128_id));
+    constdef!   ((vm) <funcref_add_u128> const_funcref_add_u128 = Constant::FuncRef(add_u128));
 
     funcsig!    ((vm) call_add_u128_sig = () -> (int64));
     funcdecl!   ((vm) <call_add_u128_sig> call_add_u128);

@@ -2254,9 +2254,9 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let impl_ty = self.ensure_funcref(fun.sig);
 
         let impl_val = Value {
-            hdr: hdr,
+            hdr: hdr.clone(),
             ty: impl_ty,
-            v: Value_::Constant(Constant::FuncRef(id))
+            v: Value_::Constant(Constant::FuncRef(hdr))
         };
 
         trace!("Function value built: {} {:?}", id, impl_val);
@@ -3612,7 +3612,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
 
         let target = dest_clause.dest;
         assert_ir!(target != self.current_entry);
-        let target_block = blocks[&target].content.as_ref().unwrap();
+        let ref block = blocks[&target];
+        let target_block = block.content.as_ref().unwrap();
 
         assert_ir!(target_block.args.len() == dest_clause.vars.len());
         let dest_args = dest_clause.vars.iter().zip(&target_block.args).map(|(vid, arg)| {
@@ -3630,7 +3631,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         }).collect::<Vec<_>>();
 
         let impl_dest = Destination {
-            target: target,
+            target: block.hdr.clone(),
             args: dest_args
         };
 

@@ -96,6 +96,7 @@ impl CompilerPolicy {
 impl Default for CompilerPolicy {
     fn default() -> Self {
         let mut passes: Vec<Box<CompilerPass>> = vec![];
+        passes.push(Box::new(passes::UIRGen::new("")));
         passes.push(Box::new(passes::DotGen::new(".orig")));
 
         // ir level passes

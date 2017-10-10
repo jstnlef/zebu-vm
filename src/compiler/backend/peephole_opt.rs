@@ -163,7 +163,7 @@ impl PeepholeOptimization {
         // the instruction that we may rewrite
         let orig_inst = inst;
         // the destination we will rewrite the instruction to branch to
-        let final_dest: Option<MuName> = {
+        let dests: Option<(MuName, MuName)> = {
             use std::collections::HashSet;
 
             let mut cur_inst = inst;
@@ -216,7 +216,7 @@ impl PeepholeOptimization {
                             Some(ref dest2) => {
                                 // its a jump-to-jump case
                                 cur_inst = first_inst;
-                                last_dest = Some(dest2.clone());
+                                last_dest = Some((dest.clone(), dest2.clone()));
                             }
                             None => break
                         }
@@ -227,17 +227,18 @@ impl PeepholeOptimization {
             last_dest
         };
 
-        if let Some(dest) = final_dest {
-            let first_inst = mc.get_block_range(&dest).unwrap().start;
+        if let Some((old_dest, final_dest)) = dests {
+            let first_inst = mc.get_block_range(&final_dest).unwrap().start;
+            let old_first_inst = mc.get_block_range(&old_dest).unwrap().start;
 
             info!(
                 "inst {} chain jumps to {}, rewrite as branching to {} (successor: {})",
                 orig_inst,
-                dest,
-                dest,
+                final_dest,
+                final_dest,
                 first_inst
             );
-            mc.replace_branch_dest(inst, &dest, first_inst);
+            mc.replace_branch_dest(inst, old_first_inst, &final_dest, first_inst);
         }
     }
 }

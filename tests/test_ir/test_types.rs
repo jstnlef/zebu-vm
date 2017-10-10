@@ -114,21 +114,21 @@ fn test_type_constructors() {
     assert_type!(*types[4], "iref<int<8>>");
     assert_type!(*types[5], "weakref<int<8>>");
     assert_type!(*types[6], "uptr<int<8>>");
-    assert_type!(*types[7], "MyStructTag1(struct)");
+    assert_type!(*types[7], "MyStructTag1");
     {
         let map = STRUCT_TAG_MAP.read().unwrap();
         let t7_struct_ty = map.get(&"MyStructTag1".to_string()).unwrap();
         assert_type!(t7_struct_ty, "struct<int<8> float>");
     }
     assert_type!(*types[8], "array<int<8> 5>");
-    assert_type!(*types[9], "MyHybridTag1(hybrid)");
+    assert_type!(*types[9], "MyHybridTag1");
     assert_type!(*types[10], "void");
     assert_type!(*types[11], "threadref");
     assert_type!(*types[12], "stackref");
     assert_type!(*types[13], "tagref64");
     assert_type!(*types[14], "vector<int<8> 5>");
-    assert_type!(*types[15], "funcref<[int<8>, int<8>] -> [void]>");
-    assert_type!(*types[16], "ufuncref<[int<8>, int<8>] -> [void]>");
+    assert_type!(*types[15], "funcref<(int<8> int<8>)->(void)>");
+    assert_type!(*types[16], "ufuncptr<(int<8> int<8>)->(void)>");
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn test_cyclic_struct() {
 
     let map = STRUCT_TAG_MAP.read().unwrap();
     let struct_ty = map.get(&"MyStructTag2".to_string()).unwrap();
-    assert_type!(struct_ty, "struct<ref<MyStructTag2(struct)> int<32>>");
+    assert_type!(struct_ty, "struct<ref<MyStructTag2> int<32>>");
 }
 
 #[test]
