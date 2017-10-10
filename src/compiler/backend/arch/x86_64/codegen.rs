@@ -61,7 +61,8 @@ pub trait CodeGenerator {
     // comparison
     fn emit_cmp_r_r(&mut self, op1: Reg, op2: Reg);
     fn emit_cmp_imm_r(&mut self, op1: i32, op2: Reg);
-    fn emit_cmp_mem_r(&mut self, op1: Reg, op2: Reg);
+    fn emit_cmp_mem_r(&mut self, op1: Mem, op2: Reg);
+    fn emit_cmp_r_mem(&mut self, op1: Reg, op2: Mem);
 
     fn emit_test_r_r(&mut self, op1: Reg, op2: Reg);
     fn emit_test_imm_r(&mut self, op1: i32, op2: Reg);
