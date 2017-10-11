@@ -18,7 +18,7 @@ mod vm;
 /// which includes types, globals, functions/IRs, compiled functions
 /// and other runtime table (exception table etc)
 pub use vm::vm::VM;
-
+pub mod uir_output;
 /// vm_options defines commandline flags to create a new Zebu instance
 mod vm_options;
 
