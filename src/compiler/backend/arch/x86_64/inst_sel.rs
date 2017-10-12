@@ -5113,7 +5113,7 @@ impl<'a> InstructionSelection {
                                 let mem_op1 = self.emit_mem(op1, f_content, f_context, vm);
                                 let reg_op2 = self.emit_ireg(op2, f_content, f_context, vm);
 
-                                self.backend.emit_cmp_r_mem(&mem_op1, &reg_op2);
+                                self.backend.emit_cmp_r_mem(&reg_op2, &mem_op1);
 
                                 return op;
                             } else if self.match_ireg(op1) && self.match_ireg(op2) {
@@ -6131,12 +6131,22 @@ impl<'a> InstructionSelection {
                     }
                     Instruction_::Load { mem_loc, .. } => {
                         trace!("MEM from LOAD");
-                        self.emit_inst_addr_to_value_inner(
-                            &inst.ops[mem_loc],
-                            f_content,
-                            f_context,
-                            vm
-                        )
+                        let ref mem_op = inst.ops[mem_loc];
+                        match mem_op.v {
+                            TreeNode_::Instruction(_) => {
+                                self.emit_inst_addr_to_value_inner(mem_op, f_content, f_context, vm)
+                            }
+                            TreeNode_::Value(ref pv) => {
+                                assert!(pv.ty.is_heap_reference() || pv.ty.is_ptr());
+                                MemoryLocation::Address {
+                                    base: pv.clone(),
+                                    offset: None,
+                                    index: None,
+                                    scale: None
+                                }
+                            }
+                        }
+
                     }
                     _ => panic!("MEM from general ireg inst: {}", op)
                 }
