@@ -163,7 +163,7 @@ impl VMOptions {
             }
         }
 
-        unsafe { super::api::VALIDATE_IR = !ret.flag_disable_ir_validate };
+        unsafe { super::api::VALIDATE_IR = false };
         ret
     }
 }

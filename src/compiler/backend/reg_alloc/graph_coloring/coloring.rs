@@ -863,23 +863,28 @@ impl<'a> GraphColoring<'a> {
 
         for n in self.worklist_spill.iter() {
             let n = *n;
+            // if a node is not spillable, we guarantee that we do not spill it
+            if !self.is_spillable(n) {
+                trace!("{} is not spillable", n);
+                continue;
+            }
+
             if m.is_none() {
+                trace!("{} is the initial choice", n);
                 m = Some(n);
-            } else if {
-                       // m is not none
-                       let temp = self.ig.get_temp_of(m.unwrap());
-                       !self.is_spillable(temp)
-                   } {
-                m = Some(n);
-            } else if (self.ig.get_spill_cost(n) / (self.ig.get_degree_of(n) as f32)) <
-                       (self.ig.get_spill_cost(m.unwrap()) /
-                            (self.ig.get_degree_of(m.unwrap()) as f32))
-            {
-                m = Some(n);
+            } else {
+                let cur_m = m.unwrap();
+                let ratio_m = self.ig.get_spill_cost(cur_m) / (self.ig.get_degree_of(cur_m) as f32);
+                let ratio_n = self.ig.get_spill_cost(n) / (self.ig.get_degree_of(n) as f32);
+                if ratio_n < ratio_m {
+                    trace!("{} is preferred: ({} < {})", n, ratio_n, ratio_m);
+                    m = Some(n);
+                }
             }
         }
 
         // m is not none
+        assert!(m.is_some(), "failed to select any node to spill");
         let m = m.unwrap();
         trace!("Spilling {}...", m);
 
