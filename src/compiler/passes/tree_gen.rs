@@ -33,8 +33,77 @@ impl TreeGen {
 }
 
 fn is_movable(inst: &Instruction) -> bool {
-    !inst.has_side_effect()
+    is_suitable_child(inst)
 }
+
+/// is this instruction suitable to be tree child (we may find pattern for it)?
+fn is_suitable_child(inst: &Instruction) -> bool {
+    use ast::inst::Instruction_::*;
+
+    match inst.v {
+        Return(_) |
+        ThreadExit |
+        Throw(_) |
+        TailCall(_) |
+        Branch1(_) |
+        Branch2 { .. } |
+        Watchpoint { .. } |
+        WPBranch { .. } |
+        Call { .. } |
+        CCall { .. } |
+        SwapStackExc { .. } |
+        SwapStackKill { .. } |
+        Switch { .. } |
+        ExnInstruction { .. } |
+        PrintHex(_) |
+        SetRetval(_) |
+        KillStack(_) |
+        CurrentStack |
+        SwapStackExpr { .. } |
+        CommonInst_Tr64IsFp(_) |
+        CommonInst_Tr64IsInt(_) |
+        CommonInst_Tr64IsRef(_) |
+        CommonInst_Tr64FromFp(_) |
+        CommonInst_Tr64FromInt(_) |
+        CommonInst_Tr64FromRef(_, _) |
+        CommonInst_Tr64ToFp(_) |
+        CommonInst_Tr64ToInt(_) |
+        CommonInst_Tr64ToRef(_) |
+        CommonInst_Tr64ToTag(_) |
+        ExprCall { .. } |
+        ExprCCall { .. } |
+        New(_) |
+        AllocA(_) |
+        NewHybrid(_, _) |
+        AllocAHybrid(_, _) |
+        NewStack(_) |
+        NewThread { .. } |
+        NewFrameCursor(_) |
+        Select { .. } |
+        Fence(_) |
+        CommonInst_SetThreadLocal(_) |
+        CommonInst_Pin(_) |
+        CommonInst_Unpin(_) |
+        CommonInst_GetAddr(_) |
+        CmpXchg { .. } |
+        AtomicRMW { .. } |
+        Store { .. } => false,
+
+        BinOp(_, _, _) |
+        BinOpWithStatus(_, _, _, _) |
+        CmpOp(_, _, _) |
+        ConvOp { .. } |
+        Load { .. } |
+        GetIRef(_) |
+        GetFieldIRef { .. } |
+        GetElementIRef { .. } |
+        ShiftIRef { .. } |
+        GetVarPartIRef { .. } |
+        CommonInst_GetThreadLocal |
+        Move(_) => true
+    }
+}
+
 
 impl CompilerPass for TreeGen {
     fn name(&self) -> &'static str {
@@ -51,8 +120,8 @@ impl CompilerPass for TreeGen {
         // then we replace the use of the SSA with the actual variable
 
         // we are doing it in two steps
-        // 1. if we see an expression that generates an SSA which is used only once, we take out
-        //    the expression node
+        // 1. if we see an expression that generates an SSA which is used only once and used
+        //    in its next instruction, we take out the expression node
         // 2. if we see an SSA that is used only once (and it is this place for sure), we replace it
         //    with the expression node
         // because of SSA form,  it is guaranteed to see 1 before 2 for SSA variables.
@@ -71,7 +140,8 @@ impl CompilerPass for TreeGen {
                 trace!("check block {}", label);
                 trace!("");
 
-                for mut node in body.into_iter() {
+                for i in 0..body.len() {
+                    let mut node = body[i].clone();
                     trace!("check inst: {}", node);
                     match &mut node.v {
                         &mut TreeNode_::Instruction(ref mut inst) => {
@@ -105,6 +175,7 @@ impl CompilerPass for TreeGen {
                             // * it generates only one value
                             // * the value is used only once
                             // * the instruction is movable
+                            // * the value is used in the next instruction
                             trace!("check if we should fold the inst");
                             if inst.value.is_some() {
                                 let left = inst.value.as_ref().unwrap();
@@ -112,11 +183,23 @@ impl CompilerPass for TreeGen {
                                 // if left is _one_ variable that is used once
                                 // we can put the expression as a child node to its use
                                 if left.len() == 1 {
+                                    let ref val_lhs = left[0];
                                     let lhs = context
                                         .get_value_mut(left[0].extract_ssa_id().unwrap())
                                         .unwrap();
                                     if lhs.use_count() == 1 {
-                                        if is_movable(&inst) {
+                                        let next_inst_uses_lhs = {
+                                            if i != body.len() - 1 {
+                                                let ref next_inst = body[i + 1].as_inst_ref();
+                                                next_inst
+                                                    .ops
+                                                    .iter()
+                                                    .any(|x| x.as_value() == val_lhs)
+                                            } else {
+                                                false
+                                            }
+                                        };
+                                        if is_movable(&inst) && next_inst_uses_lhs {
                                             // FIXME: should be able to move the inst here
                                             lhs.assign_expr(inst.clone());
 
@@ -124,7 +207,7 @@ impl CompilerPass for TreeGen {
                                             trace!("");
                                             continue;
                                         } else {
-                                            trace!("no, not movable");
+                                            trace!("no, not movable or not used by next inst");
                                         }
                                     } else {
                                         trace!("no, use count more than 1");
