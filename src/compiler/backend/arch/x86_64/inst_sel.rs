@@ -5730,21 +5730,15 @@ impl<'a> InstructionSelection {
                 let ref ops = inst.ops;
 
                 match inst.v {
-                    // GETIREF -> [base]
+                    // GETIREF: returns operand
                     Instruction_::GetIRef(op_index) => {
+                        trace!("MEM from GETIREF: {}", op);
                         let ref ref_op = ops[op_index];
-                        let tmp_op = self.emit_ireg(ref_op, f_content, f_context, vm);
-                        let ret = MemoryLocation::Address {
-                            base: tmp_op,
-                            offset: None,
-                            index: None,
-                            scale: None
-                        };
-
-                        trace!("MEM from GETIREF: {}", ret);
-                        ret
+                        self.emit_inst_addr_to_value_inner(ref_op, f_content, f_context, vm)
                     }
+                    // GETFIELDIREF: adjust offset
                     Instruction_::GetFieldIRef { base, index, .. } => {
+                        trace!("MEM from GETFIELDIREF: {}", op);
                         let ref base = ops[base];
                         let struct_ty = {
                             let ref iref_or_uptr_ty = base.as_value().ty;
@@ -5761,40 +5755,12 @@ impl<'a> InstructionSelection {
                         };
                         let field_offset: i32 = self.get_field_offset(&struct_ty, index, vm);
 
-                        match base.v {
-                            // GETFIELDIREF(GETIREF) -> add FIELD_OFFSET to old offset
-                            TreeNode_::Instruction(Instruction {
-                                v: Instruction_::GetIRef(_),
-                                ..
-                            }) => {
-                                let mem = self.emit_inst_addr_to_value_inner(
-                                    base,
-                                    f_content,
-                                    f_context,
-                                    vm
-                                );
-                                let ret =
-                                    self.addr_const_offset_adjust(mem, field_offset as u64, vm);
-
-                                trace!("MEM from GETFIELDIREF(GETIREF): {}", ret);
-                                ret
-                            }
-                            // GETFIELDIREF(ireg) -> [base + FIELD_OFFSET]
-                            _ => {
-                                let tmp = self.emit_ireg(base, f_content, f_context, vm);
-                                let ret = MemoryLocation::Address {
-                                    base: tmp,
-                                    offset: Some(self.make_int_const(field_offset as u64, vm)),
-                                    index: None,
-                                    scale: None
-                                };
-
-                                trace!("MEM from GETFIELDIREF(ireg): {}", ret);
-                                ret
-                            }
-                        }
+                        let m = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
+                        self.addr_const_offset_adjust(m, field_offset as u64, vm)
                     }
+                    // GETVARPARTIREF: adjust offset
                     Instruction_::GetVarPartIRef { base, .. } => {
+                        trace!("MEM from GETVARPARTIREF: {}", op);
                         let ref base = ops[base];
                         let struct_ty = match base.as_value().ty.get_referent_ty() {
                             Some(ty) => ty,
@@ -5802,108 +5768,67 @@ impl<'a> InstructionSelection {
                         };
                         let fix_part_size = vm.get_backend_type_size(struct_ty.id());
 
-                        match base.v {
-                            // GETVARPARTIREF(GETIREF) -> add FIX_PART_SIZE to old offset
-                            TreeNode_::Instruction(Instruction {
-                                v: Instruction_::GetIRef(_),
-                                ..
-                            }) => {
-                                let mem = self.emit_inst_addr_to_value_inner(
-                                    base,
-                                    f_content,
-                                    f_context,
-                                    vm
-                                );
-                                let ret =
-                                    self.addr_const_offset_adjust(mem, fix_part_size as u64, vm);
-
-                                trace!("MEM from GETIVARPARTIREF(GETIREF): {}", ret);
-                                ret
-                            }
-                            // GETVARPARTIREF(ireg) -> [base + VAR_PART_SIZE]
-                            _ => {
-                                let tmp = self.emit_ireg(base, f_content, f_context, vm);
-                                let ret = MemoryLocation::Address {
-                                    base: tmp,
-                                    offset: Some(self.make_int_const(fix_part_size as u64, vm)),
-                                    index: None,
-                                    scale: None
-                                };
-
-                                trace!("MEM from GETVARPARTIREF(ireg): {}", ret);
-                                ret
-                            }
-                        }
+                        let m = self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
+                        self.addr_const_offset_adjust(m, fix_part_size as u64, vm)
                     }
-                    Instruction_::ShiftIRef { base, offset, .. } => {
+                    // SHIFTIREF:
+                    // either adjust offset (if the index is constant), or use index/scale
+                    Instruction_::ShiftIRef {
+                        base,
+                        offset: index,
+                        ..
+                    } |
+                    Instruction_::GetElementIRef { base, index, .. } => {
                         let ref base = ops[base];
-                        let ref offset = ops[offset];
+                        let ref index = ops[index];
 
-                        let ref base_ty = base.clone_value().ty;
-                        let ele_ty = match base_ty.get_referent_ty() {
+                        let ref iref_ty = base.as_value().ty;
+                        let base_ty = match iref_ty.get_referent_ty() {
                             Some(ty) => ty,
                             None => {
                                 panic!(
                                     "expected op in ShiftIRef of type IRef, found type: {}",
-                                    base_ty
+                                    iref_ty
                                 )
                             }
                         };
-                        let ele_backend_ty = vm.get_backend_type_info(ele_ty.id());
-                        let ele_ty_size =
-                            math::align_up(ele_backend_ty.size, ele_backend_ty.alignment);
+                        let ele_ty_size = {
+                            let backend_ty = vm.get_backend_type_info(base_ty.id());
+                            match inst.v {
+                                Instruction_::ShiftIRef { .. } => {
+                                    math::align_up(backend_ty.size, backend_ty.alignment)
+                                }
+                                Instruction_::GetElementIRef { .. } => {
+                                    backend_ty.elem_size.unwrap()
+                                }
+                                _ => unreachable!()
+                            }
+                        };
 
-                        if self.match_iimm(offset) {
+                        if self.match_iimm(index) {
+                            trace!("MEM from SHIFT/GETELEM IREF(constant): {}", op);
                             // byte offset is known at compile time,
                             // we can calculate it as a constant offset
-                            let index = self.node_iimm_to_i32(offset);
+                            let index = self.node_iimm_to_i32(index);
                             let shift_size = ele_ty_size as i32 * index;
 
-                            let mem = match base.v {
-                                // SHIFTIREF(GETVARPARTIREF(_), imm) -> add shift_size to old offset
-                                TreeNode_::Instruction(Instruction {
-                                    v: Instruction_::GetVarPartIRef { .. },
-                                    ..
-                                }) => {
-                                    let mem = self.emit_inst_addr_to_value_inner(
-                                        base,
-                                        f_content,
-                                        f_context,
-                                        vm
-                                    );
-                                    let ret =
-                                        self.addr_const_offset_adjust(mem, shift_size as u64, vm);
-
-                                    trace!("MEM from SHIFTIREF(GETVARPARTIREF(_), imm): {}", ret);
-                                    ret
-                                }
-                                // SHIFTIREF(ireg, imm) -> [base + SHIFT_SIZE]
-                                _ => {
-                                    let tmp = self.emit_ireg(base, f_content, f_context, vm);
-                                    let ret = MemoryLocation::Address {
-                                        base: tmp,
-                                        offset: Some(self.make_int_const(shift_size as u64, vm)),
-                                        index: None,
-                                        scale: None
-                                    };
-
-                                    trace!("MEM from SHIFTIREF(ireg, imm): {}", ret);
-                                    ret
-                                }
-                            };
-
-                            mem
+                            let m =
+                                self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
+                            self.addr_const_offset_adjust(m, shift_size as u64, vm)
                         } else {
-                            // we need to calculate byte offset at runtime
-                            let tmp_index = self.emit_ireg(offset, f_content, f_context, vm);
+                            trace!("MEM from SHIFT/GETELEM IREF(non constant): {}", op);
 
-                            // make a copy of it
-                            // (because we may need to alter index, and we dont want to change
-                            // the original value)
+                            // we need to use index and scale
+
+                            // index:
+                            let tmp_index = self.emit_ireg(index, f_content, f_context, vm);
+                            // make a copy, because we may need to alter index, and we dont want
+                            // to change the original value
                             let tmp_index_copy =
                                 self.make_temporary(f_context, tmp_index.ty.clone(), vm);
                             self.emit_move_value_to_value(&tmp_index_copy, &tmp_index);
 
+                            // scale:
                             let scale: u8 = match ele_ty_size {
                                 // if we can use x86 scale
                                 8 | 4 | 2 | 1 => ele_ty_size as u8,
@@ -5929,233 +5854,65 @@ impl<'a> InstructionSelection {
                                 }
                             };
 
-                            let mem = match base.v {
-                                // SHIFTIREF(GETVARPARTIREF(_), ireg) -> add index and scale
-                                TreeNode_::Instruction(Instruction {
-                                    v: Instruction_::GetVarPartIRef { .. },
-                                    ..
-                                }) => {
-                                    let mem = self.emit_inst_addr_to_value_inner(
-                                        base,
-                                        f_content,
-                                        f_context,
-                                        vm
-                                    );
-                                    let ret =
-                                        self.addr_append_index_scale(mem, tmp_index_copy, scale);
-
-                                    trace!("MEM from SHIFTIREF(GETVARPARTIREF(_), ireg): {}", ret);
-                                    ret
-                                }
-                                // SHIFTIREF(ireg, ireg) -> base + index * scale
-                                _ => {
-                                    let tmp = self.emit_ireg(base, f_content, f_context, vm);
-                                    let ret = MemoryLocation::Address {
-                                        base: tmp,
-                                        offset: None,
-                                        index: Some(tmp_index_copy),
-                                        scale: Some(scale)
-                                    };
-
-                                    trace!("MEM from SHIFTIREF(ireg, ireg): {}", ret);
-                                    ret
-                                }
-                            };
-
-                            mem
+                            let m =
+                                self.emit_inst_addr_to_value_inner(base, f_content, f_context, vm);
+                            self.addr_append_index_scale(m, tmp_index_copy, scale)
                         }
                     }
-                    Instruction_::GetElementIRef { base, index, .. } => {
-                        let ref base = ops[base];
-                        let ref index = ops[index];
-
-                        let ref iref_array_ty = base.as_value().ty;
-                        let array_ty = match iref_array_ty.get_referent_ty() {
-                            Some(ty) => ty,
-                            None => {
-                                panic!(
-                                    "expected base in GetElemIRef to be type IRef, found {}",
-                                    iref_array_ty
-                                )
-                            }
-                        };
-                        let ele_ty_size = match vm.get_backend_type_info(array_ty.id()).elem_size {
-                            Some(sz) => sz,
-                            None => {
-                                panic!(
-                                    "array backend type should have a elem_size, found {}",
-                                    array_ty
-                                )
-                            }
-                        };
-
-                        if self.match_iimm(index) {
-                            // byte offset is known at compile time
-                            let index = self.node_iimm_to_i32(index);
-                            let offset = ele_ty_size as i32 * index;
-
-                            match base.v {
-                                // GETELEMIREF(GETIREF) -> add offset
-                                TreeNode_::Instruction(Instruction {
-                                    v: Instruction_::GetIRef(_),
-                                    ..
-                                }) => {
-                                    let mem = self.emit_inst_addr_to_value_inner(
-                                        base,
-                                        f_content,
-                                        f_context,
-                                        vm
-                                    );
-                                    let ret = self.addr_const_offset_adjust(mem, offset as u64, vm);
-
-                                    trace!("MEM from GETELEMIREF(GETIREF, const): {}", ret);
-                                    ret
-                                }
-                                // GETELEMIREF(GETFIELDIREF) -> add offset
-                                TreeNode_::Instruction(Instruction {
-                                    v: Instruction_::GetFieldIRef { .. },
-                                    ..
-                                }) => {
-                                    let mem = self.emit_inst_addr_to_value_inner(
-                                        base,
-                                        f_content,
-                                        f_context,
-                                        vm
-                                    );
-                                    let ret = self.addr_const_offset_adjust(mem, offset as u64, vm);
-
-                                    trace!("MEM from GETELEMIREF(GETFIELDIREF, const): {}", ret);
-                                    ret
-                                }
-                                // GETELEMIREF(ireg) => [base + offset]
-                                _ => {
-                                    let tmp = self.emit_ireg(base, f_content, f_context, vm);
-                                    let ret = MemoryLocation::Address {
-                                        base: tmp,
-                                        offset: Some(self.make_int_const(offset as u64, vm)),
-                                        index: None,
-                                        scale: None
-                                    };
-
-                                    trace!("MEM from GETELEMIREF(ireg, const): {}", ret);
-                                    ret
-                                }
-                            }
-                        } else {
-                            // we need to calculate byte offset at runtime
-                            let tmp_index = self.emit_ireg(index, f_content, f_context, vm);
-
-                            // make a copy of it
-                            // (because we may need to alter index, and we dont want to change
-                            // the original value)
-                            let tmp_index_copy =
-                                self.make_temporary(f_context, tmp_index.ty.clone(), vm);
-                            self.emit_move_value_to_value(&tmp_index_copy, &tmp_index);
-
-                            let scale: u8 = match ele_ty_size {
-                                // if we can use x86 addressing mode scale
-                                8 | 4 | 2 | 1 => ele_ty_size as u8,
-                                // if we can calculate by shifting
-                                16 | 32 | 64 => {
-                                    let shift = math::is_power_of_two(ele_ty_size).unwrap();
-                                    // tmp_index_copy = tmp_index_copy << index
-                                    self.backend.emit_shl_r_imm8(&tmp_index_copy, shift as i8);
-
-                                    1
-                                }
-                                // otherwise we have to do multiplication
-                                _ => {
-                                    // mov ele_ty_size -> rax
-                                    self.backend
-                                        .emit_mov_r_imm(&x86_64::RAX, ele_ty_size as i32);
-                                    // mul tmp_index_copy rax -> rdx:rax
-                                    self.backend.emit_mul_r(&tmp_index_copy);
-                                    // mov rax -> tmp_index_copy
-                                    self.backend.emit_mov_r_r(&tmp_index_copy, &x86_64::RAX);
-
-                                    1
-                                }
-                            };
-
-                            match base.v {
-                                // GETELEMIREF(IREF, ireg) -> add index and scale
-                                TreeNode_::Instruction(Instruction {
-                                    v: Instruction_::GetIRef(_),
-                                    ..
-                                }) => {
-                                    let mem = self.emit_inst_addr_to_value_inner(
-                                        base,
-                                        f_content,
-                                        f_context,
-                                        vm
-                                    );
-                                    let ret =
-                                        self.addr_append_index_scale(mem, tmp_index_copy, scale);
-
-                                    trace!("MEM from GETELEMIREF(GETIREF, ireg): {}", ret);
-                                    ret
-                                }
-                                // GETELEMIREF(GETFIELDIREF, ireg) -> add index and scale
-                                TreeNode_::Instruction(Instruction {
-                                    v: Instruction_::GetFieldIRef { .. },
-                                    ..
-                                }) => {
-                                    let mem = self.emit_inst_addr_to_value_inner(
-                                        base,
-                                        f_content,
-                                        f_context,
-                                        vm
-                                    );
-                                    let ret =
-                                        self.addr_append_index_scale(mem, tmp_index_copy, scale);
-
-                                    trace!("MEM from GETELEMIREF(GETFIELDIREF, ireg): {}", ret);
-                                    ret
-                                }
-                                // GETELEMIREF(ireg, ireg)
-                                _ => {
-                                    let tmp = self.emit_ireg(base, f_content, f_context, vm);
-                                    let ret = MemoryLocation::Address {
-                                        base: tmp,
-                                        offset: None,
-                                        index: Some(tmp_index_copy),
-                                        scale: Some(scale)
-                                    };
-
-                                    trace!("MEM from GETELEMIREF(ireg, ireg): {}", ret);
-                                    ret
-                                }
-                            }
-                        }
-
+                    Instruction_::ConvOp {
+                        operation: ConvOp::REFCAST,
+                        operand,
+                        ..
+                    } |
+                    Instruction_::ConvOp {
+                        operation: ConvOp::PTRCAST,
+                        operand,
+                        ..
+                    } |
+                    Instruction_::Move(operand) => {
+                        trace!("MEM from REF/PTRCAST/MOVE: {}", op);
+                        let ref mem_op = inst.ops[operand];
+                        self.emit_inst_addr_to_value_inner(mem_op, f_content, f_context, vm)
                     }
-                    Instruction_::Load { mem_loc, .. } => {
-                        trace!("MEM from LOAD");
-                        let ref mem_op = inst.ops[mem_loc];
-                        match mem_op.v {
-                            TreeNode_::Instruction(_) => {
-                                self.emit_inst_addr_to_value_inner(mem_op, f_content, f_context, vm)
-                            }
-                            TreeNode_::Value(ref pv) => {
-                                assert!(pv.ty.is_heap_reference() || pv.ty.is_ptr());
-                                MemoryLocation::Address {
-                                    base: pv.clone(),
-                                    offset: None,
-                                    index: None,
-                                    scale: None
-                                }
-                            }
+                    _ => {
+                        warn!("MEM from general ireg inst: {}", op);
+                        warn!("cannot fold into proper address mode");
+                        let tmp = self.emit_ireg(op, f_content, f_context, vm);
+                        MemoryLocation::Address {
+                            base: tmp,
+                            offset: None,
+                            index: None,
+                            scale: None
                         }
-
                     }
-                    _ => panic!("MEM from general ireg inst: {}", op)
                 }
             }
-            _ => {
-                panic!(
-                    "expected an instruction that yields a memory address, found {}",
-                    op
-                )
+            TreeNode_::Value(ref pv) => {
+                match pv.v {
+                    Value_::SSAVar(_) => {
+                        trace!("MEM from value/ssa: {}", op);
+                        MemoryLocation::Address {
+                            base: pv.clone(),
+                            offset: None,
+                            index: None,
+                            scale: None
+                        }
+                    }
+                    Value_::Constant(_) => {
+                        error!("MEM from value/constant: {}", op);
+                        panic!("trying to get memory from constant");
+                    }
+                    Value_::Global(_) => {
+                        trace!("MEM from value/global: {}", op);
+                        self.make_memory_symbolic_global(op.name(), pv.ty.clone(), f_context, vm)
+                            .extract_memory_location()
+                            .unwrap()
+                    }
+                    Value_::Memory(ref mem) => {
+                        trace!("MEM from value/memory: {}", op);
+                        mem.clone()
+                    }
+                }
             }
         }
     }
@@ -6289,7 +6046,14 @@ impl<'a> InstructionSelection {
                     _ => unimplemented!()
                 }
             }
-            TreeNode_::Instruction(_) => self.emit_node_addr_to_value(op, f_content, f_context, vm)
+            TreeNode_::Instruction(ref inst) => {
+                match inst.v {
+                    Instruction_::Load { mem_loc, .. } => {
+                        self.emit_node_addr_to_value(&inst.ops[mem_loc], f_content, f_context, vm)
+                    }
+                    _ => panic!("only Load instruction can match memory operand")
+                }
+            }
         }
     }
 
