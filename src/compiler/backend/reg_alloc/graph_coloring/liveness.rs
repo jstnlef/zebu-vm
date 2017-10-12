@@ -82,6 +82,17 @@ fn is_usable(reg: MuID) -> bool {
     }
 }
 
+#[inline(always)]
+/// checks if a reg is machine register. If so, return its color
+/// otherwise return the reg
+fn c(u: MuID) -> MuID {
+    if is_precolored(u) {
+        backend::get_color_for_precolored(u)
+    } else {
+        u
+    }
+}
+
 /// InterferenceGraph represents the interference graph, including
 /// * the graph
 /// * all the nodes and its NodeIndex (a node is referred to by NodeIndex)
@@ -327,7 +338,7 @@ pub fn build_interference_graph_chaitin_briggs(
 
     // precolor machine register nodes
     for reg in backend::all_regs().values() {
-        let reg_id = reg.extract_ssa_id().unwrap();
+        let reg_id = c(reg.extract_ssa_id().unwrap());
         let node = ig.new_node(reg_id, &func.context);
         let precolor = backend::get_color_for_precolored(reg_id);
 
@@ -337,10 +348,12 @@ pub fn build_interference_graph_chaitin_briggs(
     // initialize and creates nodes for all the involved temps/regs
     for i in 0..cf.mc().number_of_insts() {
         for reg_id in cf.mc().get_inst_reg_defines(i) {
+            let reg_id = c(reg_id);
             ig.new_node(reg_id, &func.context);
         }
 
         for reg_id in cf.mc().get_inst_reg_uses(i) {
+            let reg_id = c(reg_id);
             ig.new_node(reg_id, &func.context);
         }
     }
@@ -353,21 +366,32 @@ pub fn build_interference_graph_chaitin_briggs(
                 Some(liveout) => liveout.to_vec(),
                 None => panic!("cannot find liveout for block {}", block)
             });
-        if TRACE_LIVENESS {
-            trace!("Block{}: live out", block);
-            for ele in current_live.iter() {
-                trace!("{}", func.context.get_temp_display(*ele));
+        let print_set = |set: &LinkedHashSet<MuID>| {
+            let mut s = String::new();
+            let mut iter = set.iter();
+            if let Some(first) = iter.next() {
+                s.push_str(&format!("{}", first));
+                while let Some(i) = iter.next() {
+                    s.push(' ');
+                    s.push_str(&format!("{}", i));
+                }
             }
+            trace!("current live: {}", s);
+        };
+
+        if TRACE_LIVENESS {
+            trace!("---Block {}: live out---", block);
+            print_set(&current_live);
         }
 
         let range = cf.mc().get_block_range(&block);
         if range.is_none() {
-            warn!("Block{}: has no range (no instructions?)", block);
+            warn!("Block {}: has no range (no instructions?)", block);
             continue;
         }
         trace_if!(
             TRACE_LIVENESS,
-            "Block{}: range = {:?}",
+            "Block {}: range = {:?}",
             block,
             range.as_ref().unwrap()
         );
@@ -375,12 +399,9 @@ pub fn build_interference_graph_chaitin_briggs(
         // for every inst I in reverse order
         for i in range.unwrap().rev() {
             if TRACE_LIVENESS {
-                trace!("Block{}: Inst{}", block, i);
+                trace!("Block {}: Inst{}", block, i);
                 cf.mc().trace_inst(i);
-                trace!("current live: ");
-                for ele in current_live.iter() {
-                    trace!("{}", func.context.get_temp_display(*ele));
-                }
+                print_set(&current_live);
             }
 
             let src: Option<MuID> = {
@@ -395,14 +416,9 @@ pub fn build_interference_graph_chaitin_briggs(
                         None
                     } else {
                         if src.len() == 1 {
-                            let src = src[0];
-                            let dst = dst[0];
-                            trace_if!(
-                                TRACE_LIVENESS,
-                                "add move between {} and {}",
-                                func.context.get_temp_display(src),
-                                func.context.get_temp_display(dst)
-                            );
+                            let src = c(src[0]);
+                            let dst = c(dst[0]);
+                            trace_if!(TRACE_LIVENESS, "add move {} -> {}", src, dst);
                             ig.add_move(src, dst);
 
                             Some(src)
@@ -414,57 +430,43 @@ pub fn build_interference_graph_chaitin_briggs(
                     None
                 }
             };
-            trace_if!(TRACE_LIVENESS, "Block{}: Inst{}: src={:?}", block, i, src);
 
             let defines = cf.mc().get_inst_reg_defines(i);
             for d in defines.iter() {
-                current_live.insert(*d);
+                let d = c(*d);
+                current_live.insert(d);
+            }
+            if TRACE_LIVENESS {
+                trace!("after adding defines:");
+                print_set(&current_live);
             }
 
             // for every definition D in I
+            trace_if!(
+                TRACE_LIVENESS,
+                "for every defines in the instruction, add edge..."
+            );
+            trace_if!(
+                TRACE_LIVENESS,
+                "(move source {:?} does not interference with defines)",
+                src
+            );
             for d in defines {
-                trace_if!(
-                    TRACE_LIVENESS,
-                    "Block{}: Inst{}: for definition {}",
-                    block,
-                    i,
-                    func.context.get_temp_display(d)
-                );
+                let d = c(d);
                 // add an interference from D to every element E in Current_Live - {D}
                 // creating nodes if necessary
                 for e in current_live.iter() {
-                    trace_if!(
-                        TRACE_LIVENESS,
-                        "Block{}: Inst{}: for each live {}",
-                        block,
-                        i,
-                        func.context.get_temp_display(*e)
-                    );
                     if src.is_none() || (src.is_some() && *e != src.unwrap()) {
                         let from = d;
                         let to = *e;
 
                         if !ig.is_same_node(from, to) && ig.is_same_group(from, to) {
                             if !ig.is_colored(from) {
-                                trace_if!(
-                                    TRACE_LIVENESS,
-                                    "Block{}: Inst{}: add interference between {} and {}",
-                                    block,
-                                    i,
-                                    func.context.get_temp_display(d),
-                                    func.context.get_temp_display(*e)
-                                );
+                                trace_if!(TRACE_LIVENESS, "add edge between {} and {}", d, *e);
                                 ig.add_edge(from, to);
                             }
                             if !ig.is_colored(to) {
-                                trace_if!(
-                                    TRACE_LIVENESS,
-                                    "Block{}: Inst{}: add interference between {} and {}",
-                                    block,
-                                    i,
-                                    func.context.get_temp_display(*e),
-                                    func.context.get_temp_display(d)
-                                );
+                                trace_if!(TRACE_LIVENESS, "add edge between {} and {}", *e, d);
                                 ig.add_edge(to, from);
                             }
                         }
@@ -474,35 +476,23 @@ pub fn build_interference_graph_chaitin_briggs(
 
             // for every definition D in I
             for d in cf.mc().get_inst_reg_defines(i) {
-                trace_if!(
-                    TRACE_LIVENESS,
-                    "Block{}: Inst{}: remove define {} from current_live",
-                    block,
-                    i,
-                    func.context.get_temp_display(d)
-                );
+                let d = c(d);
                 // remove D from Current_Live
                 current_live.remove(&d);
+            }
+            if TRACE_LIVENESS {
+                trace!("removing defines from current live...");
+                print_set(&current_live);
             }
 
             // for every use U in I
             for u in cf.mc().get_inst_reg_uses(i) {
-                trace_if!(
-                    TRACE_LIVENESS,
-                    "Block{}: Inst{}: add use {} to current_live",
-                    block,
-                    i,
-                    func.context.get_temp_display(u)
-                );
+                let u = c(u);
                 // add U to Current_live
                 current_live.insert(u);
             }
-
             if TRACE_LIVENESS {
-                trace!("Block{}: Inst{}: done. current_live:", block, i);
-                for ele in current_live.iter() {
-                    trace!("{}", func.context.get_temp_display(*ele));
-                }
+                trace!("adding uses to current live...")
             }
         }
     }
@@ -606,6 +596,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<MuName, CFGBlockN
 
                 // if a reg is used but not defined before, it is a live-in
                 for reg in reg_uses {
+                    let reg = c(reg);
                     if !all_defined.contains(&reg) {
                         livein.push(reg);
                     }
@@ -613,6 +604,7 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<MuName, CFGBlockN
 
                 let reg_defs = mc.get_inst_reg_defines(i);
                 for reg in reg_defs {
+                    let reg = c(reg);
                     all_defined.insert(reg);
                 }
             }
