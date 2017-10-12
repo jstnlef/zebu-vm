@@ -1731,17 +1731,17 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} {}", inst, op1, op2);
 
-        let (mem, mut uses) = self.prepare_mem(op2, inst.len() + 1);
-        let (reg, id1, loc1) = self.prepare_reg(op1, inst.len() + 1 + mem.len() + 1);
+        let (reg, id, loc) = self.prepare_reg(op1, inst.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(op2, inst.len() + 1 + reg.len() + 1);
 
-        if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
-            vec_utils::add_unique(locs, loc1.clone());
+        if uses.contains_key(&id) {
+            let mut locs = uses.get_mut(&id).unwrap();
+            vec_utils::add_unique(locs, loc.clone());
         } else {
-            uses.insert(id1, vec![loc1.clone()]);
+            uses.insert(id, vec![loc.clone()]);
         }
 
-        let asm = format!("{} {},{}", inst, mem, reg);
+        let asm = format!("{} {},{}", inst, reg, mem);
 
         self.add_asm_inst(asm, linked_hashmap!{}, uses, true)
     }
