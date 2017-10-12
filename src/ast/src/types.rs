@@ -441,6 +441,15 @@ impl MuType {
         }
     }
 
+    /// gets the function signature for FuncRef or UFuncPtr, return None if the type is not
+    /// those two types
+    pub fn get_func_sig(&self) -> Option<P<MuFuncSig>> {
+        match self.v {
+            MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => Some(sig.clone()),
+            _ => None
+        }
+    }
+
     /// gets the length (in bit) of a integer/pointer type (assume pointer types are always 64 bits)
     // FIXME: should deprecate this function, and get the length from BackendType
     pub fn get_int_length(&self) -> Option<usize> {

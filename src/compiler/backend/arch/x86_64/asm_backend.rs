@@ -1832,10 +1832,7 @@ impl ASMCodeGen {
 
     /// emits an instruction (use 1 reg 1 mem, define the reg)
     fn internal_binop_def_r_mem(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
-        let len = match dest.ty.get_int_length() {
-            Some(n) if n == 64 | 32 | 16 | 8 => n,
-            _ => panic!("unimplemented int types: {}", dest.ty)
-        };
+        let len = check_op_len(dest);
 
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
@@ -2256,10 +2253,26 @@ impl ASMCodeGen {
         )
     }
 
-    /// emits an instruction (use 2 fpregs, define 1st fpreg)
-    fn internal_fp_binop_def_r_mem(&mut self, inst: &str, dest: Reg, src: Reg) {
+    /// emits an instruction (use 1 fpreg 1 memory operand, define the fpreg)
+    fn internal_fp_binop_def_r_mem(&mut self, inst: &str, dest: Reg, src: Mem) {
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
-        unimplemented!()
+
+        let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
+        let (reg, id, loc) = self.prepare_fpreg(dest, inst.len() + 1 + mem.len() + 1);
+
+        // uses are GPRs, it won't include FPRs - we can simply insert into the map
+        uses.insert(id, vec![loc.clone()]);
+
+        let asm = format!("{} {},{}", inst, mem, reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id => vec![loc]
+            },
+            uses,
+            true
+        )
     }
 
     /// emits a move instruction (reg -> fpreg)
