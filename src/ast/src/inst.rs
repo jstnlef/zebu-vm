@@ -766,7 +766,7 @@ impl Instruction {
                         ret.push_str(" ");
                     }
                 }
-                ret.push_str("}}");
+                ret.push_str("}");
 
                 ret
             }

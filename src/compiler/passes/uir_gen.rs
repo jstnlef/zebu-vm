@@ -22,16 +22,9 @@ use std::any::Any;
 use std::path;
 use std::io::prelude::*;
 use std::fs::File;
-
+use vm::uir_output::create_emit_directory;
 pub const EMIT_MUIR: bool = true;
 
-pub fn create_emit_directory(vm: &VM) {
-    use std::fs;
-    match fs::create_dir(&vm.vm_options.flag_aot_emit_dir) {
-        Ok(_) => {}
-        Err(_) => {}
-    }
-}
 
 fn create_emit_file(name: String, vm: &VM) -> File {
     let mut file_path = path::PathBuf::new();
