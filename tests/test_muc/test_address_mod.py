@@ -136,7 +136,7 @@ def test_add_load_cast_global():
                 STORE <int<64>> global_y <int<64>> 42
                 BRANCH body(<int<32>> 1)
                 
-            body(<int<64>> x):
+            body(<int<32>> x):
                 global32_y = REFCAST <iref<int<64>> iref<int<32>>> global_y
                 y = LOAD <int<32>> global32_y
                 sum = ADD <int<32>> x y
