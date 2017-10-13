@@ -4743,15 +4743,12 @@ impl<'a> InstructionSelection {
 
         let ref ops = inst.ops;
         let ref func = ops[calldata.func];
-        let ref func_sig = match func.v {
-            TreeNode_::Value(ref pv) => {
-                let ty: &MuType = &pv.ty;
-                match ty.v {
-                    MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => sig,
-                    _ => panic!("expected funcref/ptr type")
-                }
+        let func_sig = {
+            let t = func.ty();
+            match t.v {
+                MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => sig.clone(),
+                _ => panic!("expected funcref/ufuncptr type")
             }
-            _ => panic!("expected funcref/ptr type")
         };
 
         debug_assert!(func_sig.arg_tys.len() == calldata.args.len());
