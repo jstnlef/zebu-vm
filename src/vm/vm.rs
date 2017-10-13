@@ -1128,7 +1128,7 @@ impl<'a> VM {
                                 compiler.compile(&mut func_ver);
                             }
                         }
-                        None => panic!("whitelist function {} has no version defined", f)
+                        None => error!("whitelist function {} has no version defined", f)
                     }
                 }
             }

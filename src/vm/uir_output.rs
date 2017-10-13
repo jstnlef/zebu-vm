@@ -109,12 +109,7 @@ fn emit_mu_funcdecls(suffix: &str, vm: &VM) {
 
     for f in funcs_guard.values() {
         let f_lock = f.read().unwrap();
-        writeln!(
-            file,
-            ".funcdecl {}<{}>",
-            f_lock.name(),
-            f_lock.sig
-        ).unwrap();
+        writeln!(file, ".funcdecl {}<{}>", f_lock.name(), f_lock.sig).unwrap();
     }
 }
 

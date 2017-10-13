@@ -80,8 +80,7 @@ fn emit_muir_dot(suffix: &str, func: &MuFunctionVersion, vm: &VM) {
     emit_muir_dot_inner(&mut file, func_name.clone(), func.content.as_ref().unwrap());
 }
 
-fn escape_string(s: String) -> String
-{
+fn escape_string(s: String) -> String {
     s.replace("\"", "\\\"") // Replace " with \"
 }
 
@@ -124,7 +123,11 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
 
         // all the instructions
         for inst in block_content.body.iter() {
-            write!(file, "    {}\\l", escape_string(format!("{}", inst.as_inst_ref()))).unwrap();
+            write!(
+                file,
+                "    {}\\l",
+                escape_string(format!("{}", inst.as_inst_ref()))
+            ).unwrap();
         }
 
         // "];
