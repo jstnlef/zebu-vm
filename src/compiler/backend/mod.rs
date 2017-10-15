@@ -14,6 +14,8 @@
 
 /// A instruction selection pass. Uses simple tree pattern matching.
 pub mod inst_sel;
+/// A Dominator Tree pass for machine code.
+pub mod mc_domtree;
 /// A register allocation pass. Graph coloring.
 pub mod reg_alloc;
 /// A peephole optimization pass after register allocation.

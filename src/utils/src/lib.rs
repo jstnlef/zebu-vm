@@ -60,11 +60,14 @@ pub const WORD_SIZE: ByteSize = 1 << LOG_POINTER_SIZE;
 mod linked_hashmap;
 /// linked hashset implementation based on LinkedHashMap
 mod linked_hashset;
+/// linked multi-key hashmap implementation
+mod linked_multimap;
 
 // re-export these data structures
 
 pub use linked_hashmap::LinkedHashMap;
 pub use linked_hashset::LinkedHashSet;
+pub use linked_multimap::LinkedMultiMap;
 pub use self::doubly::DoublyLinkedList;
 
 /// mem module:

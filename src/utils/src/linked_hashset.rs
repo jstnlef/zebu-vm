@@ -91,6 +91,22 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
         self.0.contains_key(k)
     }
 
+    /// retains elements that matches the predicate
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&K) -> bool
+    {
+        let mut retain = vec![];
+        while let Some(x) = self.0.pop_front() {
+            if f(&x.0) {
+                retain.push(x);
+            }
+        }
+        for x in retain {
+            self.0.insert(x.0, x.1);
+        }
+    }
+
     /// removes an element from the set, do nothing if the set does not contain the element
     pub fn remove<Q: ?Sized>(&mut self, k: &Q)
     where

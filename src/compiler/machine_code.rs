@@ -14,11 +14,13 @@
 
 use ast::ir::*;
 use ast::ptr::*;
+use compiler;
 use compiler::frame::*;
 use runtime::ValueLocation;
 
 use rodal;
 use utils::Address;
+use utils::LinkedHashMap;
 use std::sync::Arc;
 use runtime::resolve_symbol;
 use std;
@@ -215,6 +217,15 @@ pub trait MachineCode {
     fn get_all_blocks(&self) -> Vec<MuName>;
     /// gets the entry block
     fn get_entry_block(&self) -> MuName;
+    /// gets the prologue block
+    fn get_prologue_block(&self) -> MuName {
+        for name in self.get_all_blocks() {
+            if name.contains(compiler::PROLOGUE_BLOCK_NAME) {
+                return name;
+            }
+        }
+        unreachable!()
+    }
     /// gets the range of a given block, returns [start_inst, end_inst) (end_inst not included)
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
     /// gets the block for a given index, returns an Option for the block
@@ -240,4 +251,123 @@ pub trait MachineCode {
     fn patch_frame_size(&mut self, size: usize);
 
     fn as_any(&self) -> &Any;
+
+    fn build_cfg(&self) -> MachineCFG {
+        let mut ret = MachineCFG::empty();
+        let all_blocks = self.get_all_blocks();
+
+        let (start_inst_map, end_inst_map) = {
+            let mut start_inst_map: LinkedHashMap<usize, MuName> = LinkedHashMap::new();
+            let mut end_inst_map: LinkedHashMap<usize, MuName> = LinkedHashMap::new();
+            for block in all_blocks.iter() {
+                let range = match self.get_block_range(block) {
+                    Some(range) => range,
+                    None => panic!("cannot find range for block {}", block)
+                };
+
+                // start inst
+                let first_inst = range.start;
+                // last inst (we need to skip symbols)
+                let last_inst = match self.get_last_inst(range.end) {
+                    Some(last) => last,
+                    None => {
+                        panic!(
+                            "cannot find last instruction in block {}, \
+                             this block contains no instruction?",
+                            block
+                        )
+                    }
+                };
+                trace!(
+                    "Block {}: start_inst={}, end_inst(inclusive)={}",
+                    block,
+                    first_inst,
+                    last_inst
+                );
+
+                start_inst_map.insert(first_inst, block.clone());
+                end_inst_map.insert(last_inst, block.clone());
+            }
+
+            (start_inst_map, end_inst_map)
+        };
+
+        // collect info for each basic block
+        for block in self.get_all_blocks().iter() {
+            let range = self.get_block_range(block).unwrap();
+            let start_inst = range.start;
+            let end = range.end;
+
+            let preds: Vec<MuName> = {
+                let mut ret = vec![];
+
+                // predecessors of the first instruction is the predecessors of this block
+                for pred in self.get_preds(start_inst).into_iter() {
+                    match end_inst_map.get(pred) {
+                        Some(block) => ret.push(block.clone()),
+                        None => {}
+                    }
+                }
+
+                ret
+            };
+
+            let succs: Vec<MuName> = {
+                let mut ret = vec![];
+
+                // successors of the last instruction is the successors of this block
+                for succ in self.get_succs(self.get_last_inst(end).unwrap()).into_iter() {
+                    match start_inst_map.get(succ) {
+                        Some(block) => ret.push(block.clone()),
+                        None => {}
+                    }
+                }
+
+                ret
+            };
+
+            let node = MachineCFGNode {
+                block: block.clone(),
+                preds: preds,
+                succs: succs
+            };
+
+            trace!("CFGNode {:?}", node);
+            ret.inner.insert(block.clone(), node);
+        }
+
+        ret
+    }
+}
+
+pub struct MachineCFG {
+    inner: LinkedHashMap<MuName, MachineCFGNode>
+}
+
+impl MachineCFG {
+    fn empty() -> Self {
+        MachineCFG {
+            inner: LinkedHashMap::new()
+        }
+    }
+
+    pub fn get_blocks(&self) -> Vec<MuName> {
+        self.inner.keys().map(|x| x.clone()).collect()
+    }
+
+    pub fn get_preds(&self, block: &MuName) -> &Vec<MuName> {
+        &self.inner.get(block).unwrap().preds
+    }
+
+    pub fn get_succs(&self, block: &MuName) -> &Vec<MuName> {
+        &self.inner.get(block).unwrap().succs
+    }
+}
+
+/// MachineCFGNode represents a block in machine code control flow graph
+#[derive(Clone, Debug)]
+pub struct MachineCFGNode {
+    block: MuName,
+    preds: Vec<MuName>,
+    succs: Vec<MuName>
 }
