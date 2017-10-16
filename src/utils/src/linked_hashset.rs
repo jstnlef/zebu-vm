@@ -157,6 +157,25 @@ impl<K: Hash + Eq, S: BuildHasher> LinkedHashSet<K, S> {
     }
 }
 
+impl<K: Hash + Eq> PartialEq for LinkedHashSet<K> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for ele in self.iter() {
+            if !other.contains(ele) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
+    }
+}
+impl<K: Hash + Eq> Eq for LinkedHashSet<K> {}
+
 impl<K: Hash + Eq + Clone> Clone for LinkedHashSet<K> {
     fn clone(&self) -> Self {
         LinkedHashSet(self.0.clone())

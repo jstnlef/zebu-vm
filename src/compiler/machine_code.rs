@@ -16,13 +16,13 @@ use ast::ir::*;
 use ast::ptr::*;
 use compiler;
 use compiler::frame::*;
+use compiler::backend::mc_loopanalysis::MCLoopAnalysisResult;
 use runtime::ValueLocation;
-
-use rodal;
 use utils::Address;
-use utils::LinkedHashMap;
-use std::sync::Arc;
+use utils::{LinkedHashMap, LinkedHashSet};
 use runtime::resolve_symbol;
+use rodal;
+use std::sync::Arc;
 use std;
 use std::ops;
 use std::collections::HashMap;
@@ -54,7 +54,10 @@ pub struct CompiledFunction {
     /// start location of this compiled function
     pub start: ValueLocation,
     /// end location of this compiled function
-    pub end: ValueLocation
+    pub end: ValueLocation,
+
+    /// results of machine code loop analysis
+    pub loop_analysis: Option<Box<MCLoopAnalysisResult>>
 }
 rodal_named!(CompiledFunction);
 unsafe impl rodal::Dump for CompiledFunction {
@@ -92,7 +95,8 @@ impl CompiledFunction {
             mc: Some(mc),
             frame: frame,
             start: start_loc,
-            end: end_loc
+            end: end_loc,
+            loop_analysis: None
         }
     }
 
@@ -332,7 +336,7 @@ pub trait MachineCode {
                 succs: succs
             };
 
-            trace!("CFGNode {:?}", node);
+            trace!("{:?}", node);
             ret.inner.insert(block.clone(), node);
         }
 
@@ -361,6 +365,66 @@ impl MachineCFG {
 
     pub fn get_succs(&self, block: &MuName) -> &Vec<MuName> {
         &self.inner.get(block).unwrap().succs
+    }
+
+    pub fn has_edge(&self, from: &MuName, to: &MuName) -> bool {
+        if self.inner.contains_key(from) {
+            let ref node = self.inner.get(from).unwrap();
+            for succ in node.succs.iter() {
+                if succ == to {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// checks if there exists a path between from and to, without excluded node
+    pub fn has_path_with_node_excluded(
+        &self,
+        from: &MuName,
+        to: &MuName,
+        exclude_node: &MuName
+    ) -> bool {
+        // we cannot exclude start and end of the path
+        assert!(exclude_node != from && exclude_node != to);
+
+        if from == to {
+            true
+        } else {
+            // we are doing BFS
+
+            // visited nodes
+            let mut visited: LinkedHashSet<&MuName> = LinkedHashSet::new();
+            // work queue
+            let mut work_list: Vec<&MuName> = vec![];
+            // initialize visited nodes, and work queue
+            visited.insert(from);
+            work_list.push(from);
+
+            while !work_list.is_empty() {
+                let n = work_list.pop().unwrap();
+                for succ in self.get_succs(n) {
+                    if succ == exclude_node {
+                        // we are not going to follow a path with the excluded node
+                        continue;
+                    } else {
+                        // if we are reaching destination, return true
+                        if succ == to {
+                            return true;
+                        }
+
+                        // push succ to work list so we will traverse them later
+                        if !visited.contains(succ) {
+                            visited.insert(succ);
+                            work_list.push(succ);
+                        }
+                    }
+                }
+            }
+
+            false
+        }
     }
 }
 

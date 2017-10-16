@@ -241,3 +241,39 @@ def test_exc_pass_values():
         """, "test_exc_pass_values");
     assert(execute("test_exc_pass_values") == 4);
 
+def test_nest_loop():
+    lib = load_bundle(
+        """
+        .funcdef nest_loop<(int<64>) -> (int<64>)>
+        {
+            entry(<int<64>> n):
+                BRANCH outer_header(n <int<64>> 0 <int<64>> 0)
+            
+            outer_header(<int<64>> n <int<64>> i <int<64>> sum):
+                outer_cond = SLT <int<64>> i n
+                BRANCH2 outer_cond outer_body(n i sum) exit(sum)
+            
+            outer_body(<int<64>> n <int<64>> i <int<64>> sum):
+                BRANCH inner_header(n i <int<64>> 0 sum)
+            
+            outer_step(<int<64>> n <int<64>> i <int<64>> sum):
+                i2 = ADD <int<64>> i <int<64>> 1
+                BRANCH outer_header(n i2 sum)
+            
+            inner_header(<int<64>> n <int<64>> i <int<64>> j <int<64>> sum):
+                inner_cond = SLT <int<64>> j i
+                BRANCH2 inner_cond inner_body(n i j sum) outer_step(n i sum)
+            
+            inner_body(<int<64>> n <int<64>> i <int<64>> j <int<64>> sum):
+                sum2 = ADD <int<64>> sum j
+                j2 = ADD <int<64>> j <int<64>> 1
+                BRANCH inner_header(n i j2 sum2)
+            
+            exit(<int<64>> sum):
+                RET sum
+        }
+        """, "nest_loop"
+    )
+
+    nest_loop = get_function(lib.nest_loop, [ctypes.c_int64], ctypes.c_int64)
+    assert(nest_loop(100) == 161700)

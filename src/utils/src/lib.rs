@@ -62,12 +62,16 @@ mod linked_hashmap;
 mod linked_hashset;
 /// linked multi-key hashmap implementation
 mod linked_multimap;
+/// tree implementation
+mod tree;
 
 // re-export these data structures
 
 pub use linked_hashmap::LinkedHashMap;
 pub use linked_hashset::LinkedHashSet;
 pub use linked_multimap::LinkedMultiMap;
+pub use linked_multimap::LinkedRepeatableMultiMap;
+pub use tree::Tree;
 pub use self::doubly::DoublyLinkedList;
 
 /// mem module:

@@ -111,7 +111,7 @@ impl Default for CompilerPolicy {
 
         // compilation
         passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
-        passes.push(Box::new(backend::mc_domtree::MCDomTree::new()));
+        passes.push(Box::new(backend::mc_loopanalysis::MCLoopAnalysis::new()));
         passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new()));
 
         // machine code level passes
