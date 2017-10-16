@@ -86,10 +86,10 @@ impl CompilerPass for MCLoopAnalysis {
 
 #[allow(dead_code)]
 pub struct MCLoopAnalysisResult {
-    domtree: MCDomTree,
-    loops: LinkedRepeatableMultiMap<MuName, MCNaturalLoop>,
-    loop_nest_tree: MCLoopNestTree,
-    loop_depth: LinkedHashMap<MuName, usize>
+    pub domtree: MCDomTree,
+    pub loops: LinkedRepeatableMultiMap<MuName, MCNaturalLoop>,
+    pub loop_nest_tree: MCLoopNestTree,
+    pub loop_depth: LinkedHashMap<MuName, usize>
 }
 
 impl MCLoopAnalysis {
@@ -238,7 +238,7 @@ fn compute_domtree(entry: MuName, idoms: &LinkedHashMap<MuName, MuName>) -> MCDo
 }
 
 #[derive(Debug)]
-struct MCNaturalLoop {
+pub struct MCNaturalLoop {
     header: MuName,
     backedge: MuName,
     blocks: LinkedHashSet<MuName>

@@ -874,10 +874,10 @@ impl<'a> GraphColoring<'a> {
                 m = Some(n);
             } else {
                 let cur_m = m.unwrap();
-                let ratio_m = self.ig.get_spill_cost(cur_m) / (self.ig.get_degree_of(cur_m) as f32);
-                let ratio_n = self.ig.get_spill_cost(n) / (self.ig.get_degree_of(n) as f32);
-                if ratio_n < ratio_m {
-                    trace!("{} is preferred: ({} < {})", n, ratio_n, ratio_m);
+                let cost_m = self.ig.get_spill_cost(cur_m);
+                let cost_n = self.ig.get_spill_cost(n);
+                if cost_n < cost_m {
+                    trace!("{} is preferred: ({} < {})", n, cost_n, cost_m);
                     m = Some(n);
                 }
             }

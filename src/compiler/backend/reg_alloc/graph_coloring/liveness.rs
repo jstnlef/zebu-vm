@@ -21,6 +21,14 @@ use utils::LinkedHashSet;
 use utils::LinkedHashMap;
 use std::fmt;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum NodeType {
+    Def,
+    Use,
+    Copy,
+    Machine
+}
+
 /// GraphNode represents a node in the interference graph.
 #[derive(Clone, Copy, PartialEq)]
 pub struct Node {
@@ -120,7 +128,13 @@ impl InterferenceGraph {
 
     /// creates a new node for a temp (if we already created a temp for the temp, returns the node)
     /// This function will increase spill cost for the node by 1 each tiem it is called for the temp
-    fn new_node(&mut self, reg_id: MuID, context: &FunctionContext) -> MuID {
+    fn new_node(
+        &mut self,
+        reg_id: MuID,
+        ty: NodeType,
+        loop_depth: usize,
+        context: &FunctionContext
+    ) -> MuID {
         let entry = context.get_value(reg_id).unwrap();
 
         // if it is the first time, create the node
@@ -140,9 +154,24 @@ impl InterferenceGraph {
         // get node
         let node_mut = self.nodes.get_mut(&reg_id).unwrap();
         // increase node spill cost
-        node_mut.spill_cost += 1.0f32;
+        node_mut.spill_cost += InterferenceGraph::spillcost_heuristic(ty, loop_depth);
 
         reg_id
+    }
+
+    fn spillcost_heuristic(ty: NodeType, loop_depth: usize) -> f32 {
+        const DEF_WEIGHT: f32 = 1f32;
+        const USE_WEIGHT: f32 = 1f32;
+        const COPY_WEIGHT: f32 = 0.5f32;
+
+        let loop_depth = loop_depth as i32;
+
+        match ty {
+            NodeType::Machine => 0f32,
+            NodeType::Def => DEF_WEIGHT * (10f32.powi(loop_depth)),
+            NodeType::Use => USE_WEIGHT * (10f32.powi(loop_depth)),
+            NodeType::Copy => COPY_WEIGHT * (10f32.powi(loop_depth))
+        }
     }
 
     /// returns all the nodes in the graph
@@ -327,6 +356,8 @@ pub fn build_interference_graph_chaitin_briggs(
     cf: &mut CompiledFunction,
     func: &MuFunctionVersion
 ) -> InterferenceGraph {
+    use compiler::backend::reg_alloc::graph_coloring::liveness::NodeType::*;
+
     let _p = hprof::enter("regalloc: build global liveness");
     build_global_liveness(cf, func);
     drop(_p);
@@ -339,22 +370,47 @@ pub fn build_interference_graph_chaitin_briggs(
     // precolor machine register nodes
     for reg in backend::all_regs().values() {
         let reg_id = c(reg.extract_ssa_id().unwrap());
-        let node = ig.new_node(reg_id, &func.context);
+        let node = ig.new_node(reg_id, Machine, 0, &func.context);
         let precolor = backend::get_color_for_precolored(reg_id);
 
         ig.color_node(node, precolor);
     }
 
     // initialize and creates nodes for all the involved temps/regs
-    for i in 0..cf.mc().number_of_insts() {
-        for reg_id in cf.mc().get_inst_reg_defines(i) {
-            let reg_id = c(reg_id);
-            ig.new_node(reg_id, &func.context);
-        }
+    let mc = cf.mc();
+    for block in mc.get_all_blocks() {
+        debug!("build graph node for block {}", block);
+        let loop_depth: usize = match cf.loop_analysis.as_ref().unwrap().loop_depth.get(&block) {
+            Some(depth) => *depth,
+            None => 0
+        };
+        debug!("loop depth = {}", loop_depth);
+        for i in mc.get_block_range(&block).unwrap() {
+            // we separate the case of move nodes, and normal instruction
+            // as they yield different spill cost
+            // (we prefer spill a node in move instruction
+            // as the move instruction can be eliminated)
+            if mc.is_move(i) {
+                for reg_id in mc.get_inst_reg_defines(i) {
+                    let reg_id = c(reg_id);
+                    ig.new_node(reg_id, Copy, loop_depth, &func.context);
+                }
 
-        for reg_id in cf.mc().get_inst_reg_uses(i) {
-            let reg_id = c(reg_id);
-            ig.new_node(reg_id, &func.context);
+                for reg_id in mc.get_inst_reg_uses(i) {
+                    let reg_id = c(reg_id);
+                    ig.new_node(reg_id, Copy, loop_depth, &func.context);
+                }
+            } else {
+                for reg_id in mc.get_inst_reg_defines(i) {
+                    let reg_id = c(reg_id);
+                    ig.new_node(reg_id, Def, loop_depth, &func.context);
+                }
+
+                for reg_id in mc.get_inst_reg_uses(i) {
+                    let reg_id = c(reg_id);
+                    ig.new_node(reg_id, Use, loop_depth, &func.context);
+                }
+            }
         }
     }
 
