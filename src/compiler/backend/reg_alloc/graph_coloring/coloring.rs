@@ -896,8 +896,10 @@ impl<'a> GraphColoring<'a> {
 
     fn assign_colors(&mut self) {
         trace!("---coloring done---");
-        while !self.select_stack.is_empty() {
-            let n = self.select_stack.pop().unwrap();
+
+        let mut coloring_queue: Vec<MuID> = self.coloring_queue_heuristic();
+        while !coloring_queue.is_empty() {
+            let n = coloring_queue.pop().unwrap();
             trace!("Assigning color to {}", n);
 
             let mut ok_colors: LinkedHashSet<MuID> =
@@ -926,15 +928,11 @@ impl<'a> GraphColoring<'a> {
                 trace!("{} is a spilled node", n);
                 self.spilled_nodes.insert(n);
             } else {
-                let first_available_color = ok_colors.pop_front().unwrap();
-                trace!("Color {} as {}", n, first_available_color);
-
-                if !backend::is_callee_saved(first_available_color) {
-                    trace!("Use caller saved register {}", first_available_color);
-                }
+                let color = self.color_heuristic(n, &mut ok_colors);
+                trace!("Color {} as {}", n, color);
 
                 self.colored_nodes.insert(n);
-                self.ig.color_node(n, first_available_color);
+                self.ig.color_node(n, color);
             }
         }
 
@@ -946,6 +944,71 @@ impl<'a> GraphColoring<'a> {
                 trace!("Color {} as {}", n, alias_color);
                 self.ig.color_node(n, alias_color);
             }
+        }
+    }
+
+    //    /// we pick colors for node that has higher weight (higher spill cost)
+    //    fn coloring_queue_heuristic(&self) -> Vec<MuID> {
+    //        let mut ret = self.select_stack.clone();
+    //        ret.sort_by_key(|x| self.ig.get_spill_cost(*x));
+    //        ret.reverse();
+    //        ret
+    //    }
+
+    fn coloring_queue_heuristic(&self) -> Vec<MuID> {
+        self.select_stack.clone()
+    }
+
+    /// we favor choosing colors that will make any frozen moves able to be eliminated
+    fn color_heuristic(&self, reg: MuID, available_colors: &mut LinkedHashSet<MuID>) -> MuID {
+        trace!("Find color for {} in {:?}", reg, available_colors);
+
+        // we use spill cost as weight.
+        // A node that has higher spill cost is used more frequently, and has a higher weight
+        // we favor choosing color that has a higher weight
+        let mut candidate_weight: LinkedHashMap<MuID, f32> = LinkedHashMap::new();
+
+        for mov in self.frozen_moves.iter() {
+            // find the other part of the mov
+            let other = if mov.from == reg { mov.to } else { mov.from };
+            let alias = self.get_alias(other);
+            let other_color = self.ig.get_color_of(alias);
+            let other_weight = self.ig.get_spill_cost(alias);
+            // if the other part is colored and that color is available,
+            // we will favor the choice of the color
+            if let Some(other_color) = other_color {
+                if available_colors.contains(&other_color) {
+                    let total_weight = if candidate_weight.contains_key(&other_color) {
+                        candidate_weight.get(&other_color).unwrap() + other_weight
+                    } else {
+                        other_weight
+                    };
+                    candidate_weight.insert(other_color, total_weight);
+                    trace!(
+                        "  favor {} to eliminate {:?} (weight={})",
+                        other_color,
+                        mov,
+                        total_weight
+                    );
+                }
+            }
+        }
+
+        if candidate_weight.is_empty() {
+            trace!("  no candidate, use first avaiable color");
+            available_colors.pop_front().unwrap()
+        } else {
+            let mut c = None;
+            let mut c_weight = 0f32;
+            for (&id, &weight) in candidate_weight.iter() {
+                if c.is_none() || (c.is_some() && c_weight < weight) {
+                    c = Some(id);
+                    c_weight = weight;
+                }
+            }
+            assert!(c.is_some());
+            trace!("  pick candidate of most weight: {}", c.unwrap());
+            c.unwrap()
         }
     }
 
