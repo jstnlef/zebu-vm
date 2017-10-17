@@ -243,13 +243,13 @@ impl InterferenceGraph {
                 self.adj_list.get_mut(&u).unwrap().insert(v);
                 let degree = self.get_degree_of(u);
                 self.set_degree_of(u, degree + 1);
-                trace!("increase degree of {} to {}", u, degree + 1);
+                trace!("  increase degree of {} to {}", u, degree + 1);
             }
             if !is_precolored(v) {
                 self.adj_list.get_mut(&v).unwrap().insert(u);
                 let degree = self.get_degree_of(v);
                 self.set_degree_of(v, degree + 1);
-                trace!("increase degree of {} to {}", v, degree + 1);
+                trace!("  increase degree of {} to {}", v, degree + 1);
             }
         }
     }
@@ -310,7 +310,7 @@ impl InterferenceGraph {
     }
 
     pub fn set_degree_of(&mut self, reg: MuID, degree: usize) {
-        debug!("DEGREE({}) SET TO {}", reg, degree);
+        trace!("  set degree({}) = {}", reg, degree);
         self.degree.insert(reg, degree);
     }
 

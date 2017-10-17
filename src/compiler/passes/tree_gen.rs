@@ -89,8 +89,8 @@ fn is_suitable_child(inst: &Instruction) -> bool {
         AtomicRMW { .. } |
         Store { .. } => false,
 
-        BinOp(_, _, _) |
-        BinOpWithStatus(_, _, _, _) |
+        BinOp(_, _, _) | BinOpWithStatus(_, _, _, _) | CommonInst_GetThreadLocal | Move(_) => false,
+
         CmpOp(_, _, _) |
         ConvOp { .. } |
         Load { .. } |
@@ -98,9 +98,7 @@ fn is_suitable_child(inst: &Instruction) -> bool {
         GetFieldIRef { .. } |
         GetElementIRef { .. } |
         ShiftIRef { .. } |
-        GetVarPartIRef { .. } |
-        CommonInst_GetThreadLocal |
-        Move(_) => true
+        GetVarPartIRef { .. } => true
     }
 }
 

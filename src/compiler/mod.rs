@@ -54,6 +54,7 @@ impl<'vm> Compiler<'vm> {
     /// compiles a certain function version
     pub fn compile(&self, func: &mut MuFunctionVersion) {
         info!("");
+        info!("compilation_start {}", func.id());
         info!("Start compiling {}", func);
         info!("");
         debug!("{:?}", func);
@@ -78,6 +79,7 @@ impl<'vm> Compiler<'vm> {
             // build exception table for this function
             unimplemented!()
         }
+        info!("compilation_end {}", func.id());
     }
 }
 

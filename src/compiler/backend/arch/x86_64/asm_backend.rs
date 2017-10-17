@@ -4485,7 +4485,12 @@ pub fn spill_rewrite(
                         .clone_value();
 
                     // maintain mapping
-                    trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
+                    trace!(
+                        "reg {} used in Inst{} is replaced as {}",
+                        val_reg.id(),
+                        i,
+                        temp
+                    );
                     spilled_scratch_temps.insert(temp.id(), reg);
 
                     // generate a load
@@ -4542,7 +4547,7 @@ pub fn spill_rewrite(
                     };
                     trace!(
                         "reg {} defined in Inst{} is replaced as {}",
-                        val_reg,
+                        val_reg.id(),
                         i,
                         temp
                     );
