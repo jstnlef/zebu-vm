@@ -2765,6 +2765,13 @@ impl<'a> InstructionSelection {
                     // MUL with one is the original value
                     trace!("emit mul-ireg-1");
                     self.emit_move_node_to_value(&res_tmp, op1, f_content, f_context, vm);
+                } else if self.match_ireg(op1) && self.match_iconst_p2(op2) {
+                    // MUL with a constant that is a power of 2 can be done with shl
+                    trace!("emit mul-ireg-p2");
+                    let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                    let shift = self.node_iconst_to_p2(op2);
+                    self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                    self.backend.emit_shl_r_imm8(&res_tmp, shift as i8);
                 } else if self.match_ireg_ex(op1) && self.match_iconst_zero(op2) {
                     // MUL with zero is zero
                     trace!("emit mul-iregex-0");
@@ -2875,16 +2882,25 @@ impl<'a> InstructionSelection {
 
                 match op_size {
                     1 | 2 | 4 | 8 => {
-                        self.emit_udiv(op1, op2, f_content, f_context, vm);
+                        if self.match_iconst_p2(op2) {
+                            // we can simply logic shift right
+                            let shift = self.node_iconst_to_p2(op2);
 
-                        // mov rax -> result
-                        let res_size = vm.get_backend_type_size(res_tmp.ty.id());
-                        match res_size {
-                            8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
-                            4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
-                            2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
-                            1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
-                            _ => panic!("unexpected res for node {:?}", node)
+                            let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                            self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                            self.backend.emit_shr_r_imm8(&res_tmp, shift as i8);
+                        } else {
+                            self.emit_udiv(op1, op2, f_content, f_context, vm);
+
+                            // mov rax -> result
+                            let res_size = vm.get_backend_type_size(res_tmp.ty.id());
+                            match res_size {
+                                8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                                4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                                2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                                1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                                _ => panic!("unexpected res for node {:?}", node)
+                            }
                         }
                     }
                     16 => {
@@ -2913,16 +2929,25 @@ impl<'a> InstructionSelection {
 
                 match op_size {
                     1 | 2 | 4 | 8 => {
-                        self.emit_idiv(op1, op2, f_content, f_context, vm);
+                        if self.match_iconst_p2(op2) {
+                            // we can simply arithmetic shift right
+                            let shift = self.node_iconst_to_p2(op2);
 
-                        // mov rax -> result
-                        let res_size = vm.get_backend_type_size(res_tmp.ty.id());
-                        match res_size {
-                            8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
-                            4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
-                            2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
-                            1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
-                            _ => panic!("unexpected res for node {:?}", node)
+                            let tmp_op1 = self.emit_ireg(op1, f_content, f_context, vm);
+                            self.backend.emit_mov_r_r(&res_tmp, &tmp_op1);
+                            self.backend.emit_sar_r_imm8(&res_tmp, shift as i8);
+                        } else {
+                            self.emit_idiv(op1, op2, f_content, f_context, vm);
+
+                            // mov rax -> result
+                            let res_size = vm.get_backend_type_size(res_tmp.ty.id());
+                            match res_size {
+                                8 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::RAX),
+                                4 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::EAX),
+                                2 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AX),
+                                1 => self.backend.emit_mov_r_r(&res_tmp, &x86_64::AL),
+                                _ => panic!("unexpected res for node {:?}", node)
+                            }
                         }
                     }
                     16 => {
@@ -5566,6 +5591,33 @@ impl<'a> InstructionSelection {
                 }
             }
             _ => false
+        }
+    }
+
+    /// matches an integer that is power of 2
+    fn match_iconst_p2(&mut self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Value(ref pv) if pv.is_const() => {
+                if pv.is_int_const() {
+                    math::is_power_of_two(pv.extract_int_const().unwrap() as usize).is_some()
+                } else {
+                    false
+                }
+            }
+            _ => false
+        }
+    }
+
+    fn node_iconst_to_p2(&mut self, op: &TreeNode) -> u8 {
+        match op.v {
+            TreeNode_::Value(ref pv) if pv.is_const() => {
+                if pv.is_int_const() {
+                    math::is_power_of_two(pv.extract_int_const().unwrap() as usize).unwrap()
+                } else {
+                    unreachable!()
+                }
+            }
+            _ => unreachable!()
         }
     }
 
