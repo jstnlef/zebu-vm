@@ -324,14 +324,19 @@ impl CompilerPass for GenMovPhi {
                         // move every from_arg to target_arg
                         let mut i = 0;
                         for arg in block_info.from_args.iter() {
-                            let m = func.new_inst(Instruction {
-                                hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                value: Some(vec![target_args[i].clone()]),
-                                ops: vec![arg.clone()],
-                                v: Instruction_::Move(0)
-                            });
+                            let ref target_arg = target_args[i];
+                            // when a block branches to itself, it is possible that
+                            // arg is the same as target_arg
+                            if arg.as_value() != target_arg {
+                                let m = func.new_inst(Instruction {
+                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                    value: Some(vec![target_args[i].clone()]),
+                                    ops: vec![arg.clone()],
+                                    v: Instruction_::Move(0)
+                                });
 
-                            vec.push(m);
+                                vec.push(m);
+                            }
 
                             i += 1;
                         }

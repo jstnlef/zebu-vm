@@ -1731,17 +1731,17 @@ impl ASMCodeGen {
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {} {}", inst, op1, op2);
 
-        let (mem, mut uses) = self.prepare_mem(op2, inst.len() + 1);
-        let (reg, id1, loc1) = self.prepare_reg(op1, inst.len() + 1 + mem.len() + 1);
+        let (reg, id, loc) = self.prepare_reg(op1, inst.len() + 1);
+        let (mem, mut uses) = self.prepare_mem(op2, inst.len() + 1 + reg.len() + 1);
 
-        if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
-            vec_utils::add_unique(locs, loc1.clone());
+        if uses.contains_key(&id) {
+            let mut locs = uses.get_mut(&id).unwrap();
+            vec_utils::add_unique(locs, loc.clone());
         } else {
-            uses.insert(id1, vec![loc1.clone()]);
+            uses.insert(id, vec![loc.clone()]);
         }
 
-        let asm = format!("{} {},{}", inst, mem, reg);
+        let asm = format!("{} {},{}", inst, reg, mem);
 
         self.add_asm_inst(asm, linked_hashmap!{}, uses, true)
     }
@@ -1832,10 +1832,7 @@ impl ASMCodeGen {
 
     /// emits an instruction (use 1 reg 1 mem, define the reg)
     fn internal_binop_def_r_mem(&mut self, inst: &str, dest: &P<Value>, src: &P<Value>) {
-        let len = match dest.ty.get_int_length() {
-            Some(n) if n == 64 | 32 | 16 | 8 => n,
-            _ => panic!("unimplemented int types: {}", dest.ty)
-        };
+        let len = check_op_len(dest);
 
         let inst = inst.to_string() + &op_postfix(len);
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
@@ -2256,10 +2253,26 @@ impl ASMCodeGen {
         )
     }
 
-    /// emits an instruction (use 2 fpregs, define 1st fpreg)
-    fn internal_fp_binop_def_r_mem(&mut self, inst: &str, dest: Reg, src: Reg) {
+    /// emits an instruction (use 1 fpreg 1 memory operand, define the fpreg)
+    fn internal_fp_binop_def_r_mem(&mut self, inst: &str, dest: Reg, src: Mem) {
         trace!("emit: {} {}, {} -> {}", inst, src, dest, dest);
-        unimplemented!()
+
+        let (mem, mut uses) = self.prepare_mem(src, inst.len() + 1);
+        let (reg, id, loc) = self.prepare_fpreg(dest, inst.len() + 1 + mem.len() + 1);
+
+        // uses are GPRs, it won't include FPRs - we can simply insert into the map
+        uses.insert(id, vec![loc.clone()]);
+
+        let asm = format!("{} {},{}", inst, mem, reg);
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{
+                id => vec![loc]
+            },
+            uses,
+            true
+        )
     }
 
     /// emits a move instruction (reg -> fpreg)
@@ -2521,6 +2534,10 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_cmp_mem_r(&mut self, op1: &P<Value>, op2: &P<Value>) {
         self.internal_binop_no_def_mem_r("cmp", op1, op2)
+    }
+
+    fn emit_cmp_r_mem(&mut self, op1: &P<Value>, op2: &P<Value>) {
+        self.internal_binop_no_def_r_mem("cmp", op1, op2)
     }
 
     fn emit_test_r_r(&mut self, op1: &P<Value>, op2: &P<Value>) {
@@ -4464,7 +4481,12 @@ pub fn spill_rewrite(
                         .clone_value();
 
                     // maintain mapping
-                    trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
+                    trace!(
+                        "reg {} used in Inst{} is replaced as {}",
+                        val_reg.id(),
+                        i,
+                        temp
+                    );
                     spilled_scratch_temps.insert(temp.id(), reg);
 
                     // generate a load
@@ -4521,7 +4543,7 @@ pub fn spill_rewrite(
                     };
                     trace!(
                         "reg {} defined in Inst{} is replaced as {}",
-                        val_reg,
+                        val_reg.id(),
                         i,
                         temp
                     );
