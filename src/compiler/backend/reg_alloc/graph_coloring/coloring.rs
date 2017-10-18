@@ -835,12 +835,38 @@ impl<'a> GraphColoring<'a> {
 
     fn freeze(&mut self) {
         // it is not empty (checked before)
-        let node = self.worklist_freeze.pop_front().unwrap();
+        let node = self.freeze_heuristics();
         trace!("Freezing {}...", node);
 
-        trace!("  insert {} to worklistSimplify", node);
+        trace!("  move {} from worklistFreeze to worklistSimplify", node);
+        self.worklist_freeze.remove(&node);
         self.worklist_simplify.insert(node);
         self.freeze_moves(node);
+    }
+
+    fn freeze_heuristics(&mut self) -> MuID {
+        use std::f32;
+        // we try to freeze a node that appears less frequently
+        // we compute freeze cost based on all the moves related with this node
+        let mut candidate = None;
+        let mut candidate_cost = f32::MAX;
+        for &n in self.worklist_freeze.iter() {
+            // freeze_cost(n) = SUM ((spill_cost(src) + spill_cost(dst)) for m (mov src->dst)
+            // in movelist[n])
+            let mut freeze_cost = 0f32;
+            for m in self.get_movelist(n).iter() {
+                freeze_cost += self.ig.get_spill_cost(m.from);
+                freeze_cost += self.ig.get_spill_cost(m.to);
+            }
+
+            if freeze_cost < candidate_cost {
+                candidate = Some(n);
+                candidate_cost = freeze_cost;
+            }
+        }
+
+        assert!(candidate.is_some());
+        candidate.unwrap()
     }
 
     fn freeze_moves(&mut self, u: MuID) {
