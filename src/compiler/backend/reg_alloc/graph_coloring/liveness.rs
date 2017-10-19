@@ -546,7 +546,6 @@ fn build_cfg_nodes(cf: &mut CompiledFunction) -> LinkedHashMap<MuName, CFGBlockN
                 Some(range) => range,
                 None => panic!("cannot find range for block {}", block)
             };
-
             // start inst
             let first_inst = range.start;
             // last inst (we need to skip symbols)

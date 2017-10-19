@@ -2008,7 +2008,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id1) {
             // zero register, ignore
         } else if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
+            let locs = uses.get_mut(&id1).unwrap();
             vec_utils::add_unique(locs, loc1);
 
         } else {
@@ -2061,7 +2061,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id2) {
             // zero register, ignore
         } else if uses.contains_key(&id2) {
-            let mut locs = uses.get_mut(&id2).unwrap();
+            let locs = uses.get_mut(&id2).unwrap();
             vec_utils::add_unique(locs, loc2);
         } else {
             uses.insert(id2, vec![loc2]);
@@ -2090,7 +2090,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id1) {
             // zero register, ignore
         } else if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
+            let locs = uses.get_mut(&id1).unwrap();
             vec_utils::add_unique(locs, loc1);
         } else {
             uses.insert(id1, vec![loc1]);
@@ -2099,7 +2099,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id2) {
             // zero register, ignore
         } else if uses.contains_key(&id2) {
-            let mut locs = uses.get_mut(&id2).unwrap();
+            let locs = uses.get_mut(&id2).unwrap();
             vec_utils::add_unique(locs, loc2);
         } else {
             uses.insert(id2, vec![loc2]);
@@ -2133,7 +2133,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id2) {
             // zero register, ignore
         } else if uses.contains_key(&id2) {
-            let mut locs = uses.get_mut(&id2).unwrap();
+            let locs = uses.get_mut(&id2).unwrap();
             vec_utils::add_unique(locs, loc2);
         } else {
             uses.insert(id2, vec![loc2]);
@@ -2142,7 +2142,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id3) {
             // zero register, ignore
         } else if uses.contains_key(&id3) {
-            let mut locs = uses.get_mut(&id3).unwrap();
+            let locs = uses.get_mut(&id3).unwrap();
             vec_utils::add_unique(locs, loc3);
         } else {
             uses.insert(id3, vec![loc3]);

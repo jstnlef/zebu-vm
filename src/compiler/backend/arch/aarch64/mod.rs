@@ -228,17 +228,7 @@ pub fn is_machine_reg(val: &P<Value>) -> bool {
 
 // Returns a P<Value> to the register id
 pub fn get_register_from_id(id: MuID) -> P<Value> {
-    if id < FPR_ID_START {
-        match GPR_ALIAS_LOOKUP.get(&id) {
-            Some(val) => val.clone(),
-            None => panic!("cannot find GPR {}", id)
-        }
-    } else {
-        match FPR_ALIAS_LOOKUP.get(&id) {
-            Some(val) => val.clone(),
-            None => panic!("cannot find FPR {}", id)
-        }
-    }
+    ALL_MACHINE_REGS.get(&id).unwrap().clone()
 }
 
 pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
@@ -916,7 +906,7 @@ pub fn is_callee_saved(reg_id: MuID) -> bool {
 
 // The stack size needed for a call to the given function signature
 pub fn call_stack_size(sig: P<MuFuncSig>, vm: &VM) -> usize {
-    compute_argument_locations(&sig.ret_tys, &SP, 0, &vm).2
+    compute_argument_locations(&sig.ret_tys, &SP, 0, false, &vm).2
 }
 // TODO: Check that these numbers are reasonable (THEY ARE ONLY AN ESTIMATE)
 use ast::inst::*;
@@ -2906,12 +2896,25 @@ fn compute_argument_locations(
     arg_types: &Vec<P<MuType>>,
     stack: &P<Value>,
     offset: i64,
+    is_callee_saved: bool,
     vm: &VM
 ) -> (Vec<bool>, Vec<P<Value>>, usize) {
     if arg_types.len() == 0 {
         // nothing to do
         return (vec![], vec![], 0);
     }
+
+    let fpr_regs = if is_callee_saved {
+        CALLEE_SAVED_FPRS.as_ref()
+    } else {
+        ARGUMENT_FPRS.as_ref()
+    };
+
+    let gpr_regs = if is_callee_saved {
+        CALLEE_SAVED_GPRS.as_ref()
+    } else {
+        ARGUMENT_GPRS.as_ref()
+    };
 
     let mut ngrn = 0 as usize; // The Next General-purpose Register Number
     let mut nsrn = 0 as usize; // The Next SIMD and Floating-point Register Number
@@ -2954,7 +2957,7 @@ fn compute_argument_locations(
             Float | Double => {
                 if nsrn < 8 {
                     locations.push(get_alias_for_length(
-                        ARGUMENT_FPRS[nsrn].id(),
+                        fpr_regs[nsrn].id(),
                         get_bit_size(&t, vm)
                     ));
                     nsrn += 1;
@@ -2976,7 +2979,7 @@ fn compute_argument_locations(
                         // Note: the argument will occupy succesiv registers
                         // (one for each element)
                         locations.push(get_alias_for_length(
-                            ARGUMENT_FPRS[nsrn].id(),
+                            fpr_regs[nsrn].id(),
                             get_bit_size(&t, vm) / hfa_n
                         ));
                         nsrn += hfa_n;
@@ -2999,7 +3002,7 @@ fn compute_argument_locations(
                         // The struct should be packed, starting here
                         // (note: this may result in multiple struct fields in the same regsiter
                         // or even floating points in a GPR)
-                        locations.push(ARGUMENT_GPRS[ngrn].clone());
+                        locations.push(gpr_regs[ngrn].clone());
                         // How many GPRS are taken up by t
                         ngrn += if size % 8 != 0 {
                             size / 8 + 1
@@ -3027,7 +3030,7 @@ fn compute_argument_locations(
                 if size <= 8 {
                     if ngrn < 8 {
                         locations.push(get_alias_for_length(
-                            ARGUMENT_GPRS[ngrn].id(),
+                            gpr_regs[ngrn].id(),
                             get_bit_size(&t, vm)
                         ));
                         ngrn += 1;
@@ -3046,7 +3049,7 @@ fn compute_argument_locations(
                     ngrn = align_up(ngrn, 2); // align NGRN to the next even number
 
                     if ngrn < 7 {
-                        locations.push(ARGUMENT_GPRS[ngrn].clone());
+                        locations.push(gpr_regs[ngrn].clone());
                         ngrn += 2;
                     } else {
                         ngrn = 8;
