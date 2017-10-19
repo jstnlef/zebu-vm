@@ -1462,7 +1462,7 @@ impl<'a> InstructionSelection {
                         };
 
                         let (_, _, stack_arg_size) =
-                            compute_argument_locations(&sig.arg_tys, &SP, 0, &vm);
+                            compute_argument_locations(&sig.arg_tys, &SP, 0, false, &vm);
 
                         self.emit_runtime_entry(
                             &entrypoints::NEW_STACK,
@@ -2198,17 +2198,15 @@ impl<'a> InstructionSelection {
                             // Pass the arguments, stack arguments are placed below the new_sp,
                             // register arguments are placed above it
                             self.emit_precall_convention(
-                                &new_sp,
-                                // The frame contains space for the FP and LR
-                                (2 * POINTER_SIZE) as isize,
+                                RegisterCallConvention::Memory(new_sp.clone()),
+                                StackCallConvention::Offset(
+                                    new_sp.clone(),
+                                    (2 * POINTER_SIZE) as isize
+                                ),
                                 false,
                                 &arg_values,
                                 &arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>(),
                                 0,
-                                false,
-                                true,
-                                true,
-                                Some(&new_sp),
                                 f_context,
                                 vm
                             );
@@ -3894,26 +3892,24 @@ impl<'a> InstructionSelection {
     // as well as a list of argument registers
     fn emit_precall_convention(
         &mut self,
-        arg_base: &P<Value>,
-        arg_offset: isize,
+        reg_convention: RegisterCallConvention,
+        stack_convention: StackCallConvention,
         is_tail: bool,
         args: &Vec<P<Value>>,
         arg_tys: &Vec<P<MuType>>,
         return_size: usize,
-        modify_arg_base: bool,
-        reg_args: bool,   // Whether to pass register arguments
-        stack_args: bool, // Whether to pass stack arguments
-
-        // If this is none put reg arguments in registers,
-        // otherwise store them at an offset from reg_arg_base
-        reg_arg_base: Option<&P<Value>>,
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> (usize, Vec<P<Value>>) {
         // If we're tail calling, use the current frame's argument location instead
         let mut arg_regs = Vec::<P<Value>>::new();
-        let (_, locations, stack_size) =
-            compute_argument_locations(&arg_tys, arg_base, arg_offset as i64, &vm);
+        let (_, locations, stack_size) = compute_argument_locations(
+            &arg_tys,
+            stack_convention.base(),
+            stack_convention.offset() as i64,
+            reg_convention.is_callee_saved(),
+            &vm
+        );
 
         if is_tail {
             if stack_size > self.current_stack_arg_size {
@@ -3925,7 +3921,6 @@ impl<'a> InstructionSelection {
                     self.backend.emit_mov(&XR, &xr_value);
                 }
             }
-
         } else {
             if return_size > 0 {
                 // Reserve space on the stack for the return value
@@ -3936,7 +3931,7 @@ impl<'a> InstructionSelection {
                 arg_regs.push(XR.clone());
             }
         }
-        if stack_size > 0 && modify_arg_base {
+        if stack_size > 0 && stack_convention.push() {
             // Reserve space on the stack for all stack arguments
             emit_sub_u64(self.backend.as_mut(), &SP, &SP, stack_size as u64);
         }
@@ -3964,14 +3959,14 @@ impl<'a> InstructionSelection {
                     }
 
                     // Need to pass in two registers
-                    if is_int_ex_reg(&arg_val) && arg_loc.is_reg() && reg_args {
+                    if is_int_ex_reg(&arg_val) && arg_loc.is_reg() && reg_convention.is_some() {
                         let arg_val =
                             emit_reg_value(self.backend.as_mut(), &arg_val, f_context, vm);
                         let (val_l, val_h) = split_int128(&arg_val, f_context, vm);
 
-                        let arg_loc_h_id = arg_loc.id() + 2; //get_register_from_id();
-                        let (arg_loc_l, arg_loc_h) = match reg_arg_base {
-                            Some(ref b) => (
+                        let arg_loc_h_id = arg_loc.id() + 2;
+                        let (arg_loc_l, arg_loc_h) = match reg_convention {
+                            RegisterCallConvention::Memory(ref b) => (
                                 make_value_base_offset(
                                     b,
                                     get_argument_reg_offset(arg_loc.id()) as i64,
@@ -3985,7 +3980,7 @@ impl<'a> InstructionSelection {
                                     vm
                                 )
                             ),
-                            None => (arg_loc.clone(), get_register_from_id(arg_loc_h_id))
+                            _ => (arg_loc.clone(), get_register_from_id(arg_loc_h_id))
                         };
 
                         arg_regs.push(arg_loc_h.clone());
@@ -4005,17 +4000,23 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     } else {
-                        if (reg_args && arg_loc.is_reg()) || (stack_args && !arg_loc.is_reg()) {
-                            let arg_loc = match reg_arg_base {
-                                Some(ref b) if arg_loc.is_reg() => {
-                                    make_value_base_offset(
-                                        b,
-                                        get_argument_reg_offset(arg_loc.id()) as i64,
-                                        &arg_loc.ty,
-                                        vm
-                                    )
+                        if (reg_convention.is_some() && arg_loc.is_reg()) ||
+                            (stack_convention.is_some() && !arg_loc.is_reg())
+                        {
+                            let arg_loc = if arg_loc.is_reg() {
+                                match reg_convention {
+                                    RegisterCallConvention::Memory(ref b) => {
+                                        make_value_base_offset(
+                                            b,
+                                            get_argument_reg_offset(arg_loc.id()) as i64,
+                                            &arg_loc.ty,
+                                            vm
+                                        )
+                                    }
+                                    _ => arg_loc.clone()
                                 }
-                                _ => arg_loc.clone()
+                            } else {
+                                arg_loc.clone()
                             };
 
                             emit_move_value_to_value(
@@ -4351,16 +4352,12 @@ impl<'a> InstructionSelection {
         let return_type = self.combine_return_types(&sig, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) = self.emit_precall_convention(
-            &SP,
-            0,
+            RegisterCallConvention::Normal,
+            StackCallConvention::Push(SP.clone()),
             false,
             &args,
             &sig.arg_tys,
             return_size,
-            true,
-            true,
-            true,
-            None,
             f_context,
             vm
         );
@@ -4540,7 +4537,8 @@ impl<'a> InstructionSelection {
             Some(ref values) => values.iter().map(|v| v.ty.clone()).collect::<Vec<_>>(),
             None => vec![]
         };
-        let (_, res_locs, res_stack_size) = compute_argument_locations(&res_tys, &SP, 0, &vm);
+        let (_, res_locs, res_stack_size) =
+            compute_argument_locations(&res_tys, &SP, 0, false, &vm);
 
         if !is_kill {
             // Load the callsite's address into LR
@@ -4591,19 +4589,19 @@ impl<'a> InstructionSelection {
         // Emit precall convention
         let arg_tys = arg_values.iter().map(|a| a.ty.clone()).collect::<Vec<_>>();
 
-        // Pass stack arguments before the old stack is killed
-        self.emit_precall_convention(
-            &SP,
-            // The frame contains space for the FP and LR
-            (2 * POINTER_SIZE) as isize,
+        // Pass the arguments, if the stack will be killed pass the register arguments in callee
+        // saved registers, so that they will surive the call to muentry_kill_stack
+        let (_, mut arg_regs) = self.emit_precall_convention(
+            if is_kill {
+                RegisterCallConvention::CalleeSaved
+            } else {
+                RegisterCallConvention::Normal
+            },
+            StackCallConvention::Offset(SP.clone(), (2 * POINTER_SIZE) as isize),
             false,
             &arg_values,
             &arg_tys,
             0,
-            false,
-            false, // don't pass reg args
-            true,  // pass stack args
-            None,
             f_context,
             vm
         );
@@ -4618,24 +4616,25 @@ impl<'a> InstructionSelection {
                 f_context,
                 vm
             );
-        }
 
-        // Pass the rest of the arguments
-        let (_, arg_regs) = self.emit_precall_convention(
-            &SP,
-            // The frame contains space for the FP and LR
-            (2 * POINTER_SIZE) as isize,
-            false,
-            &arg_values,
-            &arg_tys,
-            0,
-            false,
-            true,  // don't pass stack args
-            false, // pass reg args
-            None,
-            f_context,
-            vm
-        );
+            let gpr_offset = CALLEE_SAVED_GPRS[0].id() - ARGUMENT_GPRS[0].id();
+            let fpr_offset = CALLEE_SAVED_FPRS[0].id() - ARGUMENT_FPRS[0].id();
+
+            // Move the 'argument registers' from callee saved ones to the real ones
+            for r in &mut arg_regs {
+                let id = r.id();
+                let new_id = if id < FPR_ID_START {
+                    id - gpr_offset
+                } else {
+                    id - fpr_offset
+                };
+
+                let new_reg = get_register_from_id(new_id);
+                emit_move_value_to_value(self.backend.as_mut(), &new_reg, &r, f_context, vm);
+
+                *r = new_reg;
+            }
+        }
 
         if is_exception {
             // Reserve space on the new stack for the exception handling routine to store
@@ -4686,6 +4685,7 @@ impl<'a> InstructionSelection {
             self.record_callsite(resumption, callsite.unwrap(), res_stack_size);
 
             if resumption.is_some() {
+                self.finish_block();
                 let block_name = make_block_name(&node.name(), "stack_resumption");
                 self.start_block(block_name);
             }
@@ -4772,16 +4772,16 @@ impl<'a> InstructionSelection {
         let return_type = self.combine_return_types(&func_sig, vm);
         let return_size = self.compute_return_allocation(&return_type, &vm);
         let (stack_arg_size, arg_regs) = self.emit_precall_convention(
-            if is_tail { &FP } else { &SP },
-            if is_tail { 16 } else { 0 },
+            RegisterCallConvention::Normal,
+            if is_tail {
+                StackCallConvention::Offset(FP.clone(), (2 * POINTER_SIZE) as isize)
+            } else {
+                StackCallConvention::Push(SP.clone())
+            },
             is_tail,
             &arg_values,
             &func_sig.arg_tys,
             return_size,
-            !is_tail,
-            true,
-            true,
-            None,
             f_context,
             vm
         );
@@ -4991,7 +4991,8 @@ impl<'a> InstructionSelection {
             self.backend.emit_str_callee_saved(&loc, &reg);
         }
 
-        let (_, locations, stack_arg_size) = compute_argument_locations(&sig.arg_tys, &FP, 16, &vm);
+        let (_, locations, stack_arg_size) =
+            compute_argument_locations(&sig.arg_tys, &FP, 16, false, &vm);
         self.current_stack_arg_size = stack_arg_size;
         self.emit_unload_arguments(args, locations, f_context, vm);
         self.finish_block();
@@ -5984,6 +5985,60 @@ impl<'a> InstructionSelection {
     fn start_block(&mut self, block: MuName) {
         self.current_block = Some(block.clone());
         self.backend.start_block(block.clone());
+    }
+}
+
+enum RegisterCallConvention {
+    None,             // Don't pass register arguments
+    Memory(P<Value>), // Pass them in memory starting at this location
+    Normal,           // Pass them in normal arguments
+    CalleeSaved       // Pass them in callee saved registers
+}
+impl RegisterCallConvention {
+    fn is_some(&self) -> bool {
+        match self {
+            &RegisterCallConvention::None => false,
+            _ => true
+        }
+    }
+    fn is_callee_saved(&self) -> bool {
+        match self {
+            &RegisterCallConvention::CalleeSaved => true,
+            _ => false
+        }
+    }
+}
+enum StackCallConvention {
+    None,                    // Don't pass stack arguments
+    Push(P<Value>),          // Push them to the given 'stack pointer'
+    Offset(P<Value>, isize)  // Pass them starting at the base + offset
+}
+impl StackCallConvention {
+    fn is_some(&self) -> bool {
+        match self {
+            &StackCallConvention::None => false,
+            _ => true
+        }
+    }
+    fn base(&self) -> &P<Value> {
+        match self {
+            &StackCallConvention::Push(ref base) | &StackCallConvention::Offset(ref base, _) => {
+                base
+            }
+            &StackCallConvention::None => &XZR // Will likley segfault if we try and use it
+        }
+    }
+    fn offset(&self) -> isize {
+        match self {
+            &StackCallConvention::Offset(_, off) => off,
+            _ => 0
+        }
+    }
+    fn push(&self) -> bool {
+        match self {
+            &StackCallConvention::Push(_) => true,
+            _ => false
+        }
     }
 }
 

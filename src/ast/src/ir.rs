@@ -154,6 +154,7 @@ rodal_struct!(Callsite {
     exception_destination,
     stack_arg_size
 });
+#[derive(Debug)]
 pub struct Callsite {
     pub name: MuName,
     pub exception_destination: Option<MuName>,
@@ -1103,8 +1104,8 @@ impl Value {
     }
 }
 
-const DISPLAY_ID: bool = false;
-const DISPLAY_TYPE: bool = false;
+const DISPLAY_ID: bool = true;
+const DISPLAY_TYPE: bool = true;
 const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {

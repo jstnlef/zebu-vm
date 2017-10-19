@@ -599,7 +599,7 @@ impl Instruction {
             } => {
                 let ptr = select_value!(is_ptr, " PTR", "");
                 format!(
-                    "GETELEMIREF{}<{} {}>{} {}",
+                    "SHIFTIREF{}<{} {}>{} {}",
                     ptr,
                     ops[base].ty().get_referent_ty().unwrap(),
                     ops[offset].ty(),

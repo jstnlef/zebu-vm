@@ -399,7 +399,13 @@ fn process_dest(
         }
 
         let new_blk_id = vm.next_id();
-        let new_blck_name = Arc::new(format!("{}:{}:#{}-#{}", inst, label, new_blk_id, target));
+        let new_blck_name = Arc::new(format!(
+            "{}:{}:#{}-#{}",
+            inst,
+            label,
+            new_blk_id,
+            target.name()
+        ));
 
         let dest = Destination {
             target: MuEntityHeader::named(new_blk_id, new_blck_name.clone()),

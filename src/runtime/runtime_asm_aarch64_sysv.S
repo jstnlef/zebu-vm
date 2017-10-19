@@ -84,7 +84,7 @@ begin_func muthread_start_exceptional
 
     // Save the current SP to old_sp_loc
     MOV X11, SP
-    STR X11, [X1]
+    STR X11, [X2]
 
     // Swap to the new stack
     MOV SP, X1
