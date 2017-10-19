@@ -1287,7 +1287,7 @@ impl fmt::Display for Constant {
                 write!(f, "]")
             }
             &Constant::NullRef => write!(f, "NULL"),
-            &Constant::ExternSym(ref name) => write!(f, "EXTERN \\\"{}\\\"", name),
+            &Constant::ExternSym(ref name) => write!(f, "EXTERN \"{}\"", name),
 
             &Constant::List(ref vec) => {
                 write!(f, "List(").unwrap();

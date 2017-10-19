@@ -1087,6 +1087,7 @@ impl<'a> VM {
     ) {
         info!("Making boot image...");
 
+        super::uir_output::emit_uir("", self);
         // Only store name info for whitelisted entities
         {
             let mut new_id_name_map = HashMap::<MuID, MuName>::with_capacity(whitelist.len());
@@ -1127,7 +1128,7 @@ impl<'a> VM {
                                 compiler.compile(&mut func_ver);
                             }
                         }
-                        None => panic!("whitelist function {} has no version defined", f)
+                        None => error!("whitelist function {} has no version defined", f)
                     }
                 }
             }

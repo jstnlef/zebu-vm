@@ -4160,7 +4160,6 @@ pub fn emit_sym_table(vm: &VM) {
 
 
 use std::collections::HashMap;
-use compiler::backend::code_emission::{emit_mu_types, emit_mu_globals};
 
 /// emit vm context for current session, considering relocation symbols/fields from the client
 pub fn emit_context_with_reloc(
@@ -4170,9 +4169,6 @@ pub fn emit_context_with_reloc(
 ) {
     use std::path;
     use std::io::prelude::*;
-
-    emit_mu_types("", vm);
-    emit_mu_globals("", vm);
 
     // creates emit directy, and file
     debug!("---Emit VM Context---");
@@ -4485,7 +4481,12 @@ pub fn spill_rewrite(
                         .clone_value();
 
                     // maintain mapping
-                    trace!("reg {} used in Inst{} is replaced as {}", val_reg, i, temp);
+                    trace!(
+                        "reg {} used in Inst{} is replaced as {}",
+                        val_reg.id(),
+                        i,
+                        temp
+                    );
                     spilled_scratch_temps.insert(temp.id(), reg);
 
                     // generate a load
@@ -4542,7 +4543,7 @@ pub fn spill_rewrite(
                     };
                     trace!(
                         "reg {} defined in Inst{} is replaced as {}",
-                        val_reg,
+                        val_reg.id(),
                         i,
                         temp
                     );

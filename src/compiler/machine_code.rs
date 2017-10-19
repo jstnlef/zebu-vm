@@ -14,13 +14,15 @@
 
 use ast::ir::*;
 use ast::ptr::*;
+use compiler;
 use compiler::frame::*;
+use compiler::backend::mc_loopanalysis::MCLoopAnalysisResult;
 use runtime::ValueLocation;
-
-use rodal;
 use utils::Address;
-use std::sync::Arc;
+use utils::{LinkedHashMap, LinkedHashSet};
 use runtime::resolve_symbol;
+use rodal;
+use std::sync::Arc;
 use std;
 use std::ops;
 use std::collections::HashMap;
@@ -52,7 +54,10 @@ pub struct CompiledFunction {
     /// start location of this compiled function
     pub start: ValueLocation,
     /// end location of this compiled function
-    pub end: ValueLocation
+    pub end: ValueLocation,
+
+    /// results of machine code loop analysis
+    pub loop_analysis: Option<Box<MCLoopAnalysisResult>>
 }
 rodal_named!(CompiledFunction);
 unsafe impl rodal::Dump for CompiledFunction {
@@ -90,7 +95,8 @@ impl CompiledFunction {
             mc: Some(mc),
             frame: frame,
             start: start_loc,
-            end: end_loc
+            end: end_loc,
+            loop_analysis: None
         }
     }
 
@@ -215,6 +221,15 @@ pub trait MachineCode {
     fn get_all_blocks(&self) -> Vec<MuName>;
     /// gets the entry block
     fn get_entry_block(&self) -> MuName;
+    /// gets the prologue block
+    fn get_prologue_block(&self) -> MuName {
+        for name in self.get_all_blocks() {
+            if name.contains(compiler::PROLOGUE_BLOCK_NAME) {
+                return name;
+            }
+        }
+        unreachable!()
+    }
     /// gets the range of a given block, returns [start_inst, end_inst) (end_inst not included)
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>>;
     /// gets the block for a given index, returns an Option for the block
@@ -240,4 +255,183 @@ pub trait MachineCode {
     fn patch_frame_size(&mut self, size: usize);
 
     fn as_any(&self) -> &Any;
+
+    fn build_cfg(&self) -> MachineCFG {
+        let mut ret = MachineCFG::empty();
+        let all_blocks = self.get_all_blocks();
+
+        let (start_inst_map, end_inst_map) = {
+            let mut start_inst_map: LinkedHashMap<usize, MuName> = LinkedHashMap::new();
+            let mut end_inst_map: LinkedHashMap<usize, MuName> = LinkedHashMap::new();
+            for block in all_blocks.iter() {
+                let range = match self.get_block_range(block) {
+                    Some(range) => range,
+                    None => panic!("cannot find range for block {}", block)
+                };
+
+                // start inst
+                let first_inst = range.start;
+                // last inst (we need to skip symbols)
+                let last_inst = match self.get_last_inst(range.end) {
+                    Some(last) => last,
+                    None => {
+                        panic!(
+                            "cannot find last instruction in block {}, \
+                             this block contains no instruction?",
+                            block
+                        )
+                    }
+                };
+                trace!(
+                    "Block {}: start_inst={}, end_inst(inclusive)={}",
+                    block,
+                    first_inst,
+                    last_inst
+                );
+
+                start_inst_map.insert(first_inst, block.clone());
+                end_inst_map.insert(last_inst, block.clone());
+            }
+
+            (start_inst_map, end_inst_map)
+        };
+
+        // collect info for each basic block
+        for block in self.get_all_blocks().iter() {
+            let range = self.get_block_range(block).unwrap();
+            let start_inst = range.start;
+            let end = range.end;
+
+            let preds: Vec<MuName> = {
+                let mut ret = vec![];
+
+                // predecessors of the first instruction is the predecessors of this block
+                for pred in self.get_preds(start_inst).into_iter() {
+                    match end_inst_map.get(pred) {
+                        Some(block) => ret.push(block.clone()),
+                        None => {}
+                    }
+                }
+
+                ret
+            };
+
+            let succs: Vec<MuName> = {
+                let mut ret = vec![];
+
+                // successors of the last instruction is the successors of this block
+                for succ in self.get_succs(self.get_last_inst(end).unwrap()).into_iter() {
+                    match start_inst_map.get(succ) {
+                        Some(block) => ret.push(block.clone()),
+                        None => {}
+                    }
+                }
+
+                ret
+            };
+
+            let node = MachineCFGNode {
+                block: block.clone(),
+                preds: preds,
+                succs: succs
+            };
+
+            trace!("{:?}", node);
+            ret.inner.insert(block.clone(), node);
+        }
+
+        ret
+    }
+}
+
+pub struct MachineCFG {
+    inner: LinkedHashMap<MuName, MachineCFGNode>
+}
+
+impl MachineCFG {
+    fn empty() -> Self {
+        MachineCFG {
+            inner: LinkedHashMap::new()
+        }
+    }
+
+    pub fn get_blocks(&self) -> Vec<MuName> {
+        self.inner.keys().map(|x| x.clone()).collect()
+    }
+
+    pub fn get_preds(&self, block: &MuName) -> &Vec<MuName> {
+        &self.inner.get(block).unwrap().preds
+    }
+
+    pub fn get_succs(&self, block: &MuName) -> &Vec<MuName> {
+        &self.inner.get(block).unwrap().succs
+    }
+
+    pub fn has_edge(&self, from: &MuName, to: &MuName) -> bool {
+        if self.inner.contains_key(from) {
+            let ref node = self.inner.get(from).unwrap();
+            for succ in node.succs.iter() {
+                if succ == to {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// checks if there exists a path between from and to, without excluded node
+    pub fn has_path_with_node_excluded(
+        &self,
+        from: &MuName,
+        to: &MuName,
+        exclude_node: &MuName
+    ) -> bool {
+        // we cannot exclude start and end of the path
+        assert!(exclude_node != from && exclude_node != to);
+
+        if from == to {
+            true
+        } else {
+            // we are doing BFS
+
+            // visited nodes
+            let mut visited: LinkedHashSet<&MuName> = LinkedHashSet::new();
+            // work queue
+            let mut work_list: Vec<&MuName> = vec![];
+            // initialize visited nodes, and work queue
+            visited.insert(from);
+            work_list.push(from);
+
+            while !work_list.is_empty() {
+                let n = work_list.pop().unwrap();
+                for succ in self.get_succs(n) {
+                    if succ == exclude_node {
+                        // we are not going to follow a path with the excluded node
+                        continue;
+                    } else {
+                        // if we are reaching destination, return true
+                        if succ == to {
+                            return true;
+                        }
+
+                        // push succ to work list so we will traverse them later
+                        if !visited.contains(succ) {
+                            visited.insert(succ);
+                            work_list.push(succ);
+                        }
+                    }
+                }
+            }
+
+            false
+        }
+    }
+}
+
+/// MachineCFGNode represents a block in machine code control flow graph
+#[derive(Clone, Debug)]
+pub struct MachineCFGNode {
+    block: MuName,
+    preds: Vec<MuName>,
+    succs: Vec<MuName>
 }

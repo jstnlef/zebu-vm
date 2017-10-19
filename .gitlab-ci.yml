@@ -71,6 +71,12 @@ testmuc:test_cmp:
     - *build_muc
     - LD_LIBRARY_PATH=mu-tool-compiler/lib/ MUC=mu-tool-compiler/muc python2 -m pytest test_cmp.py -v
 
+testmuc:test_binop:
+  stage: test
+  script:
+    - *build_muc
+    - LD_LIBRARY_PATH=mu-tool-compiler/lib/ MUC=mu-tool-compiler/muc python2 -m pytest test_binop.py -v
+
 testjit:milestones:
   stage: test
   script:
