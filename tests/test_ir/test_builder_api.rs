@@ -100,16 +100,16 @@ fn test_types_sigs_loading() {
         let id1 = ((*b).gen_sym)(b, csp.get("@i8"));
         let id2 = ((*b).gen_sym)(b, csp.get("@i32"));
         let id3 = ((*b).gen_sym)(b, csp.get("@pi32"));
-        let id4 = ((*b).gen_sym)(b, csp.get("@str1"));
-        let id5 = ((*b).gen_sym)(b, ptr::null_mut());
+        //let id4 = ((*b).gen_sym)(b, csp.get("@str1"));
+        //let id5 = ((*b).gen_sym)(b, ptr::null_mut());
         let id6 = ((*b).gen_sym)(b, csp.get("@str2"));
         let id7 = ((*b).gen_sym)(b, csp.get("@pstr2"));
 
         ((*b).new_type_int)(b, id1, 8);
         ((*b).new_type_int)(b, id2, 32);
         ((*b).new_type_uptr)(b, id3, id2);
-        ((*b).new_type_struct)(b, id4, ptr::null_mut(), 0);
-        ((*b).new_type_struct)(b, id5, ptr::null_mut(), 0);
+        //((*b).new_type_struct)(b, id4, ptr::null_mut(), 0);
+        //((*b).new_type_struct)(b, id5, ptr::null_mut(), 0);
 
         let mut fields = vec![id3, id7];
         ((*b).new_type_struct)(b, id6, fields.as_mut_ptr(), fields.len());
@@ -342,7 +342,7 @@ fn test_function_loading() {
             let id_y = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.y"));
             ((*b).new_binop)(b, id_add, id_y, CMU_BINOP_ADD, id_i32, id_x, id_const1, 0);
 
-            let id_e = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.x"));
+            let id_e = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.e"));
             ((*b).new_cmp)(b, id_eq, id_e, CMU_CMP_EQ, id_i32, id_x, id_const99);
 
             let id_dest_t = ((*b).gen_sym)(b, csp.get("@func.v1.bb2.dest_t"));

@@ -24,6 +24,8 @@ crate-type = ["rlib"]
 [features]
 default = []
 use-sidemap = []
+sel4-rumprun = []
+sel4-rumprun-target-side = []
 
 [build-dependencies]
 gcc = "*"
@@ -37,4 +39,5 @@ simple_logger = "*"
 aligned_alloc = "*"
 crossbeam = "*"
 field-offset = "*"
-rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", version = ">= 0.0.5" }
+rodal = { git = "https://gitlab.anu.edu.au/mu/rodal", branch = "new", version = "^0.1.13" }
+#rodal = { path = "../../rodal", version = "*" }

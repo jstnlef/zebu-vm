@@ -16,13 +16,13 @@ use ast::ir::*;
 use ast::ptr::*;
 use ast::types::*;
 use vm::VM;
-use runtime;
 use runtime::ValueLocation;
 use runtime::mm;
 
 use utils::ByteSize;
 use utils::Address;
 use utils::Word;
+use utils::POINTER_SIZE;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
@@ -34,7 +34,11 @@ use std::sync::Arc;
 use std::fmt;
 
 /// a 4mb Mu stack
+#[cfg(not(feature = "sel4-rumprun"))]
 pub const STACK_SIZE: ByteSize = (4 << 20); // 4mb
+/// a .25mb Mu stack for sel4-rumprun
+#[cfg(feature = "sel4-rumprun")]
+pub const STACK_SIZE: ByteSize = (4 << 16); // 256kb
 
 /// operating system page size
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -63,9 +67,6 @@ impl_mu_entity!(MuStack);
 #[repr(C)]
 pub struct MuStack {
     pub hdr: MuEntityHeader,
-
-    /// entry function for the stack, represented as (address, func id)
-    func: Option<(ValueLocation, MuID)>,
 
     /// stack size
     size: ByteSize,
@@ -100,10 +101,13 @@ pub struct MuStack {
     #[allow(dead_code)]
     mmap: Option<memmap::Mmap>
 }
-
+lazy_static!{
+    pub static ref MUSTACK_SP_OFFSET : usize =
+        offset_of!(MuStack=>sp).get_byte_offset();
+}
 impl MuStack {
     /// creates a new MuStack for given entry function and function address
-    pub fn new(id: MuID, func_addr: ValueLocation, func: &MuFunction) -> MuStack {
+    pub fn new(id: MuID, func_addr: Address, stack_arg_size: usize) -> MuStack {
         // allocate memory for the stack
         let anon_mmap = {
             // reserve two guard pages more than we need for the stack
@@ -137,17 +141,34 @@ impl MuStack {
             );
         }
 
-        debug!("creating stack {} with entry func {:?}", id, func);
+        // Set up the stack
+        let mut sp = upper_bound;
+
+        // Allocate space for the arguments
+        sp -= stack_arg_size;
+
+        // Push entry as the return address
+        sp -= POINTER_SIZE;
+        unsafe {
+            sp.store(func_addr);
+        }
+
+        // Push a null frame pointer
+        sp -= POINTER_SIZE;
+        unsafe {
+            sp.store(Address::zero());
+        }
+
+        debug!("creating stack {} with entry address {:?}", id, func_addr);
         debug!("overflow_guard : {}", overflow_guard);
         debug!("lower_bound    : {}", lower_bound);
+        debug!("stack_pointer  : {}", sp);
         debug!("upper_bound    : {}", upper_bound);
         debug!("underflow_guard: {}", underflow_guard);
 
         MuStack {
             hdr: MuEntityHeader::unnamed(id),
-            func: Some((func_addr, func.id())),
-
-            state: MuStackState::Ready(func.sig.arg_tys.clone()),
+            state: MuStackState::Unknown,
 
             size: STACK_SIZE,
             overflow_guard: overflow_guard,
@@ -155,7 +176,7 @@ impl MuStack {
             upper_bound: upper_bound,
             underflow_guard: upper_bound,
 
-            sp: upper_bound,
+            sp: sp,
             bp: upper_bound,
             ip: unsafe { Address::zero() },
 
@@ -166,15 +187,15 @@ impl MuStack {
     /// sets up arguments for the stack's entry function, so it is ready to be executed.
     /// We use a special calling convention for the entry function: we push all the argument
     /// registers for the platform to the stack. If the argument register is used, we get
-    /// its value and push the value. Otherwise we push an empty value (0). swap_to_mu_stack
+    /// its value and push the value. Otherwise we push an empty value (0). muthread_start_normal
     /// will consume those values on the stack by popping them one by one.
-    /// NOTE: any changes to here need to be reflected in swap_to_mu_stack, which consumes
+    /// NOTE: any changes to here need to be reflected in muthread_start_normal, which consumes
     /// those values pushed to the stack
     pub fn setup_args(&mut self, vals: Vec<ValueLocation>) {
         use utils::Word;
         use utils::WORD_SIZE;
         use compiler::backend::RegGroup;
-        use compiler::backend::{ARGUMENT_GPRS, ARGUMENT_FPRS};
+        use compiler::backend::{ARGUMENT_FPRS, ARGUMENT_GPRS};
 
         let mut gpr_used = vec![];
         let mut fpr_used = vec![];
@@ -192,9 +213,8 @@ impl MuStack {
         }
 
         // store floating point argument registers
-        let mut stack_ptr = self.sp;
         for i in 0..ARGUMENT_FPRS.len() {
-            stack_ptr -= WORD_SIZE;
+            self.sp -= WORD_SIZE;
             let val = {
                 if i < fpr_used.len() {
                     fpr_used[i]
@@ -203,15 +223,15 @@ impl MuStack {
                 }
             };
 
-            debug!("store {} to {}", val, stack_ptr);
+            debug!("store {} to {}", val, self.sp);
             unsafe {
-                stack_ptr.store(val);
+                self.sp.store(val);
             }
         }
 
         // store general purpose argument registers
         for i in 0..ARGUMENT_GPRS.len() {
-            stack_ptr -= WORD_SIZE;
+            self.sp -= WORD_SIZE;
             let val = {
                 if i < gpr_used.len() {
                     gpr_used[i]
@@ -220,14 +240,11 @@ impl MuStack {
                 }
             };
 
-            debug!("store {} to {}", val, stack_ptr);
+            debug!("store {} to {}", val, self.sp);
             unsafe {
-                stack_ptr.store(val);
+                self.sp.store(val);
             }
         }
-
-        // save it back
-        self.sp = stack_ptr;
 
         if cfg!(debug_assertions) {
             self.print_stack(Some(20));
@@ -273,7 +290,8 @@ pub enum MuStackState {
     /// running mu code
     Active,
     /// can be destroyed
-    Dead
+    Dead,
+    Unknown
 }
 
 /// MuThread represents metadata for a Mu thread.
@@ -289,7 +307,7 @@ pub struct MuThread {
     /// the allocator from memory manager
     pub allocator: mm::Mutator,
     /// current stack (a thread can execute different stacks, but one stack at a time)
-    pub stack: Option<Box<MuStack>>,
+    pub stack: *mut MuStack,
     /// native stack pointer before we switch to this mu stack
     /// (when the thread exits, we restore to native stack, and allow proper destruction)
     pub native_sp_loc: Address,
@@ -300,6 +318,8 @@ pub struct MuThread {
     /// a pointer to the virtual machine
     pub vm: Arc<VM>
 }
+unsafe impl Sync for MuThread {}
+unsafe impl Send for MuThread {}
 
 // a few field offsets the compiler uses
 lazy_static! {
@@ -309,6 +329,8 @@ lazy_static! {
         offset_of!(MuThread=>native_sp_loc).get_byte_offset();
     pub static ref USER_TLS_OFFSET      : usize =
         offset_of!(MuThread=>user_tls).get_byte_offset();
+    pub static ref STACK_OFFSET      : usize =
+        offset_of!(MuThread=>stack).get_byte_offset();
     pub static ref EXCEPTION_OBJ_OFFSET : usize =
         offset_of!(MuThread=>exception_obj).get_byte_offset();
 }
@@ -327,12 +349,7 @@ impl fmt::Display for MuThread {
             "- allocator @{:?}\n",
             &self.allocator as *const mm::Mutator
         ).unwrap();
-        write!(
-            f,
-            "- stack     @{:?}: {}\n",
-            &self.stack as *const Option<Box<MuStack>>,
-            self.stack.is_some()
-        ).unwrap();
+        write!(f, "- stack     @{:?}\n", &self.stack as *const *mut MuStack).unwrap();
         write!(
             f,
             "- native sp @{:?}: {}\n",
@@ -356,6 +373,9 @@ impl fmt::Display for MuThread {
     }
 }
 
+use std::os::raw::c_int;
+
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[link(name = "runtime_asm")]
@@ -365,16 +385,9 @@ extern "C" {
     /// we swap to mu stack and execute the entry function
     /// args:
     /// new_sp: stack pointer for the mu stack
-    /// entry : entry function for the mu stack
     /// old_sp_loc: the location to store native stack pointer so we can later swap back
-    fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
-
-    /// swaps from a mu stack back to native stack
-    /// emitted by the compiler for THREADEXIT IR
-    /// args:
-    /// sp_loc: the location of native stack pointer
-#[allow(dead_code)] // we are not using this function directly, but compiler will emit calls to it
-    fn muentry_swap_back_to_native_stack(sp_loc: Address);
+    fn muthread_start_normal(new_sp: Address, old_sp_loc: Address);
+    fn muthread_start_exceptional(exception: Address, new_sp: Address, old_sp_loc: Address);
 
     /// gets base poniter for current frame
     pub fn get_current_frame_bp() -> Address;
@@ -388,6 +401,7 @@ extern "C" {
     pub fn exception_restore(dest: Address, callee_saved: *const Word, sp: Address) -> !;
 }
 
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[link(name = "runtime_c")]
@@ -403,6 +417,36 @@ extern "C" {
     /// sets return value for a Zebu executable image
     /// compiler emits calls to this for SetRetval instruction (internal use only)
     pub fn muentry_set_retval(val: u32);
+    /// a C wrapper for checking results written in asm
+    fn c_check_result() -> c_int;
+}
+
+#[cfg(feature = "sel4-rumprun-target-side")]
+#[cfg(target_arch = "x86_64")]
+#[link(name = "runtime_asm")]
+extern "C" {
+    fn swap_to_mu_stack(new_sp: Address, entry: Address, old_sp_loc: Address);
+    #[allow(dead_code)]
+    fn muentry_swap_back_to_native_stack(sp_loc: Address);
+    pub fn get_current_frame_bp() -> Address;
+    pub fn exception_restore(dest: Address, callee_saved: *const Word, sp: Address) -> !;
+}
+
+#[cfg(feature = "sel4-rumprun-target-side")]
+#[cfg(target_arch = "x86_64")]
+#[link(name = "runtime_c")]
+#[allow(improper_ctypes)]
+extern "C" {
+    pub fn set_thread_local(thread: *mut MuThread);
+    pub fn muentry_get_thread_local() -> Address;
+    pub fn muentry_set_retval(val: u32);
+    fn c_check_result() -> c_int;
+}
+
+/// a Rust wrapper for the C function which returns the last set result
+pub fn check_result() -> c_int {
+    let result = unsafe { c_check_result() };
+    result
 }
 
 impl MuThread {
@@ -412,49 +456,59 @@ impl MuThread {
         threadlocal: Address,
         vals: Vec<ValueLocation>,
         vm: Arc<VM>
-    ) -> JoinHandle<()> {
+    ) {
         // set up arguments on stack
         stack.setup_args(vals);
-
-        MuThread::mu_thread_launch(vm.next_id(), stack, threadlocal, vm)
+        let (join_handle, _) =
+            MuThread::mu_thread_launch(vm.next_id(), stack, threadlocal, None, vm.clone());
+        vm.push_join_handle(join_handle);
     }
 
-    /// creates and launches a mu thread, returns a JoinHandle
-    #[no_mangle]
-    pub extern "C" fn mu_thread_launch(
+    /// creates and launches a mu thread, returns a JoinHandle and address to its MuThread structure
+    fn mu_thread_launch(
         id: MuID,
         stack: Box<MuStack>,
         user_tls: Address,
+        exception: Option<Address>,
         vm: Arc<VM>
-    ) -> JoinHandle<()> {
+    ) -> (JoinHandle<()>, *mut MuThread) {
         let new_sp = stack.sp;
-        let entry = runtime::resolve_symbol(vm.name_of(stack.func.as_ref().unwrap().1));
-        debug!("entry : 0x{:x}", entry);
 
-        match thread::Builder::new()
-            .name(format!("Mu Thread #{}", id))
-            .spawn(move || {
-                let muthread: *mut MuThread = Box::into_raw(Box::new(
-                    MuThread::new(id, mm::new_mutator(), stack, user_tls, vm)
-                ));
+        // The conversions between boxes and ptrs are needed here as a '*mut MuThread* can't be
+        // sent between threads but a Box can. Also converting a Box to a ptr consumes it.
+        let muthread_ptr = Box::into_raw(Box::new(
+            MuThread::new(id, mm::new_mutator(), stack, user_tls, vm)
+        ));
+        let muthread = unsafe { Box::from_raw(muthread_ptr) };
 
-                // set thread local
-                unsafe { set_thread_local(muthread) };
+        (
+            match thread::Builder::new()
+                .name(format!("Mu Thread #{}", id))
+                .spawn(move || {
+                    let muthread = Box::into_raw(muthread);
+                    // set thread local
+                    unsafe { set_thread_local(muthread) };
 
-                let addr = unsafe { muentry_get_thread_local() };
-                let sp_threadlocal_loc = addr + *NATIVE_SP_LOC_OFFSET;
-                debug!("new sp: 0x{:x}", new_sp);
-                debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
+                    let addr = unsafe { muentry_get_thread_local() };
+                    let sp_threadlocal_loc = addr + *NATIVE_SP_LOC_OFFSET;
+                    debug!("new sp: 0x{:x}", new_sp);
+                    debug!("sp_store: 0x{:x}", sp_threadlocal_loc);
 
-                unsafe {
-                    swap_to_mu_stack(new_sp, entry, sp_threadlocal_loc);
-                }
+                    unsafe {
+                        match exception {
+                            Some(e) => muthread_start_exceptional(e, new_sp, sp_threadlocal_loc),
+                            None => muthread_start_normal(new_sp, sp_threadlocal_loc)
+                        }
 
-                debug!("returned to Rust stack. Going to quit");
-            }) {
-            Ok(handle) => handle,
-            Err(_) => panic!("failed to create a thread")
-        }
+                        // Thread finished, delete it's data
+                        Box::from_raw(muthread);
+                    }
+                }) {
+                Ok(handle) => handle,
+                Err(_) => panic!("failed to create a thread")
+            },
+            muthread_ptr
+        )
     }
 
     /// creates metadata for a Mu thread
@@ -468,7 +522,7 @@ impl MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
             allocator: allocator,
-            stack: Some(stack),
+            stack: Box::into_raw(stack),
             native_sp_loc: unsafe { Address::zero() },
             user_tls: user_tls,
             vm: vm,
@@ -521,8 +575,6 @@ impl MuThread {
         // fake a stack for current thread
         let fake_mu_stack_for_cur = Box::new(MuStack {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
-            // no entry function
-            func: None,
             // active state
             state: MuStackState::Active,
             // we do not know anything about current stack
@@ -546,7 +598,7 @@ impl MuThread {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             // we need a valid allocator and stack
             allocator: mm::new_mutator(),
-            stack: Some(fake_mu_stack_for_cur),
+            stack: Box::into_raw(fake_mu_stack_for_cur),
             // we do not need native_sp_loc (we do not expect the thread to call THREADEXIT)
             native_sp_loc: Address::zero(),
             // valid thread local from user
@@ -597,3 +649,54 @@ rodal_struct!(PrimordialThreadInfo {
     args,
     has_const_args
 });
+
+#[no_mangle]
+pub unsafe extern "C" fn muentry_new_stack(entry: Address, stack_size: usize) -> *mut MuStack {
+    let ref vm = MuThread::current_mut().vm;
+    let stack = Box::new(MuStack::new(vm.next_id(), entry, stack_size));
+    Box::into_raw(stack)
+}
+
+// Kills the given stack. WARNING! do not call this whilst on the given stack
+#[no_mangle]
+pub unsafe extern "C" fn muentry_kill_stack(stack: *mut MuStack) {
+    // This new box will be destroyed upon returning
+    Box::from_raw(stack);
+}
+
+// Creates a new thread
+#[no_mangle]
+pub unsafe extern "C" fn muentry_new_thread_exceptional(
+    stack: *mut MuStack,
+    thread_local: Address,
+    exception: Address
+) -> *mut MuThread {
+    let vm = MuThread::current_mut().vm.clone();
+    let (join_handle, muthread) = MuThread::mu_thread_launch(
+        vm.next_id(),
+        Box::from_raw(stack),
+        thread_local,
+        Some(exception),
+        vm.clone()
+    );
+    vm.push_join_handle(join_handle);
+    muthread
+}
+
+// Creates a new thread
+#[no_mangle]
+pub unsafe extern "C" fn muentry_new_thread_normal(
+    stack: *mut MuStack,
+    thread_local: Address
+) -> *mut MuThread {
+    let vm = MuThread::current_mut().vm.clone();
+    let (join_handle, muthread) = MuThread::mu_thread_launch(
+        vm.next_id(),
+        Box::from_raw(stack),
+        thread_local,
+        None,
+        vm.clone()
+    );
+    vm.push_join_handle(join_handle);
+    muthread
+}

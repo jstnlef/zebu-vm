@@ -53,12 +53,13 @@ use std::collections::HashMap;
 
 // Number of nromal callee saved registers (excluding FP and LR, and SP)
 pub const CALLEE_SAVED_COUNT: usize = 18;
+pub const ARGUMENT_REG_COUNT: usize = 16;
 
 macro_rules! REGISTER {
     ($id:expr, $name: expr, $ty: ident) => {
         {
             P(Value {
-                hdr: MuEntityHeader::named($id, $name.to_string()),
+                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
                 ty: $ty.clone(),
                 v: Value_::SSAVar($id)
             })
@@ -227,17 +228,7 @@ pub fn is_machine_reg(val: &P<Value>) -> bool {
 
 // Returns a P<Value> to the register id
 pub fn get_register_from_id(id: MuID) -> P<Value> {
-    if id < FPR_ID_START {
-        match GPR_ALIAS_LOOKUP.get(&id) {
-            Some(val) => val.clone(),
-            None => panic!("cannot find GPR {}", id)
-        }
-    } else {
-        match FPR_ALIAS_LOOKUP.get(&id) {
-            Some(val) => val.clone(),
-            None => panic!("cannot find FPR {}", id)
-        }
-    }
+    ALL_MACHINE_REGS.get(&id).unwrap().clone()
 }
 
 pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
@@ -267,7 +258,9 @@ pub fn get_alias_for_length(id: MuID, length: usize) -> P<Value> {
 }
 
 pub fn is_aliased(id1: MuID, id2: MuID) -> bool {
-    return get_color_for_precolored(id1) == get_color_for_precolored(id2);
+    return id1 == id2 ||
+        (id1 < MACHINE_ID_END && id2 < MACHINE_ID_END &&
+             get_color_for_precolored(id1) == get_color_for_precolored(id2));
 }
 
 pub fn get_color_for_precolored(id: MuID) -> MuID {
@@ -674,6 +667,54 @@ lazy_static! {
         D15.clone()
     ];
 
+    pub static ref CALLER_SAVED_REGS : [P<Value>; 42] = [
+        X0.clone(),
+        X1.clone(),
+        X2.clone(),
+        X3.clone(),
+        X4.clone(),
+        X5.clone(),
+        X6.clone(),
+        X7.clone(),
+        X8.clone(),
+        X9.clone(),
+        X10.clone(),
+        X11.clone(),
+        X12.clone(),
+        X13.clone(),
+        X14.clone(),
+        X15.clone(),
+        X16.clone(),
+        X17.clone(),
+        //X18.clone(), // Platform Register
+
+        D0.clone(),
+        D1.clone(),
+        D2.clone(),
+        D3.clone(),
+        D4.clone(),
+        D5.clone(),
+        D6.clone(),
+        D7.clone(),
+
+        D16.clone(),
+        D17.clone(),
+        D18.clone(),
+        D19.clone(),
+        D20.clone(),
+        D21.clone(),
+        D22.clone(),
+        D23.clone(),
+        D24.clone(),
+        D25.clone(),
+        D26.clone(),
+        D27.clone(),
+        D28.clone(),
+        D29.clone(),
+        D30.clone(),
+        D31.clone()
+    ];
+
     pub static ref ALL_USABLE_GPRS : Vec<P<Value>> = vec![
         X0.clone(),
         X1.clone(),
@@ -835,21 +876,20 @@ pub fn get_callee_saved_offset(reg: MuID) -> isize {
     (id as isize + 1) * (-8)
 }
 
-// Returns the callee saved register with the id...
-/*pub fn get_callee_saved_register(offset: isize) -> P<Value> {
-    debug_assert!(offset <= -8 && (-offset) % 8 == 0);
-    let id = ((offset/-8) - 1) as usize;
-    if id < CALLEE_SAVED_GPRs.len() {
-        CALLEE_SAVED_GPRs[id].clone()
-    } else if id - CALLEE_SAVED_GPRs.len() < CALLEE_SAVED_FPRs.len() {
-        CALLEE_SAVED_FPRs[id - CALLEE_SAVED_GPRs.len()].clone()
+// Gets the offset of the argument register when passed on the stack
+pub fn get_argument_reg_offset(reg: MuID) -> isize {
+    let reg = get_color_for_precolored(reg);
+
+    let id = if reg >= FPR_ID_START {
+        (reg - ARGUMENT_FPRS[0].id()) / 2
     } else {
-        panic!("There is no callee saved register with id {}", offset)
-    }
-}*/
+        (reg - ARGUMENT_GPRS[0].id()) / 2 + ARGUMENT_FPRS.len()
+    };
+
+    (id as isize + 1) * (-8)
+}
 
 pub fn is_callee_saved(reg_id: MuID) -> bool {
-
     for reg in CALLEE_SAVED_GPRS.iter() {
         if reg_id == reg.extract_ssa_id().unwrap() {
             return true;
@@ -864,6 +904,10 @@ pub fn is_callee_saved(reg_id: MuID) -> bool {
     false
 }
 
+// The stack size needed for a call to the given function signature
+pub fn call_stack_size(sig: P<MuFuncSig>, vm: &VM) -> usize {
+    compute_argument_locations(&sig.ret_tys, &SP, 0, false, &vm).2
+}
 // TODO: Check that these numbers are reasonable (THEY ARE ONLY AN ESTIMATE)
 use ast::inst::*;
 pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
@@ -906,10 +950,12 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
         // runtime
         New(_) | NewHybrid(_, _) => 10,
-        NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
+        NewStack(_) | NewThread { .. } | NewFrameCursor(_) => 10,
         ThreadExit => 10,
+        CurrentStack => 10,
+        KillStack(_) => 10,
         Throw(_) => 10,
-        SwapStack { .. } => 10,
+        SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
         CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
 
@@ -1004,11 +1050,11 @@ pub fn is_valid_arithmetic_imm(val: u64) -> bool {
 // (the resulting value will be valid iff 'val' is valid, and the lower 'n' bits will equal val)
 pub fn replicate_logical_imm(val: u64, n: usize) -> u64 {
     let op_size = if n <= 32 { 32 } else { 64 };
-    let mut val = val;
+    let mut new_val = val;
     for i in 1..op_size / n {
-        val |= val << i * n;
+        new_val |= val << i * n;
     }
-    val
+    new_val
 }
 
 
@@ -1320,25 +1366,6 @@ pub fn match_value_f32imm(op: &P<Value>) -> bool {
     }
 }
 
-// The type of the node (for a value node)
-pub fn node_type(op: &TreeNode) -> P<MuType> {
-    match op.v {
-        TreeNode_::Instruction(ref inst) => {
-            if inst.value.is_some() {
-                let ref value = inst.value.as_ref().unwrap();
-                if value.len() != 1 {
-                    panic!("the node {} does not have one result value", op);
-                }
-
-                value[0].ty.clone()
-            } else {
-                panic!("expected result from the node {}", op);
-            }
-        }
-        TreeNode_::Value(ref pv) => pv.ty.clone()
-    }
-}
-
 pub fn match_value_imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(_) => true,
@@ -1352,6 +1379,15 @@ pub fn match_value_int_imm(op: &P<Value>) -> bool {
         _ => false
     }
 }
+
+pub fn match_value_zero(op: &P<Value>) -> bool {
+    match op.v {
+        Value_::Constant(Constant::Int(x)) => x == 0,
+        Value_::Constant(Constant::NullRef) => true,
+        _ => false
+    }
+}
+
 pub fn match_value_ref_imm(op: &P<Value>) -> bool {
     match op.v {
         Value_::Constant(Constant::NullRef) => true,
@@ -1375,6 +1411,13 @@ pub fn get_node_value(op: &TreeNode) -> P<Value> {
 pub fn match_node_int_imm(op: &TreeNode) -> bool {
     match op.v {
         TreeNode_::Value(ref pv) => match_value_int_imm(pv),
+        _ => false
+    }
+}
+
+pub fn match_node_zero(op: &TreeNode) -> bool {
+    match op.v {
+        TreeNode_::Value(ref pv) => match_value_zero(pv),
         _ => false
     }
 }
@@ -1490,6 +1533,14 @@ pub fn make_value_int_const(val: u64, vm: &VM) -> P<Value> {
     })
 }
 
+pub fn make_value_nullref(vm: &VM) -> P<Value> {
+    P(Value {
+        hdr: MuEntityHeader::unnamed(vm.next_id()),
+        ty: REF_VOID_TYPE.clone(),
+        v: Value_::Constant(Constant::NullRef)
+    })
+}
+
 // Replaces the zero register with a temporary whose value is zero (or returns the orignal register)
 /* TODO use this function for the following arguments:
 
@@ -1530,6 +1581,21 @@ Just insert this immediatly before each emit_XX where XX is one the above instru
 and arg is the name of the argument that can't be the zero register (do so for each such argument)
 let arg = replace_zero_register(backend, &arg, f_context, vm);
 */
+
+pub fn replace_unexpected_zero_register(
+    backend: &mut CodeGenerator,
+    val: &P<Value>,
+    f_context: &mut FunctionContext,
+    vm: &VM
+) -> P<Value> {
+    if is_zero_register(&val) {
+        let temp = make_temporary(f_context, val.ty.clone(), vm);
+        backend.emit_mov_imm(&temp, 0);
+        temp
+    } else {
+        val.clone()
+    }
+}
 
 pub fn replace_zero_register(
     backend: &mut CodeGenerator,
@@ -1851,6 +1917,7 @@ fn emit_cmp_u64(
     } else if is_valid_arithmetic_imm(val) {
         let imm_shift = val > 4096;
         let imm_val = if imm_shift { val >> 12 } else { val };
+        let src1 = replace_unexpected_zero_register(backend, src1, f_context, vm);
         backend.emit_cmp_imm(&src1, imm_val as u16, imm_shift);
     } else {
         let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -1874,6 +1941,7 @@ fn emit_cmn_u64(
     } else if is_valid_arithmetic_imm(val) {
         let imm_shift = val > 4096;
         let imm_val = if imm_shift { val >> 12 } else { val };
+        let src1 = replace_unexpected_zero_register(backend, src1, f_context, vm);
         backend.emit_cmn_imm(&src1, imm_val as u16, imm_shift);
     } else {
         let tmp = make_temporary(f_context, UINT64_TYPE.clone(), vm);
@@ -1941,61 +2009,12 @@ fn emit_reg_value(
     f_context: &mut FunctionContext,
     vm: &VM
 ) -> P<Value> {
-    match pv.v {
-        Value_::SSAVar(_) => pv.clone(),
-        Value_::Constant(ref c) => {
-            match c {
-                &Constant::Int(val) => {
-                    /*if val == 0 {
-                        // TODO emit the zero register (NOTE: it can't be used by all instructions)
-                        // Use the zero register (saves having to use a temporary)
-                        get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
-                    } else {*/
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    debug!("tmp's ty: {}", tmp.ty);
-                    emit_mov_u64(backend, &tmp, val);
-                    tmp
-                    //}
-                }
-                &Constant::IntEx(ref val) => {
-                    assert!(val.len() == 2);
-
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    let (tmp_l, tmp_h) = split_int128(&tmp, f_context, vm);
-
-                    emit_mov_u64(backend, &tmp_l, val[0]);
-                    emit_mov_u64(backend, &tmp_h, val[1]);
-
-                    tmp
-                }
-                &Constant::FuncRef(func_id) => {
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-
-                    let mem =
-                        make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
-                    emit_calculate_address(backend, &tmp, &mem, vm);
-                    tmp
-                }
-                &Constant::NullRef => {
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    backend.emit_mov_imm(&tmp, 0);
-                    tmp
-                    //get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
-                }
-                &Constant::Double(val) => {
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    emit_mov_f64(backend, &tmp, f_context, vm, val);
-                    tmp
-                }
-                &Constant::Float(val) => {
-                    let tmp = make_temporary(f_context, pv.ty.clone(), vm);
-                    emit_mov_f32(backend, &tmp, f_context, vm, val);
-                    tmp
-                }
-                _ => panic!("expected fpreg or ireg")
-            }
-        }
-        _ => panic!("expected fpreg or ireg")
+    if is_int_reg(&pv) || is_int_ex_reg(&pv) {
+        emit_ireg_value(backend, pv, f_context, vm)
+    } else if is_fp_reg(&pv) {
+        emit_fpreg_value(backend, pv, f_context, vm)
+    } else {
+        unreachable!();
     }
 }
 
@@ -2011,10 +2030,8 @@ pub fn emit_ireg_value(
         Value_::Constant(ref c) => {
             match c {
                 &Constant::Int(val) => {
-                    // TODO Deal with zero case
+                    // TODO: Deal with zero case
                     /*if val == 0 {
-                        // TODO: Are there any (integer) instructions that can't use the Zero reg?
-                        // Use the zero register (saves having to use a temporary)
                         get_alias_for_length(XZR.id(), get_bit_size(&pv.ty, vm))
                     } else {*/
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
@@ -2034,11 +2051,15 @@ pub fn emit_ireg_value(
 
                     tmp
                 }
-                &Constant::FuncRef(func_id) => {
+                &Constant::FuncRef(ref func) => {
                     let tmp = make_temporary(f_context, pv.ty.clone(), vm);
 
-                    let mem =
-                        make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                    let mem = make_value_symbolic(
+                        vm.get_name_for_func(func.id()),
+                        true,
+                        &ADDRESS_TYPE,
+                        vm
+                    );
                     emit_calculate_address(backend, &tmp, &mem, vm);
                     tmp
                 }
@@ -2051,7 +2072,21 @@ pub fn emit_ireg_value(
                 _ => panic!("expected ireg")
             }
         }
-        _ => panic!("expected ireg")
+        Value_::Global(_) => {
+            let tmp = make_temporary(f_context, pv.ty.clone(), vm);
+            let mem = make_value_symbolic(pv.name(), true, &pv.ty, vm);
+            emit_calculate_address(backend, &tmp, &mem, vm);
+            tmp
+
+        }
+        Value_::Memory(ref mem) => {
+            //make_value_from_memory(mem: MemoryLocation, ty: &P<MuType>, vm: &VM)
+            let mem = make_value_from_memory(mem.clone(), &pv.ty, vm);
+            let tmp = make_temporary(f_context, pv.ty.clone(), vm);
+            emit_calculate_address(backend, &tmp, &mem, vm);
+            tmp
+
+        }
     }
 }
 
@@ -2100,7 +2135,6 @@ fn split_int128(
             .unwrap()
             .set_split(vec![arg_l.clone(), arg_h.clone()]);
 
-        trace!("ISAAC <- make temporary ({}, {})", &arg_l, &arg_h);
         (arg_l, arg_h)
     }
 }
@@ -2122,13 +2156,6 @@ pub fn emit_ireg_ex_value(
             emit_mov_u64(backend, &tmp_l, val[0]);
             emit_mov_u64(backend, &tmp_h, val[1]);
 
-            trace!(
-                "ISAAC <- ({}, {}) = ({}, {})",
-                &tmp_l,
-                &tmp_h,
-                val[0],
-                val[1]
-            );
             (tmp_l, tmp_h)
         }
         _ => panic!("expected ireg_ex")
@@ -2355,9 +2382,9 @@ pub fn emit_addr_sym(backend: &mut CodeGenerator, dest: &P<Value>, src: &P<Value
                             hdr: MuEntityHeader::unnamed(vm.next_id()),
                             ty: UINT64_TYPE.clone(),
                             v: Value_::Constant(Constant::ExternSym(if is_native {
-                                format!("/*C*/:got_lo12:{}", label)
+                                Arc::new(format!("/*C*/:got_lo12:{}", label))
                             } else {
-                                format!(":got_lo12:{}", mangle_name(label.clone()))
+                                Arc::new(format!(":got_lo12:{}", mangle_name(label.clone())))
                             }))
                         });
 
@@ -2725,6 +2752,14 @@ fn emit_move_value_to_value(
             if src.is_int_const() {
                 let imm = value_imm_to_u64(src);
                 emit_mov_u64(backend, dest, imm);
+            } else if src.is_func_const() {
+                let func_id = match src.v {
+                    Value_::Constant(Constant::FuncRef(ref func)) => func.id(),
+                    _ => unreachable!()
+                };
+                let mem =
+                    make_value_symbolic(vm.get_name_for_func(func_id), true, &ADDRESS_TYPE, vm);
+                emit_calculate_address(backend, &dest, &mem, vm);
             } else if is_int_reg(&src) {
                 backend.emit_mov(dest, src);
             } else if src.is_mem() {
@@ -2848,4 +2883,191 @@ fn is_int_ex_reg(val: &P<Value>) -> bool {
 }
 fn is_fp_reg(val: &P<Value>) -> bool {
     RegGroup::get_from_value(&val) == RegGroup::FPR && (val.is_reg() || val.is_const())
+}
+
+// TODO: Thoroughly test this
+// (compare with code generated by GCC with variouse different types???)
+// The algorithm presented here is derived from the ARM AAPCS64 reference
+// Returns a vector indicating whether each should be passed as an IRef (and not directly),
+// a vector referencing to the location of each argument (in memory or a register) and
+// the amount of stack space used
+// NOTE: It currently does not support vectors/SIMD types (or aggregates of such types)
+fn compute_argument_locations(
+    arg_types: &Vec<P<MuType>>,
+    stack: &P<Value>,
+    offset: i64,
+    is_callee_saved: bool,
+    vm: &VM
+) -> (Vec<bool>, Vec<P<Value>>, usize) {
+    if arg_types.len() == 0 {
+        // nothing to do
+        return (vec![], vec![], 0);
+    }
+
+    let fpr_regs = if is_callee_saved {
+        CALLEE_SAVED_FPRS.as_ref()
+    } else {
+        ARGUMENT_FPRS.as_ref()
+    };
+
+    let gpr_regs = if is_callee_saved {
+        CALLEE_SAVED_GPRS.as_ref()
+    } else {
+        ARGUMENT_GPRS.as_ref()
+    };
+
+    let mut ngrn = 0 as usize; // The Next General-purpose Register Number
+    let mut nsrn = 0 as usize; // The Next SIMD and Floating-point Register Number
+    let mut nsaa = 0 as usize; // The next stacked argument address (an offset from the SP)
+    use ast::types::MuType_::*;
+
+    // reference[i] = true indicates the argument is passed an IRef to a location on the stack
+    let mut reference: Vec<bool> = vec![];
+    for t in arg_types {
+        reference.push(
+            hfa_length(t) == 0 && // HFA's aren't converted to IRef's
+                match t.v {
+                    // size can't be statically determined
+                    Hybrid(_) => panic!("Hybrid argument not supported"),
+                    //  type is too large
+                    Struct(_) | Array(_, _) if vm.get_backend_type_size(t.id()) > 16 => true,
+                    Vector(_, _)  => unimplemented!(),
+                    _ => false
+                }
+        );
+    }
+    // TODO: How does passing arguments by reference effect the stack size??
+    let mut locations: Vec<P<Value>> = vec![];
+    for i in 0..arg_types.len() {
+        let i = i as usize;
+        let t = if reference[i] {
+            P(MuType::new(
+                new_internal_id(),
+                MuType_::IRef(arg_types[i].clone())
+            ))
+        } else {
+            arg_types[i].clone()
+        };
+        let size = align_up(vm.get_backend_type_size(t.id()), 8);
+        let align = get_type_alignment(&t, vm);
+        match t.v {
+            Hybrid(_) => panic!("hybrid argument not supported"),
+
+            Vector(_, _) => unimplemented!(),
+            Float | Double => {
+                if nsrn < 8 {
+                    locations.push(get_alias_for_length(
+                        fpr_regs[nsrn].id(),
+                        get_bit_size(&t, vm)
+                    ));
+                    nsrn += 1;
+                } else {
+                    nsrn = 8;
+                    locations.push(make_value_base_offset(
+                        &stack,
+                        offset + (nsaa as i64),
+                        &t,
+                        vm
+                    ));
+                    nsaa += size;
+                }
+            }
+            Struct(_) | Array(_, _) => {
+                let hfa_n = hfa_length(&t);
+                if hfa_n > 0 {
+                    if nsrn + hfa_n <= 8 {
+                        // Note: the argument will occupy succesiv registers
+                        // (one for each element)
+                        locations.push(get_alias_for_length(
+                            fpr_regs[nsrn].id(),
+                            get_bit_size(&t, vm) / hfa_n
+                        ));
+                        nsrn += hfa_n;
+                    } else {
+                        nsrn = 8;
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64),
+                            &t,
+                            vm
+                        ));
+                        nsaa += size;
+                    }
+                } else {
+                    if align == 16 {
+                        ngrn = align_up(ngrn, 2); // align NGRN to the next even number
+                    }
+
+                    if size <= 8 * (8 - ngrn) {
+                        // The struct should be packed, starting here
+                        // (note: this may result in multiple struct fields in the same regsiter
+                        // or even floating points in a GPR)
+                        locations.push(gpr_regs[ngrn].clone());
+                        // How many GPRS are taken up by t
+                        ngrn += if size % 8 != 0 {
+                            size / 8 + 1
+                        } else {
+                            size / 8
+                        };
+                    } else {
+                        ngrn = 8;
+                        nsaa = align_up(nsaa, align_up(align, 8));
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64) as i64,
+                            &t,
+                            vm
+                        ));
+                        nsaa += size;
+                    }
+                }
+            }
+
+            Void => panic!("void argument not supported"),
+
+            // Integral or pointer type
+            _ => {
+                if size <= 8 {
+                    if ngrn < 8 {
+                        locations.push(get_alias_for_length(
+                            gpr_regs[ngrn].id(),
+                            get_bit_size(&t, vm)
+                        ));
+                        ngrn += 1;
+                    } else {
+                        nsaa = align_up(nsaa, align_up(align, 8));
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64) as i64,
+                            &t,
+                            vm
+                        ));
+                        nsaa += size;
+                    }
+
+                } else if size == 16 {
+                    ngrn = align_up(ngrn, 2); // align NGRN to the next even number
+
+                    if ngrn < 7 {
+                        locations.push(gpr_regs[ngrn].clone());
+                        ngrn += 2;
+                    } else {
+                        ngrn = 8;
+                        nsaa = align_up(nsaa, 16);
+                        locations.push(make_value_base_offset(
+                            &stack,
+                            offset + (nsaa as i64) as i64,
+                            &t,
+                            vm
+                        ));
+                        nsaa += 16;
+                    }
+                } else {
+                    unimplemented!(); // Integer type is too large
+                }
+            }
+        }
+    }
+
+    (reference, locations, align_up(nsaa, 16) as usize)
 }

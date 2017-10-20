@@ -14,6 +14,8 @@
 
 /// A instruction selection pass. Uses simple tree pattern matching.
 pub mod inst_sel;
+/// A Dominator Tree pass for machine code.
+pub mod mc_loopanalysis;
 /// A register allocation pass. Graph coloring.
 pub mod reg_alloc;
 /// A peephole optimization pass after register allocation.
@@ -33,6 +35,8 @@ use num::integer::lcm;
 /// the same status as before persisting.
 #[cfg(feature = "aot")]
 pub const AOT_EMIT_CONTEXT_FILE: &'static str = "context.S";
+
+pub const AOT_EMIT_SYM_TABLE_FILE: &'static str = "mu_sym_table.S";
 
 // type alias to make backend code more readable
 pub type Reg<'a> = &'a P<Value>;
@@ -114,6 +118,8 @@ pub use compiler::backend::x86_64::spill_rewrite;
 pub use compiler::backend::x86_64::ARGUMENT_GPRS;
 #[cfg(target_arch = "x86_64")]
 pub use compiler::backend::x86_64::ARGUMENT_FPRS;
+#[cfg(target_arch = "x86_64")]
+pub use compiler::backend::x86_64::call_stack_size;
 
 /// --- aarch64 backend ---
 #[cfg(target_arch = "aarch64")]
@@ -182,6 +188,8 @@ pub use compiler::backend::aarch64::spill_rewrite;
 pub use compiler::backend::aarch64::ARGUMENT_GPRS;
 #[cfg(target_arch = "aarch64")]
 pub use compiler::backend::aarch64::ARGUMENT_FPRS;
+#[cfg(target_arch = "aarch64")]
+pub use compiler::backend::aarch64::call_stack_size;
 
 use vm::VM;
 use ast::types::*;
@@ -535,5 +543,5 @@ impl RegGroup {
 }
 
 fn make_block_name(inst: &MuName, label: &str) -> MuName {
-    format!("{}:{}", inst, label)
+    Arc::new(format!("{}:{}", inst, label))
 }

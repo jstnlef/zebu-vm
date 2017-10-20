@@ -75,6 +75,14 @@ lazy_static! {
         MuType::new(new_internal_id(), MuType_::iref(VOID_TYPE.clone()))
     );
 
+    pub static ref STACKREF_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::StackRef)
+    );
+
+    pub static ref THREADREF_TYPE : P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::ThreadRef)
+    );
+
     pub static ref INTERNAL_TYPES : Vec<P<MuType>> = vec![
         ADDRESS_TYPE.clone(),
         UINT1_TYPE.clone(),
@@ -89,6 +97,8 @@ lazy_static! {
         VOID_TYPE.clone(),
         REF_VOID_TYPE.clone(),
         IREF_VOID_TYPE.clone(),
+        STACKREF_TYPE.clone(),
+        THREADREF_TYPE.clone(),
     ];
 }
 
@@ -106,13 +116,22 @@ pub fn init_types() {
 }
 
 /// MuType represents a Mu type
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub struct MuType {
     pub hdr: MuEntityHeader,
     pub v: MuType_
 }
 
 rodal_struct!(MuType { hdr, v });
+
+impl PartialEq for MuType {
+    fn eq(&self, other: &MuType) -> bool {
+        self.v == other.v
+    }
+    fn ne(&self, other: &MuType) -> bool {
+        self.v != other.v
+    }
+}
 
 impl MuType {
     /// creates a new Mu type
@@ -123,10 +142,38 @@ impl MuType {
         }
     }
 
+    pub fn is_tagref64(&self) -> bool {
+        match self.v {
+            MuType_::Tagref64 => true,
+            _ => false
+        }
+    }
+
+    pub fn is_stackref(&self) -> bool {
+        match self.v {
+            MuType_::StackRef => true,
+            _ => false
+        }
+    }
+
+    pub fn is_funcref(&self) -> bool {
+        match self.v {
+            MuType_::FuncRef(_) => true,
+            _ => false
+        }
+    }
+
     /// is this type struct type?
     pub fn is_struct(&self) -> bool {
         match self.v {
             MuType_::Struct(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_void(&self) -> bool {
+        match self.v {
+            MuType_::Void => true,
             _ => false
         }
     }
@@ -154,6 +201,23 @@ impl MuType {
             _ => false
         }
     }
+
+    pub fn is_opaque_reference(&self) -> bool {
+        match self.v {
+            MuType_::FuncRef(_) | MuType_::StackRef | MuType_::ThreadRef => true,
+            _ => false
+        }
+    }
+
+    pub fn is_eq_comparable(&self) -> bool {
+        self.is_int() || self.is_ptr() || self.is_iref() || self.is_ref() ||
+            self.is_opaque_reference()
+    }
+
+    pub fn is_ult_comparable(&self) -> bool {
+        self.is_int() || self.is_ptr() || self.is_iref()
+    }
+
 
     /// is this type a float type (single-precision floating point)
     pub fn is_float(&self) -> bool {
@@ -326,6 +390,14 @@ impl MuType {
         }
     }
 
+    /// gets the signature of a funcref or ufuncptr type
+    pub fn get_sig(&self) -> Option<P<MuFuncSig>> {
+        match self.v {
+            MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => Some(sig.clone()),
+            _ => None
+        }
+    }
+
     /// gets a field's type of a struct type,
     /// returns None if the type is not a struct or hybrid type
     pub fn get_field_ty(&self, index: usize) -> Option<P<MuType>> {
@@ -369,6 +441,15 @@ impl MuType {
         }
     }
 
+    /// gets the function signature for FuncRef or UFuncPtr, return None if the type is not
+    /// those two types
+    pub fn get_func_sig(&self) -> Option<P<MuFuncSig>> {
+        match self.v {
+            MuType_::FuncRef(ref sig) | MuType_::UFuncPtr(ref sig) => Some(sig.clone()),
+            _ => None
+        }
+    }
+
     /// gets the length (in bit) of a integer/pointer type (assume pointer types are always 64 bits)
     // FIXME: should deprecate this function, and get the length from BackendType
     pub fn get_int_length(&self) -> Option<usize> {
@@ -393,7 +474,7 @@ pub type StructTag = MuName;
 pub type HybridTag = MuName;
 
 /// MuType_ is used for pattern matching for MuType
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum MuType_ {
     /// int <length>
     Int(usize),
@@ -441,7 +522,14 @@ pub enum MuType_ {
     /// ufuncptr<@sig>
     UFuncPtr(P<MuFuncSig>)
 }
-
+impl MuType_ {
+    pub fn strong_variant(&self) -> MuType_ {
+        match self {
+            &MuType_::WeakRef(ref t) => MuType_::Ref(t.clone()),
+            _ => self.clone()
+        }
+    }
+}
 rodal_enum!(MuType_{(Int: size), Float, Double, (Ref: ty), (IRef: ty), (WeakRef: ty), (UPtr: ty),
     (Struct: tag), (Array: ty, size), (Hybrid: tag), Void, ThreadRef, StackRef, Tagref64,
     (Vector: ty, size), (FuncRef: ty), (UFuncPtr: ty)});
@@ -469,9 +557,9 @@ impl fmt::Display for MuType_ {
             &MuType_::Tagref64 => write!(f, "tagref64"),
             &MuType_::Vector(ref ty, size) => write!(f, "vector<{} {}>", ty, size),
             &MuType_::FuncRef(ref sig) => write!(f, "funcref<{}>", sig),
-            &MuType_::UFuncPtr(ref sig) => write!(f, "ufuncref<{}>", sig),
-            &MuType_::Struct(ref tag) => write!(f, "{}(struct)", tag),
-            &MuType_::Hybrid(ref tag) => write!(f, "{}(hybrid)", tag)
+            &MuType_::UFuncPtr(ref sig) => write!(f, "ufuncptr<{}>", sig),
+            &MuType_::Struct(ref tag) => write!(f, "{}", tag),
+            &MuType_::Hybrid(ref tag) => write!(f, "{}", tag)
         }
     }
 }
@@ -572,7 +660,7 @@ impl fmt::Display for HybridType_ {
                 write!(f, " ").unwrap();
             }
         }
-        write!(f, "|{}>", self.var_ty)
+        write!(f, " {}>", self.var_ty)
     }
 }
 
@@ -733,19 +821,24 @@ impl MuType_ {
 }
 
 /// MuFuncSig represents a Mu function signature
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub struct MuFuncSig {
     pub hdr: MuEntityHeader,
     pub ret_tys: Vec<P<MuType>>,
     pub arg_tys: Vec<P<MuType>>
 }
 
+impl PartialEq for MuFuncSig {
+    fn eq(&self, other: &MuFuncSig) -> bool {
+        self.ret_tys == other.ret_tys && self.arg_tys == other.arg_tys
+    }
+}
 rodal_struct!(MuFuncSig{hdr, ret_tys, arg_tys});
 
 impl fmt::Display for MuFuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{}] -> [{}]",
-               vec_utils::as_str(&self.arg_tys), vec_utils::as_str(&self.ret_tys))
+        write!(f, "({})->({})",
+            vec_utils::as_str_sp(&self.arg_tys), vec_utils::as_str_sp(&self.ret_tys))
     }
 }
 

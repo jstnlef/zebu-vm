@@ -16,75 +16,6 @@
 
 #include "asm_common_aarch64.S.inc"
 
-
-# swap_stack_to(new_sp: Address, entry: Address, old_sp_loc: Address)
-#               X0               X1              X2
-begin_func swap_to_mu_stack
-          # -- on old stack --
-          enter_frame
-
-          # push all callee-saved registers
-          push_callee_saved
-
-          # *old_sp_loc = SP
-          MOV X9, SP
-          STR X9, [X2]
-
-          # sp = new_sp
-          MOV SP, X0
-          # x9 = entry
-          MOV X9, X1
-
-          # -- on new stack --
-          # arguments (reverse order of thread.rs - runtime_load_args)
-          pop_arguments
-
-          # If entry tries to return (IT SHOULDN'T) it will call entry_returned (which will panic!)
-          ADR LR, entry_returned
-
-          # branch to entry
-          //MOV FP, 0 // End of call frame
-          RET X9
-end_func swap_to_mu_stack
-
-# The error message to print when entry returns
-	.type .Lentry_returned_message, @object
-	.section .rodata.str1.1,"aMS",@progbits,1
-.Lentry_returned_message:
-        .asciz  "ERROR: The entry function returned\n"
-        .size   .Lentry_returned_message, 36
-
-# Prints an error mesage and calls exit(1)
-begin_func entry_returned
-    ADRP x0, .Lentry_returned_message
-    ADD x0, x0, :lo12:.Lentry_returned_message // Loads x0 with the adress of .Lentry_returned_message
-
-    MOV X1, #35 // Length of string
-
-	MOV X2, #1 // Number of elements
-
-    ADRP X3, :got:stderr
-    LDR X3, [X3, :got_lo12:stderr]
-    LDR X3, [X3] // Load X3 with the address of stderr
-
-    BL fwrite // calls fwrite(x0, x1, x2, x3)
-    MOV W0, 1
-    BL exit // call exit(1)
-end_func entry_returned
-
-// _swap_back_to_native_stack(sp_loc: Address)
-//                            X0
-begin_func muentry_swap_back_to_native_stack
-          # SP = *sp_loc
-          LDR X9, [X0]
-          MOV SP, X9
-
-          pop_callee_saved
-          # Restore the previouse frame (and return to its return location)
-          exit_frame
-          RET
-end_func muentry_swap_back_to_native_stack
-
 # _get_current_frame_bp() -> Address
 #                             X0
 begin_func get_current_frame_bp
@@ -100,13 +31,9 @@ begin_func muentry_throw_exception
          MOV FP, SP
          push_callee_saved
          MOV X1, FP // X1 is the frame pointer
-#if defined (__linux__)
          BL throw_exception_internal
-#else
-         #error "Only Linux is supported. "
-#endif
          # won't return
-
+end_func muentry_throw_exception
 # _exception_restore(dest: Address, frame_cursor: *const Word, sp: Address) -> !
 #                    X0             X1                         X2
 begin_func exception_restore
@@ -117,3 +44,64 @@ begin_func exception_restore
           MOV SP, X2
           BR X0
 end_func exception_restore
+
+# starts a muthread that passes values to the target
+# muthread_start_normal(new_sp: Address, old_sp_loc: Address)
+#                      X0             , X1
+begin_func muthread_start_normal
+    enter_frame
+    push_callee_saved
+
+    // Save the current SP to old_sp_loc
+    MOV X11, SP
+    STR X11, [X1]
+
+    // Swap to the new stack
+    MOV SP, X0
+
+    // Pop the argument registers from the new stack
+    LDP D1, D0, [SP, #14*8 ]
+    LDP D3, D2, [SP, #12*8 ]
+    LDP D5, D4, [SP, #10*8 ]
+    LDP D7, D6, [SP, #8*8 ]
+    LDP X1, X0, [SP, #6*8]
+    LDP X3, X2, [SP, #4*8]
+    LDP X5, X4, [SP, #2*8]
+    LDP X7, X6, [SP, #0*8]
+    ADD SP, SP, #16*8
+
+    // Jump to the new stack
+    exit_frame
+    BR LR
+end_func muthread_start_normal
+
+# starts a muthread with an exception thrown
+# muthread_start_exceptional(exception: Address, new_sp: Address, old_sp_loc: &mut Adress)
+#                            X0                  X1               X2
+begin_func muthread_start_exceptional
+    enter_frame
+    push_callee_saved
+
+    // Save the current SP to old_sp_loc
+    MOV X11, SP
+    STR X11, [X2]
+
+    // Swap to the new stack
+    MOV SP, X1
+    SUB SP, SP, #144 // Alocate space for callee saved registers
+    B throw_exception_internal
+    // We won't be coming back...
+end_func muthread_start_exceptional
+
+# restores the thread
+#               (new_sp: Address)
+#               X0
+begin_func muentry_thread_exit
+	# Rust code will be responsible for actually killing the stack
+    MOV SP, X0
+
+    // Do the inverse of 'muthread_*'
+    pop_callee_saved
+    exit_frame
+    BR LR
+end_func muentry_thread_exit

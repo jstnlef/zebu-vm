@@ -69,10 +69,11 @@ impl Inlining {
         let mut inline_something = false;
 
         // check each call from this function
-        for func_id in func.get_static_call_edges().values() {
+        for (_, (func_id, has_exc)) in func.get_static_call_edges() {
             // check a single callsite, whether it should be inlined
             // the result is returned as boolean, and also written into 'should_inline'
-            let should_inline_this = self.check_should_inline_func(*func_id, func.func_id, vm);
+            let should_inline_this =
+                self.check_should_inline_func(has_exc, func_id, func.func_id, vm);
             inline_something = inline_something || should_inline_this;
         }
 
@@ -80,7 +81,13 @@ impl Inlining {
     }
 
     /// checks whether we should inline the caller into the callee
-    fn check_should_inline_func(&mut self, callee: MuID, caller: MuID, vm: &VM) -> bool {
+    fn check_should_inline_func(
+        &mut self,
+        has_exc: bool,
+        callee: MuID,
+        caller: MuID,
+        vm: &VM
+    ) -> bool {
         // recursive call, do not inline
         if callee == caller {
             return false;
@@ -123,19 +130,21 @@ impl Inlining {
 
         // some heuristics here to decide if we should inline the function
         let n_insts = estimate_insts(&fv);
-        let out_calls = fv.get_static_call_edges();
-        let has_throw = fv.has_throw();
+        let could_throw = fv.could_throw();
         let has_tailcall = fv.has_tailcall();
 
         // simple heuristic here:
         // * estimated machine insts are fewer than 10 insts
         // * leaf in call graph (no out calls)
         // * no throw (otherwise we will need to rearrange catch)
-        let should_inline = n_insts <= 25 && out_calls.len() == 0 && !has_throw && !has_tailcall;
+        let should_inline = n_insts <= 25 && !(has_exc && could_throw) && !has_tailcall;
 
         trace!("func {} has {} insts (estimated)", callee, n_insts);
-        trace!("     has {} out calls", out_calls.len());
-        trace!("     has throws? {}", has_throw);
+        trace!(
+            "     has exception clause? {}, could throw? {}",
+            has_exc,
+            could_throw
+        );
         trace!("SO func should be inlined? {}", should_inline);
 
         self.should_inline.insert(callee, should_inline);
@@ -166,7 +175,7 @@ impl Inlining {
                 trace!("check inst: {}", inst);
                 let inst_id = inst.id();
                 if call_edges.contains_key(&inst_id) {
-                    let call_target = call_edges.get(&inst_id).unwrap();
+                    let call_target = &call_edges.get(&inst_id).unwrap().0;
                     if self.should_inline.contains_key(call_target) &&
                         *self.should_inline.get(call_target).unwrap()
                     {
@@ -178,7 +187,7 @@ impl Inlining {
                         // inline expansion starts here
 
                         // getting the function being inlined
-                        let inlined_func = *call_edges.get(&inst.id()).unwrap();
+                        let inlined_func = call_edges.get(&inst.id()).unwrap().0;
                         trace!("function being inlined is {}", inlined_func);
                         let inlined_fvid = match vm.get_cur_version_for_func(inlined_func) {
                             Some(fvid) => fvid,
@@ -193,6 +202,8 @@ impl Inlining {
                         let inlined_fvs_guard = vm.func_vers().read().unwrap();
                         let inlined_fv_lock = inlined_fvs_guard.get(&inlined_fvid).unwrap();
                         let inlined_fv_guard = inlined_fv_lock.read().unwrap();
+                        let inlined_fv_content = inlined_fv_guard.get_orig_ir().unwrap();
+
                         trace!(
                             "orig_content: {:?}",
                             inlined_fv_guard.get_orig_ir().unwrap()
@@ -203,8 +214,8 @@ impl Inlining {
                         );
                         // creates a new block ID
                         // which will be the entry block for the inlined function
-                        let new_inlined_entry_id = vm.next_id();
-
+                        let new_inlined_entry_hdr =
+                            new_inlined_block_name(inlined_fv_content.get_entry_block().name(), vm);
                         // change current call instruction to a branch
                         trace!("turning CALL instruction into a branch");
                         let ref ops = inst.ops;
@@ -220,7 +231,7 @@ impl Inlining {
                                     ops: arg_nodes.clone(),
                                     v: Instruction_::Branch1(Destination {
                                         // this block doesnt exist yet, we will create it later
-                                        target: new_inlined_entry_id,
+                                        target: new_inlined_entry_hdr.clone(),
                                         args: arg_indices
                                             .iter()
                                             .map(|x| DestArg::Normal(*x))
@@ -239,7 +250,7 @@ impl Inlining {
                                 // which will receive results from inlined function
                                 let old_name = cur_block.name();
                                 let new_name =
-                                    format!("{}_cont_after_inline_{}", old_name, inst_id);
+                                    Arc::new(format!("{}_cont_after_inline_{}", old_name, inst_id));
                                 trace!("create continue block for EXPRCALL/CCALL: {}", &new_name);
                                 cur_block =
                                     Block::new(MuEntityHeader::named(vm.next_id(), new_name));
@@ -255,14 +266,13 @@ impl Inlining {
                                     body: vec![],
                                     keepalives: None
                                 });
-                                vm.set_name(cur_block.as_entity());
 
                                 // deal with the inlined function
                                 copy_inline_blocks(
                                     &mut new_blocks,
-                                    cur_block.id(),
-                                    inlined_fv_guard.get_orig_ir().unwrap(),
-                                    new_inlined_entry_id,
+                                    cur_block.hdr.clone(),
+                                    inlined_fv_content,
+                                    new_inlined_entry_hdr,
                                     vm
                                 );
                                 copy_inline_context(f_context, &inlined_fv_guard.context);
@@ -281,7 +291,7 @@ impl Inlining {
                                     value: None,
                                     ops: arg_nodes,
                                     v: Instruction_::Branch1(Destination {
-                                        target: new_inlined_entry_id,
+                                        target: new_inlined_entry_hdr.clone(),
                                         args: arg_indices
                                             .iter()
                                             .map(|x| DestArg::Normal(*x))
@@ -298,7 +308,7 @@ impl Inlining {
                                     .push(TreeNode::new_boxed_inst(branch));
 
                                 // next block
-                                let mut next_block = resume.normal_dest.target;
+                                let mut next_block = resume.normal_dest.target.clone();
 
                                 // if normal_dest expects different number of arguments
                                 // other than the inlined function returns, we need
@@ -307,11 +317,11 @@ impl Inlining {
                                     inlined_fv_guard.sig.ret_tys.len()
                                 {
                                     debug!("need an extra block for passing normal dest arguments");
-                                    let int_block_name = format!("inline_{}_arg_pass", inst_id);
+                                    let int_block_name =
+                                        Arc::new(format!("inline_{}_arg_pass", inst_id));
                                     let mut intermediate_block = Block::new(
                                         MuEntityHeader::named(vm.next_id(), int_block_name)
                                     );
-                                    vm.set_name(intermediate_block.as_entity());
 
                                     // branch to normal_dest with normal_dest arguments
                                     let normal_dest_args =
@@ -323,7 +333,7 @@ impl Inlining {
                                         value: None,
                                         ops: normal_dest_args,
                                         v: Instruction_::Branch1(Destination {
-                                            target: resume.normal_dest.target,
+                                            target: resume.normal_dest.target.clone(),
                                             args: (0..normal_dest_args_len)
                                                 .map(|x| DestArg::Normal(x))
                                                 .collect()
@@ -344,16 +354,16 @@ impl Inlining {
 
                                     trace!("extra block: {:?}", intermediate_block);
 
-                                    next_block = intermediate_block.id();
+                                    next_block = intermediate_block.hdr.clone();
                                     new_blocks.push(intermediate_block);
                                 }
 
                                 // deal with inlined function
                                 copy_inline_blocks(
                                     &mut new_blocks,
-                                    next_block,
+                                    next_block.clone(),
                                     inlined_fv_guard.get_orig_ir().unwrap(),
-                                    new_inlined_entry_id,
+                                    new_inlined_entry_hdr.clone(),
                                     vm
                                 );
                                 copy_inline_context(f_context, &inlined_fv_guard.context);
@@ -379,30 +389,37 @@ impl Inlining {
     }
 }
 
+fn new_inlined_block_name(old_block_name: MuName, vm: &VM) -> MuEntityHeader {
+    let new_id = vm.next_id();
+    MuEntityHeader::named(
+        new_id,
+        Arc::new(format!("{}:inlinedblock.#{}", old_block_name, new_id))
+    )
+}
 /// copies blocks from callee to caller, with specified entry block and return block
 fn copy_inline_blocks(
     caller: &mut Vec<Block>,
-    ret_block: MuID,
+    ret_block: MuEntityHeader,
     callee: &FunctionContent,
-    entry_block: MuID,
+    entry_block: MuEntityHeader,
     vm: &VM
 ) {
     trace!("trying to copy inlined function blocks to caller");
 
     // old id -> new id
-    let mut block_map: HashMap<MuID, MuID> = HashMap::new();
+    let mut block_map: HashMap<MuID, MuEntityHeader> = HashMap::new();
 
     for block in callee.blocks.values() {
         if block.id() == callee.entry {
-            block_map.insert(block.id(), entry_block);
+            block_map.insert(block.id(), entry_block.clone());
         } else {
-            block_map.insert(block.id(), vm.next_id());
+            block_map.insert(block.id(), new_inlined_block_name(block.name(), vm));
         }
     }
 
     let fix_dest = |dest: Destination| {
         Destination {
-            target: *block_map.get(&dest.target).unwrap(),
+            target: (*block_map.get(&dest.target.id()).unwrap()).clone(),
             args: dest.args
         }
     };
@@ -416,23 +433,19 @@ fn copy_inline_blocks(
 
     for old_block in callee.blocks.values() {
         let old_id = old_block.id();
-        let new_id = *block_map.get(&old_block.id()).unwrap();
+        let new_hdr = (*block_map.get(&old_block.id()).unwrap()).clone();
         let mut block = Block {
-            hdr: MuEntityHeader::named(
-                new_id,
-                format!("{}:inlinedblock.#{}", old_block.name(), new_id)
-            ),
+            hdr: new_hdr.clone(),
             content: Some(old_block.content.as_ref().unwrap().clone_empty()),
             trace_hint: TraceHint::None,
             control_flow: ControlFlow::default()
         };
 
-        trace!("starts copying instruction from {} to {}", old_id, new_id);
+        trace!("starts copying instruction from {} to {}", old_id, new_hdr);
 
         // Create the new blocks contents
         {
             let old_block_content = old_block.content.as_ref().unwrap();
-            let block_name = block.name().clone();
             let block_content = block.content.as_mut().unwrap();
 
             // Copy the old_block contents (minus the last one)
@@ -461,18 +474,10 @@ fn copy_inline_blocks(
                     trace!("last instruction: {}", inst);
 
                     let hdr = inst.hdr.clone_with_id(inst_new_id);
-                    let inst_name = inst.name().clone();
                     let ref value = inst.value;
                     let ref ops = inst.ops;
                     let ref v = inst.v;
 
-                    trace!(
-                        "ISAAC: Inlining [{} -> {}] : {} -> {}",
-                        old_block.name(),
-                        block_name,
-                        inst_name,
-                        hdr.name()
-                    );
                     match v {
                         &Instruction_::Return(ref vec) => {
                             // change RET to a branch
@@ -481,7 +486,7 @@ fn copy_inline_blocks(
                                 value: value.clone(),
                                 ops: ops.clone(),
                                 v: Instruction_::Branch1(Destination {
-                                    target: ret_block,
+                                    target: ret_block.clone(),
                                     args: vec.iter().map(|x| DestArg::Normal(*x)).collect()
                                 })
                             };
@@ -582,9 +587,29 @@ fn copy_inline_blocks(
                             block_content.body.push(TreeNode::new_boxed_inst(switch));
                         }
 
+                        &Instruction_::SwapStackExc {
+                            stack,
+                            is_exception,
+                            ref args,
+                            ref resume
+                        } => {
+                            let swapstack = Instruction {
+                                hdr: hdr,
+                                value: value.clone(),
+                                ops: ops.clone(),
+                                v: Instruction_::SwapStackExc {
+                                    stack: stack,
+                                    is_exception: is_exception,
+                                    args: args.clone(),
+                                    resume: fix_resume(resume.clone())
+                                }
+                            };
+
+                            trace!("rewrite to: {}", swapstack);
+                            block_content.body.push(TreeNode::new_boxed_inst(swapstack));
+                        }
                         &Instruction_::Watchpoint { .. } |
                         &Instruction_::WPBranch { .. } |
-                        &Instruction_::SwapStack { .. } |
                         &Instruction_::ExnInstruction { .. } => unimplemented!(),
 
                         _ => {

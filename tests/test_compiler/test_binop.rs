@@ -24,18 +24,17 @@ use self::mu::vm::*;
 use self::mu::linkutils;
 use mu::utils::LinkedHashMap;
 
+use std::sync::Arc;
+use self::mu::linkutils::aot;
+use self::mu::compiler::*;
+
+use std::u64;
+use std::i64;
+
 #[test]
 fn test_udiv() {
-    let lib = linkutils::aot::compile_fnc("udiv", &udiv);
-
-    unsafe {
-        let udiv: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
-            lib.get(b"udiv").unwrap();
-
-        let udiv_8_2 = udiv(8, 2);
-        println!("udiv(8, 2) = {}", udiv_8_2);
-        assert!(udiv_8_2 == 4);
-    }
+    build_and_run_test!(udiv, udiv_test1);
+    build_and_run_test!(udiv, udiv_test2);
 }
 
 fn udiv() -> VM {
@@ -72,25 +71,29 @@ fn udiv() -> VM {
         blk_entry
     });
 
+    emit_test! ((vm)
+        udiv, udiv_test1, udiv_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        udiv_sig,
+        int64(22), int64(4) RET int64(5),
+    );
+
+    emit_test! ((vm)
+        udiv, udiv_test2, udiv_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        udiv_sig,
+        int64(27), int64(7) RET int64(3),
+    );
+
     vm
 }
 
 #[test]
 fn test_sdiv() {
-    let lib = linkutils::aot::compile_fnc("sdiv", &sdiv);
-
-    unsafe {
-        let sdiv: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> i64> =
-            lib.get(b"sdiv").unwrap();
-
-        let sdiv_8_2 = sdiv(8, 2);
-        println!("sdiv(8, 2) = {}", sdiv_8_2);
-        assert!(sdiv_8_2 == 4);
-
-        let sdiv_8_m2 = sdiv(8, -2i64);
-        println!("sdiv(8, -2) = {}", sdiv_8_m2);
-        assert!(sdiv_8_m2 == -4i64);
-    }
+    build_and_run_test!(sdiv, sdiv_test1);
+    build_and_run_test!(sdiv, sdiv_test2);
 }
 
 fn sdiv() -> VM {
@@ -127,25 +130,29 @@ fn sdiv() -> VM {
         blk_entry
     });
 
+    emit_test! ((vm)
+        sdiv, sdiv_test1, sdiv_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sdiv_sig,
+        int64(8), int64(2) RET int64(4),
+    );
+
+    emit_test! ((vm)
+        sdiv, sdiv_test2, sdiv_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sdiv_sig,
+        int64(8), int64(-3i64 as u64) RET int64(-2i64 as u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_shl() {
-    let lib = linkutils::aot::compile_fnc("shl", &shl);
-
-    unsafe {
-        let shl: libloading::Symbol<unsafe extern "C" fn(u64, u8) -> u64> =
-            lib.get(b"shl").unwrap();
-
-        let shl_1_2 = shl(1, 2);
-        println!("shl(1, 2) = {}", shl_1_2);
-        assert!(shl_1_2 == 4);
-
-        let shl_2_2 = shl(2, 2);
-        println!("shl(2, 2) = {}", shl_2_2);
-        assert!(shl_2_2 == 8);
-    }
+    build_and_run_test!(shl, shl_test1);
+    build_and_run_test!(shl, shl_test2);
 }
 
 fn shl() -> VM {
@@ -182,21 +189,27 @@ fn shl() -> VM {
         blk_entry
     });
 
+    emit_test! ((vm)
+        shl, shl_test1, shl_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        shl_sig,
+        int64(1), int64(2) RET int64(4),
+    );
+    emit_test! ((vm)
+        shl, shl_test2, shl_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        shl_sig,
+        int64(2), int64(2) RET int64(8),
+    );
+
     vm
 }
 
 #[test]
 fn test_lshr() {
-    let lib = linkutils::aot::compile_fnc("lshr", &lshr);
-
-    unsafe {
-        let lshr: libloading::Symbol<unsafe extern "C" fn(u64, u8) -> u64> =
-            lib.get(b"lshr").unwrap();
-
-        let lshr_8_3 = lshr(8, 3);
-        println!("lshr(8, 3) = {}", lshr_8_3);
-        assert!(lshr_8_3 == 1);
-    }
+    build_and_run_test!(lshr, lshr_test1);
 }
 
 fn lshr() -> VM {
@@ -233,21 +246,20 @@ fn lshr() -> VM {
         blk_entry
     });
 
+    emit_test! ((vm)
+        lshr, lshr_test1, lshr_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        lshr_sig,
+        int64(8), int64(3) RET int64(1),
+    );
+
     vm
 }
 
 #[test]
 fn test_add_simple() {
-    let lib = linkutils::aot::compile_fnc("add", &add);
-
-    unsafe {
-        let add: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
-            lib.get(b"add").unwrap();
-
-        let res = add(1, 1);
-        println!("add(1, 1) = {}", res);
-        assert!(res == 2);
-    }
+    build_and_run_test! (add, add_test1);
 }
 
 fn add() -> VM {
@@ -279,33 +291,23 @@ fn add() -> VM {
 
     define_func_ver!((vm) add_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        add, add_test1, add_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(22), int64(27) RET int64(49),
+    );
+
     vm
 }
 
 #[test]
 fn test_add_int64_n() {
-    let lib = linkutils::aot::compile_fnc("add_int64_n", &add_int64_n);
-
-    unsafe {
-        let add_int64_n: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> u8> =
-            lib.get(b"add_int64_n").unwrap();
-
-        let flag = add_int64_n(1, 1);
-        println!("add_int64_n(1, 1), #N = {}", flag);
-        assert!(flag == 0);
-
-        let flag = add_int64_n(1, -2);
-        println!("add_int64_n(1, -2), #N = {}", flag);
-        assert!(flag == 1);
-
-        let flag = add_int64_n(1, -1);
-        println!("add_int64_n(1, -1), #N = {}", flag);
-        assert!(flag == 0);
-
-        let flag = add_int64_n(-1, -1);
-        println!("add_int64_n(-1, -1), #N = {}", flag);
-        assert!(flag == 1);
-    }
+    build_and_run_test! (add_int64_n, add_int64_n_test1);
+    build_and_run_test! (add_int64_n, add_int64_n_test2);
+    build_and_run_test! (add_int64_n, add_int64_n_test3);
+    build_and_run_test! (add_int64_n, add_int64_n_test4);
 }
 
 fn add_int64_n() -> VM {
@@ -339,29 +341,43 @@ fn add_int64_n() -> VM {
 
     define_func_ver!((vm) add_int64_n_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        add_int64_n, add_int64_n_test1, add_int64_n_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(1) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_n, add_int64_n_test2, add_int64_n_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(-2i64 as u64) RET int1(1),
+    );
+    emit_test! ((vm)
+        add_int64_n, add_int64_n_test3, add_int64_n_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(-1i64 as u64) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_n, add_int64_n_test4, add_int64_n_test4_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(-1i64 as u64), int64(-1i64 as u64) RET int1(1),
+    );
+
     vm
 }
 
 #[test]
 fn test_add_int64_z() {
-    let lib = linkutils::aot::compile_fnc("add_int64_z", &add_int64_z);
-
-    unsafe {
-        let add_int64_z: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> u8> =
-            lib.get(b"add_int64_z").unwrap();
-
-        let flag = add_int64_z(1, 1);
-        println!("add_int64_z(1, 1), #Z = {}", flag);
-        assert!(flag == 0);
-
-        let flag = add_int64_z(1, -2);
-        println!("add_int64_z(1, -2), #Z = {}", flag);
-        assert!(flag == 0);
-
-        let flag = add_int64_z(1, -1);
-        println!("add_int64_z(1, -1), #Z = {}", flag);
-        assert!(flag == 1);
-    }
+    build_and_run_test! (add_int64_z, add_int64_z_test1);
+    build_and_run_test! (add_int64_z, add_int64_z_test2);
+    build_and_run_test! (add_int64_z, add_int64_z_test3);
 }
 
 fn add_int64_z() -> VM {
@@ -395,27 +411,35 @@ fn add_int64_z() -> VM {
 
     define_func_ver!((vm) add_int64_z_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        add_int64_z, add_int64_z_test1, add_int64_z_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(1) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_z, add_int64_z_test2, add_int64_z_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(-2i64 as u64) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_z, add_int64_z_test3, add_int64_z_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(1), int64(-1i64 as u64) RET int1(1),
+    );
+
     vm
 }
 
 #[test]
 fn test_add_int64_c() {
-    use std::u64;
-
-    let lib = linkutils::aot::compile_fnc("add_int64_c", &add_int64_c);
-
-    unsafe {
-        let add_int64_c: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u8> =
-            lib.get(b"add_int64_c").unwrap();
-
-        let flag = add_int64_c(u64::MAX, 1);
-        println!("add_int64_c(u64::MAX, 1), #C = {}", flag);
-        assert!(flag == 1);
-
-        let flag = add_int64_c(u64::MAX, 0);
-        println!("add_int64_c(i64::MAX, 0), #C = {}", flag);
-        assert!(flag == 0);
-    }
+    build_and_run_test! (add_int64_c, add_int64_c_test1);
+    build_and_run_test! (add_int64_c, add_int64_c_test2);
 }
 
 fn add_int64_c() -> VM {
@@ -449,35 +473,30 @@ fn add_int64_c() -> VM {
 
     define_func_ver!((vm) add_int64_c_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        add_int64_c, add_int64_c_test1, add_int64_c_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(u64::MAX), int64(1) RET int1(1),
+    );
+    emit_test! ((vm)
+        add_int64_c, add_int64_c_test2, add_int64_c_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MAX as u64), int64(0) RET int1(0),
+    );
+
     vm
 }
 
 #[test]
 fn test_add_int64_v() {
-    use std::i64;
-
-    let lib = linkutils::aot::compile_fnc("add_int64_v", &add_int64_v);
-
-    unsafe {
-        let add_int64_v: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> u8> =
-            lib.get(b"add_int64_v").unwrap();
-
-        let flag = add_int64_v(i64::MAX, 1);
-        println!("add_int64_v(i64::MAX, 1), #V = {}", flag);
-        assert!(flag == 1);
-
-        let flag = add_int64_v(i64::MAX, 0);
-        println!("add_int64_v(i64::MAX, 0), #V = {}", flag);
-        assert!(flag == 0);
-
-        let flag = add_int64_v(i64::MIN, 0);
-        println!("add_int64_v(i64::MIN, 0), #V = {}", flag);
-        assert!(flag == 0);
-
-        let flag = add_int64_v(i64::MIN, -1);
-        println!("add_int64_v(i64::MIN, -1), #V = {}", flag);
-        assert!(flag == 1);
-    }
+    build_and_run_test! (add_int64_v, add_int64_v_test1);
+    build_and_run_test! (add_int64_v, add_int64_v_test2);
+    build_and_run_test! (add_int64_v, add_int64_v_test3);
+    build_and_run_test! (add_int64_v, add_int64_v_test4);
 }
 
 fn add_int64_v() -> VM {
@@ -511,27 +530,42 @@ fn add_int64_v() -> VM {
 
     define_func_ver!((vm) add_int64_v_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        add_int64_v, add_int64_v_test1, add_int64_v_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MAX as u64), int64(1) RET int1(1),
+    );
+    emit_test! ((vm)
+        add_int64_v, add_int64_v_test2, add_int64_v_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MAX as u64), int64(0) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_v, add_int64_v_test3, add_int64_v_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MIN as u64), int64(0) RET int1(0),
+    );
+    emit_test! ((vm)
+        add_int64_v, add_int64_v_test4, add_int64_v_test4_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(i64::MIN as u64), int64(-1i64 as u64) RET int1(1),
+    );
+
     vm
 }
 
 #[test]
 fn test_add_int64_nzc() {
-    use std::u64;
-
-    let lib = linkutils::aot::compile_fnc("add_int64_nzc", &add_int64_nzc);
-
-    unsafe {
-        let add_int64_nzc: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u8> =
-            lib.get(b"add_int64_nzc").unwrap();
-
-        let flag = add_int64_nzc(u64::MAX, 1);
-        println!("add_int64_nzc(u64::MAX, 1), #C = {:b}", flag);
-        assert!(flag == 0b110);
-
-        let flag = add_int64_nzc(u64::MAX, 0);
-        println!("add_int64_nzc(u64::MAX, 0), #C = {:b}", flag);
-        assert!(flag == 0b001);
-    }
+    build_and_run_test! (add_int64_nzc, add_int64_nzc_test1);
+    build_and_run_test! (add_int64_nzc, add_int64_nzc_test2);
 }
 
 fn add_int64_nzc() -> VM {
@@ -597,6 +631,143 @@ fn add_int64_nzc() -> VM {
     });
 
     define_func_ver!((vm) add_int64_nzc_v1 (entry: blk_entry) {blk_entry});
+
+    emit_test! ((vm)
+        add_int64_nzc, add_int64_nzc_test1, add_int64_nzc_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(u64::MAX), int64(1) RET int8(0b110),
+    );
+    emit_test! ((vm)
+        add_int64_nzc, add_int64_nzc_test2, add_int64_nzc_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(u64::MAX), int64(0) RET int8(0b001),
+    );
+
+    vm
+}
+
+#[test]
+fn test_nest_mul_simple() {
+    VM::start_logging_trace();
+
+    let lib = linkutils::aot::compile_fnc("nest_mul_simple", &nest_mul_simple);
+    unsafe {
+        let nest_mul_simple: libloading::Symbol<unsafe extern "C" fn(u64, u64, u64) -> u64> =
+            lib.get(b"nest_mul_simple").unwrap();
+
+        let res = nest_mul_simple(2, 3, 4);
+        println!("mul(2, 3, 4) = {}", res);
+        assert_eq!(res, 24);
+    }
+}
+
+fn nest_mul_simple() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    funcsig!    ((vm) sig = (int64, int64, int64) -> (int64));
+    funcdecl!   ((vm) <sig> nest_mul_simple);
+    funcdef!    ((vm) <sig> nest_mul_simple VERSION nest_mul_simple_v1);
+
+    // %entry(%x, %y, %z)
+    block!      ((vm, nest_mul_simple_v1) blk_entry);
+    ssa!        ((vm, nest_mul_simple_v1) <int64> x);
+    ssa!        ((vm, nest_mul_simple_v1) <int64> y);
+    ssa!        ((vm, nest_mul_simple_v1) <int64> z);
+
+    // %a = MUL %x %y
+    ssa!        ((vm, nest_mul_simple_v1) <int64> a);
+    inst!       ((vm, nest_mul_simple_v1) blk_entry_mul1:
+        a = BINOP (BinOp::Mul) x y
+    );
+
+    // %b = MUL %a %z
+    ssa!        ((vm, nest_mul_simple_v1) <int64> b);
+    inst!       ((vm, nest_mul_simple_v1) blk_entry_mul2:
+        b = BINOP (BinOp::Mul) a z
+    );
+
+    // RET b
+    inst!       ((vm, nest_mul_simple_v1) blk_entry_ret:
+        RET (b)
+    );
+
+    define_block!((vm, nest_mul_simple_v1) blk_entry(x, y, z) {
+        blk_entry_mul1,
+        blk_entry_mul2,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) nest_mul_simple_v1(entry: blk_entry) {
+        blk_entry
+    });
+
+    vm
+}
+
+#[test]
+fn test_nest_mul_times_10() {
+    VM::start_logging_trace();
+
+    let lib = linkutils::aot::compile_fnc("nest_mul_times_10", &nest_mul_times_10);
+    unsafe {
+        let nest_mul: libloading::Symbol<unsafe extern "C" fn(u64, u64) -> u64> =
+            lib.get(b"nest_mul_times_10").unwrap();
+
+        let res = nest_mul(2, 3);
+        println!("mul(2, 3) x 10 = {}", res);
+        assert_eq!(res, 60);
+    }
+}
+
+fn nest_mul_times_10() -> VM {
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    constdef!   ((vm) <int64> int64_10 = Constant::Int(10));
+
+    funcsig!    ((vm) sig = (int64, int64) -> (int64));
+    funcdecl!   ((vm) <sig> nest_mul_times_10);
+    funcdef!    ((vm) <sig> nest_mul_times_10 VERSION nest_mul_times_10_v1);
+
+    // %entry(%x, %y)
+    block!      ((vm, nest_mul_times_10_v1) blk_entry);
+    ssa!        ((vm, nest_mul_times_10_v1) <int64> x);
+    ssa!        ((vm, nest_mul_times_10_v1) <int64> y);
+    consta!     ((vm, nest_mul_times_10_v1) int64_10_local = int64_10);
+
+    // %a = MUL %x %y
+    ssa!        ((vm, nest_mul_times_10_v1) <int64> a);
+    inst!       ((vm, nest_mul_times_10_v1) blk_entry_mul1:
+        a = BINOP (BinOp::Mul) x y
+    );
+
+    // %b = MUL 10 %a
+    ssa!        ((vm, nest_mul_times_10_v1) <int64> b);
+    inst!       ((vm, nest_mul_times_10_v1) blk_entry_mul2:
+        b = BINOP (BinOp::Mul) int64_10_local a
+    );
+
+    // RET b
+    inst!       ((vm, nest_mul_times_10_v1) blk_entry_ret:
+        RET (b)
+    );
+
+    define_block!((vm, nest_mul_times_10_v1) blk_entry(x, y) {
+        blk_entry_mul1,
+        blk_entry_mul2,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) nest_mul_times_10_v1(entry: blk_entry) {
+        blk_entry
+    });
 
     vm
 }

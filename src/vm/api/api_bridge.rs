@@ -29,7 +29,7 @@ use std::ptr;
 use std::os::raw::*;
 use std::ffi::CStr;
 use std::slice;
-
+use std::sync::Arc;
 use super::api_c::*;
 use super::api_impl::*;
 use super::deps::*;
@@ -69,7 +69,7 @@ fn from_MuIRBuilder_ptr<'c>(ptr: *mut CMuIRBuilder) -> *mut MuIRBuilder {
 
 #[inline(always)]
 fn from_MuName(cname: CMuName) -> MuName {
-    from_MuCString(cname)
+    Arc::new(from_MuCString(cname))
 }
 
 #[inline(always)]
@@ -86,6 +86,15 @@ fn from_MuCString_optional(cstring: CMuCString) -> Option<String> {
         None
     } else {
         Some(from_MuCString(cstring))
+    }
+}
+
+#[inline(always)]
+fn from_MuName_optional(cstring: CMuName) -> Option<MuName> {
+    if cstring.is_null() {
+        None
+    } else {
+        Some(from_MuName(cstring))
     }
 }
 
@@ -182,6 +191,13 @@ fn from_MuCString_array<'a>(ptr: *const CMuCString, len: usize) -> Vec<String> {
     let slc = from_array_direct(ptr, len);
     slc.iter().map(|&e| from_MuCString(e)).collect::<Vec<_>>()
 }
+
+#[inline(always)]
+fn from_MuName_array<'a>(ptr: *const CMuName, len: usize) -> Vec<MuName> {
+    let slc = from_array_direct(ptr, len);
+    slc.iter().map(|&e| from_MuName(e)).collect::<Vec<_>>()
+}
+
 
 // The following functions `to_*` converts high-level types to C-like types.
 
@@ -1189,9 +1205,9 @@ extern "C" fn _forwarder__MuCtx__make_boot_image(
     let mut _arg_primordial_stack = from_handle_optional(primordial_stack);
     let mut _arg_primordial_threadlocal = from_handle_optional(primordial_threadlocal);
     let mut _arg_sym_fields = from_handle_array(sym_fields, nsyms);
-    let mut _arg_sym_strings = from_MuCString_array(sym_strings, nsyms);
+    let mut _arg_sym_strings = from_MuName_array(sym_strings, nsyms);
     let mut _arg_reloc_fields = from_handle_array(reloc_fields, nrelocs);
-    let mut _arg_reloc_strings = from_MuCString_array(reloc_strings, nrelocs);
+    let mut _arg_reloc_strings = from_MuName_array(reloc_strings, nrelocs);
     let mut _arg_output_file = from_MuCString(output_file);
     unsafe {
         (*_arg_ctx).make_boot_image(
@@ -1220,7 +1236,7 @@ extern "C" fn _forwarder__MuIRBuilder__abort(b: *mut CMuIRBuilder) {
 
 extern "C" fn _forwarder__MuIRBuilder__gen_sym(b: *mut CMuIRBuilder, name: CMuCString) -> CMuID {
     let mut _arg_b = from_MuIRBuilder_ptr(b);
-    let mut _arg_name = from_MuCString_optional(name);
+    let mut _arg_name = from_MuName_optional(name);
     let _rv = unsafe { (*_arg_b).gen_sym(_arg_name) };
     let _rv_prep = to_MuID(_rv);
     _rv_prep
@@ -1501,7 +1517,7 @@ extern "C" fn _forwarder__MuIRBuilder__new_const_extern(
     let mut _arg_b = from_MuIRBuilder_ptr(b);
     let mut _arg_id = from_MuID(id);
     let mut _arg_ty = from_MuID(ty);
-    let mut _arg_symbol = from_MuCString(symbol);
+    let mut _arg_symbol = from_MuName(symbol);
     unsafe { (*_arg_b).new_const_extern(_arg_id, _arg_ty, _arg_symbol) };
 }
 

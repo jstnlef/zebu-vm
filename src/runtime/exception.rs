@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use compiler::machine_code::CompiledCallsite;
 use runtime::*;
+use log;
 
 /// runtime function to deal with exception (unwind stack, find catch block, and restore)
 /// This function is called by muentry_throw_exception() which gets emitted for THROW instruction
@@ -39,7 +40,7 @@ use runtime::*;
 /// real frame pointers or the frame cursor)
 #[no_mangle]
 pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor: Address) -> ! {
-    trace!("throwing exception: {}", exception_obj);
+    debug!("throwing exception: {}", exception_obj);
 
     if cfg!(debug_assertions) {
         trace!("Initial Frame: ");
@@ -65,7 +66,9 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
         // acquire lock for exception table
         let compiled_callsite_table = vm.compiled_callsite_table().read().unwrap();
 
+        print_backtrace(frame_cursor, compiled_callsite_table.deref());
         loop {
+
             // Lookup the table for the callsite
             trace!("Callsite: 0x{:x}", callsite);
             trace!("\tprevious_frame_pointer: 0x{:x}", previous_frame_pointer);
@@ -82,18 +85,19 @@ pub extern "C" fn throw_exception_internal(exception_obj: Address, frame_cursor:
                          either there isn't a catch block to catch the exception or \
                          your catch block is above a native function call"
                     );
-                    // This function may segfault
-                    print_backtrace(frame_cursor, compiled_callsite_table.deref());
                     panic!("Uncaught Mu Exception");
                 }
                 table_entry.unwrap()
             };
 
             // Check for a catch block at this callsite
-            // (there won't be one on the first iteration of this loop)
             if callsite_info.exceptional_destination.is_some() {
                 catch_address = callsite_info.exceptional_destination.unwrap();
-                trace!("Found catch block: 0x{:x}", catch_address);
+                debug!(
+                    "Found catch block: 0x{:x} - {}",
+                    catch_address,
+                    get_symbol_name(catch_address)
+                );
                 sp = get_previous_stack_pointer(
                     current_frame_pointer,
                     callsite_info.stack_args_size
@@ -156,8 +160,11 @@ fn print_frame(cursor: Address) {
 /// This function may segfault or panic when it reaches the bottom of the stack
 //  TODO: Determine where the bottom is without segfaulting
 fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, CompiledCallsite>) {
-    error!("BACKTRACE: ");
+    if log::max_log_level() < log::LogLevelFilter::Debug {
+        return;
+    }
 
+    debug!("BACKTRACE: ");
     let cur_thread = thread::MuThread::current();
     let ref vm = cur_thread.vm;
     // compiled_funcs: RwLock<HashMap<MuID, RwLock<CompiledFunction>>>;
@@ -167,6 +174,10 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
 
     loop {
         let callsite = get_return_address(frame_pointer);
+        frame_pointer = get_previous_frame_pointer(frame_pointer);
+        if frame_pointer.is_zero() {
+            return;
+        }
 
         if compiled_callsite_table.contains_key(&callsite) {
             let function_version = compiled_callsite_table
@@ -179,30 +190,29 @@ fn print_backtrace(base: Address, compiled_callsite_table: &HashMap<Address, Com
                 .read()
                 .unwrap();
 
-            error!(
-                "\tframe {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x}",
+            debug!(
+                "\tframe {:2}: 0x{:x} - {} (fid: #{}, fvid: #{}) at 0x{:x} - {}",
                 frame_count,
                 compiled_func.start.to_address(),
-                vm.name_of(compiled_func.func_id),
+                vm.get_name_for_func(compiled_func.func_id),
                 compiled_func.func_id,
                 compiled_func.func_ver_id,
-                callsite
+                callsite,
+                get_symbol_name(callsite)
             );
         } else {
             let (func_name, func_start) = get_function_info(callsite);
-            error!(
+            debug!(
                 "\tframe {:2}: 0x{:x} - {} at 0x{:x}",
                 frame_count,
                 func_start,
                 func_name,
                 callsite
             );
+            debug!("\tother native frames...");
+            break;
         }
 
-        frame_pointer = get_previous_frame_pointer(frame_pointer);
-        if frame_pointer.is_zero() {
-            return;
-        }
         frame_count += 1;
     }
 }

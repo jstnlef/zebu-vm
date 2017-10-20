@@ -32,6 +32,14 @@ void muentry_set_retval(uint32_t x) {
     mu_retval = x;
 }
 
+int32_t c_check_result() {
+    return mu_retval;
+}
+
+char * alloc_mem(size_t size){
+    return (char *) malloc(size);
+}
+
 void set_thread_local(void* thread) {
     // printf("Thread%p: setting mu_tls to %p\n", (void*) pthread_self(), thread);
     mu_tls = thread;

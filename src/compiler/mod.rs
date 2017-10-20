@@ -54,6 +54,7 @@ impl<'vm> Compiler<'vm> {
     /// compiles a certain function version
     pub fn compile(&self, func: &mut MuFunctionVersion) {
         info!("");
+        info!("compilation_start {}", func.id());
         info!("Start compiling {}", func);
         info!("");
         debug!("{:?}", func);
@@ -78,6 +79,7 @@ impl<'vm> Compiler<'vm> {
             // build exception table for this function
             unimplemented!()
         }
+        info!("compilation_end {}", func.id());
     }
 }
 
@@ -96,6 +98,7 @@ impl CompilerPolicy {
 impl Default for CompilerPolicy {
     fn default() -> Self {
         let mut passes: Vec<Box<CompilerPass>> = vec![];
+        passes.push(Box::new(passes::UIRGen::new("")));
         passes.push(Box::new(passes::DotGen::new(".orig")));
 
         // ir level passes
@@ -110,6 +113,7 @@ impl Default for CompilerPolicy {
 
         // compilation
         passes.push(Box::new(backend::inst_sel::InstructionSelection::new()));
+        passes.push(Box::new(backend::mc_loopanalysis::MCLoopAnalysis::new()));
         passes.push(Box::new(backend::reg_alloc::RegisterAllocation::new()));
 
         // machine code level passes

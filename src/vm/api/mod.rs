@@ -53,3 +53,5 @@ mod deps {
     pub use vm::handle::APIHandle;
     extern crate mu_ast as ast;
 }
+
+pub use self::api_impl::VALIDATE_IR;

@@ -27,6 +27,8 @@ use std::ffi::CStr;
 use std::sync::Arc;
 use rodal;
 
+use libc::c_void;
+
 /// memory management: allocation, reclamation
 /// (the actual code is in src/gc, which gets re-exported in mm module)
 pub mod mm;
@@ -40,6 +42,16 @@ pub mod entrypoints;
 /// exception handling
 pub mod exception;
 
+lazy_static!{
+    static ref UNKNOWN_FUNCTION_NAME : CName = Arc::new("UNKOWN".to_string());
+}
+/// returns the name for a symbol address (inverse of resolve_symbol)
+/// WARNING: Only use this for Mu symbols
+pub fn get_symbol_name(symbol: Address) -> CName {
+    let (name, start) = get_function_info(symbol);
+    assert!(start == symbol);
+    return demangle_name((*name).clone());
+}
 
 /// returns name for a function address
 // FIXME: this actually returns the name and address of the nearest symbol (of any type)
@@ -60,20 +72,26 @@ pub fn get_function_info(function_addr: Address) -> (CName, Address) {
     }
     if !info.dli_sname.is_null() {
         (
-            unsafe { CStr::from_ptr(info.dli_sname) }
-                .to_str()
-                .unwrap()
-                .to_string(),
+            Arc::new(
+                unsafe { CStr::from_ptr(info.dli_sname) }
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            ),
             Address::from_ptr(info.dli_saddr)
         )
     } else {
-        ("UNKOWN".to_string(), Address::from_ptr(info.dli_saddr))
+        (
+            UNKNOWN_FUNCTION_NAME.clone(),
+            Address::from_ptr(info.dli_saddr)
+        )
     }
 
 }
 
 
 /// returns address for a given symbol, e.g. function name
+#[cfg(not(feature = "sel4-rumprun-target-side"))]
 pub fn resolve_symbol(symbol: MuName) -> Address {
     use std::ptr;
 
@@ -92,6 +110,48 @@ pub fn resolve_symbol(symbol: MuName) -> Address {
         );
     }
 
+    Address::from_ptr(ret)
+}
+
+use std::os::raw::c_char;
+//use std::os::raw::c_void;
+// This function is specific to sel4-rumprun platform
+// it replaces the resolve_symbol function provided by Linux and Mac
+// all other platforms (except sel4-rumprun) already provide this function
+#[cfg(feature = "sel4-rumprun-target-side")]
+#[link(name = "zebu_c_helpers")]
+extern "C" {
+    fn c_resolve_symbol(symbol: *const c_char) -> *const c_void;
+}
+
+// Although it is possible to directly \
+// compile, call and check results of Mu test functions \
+// in Linux and Mac, but in-order to unify testing styles \
+// I will use this C function to check the correctness of results
+// *************************************************
+// #[link(name="runtime")]
+// extern "C" {
+//    fn c_check_result() -> c_long;
+// }
+//
+// pub fn check_result() -> c_long {
+//     let result = unsafe { c_check_result() };
+//     result
+// }
+// *************************************************
+// This code has been moved to thread.rs \
+// due to the linkage with libruntime.a happenning there once
+
+// TODO
+// resolve symbol is different from the one used for Linux and Mac
+#[cfg(feature = "sel4-rumprun-target-side")]
+pub fn resolve_symbol(symbol: String) -> Address {
+    debug!("Going to resolve Symbol -{}-", symbol);
+    let ret = unsafe { c_resolve_symbol(CString::new(symbol.clone()).unwrap().as_ptr()) };
+    if ret.is_null() {
+        panic!("failed to resolve symbol: {}", symbol.clone());
+    }
+    debug!("Symbol -{}- resolved", symbol);
     Address::from_ptr(ret)
 }
 
@@ -151,13 +211,13 @@ impl ValueLocation {
     pub fn from_constant(c: Constant) -> ValueLocation {
         match c {
             Constant::Int(int_val) => {
-                ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val))
+                ValueLocation::Constant(RegGroup::GPR, utils::mem::u64_to_raw(int_val) as Word)
             }
             Constant::Float(f32_val) => {
-                ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val))
+                ValueLocation::Constant(RegGroup::FPR, utils::mem::f32_to_raw(f32_val) as Word)
             }
             Constant::Double(f64_val) => {
-                ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val))
+                ValueLocation::Constant(RegGroup::FPR, utils::mem::f64_to_raw(f64_val) as Word)
             }
             _ => unimplemented!()
         }
@@ -190,6 +250,10 @@ impl ValueLocation {
 /// 2. invokes mu_main() to hand the control to Rust code
 /// 3. returns the return value set by SetRetval
 pub const PRIMORDIAL_ENTRY: &'static str = "src/runtime/main.c";
+
+/// a C wrapper as main function for executable test boot images"
+/// in addition to normal main.c, it checks the returned results of tests
+pub const TEST_PRIMORDIAL_ENTRY: &'static str = "src/runtime/main_test.c";
 
 /// starts trace level logging, this function will be called from C
 #[no_mangle]
@@ -250,14 +314,17 @@ pub extern "C" fn mu_main(
         };
 
         // FIXME: currently assumes no user defined thread local - See Issue #48
-        let thread = thread::MuThread::new_thread_normal(
-            stack,
-            unsafe { Address::zero() },
-            args,
-            vm.clone()
-        );
+        thread::MuThread::new_thread_normal(stack, unsafe { Address::zero() }, args, vm.clone());
 
-        thread.join().unwrap();
+        loop {
+            let thread = vm.pop_join_handle();
+            if thread.is_none() {
+                break;
+            }
+            thread.unwrap().join().unwrap();
+        }
+
+        trace!("All threads have exited, quiting...");
     }
 }
 

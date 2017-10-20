@@ -30,3 +30,4 @@ mod test_inline;
 mod test_convop;
 mod test_int128;
 mod test_misc;
+mod test_opt;

@@ -38,9 +38,11 @@ use vm::vm_options::MuLogLevel;
 use log::LogLevel;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::Mutex;
 use std::sync::RwLockWriteGuard;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
-
+use std::thread::JoinHandle;
+use std::collections::LinkedList;
 use std;
 use utils::bit_utils::{bits_ones, u64_asr};
 
@@ -76,17 +78,17 @@ pub struct VM {
     /// types declared to the VM
     types: RwLock<HashMap<MuID, P<MuType>>>, // +120
     /// types that are resolved as BackendType
-    backend_type_info: RwLock<HashMap<MuID, Box<BackendType>>>, // +176
+    backend_type_info: RwLock<HashMap<MuID, Box<BackendType>>>,
     /// constants declared to the VM
-    constants: RwLock<HashMap<MuID, P<Value>>>, // +232
+    constants: RwLock<HashMap<MuID, P<Value>>>,
     /// globals declared to the VM
-    globals: RwLock<HashMap<MuID, P<Value>>>, // +288
+    globals: RwLock<HashMap<MuID, P<Value>>>,
     /// function signatures declared
-    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>, // +400
+    func_sigs: RwLock<HashMap<MuID, P<MuFuncSig>>>,
     /// functions declared to the VM
-    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>, // +456
+    funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,
     /// primordial function that is set to make boot image
-    primordial: RwLock<Option<PrimordialThreadInfo>>, // +568
+    primordial: RwLock<Option<PrimordialThreadInfo>>,
 
     /// current options for this VM
     pub vm_options: VMOptions, // +624
@@ -118,12 +120,16 @@ pub struct VM {
     compiled_callsite_table: RwLock<HashMap<Address, CompiledCallsite>>, // 896
 
     /// Nnmber of callsites in the callsite tables
-    callsite_count: AtomicUsize
+    callsite_count: AtomicUsize,
+
+    /// A list of all threads currently waiting to be joined
+    pub pending_joins: Mutex<LinkedList<JoinHandle<()>>>
 }
 
+rodal_named!(VM);
 unsafe impl rodal::Dump for VM {
     fn dump<D: ?Sized + rodal::Dumper>(&self, dumper: &mut D) {
-        dumper.debug_record("VM", "dump");
+        dumper.debug_record::<Self>("dump");
 
         dumper.dump_object(&self.next_id);
         dumper.dump_object(&self.id_name_map);
@@ -141,26 +147,30 @@ unsafe impl rodal::Dump for VM {
 
         // Dump empty maps so that we can safely read and modify them once loaded
         dumper.dump_padding(&self.global_locations);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<MuID, ValueLocation>::new()
-        ));
+        let global_locations = RwLock::new(rodal::EmptyHashMap::<MuID, ValueLocation>::new());
+        dumper.dump_object_here(&global_locations);
 
         dumper.dump_padding(&self.func_vers);
-        dumper.dump_object_here(&RwLock::new(
+        let func_vers = RwLock::new(
             rodal::EmptyHashMap::<MuID, RwLock<MuFunctionVersion>>::new()
-        ));
+        );
+        dumper.dump_object_here(&func_vers);
 
         dumper.dump_padding(&self.aot_pending_funcref_store);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<Address, ValueLocation>::new()
-        ));
+        let aot_pending_funcref_store =
+            RwLock::new(rodal::EmptyHashMap::<Address, ValueLocation>::new());
+        dumper.dump_object_here(&aot_pending_funcref_store);
 
-        // Dump an emepty hashmap for the other hashmaps
         dumper.dump_padding(&self.compiled_callsite_table);
-        dumper.dump_object_here(&RwLock::new(
-            rodal::EmptyHashMap::<Address, CompiledCallsite>::new()
-        ));
+        let compiled_callsite_table =
+            RwLock::new(rodal::EmptyHashMap::<Address, CompiledCallsite>::new());
+        dumper.dump_object_here(&compiled_callsite_table);
+
         dumper.dump_object(&self.callsite_count);
+
+        dumper.dump_padding(&self.pending_joins);
+        let pending_joins = Mutex::new(rodal::EmptyLinkedList::<JoinHandle<()>>::new());
+        dumper.dump_object_here(&pending_joins);
     }
 }
 
@@ -190,6 +200,12 @@ macro_rules! gen_handle_int {
     }
 }
 
+impl Drop for VM {
+    fn drop(&mut self) {
+        self.destroy();
+    }
+}
+
 impl<'a> VM {
     /// creates a VM with default options
     pub fn new() -> VM {
@@ -202,6 +218,7 @@ impl<'a> VM {
     }
 
     /// internal function to create a VM with options
+    #[cfg(not(feature = "sel4-rumprun"))]
     fn new_internal(options: VMOptions) -> VM {
         VM::start_logging(options.flag_log_level);
 
@@ -223,8 +240,61 @@ impl<'a> VM {
             primordial: RwLock::new(None),
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_callsite_table: RwLock::new(HashMap::new()),
+            callsite_count: ATOMIC_USIZE_INIT,
+            pending_joins: Mutex::new(LinkedList::new())
+        };
+
+        // insert all internal types
+        {
+            let mut types = ret.types.write().unwrap();
+            for ty in INTERNAL_TYPES.iter() {
+                types.insert(ty.id(), ty.clone());
+            }
+        }
+
+        // starts allocating ID from USER_ID_START
+        ret.next_id.store(USER_ID_START, Ordering::Relaxed);
+
+        // init types
+        types::init_types();
+
+        // init runtime
+        ret.init_runtime();
+
+        ret
+    }
+
+    /// internal function to create a VM with options for sel4-rumprun
+    /// default memory sizes are different from other platforms
+    #[cfg(feature = "sel4-rumprun")]
+    fn new_internal(options: VMOptions) -> VM {
+        VM::start_logging(options.flag_log_level);
+
+        let mut ret = VM {
+            next_id: ATOMIC_USIZE_INIT,
+            vm_options: options,
+            id_name_map: RwLock::new(HashMap::new()),
+            name_id_map: RwLock::new(HashMap::new()),
+            constants: RwLock::new(HashMap::new()),
+            types: RwLock::new(HashMap::new()),
+            backend_type_info: RwLock::new(HashMap::new()),
+            globals: RwLock::new(HashMap::new()),
+            global_locations: RwLock::new(hashmap!{}),
+            func_sigs: RwLock::new(HashMap::new()),
+            func_vers: RwLock::new(HashMap::new()),
+            funcs: RwLock::new(HashMap::new()),
+            compiled_funcs: RwLock::new(HashMap::new()),
+            callsite_table: RwLock::new(HashMap::new()),
+            primordial: RwLock::new(None),
+            aot_pending_funcref_store: RwLock::new(HashMap::new()),
+            compiled_callsite_table: RwLock::new(HashMap::new()),
             callsite_count: ATOMIC_USIZE_INIT
         };
+
+        // currently, the default sizes don't work on sel4-rumprun platform
+        // this is due to memory allocation size limitations
+        ret.vm_options.flag_gc_immixspace_size = 1 << 19;
+        ret.vm_options.flag_gc_lospace_size = 1 << 19;
 
         // insert all internal types
         {
@@ -311,6 +381,11 @@ impl<'a> VM {
                 )
             }
         }
+    }
+
+    /// cleans up currenet VM
+    fn destroy(&mut self) {
+        gc::gc_destoy();
     }
 
     /// adds an exception callsite and catch block
@@ -437,7 +512,7 @@ impl<'a> VM {
     /// due to removal of some special symbols in the MuName. See name_check() in ir.rs
     pub fn id_of(&self, name: &str) -> MuID {
         let map = self.name_id_map.read().unwrap();
-        match map.get(name) {
+        match map.get(&name.to_string()) {
             Some(id) => *id,
             None => panic!("cannot find id for name: {}", name)
         }
@@ -490,11 +565,11 @@ impl<'a> VM {
     /// allocates memory for a constant that needs to be put in memory
     /// For AOT, we simply create a label for it, and let code emitter allocate the memory
     #[cfg(feature = "aot")]
-    pub fn allocate_const(&self, val: P<Value>) -> ValueLocation {
+    pub fn allocate_const(&self, val: &P<Value>) -> ValueLocation {
         let id = val.id();
         let name = format!("CONST_{}_{}", id, val.name());
 
-        ValueLocation::Relocatable(backend::RegGroup::GPR, name)
+        ValueLocation::Relocatable(backend::RegGroup::GPR, Arc::new(name))
     }
 
     /// declares a global
@@ -742,7 +817,7 @@ impl<'a> VM {
     /// a new function added.
     pub fn declare_many(
         &self,
-        new_id_name_map: &mut HashMap<MuID, MuName>,
+        new_name_id_map: &mut HashMap<MuName, MuID>,
         new_types: &mut HashMap<MuID, P<MuType>>,
         new_func_sigs: &mut HashMap<MuID, P<MuFuncSig>>,
         new_constants: &mut HashMap<MuID, P<Value>>,
@@ -763,7 +838,7 @@ impl<'a> VM {
             let mut funcs = self.funcs.write().unwrap();
             let mut func_vers = self.func_vers.write().unwrap();
 
-            for (id, name) in new_id_name_map.drain() {
+            for (name, id) in new_name_id_map.drain() {
                 id_name_map.insert(id, name.clone());
                 name_id_map.insert(name, id);
             }
@@ -974,9 +1049,9 @@ impl<'a> VM {
         primordial_stack: Option<&APIHandle>,
         primordial_threadlocal: Option<&APIHandle>,
         sym_fields: Vec<&APIHandle>,
-        sym_strings: Vec<String>,
+        sym_strings: Vec<MuName>,
         reloc_fields: Vec<&APIHandle>,
-        reloc_strings: Vec<String>,
+        reloc_strings: Vec<MuName>,
         output_file: String
     ) {
         self.make_boot_image_internal(
@@ -1004,13 +1079,34 @@ impl<'a> VM {
         primordial_stack: Option<&APIHandle>,
         primordial_threadlocal: Option<&APIHandle>,
         sym_fields: Vec<&APIHandle>,
-        sym_strings: Vec<String>,
+        sym_strings: Vec<MuName>,
         reloc_fields: Vec<&APIHandle>,
-        reloc_strings: Vec<String>,
+        reloc_strings: Vec<MuName>,
         extra_sources_to_link: Vec<String>,
         output_file: String
     ) {
         info!("Making boot image...");
+
+        super::uir_output::emit_uir("", self);
+        // Only store name info for whitelisted entities
+        {
+            let mut new_id_name_map = HashMap::<MuID, MuName>::with_capacity(whitelist.len());
+            let mut new_name_id_map = HashMap::<MuName, MuID>::with_capacity(whitelist.len());
+
+            let mut id_name_map = self.id_name_map.write().unwrap();
+            let mut name_id_map = self.name_id_map.write().unwrap();
+            for &id in whitelist.iter() {
+                match id_name_map.get(&id) {
+                    Some(name) => {
+                        new_id_name_map.insert(id, name.clone());
+                        new_name_id_map.insert(name.clone(), id);
+                    }
+                    None => {}
+                }
+            }
+            *id_name_map = new_id_name_map;
+            *name_id_map = new_name_id_map;
+        }
 
         // compile the whitelist functions
         let whitelist_funcs = {
@@ -1032,7 +1128,7 @@ impl<'a> VM {
                                 compiler.compile(&mut func_ver);
                             }
                         }
-                        None => panic!("whitelist function {} has no version defined", f)
+                        None => error!("whitelist function {} has no version defined", f)
                     }
                 }
             }
@@ -1145,11 +1241,10 @@ impl<'a> VM {
         let funcs = self.funcs.read().unwrap();
         let func: &MuFunction = &funcs.get(&func_id).unwrap().read().unwrap();
 
-        Box::new(MuStack::new(
-            self.next_id(),
-            self.get_address_for_func(func_id),
-            func
-        ))
+        let func_addr = resolve_symbol(self.get_name_for_func(func_id));
+        let stack_arg_size = backend::call_stack_size(func.sig.clone(), self);
+
+        Box::new(MuStack::new(self.next_id(), func_addr, stack_arg_size))
     }
 
     /// creates a handle that we can return to the client
@@ -1474,7 +1569,7 @@ impl<'a> VM {
         unsafe { addr.store::<u64>(PENDING_FUNCREF) };
 
         // and record this funcref
-        let symbol = self.name_of(func_id);
+        let symbol = self.get_name_for_func(func_id);
 
         let mut pending_funcref_guard = self.aot_pending_funcref_store.write().unwrap();
         pending_funcref_guard.insert(
@@ -1627,6 +1722,12 @@ impl<'a> VM {
         })
     }
 
+    pub fn push_join_handle(&self, join_handle: JoinHandle<()>) {
+        self.pending_joins.lock().unwrap().push_front(join_handle);
+    }
+    pub fn pop_join_handle(&self) -> Option<JoinHandle<()>> {
+        self.pending_joins.lock().unwrap().pop_front()
+    }
     /// unwraps a handle to float
     pub fn handle_to_float(&self, handle: APIHandleArg) -> f32 {
         handle.v.as_float()

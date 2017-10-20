@@ -1,11 +1,11 @@
 // Copyright 2017 The Australian National University
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,9 +19,9 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-extern crate gc;
+extern crate mu_gc as gc;
+extern crate mu_utils as utils;
 extern crate time;
-extern crate utils;
 
 use self::gc::heap;
 use self::gc::heap::immix::ImmixMutatorLocal;
@@ -39,29 +39,29 @@ use self::log::LogLevel;
 pub fn start_logging() {
 
     match simple_logger::init_with_level(LogLevel::Trace) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(_) => {}
     }
 }
 
-const IMMIX_SPACE_SIZE : usize = 40 << 20;
-const LO_SPACE_SIZE    : usize = 40 << 20;
+const IMMIX_SPACE_SIZE: usize = 40 << 20;
+const LO_SPACE_SIZE: usize = 40 << 20;
 
-const kStretchTreeDepth   : i32 = 18;
-const kLongLivedTreeDepth : i32 = 16;
-const kArraySize          : i32 = 500000;
-const kMinTreeDepth       : i32 = 4;
-const kMaxTreeDepth       : i32 = 16;
+const kStretchTreeDepth: i32 = 18;
+const kLongLivedTreeDepth: i32 = 16;
+const kArraySize: i32 = 500000;
+const kMinTreeDepth: i32 = 4;
+const kMaxTreeDepth: i32 = 16;
 
 struct Node {
-    left : *mut Node,
-    right : *mut Node,
-    i : i32,
-    j : i32
+    left: *mut Node,
+    right: *mut Node,
+    i: i32,
+    j: i32
 }
 
 struct Array {
-    value : [f64; kArraySize as usize]
+    value: [f64; kArraySize as usize]
 }
 
 fn init_Node(me: *mut Node, l: *mut Node, r: *mut Node) {
@@ -71,7 +71,7 @@ fn init_Node(me: *mut Node, l: *mut Node, r: *mut Node) {
     }
 }
 
-fn TreeSize(i: i32) -> i32{
+fn TreeSize(i: i32) -> i32 {
     (1 << (i + 1)) - 1
 }
 
@@ -105,9 +105,7 @@ fn MakeTree(iDepth: i32, mutator: &mut ImmixMutatorLocal) -> *mut Node {
     }
 }
 
-fn PrintDiagnostics() {
-
-}
+fn PrintDiagnostics() {}
 
 fn TimeConstruction(depth: i32, mutator: &mut ImmixMutatorLocal) {
     let iNumIters = NumIters(depth);
@@ -121,20 +119,26 @@ fn TimeConstruction(depth: i32, mutator: &mut ImmixMutatorLocal) {
         // destroy tempTree
     }
     let tFinish = time::now_utc();
-    println!("\tTop down construction took {} msec", (tFinish - tStart).num_milliseconds());
+    println!(
+        "\tTop down construction took {} msec",
+        (tFinish - tStart).num_milliseconds()
+    );
 
     let tStart = time::now_utc();
     for _ in 0..iNumIters {
         let tempTree = MakeTree(depth, mutator);
     }
     let tFinish = time::now_utc();
-    println!("\tButtom up construction took {} msec", (tFinish - tStart).num_milliseconds());
+    println!(
+        "\tButtom up construction took {} msec",
+        (tFinish - tStart).num_milliseconds()
+    );
 }
 
 #[cfg(feature = "use-sidemap")]
-const FIXSIZE_REFx2_ENCODE : u64 = 0b1100_0011u64;
+const FIXSIZE_REFx2_ENCODE: u64 = 0b1100_0011u64;
 #[cfg(not(feature = "use-sidemap"))]
-const FIXSIZE_REFx2_ENCODE : u64 = 0xb000000000000003u64;
+const FIXSIZE_REFx2_ENCODE: u64 = 0xb000000000000003u64;
 
 #[inline(always)]
 #[cfg(feature = "use-sidemap")]
@@ -163,7 +167,9 @@ fn alloc(mutator: &mut ImmixMutatorLocal) -> *mut Node {
 
 #[test]
 fn start() {
-    unsafe {heap::gc::set_low_water_mark();}
+    unsafe {
+        heap::gc::set_low_water_mark();
+    }
 
     start_logging();
 
@@ -174,11 +180,16 @@ fn start() {
 
     println!("Garbage Collector Test");
     println!(" Node size = {}", size_of::<Node>());
-    println!(" Live storage will peak at {} bytes.\n",
-             2 * (size_of::<Node>() as i32) * TreeSize(kLongLivedTreeDepth) +
-                 (size_of::<Array>() as i32));
+    println!(
+        " Live storage will peak at {} bytes.\n",
+        2 * (size_of::<Node>() as i32) * TreeSize(kLongLivedTreeDepth) +
+            (size_of::<Array>() as i32)
+    );
 
-    println!(" Stretching memory with a binary tree or depth {}", kStretchTreeDepth);
+    println!(
+        " Stretching memory with a binary tree or depth {}",
+        kStretchTreeDepth
+    );
     PrintDiagnostics();
 
     let tStart = time::now_utc();
@@ -187,10 +198,15 @@ fn start() {
     // destroy tree
 
     // Create a long lived object
-    println!(" Creating a long-lived binary tree of depth {}", kLongLivedTreeDepth);
+    println!(
+        " Creating a long-lived binary tree of depth {}",
+        kLongLivedTreeDepth
+    );
     let longLivedTree = alloc(&mut mutator);
     Populate(kLongLivedTreeDepth, longLivedTree, &mut mutator);
-    gc::add_to_root(unsafe{Address::from_mut_ptr(longLivedTree).to_object_reference()});
+    gc::add_to_root(unsafe {
+        Address::from_mut_ptr(longLivedTree).to_object_reference()
+    });
 
     println!(" Creating a long-lived array of {} doubles", kArraySize);
     //    mm::alloc_large(&mut mutator, size_of::<Array>(), 8);
@@ -216,7 +232,10 @@ fn start() {
 
     PrintDiagnostics();
     println!("Completed in {} msec", tElapsed);
-    println!("Finished with {} collections", heap::gc::GC_COUNT.load(Ordering::SeqCst));
+    println!(
+        "Finished with {} collections",
+        heap::gc::GC_COUNT.load(Ordering::SeqCst)
+    );
 
     mutator.destroy();
 }

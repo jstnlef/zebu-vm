@@ -64,11 +64,9 @@ pub fn trigger_gc() {
     }
 }
 
-use std::os::raw::c_void;
 #[cfg(target_arch = "x86_64")]
 #[link(name = "gc_clib_x64")]
 extern "C" {
-    pub fn malloc_zero(size: usize) -> *const c_void;
     fn immmix_get_stack_ptr() -> Address;
     pub fn set_low_water_mark();
     fn get_low_water_mark() -> Address;
@@ -79,7 +77,6 @@ extern "C" {
 #[cfg(target_arch = "aarch64")]
 #[link(name = "gc_clib_aarch64")]
 extern "C" {
-    pub fn malloc_zero(size: usize) -> *const c_void;
     fn immmix_get_stack_ptr() -> Address;
     pub fn set_low_water_mark();
     fn get_low_water_mark() -> Address;

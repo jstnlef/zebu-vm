@@ -120,26 +120,45 @@ pub trait CodeGenerator {
     // Calls
     fn emit_bl(
         &mut self,
-        callsite: String,
+        callsite: Option<MuName>,
         func: MuName,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
         is_native: bool
-    ) -> ValueLocation;
+    ) -> Option<ValueLocation>;
     fn emit_blr(
         &mut self,
-        callsite: String,
+        callsite: Option<MuName>,
         func: Reg,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
-    ) -> ValueLocation;
-
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>
+    ) -> Option<ValueLocation>;
     // Branches
     fn emit_b(&mut self, dest_name: MuName);
-    fn emit_b_func(&mut self, func: MuName, args: Vec<P<Value>>); // For tail calls
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName);
     fn emit_br(&mut self, dest_address: Reg);
-    fn emit_br_func(&mut self, func_address: Reg, args: Vec<P<Value>>); // For tail calls
+    fn emit_b_call(
+        &mut self,
+        callsite: Option<MuName>,
+        func: MuName,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
+        is_native: bool,
+        may_return: bool
+    ) -> Option<ValueLocation>;
+    fn emit_br_call(
+        &mut self,
+        callsite: Option<MuName>,
+        func: Reg,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
+        may_return: bool
+    ) -> Option<ValueLocation>;
+
 
     fn emit_ret(&mut self, src: Reg);
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName);

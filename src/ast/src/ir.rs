@@ -22,21 +22,22 @@ use utils::LinkedHashSet;
 
 use std;
 use std::fmt;
+pub use std::sync::Arc;
 use std::default;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 
 pub type WPID = usize;
 pub type MuID = usize;
-pub type MuName = String;
+pub type MuName = Arc<String>;
 pub type CName = MuName;
 
 #[allow(non_snake_case)]
 pub fn Mu(str: &'static str) -> MuName {
-    str.to_string()
+    Arc::new(str.to_string())
 }
 #[allow(non_snake_case)]
 pub fn C(str: &'static str) -> CName {
-    str.to_string()
+    Arc::new(str.to_string())
 }
 
 pub type OpIndex = usize;
@@ -134,6 +135,7 @@ impl fmt::Display for MuFunction {
 
 // FIXME: currently part of compilation information is also stored in this data structure
 // we should move them (see Issue #18)
+rodal_named!(MuFunctionVersion);
 pub struct MuFunctionVersion {
     pub hdr: MuEntityHeader,
 
@@ -152,6 +154,7 @@ rodal_struct!(Callsite {
     exception_destination,
     stack_arg_size
 });
+#[derive(Debug)]
 pub struct Callsite {
     pub name: MuName,
     pub exception_destination: Option<MuName>,
@@ -273,6 +276,16 @@ impl MuFunctionVersion {
         })
     }
 
+    pub fn new_machine_reg(&mut self, v: P<Value>) -> P<TreeNode> {
+        self.context
+            .values
+            .insert(v.id(), SSAVarEntry::new(v.clone()));
+
+        P(TreeNode {
+            v: TreeNode_::Value(v)
+        })
+    }
+
     pub fn new_constant(&mut self, v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
             v: TreeNode_::Value(v)
@@ -292,8 +305,8 @@ impl MuFunctionVersion {
     }
 
     /// gets call outedges in this function
-    /// returns Map(CallSiteID -> FuncID)
-    pub fn get_static_call_edges(&self) -> LinkedHashMap<MuID, MuID> {
+    /// returns Map(CallSiteID -> (FuncID, has exception clause))
+    pub fn get_static_call_edges(&self) -> LinkedHashMap<MuID, (MuID, bool)> {
         let mut ret = LinkedHashMap::new();
 
         let f_content = self.content.as_ref().unwrap();
@@ -305,7 +318,6 @@ impl MuFunctionVersion {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
                         let ref ops = inst.ops;
-
                         match inst.v {
                             Instruction_::ExprCall { ref data, .. } |
                             Instruction_::ExprCCall { ref data, .. } |
@@ -316,9 +328,12 @@ impl MuFunctionVersion {
                                 match callee.v {
                                     TreeNode_::Instruction(_) => {}
                                     TreeNode_::Value(ref pv) => {
-                                        match pv.v {
-                                            Value_::Constant(Constant::FuncRef(id)) => {
-                                                ret.insert(inst.id(), id);
+                                        match &pv.v {
+                                            &Value_::Constant(Constant::FuncRef(ref func)) => {
+                                                ret.insert(
+                                                    inst.id(),
+                                                    (func.id(), inst.has_exception_clause())
+                                                );
                                             }
                                             _ => {}
                                         }
@@ -340,7 +355,7 @@ impl MuFunctionVersion {
 
     // TODO: It may be more efficient to compute this when the instructions
     // are added to the function version and store the result in a field
-    pub fn has_throw(&self) -> bool {
+    pub fn could_throw(&self) -> bool {
         let f_content = self.content.as_ref().unwrap();
 
         for (_, block) in f_content.blocks.iter() {
@@ -349,13 +364,11 @@ impl MuFunctionVersion {
             for inst in block_content.body.iter() {
                 match inst.v {
                     TreeNode_::Instruction(ref inst) => {
-                        match inst.v {
-                            Instruction_::Throw(_) => {
-                                return true;
-                            }
-                            _ => {
-                                // do nothing
-                            }
+                        if inst.is_potentially_throwing() {
+                            // TODO: Do some smarter checking
+                            // (e.g. if this is a CALL to a function where !could_throw,
+                            // or a division where the divisor can't possibly be zero..)
+                            return true;
                         }
                     }
                     _ => unreachable!()
@@ -450,7 +463,7 @@ impl FunctionContent {
         }
     }
 
-    pub fn get_block_by_name(&self, name: String) -> &Block {
+    pub fn get_block_by_name(&self, name: MuName) -> &Block {
         for block in self.blocks.values() {
             if block.name() == name {
                 return block;
@@ -785,7 +798,7 @@ impl BlockContent {
                     }
                     Instruction_::Call { ref resume, .. } |
                     Instruction_::CCall { ref resume, .. } |
-                    Instruction_::SwapStack { ref resume, .. } |
+                    Instruction_::SwapStackExc { ref resume, .. } |
                     Instruction_::ExnInstruction { ref resume, .. } => {
                         let mut live_outs = vec![];
                         live_outs.append(&mut resume.normal_dest.get_arguments(&ops));
@@ -908,6 +921,33 @@ impl TreeNode {
             _ => None
         }
     }
+
+    /// consumes the TreeNode, returns the instruction in it (or None if it is not an instruction)
+    pub fn as_inst_ref(&self) -> &Instruction {
+        match &self.v {
+            &TreeNode_::Instruction(ref inst) => inst,
+            _ => panic!("expected inst")
+        }
+    }
+
+    // The type of the node (for a value node)
+    pub fn ty(&self) -> P<MuType> {
+        match self.v {
+            TreeNode_::Instruction(ref inst) => {
+                if inst.value.is_some() {
+                    let ref value = inst.value.as_ref().unwrap();
+                    if value.len() != 1 {
+                        panic!("the node {} does not have one result value", self);
+                    }
+
+                    value[0].ty.clone()
+                } else {
+                    panic!("expected result from the node {}", self);
+                }
+            }
+            TreeNode_::Value(ref pv) => pv.ty.clone()
+        }
+    }
 }
 
 impl fmt::Display for TreeNode {
@@ -975,6 +1015,23 @@ impl Value {
         }
     }
 
+    pub fn is_const_zero(&self) -> bool {
+        match self.v {
+            Value_::Constant(Constant::Int(val)) if val == 0 => true,
+            Value_::Constant(Constant::Double(val)) if val == 0f64 => true,
+            Value_::Constant(Constant::Float(val)) if val == 0f32 => true,
+            Value_::Constant(Constant::IntEx(ref vec)) => {
+                if vec.iter().all(|x| *x == 0) {
+                    true
+                } else {
+                    false
+                }
+            }
+            Value_::Constant(Constant::NullRef) => true,
+            _ => false
+        }
+    }
+
     /// disguises a value as another type.
     /// This is usually used for treat an integer type as an integer of a different length
     /// This method is unsafe
@@ -993,6 +1050,13 @@ impl Value {
         }
     }
 
+
+    pub fn is_func_const(&self) -> bool {
+        match self.v {
+            Value_::Constant(Constant::FuncRef(_)) => true,
+            _ => false
+        }
+    }
 
     pub fn is_int_const(&self) -> bool {
         match self.v {
@@ -1041,7 +1105,7 @@ impl Value {
 }
 
 const DISPLAY_ID: bool = true;
-const DISPLAY_TYPE: bool = false;
+const DISPLAY_TYPE: bool = true;
 const PRINT_ABBREVIATE_NAME: bool = true;
 
 impl fmt::Debug for Value {
@@ -1054,17 +1118,29 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_TYPE {
             match self.v {
-                Value_::SSAVar(_) => write!(f, "{}(%{})", self.ty, self.hdr),
-                Value_::Constant(ref c) => write!(f, "{}({})", self.ty, c),
-                Value_::Global(ref ty) => write!(f, "{}(@{})", ty, self.hdr),
-                Value_::Memory(ref mem) => write!(f, "%{}{})", self.hdr, mem)
+                Value_::SSAVar(_) => write!(f, "/*<{}>*/{}", self.ty, self.hdr),
+                Value_::Constant(ref c) => {
+                    if self.is_func_const() {
+                        write!(f, "/*<{}>*/{}", self.ty, c)
+                    } else {
+                        write!(f, "<{}>{}", self.ty, c)
+                    }
+                }
+                Value_::Global(ref ty) => write!(f, "/*<{}>*/@{}", ty, self.hdr),
+                Value_::Memory(ref mem) => write!(f, "/*<{}>*/{}{}", self.ty, self.hdr, mem)
             }
         } else {
             match self.v {
-                Value_::SSAVar(_) => write!(f, "%{}", self.hdr),
-                Value_::Constant(ref c) => write!(f, "{}", c),
+                Value_::SSAVar(_) => write!(f, "{}", self.hdr),
+                Value_::Constant(ref c) => {
+                    if self.is_func_const() {
+                        write!(f, "{}", c)
+                    } else {
+                        write!(f, "<{}>{}", self.ty, c)
+                    }
+                }
                 Value_::Global(_) => write!(f, "@{}", self.hdr),
-                Value_::Memory(ref mem) => write!(f, "%{}{}", self.hdr, mem)
+                Value_::Memory(ref mem) => write!(f, "{}{}", self.hdr, mem)
             }
         }
     }
@@ -1169,7 +1245,7 @@ pub enum Constant {
     /// double constants
     Double(f64),
     /// function reference
-    FuncRef(MuID),
+    FuncRef(MuEntityRef),
     /// vector constant (currently not used)
     Vector(Vec<Constant>),
     /// null reference
@@ -1187,12 +1263,20 @@ impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Constant::Int(v) => write!(f, "{}", v as i64),
-            &Constant::IntEx(ref v) => write!(f, "IntEx {:?}", v),
+            &Constant::IntEx(ref v) => {
+                let mut res = format!("");
+                // Stored in little-endian order, but we need to display it in big-endian order
+                for i in 1..v.len() + 1 {
+                    res.push_str(format!("{:016X}", v[v.len() - i]).to_string().as_str());
+                }
+                write!(f, "0x{}", res)
+            }
             &Constant::Float(v) => write!(f, "{}", v),
             &Constant::Double(v) => write!(f, "{}", v),
             //            &Constant::IRef(v) => write!(f, "{}", v),
-            &Constant::FuncRef(v) => write!(f, "FuncRef {}", v),
+            &Constant::FuncRef(ref v) => write!(f, "{}", v.name),
             &Constant::Vector(ref v) => {
+                // TODO: Make this Muc compatible?
                 write!(f, "[").unwrap();
                 for i in 0..v.len() {
                     write!(f, "{}", v[i]).unwrap();
@@ -1202,8 +1286,8 @@ impl fmt::Display for Constant {
                 }
                 write!(f, "]")
             }
-            &Constant::NullRef => write!(f, "NullRef"),
-            &Constant::ExternSym(ref name) => write!(f, "ExternSym({})", name),
+            &Constant::NullRef => write!(f, "NULL"),
+            &Constant::ExternSym(ref name) => write!(f, "EXTERN \"{}\"", name),
 
             &Constant::List(ref vec) => {
                 write!(f, "List(").unwrap();
@@ -1368,8 +1452,8 @@ pub struct MuEntityHeader {
     id: MuID,
     name: MuName
 }
-
 rodal_struct!(MuEntityHeader{id, name});
+pub type MuEntityRef = MuEntityHeader;
 
 impl Clone for MuEntityHeader {
     fn clone(&self) -> Self {
@@ -1412,7 +1496,7 @@ pub fn is_valid_c_identifier(name: &MuName) -> bool {
 
 /// changes name to mangled name
 /// This will always return a valid C identifier
-pub fn mangle_name(name: MuName) -> MuName {
+pub fn mangle_name(name: MuName) -> String {
     let name = name.replace('@', "");
     if name.starts_with("__mu_") {
         // TODO: Get rid of this, since it will be triggered if a client provides a name
@@ -1432,8 +1516,9 @@ pub fn mangle_name(name: MuName) -> MuName {
     "__mu_".to_string() + name.as_str()
 }
 
-// WARNING: This only reverses mangle_name above when no warning is issued)
-pub fn demangle_name(mut name: MuName) -> MuName {
+/// demangles a Mu name
+//  WARNING: This only reverses mangle_name above when no warning is issued)
+pub fn demangle_name(mut name: String) -> MuName {
     let name = if cfg!(target_os = "macos") && name.starts_with("___mu_") {
         name.split_off(1)
     } else {
@@ -1452,60 +1537,31 @@ pub fn demangle_name(mut name: MuName) -> MuName {
         .replace("Zh", "-")
         .replace("Zd", ".")
         .replace("ZZ", "Z");
-    name
+    Arc::new(name)
 }
 
-// TODO: Why the hell isn't this working?
-pub fn demangle_text(text: String) -> String {
-    let text = text.as_bytes();
-    let n = text.len();
-    let mut output = String::new();
+extern crate regex;
 
-    // We have a mangled name
-    let mut last_i = 0; // The last i value that we dumped to output
-    let mut i = 0;
-    // TODO: this should work for utf-8 stuff right? (sinces all mangled names are in ascii)
-    while i < n {
-        let c = text[i] as char;
-        // We're at the beginining of the string
-        // wait for a word boundry
-        if c.is_alphanumeric() || c == '_' {
-            // We just found a mangled name
-            if text[i..].starts_with("__mu_".as_bytes()) {
-                output += std::str::from_utf8(&text[last_i..i]).unwrap();
-                let start = i;
-                // Find the end of the name
-                while i < n {
-                    let c = text[i] as char;
-                    if !c.is_alphanumeric() && c != '_' {
-                        break; // We found the end!
-                    }
-                    i += 1;
-                }
+/// identifies mu names and demangles them
+pub fn demangle_text(text: &String) -> String {
+    use self::regex::Regex;
 
-                output +=
-                    demangle_name(String::from_utf8(text[start..i].to_vec()).unwrap()).as_str();
-                // Skip to the end of the name
-                last_i = i;
-                continue;
-            } else {
-                // Skip to the end of this alphanumeric sequence
-                while i < n {
-                    let c = text[i] as char;
-                    if !c.is_alphanumeric() && c != '_' {
-                        break; // We found the end!
-                    }
-                    i += 1;
-                }
-            }
-
-            continue;
-        }
-        // Not the start of mangled name, continue
-        i += 1;
+    lazy_static!{
+        static ref IDENT_NAME: Regex = if cfg!(target_os = "macos") {
+            Regex::new(r"___mu_\w+").unwrap()
+        } else {
+            Regex::new(r"__mu_\w+").unwrap()
+        };
     }
-    // Return output plus whatever is left of the string
-    output + std::str::from_utf8(&text[last_i..n]).unwrap()
+
+    let mut res = text.clone();
+    for cap in IDENT_NAME.captures_iter(&text) {
+        let name = cap.get(0).unwrap().as_str().to_string();
+        let demangled = demangle_name(name.clone());
+        res = res.replacen(&name, &demangled, 1);
+    }
+
+    res
 }
 
 
@@ -1513,14 +1569,14 @@ impl MuEntityHeader {
     pub fn unnamed(id: MuID) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: format!("#{}", id)
+            name: Arc::new(format!("#{}", id))
         }
     }
 
     pub fn named(id: MuID, name: MuName) -> MuEntityHeader {
         MuEntityHeader {
             id: id,
-            name: name.replace('@', "")
+            name: Arc::new(name.replace('@', ""))
         }
     }
 
@@ -1533,28 +1589,18 @@ impl MuEntityHeader {
     }
 
     /// an abbreviate (easy reading) version of the name
-    fn abbreviate_name(&self) -> MuName {
-        let split: Vec<&str> = self.name.split('.').collect();
-
-        let mut ret = "".to_string();
-
-        for i in 0..split.len() - 1 {
-            ret.push(match split[i].chars().next() {
-                Some(c) => c,
-                None => '_'
-            });
-            ret.push('.');
+    pub fn abbreviate_name(&self) -> String {
+        if PRINT_ABBREVIATE_NAME {
+            self.name.split('.').last().unwrap().to_string()
+        } else {
+            (*self.name()).clone()
         }
-
-        ret.push_str(split.last().unwrap());
-
-        ret
     }
 
     pub fn clone_with_id(&self, new_id: MuID) -> MuEntityHeader {
         let mut clone = self.clone();
         clone.id = new_id;
-        clone.name = format!("{}-#{}", clone.name, clone.id);
+        clone.name = Arc::new(format!("{}-#{}", clone.name, clone.id));
         clone
     }
 }
@@ -1568,17 +1614,9 @@ impl PartialEq for MuEntityHeader {
 impl fmt::Display for MuEntityHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if DISPLAY_ID {
-            if PRINT_ABBREVIATE_NAME {
-                write!(f, "{} #{}", self.abbreviate_name(), self.id)
-            } else {
-                write!(f, "{} #{}", self.name(), self.id)
-            }
+            write!(f, "{}/*{}*/", self.abbreviate_name(), self.id)
         } else {
-            if PRINT_ABBREVIATE_NAME {
-                write!(f, "{}", self.abbreviate_name())
-            } else {
-                write!(f, "{}", self.name())
-            }
+            write!(f, "{}", self.abbreviate_name())
         }
     }
 }

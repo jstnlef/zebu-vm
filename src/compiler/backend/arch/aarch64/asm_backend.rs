@@ -50,7 +50,8 @@ struct ASMCode {
     entry: MuName,
     blocks: LinkedHashMap<MuName, ASMBlock>,
 
-    frame_size_patchpoints: Vec<ASMLocation>
+    frame_size_lower_patchpoints: Vec<ASMLocation>,
+    frame_size_upper_patchpoints: Vec<ASMLocation>
 }
 
 unsafe impl Send for ASMCode {}
@@ -105,7 +106,7 @@ impl ASMCode {
         false
     }
 
-    fn get_block_by_inst(&self, inst: usize) -> (&String, &ASMBlock) {
+    fn get_block_by_inst(&self, inst: usize) -> (&MuName, &ASMBlock) {
         for (name, block) in self.blocks.iter() {
             if inst >= block.start_inst && inst < block.end_inst {
                 return (name, block);
@@ -126,7 +127,8 @@ impl ASMCode {
             entry: self.entry.clone(),
             code: vec![],
             blocks: linked_hashmap!{},
-            frame_size_patchpoints: vec![]
+            frame_size_lower_patchpoints: vec![],
+            frame_size_upper_patchpoints: vec![]
         };
 
         // iterate through old machine code
@@ -217,7 +219,7 @@ impl ASMCode {
         }
 
         // fix patchpoint
-        for patchpoint in self.frame_size_patchpoints.iter() {
+        for patchpoint in self.frame_size_lower_patchpoints.iter() {
             let new_patchpoint = ASMLocation {
                 line: *location_map.get(&patchpoint.line).unwrap(),
                 index: patchpoint.index,
@@ -225,9 +227,20 @@ impl ASMCode {
                 oplen: patchpoint.oplen
             };
 
-            ret.frame_size_patchpoints.push(new_patchpoint);
+            ret.frame_size_lower_patchpoints.push(new_patchpoint);
         }
 
+        // fix patchpoint
+        for patchpoint in self.frame_size_upper_patchpoints.iter() {
+            let new_patchpoint = ASMLocation {
+                line: *location_map.get(&patchpoint.line).unwrap(),
+                index: patchpoint.index,
+                len: patchpoint.len,
+                oplen: patchpoint.oplen
+            };
+
+            ret.frame_size_upper_patchpoints.push(new_patchpoint);
+        }
         ret.control_flow_analysis();
 
         Box::new(ret)
@@ -511,14 +524,25 @@ impl ASMCode {
         }
     }
 
-    fn add_frame_size_patchpoint(&mut self, patchpoint: ASMLocation) {
-        self.frame_size_patchpoints.push(patchpoint);
+    fn add_frame_size_lower_patchpoint(&mut self, patchpoint: ASMLocation) {
+        self.frame_size_lower_patchpoints.push(patchpoint);
+    }
+    fn add_frame_size_upper_patchpoint(&mut self, patchpoint: ASMLocation) {
+        self.frame_size_upper_patchpoints.push(patchpoint);
     }
 }
 
 use std::any::Any;
 
 impl MachineCode for ASMCode {
+    fn is_nop(&self, index: usize) -> bool {
+        let ref inst = self.code[index];
+        if inst.code == "" || inst.code == "NOP" {
+            true
+        } else {
+            false
+        }
+    }
     fn as_any(&self) -> &Any {
         self
     }
@@ -688,13 +712,13 @@ impl MachineCode for ASMCode {
         }
     }
 
-    fn replace_branch_dest(&mut self, inst: usize, new_dest: &str, succ: usize) {
+    fn replace_branch_dest(&mut self, inst: usize, old_succ: usize, new_dest: &str, succ: usize) {
         {
             let asm = &mut self.code[inst];
 
             let inst = String::from(asm.code.split_whitespace().next().unwrap());
-            asm.code = format!("{} {}", inst, mangle_name(String::from(new_dest)));
-            asm.succs.clear();
+            asm.code = format!("{} {}", inst, mangle_name(Arc::new(new_dest.to_string())));
+            asm.succs.retain(|&x| x != old_succ);
             asm.succs.push(succ);
         }
         {
@@ -708,8 +732,6 @@ impl MachineCode for ASMCode {
 
     fn set_inst_nop(&mut self, index: usize) {
         self.code[index].code.clear();
-        //        self.code.remove(index);
-        //        self.code.insert(index, ASMInst::nop());
     }
 
     fn remove_unnecessary_callee_saved(&mut self, used_callee_saved: Vec<MuID>) -> HashSet<MuID> {
@@ -758,15 +780,31 @@ impl MachineCode for ASMCode {
 
     fn patch_frame_size(&mut self, size: usize) {
         debug_assert!(size % 16 == 0);
+        let size = size as u64;
+        let lower_size = (size & bits_ones(12)).to_string();
+        let upper_size = (size >> 12).to_string();
+        assert!(size <= bits_ones(24)); // Maximum frame size (16 MiB - 1B)
 
-        let size = size.to_string();
-
-        debug_assert!(size.len() <= FRAME_SIZE_PLACEHOLDER_LEN);
-
-        for loc in self.frame_size_patchpoints.iter() {
+        for loc in self.frame_size_lower_patchpoints.iter() {
             let ref mut inst = self.code[loc.line];
-
-            string_utils::replace(&mut inst.code, loc.index, &size, size.len());
+            if size & bits_ones(12) == 0 {
+                //self.set_inst_nop(loc.line);
+                inst.code.clear();
+                inst.defines.clear();
+                inst.uses.clear();
+            } else {
+                string_utils::replace(&mut inst.code, loc.index, &lower_size, lower_size.len());
+            }
+        }
+        for loc in self.frame_size_upper_patchpoints.iter() {
+            let ref mut inst = self.code[loc.line];
+            if size >> 12 == 0 {
+                inst.code.clear();
+                inst.defines.clear();
+                inst.uses.clear();
+            } else {
+                string_utils::replace(&mut inst.code, loc.index, &upper_size, upper_size.len());
+            }
         }
     }
 
@@ -816,7 +854,7 @@ impl MachineCode for ASMCode {
         trace!(
             "#{}\t{:30}\t\tdefine: {:?}\tuses: {:?}\tpred: {:?}\tsucc: {:?}",
             i,
-            demangle_text(self.code[i].code.clone()),
+            demangle_text(&self.code[i].code),
             self.get_inst_reg_defines(i),
             self.get_inst_reg_uses(i),
             self.code[i].preds,
@@ -825,26 +863,26 @@ impl MachineCode for ASMCode {
     }
 
     fn get_ir_block_livein(&self, block: &str) -> Option<&Vec<MuID>> {
-        match self.blocks.get(block) {
+        match self.blocks.get(&block.to_string()) {
             Some(ref block) => Some(&block.livein),
             None => None
         }
     }
 
     fn get_ir_block_liveout(&self, block: &str) -> Option<&Vec<MuID>> {
-        match self.blocks.get(block) {
+        match self.blocks.get(&block.to_string()) {
             Some(ref block) => Some(&block.liveout),
             None => None
         }
     }
 
     fn set_ir_block_livein(&mut self, block: &str, set: Vec<MuID>) {
-        let block = self.blocks.get_mut(block).unwrap();
+        let block = self.blocks.get_mut(&block.to_string()).unwrap();
         block.livein = set;
     }
 
     fn set_ir_block_liveout(&mut self, block: &str, set: Vec<MuID>) {
-        let block = self.blocks.get_mut(block).unwrap();
+        let block = self.blocks.get_mut(&block.to_string()).unwrap();
         block.liveout = set;
     }
 
@@ -857,7 +895,7 @@ impl MachineCode for ASMCode {
     }
 
     fn get_block_range(&self, block: &str) -> Option<ops::Range<usize>> {
-        match self.blocks.get(block) {
+        match self.blocks.get(&block.to_string()) {
             Some(ref block) => Some(block.start_inst..block.end_inst),
             None => None
         }
@@ -1000,20 +1038,16 @@ pub struct ASMCodeGen {
 
 const REG_PLACEHOLDER_LEN: usize = 5;
 lazy_static! {
-    pub static ref REG_PLACEHOLDER : String = {
+    pub static ref REG_PLACEHOLDER : MuName = {
         let blank_spaces = [' ' as u8; REG_PLACEHOLDER_LEN];
 
-        format!("{}", str::from_utf8(&blank_spaces).unwrap())
+        Arc::new(format!("{}", str::from_utf8(&blank_spaces).unwrap()))
     };
 }
 
-const FRAME_SIZE_PLACEHOLDER_LEN: usize = 10; // a frame is smaller than 1 << 10
-lazy_static! {
-    pub static ref FRAME_SIZE_PLACEHOLDER : String = {
-        let blank_spaces = [' ' as u8; FRAME_SIZE_PLACEHOLDER_LEN];
-        format!("{}", str::from_utf8(&blank_spaces).unwrap())
-    };
-}
+// Maximum frame size is:  '4095; SUB SP, SP,
+const FRAME_SIZE_PART_PLACEHOLDER_LEN: usize = 4; // maximum 'frame' size part is 4095
+const FRAME_SIZE_PART_PLACEHOLDER: &str = "    "; // maximum 'frame' size part is 4095
 
 impl ASMCodeGen {
     pub fn new() -> ASMCodeGen {
@@ -1033,54 +1067,8 @@ impl ASMCodeGen {
     }
 
     fn add_asm_symbolic(&mut self, code: String) {
-        trace_emit!("{}", demangle_text(code.clone()));
+        trace_emit!("{}", demangle_text(&code));
         self.cur_mut().code.push(ASMInst::symbolic(code));
-    }
-
-    fn add_asm_call(
-        &mut self,
-        code: String,
-        potentially_excepting: Option<MuName>,
-        arguments: Vec<P<Value>>,
-        target: Option<(MuID, ASMLocation)>
-    ) {
-        // a call instruction will use all the argument registers
-        // do not need
-        let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        if target.is_some() {
-            let (id, loc) = target.unwrap();
-            uses.insert(id, vec![loc]);
-        }
-        for arg in arguments {
-            uses.insert(arg.id(), vec![]);
-        }
-
-        let mut defines: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for reg in CALLER_SAVED_GPRS.iter() {
-            if !defines.contains_key(&reg.id()) {
-                defines.insert(reg.id(), vec![]);
-            }
-        }
-        for reg in CALLER_SAVED_FPRS.iter() {
-            if !defines.contains_key(&reg.id()) {
-                defines.insert(reg.id(), vec![]);
-            }
-        }
-
-        self.add_asm_inst_internal(
-            code,
-            defines,
-            uses,
-            false,
-            {
-                if potentially_excepting.is_some() {
-                    ASMBranchTarget::PotentiallyExcepting(potentially_excepting.unwrap())
-                } else {
-                    ASMBranchTarget::None
-                }
-            },
-            None
-        )
     }
 
     fn add_asm_inst(
@@ -1144,9 +1132,10 @@ impl ASMCodeGen {
         target: ASMBranchTarget,
         spill_info: Option<SpillMemInfo>
     ) {
-        trace!("asm: {}", demangle_text(code.clone()));
+        trace!("asm: {}", demangle_text(&code));
         trace!("     defines: {:?}", defines);
         trace!("     uses: {:?}", uses);
+        trace!("     target: {:?}", target);
         let mc = self.cur_mut();
 
         // put the instruction
@@ -1230,7 +1219,8 @@ impl ASMCodeGen {
                             let n = offset.ty.get_int_length().unwrap();
                             let shift_type = if n == 64 {
                                 if signed {
-                                    "SXTX"
+                                    "LSL"
+                                //"SXTX"
                                 } else {
                                     "LSL"
                                 }
@@ -1319,7 +1309,7 @@ impl ASMCodeGen {
             format!("{}", op.name())
         } else {
             // virtual register, use place holder
-            REG_PLACEHOLDER.clone()
+            (**REG_PLACEHOLDER).clone()
         }
     }
 
@@ -1560,10 +1550,10 @@ impl ASMCodeGen {
         )
     }
 
-
     // dest <= inst(src1, src2)
     fn internal_binop(&mut self, inst: &str, dest: &P<Value>, src1: &P<Value>, src2: &P<Value>) {
         let inst = inst.to_string();
+
         trace_emit!("\t{} {}, {} -> {}", inst, src1, src2, dest);
 
         let (reg1, id1, loc1) = self.prepare_reg(dest, inst.len() + 1);
@@ -2017,7 +2007,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id1) {
             // zero register, ignore
         } else if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
+            let locs = uses.get_mut(&id1).unwrap();
             vec_utils::add_unique(locs, loc1);
 
         } else {
@@ -2070,7 +2060,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id2) {
             // zero register, ignore
         } else if uses.contains_key(&id2) {
-            let mut locs = uses.get_mut(&id2).unwrap();
+            let locs = uses.get_mut(&id2).unwrap();
             vec_utils::add_unique(locs, loc2);
         } else {
             uses.insert(id2, vec![loc2]);
@@ -2099,7 +2089,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id1) {
             // zero register, ignore
         } else if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
+            let locs = uses.get_mut(&id1).unwrap();
             vec_utils::add_unique(locs, loc1);
         } else {
             uses.insert(id1, vec![loc1]);
@@ -2108,7 +2098,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id2) {
             // zero register, ignore
         } else if uses.contains_key(&id2) {
-            let mut locs = uses.get_mut(&id2).unwrap();
+            let locs = uses.get_mut(&id2).unwrap();
             vec_utils::add_unique(locs, loc2);
         } else {
             uses.insert(id2, vec![loc2]);
@@ -2142,7 +2132,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id2) {
             // zero register, ignore
         } else if uses.contains_key(&id2) {
-            let mut locs = uses.get_mut(&id2).unwrap();
+            let locs = uses.get_mut(&id2).unwrap();
             vec_utils::add_unique(locs, loc2);
         } else {
             uses.insert(id2, vec![loc2]);
@@ -2151,7 +2141,7 @@ impl ASMCodeGen {
         if is_zero_register_id(id3) {
             // zero register, ignore
         } else if uses.contains_key(&id3) {
-            let mut locs = uses.get_mut(&id3).unwrap();
+            let locs = uses.get_mut(&id3).unwrap();
             vec_utils::add_unique(locs, loc3);
         } else {
             uses.insert(id3, vec![loc3]);
@@ -2160,6 +2150,57 @@ impl ASMCodeGen {
         let asm = format!("{} {},{},{},{}", inst, reg1, reg2, reg3, mem);
 
         self.add_asm_inst(asm, ignore_zero_register(id1, vec![loc1]), uses, false)
+    }
+
+    fn internal_call(
+        &mut self,
+        callsite: Option<MuName>,
+        code: String,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
+        target: Option<(MuID, ASMLocation)>,
+        may_return: bool
+    ) -> Option<ValueLocation> {
+        let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
+        if target.is_some() {
+            let (id, loc) = target.unwrap();
+            uses.insert(id, vec![loc]);
+        }
+        for arg in args {
+            uses.insert(arg.id(), vec![]);
+        }
+
+        let mut defines: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
+        for ret in ret.iter() {
+            defines.insert(ret.id(), vec![]);
+        }
+
+        self.add_asm_inst_internal(
+            code,
+            defines,
+            uses,
+            false,
+            {
+                if pe.is_some() {
+                    ASMBranchTarget::PotentiallyExcepting(pe.unwrap())
+                } else if may_return {
+                    ASMBranchTarget::None
+                } else {
+                    ASMBranchTarget::Return
+                }
+            },
+            None
+        );
+
+        if callsite.is_some() {
+            let callsite_symbol = mangle_name(callsite.as_ref().unwrap().clone());
+            self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
+            self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
+            Some(ValueLocation::Relocatable(RegGroup::GPR, callsite.unwrap()))
+        } else {
+            None
+        }
     }
 
     fn emit_ldr_spill(&mut self, dest: Reg, src: Mem) {
@@ -2177,7 +2218,8 @@ impl CodeGenerator for ASMCodeGen {
             entry: entry,
             code: vec![],
             blocks: linked_hashmap!{},
-            frame_size_patchpoints: vec![]
+            frame_size_lower_patchpoints: vec![],
+            frame_size_upper_patchpoints: vec![]
         }));
 
         // to link with C sources via gcc
@@ -2186,8 +2228,8 @@ impl CodeGenerator for ASMCodeGen {
         self.add_asm_symbolic(format!(".type {}, @function", func_symbol.clone()));
         self.add_asm_symbolic(format!("{}:", func_symbol.clone()));
         if is_valid_c_identifier(&func_name) {
-            self.add_asm_symbolic(directive_globl(func_name.clone()));
-            self.add_asm_symbolic(directive_equiv(func_name.clone(), func_symbol.clone()));
+            self.add_asm_symbolic(directive_globl((*func_name).clone()));
+            self.add_asm_symbolic(directive_equiv((*func_name).clone(), func_symbol.clone()));
         }
 
         ValueLocation::Relocatable(RegGroup::GPR, func_name)
@@ -2198,9 +2240,9 @@ impl CodeGenerator for ASMCodeGen {
         func_name: MuName
     ) -> (Box<MachineCode + Sync + Send>, ValueLocation) {
         let func_end = {
-            let mut symbol = func_name.clone();
+            let mut symbol = (*func_name).clone();
             symbol.push_str(":end");
-            symbol
+            Arc::new(symbol)
         };
         let func_symbol = mangle_name(func_name.clone());
         let func_end_sym = mangle_name(func_end.clone());
@@ -2223,11 +2265,12 @@ impl CodeGenerator for ASMCodeGen {
 
     fn start_code_sequence(&mut self) {
         self.cur = Some(Box::new(ASMCode {
-            name: "snippet".to_string(),
-            entry: "none".to_string(),
+            name: Arc::new("snippet".to_string()),
+            entry: Arc::new("none".to_string()),
             code: vec![],
             blocks: linked_hashmap!{},
-            frame_size_patchpoints: vec![]
+            frame_size_lower_patchpoints: vec![],
+            frame_size_upper_patchpoints: vec![]
         }));
     }
 
@@ -2324,19 +2367,40 @@ impl CodeGenerator for ASMCodeGen {
     }
 
     fn emit_frame_grow(&mut self) {
-        trace_emit!("\tSUB SP, SP, #FRAME_SIZE_PLACEHOLDER");
-        let asm = format!("SUB SP,SP,#{}", FRAME_SIZE_PLACEHOLDER.clone());
-
+        trace_emit!("\tFRAME GROW");
+        let asm = format!("SUB SP,SP,#{}", FRAME_SIZE_PART_PLACEHOLDER.clone());
         let line = self.line();
         self.cur_mut()
-            .add_frame_size_patchpoint(ASMLocation::new(line, 11, FRAME_SIZE_PLACEHOLDER_LEN, 0));
+            .add_frame_size_lower_patchpoint(ASMLocation::new(
+                line,
+                11,
+                FRAME_SIZE_PART_PLACEHOLDER_LEN,
+                0
+            ));
 
         self.add_asm_inst(
             asm,
             linked_hashmap!{}, // let reg alloc ignore this instruction
             linked_hashmap!{},
             false
-        )
+        );
+
+        let asm = format!("SUB SP,SP,#{},LSL #12", FRAME_SIZE_PART_PLACEHOLDER.clone());
+        let line = self.line();
+        self.cur_mut()
+            .add_frame_size_upper_patchpoint(ASMLocation::new(
+                line,
+                11,
+                FRAME_SIZE_PART_PLACEHOLDER_LEN,
+                0
+            ));
+
+        self.add_asm_inst(
+            asm,
+            linked_hashmap!{}, // let reg alloc ignore this instruction
+            linked_hashmap!{},
+            false
+        );
     }
 
     // Pushes a pair of registers on the givne stack (uses the STP instruction)
@@ -2395,12 +2459,13 @@ impl CodeGenerator for ASMCodeGen {
 
     fn emit_bl(
         &mut self,
-        callsite: String,
+        callsite: Option<MuName>,
         func: MuName,
         pe: Option<MuName>,
         args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
         is_native: bool
-    ) -> ValueLocation {
+    ) -> Option<ValueLocation> {
         if is_native {
             trace_emit!("\tBL /*C*/ {}({:?})", func, args);
         } else {
@@ -2413,34 +2478,27 @@ impl CodeGenerator for ASMCodeGen {
             mangle_name(func)
         };
 
+        let mut ret = ret;
+        ret.push(LR.clone());
         let asm = format!("BL {}", func);
-        self.add_asm_call(asm, pe, args, None);
-
-        let callsite_symbol = mangle_name(callsite.clone());
-        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
-
-        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+        self.internal_call(callsite, asm, pe, args, ret, None, true)
     }
 
     fn emit_blr(
         &mut self,
-        callsite: String,
+        callsite: Option<MuName>,
         func: Reg,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
-    ) -> ValueLocation {
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>
+    ) -> Option<ValueLocation> {
         trace_emit!("\tBLR {}({:?})", func, args);
+        let mut ret = ret;
+        ret.push(LR.clone());
 
         let (reg1, id1, loc1) = self.prepare_reg(func, 3 + 1);
         let asm = format!("BLR {}", reg1);
-        self.add_asm_call(asm, pe, args, Some((id1, loc1)));
-
-        let callsite_symbol = mangle_name(callsite.clone());
-        self.add_asm_symbolic(directive_globl(callsite_symbol.clone()));
-        self.add_asm_symbolic(format!("{}:", callsite_symbol.clone()));
-
-        ValueLocation::Relocatable(RegGroup::GPR, callsite)
+        self.internal_call(callsite, asm, pe, args, ret, Some((id1, loc1)), true)
     }
 
 
@@ -2458,23 +2516,33 @@ impl CodeGenerator for ASMCodeGen {
             None
         );
     }
-    fn emit_b_func(&mut self, func_name: MuName, args: Vec<P<Value>>) {
-        trace_emit!("\tB {}({:?})", func_name, args);
 
-        let asm = format!("/*TAILCALL*/ B {}", mangle_name(func_name.clone()));
-        let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for arg in args {
-            uses.insert(arg.id(), vec![]);
+    fn emit_b_call(
+        &mut self,
+        callsite: Option<MuName>,
+        func: MuName,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
+        is_native: bool,
+        may_return: bool
+    ) -> Option<ValueLocation> {
+        if is_native {
+            trace_emit!("\tB /*C*/ {}({:?})", func, args);
+        } else {
+            trace_emit!("\tB {}({:?})", func, args);
         }
-        self.add_asm_inst_internal(
-            asm,
-            linked_hashmap!{},
-            uses,
-            false,
-            ASMBranchTarget::Return,
-            None
-        );
+
+        let func = if is_native {
+            "/*C*/".to_string() + func.as_str()
+        } else {
+            mangle_name(func)
+        };
+
+        let asm = format!("/*CALL*/ B {}", func);
+        self.internal_call(callsite, asm, pe, args, ret, None, may_return)
     }
+
     fn emit_b_cond(&mut self, cond: &str, dest_name: MuName) {
         trace_emit!("\tB.{} {}", cond, dest_name);
 
@@ -2503,35 +2571,23 @@ impl CodeGenerator for ASMCodeGen {
             None
         );
     }
-    fn emit_br_func(&mut self, func_address: Reg, args: Vec<P<Value>>) {
-        trace_emit!("\tBR {}({:?})", func_address, args);
 
-        let (reg1, id1, loc1) = self.prepare_reg(func_address, 2 + 1);
-        let asm = format!("/*TAILCALL*/ BR {}", reg1);
+    fn emit_br_call(
+        &mut self,
+        callsite: Option<MuName>,
+        func: Reg,
+        pe: Option<MuName>,
+        args: Vec<P<Value>>,
+        ret: Vec<P<Value>>,
+        may_return: bool
+    ) -> Option<ValueLocation> {
+        trace_emit!("\tBR {}({:?})", func, args);
 
-
-        let mut added_id1 = false;
-        let mut uses: LinkedHashMap<MuID, Vec<ASMLocation>> = LinkedHashMap::new();
-        for arg in args {
-            if arg.id() == id1 {
-                uses.insert(arg.id(), vec![loc1.clone()]);
-                added_id1 = true;
-            } else {
-                uses.insert(arg.id(), vec![]);
-            }
-        }
-        if !added_id1 {
-            uses.insert(id1, vec![loc1]);
-        }
-        self.add_asm_inst_internal(
-            asm,
-            linked_hashmap!{},
-            uses,
-            false,
-            ASMBranchTarget::Return,
-            None
-        );
+        let (reg1, id1, loc1) = self.prepare_reg(func, 3 + 1);
+        let asm = format!("/*CALL*/ BR {}", reg1);
+        self.internal_call(callsite, asm, pe, args, ret, Some((id1, loc1)), may_return)
     }
+
     fn emit_cbnz(&mut self, src: Reg, dest_name: MuName) {
         self.internal_branch_op("CBNZ", src, dest_name);
     }
@@ -3446,7 +3502,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
     {
         let mut demangled_path = path::PathBuf::new();
         demangled_path.push(&vm.vm_options.flag_aot_emit_dir);
-        demangled_path.push(func.name() + ".demangled.S");
+        demangled_path.push((*func.name()).clone() + ".demangled.S");
 
         let mut demangled_file = match File::create(demangled_path.as_path()) {
             Err(why) => {
@@ -3470,7 +3526,7 @@ pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
         };
         let mut f = String::new();
         mangled_file.read_to_string(&mut f).unwrap();
-        let d = demangle_text(f);
+        let d = demangle_text(&f);
         match demangled_file.write_all(d.as_bytes()) {
             Err(why) => {
                 panic!(
@@ -3574,12 +3630,13 @@ fn write_const_value(f: &mut File, constant: P<Value>) {
     }
 }
 
+
 use std::collections::HashMap;
 
 pub fn emit_context_with_reloc(
     vm: &VM,
-    symbols: HashMap<Address, String>,
-    fields: HashMap<Address, String>
+    symbols: HashMap<Address, MuName>,
+    fields: HashMap<Address, MuName>
 ) {
     use std::path;
     use std::io::prelude::*;
@@ -3656,6 +3713,7 @@ pub fn emit_context_with_reloc(
                 writeln!(file, "{}:", global_cell_name.clone()).unwrap();
 
                 if is_valid_c_identifier(&demangled_name) {
+                    let demangled_name = (*demangled_name).clone();
                     writeln!(file, "\t{}", directive_globl(demangled_name.clone())).unwrap();
                     writeln!(
                         file,

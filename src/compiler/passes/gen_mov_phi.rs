@@ -234,7 +234,47 @@ impl CompilerPass for GenMovPhi {
                                 }
                                 Instruction_::Watchpoint { .. } => unimplemented!(),
                                 Instruction_::WPBranch { .. } => unimplemented!(),
-                                Instruction_::SwapStack { .. } => unimplemented!(),
+                                Instruction_::SwapStackExc {
+                                    stack,
+                                    is_exception,
+                                    args,
+                                    resume
+                                } => {
+                                    let norm_dest = process_dest(
+                                        resume.normal_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "norm"
+                                    );
+                                    let exn_dest = process_dest(
+                                        resume.exn_dest,
+                                        &mut new_blocks_to_insert,
+                                        &ops,
+                                        vm,
+                                        &inst_name,
+                                        "exc"
+                                    );
+
+                                    let new_inst = func.new_inst(Instruction {
+                                        hdr: inst.hdr.clone(),
+                                        value: inst.value.clone(),
+                                        ops: ops.to_vec(),
+                                        v: Instruction_::SwapStackExc {
+                                            stack: stack,
+                                            is_exception: is_exception,
+                                            args: args,
+                                            resume: ResumptionData {
+                                                normal_dest: norm_dest,
+                                                exn_dest: exn_dest
+                                            }
+                                        }
+                                    });
+
+                                    trace!("rewrite to {}", new_inst);
+                                    new_body.push(new_inst);
+                                }
                                 Instruction_::ExnInstruction { .. } => unimplemented!(),
                                 _ => {
                                     trace!("no rewrite");
@@ -261,12 +301,11 @@ impl CompilerPass for GenMovPhi {
         for block_info in new_blocks_to_insert {
             // create intermediate block
             let block = {
-                let target_id = block_info.target;
+                let target_id = block_info.target; //
                 let mut ret = Block::new(MuEntityHeader::named(
                     block_info.blk_id,
                     block_info.blk_name.clone()
                 ));
-                vm.set_name(ret.as_entity());
 
                 let mut target_block = f_content.get_block_mut(target_id);
                 assert!(target_block.content.is_some());
@@ -285,14 +324,19 @@ impl CompilerPass for GenMovPhi {
                         // move every from_arg to target_arg
                         let mut i = 0;
                         for arg in block_info.from_args.iter() {
-                            let m = func.new_inst(Instruction {
-                                hdr: MuEntityHeader::unnamed(vm.next_id()),
-                                value: Some(vec![target_args[i].clone()]),
-                                ops: vec![arg.clone()],
-                                v: Instruction_::Move(0)
-                            });
+                            let ref target_arg = target_args[i];
+                            // when a block branches to itself, it is possible that
+                            // arg is the same as target_arg
+                            if arg.as_value() != target_arg {
+                                let m = func.new_inst(Instruction {
+                                    hdr: MuEntityHeader::unnamed(vm.next_id()),
+                                    value: Some(vec![target_args[i].clone()]),
+                                    ops: vec![arg.clone()],
+                                    v: Instruction_::Move(0)
+                                });
 
-                            vec.push(m);
+                                vec.push(m);
+                            }
 
                             i += 1;
                         }
@@ -303,7 +347,7 @@ impl CompilerPass for GenMovPhi {
                             value: None,
                             ops: vec![],
                             v: Instruction_::Branch1(Destination {
-                                target: target_id,
+                                target: target_block.hdr.clone(),
                                 args: vec![]
                             })
                         });
@@ -355,16 +399,23 @@ fn process_dest(
         }
 
         let new_blk_id = vm.next_id();
+        let new_blck_name = Arc::new(format!(
+            "{}:{}:#{}-#{}",
+            inst,
+            label,
+            new_blk_id,
+            target.name()
+        ));
 
         let dest = Destination {
-            target: new_blk_id,
+            target: MuEntityHeader::named(new_blk_id, new_blck_name.clone()),
             args: vec![]
         };
 
         blocks_to_insert.push(IntermediateBlockInfo {
             blk_id: new_blk_id,
-            blk_name: format!("{}:{}:#{}-#{}", inst, label, new_blk_id, target),
-            target: target,
+            blk_name: new_blck_name,
+            target: target.id(),
             from_args: from_args
         });
 

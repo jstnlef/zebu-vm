@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-#[derive(Copy, Clone, Debug, PartialEq)]
+use std::fmt;
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum BinOp {
     // BinOp Int(n) Int(n) -> Int(n)
     Add,
@@ -38,7 +38,21 @@ pub enum BinOp {
     FDiv,
     FRem
 }
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_uppercase())
+    }
+}
 
+impl BinOp {
+    pub fn is_fp(self) -> bool {
+        use op::BinOp::*;
+        match self {
+            FAdd | FSub | FMul | FDiv | FRem => true,
+            _ => false
+        }
+    }
+}
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CmpOp {
     // for Int comparison
@@ -70,6 +84,11 @@ pub enum CmpOp {
     FULE,
     FUNE,
     FUNO
+}
+impl fmt::Display for CmpOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 impl CmpOp {
@@ -174,6 +193,24 @@ impl CmpOp {
         }
     }
 
+    pub fn is_fp_cmp(self) -> bool {
+        !self.is_int_cmp()
+    }
+    pub fn is_eq_cmp(self) -> bool {
+        use op::CmpOp::*;
+        match self {
+            EQ | NE => true,
+            _ => false
+        }
+    }
+    pub fn is_ult_cmp(self) -> bool {
+        use op::CmpOp::*;
+        match self {
+            UGE | UGT | ULE | ULT => true,
+            _ => false
+        }
+    }
+
     pub fn is_symmetric(self) -> bool {
         use op::CmpOp::*;
         match self {
@@ -198,6 +235,11 @@ pub enum ConvOp {
     REFCAST,
     PTRCAST
 }
+impl fmt::Display for ConvOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AtomicRMWOp {
@@ -212,4 +254,10 @@ pub enum AtomicRMWOp {
     MIN,
     UMAX,
     UMIN
+}
+
+impl fmt::Display for AtomicRMWOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }

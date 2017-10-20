@@ -26,6 +26,9 @@ use compiler::backend::x86_64::codegen::CodeGenerator;
 mod asm_backend;
 use compiler::backend::x86_64::asm_backend::ASMCodeGen;
 
+/// call conventions
+pub mod callconv;
+
 // re-export a few functions for AOT compilation
 #[cfg(feature = "aot")]
 pub use compiler::backend::x86_64::asm_backend::emit_code;
@@ -42,6 +45,8 @@ use ast::ptr::P;
 use ast::ir::*;
 use ast::types::*;
 use compiler::backend::RegGroup;
+use vm::VM;
+use std::sync::Arc;
 
 use utils::LinkedHashMap;
 use std::collections::HashMap;
@@ -92,7 +97,7 @@ macro_rules! GPR {
     ($id:expr, $name: expr, $ty: ident) => {
         {
             P(Value {
-                hdr: MuEntityHeader::named($id, $name.to_string()),
+                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
                 ty: $ty.clone(),
                 v: Value_::SSAVar($id)
             })
@@ -105,7 +110,7 @@ macro_rules! FPR {
     ($id:expr, $name: expr) => {
         {
             P(Value {
-                hdr: MuEntityHeader::named($id, $name.to_string()),
+                hdr: MuEntityHeader::named($id, Arc::new($name.to_string())),
                 ty: DOUBLE_TYPE.clone(),
                 v: Value_::SSAVar($id)
             })
@@ -497,6 +502,18 @@ lazy_static! {
         ret.extend_from_slice(&ALL_USABLE_FPRS);
         ret
     };
+
+    /// all the caller saved registers
+    pub static ref ALL_CALLER_SAVED_REGS : Vec<P<Value>> = {
+        let mut ret = vec![];
+        for r in CALLER_SAVED_GPRS.iter() {
+            ret.push(r.clone());
+        }
+        for r in CALLER_SAVED_FPRS.iter() {
+            ret.push(r.clone());
+        }
+        ret
+    };
 }
 
 /// creates context for each machine register in FunctionContext
@@ -599,11 +616,19 @@ pub fn is_callee_saved(reg_id: MuID) -> bool {
 pub fn is_valid_x86_imm(op: &P<Value>) -> bool {
     use std::i32;
 
-    if op.ty.get_int_length().is_some() && op.ty.get_int_length().unwrap() <= 32 {
-        match op.v {
-            Value_::Constant(Constant::Int(val))
-                if val as i32 >= i32::MIN && val as i32 <= i32::MAX => true,
-            _ => false
+    if let Some(int_width) = op.ty.get_int_length() {
+        match int_width {
+            1...32 => op.is_int_const(),
+            64 => {
+                match op.v {
+                    Value_::Constant(Constant::Int(val)) => {
+                        val as i64 >= i32::MIN as i64 && val as i64 <= i32::MAX as i64
+                    }
+                    _ => false
+                }
+            }
+            128 => false,
+            _ => unimplemented!()
         }
     } else {
         false
@@ -653,10 +678,12 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
 
         // runtime call
         New(_) | NewHybrid(_, _) => 10,
-        NewStack(_) | NewThread(_, _) | NewThreadExn(_, _) | NewFrameCursor(_) => 10,
+        NewStack(_) | NewThread { .. } | NewFrameCursor(_) => 10,
         ThreadExit => 10,
+        CurrentStack => 10,
+        KillStack(_) => 10,
         Throw(_) => 10,
-        SwapStack { .. } => 10,
+        SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
         CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
 
@@ -667,4 +694,10 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         ExnInstruction { ref inner, .. } => estimate_insts_for_ir(&inner),
         _ => unimplemented!()
     }
+}
+
+pub fn call_stack_size(sig: P<MuFuncSig>, vm: &VM) -> usize {
+    use compiler::backend::x86_64::callconv::mu;
+    let (size, _) = mu::compute_stack_args(&sig.arg_tys, vm);
+    size
 }

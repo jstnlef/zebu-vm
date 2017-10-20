@@ -22,30 +22,16 @@ use mu::vm::*;
 use mu::linkutils;
 use mu::utils::LinkedHashMap;
 
+use std::sync::Arc;
+use mu::linkutils::aot;
+use mu::compiler::*;
+
 #[test]
 fn test_switch() {
-    let lib = linkutils::aot::compile_fnc("switch", &switch);
-
-    unsafe {
-        let switch: libloading::Symbol<unsafe extern "C" fn(u64) -> u64> =
-            lib.get(b"switch").unwrap();
-
-        let res = switch(0);
-        println!("switch(0) = {}", res);
-        assert!(res == 0);
-
-        let res = switch(1);
-        println!("switch(1) = {}", res);
-        assert!(res == 1);
-
-        let res = switch(2);
-        println!("switch(2) = {}", res);
-        assert!(res == 2);
-
-        let res = switch(3);
-        println!("switch(3) = {}", res);
-        assert!(res == 99);
-    }
+    build_and_run_test!(switch, switch_test1);
+    build_and_run_test!(switch, switch_test2);
+    build_and_run_test!(switch, switch_test3);
+    build_and_run_test!(switch, switch_test4);
 }
 
 fn switch() -> VM {
@@ -88,13 +74,13 @@ fn switch() -> VM {
         v: Instruction_::Switch {
             cond: 0,
             default: Destination {
-                target: blk_default.id(),
+                target: blk_default.hdr.clone(),
                 args: vec![]
             },
             branches: vec![
-                (1, Destination{target: blk_ret0.id(), args: vec![]}),
-                (2, Destination{target: blk_ret1.id(), args: vec![]}),
-                (3, Destination{target: blk_ret2.id(), args: vec![]})
+                (1, Destination{target: blk_ret0.hdr.clone(), args: vec![]}),
+                (2, Destination{target: blk_ret1.hdr.clone(), args: vec![]}),
+                (3, Destination{target: blk_ret2.hdr.clone(), args: vec![]})
             ]
         }
     });
@@ -148,25 +134,42 @@ fn switch() -> VM {
         blk_ret2
     });
 
+    emit_test! ((vm)
+        switch, switch_test1, switch_test1_v1,
+        Int RET Int,
+        EQ,
+        switch_sig,
+        int64(0u64) RET int64(0u64),
+    );
+    emit_test! ((vm)
+        switch, switch_test2, switch_test2_v1,
+        Int RET Int,
+        EQ,
+        switch_sig,
+        int64(1u64) RET int64(1u64),
+    );
+    emit_test! ((vm)
+        switch, switch_test3, switch_test3_v1,
+        Int RET Int,
+        EQ,
+        switch_sig,
+        int64(2u64) RET int64(2u64),
+    );
+    emit_test! ((vm)
+        switch, switch_test4, switch_test4_v1,
+        Int RET Int,
+        EQ,
+        switch_sig,
+        int64(3u64) RET int64(99u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_select_eq_zero() {
-    let lib = linkutils::aot::compile_fnc("select_eq_zero", &select_eq_zero);
-
-    unsafe {
-        let select_eq_zero: libloading::Symbol<unsafe extern "C" fn(u64) -> u64> =
-            lib.get(b"select_eq_zero").unwrap();
-
-        let res = select_eq_zero(0);
-        println!("select_eq_zero(0) = {}", res);
-        assert!(res == 1);
-
-        let res = select_eq_zero(1);
-        println!("select_eq_zero(1) = {}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(select_eq_zero, select_eq_zero_test1);
+    build_and_run_test!(select_eq_zero, select_eq_zero_test2);
 }
 
 fn select_eq_zero() -> VM {
@@ -207,25 +210,28 @@ fn select_eq_zero() -> VM {
 
     define_func_ver!((vm) select_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        select_eq_zero, select_eq_zero_test1, select_eq_zero_test1_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int64(0u64) RET int64(1u64),
+    );
+    emit_test! ((vm)
+        select_eq_zero, select_eq_zero_test2, select_eq_zero_test2_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int64(1u64) RET int64(0u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_select_eq_zero_double() {
-    let lib = linkutils::aot::compile_fnc("select_eq_zero_double", &select_eq_zero_double);
-
-    unsafe {
-        let select_eq_zero: libloading::Symbol<unsafe extern "C" fn(u64) -> f64> =
-            lib.get(b"select_eq_zero_double").unwrap();
-
-        let res = select_eq_zero(0);
-        println!("select_eq_zero(0) = {}", res);
-        assert!(res == 1f64);
-
-        let res = select_eq_zero(1);
-        println!("select_eq_zero(1) = {}", res);
-        assert!(res == 0f64);
-    }
+    build_and_run_test!(select_eq_zero_double, select_eq_zero_double_test1);
+    build_and_run_test!(select_eq_zero_double, select_eq_zero_double_test2);
 }
 
 fn select_eq_zero_double() -> VM {
@@ -269,25 +275,28 @@ fn select_eq_zero_double() -> VM {
 
     define_func_ver!((vm) select_double_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        select_eq_zero_double, select_eq_zero_double_test1, select_eq_zero_double_test1_v1,
+        Int RET Double,
+        FOEQ,
+        sig,
+        int64(0u64) RET double(1f64),
+    );
+    emit_test! ((vm)
+        select_eq_zero_double, select_eq_zero_double_test2, select_eq_zero_double_test2_v1,
+        Int RET Double,
+        FOEQ,
+        sig,
+        int64(1u64) RET double(0f64),
+    );
+
     vm
 }
 
 #[test]
 fn test_select_u8_eq_zero() {
-    let lib = linkutils::aot::compile_fnc("select_u8_eq_zero", &select_u8_eq_zero);
-
-    unsafe {
-        let select_eq_zero: libloading::Symbol<unsafe extern "C" fn(u8) -> u8> =
-            lib.get(b"select_u8_eq_zero").unwrap();
-
-        let res = select_eq_zero(0);
-        println!("select_u8_eq_zero(0) = {}", res);
-        assert!(res == 1);
-
-        let res = select_eq_zero(1);
-        println!("select_u8_eq_zero(1) = {}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(select_u8_eq_zero, select_u8_eq_zero_test1);
+    build_and_run_test!(select_u8_eq_zero, select_u8_eq_zero_test2);
 }
 
 fn select_u8_eq_zero() -> VM {
@@ -328,29 +337,29 @@ fn select_u8_eq_zero() -> VM {
 
     define_func_ver!((vm) select_u8_eq_zero_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        select_u8_eq_zero, select_u8_eq_zero_test1, select_u8_eq_zero_test1_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int8(0u64) RET int8(1u64),
+    );
+    emit_test! ((vm)
+        select_u8_eq_zero, select_u8_eq_zero_test2, select_u8_eq_zero_test2_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int8(1u64) RET int8(0u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_select_sge_zero() {
-    let lib = linkutils::aot::compile_fnc("select_sge_zero", &select_sge_zero);
-
-    unsafe {
-        let select_sge_zero: libloading::Symbol<unsafe extern "C" fn(i64) -> u64> =
-            lib.get(b"select_sge_zero").unwrap();
-
-        let res = select_sge_zero(0);
-        println!("select_sge_zero(0) = {}", res);
-        assert!(res == 1);
-
-        let res = select_sge_zero(1);
-        println!("select_sge_zero(1) = {}", res);
-        assert!(res == 1);
-
-        let res = select_sge_zero(-1);
-        println!("select_sge_zero(-1) = {}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(select_sge_zero, select_sge_zero_test1);
+    build_and_run_test!(select_sge_zero, select_sge_zero_test2);
+    build_and_run_test!(select_sge_zero, select_sge_zero_test3);
 }
 
 fn select_sge_zero() -> VM {
@@ -391,29 +400,36 @@ fn select_sge_zero() -> VM {
 
     define_func_ver!((vm) select_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        select_sge_zero, select_sge_zero_test1, select_sge_zero_test1_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int64(0u64) RET int64(1u64),
+    );
+    emit_test! ((vm)
+        select_sge_zero, select_sge_zero_test2, select_sge_zero_test2_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int64(1u64) RET int64(1u64),
+    );
+    emit_test! ((vm)
+        select_sge_zero, select_sge_zero_test3, select_sge_zero_test3_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int64(-1i64 as u64) RET int64(0u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_sgt_value() {
-    let lib = linkutils::aot::compile_fnc("sgt_value", &sgt_value);
-
-    unsafe {
-        let sgt_value: libloading::Symbol<unsafe extern "C" fn(i64, i64) -> u8> =
-            lib.get(b"sgt_value").unwrap();
-
-        let res = sgt_value(255, 0);
-        println!("sgt_value(255, 0) = {}", res);
-        assert!(res == 1);
-
-        let res = sgt_value(255, 255);
-        println!("sgt_value(255, 255) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_value(0, 255);
-        println!("sgt_value(0, 255) = {}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(sgt_value, sgt_value_test1);
+    build_and_run_test!(sgt_value, sgt_value_test2);
+    build_and_run_test!(sgt_value, sgt_value_test3);
 }
 
 fn sgt_value() -> VM {
@@ -448,41 +464,39 @@ fn sgt_value() -> VM {
 
     define_func_ver!((vm) sgt_value_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        sgt_value, sgt_value_test1, sgt_value_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(255u64), int64(0u64) RET int1(1u64),
+    );
+    emit_test! ((vm)
+        sgt_value, sgt_value_test2, sgt_value_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(255u64), int64(255u64) RET int1(0u64),
+    );
+    emit_test! ((vm)
+        sgt_value, sgt_value_test3, sgt_value_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int64(0u64), int64(255u64) RET int1(0u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_sgt_u8_value() {
-    let lib = linkutils::aot::compile_fnc("sgt_u8_value", &sgt_u8_value);
-
-    unsafe {
-        let sgt_u8_value: libloading::Symbol<unsafe extern "C" fn(i8, i8) -> u8> =
-            lib.get(b"sgt_u8_value").unwrap();
-
-        let res = sgt_u8_value(-1, 0);
-        println!("sgt_u8_value(-1, 0) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_u8_value(0, -1);
-        println!("sgt_u8_value(0, -1) = {}", res);
-        assert!(res == 1);
-
-        let res = sgt_u8_value(2, 1);
-        println!("sgt_u8_value(2, 1) = {}", res);
-        assert!(res == 1);
-
-        let res = sgt_u8_value(1, 2);
-        println!("sgt_u8_value(1, 2) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_u8_value(-2, -1);
-        println!("sgt_u8_value(-2, -1) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_u8_value(-1, -2);
-        println!("sgt_u8_value(-1, -2) = {}", res);
-        assert!(res == 1);
-    }
+    build_and_run_test!(sgt_u8_value, sgt_u8_value_test1);
+    build_and_run_test!(sgt_u8_value, sgt_u8_value_test2);
+    build_and_run_test!(sgt_u8_value, sgt_u8_value_test3);
+    build_and_run_test!(sgt_u8_value, sgt_u8_value_test4);
+    build_and_run_test!(sgt_u8_value, sgt_u8_value_test5);
+    build_and_run_test!(sgt_u8_value, sgt_u8_value_test6);
 }
 
 fn sgt_u8_value() -> VM {
@@ -517,53 +531,63 @@ fn sgt_u8_value() -> VM {
 
     define_func_ver!((vm) sgt_u8_value_v1 (entry: blk_entry) {blk_entry});
 
+    emit_test! ((vm)
+        sgt_u8_value, sgt_u8_value_test1, sgt_u8_value_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int8(-1i8 as u64), int8(0i8 as u64) RET int1(0u64),
+    );
+    emit_test! ((vm)
+        sgt_u8_value, sgt_u8_value_test2, sgt_u8_value_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int8(0i8 as u64), int8(-1i8 as u64) RET int1(1u64),
+    );
+    emit_test! ((vm)
+        sgt_u8_value, sgt_u8_value_test3, sgt_u8_value_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int8(2i8 as u64), int8(1i8 as u64) RET int1(1u64),
+    );
+    emit_test! ((vm)
+        sgt_u8_value, sgt_u8_value_test4, sgt_u8_value_test4_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int8(1i8 as u64), int8(2i8 as u64) RET int1(0u64),
+    );
+    emit_test! ((vm)
+        sgt_u8_value, sgt_u8_value_test5, sgt_u8_value_test5_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int8(-2i8 as u64), int8(-1i8 as u64) RET int1(0u64),
+    );
+    emit_test! ((vm)
+        sgt_u8_value, sgt_u8_value_test6, sgt_u8_value_test6_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int8(-1i8 as u64), int8(-2i8 as u64) RET int1(1u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_sgt_i32_branch() {
-    let lib = linkutils::aot::compile_fnc("sgt_i32_branch", &sgt_i32_branch);
-
-    unsafe {
-        let sgt_i32: libloading::Symbol<unsafe extern "C" fn(i32, i32) -> u32> =
-            lib.get(b"sgt_i32_branch").unwrap();
-
-        let res = sgt_i32(-1, 0);
-        println!("sgt_i32(-1, 0) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_i32(0, -1);
-        println!("sgt_i32(0, -1) = {}", res);
-        assert!(res == 1);
-
-        let res = sgt_i32(-1, -1);
-        println!("sgt_i32(-1, -1) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_i32(2, 1);
-        println!("sgt_i32(2, 1) = {}", res);
-        assert!(res == 1);
-
-        let res = sgt_i32(1, 2);
-        println!("sgt_i32(1, 2) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_i32(2, 2);
-        println!("sgt_i32(2, 2) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_i32(-2, -1);
-        println!("sgt_i32(-2, -1) = {}", res);
-        assert!(res == 0);
-
-        let res = sgt_i32(-1, -2);
-        println!("sgt_i32(-1, -2) = {}", res);
-        assert!(res == 1);
-
-        let res = sgt_i32(0, 0);
-        println!("sgt_i32(0, 0) = {}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test1);
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test2);
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test3);
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test4);
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test5);
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test6);
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test7);
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test8);
+    build_and_run_test!(sgt_i32_branch, sgt_i32_branch_test9);
 }
 
 fn sgt_i32_branch() -> VM {
@@ -629,53 +653,84 @@ fn sgt_i32_branch() -> VM {
         blk_entry, blk_ret1, blk_ret0
     });
 
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test1, sgt_i32_branch_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(-1i32 as u64), int32(0i32 as u64) RET int32(0u64),
+    );
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test2, sgt_i32_branch_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(0i32 as u64), int32(-1i32 as u64) RET int32(1u64),
+    );
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test3, sgt_i32_branch_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(-1i32 as u64), int32(-1i32 as u64) RET int32(0u64),
+    );
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test4, sgt_i32_branch_test4_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(2i32 as u64), int32(1i32 as u64) RET int32(1u64),
+    );
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test5, sgt_i32_branch_test5_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(1i32 as u64), int32(2i32 as u64) RET int32(0u64),
+    );
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test6, sgt_i32_branch_test6_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(2i32 as u64), int32(2i32 as u64) RET int32(0u64),
+    );
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test7, sgt_i32_branch_test7_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(-2i32 as u64), int32(-1i32 as u64) RET int32(0u64),
+    );
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test8, sgt_i32_branch_test8_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(-1i32 as u64), int32(-2i32 as u64) RET int32(1u64),
+    );
+    emit_test! ((vm)
+        sgt_i32_branch, sgt_i32_branch_test9, sgt_i32_branch_test9_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(0i32 as u64), int32(0i32 as u64) RET int32(0u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_sge_i32_branch() {
-    let lib = linkutils::aot::compile_fnc("sge_i32_branch", &sge_i32_branch);
-
-    unsafe {
-        let sge_i32: libloading::Symbol<unsafe extern "C" fn(i32, i32) -> u32> =
-            lib.get(b"sge_i32_branch").unwrap();
-
-        let res = sge_i32(-1, 0);
-        println!("sge_i32(-1, 0) = {}", res);
-        assert!(res == 0);
-
-        let res = sge_i32(0, -1);
-        println!("sge_i32(0, -1) = {}", res);
-        assert!(res == 1);
-
-        let res = sge_i32(-1, -1);
-        println!("sge_i32(-1, -1) = {}", res);
-        assert!(res == 1);
-
-        let res = sge_i32(2, 1);
-        println!("sge_i32(2, 1) = {}", res);
-        assert!(res == 1);
-
-        let res = sge_i32(1, 2);
-        println!("sge_i32(1, 2) = {}", res);
-        assert!(res == 0);
-
-        let res = sge_i32(2, 2);
-        println!("sge_i32(2, 2) = {}", res);
-        assert!(res == 1);
-
-        let res = sge_i32(-2, -1);
-        println!("sge_i32(-2, -1) = {}", res);
-        assert!(res == 0);
-
-        let res = sge_i32(-1, -2);
-        println!("sge_i32(-1, -2) = {}", res);
-        assert!(res == 1);
-
-        let res = sge_i32(0, 0);
-        println!("sge_i32(0, 0) = {}", res);
-        assert!(res == 1);
-    }
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test1);
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test2);
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test3);
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test4);
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test5);
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test6);
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test7);
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test8);
+    build_and_run_test!(sge_i32_branch, sge_i32_branch_test9);
 }
 
 fn sge_i32_branch() -> VM {
@@ -741,25 +796,77 @@ fn sge_i32_branch() -> VM {
         blk_entry, blk_ret1, blk_ret0
     });
 
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test1, sge_i32_branch_test1_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(-1i32 as u64), int32(0i32 as u64) RET int32(0u64),
+    );
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test2, sge_i32_branch_test2_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(0i32 as u64), int32(-1i32 as u64) RET int32(1u64),
+    );
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test3, sge_i32_branch_test3_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(-1i32 as u64), int32(-1i32 as u64) RET int32(1u64),
+    );
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test4, sge_i32_branch_test4_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(2i32 as u64), int32(1i32 as u64) RET int32(1u64),
+    );
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test5, sge_i32_branch_test5_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(1i32 as u64), int32(2i32 as u64) RET int32(0u64),
+    );
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test6, sge_i32_branch_test6_v1,
+         Int, Int RET Int,
+         EQ,
+         sig,
+         int32(2i32 as u64), int32(2i32 as u64) RET int32(1u64),
+    );
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test7, sge_i32_branch_test7_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(-2i32 as u64), int32(-1i32 as u64) RET int32(0u64),
+    );
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test8, sge_i32_branch_test8_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(-1i32 as u64), int32(-2i32 as u64) RET int32(1u64),
+    );
+    emit_test! ((vm)
+        sge_i32_branch, sge_i32_branch_test9, sge_i32_branch_test9_v1,
+        Int, Int RET Int,
+        EQ,
+        sig,
+        int32(0i32 as u64), int32(0i32 as u64) RET int32(1u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_branch2_eq_50p_1() {
-    let lib = linkutils::aot::compile_fnc("branch2_eq_50p_1", &branch2_eq_50p_1);
-
-    unsafe {
-        let branch2_eq_50p: libloading::Symbol<unsafe extern "C" fn(u8) -> (u64)> =
-            lib.get(b"branch2_eq_50p_1").unwrap();
-
-        let res = branch2_eq_50p(1);
-        println!("branch2_eq_50p(1) = {}", res);
-        assert!(res == 1);
-
-        let res = branch2_eq_50p(0);
-        println!("branch2_eq_50p(0) = {}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(branch2_eq_50p_1, branch2_eq_50p_1_test1);
+    build_and_run_test!(branch2_eq_50p_1, branch2_eq_50p_1_test2);
 }
 
 fn branch2_eq_50p_1() -> VM {
@@ -827,25 +934,28 @@ fn branch2_eq_50p_1() -> VM {
         blk_entry, blk_true, blk_false
     });
 
+    emit_test! ((vm)
+        branch2_eq_50p_1, branch2_eq_50p_1_test1, branch2_eq_50p_1_test1_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int8(1u64) RET int64(1u64),
+    );
+    emit_test! ((vm)
+        branch2_eq_50p_1, branch2_eq_50p_1_test2, branch2_eq_50p_1_test2_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int8(0u64) RET int64(0u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_branch2_eq_50p_2() {
-    let lib = linkutils::aot::compile_fnc("branch2_eq_50p_2", &branch2_eq_50p_2);
-
-    unsafe {
-        let branch2_eq_50p: libloading::Symbol<unsafe extern "C" fn(u8) -> (u64)> =
-            lib.get(b"branch2_eq_50p_2").unwrap();
-
-        let res = branch2_eq_50p(1);
-        println!("branch2_eq_50p(1) = {}", res);
-        assert!(res == 1);
-
-        let res = branch2_eq_50p(0);
-        println!("branch2_eq_50p(0) = {}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(branch2_eq_50p_2, branch2_eq_50p_2_test1);
+    build_and_run_test!(branch2_eq_50p_2, branch2_eq_50p_2_test2);
 }
 
 fn branch2_eq_50p_2() -> VM {
@@ -913,25 +1023,28 @@ fn branch2_eq_50p_2() -> VM {
         blk_entry, blk_false, blk_true
     });
 
+    emit_test! ((vm)
+        branch2_eq_50p_2, branch2_eq_50p_2_test1, branch2_eq_50p_2_test1_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int8(1u64) RET int64(1u64),
+    );
+    emit_test! ((vm)
+        branch2_eq_50p_2, branch2_eq_50p_2_test2, branch2_eq_50p_2_test2_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int8(0u64) RET int64(0u64),
+    );
+
     vm
 }
 
 #[test]
 fn test_branch2_high_prob_branch_cannot_fallthrough() {
-    let lib = linkutils::aot::compile_fnc("branch2", &branch2_high_prob_branch_cannot_fallthrough);
-
-    unsafe {
-        let branch2: libloading::Symbol<unsafe extern "C" fn(u8) -> (u64)> =
-            lib.get(b"branch2").unwrap();
-
-        let res = branch2(1);
-        println!("branch2(1) = {}", res);
-        assert!(res == 1);
-
-        let res = branch2(0);
-        println!("branch2(0) = {}", res);
-        assert!(res == 0);
-    }
+    build_and_run_test!(branch2, branch2_test1, branch2_high_prob_branch_cannot_fallthrough);
+    build_and_run_test!(branch2, branch2_test2, branch2_high_prob_branch_cannot_fallthrough);
 }
 
 fn branch2_high_prob_branch_cannot_fallthrough() -> VM {
@@ -1022,6 +1135,137 @@ fn branch2_high_prob_branch_cannot_fallthrough() -> VM {
 
     define_func_ver!((vm) branch2_v1 (entry: blk_entry) {
         blk_entry, blk_check, blk_true, blk_false
+    });
+
+    emit_test! ((vm)
+        branch2, branch2_test1, branch2_test1_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int8(1u64) RET int64(1u64),
+    );
+    emit_test! ((vm)
+        branch2, branch2_test2, branch2_test2_v1,
+        Int RET Int,
+        EQ,
+        sig,
+        int8(0u64) RET int64(0u64),
+    );
+
+    vm
+}
+
+#[test]
+fn test_branch_adjust_follow_by_neither() {
+    VM::start_logging_trace();
+
+    linkutils::aot::compile_fnc(
+        "branch_adjust_follow_by_neither",
+        &branch_adjust_follow_by_neither
+    );
+}
+
+fn branch_adjust_follow_by_neither() -> VM {
+    let vm = VM::new();
+
+    typedef!     ((vm) int64 = mu_int(64));
+    typedef!    ((vm) int1 = mu_int(1));
+
+    constdef!   ((vm) <int64> int64_0 = Constant::Int(0));
+    constdef!   ((vm) <int64> int64_1 = Constant::Int(1));
+
+    funcsig!    ((vm) sig = () -> (int64));
+    funcdecl!   ((vm) <sig> branch_adjust_follow_by_neither);
+    funcdef!    ((vm) <sig> branch_adjust_follow_by_neither
+        VERSION branch_adjust_follow_by_neither_v1);
+
+    // blk_entry
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_entry);
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_jmp);
+
+    // BRANCH blk_jmp
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_entry_branch:
+        BRANCH blk_jmp ()
+    );
+
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_entry() {
+        blk_entry_branch
+    });
+
+    // blk_jmp
+    // BRANCH blk_check0 (1)
+    consta!     ((vm, branch_adjust_follow_by_neither_v1) int64_0_local = int64_0);
+    consta!     ((vm, branch_adjust_follow_by_neither_v1) int64_1_local = int64_1);
+
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_check0);
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_jmp_branch:
+        BRANCH blk_check0 (int64_1_local)
+    );
+
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_jmp() {
+        blk_jmp_branch
+    });
+
+    // blk_check0(a)
+    ssa!        ((vm, branch_adjust_follow_by_neither_v1) <int64> a);
+
+    // cond = EQ a 0
+    ssa!        ((vm, branch_adjust_follow_by_neither_v1) <int1> cond);
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_check0_eq:
+        cond = CMPOP (CmpOp::EQ) a int64_0_local
+    );
+
+    // BRANCH2 cond TRUE: blk_ret0 () FALSE: blk_check1 (0)
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_ret0);
+    block!      ((vm, branch_adjust_follow_by_neither_v1) blk_check1);
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_check0_branch2:
+        BRANCH2 (cond, int64_0_local)
+            IF (OP 0)
+            THEN blk_ret0 (vec![]) WITH 0.6f32,
+            ELSE blk_check1 (vec![1])
+    );
+
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_check0(a) {
+        blk_check0_eq,
+        blk_check0_branch2
+    });
+
+    // blk_check1(b)
+    ssa!        ((vm, branch_adjust_follow_by_neither_v1) <int64> b);
+
+    // cond = EQ b 1
+    ssa!        ((vm, branch_adjust_follow_by_neither_v1) <int1> cond2);
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_check1_eq:
+        cond2 = CMPOP (CmpOp::EQ) b int64_1_local
+    );
+
+    // BRANCH2 cond2 TRUE: blk_ret1() FALSE: blk_jmp
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_check1_branch2:
+        BRANCH2 (cond2)
+            IF (OP 0)
+            THEN blk_ret0 (vec![]) WITH 0.4f32,
+            ELSE blk_jmp (vec![])
+    );
+
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_check1(b) {
+        blk_check1_eq,
+        blk_check1_branch2
+    });
+
+    // blk_ret0
+    inst!       ((vm, branch_adjust_follow_by_neither_v1) blk_ret0_ret:
+        RET (int64_0_local)
+    );
+    define_block!((vm, branch_adjust_follow_by_neither_v1) blk_ret0() {
+        blk_ret0_ret
+    });
+
+    define_func_ver!((vm) branch_adjust_follow_by_neither_v1 (entry: blk_entry) {
+        blk_entry,
+        blk_jmp,
+        blk_check0,
+        blk_check1,
+        blk_ret0
     });
 
     vm

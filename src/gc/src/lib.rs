@@ -182,6 +182,12 @@ pub extern "C" fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize,
     }
 }
 
+/// destroys current GC instance
+#[no_mangle]
+pub extern "C" fn gc_destoy() {
+    *MY_GC.write().unwrap() = None;
+}
+
 /// creates a mutator
 #[no_mangle]
 pub extern "C" fn new_mutator() -> ImmixMutatorLocal {
@@ -261,7 +267,6 @@ pub fn alloc(mutator: *mut ImmixMutatorLocal, size: usize, align: usize) -> Obje
 /// allocates an object in the immix space
 //  size doesn't include HEADER_SIZE
 #[no_mangle]
-#[inline(never)]
 pub extern "C" fn muentry_alloc_fast(
     mutator: *mut ImmixMutatorLocal,
     size: usize,
@@ -324,6 +329,21 @@ pub extern "C" fn muentry_alloc_large(
     );
 
     unsafe { ret.to_object_reference() }
+}
+
+#[no_mangle]
+//  size doesn't include HEADER_SIZE
+pub extern "C" fn muentry_alloc_any(
+    mutator: *mut ImmixMutatorLocal,
+    size: usize,
+    align: usize
+) -> ObjectReference {
+    let actual_size = size + OBJECT_HEADER_SIZE;
+    if actual_size <= LARGE_OBJECT_THRESHOLD {
+        muentry_alloc_fast(mutator, size, align)
+    } else {
+        muentry_alloc_large(mutator, size, align)
+    }
 }
 
 /// initializes a fix-sized object

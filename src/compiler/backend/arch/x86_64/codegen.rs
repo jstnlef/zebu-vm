@@ -61,7 +61,8 @@ pub trait CodeGenerator {
     // comparison
     fn emit_cmp_r_r(&mut self, op1: Reg, op2: Reg);
     fn emit_cmp_imm_r(&mut self, op1: i32, op2: Reg);
-    fn emit_cmp_mem_r(&mut self, op1: Reg, op2: Reg);
+    fn emit_cmp_mem_r(&mut self, op1: Mem, op2: Reg);
+    fn emit_cmp_r_mem(&mut self, op1: Reg, op2: Mem);
 
     fn emit_test_r_r(&mut self, op1: Reg, op2: Reg);
     fn emit_test_imm_r(&mut self, op1: i32, op2: Reg);
@@ -178,6 +179,12 @@ pub trait CodeGenerator {
     fn emit_sbb_r_mem(&mut self, dest: Reg, src: Mem);
     fn emit_sbb_r_imm(&mut self, dest: Reg, src: i32);
 
+    // inc and dec
+    fn emit_inc_r(&mut self, dest: Reg);
+    fn emit_inc_mem(&mut self, dest: Mem);
+    fn emit_dec_r(&mut self, dest: Reg);
+    fn emit_dec_mem(&mut self, dest: Mem);
+
     // multiply
     fn emit_mul_r(&mut self, src: Reg);
     fn emit_mul_mem(&mut self, src: Mem);
@@ -226,25 +233,47 @@ pub trait CodeGenerator {
     // call
     fn emit_call_near_rel32(
         &mut self,
-        callsite: String,
+        callsite: MuName,
         func: MuName,
         pe: Option<MuName>,
-        args: Vec<P<Value>>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>,
         is_native: bool
     ) -> ValueLocation;
     fn emit_call_near_r64(
         &mut self,
-        callsite: String,
+        callsite: MuName,
         func: &P<Value>,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
     ) -> ValueLocation;
     fn emit_call_near_mem64(
         &mut self,
-        callsite: String,
+        callsite: MuName,
         func: &P<Value>,
         pe: Option<MuName>,
-        args: Vec<P<Value>>
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
+    ) -> ValueLocation;
+
+    // sometimes we use jmp as a call (but without pushing return address)
+    fn emit_call_jmp(
+        &mut self,
+        callsite: MuName,
+        func: MuName,
+        pe: Option<MuName>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>,
+        is_native: bool
+    ) -> ValueLocation;
+    fn emit_call_jmp_indirect(
+        &mut self,
+        callsite: MuName,
+        func: &P<Value>,
+        pe: Option<MuName>,
+        uses: Vec<P<Value>>,
+        defs: Vec<P<Value>>
     ) -> ValueLocation;
 
     fn emit_ret(&mut self);
@@ -298,6 +327,10 @@ pub trait CodeGenerator {
     fn emit_comiss_f32_f32(&mut self, op1: Reg, op2: Reg);
     fn emit_ucomiss_f32_f32(&mut self, op1: Reg, op2: Reg);
 
+    // fp bitwise
+    fn emit_xorps_f32_f32(&mut self, dest: Reg, src: Reg);
+    fn emit_xorpd_f64_f64(&mut self, dest: Reg, src: Reg);
+
     // fp conversion
     fn emit_cvtsi2sd_f64_r(&mut self, dest: Reg, src: Reg);
     fn emit_cvtsd2si_r_f64(&mut self, dest: Reg, src: Reg);
@@ -310,7 +343,6 @@ pub trait CodeGenerator {
     fn emit_cvtss2sd_f64_f32(&mut self, dest: Reg, src: Reg);
 
     // used for unsigned int to fp conversion
-
     fn emit_cvttsd2si_r_f64(&mut self, dest: Reg, src: Reg);
     fn emit_cvttss2si_r_f32(&mut self, dest: Reg, src: Reg);
 

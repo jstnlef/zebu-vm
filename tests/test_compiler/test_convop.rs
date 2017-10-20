@@ -21,25 +21,17 @@ use self::mu::ast::ir::*;
 use self::mu::ast::inst::*;
 use self::mu::ast::op::*;
 use self::mu::vm::*;
-use self::mu::linkutils;
 use mu::utils::LinkedHashMap;
+
+use std::sync::Arc;
+use self::mu::linkutils::aot;
+use self::mu::compiler::*;
+
+use std::f32;
 
 #[test]
 fn test_truncate_then_call() {
-    let lib = linkutils::aot::compile_fncs(
-        "truncate_then_call",
-        vec!["truncate_then_call", "dummy_call"],
-        &truncate_then_call
-    );
-
-    unsafe {
-        let truncate_then_call: libloading::Symbol<unsafe extern "C" fn(u64) -> u32> =
-            lib.get(b"truncate_then_call").unwrap();
-
-        let res = truncate_then_call(1);
-        println!("truncate_then_call(1) = {}", res);
-        assert!(res == 1);
-    }
+    build_and_run_test!(truncate_then_call AND dummy_call, truncate_then_call_test1);
 }
 
 fn truncate_then_call() -> VM {
@@ -110,6 +102,14 @@ fn truncate_then_call() -> VM {
         define_func_ver!((vm) truncate_then_call_v1 (entry: blk_entry) {
             blk_entry
         });
+
+        emit_test! ((vm)
+            truncate_then_call, truncate_then_call_test1, truncate_then_call_test1_v1,
+            Int RET Int,
+            EQ,
+            sig,
+            u64(1u64) RET u32(1u64),
+        );
     }
 
     vm
@@ -117,22 +117,24 @@ fn truncate_then_call() -> VM {
 
 #[test]
 fn test_bitcast_f32_to_u32() {
-    let lib = linkutils::aot::compile_fnc("bitcast_f32_to_u32", &bitcast_f32_to_u32);
-
-    unsafe {
-        use std::f32;
-
-        let bitcast_f32_to_u32: libloading::Symbol<unsafe extern "C" fn(f32) -> u32> =
-            lib.get(b"bitcast_f32_to_u32").unwrap();
-
-        let res = bitcast_f32_to_u32(f32::MAX);
-        println!("bitcast_f32_to_u32(f32::MAX) = {}", res);
-        assert!(res == 2139095039u32);
-
-        let res = bitcast_f32_to_u32(3.1415926f32);
-        println!("bitcast_f32_to_u32(PI) = {}", res);
-        assert!(res == 1078530010u32);
-    }
+    //    let lib = linkutils::aot::compile_fnc("bitcast_f32_to_u32", &bitcast_f32_to_u32);
+    //
+    //    unsafe {
+    //        use std::f32;
+    //
+    //        let bitcast_f32_to_u32: libloading::Symbol<unsafe extern "C" fn(f32) -> u32> =
+    //            lib.get(b"bitcast_f32_to_u32").unwrap();
+    //
+    //        let res = bitcast_f32_to_u32(f32::MAX);
+    //        println!("bitcast_f32_to_u32(f32::MAX) = {}", res);
+    //        assert!(res == 2139095039u32);
+    //
+    //        let res = bitcast_f32_to_u32(3.1415926f32);
+    //        println!("bitcast_f32_to_u32(PI) = {}", res);
+    //        assert!(res == 1078530010u32);
+    //    }
+    build_and_run_test!(bitcast_f32_to_u32, bitcast_f32_to_u32_test1);
+    build_and_run_test!(bitcast_f32_to_u32, bitcast_f32_to_u32_test2);
 }
 
 fn bitcast_f32_to_u32() -> VM {
@@ -165,6 +167,21 @@ fn bitcast_f32_to_u32() -> VM {
     define_func_ver!((vm) bitcast_f32_to_u32_v1 (entry: blk_entry) {
         blk_entry
     });
+
+    emit_test! ((vm)
+        bitcast_f32_to_u32, bitcast_f32_to_u32_test1, bitcast_f32_to_u32_test1_v1,
+        Float RET Int,
+        EQ,
+        sig,
+        float(f32::MAX) RET u32(2139095039u32 as u64),
+    );
+    emit_test! ((vm)
+        bitcast_f32_to_u32, bitcast_f32_to_u32_test2, bitcast_f32_to_u32_test2_v1,
+        Float RET Int,
+        EQ,
+        sig,
+        float(3.1415926f32) RET u32(1078530010u32 as u64),
+    );
 
     vm
 }

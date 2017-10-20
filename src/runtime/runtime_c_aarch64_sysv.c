@@ -74,3 +74,11 @@ void* resolve_symbol(const char* sym) {
     // printf("%s\n", sym);
     return dlsym(RTLD_DEFAULT, sym);
 }
+
+int32_t c_check_result() {
+    return mu_retval;
+}
+
+char * alloc_mem(size_t size){
+    return (char *) malloc(size);
+}

@@ -309,10 +309,11 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
 
         let next_block_in_trace: Option<usize> = {
             if let Some(index) = trace.iter().position(|x| x == blk_id) {
-                if index == trace.len() {
+                if index >= trace.len() - 1 {
+                    // we do not have next block in the trace
                     None
                 } else {
-                    Some(index + 1)
+                    Some(trace[index + 1])
                 }
             } else {
                 warn!("find an unreachable block (a block exists in IR, but is not in trace");
@@ -341,17 +342,25 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                     }) => {
                         trace_if!(LOG_TRACE_SCHEDULE, "rewrite cond branch: {}", node);
 
-                        let true_label = true_dest.target;
-                        let false_label = false_dest.target;
+                        let true_label_id = true_dest.target.id();
+                        let false_label_id = false_dest.target.id();
+
+                        trace_if!(LOG_TRACE_SCHEDULE, "true_label = {}", true_label_id);
+                        trace_if!(LOG_TRACE_SCHEDULE, "false_label = {}", false_label_id);
+                        trace_if!(
+                            LOG_TRACE_SCHEDULE,
+                            "next_block_in_trace = {:?}",
+                            next_block_in_trace
+                        );
 
                         if next_block_in_trace.is_some() &&
-                            next_block_in_trace.unwrap() == false_label
+                            next_block_in_trace.unwrap() == false_label_id
                         {
                             // any conditional branch followed by its false label stays unchanged
                             trace_if!(LOG_TRACE_SCHEDULE, ">>stays unchanged");
                             new_body.push(node.clone());
                         } else if next_block_in_trace.is_some() &&
-                                   next_block_in_trace.unwrap() == true_label
+                                   next_block_in_trace.unwrap() == true_label_id
                         {
                             // for conditional branch followed by its true label
                             // we switch the true and false label, and negate the condition
@@ -437,10 +446,10 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                             // Lnew_false (arg list):
                             //   BRANCH Lfalse (arg list)
                             let new_false_block = {
-                                let block_name = format!("{}:#{}:false", func.name(), node.id());
+                                let block_name =
+                                    Arc::new(format!("{}:#{}:false", func.name(), node.id()));
                                 let mut block =
                                     Block::new(MuEntityHeader::named(vm.next_id(), block_name));
-                                vm.set_name(block.as_entity());
 
                                 let block_args: Vec<P<TreeNode>> = false_dest
                                     .args
@@ -465,7 +474,7 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                             value: None,
                                             ops: block_args,
                                             v: Instruction_::Branch1(Destination {
-                                                target: false_dest.target,
+                                                target: false_dest.target.clone(),
                                                 args: (0..block_args_len)
                                                     .map(|x| DestArg::Normal(x))
                                                     .collect()
@@ -488,7 +497,7 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                                     cond: cond,
                                     true_dest: true_dest.clone(),
                                     false_dest: Destination {
-                                        target: new_false_block.id(),
+                                        target: new_false_block.hdr.clone(),
                                         args: false_dest.args.clone()
                                     },
                                     true_prob: true_prob
@@ -500,7 +509,9 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
                             new_body.push(new_cond_branch);
 
                             // add new false block to trace (immediate after this block)
-                            if let Some(next_block_index) = next_block_in_trace {
+                            if let Some(next_block) = next_block_in_trace {
+                                let next_block_index =
+                                    trace.iter().position(|x| *x == next_block).unwrap();
                                 trace.insert(next_block_index, new_false_block.id());
                             } else {
                                 trace.push(new_false_block.id());

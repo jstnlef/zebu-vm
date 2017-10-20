@@ -366,8 +366,11 @@ fn test_struct() {
     vm.set_primordial_thread(func_id, true, vec![]);
     backend::emit_context(&vm);
 
-    let executable =
-        aot::link_primordial(vec!["struct_insts".to_string()], "struct_insts_test", &vm);
+    let executable = aot::link_primordial(
+        vec![Arc::new("struct_insts".to_string())],
+        "struct_insts_test",
+        &vm
+    );
     let output = linkutils::exec_path_nocheck(executable);
 
     assert!(output.status.code().is_some());
@@ -628,7 +631,7 @@ fn test_hybrid_fix_part() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(
-        vec!["hybrid_fix_part_insts".to_string()],
+        vec![Arc::new("hybrid_fix_part_insts".to_string())],
         "hybrid_fix_part_insts_test",
         &vm
     );
@@ -793,7 +796,7 @@ fn test_hybrid_var_part() {
     backend::emit_context(&vm);
 
     let executable = aot::link_primordial(
-        vec!["hybrid_var_part_insts".to_string()],
+        vec![Arc::new("hybrid_var_part_insts".to_string())],
         "hybrid_var_part_insts_test",
         &vm
     );
@@ -909,7 +912,7 @@ pub fn hybrid_var_part_insts() -> VM {
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_head_sum);
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_head_n);
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_head_i);
-    ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_head_a);
+    ssa!            ((vm, hybrid_var_part_insts_v1) <ref_hybrid> blk_head_a);
 
     // %cond = SLT <@int64> %i %n
     ssa!            ((vm, hybrid_var_part_insts_v1) <int1> blk_head_cond);
@@ -937,7 +940,7 @@ pub fn hybrid_var_part_insts() -> VM {
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_body_sum);
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_body_n);
     ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_body_i);
-    ssa!            ((vm, hybrid_var_part_insts_v1) <int64> blk_body_a);
+    ssa!            ((vm, hybrid_var_part_insts_v1) <ref_hybrid> blk_body_a);
 
     // %blk_body_iref_a = GETIREF <@my_hybrid> a
     ssa!            ((vm, hybrid_var_part_insts_v1) <iref_hybrid> blk_body_iref_a);

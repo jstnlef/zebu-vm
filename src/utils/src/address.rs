@@ -87,6 +87,11 @@ impl Address {
         unsafe { mem::transmute(ptr) }
     }
 
+    #[inline(always)]
+    pub fn from_ref<T>(r: &T) -> Address {
+        unsafe { mem::transmute(r) }
+    }
+
     /// creates Address from a mutable pointer
     #[inline(always)]
     pub fn from_mut_ptr<T>(ptr: *mut T) -> Address {

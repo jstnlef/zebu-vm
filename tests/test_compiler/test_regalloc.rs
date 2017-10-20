@@ -102,7 +102,7 @@ fn create_spill1() -> VM {
 
     typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
     constdef!       ((vm) <funcref_spill1> const_funcref_spill1 =
-        Constant::FuncRef(vm.id_of("spill1")));
+        Constant::FuncRef(spill1));
 
     // %entry(<@int_64> %t1, t2, ... t10):
     block!          ((vm, spill1_v1) blk_entry);
@@ -188,7 +188,7 @@ fn create_spill1() -> VM {
 
     typedef!        ((vm) funcref_spill1 = mu_funcref(spill1_sig));
     constdef!       ((vm) <funcref_spill1> const_funcref_spill1 =
-        Constant::FuncRef(vm.id_of("spill1")));
+        Constant::FuncRef(spill1.clone()));
 
     // %entry(<@int_64> %t1, t2, ... t10):
     block!          ((vm, spill1_v1) blk_entry);
@@ -1097,9 +1097,9 @@ fn preserve_caller_saved_simple() -> VM {
     ssa!    ((vm, preserve_caller_saved_simple_v1) <int64> v9);
 
     let foo_sig = vm.get_func_sig(vm.id_of("foo_sig"));
-    let foo_id = vm.id_of("foo");
+    let foo = MuEntityHeader::named(vm.id_of("foo"), Arc::new("foo".to_string()));
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
-    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo));
 
     consta!     ((vm, preserve_caller_saved_simple_v1) const_funcref_foo_local = const_funcref_foo);
     inst!       ((vm, preserve_caller_saved_simple_v1) blk_main_call:
@@ -1323,9 +1323,9 @@ fn preserve_caller_saved_call_args() -> VM {
     ssa!    ((vm, preserve_caller_saved_call_args_v1) <int64> v9);
 
     let foo_sig = vm.get_func_sig(vm.id_of("foo6_sig"));
-    let foo_id = vm.id_of("foo6");
+    let foo = MuEntityHeader::named(vm.id_of("foo6"), Arc::new("foo6".to_string()));
     typedef!    ((vm) type_funcref_foo = mu_funcref(foo_sig));
-    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo_id));
+    constdef!   ((vm) <type_funcref_foo> const_funcref_foo = Constant::FuncRef(foo));
 
     consta!     ((vm, preserve_caller_saved_call_args_v1) const_funcref_foo_local
         = const_funcref_foo);
@@ -1423,7 +1423,13 @@ fn create_empty_func_foo6(vm: &VM) {
         RET
     );
 
-    define_block!   ((vm, foo6_v1) blk_entry() {
+    ssa!        ((vm, foo6_v1) <int64> t0);
+    ssa!        ((vm, foo6_v1) <int64> t1);
+    ssa!        ((vm, foo6_v1) <int64> t2);
+    ssa!        ((vm, foo6_v1) <int64> t3);
+    ssa!        ((vm, foo6_v1) <int64> t4);
+    ssa!        ((vm, foo6_v1) <int64> t5);
+    define_block!   ((vm, foo6_v1) blk_entry(t0, t1, t2, t3, t4, t5) {
         blk_entry_ret
     });
 
@@ -2034,6 +2040,79 @@ fn spill_int8() -> VM {
     define_func_ver!((vm) spill_int8_v1 (entry: blk_entry) {
         blk_entry,
         blk_ret
+    });
+
+    vm
+}
+
+#[test]
+#[cfg(target_arch = "x86_64")]
+fn test_coalesce_unusable_reg() {
+    use mu::compiler::backend::x86_64;
+    VM::start_logging_trace();
+
+    let vm = coalesce_unusable_reg();
+    let compiler = Compiler::new(CompilerPolicy::default(), &vm);
+    let func_id = vm.id_of("coalesce_unusable_reg");
+
+    {
+        let funcs = vm.funcs().read().unwrap();
+        let func = funcs.get(&func_id).unwrap().read().unwrap();
+        let func_vers = vm.func_vers().read().unwrap();
+        let mut func_ver = func_vers
+            .get(&func.cur_ver.unwrap())
+            .unwrap()
+            .write()
+            .unwrap();
+
+        compiler.compile(&mut func_ver);
+
+        let compiled_funcs = vm.compiled_funcs().read().unwrap();
+        let cf_lock = compiled_funcs.get(&func_ver.id()).unwrap();
+        let cf = cf_lock.read().unwrap();
+
+        let x_id = vm.id_of("x");
+
+        // x exists
+        assert!(cf.temps.contains_key(&x_id));
+
+        // x is not rsp
+        let x_color = *cf.temps.get(&x_id).unwrap();
+        println!("x is assigned to {}", x_color);
+        assert!(x_color != x86_64::RSP.id());
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+fn coalesce_unusable_reg() -> VM {
+    use mu::compiler::backend::x86_64;
+    let vm = VM::new();
+
+    typedef!    ((vm) int64 = mu_int(64));
+
+    funcsig!    ((vm) sig = () -> (int64));
+    funcdecl!   ((vm) <sig> coalesce_unusable_reg);
+    funcdef!    ((vm) <sig> coalesce_unusable_reg VERSION coalesce_unusable_reg_v1);
+
+    block!      ((vm, coalesce_unusable_reg_v1) blk_entry);
+
+    ssa!        ((vm, coalesce_unusable_reg_v1) <int64> x);
+    machine_reg!((vm, coalesce_unusable_reg_v1) rsp = x86_64::RSP);
+    inst!       ((vm, coalesce_unusable_reg_v1) blk_entry_mov:
+        MOVE rsp -> x
+    );
+
+    inst!       ((vm, coalesce_unusable_reg_v1) blk_entry_ret:
+        RET (x)
+    );
+
+    define_block!((vm, coalesce_unusable_reg_v1) blk_entry() {
+        blk_entry_mov,
+        blk_entry_ret
+    });
+
+    define_func_ver!((vm) coalesce_unusable_reg_v1 (entry: blk_entry) {
+        blk_entry
     });
 
     vm
