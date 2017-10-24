@@ -298,8 +298,8 @@ impl MuFunctionVersion {
         })
     }
 
-    pub fn new_inst(&mut self, v: Instruction) -> Box<TreeNode> {
-        Box::new(TreeNode {
+    pub fn new_inst(&mut self, v: Instruction) -> P<TreeNode> {
+        P(TreeNode {
             v: TreeNode_::Instruction(v)
         })
     }
@@ -714,7 +714,7 @@ pub enum EdgeKind {
 pub struct BlockContent {
     pub args: Vec<P<Value>>,
     pub exn_arg: Option<P<Value>>,
-    pub body: Vec<Box<TreeNode>>,
+    pub body: Vec<P<TreeNode>>,
     pub keepalives: Option<Vec<P<Value>>>
 }
 
@@ -852,13 +852,6 @@ impl TreeNode {
         })
     }
 
-    /// creates an owned Instruction TreeNode
-    pub fn new_boxed_inst(v: Instruction) -> Box<TreeNode> {
-        Box::new(TreeNode {
-            v: TreeNode_::Instruction(v)
-        })
-    }
-
     /// creates a sharable Value TreeNode
     pub fn new_value(v: P<Value>) -> P<TreeNode> {
         P(TreeNode {
@@ -923,7 +916,7 @@ impl TreeNode {
     }
 
     /// consumes the TreeNode, returns the instruction in it (or None if it is not an instruction)
-    pub fn as_inst_ref(&self) -> &Instruction {
+    pub fn as_inst(&self) -> &Instruction {
         match &self.v {
             &TreeNode_::Instruction(ref inst) => inst,
             _ => panic!("expected inst")
@@ -1171,7 +1164,10 @@ pub struct SSAVarEntry {
     expr: Option<Instruction>,
 
     // some ssa vars (such as int128) needs to be split into smaller vars
-    split: Option<Vec<P<Value>>>
+    split: Option<Vec<P<Value>>>,
+
+    // which instruction defines this value
+    def: Option<P<TreeNode>>
 }
 
 impl SSAVarEntry {
@@ -1180,7 +1176,8 @@ impl SSAVarEntry {
             val: val,
             use_count: ATOMIC_USIZE_INIT,
             expr: None,
-            split: None
+            split: None,
+            def: None
         };
 
         ret.use_count.store(0, Ordering::SeqCst);
@@ -1225,6 +1222,16 @@ impl SSAVarEntry {
     }
     pub fn get_split(&self) -> &Option<Vec<P<Value>>> {
         &self.split
+    }
+
+    pub fn has_def(&self) -> bool {
+        self.def.is_some()
+    }
+    pub fn set_def(&mut self, d: P<TreeNode>) {
+        self.def = Some(d);
+    }
+    pub fn get_def(&self) -> &Option<P<TreeNode>> {
+        &self.def
     }
 }
 

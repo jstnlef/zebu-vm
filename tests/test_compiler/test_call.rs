@@ -69,11 +69,7 @@ fn test_ccall_exit() {
     assert!(ret_code == 10);
 }
 
-pub fn gen_ccall_exit(
-    arg: P<TreeNode>,
-    func_ver: &mut MuFunctionVersion,
-    vm: &VM
-) -> Box<TreeNode> {
+pub fn gen_ccall_exit(arg: P<TreeNode>, func_ver: &mut MuFunctionVersion, vm: &VM) -> P<TreeNode> {
     typedef!((vm) int64 = mu_int(64));
     funcsig!((vm) exit_sig = (int64) -> ());
     typedef!((vm) ufp_exit = mu_ufuncptr(exit_sig));

@@ -77,14 +77,14 @@ impl CompilerPass for GenMovPhi {
                     trace!("last instruction is {}", node);
                     let last_inst = node.clone();
                     match last_inst.v {
-                        TreeNode_::Instruction(inst) => {
+                        TreeNode_::Instruction(ref inst) => {
                             let ref ops = inst.ops;
                             let inst_name = inst.name().clone();
                             match inst.v {
                                 Instruction_::Branch2 {
                                     cond,
-                                    true_dest,
-                                    false_dest,
+                                    ref true_dest,
+                                    ref false_dest,
                                     true_prob
                                 } => {
                                     // check and insert intermediate blocks for true/false dest
@@ -121,9 +121,12 @@ impl CompilerPass for GenMovPhi {
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
                                 }
-                                Instruction_::Call { data, resume } => {
+                                Instruction_::Call {
+                                    ref data,
+                                    ref resume
+                                } => {
                                     let norm_dest = process_dest(
-                                        resume.normal_dest,
+                                        &resume.normal_dest,
                                         &mut new_blocks_to_insert,
                                         &ops,
                                         vm,
@@ -131,7 +134,7 @@ impl CompilerPass for GenMovPhi {
                                         "norm"
                                     );
                                     let exn_dest = process_dest(
-                                        resume.exn_dest,
+                                        &resume.exn_dest,
                                         &mut new_blocks_to_insert,
                                         &ops,
                                         vm,
@@ -155,9 +158,12 @@ impl CompilerPass for GenMovPhi {
                                     trace!("rewrite to {}", new_inst);
                                     new_body.push(new_inst);
                                 }
-                                Instruction_::CCall { data, resume } => {
+                                Instruction_::CCall {
+                                    ref data,
+                                    ref resume
+                                } => {
                                     let norm_dest = process_dest(
-                                        resume.normal_dest,
+                                        &resume.normal_dest,
                                         &mut new_blocks_to_insert,
                                         &ops,
                                         vm,
@@ -165,7 +171,7 @@ impl CompilerPass for GenMovPhi {
                                         "norm"
                                     );
                                     let exn_dest = process_dest(
-                                        resume.exn_dest,
+                                        &resume.exn_dest,
                                         &mut new_blocks_to_insert,
                                         &ops,
                                         vm,
@@ -191,8 +197,8 @@ impl CompilerPass for GenMovPhi {
                                 }
                                 Instruction_::Switch {
                                     cond,
-                                    default,
-                                    mut branches
+                                    ref default,
+                                    ref branches
                                 } => {
                                     let default_dest = process_dest(
                                         default,
@@ -204,10 +210,10 @@ impl CompilerPass for GenMovPhi {
                                     );
 
                                     let new_branches = branches
-                                        .drain(..)
+                                        .iter()
                                         .map(|pair| {
                                             let dest = process_dest(
-                                                pair.1,
+                                                &pair.1,
                                                 &mut new_blocks_to_insert,
                                                 &ops,
                                                 vm,
@@ -237,11 +243,11 @@ impl CompilerPass for GenMovPhi {
                                 Instruction_::SwapStackExc {
                                     stack,
                                     is_exception,
-                                    args,
-                                    resume
+                                    ref args,
+                                    ref resume
                                 } => {
                                     let norm_dest = process_dest(
-                                        resume.normal_dest,
+                                        &resume.normal_dest,
                                         &mut new_blocks_to_insert,
                                         &ops,
                                         vm,
@@ -249,7 +255,7 @@ impl CompilerPass for GenMovPhi {
                                         "norm"
                                     );
                                     let exn_dest = process_dest(
-                                        resume.exn_dest,
+                                        &resume.exn_dest,
                                         &mut new_blocks_to_insert,
                                         &ops,
                                         vm,
@@ -264,7 +270,7 @@ impl CompilerPass for GenMovPhi {
                                         v: Instruction_::SwapStackExc {
                                             stack: stack,
                                             is_exception: is_exception,
-                                            args: args,
+                                            args: args.clone(),
                                             resume: ResumptionData {
                                                 normal_dest: norm_dest,
                                                 exn_dest: exn_dest
@@ -376,7 +382,7 @@ impl CompilerPass for GenMovPhi {
 /// the intermediate block as destination. Otherwise, return
 /// the original destination
 fn process_dest(
-    dest: Destination,
+    dest: &Destination,
     blocks_to_insert: &mut Vec<IntermediateBlockInfo>,
     ops: &Vec<P<TreeNode>>,
     vm: &VM,
@@ -384,9 +390,9 @@ fn process_dest(
     label: &str
 ) -> Destination {
     if dest.args.is_empty() {
-        dest
+        dest.clone()
     } else {
-        let target = dest.target;
+        let ref target = dest.target;
 
         let mut from_args = vec![];
         for arg in dest.args.iter() {

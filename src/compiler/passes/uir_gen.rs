@@ -120,7 +120,7 @@ fn emit_uir_inner(file: &mut File, func_name: MuName, func_ver: &MuFunctionVersi
 
         // all the instructions
         for inst in block_content.body.iter() {
-            writeln!(file, "\t\t{}", inst.as_inst_ref()).unwrap();
+            writeln!(file, "\t\t{}", inst.as_inst()).unwrap();
         }
 
         // "];

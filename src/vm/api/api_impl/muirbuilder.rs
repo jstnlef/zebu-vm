@@ -2348,8 +2348,8 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         tn
     }
 
-    pub fn new_inst(&self, v: Instruction) -> Box<TreeNode> {
-        Box::new(TreeNode {
+    pub fn new_inst(&self, v: Instruction) -> P<TreeNode> {
+        P(TreeNode {
             v: TreeNode_::Instruction(v)
         })
     }
@@ -2416,7 +2416,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb: &mut FuncCtxBuilder,
         id: MuID,
         blocks: &LinkedHashMap<MuID, Block>
-    ) -> Vec<Box<TreeNode>> {
+    ) -> Vec<P<TreeNode>> {
         let res = self.b
             .bundle
             .bbs
@@ -2430,10 +2430,10 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         let n = res.len();
         for i in 0..(n - 1) {
             // None of the internal instruction should be a terminator
-            assert_ir!(!res[i].as_inst_ref().is_terminal_inst());
+            assert_ir!(!res[i].as_inst().is_terminal_inst());
         }
         // The last instruction should be a terminator
-        assert_ir!(res[n - 1].as_inst_ref().is_terminal_inst());
+        assert_ir!(res[n - 1].as_inst().is_terminal_inst());
         res
     }
 
@@ -2442,7 +2442,7 @@ impl<'lb, 'lvm> BundleLoader<'lb, 'lvm> {
         fcb: &mut FuncCtxBuilder,
         id: MuID,
         blocks: &LinkedHashMap<MuID, Block>
-    ) -> Box<TreeNode> {
+    ) -> P<TreeNode> {
         let inst = self.b.bundle.insts.get(&id).unwrap();
 
         trace!("Building instruction {} {:?}", id, inst);
