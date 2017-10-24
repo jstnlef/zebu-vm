@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use ast::ptr::*;
 use ast::ir::*;
 use vm::VM;
 use std::any::Any;
@@ -26,8 +27,7 @@ pub use compiler::passes::inlining::Inlining;
 mod ret_sink;
 pub use compiler::passes::ret_sink::RetSink;
 
-/// A Def-Use pass. Getting use info and count for SSA variables in the IR (we are not collecting
-/// define info)
+/// A Def-Use pass. Getting use info and count for SSA variables in the IR
 mod def_use;
 pub use compiler::passes::def_use::DefUse;
 
@@ -112,5 +112,5 @@ pub trait CompilerPass {
     fn start_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {}
     fn finish_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {}
 
-    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &TreeNode) {}
+    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &P<TreeNode>) {}
 }

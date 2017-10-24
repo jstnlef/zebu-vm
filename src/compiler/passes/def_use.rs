@@ -15,7 +15,6 @@
 use ast::ir::*;
 use ast::ptr::*;
 use vm::VM;
-
 use compiler::CompilerPass;
 use std::any::Any;
 
@@ -41,26 +40,36 @@ impl CompilerPass for DefUse {
     }
 
     #[allow(unused_variables)]
-    fn start_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {
+    fn start_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {}
+
+    #[allow(unused_variables)]
+    fn finish_block(&mut self, vm: &VM, func_context: &mut FunctionContext, block: &mut Block) {
         // if an SSA appears in keepalives, its use count increases
-        let ref mut keepalives = block.content.as_mut().unwrap().keepalives;
-        if keepalives.is_some() {
-            for op in keepalives.as_mut().unwrap().iter_mut() {
+        let ref keepalives = block.content.as_ref().unwrap().keepalives;
+        if let &Some(ref keepalives) = keepalives {
+            for op in keepalives.iter() {
                 use_value(op, func_context);
             }
         }
     }
 
     #[allow(unused_variables)]
-    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &TreeNode) {
-        // if an SSA appears in operands of instrs, its use count increases
-        match node.v {
-            TreeNode_::Instruction(ref inst) => {
-                for op in inst.ops.iter() {
-                    use_op(op, func_context);
-                }
+    fn visit_inst(&mut self, vm: &VM, func_context: &mut FunctionContext, node: &P<TreeNode>) {
+        let inst = node.as_inst();
+
+        if let &Some(ref vals) = &inst.value {
+            for val in vals {
+                let id = val.extract_ssa_id().unwrap();
+                func_context
+                    .get_value_mut(id)
+                    .unwrap()
+                    .set_def(node.clone());
             }
-            _ => panic!("expected instruction node in visit_inst()")
+        }
+
+        // if an SSA appears in operands of instrs, its use count increases
+        for op in inst.ops.iter() {
+            use_op(op, func_context);
         }
     }
 

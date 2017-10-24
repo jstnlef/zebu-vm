@@ -156,3 +156,51 @@ def test_eq_f_zero():
     assert(eq_zero(ctypes.c_double(0)) == 1)
     assert(eq_zero(ctypes.c_double(1)) == 0)
     assert(eq_zero(ctypes.c_double(-1)) == 0)
+
+def test_cmp_pattern1():
+    lib = load_bundle(
+        """
+        .funcdef test_cmp_pattern1 <(int<64> int<64>) -> (int<64>)>
+        {
+            entry(<int<64>> x <int<64>> y):
+                cond = EQ <int<64>> x y
+                cond_ = ZEXT <int<1> int<8>> cond
+                actual_cond = EQ <int<8>> cond_ <int<8>> 1
+                sum = ADD <int<64>> x y
+                BRANCH2 actual_cond ret_true(sum) ret_false(sum)
+            
+            ret_true(<int<64>> sum):
+                RET <int<64>> 1
+            
+            ret_false(<int<64>> sum):
+                RET <int<64>> 0
+        }
+        """, "test_cmp_pattern1"
+    )
+
+    eq = get_function(lib.test_cmp_pattern1, [ctypes.c_int64, ctypes.c_int64], ctypes.c_int64)
+    assert(eq(1, 1) == 1)
+    assert(eq(1, 0) == 0)
+
+def test_cmp_pattern2():
+    lib = load_bundle(
+        """
+        .funcdef test_cmp_pattern2 <(int<64> int<64>) -> (int<64>)>
+        {
+            entry(<int<64>> x <int<64>> y):
+                cond = EQ <int<64>> x y
+                sum = ADD <int<64>> x y
+                BRANCH2 cond ret_true(sum) ret_false(sum)
+            
+            ret_true(<int<64>> sum):
+                RET <int<64>> 1
+            
+            ret_false(<int<64>> sum):
+                RET <int<64>> 0
+        }
+        """, "test_cmp_pattern2"
+    )
+
+    eq = get_function(lib.test_cmp_pattern2, [ctypes.c_int64, ctypes.c_int64], ctypes.c_int64)
+    assert(eq(1, 1) == 1)
+    assert(eq(1, 0) == 0)

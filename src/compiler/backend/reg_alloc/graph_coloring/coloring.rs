@@ -21,7 +21,6 @@ use compiler::backend::reg_alloc::graph_coloring;
 use compiler::backend::reg_alloc::graph_coloring::liveness::InterferenceGraph;
 use compiler::machine_code::CompiledFunction;
 use vm::VM;
-use utils::vec_utils;
 use utils::LinkedHashSet;
 use utils::LinkedHashMap;
 use compiler::backend::reg_alloc::graph_coloring::liveness::Move;
@@ -169,20 +168,6 @@ impl<'a> GraphColoring<'a> {
         };
 
         coloring.regalloc()
-    }
-
-    /// returns formatted string for an ID
-    fn display_id(&self, id: MuID) -> String {
-        self.func.context.get_temp_display(id)
-    }
-
-    /// returns formatted string for a move
-    fn display_move(&self, m: Move) -> String {
-        format!(
-            "Move: {} -> {}",
-            self.display_id(m.from),
-            self.display_id(m.to)
-        )
     }
 
     /// does coloring register allocation

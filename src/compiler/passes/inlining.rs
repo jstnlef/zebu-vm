@@ -182,7 +182,7 @@ impl Inlining {
                         trace!("inserting inlined function at {}", inst);
 
                         // from TreeNode into Inst (we do not need old TreeNode)
-                        let inst = inst.into_inst().unwrap();
+                        let inst = inst.as_inst();
 
                         // inline expansion starts here
 
@@ -225,7 +225,7 @@ impl Inlining {
                                     data.args.iter().map(|x| ops[*x].clone()).collect();
                                 let arg_indices: Vec<OpIndex> = (0..arg_nodes.len()).collect();
 
-                                let branch = TreeNode::new_boxed_inst(Instruction {
+                                let branch = TreeNode::new_inst(Instruction {
                                     hdr: inst.hdr.clone(),
                                     value: None,
                                     ops: arg_nodes.clone(),
@@ -259,7 +259,7 @@ impl Inlining {
                                         if inst.value.is_none() {
                                             vec![]
                                         } else {
-                                            inst.value.unwrap()
+                                            inst.value.as_ref().unwrap().clone()
                                         }
                                     },
                                     exn_arg: None,
@@ -305,7 +305,7 @@ impl Inlining {
                                     .as_mut()
                                     .unwrap()
                                     .body
-                                    .push(TreeNode::new_boxed_inst(branch));
+                                    .push(TreeNode::new_inst(branch));
 
                                 // next block
                                 let mut next_block = resume.normal_dest.target.clone();
@@ -348,7 +348,7 @@ impl Inlining {
                                             }
                                         },
                                         exn_arg: None,
-                                        body: vec![TreeNode::new_boxed_inst(branch)],
+                                        body: vec![TreeNode::new_inst(branch)],
                                         keepalives: None
                                     });
 
@@ -452,7 +452,7 @@ fn copy_inline_blocks(
             for i in 0..old_block_content.body.len() - 1 {
                 block_content.body.push(match old_block_content.body[i].v {
                     TreeNode_::Instruction(ref inst) => {
-                        TreeNode::new_boxed_inst(inst.clone_with_id(vm.next_id()))
+                        TreeNode::new_inst(inst.clone_with_id(vm.next_id()))
                     }
                     _ => panic!("expect instruction as block body")
                 });
@@ -464,7 +464,7 @@ fn copy_inline_blocks(
             let inst_new_id = vm.next_id();
             let last_inst_clone = match last_inst.v {
                 TreeNode_::Instruction(ref inst) => {
-                    TreeNode::new_boxed_inst(inst.clone_with_id(inst_new_id))
+                    TreeNode::new_inst(inst.clone_with_id(inst_new_id))
                 }
                 _ => panic!("expect instruction as block body")
             };
@@ -492,7 +492,7 @@ fn copy_inline_blocks(
                             };
 
                             trace!("rewrite to: {}", branch);
-                            block_content.body.push(TreeNode::new_boxed_inst(branch));
+                            block_content.body.push(TreeNode::new_inst(branch));
                         }
 
                         // fix destination
@@ -505,7 +505,7 @@ fn copy_inline_blocks(
                             };
 
                             trace!("rewrite to: {}", branch);
-                            block_content.body.push(TreeNode::new_boxed_inst(branch));
+                            block_content.body.push(TreeNode::new_inst(branch));
                         }
                         &Instruction_::Branch2 {
                             ref cond,
@@ -526,7 +526,7 @@ fn copy_inline_blocks(
                             };
 
                             trace!("rewrite to: {}", branch2);
-                            block_content.body.push(TreeNode::new_boxed_inst(branch2));
+                            block_content.body.push(TreeNode::new_inst(branch2));
                         }
                         &Instruction_::Call {
                             ref data,
@@ -543,7 +543,7 @@ fn copy_inline_blocks(
                             };
 
                             trace!("rewrite to: {}", call);
-                            block_content.body.push(TreeNode::new_boxed_inst(call));
+                            block_content.body.push(TreeNode::new_inst(call));
                         }
                         &Instruction_::CCall {
                             ref data,
@@ -560,7 +560,7 @@ fn copy_inline_blocks(
                             };
 
                             trace!("rewrite to: {}", call);
-                            block_content.body.push(TreeNode::new_boxed_inst(call));
+                            block_content.body.push(TreeNode::new_inst(call));
                         }
                         &Instruction_::Switch {
                             ref cond,
@@ -584,7 +584,7 @@ fn copy_inline_blocks(
                             };
 
                             trace!("rewrite to: {}", switch);
-                            block_content.body.push(TreeNode::new_boxed_inst(switch));
+                            block_content.body.push(TreeNode::new_inst(switch));
                         }
 
                         &Instruction_::SwapStackExc {
@@ -606,7 +606,7 @@ fn copy_inline_blocks(
                             };
 
                             trace!("rewrite to: {}", swapstack);
-                            block_content.body.push(TreeNode::new_boxed_inst(swapstack));
+                            block_content.body.push(TreeNode::new_inst(swapstack));
                         }
                         &Instruction_::Watchpoint { .. } |
                         &Instruction_::WPBranch { .. } |

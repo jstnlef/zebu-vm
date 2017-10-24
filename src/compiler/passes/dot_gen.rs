@@ -126,7 +126,7 @@ fn emit_muir_dot_inner(file: &mut File, f_name: MuName, f_content: &FunctionCont
             write!(
                 file,
                 "    {}\\l",
-                escape_string(format!("{}", inst.as_inst_ref()))
+                escape_string(format!("{}", inst.as_inst()))
             ).unwrap();
         }
 

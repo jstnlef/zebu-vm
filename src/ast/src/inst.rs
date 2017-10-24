@@ -22,7 +22,7 @@ use utils::vec_utils;
 use std::fmt;
 
 /// Instruction represents a Mu instruction
-#[derive(Debug)] // this implements Clone and Display
+#[derive(Debug, Clone)] // this implements Display
 pub struct Instruction {
     pub hdr: MuEntityHeader,
     /// the values this instruction holds
@@ -37,17 +37,6 @@ pub struct Instruction {
 
 // Instruction implements MuEntity
 impl_mu_entity!(Instruction);
-
-impl Clone for Instruction {
-    fn clone(&self) -> Self {
-        Instruction {
-            hdr: self.hdr.clone(),
-            value: self.value.clone(),
-            ops: self.ops.clone(),
-            v: self.v.clone()
-        }
-    }
-}
 
 impl Instruction {
     pub fn clone_with_id(&self, new_id: MuID) -> Instruction {

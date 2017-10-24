@@ -194,6 +194,15 @@ impl MuType {
         }
     }
 
+    /// is this type an integer type of certain width
+    pub fn is_int_n(&self, n: usize) -> bool {
+        if let Some(width) = self.get_int_length() {
+            width == n
+        } else {
+            false
+        }
+    }
+
     /// is this type a floating point type? (float/double)
     pub fn is_fp(&self) -> bool {
         match self.v {
