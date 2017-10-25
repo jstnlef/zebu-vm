@@ -62,6 +62,12 @@ impl HeapDump {
         heap
     }
 
+    #[cfg(feature = "use-sidemap")]
+    fn persist_object(&self, obj: Address) -> ObjectDump {
+        unimplemented!()
+    }
+
+    #[cfg(not(feature = "use-sidemap"))]
     fn persist_object(&self, obj: Address) -> ObjectDump {
         trace!("dump object: {}", obj);
         let hdr_addr = obj + objectmodel::OBJECT_HEADER_OFFSET;

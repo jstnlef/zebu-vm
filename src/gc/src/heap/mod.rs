@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use utils::Address;
-use utils::POINTER_SIZE;
+use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
+use utils::bit_utils;
 use std::sync::atomic::AtomicUsize;
 
 use objectmodel;
@@ -54,12 +55,13 @@ pub trait Space {
             return false;
         }
 
-        let index = (addr.diff(start) >> LOG_POINTER_SIZE) as isize;
+        let index = ((addr - start) >> LOG_POINTER_SIZE) as isize;
 
         // use side map
         if !bit_utils::test_nth_bit_u8(
             unsafe { *self.alloc_map().offset(index) },
-            objectmodel::OBJ_START_BIT
+            objectmodel::OBJ_START_BIT,
+            1
         ) {
             return false;
         }

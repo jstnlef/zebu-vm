@@ -24,6 +24,7 @@ use MY_GC;
 
 use utils::{Address, ObjectReference};
 use utils::POINTER_SIZE;
+use utils::bit_utils;
 
 use std::sync::atomic::{AtomicIsize, AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Condvar, RwLock};
@@ -446,7 +447,7 @@ pub fn steal_trace_object(
         let value = objectmodel::get_ref_byte(alloc_map, space_start, obj);
         let (ref_bits, short_encode) = (
             bit_utils::lower_bits_u8(value, objectmodel::REF_BITS_LEN),
-            bit_utils::test_nth_bit_u8(value, objectmodel::SHORT_ENCODE_BIT)
+            bit_utils::test_nth_bit_u8(value, objectmodel::SHORT_ENCODE_BIT, 1)
         );
         match ref_bits {
             0b0000_0000 => {}
@@ -528,7 +529,7 @@ pub fn steal_trace_object(
         if short_encode {
             return;
         } else {
-            base = base.plus(objectmodel::REF_BITS_LEN * POINTER_SIZE);
+            base += objectmodel::REF_BITS_LEN * POINTER_SIZE;
         }
     }
 }
@@ -737,7 +738,7 @@ pub fn steal_process_edge(
     immix_space: &ImmixSpace,
     lo_space: &FreeListSpace
 ) {
-    let field_addr = base.plus(offset);
+    let field_addr = base + offset;
     let edge = unsafe { field_addr.load::<ObjectReference>() };
 
     if cfg!(debug_assertions) {

@@ -76,6 +76,20 @@ pub use self::sidemap::mark_as_untraced;
 #[cfg(feature = "use-sidemap")]
 pub use self::sidemap::is_traced;
 #[cfg(feature = "use-sidemap")]
+pub use self::sidemap::header_is_fix_size;
+#[cfg(feature = "use-sidemap")]
+pub use self::sidemap::header_has_ref_map;
+#[cfg(feature = "use-sidemap")]
+pub use self::sidemap::header_is_object_start;
+#[cfg(feature = "use-sidemap")]
+pub use self::sidemap::header_get_gctype_id;
+#[cfg(feature = "use-sidemap")]
+pub use self::sidemap::header_get_ref_map;
+#[cfg(feature = "use-sidemap")]
+pub use self::sidemap::header_get_object_size;
+#[cfg(feature = "use-sidemap")]
+pub use self::sidemap::header_get_hybrid_length;
+#[cfg(feature = "use-sidemap")]
 pub use self::sidemap::get_ref_byte;
 
 // --- header ----
