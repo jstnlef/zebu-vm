@@ -23,6 +23,7 @@ extern crate mu_gc as gc;
 extern crate mu_utils as utils;
 extern crate time;
 
+use self::gc::start_logging_trace;
 use self::gc::heap;
 use self::gc::heap::immix::ImmixMutatorLocal;
 use self::gc::heap::immix::ImmixSpace;
@@ -34,15 +35,6 @@ use std::mem::size_of;
 use std::sync::atomic::Ordering;
 
 extern crate log;
-extern crate simple_logger;
-use self::log::LogLevel;
-pub fn start_logging() {
-
-    match simple_logger::init_with_level(LogLevel::Trace) {
-        Ok(_) => {}
-        Err(_) => {}
-    }
-}
 
 const IMMIX_SPACE_SIZE: usize = 40 << 20;
 const LO_SPACE_SIZE: usize = 40 << 20;
@@ -171,7 +163,7 @@ fn start() {
         heap::gc::set_low_water_mark();
     }
 
-    start_logging();
+    start_logging_trace();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1, true);
     gc::print_gc_context();

@@ -106,6 +106,8 @@ pub struct SmallObjectEncode {
     w: u16
 }
 
+pub const SMALL_ID_WIDTH: usize = 13;
+
 impl SmallObjectEncode {
     #[inline(always)]
     pub fn is_small(self) -> bool {
@@ -114,13 +116,13 @@ impl SmallObjectEncode {
     #[inline(always)]
     pub fn size(self) -> usize {
         debug_assert!(self.is_small());
-        let size = ((self.w >> 13) & 0b11u16) << 3;
+        let size = ((self.w >> SMALL_ID_WIDTH) & 0b11u16) << 3;
         (32 + size) as usize
     }
     #[inline(always)]
     pub fn type_id(self) -> TypeID {
         debug_assert!(self.is_small());
-        (self.w & 0b0001111111111111u16) as u32
+        (self.w & (1u16 << (SMALL_ID_WIDTH + 1) - 1)) as usize
     }
 }
 
@@ -193,7 +195,7 @@ impl MediumObjectEncode {
     #[inline(always)]
     pub fn type_id(self) -> TypeID {
         debug_assert!(self.is_medium());
-        self.d >> 8
+        (self.d >> 8) as usize
     }
 }
 
@@ -247,7 +249,7 @@ mod medium_object_encoding {
 pub struct LargeObjectEncode {
     size: u64,
     tyid: u32,
-    unused: u32
+    hybrid_len: u32
 }
 
 impl LargeObjectEncode {
@@ -257,7 +259,11 @@ impl LargeObjectEncode {
     }
     #[inline(always)]
     pub fn type_id(self) -> TypeID {
-        self.tyid
+        self.tyid as usize
+    }
+    #[inline(always)]
+    pub fn hybrid_len(self) -> usize {
+        self.hybrid_len as usize
     }
 }
 

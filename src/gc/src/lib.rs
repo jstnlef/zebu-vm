@@ -74,7 +74,7 @@ extern crate mu_utils as utils;
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate simple_logger;
+extern crate stderrlog;
 extern crate aligned_alloc;
 extern crate crossbeam;
 #[macro_use]
@@ -447,5 +447,17 @@ pub extern "C" fn get_gc_type_encode(id: u32) -> u64 {
         objectmodel::gen_hybrid_gctype_encode(gctype, 0) // fake length
     } else {
         objectmodel::gen_gctype_encode(gctype)
+    }
+}
+
+pub fn start_logging_trace() {
+    match stderrlog::new().verbosity(4).init() {
+        Ok(()) => { info!("logger initialized") }
+        Err(e) => {
+            error!(
+                "failed to init logger, probably already initialized: {:?}",
+                e
+            )
+        }
     }
 }

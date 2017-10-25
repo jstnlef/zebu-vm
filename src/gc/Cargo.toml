@@ -35,7 +35,7 @@ mu_utils = {path = "../utils"}
 time = "*"
 lazy_static = "*"
 log = "*"
-simple_logger = "*"
+stderrlog = "*"
 aligned_alloc = "*"
 crossbeam = "*"
 field-offset = "*"

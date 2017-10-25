@@ -93,10 +93,13 @@ pub const MINIMAL_OBJECT_SIZE: ByteSize = 16;
 pub const OBJECT_HEADER_SIZE: ByteSize = 0;
 pub const OBJECT_HEADER_OFFSET: ByteOffset = 0;
 
-pub type TypeID = u32;
+/// Type ID (but we never use more than 23 bits of it)
+pub type TypeID = usize;
+pub const N_TYPES: usize = 1 << 23;
 
 pub mod object_encode;
 pub mod type_encode;
+pub mod global_type_table;
 
 #[inline(always)]
 pub fn header_is_object_start(hdr: u64) -> bool {

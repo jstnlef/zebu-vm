@@ -14,22 +14,14 @@
 
 extern crate mu_gc as gc;
 extern crate mu_utils as utils;
-extern crate simple_logger;
 extern crate log;
 
+use self::gc::start_logging_trace;
 use self::log::LogLevel;
 use self::gc::heap;
 use self::gc::objectmodel;
 use self::utils::Address;
 use std::sync::atomic::Ordering;
-
-pub fn start_logging() {
-
-    match simple_logger::init_with_level(LogLevel::Trace) {
-        Ok(_) => {}
-        Err(_) => {}
-    }
-}
 
 const OBJECT_SIZE: usize = 24;
 const OBJECT_ALIGN: usize = 8;
@@ -105,7 +97,7 @@ fn test_exhaust_alloc_large() {
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
     let mut mutator = gc::new_mutator();
 
-    start_logging();
+    start_logging_trace();
 
     for _ in 0..WORK_LOAD {
         mutator.yieldpoint();
@@ -126,7 +118,7 @@ fn test_alloc_large_lo_trigger_gc() {
     gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8, true);
     let mut mutator = gc::new_mutator();
 
-    start_logging();
+    start_logging_trace();
 
     for _ in 0..WORK_LOAD {
         mutator.yieldpoint();
@@ -149,7 +141,7 @@ fn test_alloc_large_both_trigger_gc() {
     gc::gc_init(SMALL_SPACE_SIZE, 4096 * 10, 8, true);
     let mut mutator = gc::new_mutator();
 
-    start_logging();
+    start_logging_trace();
 
     // this will exhaust the lo space
     for _ in 0..10 {

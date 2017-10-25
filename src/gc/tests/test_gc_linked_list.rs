@@ -15,19 +15,9 @@
 extern crate mu_gc as gc;
 extern crate mu_utils as utils;
 
+use self::gc::start_logging_trace;
 use std::ptr;
-extern crate simple_logger;
-extern crate log;
-use self::log::LogLevel;
-
 use std::fmt;
-
-pub fn start_logging() {
-    match simple_logger::init_with_level(LogLevel::Trace) {
-        Ok(_) => {}
-        Err(_) => {}
-    }
-}
 
 #[derive(Copy, Clone)]
 struct Node {
@@ -173,7 +163,7 @@ fn create_linked_list() {
         heap::gc::set_low_water_mark();
     }
 
-    start_logging();
+    start_logging_trace();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1, true);
     gc::print_gc_context();
@@ -203,7 +193,7 @@ fn linked_list_heap_dump() {
         heap::gc::set_low_water_mark();
     }
 
-    start_logging();
+    start_logging_trace();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1, true);
     gc::print_gc_context();
@@ -242,7 +232,7 @@ fn linked_list_survive_gc() {
         heap::gc::set_low_water_mark();
     }
 
-    start_logging();
+    start_logging_trace();
 
     gc::gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 1, true);
     gc::print_gc_context();

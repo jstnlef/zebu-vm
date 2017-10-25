@@ -38,6 +38,14 @@ pub struct TypeEncode {
 }
 
 impl TypeEncode {
+    pub fn new(fix_len: u8, fix_ty: [u8; 63], var_len: u8, var_ty: [u8; 63]) -> TypeEncode {
+        TypeEncode {
+            fix_len,
+            fix_ty,
+            var_len,
+            var_ty
+        }
+    }
     #[inline(always)]
     pub fn fix_len(&self) -> u8 {
         self.fix_len
