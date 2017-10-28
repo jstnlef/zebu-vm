@@ -81,6 +81,8 @@
 
 use std::sync::atomic;
 use common::gctype::GCType;
+use heap::SpaceDescriptor;
+use heap::immix::*;
 use utils::{Address, ObjectReference};
 use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
 use utils::bit_utils;
@@ -97,49 +99,13 @@ pub const OBJECT_HEADER_OFFSET: ByteOffset = 0;
 pub type TypeID = usize;
 pub const N_TYPES: usize = 1 << 23;
 
-pub mod object_encode;
-pub mod type_encode;
-pub mod global_type_table;
+mod object_encode;
+mod type_encode;
+mod global_type_table;
 
-#[inline(always)]
-pub fn header_is_object_start(hdr: u64) -> bool {
-    unimplemented!()
-}
-
-#[inline(always)]
-pub fn header_is_fix_size(hdr: u64) -> bool {
-    unimplemented!()
-}
-
-#[inline(always)]
-pub fn header_is_traced(hdr: u64, mark_state: u8) -> bool {
-    unimplemented!()
-}
-
-#[inline(always)]
-pub fn header_has_ref_map(hdr: u64) -> bool {
-    unimplemented!()
-}
-
-#[inline(always)]
-pub fn header_get_ref_map(hdr: u64) -> u32 {
-    unimplemented!()
-}
-
-#[inline(always)]
-pub fn header_get_hybrid_length(hdr: u64) -> u32 {
-    unimplemented!()
-}
-
-#[inline(always)]
-pub fn header_get_gctype_id(hdr: u64) -> u32 {
-    unimplemented!()
-}
-
-#[inline(always)]
-pub fn header_get_object_size(hdr: u64) -> u32 {
-    unimplemented!()
-}
+pub use objectmodel::sidemap::object_encode::*;
+pub use objectmodel::sidemap::type_encode::*;
+pub use objectmodel::sidemap::global_type_table::*;
 
 pub fn gen_gctype_encode(ty: &GCType) -> u64 {
     unimplemented!()
@@ -151,128 +117,5 @@ pub fn gen_hybrid_gctype_encode(ty: &GCType, length: u32) -> u64 {
 
 #[allow(unused_variables)]
 pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, alloc_map: *mut u8) {
-    let mut cursor = obj;
-    trace!("OBJECT 0x{:x}", obj);
-    loop {
-        let hdr = get_ref_byte(
-            alloc_map,
-            space_start,
-            unsafe { cursor.to_object_reference() }
-        );
-        let (ref_bits, short_encode) = (
-            bit_utils::lower_bits_u8(hdr, REF_BITS_LEN),
-            bit_utils::test_nth_bit_u8(hdr, SHORT_ENCODE_BIT, 1)
-        );
-
-        trace!(
-            "0x{:x} | val: 0x{:15x} | {}, hdr: {:b}",
-            cursor,
-            unsafe { cursor.load::<u64>() },
-            interpret_hdr_for_print_object(hdr, 0),
-            hdr
-        );
-        cursor += POINTER_SIZE;
-        trace!(
-            "0x{:x} | val: 0x{:15x} | {}",
-            cursor,
-            unsafe { cursor.load::<u64>() },
-            interpret_hdr_for_print_object(hdr, 1)
-        );
-
-        cursor += POINTER_SIZE;
-        trace!(
-            "0x{:x} | val: 0x{:15x} | {}",
-            cursor,
-            unsafe { cursor.load::<u64>() },
-            interpret_hdr_for_print_object(hdr, 2)
-        );
-
-        cursor += POINTER_SIZE;
-        trace!(
-            "0x{:x} | val: 0x{:15x} | {}",
-            cursor,
-            unsafe { cursor.load::<u64>() },
-            interpret_hdr_for_print_object(hdr, 3)
-        );
-
-        cursor += POINTER_SIZE;
-        trace!(
-            "0x{:x} | val: 0x{:15x} | {}",
-            cursor,
-            unsafe { cursor.load::<u64>() },
-            interpret_hdr_for_print_object(hdr, 4)
-        );
-
-        cursor += POINTER_SIZE;
-        trace!("0x{:x} | val: 0x{:15x} | {} {}",
-               cursor, unsafe{cursor.load::<u64>()}, interpret_hdr_for_print_object(hdr, 5),
-               {
-                   if !short_encode {
-                       "MORE..."
-                   } else {
-                       ""
-                   }
-               });
-
-        if short_encode {
-            return;
-        }
-    }
-}
-
-// index between 0 and 5
-fn interpret_hdr_for_print_object(hdr: u8, index: usize) -> &'static str {
-    if bit_utils::test_nth_bit_u8(hdr, index, 1) {
-        "REF    "
-    } else {
-        "NON-REF"
-    }
-}
-
-#[inline(always)]
-pub fn mark_as_traced(
-    trace_map: *mut u8,
-    space_start: Address,
-    obj: ObjectReference,
-    mark_state: u8
-) {
-    unsafe {
-        *trace_map.offset(
-            ((obj.to_address() - space_start) >> LOG_POINTER_SIZE) as isize
-        ) = mark_state;
-    }
-}
-
-#[inline(always)]
-pub fn mark_as_untraced(trace_map: *mut u8, space_start: Address, addr: Address, mark_state: u8) {
-    unsafe {
-        *trace_map.offset(((addr - space_start) >> LOG_POINTER_SIZE) as isize) = mark_state ^ 1;
-    }
-}
-
-#[inline(always)]
-pub fn is_traced(
-    trace_map: *mut u8,
-    space_start: Address,
-    obj: ObjectReference,
-    mark_state: u8
-) -> bool {
-    unsafe {
-        (*trace_map.offset(
-            ((obj.to_address() - space_start) >> LOG_POINTER_SIZE) as isize
-        )) == mark_state
-    }
-}
-
-pub const REF_BITS_LEN: usize = 6;
-pub const OBJ_START_BIT: usize = 6;
-pub const SHORT_ENCODE_BIT: usize = 7;
-
-#[inline(always)]
-pub fn get_ref_byte(alloc_map: *mut u8, space_start: Address, obj: ObjectReference) -> u8 {
-    unsafe {
-        *alloc_map.offset(
-            ((obj.to_address() - space_start) >> LOG_POINTER_SIZE) as isize
-        )
-    }
+    unimplemented!()
 }

@@ -15,6 +15,7 @@
 mod bitmap;
 mod address_bitmap;
 mod address_map;
+pub mod ptr;
 pub mod gctype;
 pub mod objectdump;
 

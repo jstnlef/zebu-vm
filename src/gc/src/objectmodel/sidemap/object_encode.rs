@@ -23,6 +23,10 @@ use utils::bit_utils;
 use utils::{ByteSize, ByteOffset};
 use std::mem::transmute;
 
+pub const MAX_TINY_OBJECT: ByteSize = 32;
+pub const MAX_SMALL_OBJECT: ByteSize = 64;
+pub const MAX_MEDIUM_OBJECT: ByteSize = 2048;
+
 /// Tiny object encoding - [16, 32) bytes
 /// Stored in a tiny object space - by address, we can know it is a tiny object
 /// hi         lo
@@ -37,6 +41,10 @@ pub struct TinyObjectEncode {
 }
 impl TinyObjectEncode {
     #[inline(always)]
+    pub fn new(b: u8) -> TinyObjectEncode {
+        TinyObjectEncode { b }
+    }
+    #[inline(always)]
     pub fn size(self) -> usize {
         let size = ((self.b >> 7) & 0b1u8) << 3;
         (16 + size) as usize
@@ -47,18 +55,8 @@ impl TinyObjectEncode {
         (2 + n) as usize
     }
     #[inline(always)]
-    pub fn field_0(self) -> WordType {
-        let f = self.b & 0b11u8;
-        unsafe { transmute(f) }
-    }
-    #[inline(always)]
-    pub fn field_1(self) -> WordType {
-        let f = (self.b >> 2) & 0b11u8;
-        unsafe { transmute(f) }
-    }
-    #[inline(always)]
-    pub fn field_2(self) -> WordType {
-        let f = (self.b >> 4) & 0b11u8;
+    pub fn field(self, i: usize) -> WordType {
+        let f = self.b & (0b11u8 << (i << 1));
         unsafe { transmute(f) }
     }
 }
@@ -83,13 +81,13 @@ mod tiny_object_encoding {
     #[test]
     fn fields() {
         assert_eq!(encode1.n_fields(), 3);
-        assert_eq!(encode1.field_0(), WordType::Ref);
-        assert_eq!(encode1.field_1(), WordType::WeakRef);
-        assert_eq!(encode1.field_2(), WordType::TaggedRef);
+        assert_eq!(encode1.field(0), WordType::Ref);
+        assert_eq!(encode1.field(1), WordType::WeakRef);
+        assert_eq!(encode1.field(2), WordType::TaggedRef);
 
         assert_eq!(encode2.n_fields(), 2);
-        assert_eq!(encode2.field_0(), WordType::NonRef);
-        assert_eq!(encode2.field_1(), WordType::WeakRef);
+        assert_eq!(encode2.field(0), WordType::NonRef);
+        assert_eq!(encode2.field(1), WordType::WeakRef);
     }
 }
 

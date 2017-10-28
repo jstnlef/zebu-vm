@@ -11,6 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use utils::Address;
+use heap::gc;
+use heap::immix;
+use heap::Mutator;
 
 mod malloc_list;
 mod treadmill;
@@ -19,15 +23,12 @@ mod treadmill;
 pub use heap::freelist::treadmill::FreeListSpace;
 
 use std::sync::Arc;
-use heap::gc;
-use utils::Address;
-use heap::immix;
 
 #[inline(never)]
 pub fn alloc_large(
     size: usize,
     align: usize,
-    mutator: &mut immix::ImmixMutatorLocal,
+    mutator: &mut Mutator,
     space: Arc<FreeListSpace>
 ) -> Address {
     loop {

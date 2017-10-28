@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod test_gc_harness;
-mod test_gcbench;
-mod test_gc_linked_list;
+#[macro_use]
+extern crate log;
+
+mod test_gc_harness;
+//mod test_gcbench;
+//mod test_gc_linked_list;

@@ -14,12 +14,12 @@
 
 #![allow(dead_code)]
 use std;
+use std::u32;
 use std::sync::Arc;
 use utils::POINTER_SIZE;
 use utils::ByteSize;
 use utils::math::align_up;
 use objectmodel;
-use std::u32;
 pub const GCTYPE_INIT_ID: u32 = u32::MAX;
 
 // Id has size less than the alignment of the others so it needs to go at the end

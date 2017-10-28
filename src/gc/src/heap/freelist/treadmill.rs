@@ -112,12 +112,7 @@ impl FreeListSpace {
     #[inline(always)]
     #[cfg(feature = "use-sidemap")]
     fn is_traced(&self, addr: Address, mark_state: u8) -> bool {
-        objectmodel::is_traced(
-            self.trace_map(),
-            self.start,
-            unsafe { addr.to_object_reference() },
-            mark_state
-        )
+        unimplemented!()
     }
 
     #[inline(always)]
@@ -236,13 +231,8 @@ impl Space for FreeListSpace {
     }
 
     #[inline(always)]
-    fn alloc_map(&self) -> *mut u8 {
-        self.alloc_map.ptr
-    }
-
-    #[inline(always)]
-    fn trace_map(&self) -> *mut u8 {
-        self.trace_map.ptr
+    fn is_valid_object(&self, addr: Address) -> bool {
+        true
     }
 }
 

@@ -12,18 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use heap::immix::MUTATORS;
-use heap::immix::N_MUTATORS;
-use heap::immix::ImmixMutatorLocal;
-use heap::immix::ImmixSpace;
+use heap::*;
+use heap::immix::*;
 use heap::freelist::FreeListSpace;
 use objectmodel;
+use objectmodel::sidemap::*;
 use common::gctype::*;
-use heap::Space;
 use MY_GC;
-
-use utils::{Address, ObjectReference};
-use utils::POINTER_SIZE;
+use utils::*;
 use utils::bit_utils;
 
 use std::sync::atomic::{AtomicIsize, AtomicBool, Ordering};
@@ -33,8 +29,8 @@ use crossbeam::sync::chase_lev::*;
 use std::sync::mpsc;
 use std::sync::mpsc::channel;
 use std::thread;
-
 use std::sync::atomic;
+use std::mem::transmute;
 
 lazy_static! {
     static ref STW_COND : Arc<(Mutex<usize>, Condvar)> = {
@@ -109,13 +105,10 @@ pub fn stack_scan() -> Vec<ObjectReference> {
     let gccontext_guard = MY_GC.read().unwrap();
     let gccontext = gccontext_guard.as_ref().unwrap();
 
-    let immix_space = gccontext.immix_space.clone();
-    let lo_space = gccontext.lo_space.clone();
-
     while cursor < low_water_mark {
         let value: Address = unsafe { cursor.load::<Address>() };
 
-        if immix_space.is_valid_object(value) || lo_space.is_valid_object(value) {
+        if gccontext.is_heap_object(value) {
             ret.push(unsafe { value.to_object_reference() });
         }
 
@@ -123,14 +116,13 @@ pub fn stack_scan() -> Vec<ObjectReference> {
     }
 
     let roots_from_stack = ret.len();
-
     let registers_count = unsafe { get_registers_count() };
     let registers = unsafe { get_registers() };
 
     for i in 0..registers_count {
         let value = unsafe { *registers.offset(i as isize) };
 
-        if immix_space.is_valid_object(value) || lo_space.is_valid_object(value) {
+        if gccontext.is_heap_object(value) {
             ret.push(unsafe { value.to_object_reference() });
         }
     }
@@ -147,7 +139,7 @@ pub fn stack_scan() -> Vec<ObjectReference> {
 }
 
 #[inline(never)]
-pub fn sync_barrier(mutator: &mut ImmixMutatorLocal) {
+pub fn sync_barrier(mutator: &mut Mutator) {
     let controller_id = CONTROLLER.compare_and_swap(-1, mutator.id() as isize, Ordering::SeqCst);
 
     trace!(
@@ -237,7 +229,7 @@ pub fn sync_barrier(mutator: &mut ImmixMutatorLocal) {
     }
 }
 
-fn block_current_thread(mutator: &mut ImmixMutatorLocal) {
+fn block_current_thread(mutator: &mut Mutator) {
     trace!("Mutator{} blocked", mutator.id());
 
     let &(ref lock, ref cvar) = &*STW_COND.clone();
@@ -275,9 +267,11 @@ fn gc() {
     {
         let gccontext_guard = MY_GC.read().unwrap();
         let gccontext = gccontext_guard.as_ref().unwrap();
-        let (immix_space, lo_space) = (&gccontext.immix_space, &gccontext.lo_space);
+        for obj in gccontext.roots.iter() {
+            roots.push(*obj);
+        }
 
-        start_trace(&mut roots, immix_space.clone(), lo_space.clone());
+        start_trace(&mut roots);
     }
 
     trace!("trace done");
@@ -287,11 +281,9 @@ fn gc() {
         let gccontext_guard = MY_GC.read().unwrap();
         let gccontext = gccontext_guard.as_ref().unwrap();
 
-        let ref immix_space = gccontext.immix_space;
-        immix_space.sweep();
-
-        let ref lo_space = gccontext.lo_space;
-        lo_space.sweep();
+        gccontext.immix_tiny.sweep();
+        gccontext.immix_normal.sweep();
+        gccontext.lo.sweep();
     }
 
     objectmodel::flip_mark_state();
@@ -303,11 +295,7 @@ pub static GC_THREADS: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 
 #[allow(unused_variables)]
 #[inline(never)]
-pub fn start_trace(
-    work_stack: &mut Vec<ObjectReference>,
-    immix_space: Arc<ImmixSpace>,
-    lo_space: Arc<FreeListSpace>
-) {
+pub fn start_trace(work_stack: &mut Vec<ObjectReference>) {
     // creates root deque
     let (worker, stealer) = deque();
 
@@ -320,13 +308,9 @@ pub fn start_trace(
 
         let mut gc_threads = vec![];
         for _ in 0..GC_THREADS.load(atomic::Ordering::SeqCst) {
-            let new_immix_space = immix_space.clone();
-            let new_lo_space = lo_space.clone();
             let new_stealer = stealer.clone();
             let new_sender = sender.clone();
-            let t = thread::spawn(move || {
-                start_steal_trace(new_stealer, new_sender, new_immix_space, new_lo_space);
-            });
+            let t = thread::spawn(move || { start_steal_trace(new_stealer, new_sender); });
             gc_threads.push(t);
         }
 
@@ -349,12 +333,7 @@ pub fn start_trace(
 }
 
 #[allow(unused_variables)]
-fn start_steal_trace(
-    stealer: Stealer<ObjectReference>,
-    job_sender: mpsc::Sender<ObjectReference>,
-    immix_space: Arc<ImmixSpace>,
-    lo_space: Arc<FreeListSpace>
-) {
+fn start_steal_trace(stealer: Stealer<ObjectReference>, job_sender: mpsc::Sender<ObjectReference>) {
     use objectmodel;
 
     let mut local_queue = vec![];
@@ -374,14 +353,7 @@ fn start_steal_trace(
             }
         };
 
-        steal_trace_object(
-            work,
-            &mut local_queue,
-            &job_sender,
-            mark_state,
-            &immix_space,
-            &lo_space
-        );
+        steal_trace_object(work, &mut local_queue, &job_sender, mark_state);
     }
 }
 
@@ -391,146 +363,119 @@ pub fn steal_trace_object(
     obj: ObjectReference,
     local_queue: &mut Vec<ObjectReference>,
     job_sender: &mpsc::Sender<ObjectReference>,
-    mark_state: u8,
-    immix_space: &ImmixSpace,
-    lo_space: &FreeListSpace
+    mark_state: u8
 ) {
-    if cfg!(debug_assertions) {
-        // check if this object in within the heap, if it is an object
-        if !immix_space.is_valid_object(obj.to_address()) &&
-            !lo_space.is_valid_object(obj.to_address())
-        {
-            use std::process;
+    //    if cfg!(debug_assertions) {
+    //        // check if this object in within the heap, if it is an object
+    //        if !immix_space.is_valid_object(obj.to_address()) &&
+    //            !lo_space.is_valid_object(obj.to_address())
+    //        {
+    //            use std::process;
+    //
+    //            println!("trying to trace an object that is not valid");
+    //            println!("address: 0x{:x}", obj);
+    //            println!("---");
+    //            println!("immix space: {}", immix_space);
+    //            println!("lo space: {}", lo_space);
+    //
+    //            println!("invalid object during tracing");
+    //            process::exit(101);
+    //        }
+    //    }
 
-            println!("trying to trace an object that is not valid");
-            println!("address: 0x{:x}", obj);
-            println!("---");
-            println!("immix space: {}", immix_space);
-            println!("lo space: {}", lo_space);
+    match SpaceDescriptor::get(obj) {
+        SpaceDescriptor::ImmixTiny => {
+            // mark current object traced
+            immix::mark_object_traced(obj);
 
-            println!("invalid object during tracing");
-            process::exit(101);
+            let encode = unsafe {
+                ImmixBlock::get_type_map_slot_static(obj.to_address()).load::<TinyObjectEncode>()
+            };
+
+            for i in 0..encode.n_fields() {
+                trace_word(
+                    encode.field(i),
+                    obj,
+                    (i << LOG_POINTER_SIZE) as ByteOffset,
+                    local_queue,
+                    job_sender
+                )
+            }
         }
+        SpaceDescriptor::ImmixNormal => {
+            //mark current object traced
+            immix::mark_object_traced(obj);
+
+            // get type encode
+            let (type_encode, type_size): (&TypeEncode, ByteOffset) = {
+                let type_slot = ImmixBlock::get_type_map_slot_static(obj.to_address());
+                let encode = unsafe { type_slot.load::<MediumObjectEncode>() };
+                let (type_id, type_size) = if encode.is_medium() {
+                    (encode.type_id(), encode.size())
+                } else {
+                    let small_encode: &SmallObjectEncode = unsafe { transmute(&encode) };
+                    (small_encode.type_id(), encode.size())
+                };
+                (&GlobalTypeTable::table()[type_id], type_size as ByteOffset)
+            };
+
+            let mut offset: ByteOffset = 0;
+            for i in 0..type_encode.fix_len() {
+                trace_word(type_encode.fix_ty(i), obj, offset, local_queue, job_sender);
+                offset += POINTER_SIZE as ByteOffset;
+            }
+            // for variable part
+            while offset < type_size {
+                for i in 0..type_encode.var_len() {
+                    trace_word(type_encode.var_ty(i), obj, offset, local_queue, job_sender);
+                    offset += POINTER_SIZE as ByteOffset;
+                }
+            }
+        }
+        SpaceDescriptor::Freelist => unimplemented!()
     }
+}
 
-    let addr = obj.to_address();
+#[inline(always)]
+#[cfg(feature = "use-sidemap")]
+fn trace_word(
+    word_ty: WordType,
+    obj: ObjectReference,
+    offset: ByteOffset,
+    local_queue: &mut Vec<ObjectReference>,
+    job_sender: &mpsc::Sender<ObjectReference>
+) {
+    match word_ty {
+        WordType::NonRef => {}
+        WordType::Ref => {
+            let field_addr = obj.to_address() + offset;
+            let edge = unsafe { field_addr.load::<ObjectReference>() };
 
-    let (alloc_map, space_start) = if immix_space.addr_in_space(addr) {
-        // mark object
-        objectmodel::mark_as_traced(
-            immix_space.trace_map(),
-            immix_space.start(),
-            obj,
-            mark_state
-        );
+            match SpaceDescriptor::get(edge) {
+                SpaceDescriptor::ImmixTiny | SpaceDescriptor::ImmixNormal => {
+                    if !immix::is_object_traced(edge) {
+                        steal_process_edge(edge, local_queue, job_sender);
+                    }
+                }
+                SpaceDescriptor::Freelist => unimplemented!()
+            }
+        }
+        WordType::WeakRef => unimplemented!(),
+        WordType::TaggedRef => unimplemented!()
+    }
+}
 
-        // mark line
-        immix_space.line_mark_table.mark_line_live(addr);
-
-        (immix_space.alloc_map(), immix_space.start())
-    } else if lo_space.addr_in_space(addr) {
-        // mark object
-        objectmodel::mark_as_traced(lo_space.trace_map(), lo_space.start(), obj, mark_state);
-        trace!("mark object @ {} to {}", obj, mark_state);
-
-        (lo_space.alloc_map(), lo_space.start())
+#[inline(always)]
+#[cfg(feature = "use-sidemap")]
+fn steal_process_edge(
+    edge: ObjectReference,
+    local_queue: &mut Vec<ObjectReference>,
+    job_sender: &mpsc::Sender<ObjectReference>
+) {
+    if local_queue.len() >= PUSH_BACK_THRESHOLD {
+        job_sender.send(edge).unwrap();
     } else {
-        println!("unexpected address: {}", addr);
-        println!("immix space: {}", immix_space);
-        println!("lo space   : {}", lo_space);
-
-        panic!("error during tracing object")
-    };
-
-    let mut base = addr;
-    loop {
-        let value = objectmodel::get_ref_byte(alloc_map, space_start, obj);
-        let (ref_bits, short_encode) = (
-            bit_utils::lower_bits_u8(value, objectmodel::REF_BITS_LEN),
-            bit_utils::test_nth_bit_u8(value, objectmodel::SHORT_ENCODE_BIT, 1)
-        );
-        match ref_bits {
-            0b0000_0000 => {}
-            0b0000_0001 => {
-                steal_process_edge(
-                    base,
-                    0,
-                    local_queue,
-                    job_sender,
-                    mark_state,
-                    immix_space,
-                    lo_space
-                );
-            }
-            0b0000_0011 => {
-                steal_process_edge(
-                    base,
-                    0,
-                    local_queue,
-                    job_sender,
-                    mark_state,
-                    immix_space,
-                    lo_space
-                );
-                steal_process_edge(
-                    base,
-                    8,
-                    local_queue,
-                    job_sender,
-                    mark_state,
-                    immix_space,
-                    lo_space
-                );
-            }
-            0b0000_1111 => {
-                steal_process_edge(
-                    base,
-                    0,
-                    local_queue,
-                    job_sender,
-                    mark_state,
-                    immix_space,
-                    lo_space
-                );
-                steal_process_edge(
-                    base,
-                    8,
-                    local_queue,
-                    job_sender,
-                    mark_state,
-                    immix_space,
-                    lo_space
-                );
-                steal_process_edge(
-                    base,
-                    16,
-                    local_queue,
-                    job_sender,
-                    mark_state,
-                    immix_space,
-                    lo_space
-                );
-                steal_process_edge(
-                    base,
-                    24,
-                    local_queue,
-                    job_sender,
-                    mark_state,
-                    immix_space,
-                    lo_space
-                );
-            }
-            _ => {
-                error!("unexpected ref_bits patterns: {:b}", ref_bits);
-                unimplemented!()
-            }
-        }
-
-        if short_encode {
-            return;
-        } else {
-            base += objectmodel::REF_BITS_LEN * POINTER_SIZE;
-        }
+        local_queue.push(edge);
     }
 }
 
@@ -723,86 +668,6 @@ pub fn steal_trace_object(
                 immix_space,
                 lo_space
             );
-        }
-    }
-}
-
-#[inline(always)]
-#[cfg(feature = "use-sidemap")]
-pub fn steal_process_edge(
-    base: Address,
-    offset: usize,
-    local_queue: &mut Vec<ObjectReference>,
-    job_sender: &mpsc::Sender<ObjectReference>,
-    mark_state: u8,
-    immix_space: &ImmixSpace,
-    lo_space: &FreeListSpace
-) {
-    let field_addr = base + offset;
-    let edge = unsafe { field_addr.load::<ObjectReference>() };
-
-    if cfg!(debug_assertions) {
-        use std::process;
-        // check if this object in within the heap, if it is an object
-        if !edge.to_address().is_zero() && !immix_space.is_valid_object(edge.to_address()) &&
-            !lo_space.is_valid_object(edge.to_address())
-        {
-            println!("trying to follow an edge that is not a valid object");
-            println!("edge address: 0x{:x} from 0x{:x}", edge, field_addr);
-            println!("base address: 0x{:x}", base);
-            println!("---");
-            if immix_space.addr_in_space(base) {
-                objectmodel::print_object(
-                    base,
-                    immix_space.start(),
-                    immix_space.trace_map(),
-                    immix_space.alloc_map()
-                );
-                println!("---");
-                println!("immix space:{}", immix_space);
-            } else if lo_space.addr_in_space(base) {
-                objectmodel::print_object(
-                    base,
-                    lo_space.start(),
-                    lo_space.trace_map(),
-                    lo_space.alloc_map()
-                );
-                println!("---");
-                println!("lo space:{}", lo_space);
-            } else {
-                println!("not in immix/lo space")
-            }
-
-            println!("invalid object during tracing");
-            process::exit(101);
-        }
-    }
-
-    if !edge.to_address().is_zero() {
-        if immix_space.addr_in_space(edge.to_address()) &&
-            !objectmodel::is_traced(
-                immix_space.trace_map(),
-                immix_space.start(),
-                edge,
-                mark_state
-            ) {
-            if local_queue.len() >= PUSH_BACK_THRESHOLD {
-                job_sender.send(edge).unwrap();
-            } else {
-                local_queue.push(edge);
-            }
-        } else if lo_space.addr_in_space(edge.to_address()) &&
-                   !objectmodel::is_traced(
-                lo_space.trace_map(),
-                lo_space.start(),
-                edge,
-                mark_state
-            ) {
-            if local_queue.len() >= PUSH_BACK_THRESHOLD {
-                job_sender.send(edge).unwrap();
-            } else {
-                local_queue.push(edge);
-            }
         }
     }
 }

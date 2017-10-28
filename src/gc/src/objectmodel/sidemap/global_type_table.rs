@@ -44,7 +44,7 @@ use objectmodel::sidemap::object_encode::SMALL_ID_WIDTH;
 /// |________________|
 ///
 #[repr(C, packed)]
-struct GlobalTypeTable {
+pub struct GlobalTypeTable {
     /// current index for small entries
     small_entry_i: usize,
     /// current index for large entries
@@ -105,7 +105,7 @@ impl GlobalTypeTable {
     }
 
     #[inline(always)]
-    fn table() -> &'static mut [TypeEncode; N_TYPES] {
+    pub fn table() -> &'static mut [TypeEncode; N_TYPES] {
         unsafe { mem::transmute(global_type_table_ptr.load(Ordering::Relaxed)) }
     }
 
