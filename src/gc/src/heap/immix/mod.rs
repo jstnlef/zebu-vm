@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use utils::ByteSize;
-use utils::ByteOffset;
+use utils::*;
+use std::mem::size_of;
 
 mod immix_space;
 mod immix_mutator;
@@ -27,37 +27,66 @@ pub use self::immix_mutator::LIMIT_OFFSET;
 pub use self::immix_space::mark_object_traced;
 pub use self::immix_space::is_object_traced;
 
+// Immix space
+// |------------------| <- 16GB align
+// | metadata         |
+// | ...              | (64 KB)
+// |------------------|
+// | block mark table | (256 KB) - 256K blocks, 1 byte per block
+// |------------------|
+// | line mark table  | (64MB) - 64M lines, 1 byte per line
+// |------------------|
+// | gc byte table    | (1GB) - 1/16 of memory, 1 byte per 16 (min alignment/object size)
+// |------------------|
+// | type byte table  | (1GB) - 1/16 of memory, 1 byte per 16 (min alignment/object size)
+// |------------------|
+// | memory starts    |
+// | ......           |
+// | ......           |
+// |__________________|
+
+pub const IMMIX_SPACE_ALIGN: ByteSize = (1 << 34); // 16GB
+pub const IMMIX_SPACE_LOWBITS_MASK: usize = !(IMMIX_SPACE_ALIGN - 1);
+
+// preallocating 16 GB for immix space
+pub const LOG_BYTES_PREALLOC_IMMIX_SPACE: usize = 34;
+pub const BYTES_PREALLOC_IMMIX_SPACE: ByteSize = 1 << LOG_BYTES_PREALLOC_IMMIX_SPACE;
+
+// 64KB Immix Block
+pub const LOG_BYTES_IN_BLOCK: usize = 16;
+pub const BYTES_IN_BLOCK: ByteSize = 1 << LOG_BYTES_IN_BLOCK;
+
+// 256B Immix line
 pub const LOG_BYTES_IN_LINE: usize = 8;
 pub const BYTES_IN_LINE: ByteSize = (1 << LOG_BYTES_IN_LINE);
 
-pub const LOG_BYTES_IN_BLOCK: usize = 16;
-pub const BYTES_IN_BLOCK: ByteSize = (1 << LOG_BYTES_IN_BLOCK);
-/// size of metadata for block (should be the same as size_of::<ImmixBlock>())
-pub const BLOCK_META: ByteSize = 16;
-/// GC map immediately follows the meta data
-pub const OFFSET_GC_MAP_IN_BLOCK: ByteOffset = BLOCK_META as ByteOffset;
-/// GC map byte size
-pub const BYTES_GC_MAP_IN_BLOCK: ByteSize = (BYTES_IN_BLOCK - BLOCK_META) / 9 / 2;
-/// type map immediately follows the GC map
-pub const OFFSET_TYPE_MAP_IN_BLOCK: ByteOffset =
-    OFFSET_GC_MAP_IN_BLOCK + BYTES_GC_MAP_IN_BLOCK as isize;
-/// type map byte size
-pub const BYTES_TYPE_MAP_IN_BLOCK: ByteSize = BYTES_GC_MAP_IN_BLOCK;
-/// the memory start for actual use
-pub const OFFSET_MEMORY_START_IN_BLOCK: ByteOffset =
-    OFFSET_TYPE_MAP_IN_BLOCK + BYTES_TYPE_MAP_IN_BLOCK as isize;
-/// size of usable memory in a block
-pub const BYTES_MEM_IN_BLOCK: ByteSize =
-    BYTES_IN_BLOCK - BLOCK_META - BYTES_GC_MAP_IN_BLOCK - BYTES_TYPE_MAP_IN_BLOCK;
-/// how many lines are in block (227)
-pub const LINES_IN_BLOCK: usize =
-    (BYTES_IN_BLOCK - BLOCK_META - BYTES_GC_MAP_IN_BLOCK - BYTES_TYPE_MAP_IN_BLOCK) / BYTES_IN_LINE;
+// 256K blocks per space
+pub const BLOCKS_IN_SPACE: usize = 1 << (LOG_BYTES_PREALLOC_IMMIX_SPACE - LOG_BYTES_IN_BLOCK);
+// 64M lines per space
+pub const LINES_IN_SPACE: usize = 1 << (LOG_BYTES_PREALLOC_IMMIX_SPACE - LOG_BYTES_IN_LINE);
+// 2G words per space
+pub const WORDS_IN_SPACE: usize = 1 << (LOG_BYTES_PREALLOC_IMMIX_SPACE - LOG_POINTER_SIZE);
+// 256 lines per block
+pub const LINES_IN_BLOCK: usize = 1 << (LOG_BYTES_IN_BLOCK - LOG_BYTES_IN_LINE);
 
-pub const IMMIX_SPACE_ALIGN: ByteSize = (1 << 19); // 512K
-pub const IMMIX_SPACE_LOWBITS_MASK: usize = !(IMMIX_SPACE_ALIGN - 1);
+// 64KB space metadata (we do not need this much though, but for alignment, we use 64KB)
+pub const BYTES_META_SPACE: ByteSize = BYTES_IN_BLOCk;
+// 256KB block mark table (1 byte per block)
+pub const BYTES_META_BLOCK_MARK_TABLE: ByteSize = BLOCKS_IN_SPACE;
+// 64MB line mark table
+pub const BYTES_META_LINE_MARK_TABLE: ByteSize = LINES_IN_SPACE;
+// 1GB GC byte table
+pub const BYTES_META_GC_TABLE: ByteSize = WORDS_IN_SPACE >> 1;
+// 1GB TYPE byte table
+pub const BYTES_META_TYPE_TABLE: ByteSize = WORDS_IN_SPACE >> 2;
 
-pub const IMMIX_BLOCK_ALIGN: ByteSize = BYTES_IN_BLOCK; // 64K
-pub const IMMIX_BLOCK_LOWBITS_MASK: usize = !(IMMIX_BLOCK_ALIGN - 1);
+pub const OFFSET_META_BLOCK_MARK_TABLE: ByteOffset = BYTES_META_SPACE as ByteOffset;
+pub const OFFSET_META_LINE_MARK_TABLE: ByteOffset =
+    OFFSET_META_BLOCK_MARK_TABLE + BYTES_META_BLOCK_MARK_TABLE as ByteOffset;
+pub const OFFSET_META_GC_TABLE: ByteOffset =
+    OFFSET_META_LINE_MARK_TABLE + BYTES_META_LINE_MARK_TABLE as ByteOffset;
+pub const OFFSET_META_TYPE_TABLE: ByteOffset =
+    OFFSET_META_META_GC_TABLE + BYTES_META_GC_TABLE as ByteOffset;
 
 #[repr(u8)]
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]

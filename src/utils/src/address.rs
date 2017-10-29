@@ -126,6 +126,12 @@ impl Address {
         self + mem::size_of::<T>() as isize * offset
     }
 
+    /// bit ands the address with the usize
+    #[inline(always)]
+    pub fn mask(self, mask: usize) -> Address {
+        Address(self.0 & mask)
+    }
+
     /// loads a value of type T from the address
     #[inline(always)]
     pub unsafe fn load<T: Copy>(&self) -> T {
