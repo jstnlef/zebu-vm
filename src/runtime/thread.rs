@@ -99,7 +99,7 @@ pub struct MuStack {
 
     /// the Mmap that keeps this memory alive
     #[allow(dead_code)]
-    mmap: Option<memmap::Mmap>
+    mmap: Option<memmap::MmapMut>
 }
 lazy_static!{
     pub static ref MUSTACK_SP_OFFSET : usize =
@@ -109,16 +109,16 @@ impl MuStack {
     /// creates a new MuStack for given entry function and function address
     pub fn new(id: MuID, func_addr: Address, stack_arg_size: usize) -> MuStack {
         // allocate memory for the stack
-        let anon_mmap = {
+        let mut anon_mmap = {
             // reserve two guard pages more than we need for the stack
             let total_size = PAGE_SIZE * 2 + STACK_SIZE;
-            match memmap::Mmap::anonymous(total_size, memmap::Protection::ReadWrite) {
+            match memmap::MmapMut::map_anon(total_size) {
                 Ok(m) => m,
                 Err(_) => panic!("failed to mmap for a stack")
             }
         };
 
-        let mmap_start = Address::from_ptr(anon_mmap.ptr());
+        let mmap_start = Address::from_ptr(anon_mmap.as_mut_ptr());
         debug_assert!(mmap_start.is_aligned_to(PAGE_SIZE));
 
         // calculate the addresses
