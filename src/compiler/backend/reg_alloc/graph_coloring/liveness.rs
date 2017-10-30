@@ -39,7 +39,9 @@ pub struct Node {
     /// temp register group (which machine register class we should assign)
     group: backend::RegGroup,
     /// cost to spill this temp
-    spill_cost: f32
+    spill_cost: f32,
+    /// cost to freeze this temp
+    freeze_cost: f32
 }
 
 impl fmt::Debug for Node {
@@ -143,7 +145,8 @@ impl InterferenceGraph {
                 temp: reg_id,
                 color: None,
                 group: backend::RegGroup::get_from_ty(entry.ty()),
-                spill_cost: 0.0f32
+                spill_cost: 0.0f32,
+                freeze_cost: 0f32
             };
 
             self.nodes.insert(reg_id, node);
@@ -282,6 +285,16 @@ impl InterferenceGraph {
     /// gets the spill cost of a node
     pub fn get_spill_cost(&self, reg: MuID) -> f32 {
         self.nodes.get(&reg).unwrap().spill_cost
+    }
+
+    /// sets the freeze cost of a node
+    pub fn set_freeze_cost(&mut self, reg: MuID, cost: f32) {
+        self.nodes.get_mut(&reg).unwrap().freeze_cost = cost;
+    }
+
+    /// gets the freeze cost of a node
+    pub fn get_freeze_cost(&self, reg: MuID) -> f32 {
+        self.nodes.get(&reg).unwrap().freeze_cost
     }
 
     /// are two nodes the same node?
