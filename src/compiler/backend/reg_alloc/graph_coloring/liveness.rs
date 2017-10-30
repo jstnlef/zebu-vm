@@ -165,7 +165,7 @@ impl InterferenceGraph {
     fn spillcost_heuristic(ty: NodeType, loop_depth: usize) -> f32 {
         const DEF_WEIGHT: f32 = 1f32;
         const USE_WEIGHT: f32 = 1f32;
-        const COPY_WEIGHT: f32 = 1f32;
+        const COPY_WEIGHT: f32 = 2f32;
 
         let loop_depth = loop_depth as i32;
 
