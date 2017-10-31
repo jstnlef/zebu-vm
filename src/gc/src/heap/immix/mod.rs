@@ -14,7 +14,6 @@
 
 use utils::*;
 use heap::*;
-use std::mem::size_of;
 
 mod immix_space;
 mod immix_mutator;

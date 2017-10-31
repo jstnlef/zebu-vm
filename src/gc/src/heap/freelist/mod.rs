@@ -13,7 +13,6 @@
 // limitations under the License.
 use utils::Address;
 use heap::gc;
-use heap::immix;
 use heap::Mutator;
 
 mod malloc_list;

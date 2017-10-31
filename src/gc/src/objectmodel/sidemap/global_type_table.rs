@@ -55,18 +55,18 @@ const SMALL_ENTRY_CAP: usize = 1 << SMALL_ID_WIDTH;
 const LARGE_ENTRY_CAP: usize = N_TYPES;
 
 /// storing a pointer to the actual type table
-static global_type_table_ptr: AtomicUsize = ATOMIC_USIZE_INIT;
+static GLOBAL_TYPE_TABLE_PTR: AtomicUsize = ATOMIC_USIZE_INIT;
 /// storing a pointer to the metadata of the type table
-static global_type_table_meta: AtomicUsize = ATOMIC_USIZE_INIT;
+static GLOBAL_TYPE_TABLE_META: AtomicUsize = ATOMIC_USIZE_INIT;
 /// save Mmap to keep the memory map alive
 //  it is okay to use lock here, as we won't actually access this field
 lazy_static!{
-    static ref gtt_mmap: Mutex<Option<memmap::MmapMut>> = Mutex::new(None);
+    static ref GTT_MMAP: Mutex<Option<memmap::MmapMut>> = Mutex::new(None);
 }
 
 impl GlobalTypeTable {
     pub fn init() {
-        let mut mmap_lock = gtt_mmap.lock().unwrap();
+        let mut mmap_lock = GTT_MMAP.lock().unwrap();
         assert!(mmap_lock.is_none());
 
         let entry_size = mem::size_of::<TypeEncode>();
@@ -81,10 +81,10 @@ impl GlobalTypeTable {
 
         // start address of metadata
         let meta_addr = Address::from_ptr::<u8>(mmap.as_mut_ptr());
-        global_type_table_meta.store(meta_addr.as_usize(), Ordering::Relaxed);
+        GLOBAL_TYPE_TABLE_META.store(meta_addr.as_usize(), Ordering::Relaxed);
         // actual table
         let table_addr = meta_addr + metadata_size;
-        global_type_table_ptr.store(table_addr.as_usize(), Ordering::Relaxed);
+        GLOBAL_TYPE_TABLE_PTR.store(table_addr.as_usize(), Ordering::Relaxed);
 
         // initialize meta
         let meta: &mut GlobalTypeTable = unsafe { meta_addr.to_ptr_mut().as_mut().unwrap() };
@@ -98,12 +98,12 @@ impl GlobalTypeTable {
 
     #[inline(always)]
     fn table_meta() -> &'static mut GlobalTypeTable {
-        unsafe { mem::transmute(global_type_table_meta.load(Ordering::Relaxed)) }
+        unsafe { mem::transmute(GLOBAL_TYPE_TABLE_META.load(Ordering::Relaxed)) }
     }
 
     #[inline(always)]
     pub fn table() -> &'static mut [TypeEncode; N_TYPES] {
-        unsafe { mem::transmute(global_type_table_ptr.load(Ordering::Relaxed)) }
+        unsafe { mem::transmute(GLOBAL_TYPE_TABLE_PTR.load(Ordering::Relaxed)) }
     }
 
     pub fn insert_small_entry(entry: TypeEncode) -> TypeID {

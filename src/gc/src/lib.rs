@@ -87,14 +87,11 @@ use heap::*;
 use heap::immix::BYTES_IN_LINE;
 use heap::immix::ImmixSpace;
 use heap::immix::ImmixAllocator;
-use heap::freelist;
-use heap::freelist::FreeListSpace;
 use utils::LinkedHashSet;
 use utils::Address;
 use utils::ObjectReference;
 use objectmodel::sidemap::*;
 
-use std::fmt;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::Ordering;
@@ -328,6 +325,7 @@ pub extern "C" fn muentry_alloc_normal_slow(
 /// allocates an object in the freelist space (large object space)
 #[no_mangle]
 #[inline(never)]
+#[allow(unused_variables)]
 pub extern "C" fn muentry_alloc_large(
     mutator: *mut Mutator,
     size: usize,
@@ -371,10 +369,10 @@ pub extern "C" fn muentry_alloc_any(
 /// initializes a fix-sized object
 #[no_mangle]
 #[inline(always)]
-pub extern "C" fn muentry_init_tiny_object<T>(
+pub extern "C" fn muentry_init_tiny_object(
     mutator: *mut Mutator,
     obj: ObjectReference,
-    encode: T
+    encode: TinyObjectEncode
 ) {
     unsafe { &mut *mutator }
         .tiny

@@ -16,17 +16,10 @@ use heap::Mutator;
 use heap::immix::*;
 use heap::immix::ImmixSpace;
 use heap::immix::immix_space::ImmixBlock;
-use heap::gc;
 use objectmodel;
-use objectmodel::sidemap::*;
 use utils::Address;
 use utils::ByteSize;
-use common::ptr::*;
-
 use std::*;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 const TRACE_ALLOC: bool = false;
 
@@ -173,6 +166,7 @@ impl ImmixAllocator {
 
     #[inline(always)]
     #[cfg(feature = "use-sidemap")]
+    #[allow(unused_variables)]
     pub fn init_hybrid<T>(&mut self, addr: Address, encode: T, len: u64) {
         unimplemented!()
     }

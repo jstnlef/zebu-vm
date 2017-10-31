@@ -14,14 +14,8 @@
 
 use utils::Address;
 use utils::ByteSize;
-use utils::POINTER_SIZE;
-use common::gctype::*;
-
-use MY_GC;
-use objectmodel;
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 pub struct HeapDump {
     pub objects: HashMap<Address, ObjectDump>,
@@ -63,6 +57,7 @@ impl HeapDump {
     }
 
     #[cfg(feature = "use-sidemap")]
+    #[allow(unused_variables)]
     fn persist_object(&self, obj: Address) -> ObjectDump {
         unimplemented!()
     }

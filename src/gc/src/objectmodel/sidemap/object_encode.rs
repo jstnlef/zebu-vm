@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use common::gctype::GCType;
 use objectmodel::sidemap::TypeID;
 use objectmodel::sidemap::type_encode::WordType;
 
-use std::sync::atomic;
-use utils::{Address, ObjectReference};
-use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
-use utils::bit_utils;
-use utils::{ByteSize, ByteOffset};
+use utils::*;
 use std::mem::transmute;
 
 pub const MAX_TINY_OBJECT: ByteSize = 32;

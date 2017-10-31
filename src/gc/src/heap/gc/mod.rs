@@ -13,14 +13,9 @@
 // limitations under the License.
 
 use heap::*;
-use heap::immix::*;
-use heap::freelist::FreeListSpace;
 use objectmodel;
 use objectmodel::sidemap::*;
-use common::gctype::*;
 use MY_GC;
-use utils::*;
-use utils::bit_utils;
 
 use std::sync::atomic::{AtomicIsize, AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Condvar, RwLock};

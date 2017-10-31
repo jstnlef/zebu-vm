@@ -12,45 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use common::AddressMap;
 use common::ptr::*;
 use heap::*;
 use heap::immix::*;
 use heap::gc;
-use objectmodel::sidemap::*;
-use utils::*;
-use utils::mem::malloc_zero;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
 use std::*;
 use std::collections::LinkedList;
 use std::sync::Mutex;
-use std::sync::Arc;
 
 const TRACE_ALLOC: bool = true;
-
-#[repr(C, packed)]
-#[derive(Copy, Clone)]
-/// Every Immix block owns its own segment of the line mark table
-pub struct BlockLineMarkTable {
-    ptr: *mut LineMark
-}
-
-impl BlockLineMarkTable {
-    #[inline(always)]
-    pub fn get(&self, index: u8) -> LineMark {
-        unsafe { *self.ptr.offset(index as isize) }
-    }
-    #[inline(always)]
-    pub fn set(&mut self, index: u8, value: LineMark) {
-        unsafe { *self.ptr.offset(index as isize) = value };
-    }
-    #[inline(always)]
-    pub fn len(&self) -> u8 {
-        LINES_IN_BLOCK as u8
-    }
-}
 
 /// An ImmixSpace represents a memory area that is used for immix heap and also its meta data
 ///
@@ -232,7 +205,7 @@ impl ImmixSpace {
         let line_start = (cur_addr - self.mem_start()) >> LOG_BYTES_IN_LINE;
         let block_start = self.cur_blocks;
 
-        for i in 0..n_blocks {
+        for _ in 0..n_blocks {
             let block: Raw<ImmixBlock> = unsafe { Raw::from_addr(cur_addr) };
             // add to usable blocks
             lock.push_back(block);
@@ -401,7 +374,7 @@ impl ImmixSpace {
         let mut live_blocks: LinkedList<Raw<ImmixBlock>> = LinkedList::new();
 
         while !used_blocks_lock.is_empty() {
-            let mut block = used_blocks_lock.pop_front().unwrap();
+            let block = used_blocks_lock.pop_front().unwrap();
             let line_index = self.get_line_mark_index(block.mem_start());
             let block_index = self.get_block_mark_index(block.mem_start());
 

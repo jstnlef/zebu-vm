@@ -13,8 +13,6 @@
 // limitations under the License.
 
 use utils::*;
-use utils::bit_utils;
-use objectmodel;
 use common::ptr::*;
 use heap::immix::*;
 

@@ -79,15 +79,8 @@
 //!                  4 bytes - type ID
 //!                  4 bytes - unused
 
-use std::sync::atomic;
 use common::gctype::GCType;
-use heap::SpaceDescriptor;
-use heap::immix::*;
-use utils::{Address, ObjectReference};
-use utils::{LOG_POINTER_SIZE, POINTER_SIZE};
-use utils::bit_utils;
-use utils::{ByteSize, ByteOffset};
-use std::mem::transmute;
+use utils::*;
 
 pub const MINIMAL_ALIGNMENT: ByteSize = 16;
 pub const MINIMAL_OBJECT_SIZE: ByteSize = 16;
@@ -107,10 +100,12 @@ pub use objectmodel::sidemap::object_encode::*;
 pub use objectmodel::sidemap::type_encode::*;
 pub use objectmodel::sidemap::global_type_table::*;
 
+#[allow(unused_variables)]
 pub fn gen_gctype_encode(ty: &GCType) -> u64 {
     unimplemented!()
 }
 
+#[allow(unused_variables)]
 pub fn gen_hybrid_gctype_encode(ty: &GCType, length: u32) -> u64 {
     unimplemented!()
 }

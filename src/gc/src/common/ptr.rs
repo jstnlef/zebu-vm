@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use utils::Address;
-use utils::ByteSize;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::fmt;
