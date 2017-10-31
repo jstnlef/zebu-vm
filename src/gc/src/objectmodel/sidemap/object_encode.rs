@@ -30,7 +30,7 @@ pub const MAX_MEDIUM_OBJECT: ByteSize = 2048;
 /// u,  1 bit  - unused
 /// ri, 2 bits - ref encode for ith word
 #[repr(C, packed)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct TinyObjectEncode {
     b: u8
 }
@@ -94,7 +94,7 @@ mod tiny_object_encoding {
 /// sz, 2 bits - size encode (00: 32, 01:40, 10: 48, 11: 56)
 /// type_id, 13 bits - type id
 #[repr(C, packed)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SmallObjectEncode {
     w: u16
 }
@@ -169,7 +169,7 @@ mod small_object_encoding {
 /// type_id, 23 bits - type id
 /// size   , 8 bits  - size encode (sz -> 64 + sz * 8)
 #[repr(C, packed)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MediumObjectEncode {
     d: u32
 }
@@ -238,7 +238,7 @@ mod medium_object_encoding {
 /// Stored in a large object space - by address, we can know it is a large object
 /// Header is used for it
 #[repr(C, packed)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct LargeObjectEncode {
     size: u64,
     tyid: u32,

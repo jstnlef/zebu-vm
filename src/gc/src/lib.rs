@@ -87,9 +87,7 @@ use heap::*;
 use heap::immix::BYTES_IN_LINE;
 use heap::immix::ImmixSpace;
 use heap::immix::ImmixAllocator;
-use utils::LinkedHashSet;
-use utils::Address;
-use utils::ObjectReference;
+use utils::*;
 use objectmodel::sidemap::*;
 
 use std::sync::Arc;
@@ -133,57 +131,77 @@ pub use heap::Mutator;
 //pub use heap::immix::CURSOR_OFFSET as ALLOCATOR_CURSOR_OFFSET;
 /// offset to the immix allocator limit from its pointer
 //pub use heap::immix::LIMIT_OFFSET as ALLOCATOR_LIMIT_OFFSET;
+/// GC represents the context for the current running GC instance
+struct GC {
+    immix_tiny: Raw<ImmixSpace>,
+    immix_normal: Raw<ImmixSpace>,
+    //    lo: Arc<FreeListSpace>,
+    gc_types: Vec<Arc<GCType>>,
+    roots: LinkedHashSet<ObjectReference>
+}
+
+lazy_static! {
+    static ref MY_GC : RwLock<Option<GC>> = RwLock::new(None);
+}
+
+impl GC {
+    pub fn is_heap_object(&self, addr: Address) -> bool {
+        self.immix_tiny.addr_in_space(addr) || self.immix_normal.addr_in_space(addr)
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct GCConfig {
+    pub immix_tiny_size: ByteSize,
+    pub immix_normal_size: ByteSize,
+    pub lo_size: ByteSize,
+    pub n_gcthreads: usize,
+    pub enable_gc: bool
+}
 
 //  the implementation of this GC will be changed dramatically in the future,
 //  but the exposed interface is likely to stay the same.
 /// initializes the GC
 #[no_mangle]
-pub extern "C" fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize, enable_gc: bool) {
+pub extern "C" fn gc_init(config: GCConfig) {
     trace!("Initializing GC...");
     // init object model - init this first, since spaces may use it
     objectmodel::init();
 
-    // init space size
-    heap::IMMIX_SPACE_SIZE.store(immix_size, Ordering::SeqCst);
-    heap::LO_SPACE_SIZE.store(lo_size, Ordering::SeqCst);
-
+    // init spaces
     trace!("  initializing tiny immix space...");
-    let immix_tiny = ImmixSpace::new(SpaceDescriptor::ImmixTiny, immix_size >> 1);
+    let immix_tiny = ImmixSpace::new(SpaceDescriptor::ImmixTiny, config.immix_tiny_size);
     trace!("  initializing normal immix space...");
-    let immix_normal = ImmixSpace::new(SpaceDescriptor::ImmixNormal, immix_size >> 1);
+    let immix_normal = ImmixSpace::new(SpaceDescriptor::ImmixNormal, config.immix_normal_size);
     //    trace!("  initializing large object space...");
     //    let lo_space = Arc::new(FreeListSpace::new(lo_size));
 
-    heap::gc::init(n_gcthreads);
-
+    // init GC
+    heap::gc::init(config.n_gcthreads);
     *MY_GC.write().unwrap() = Some(GC {
         immix_tiny,
         immix_normal,
         gc_types: vec![],
         roots: LinkedHashSet::new()
     });
-
-    if enable_gc {
-        heap::gc::ENABLE_GC.store(true, Ordering::Relaxed);
-    } else {
-        heap::gc::ENABLE_GC.store(false, Ordering::Relaxed);
-    }
+    heap::gc::ENABLE_GC.store(config.enable_gc, Ordering::Relaxed);
 
     info!(
-        "heap is {} bytes (immix: {} bytes, lo: {} bytes) . ",
-        immix_size + lo_size,
-        immix_size,
-        lo_size
+        "heap is {} bytes (immix_tiny: {} bytes, immix_normal: {} bytes) . ",
+        config.immix_tiny_size + config.immix_normal_size,
+        config.immix_tiny_size,
+        config.immix_normal_size
     );
-    info!("{} gc threads", n_gcthreads);
-    if !enable_gc {
+    info!("{} gc threads", config.n_gcthreads);
+    if !config.enable_gc {
         warn!("GC disabled (panic when a collection is triggered)");
     }
 }
 
 /// destroys current GC instance
 #[no_mangle]
-pub extern "C" fn gc_destoy() {
+pub extern "C" fn gc_destroy() {
     *MY_GC.write().unwrap() = None;
 }
 
@@ -432,32 +450,7 @@ pub extern "C" fn persist_heap(roots: Vec<Address>) -> objectdump::HeapDump {
     objectdump::HeapDump::from_roots(roots)
 }
 
-/// GC represents the context for the current running GC instance
-struct GC {
-    immix_tiny: Raw<ImmixSpace>,
-    immix_normal: Raw<ImmixSpace>,
-    //    lo: Arc<FreeListSpace>,
-    gc_types: Vec<Arc<GCType>>,
-    roots: LinkedHashSet<ObjectReference>
-}
-
-lazy_static! {
-    static ref MY_GC : RwLock<Option<GC>> = RwLock::new(None);
-}
-
-impl GC {
-    pub fn is_heap_object(&self, addr: Address) -> bool {
-        self.immix_tiny.addr_in_space(addr) || self.immix_normal.addr_in_space(addr)
-    }
-}
-
 // the following API functions may get removed in the future
-
-/// prints current GC context for debugging
-#[no_mangle]
-pub extern "C" fn print_gc_context() {
-    println!("GC CONTEXT UNKNOWN");
-}
 
 /// gets immix space and freelist space
 #[no_mangle]

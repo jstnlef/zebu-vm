@@ -42,8 +42,8 @@ const NO_CONTROLLER: isize = -1;
 
 pub fn init(n_gcthreads: usize) {
     CONTROLLER.store(NO_CONTROLLER, Ordering::SeqCst);
-
     GC_THREADS.store(n_gcthreads, Ordering::SeqCst);
+    GC_COUNT.store(0, Ordering::SeqCst);
 }
 
 pub fn trigger_gc() {
@@ -167,19 +167,9 @@ pub fn sync_barrier(mutator: &mut Mutator) {
 
         // init roots
         {
-            let mut roots = ROOTS.write().unwrap();
-            // clear existing roots (roots from last gc)
-            roots.clear();
-
-            // add explicity roots
-            let gc = MY_GC.read().unwrap();
-            for objref in gc.as_ref().unwrap().roots.iter() {
-                roots.push(*objref);
-            }
-
             // scan its stack
             let mut thread_roots = stack_scan();
-            roots.append(&mut thread_roots);
+            ROOTS.write().unwrap().append(&mut thread_roots);
         }
 
         // wait for all mutators to be blocked
@@ -262,17 +252,18 @@ fn gc() {
 
     trace!("GC starts");
 
-    // creates root deque
-    let mut roots: &mut Vec<ObjectReference> = &mut ROOTS.write().unwrap();
-    trace!("total roots: {}", roots.len());
-
     // mark & trace
     {
+        // creates root deque
+        let mut roots: &mut Vec<ObjectReference> = &mut ROOTS.write().unwrap();
+
         let gccontext_guard = MY_GC.read().unwrap();
         let gccontext = gccontext_guard.as_ref().unwrap();
         for obj in gccontext.roots.iter() {
             roots.push(*obj);
         }
+
+        trace!("total roots: {}", roots.len());
 
         start_trace(&mut roots);
     }
@@ -290,11 +281,17 @@ fn gc() {
     }
 
     objectmodel::flip_mark_state();
+
+    // clear existing roots (roots from last gc)
+    ROOTS.write().unwrap().clear();
+
     trace!("GC finishes");
 }
 
 pub const PUSH_BACK_THRESHOLD: usize = 50;
 pub static GC_THREADS: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
+
+const TRACE_GC: bool = false;
 
 #[allow(unused_variables)]
 #[inline(never)]
@@ -310,7 +307,9 @@ pub fn start_trace(work_stack: &mut Vec<ObjectReference>) {
         let (sender, receiver) = channel::<ObjectReference>();
 
         let mut gc_threads = vec![];
-        for _ in 0..GC_THREADS.load(atomic::Ordering::SeqCst) {
+        let n_gcthreads = GC_THREADS.load(atomic::Ordering::SeqCst);
+        trace!("launching {} gc threads...", n_gcthreads);
+        for _ in 0..n_gcthreads {
             let new_stealer = stealer.clone();
             let new_sender = sender.clone();
             let t = thread::spawn(move || { start_steal_trace(new_stealer, new_sender); });
@@ -345,14 +344,18 @@ fn start_steal_trace(stealer: Stealer<ObjectReference>, job_sender: mpsc::Sender
     loop {
         let work = {
             if !local_queue.is_empty() {
-                local_queue.pop().unwrap()
+                let ret = local_queue.pop().unwrap();
+                trace_if!(TRACE_GC, "got object {} from local queue", ret);
+                ret
             } else {
                 let work = stealer.steal();
-                match work {
+                let ret = match work {
                     Steal::Empty => return,
                     Steal::Abort => continue,
                     Steal::Data(obj) => obj
-                }
+                };
+                trace_if!(TRACE_GC, "got object {} from global queue", ret);
+                ret
             }
         };
 
@@ -368,24 +371,6 @@ pub fn steal_trace_object(
     job_sender: &mpsc::Sender<ObjectReference>,
     mark_state: u8
 ) {
-    //    if cfg!(debug_assertions) {
-    //        // check if this object in within the heap, if it is an object
-    //        if !immix_space.is_valid_object(obj.to_address()) &&
-    //            !lo_space.is_valid_object(obj.to_address())
-    //        {
-    //            use std::process;
-    //
-    //            println!("trying to trace an object that is not valid");
-    //            println!("address: 0x{:x}", obj);
-    //            println!("---");
-    //            println!("immix space: {}", immix_space);
-    //            println!("lo space: {}", lo_space);
-    //
-    //            println!("invalid object during tracing");
-    //            process::exit(101);
-    //        }
-    //    }
-
     match SpaceDescriptor::get(obj) {
         SpaceDescriptor::ImmixTiny => {
             // mark current object traced
@@ -395,6 +380,7 @@ pub fn steal_trace_object(
                 ImmixSpace::get_type_byte_slot_static(obj.to_address()).load::<TinyObjectEncode>()
             };
 
+            trace_if!(TRACE_GC, "  trace tiny obj: {} ({:?})", obj, encode);
             for i in 0..encode.n_fields() {
                 trace_word(
                     encode.field(i),
@@ -448,11 +434,22 @@ fn trace_word(
     local_queue: &mut Vec<ObjectReference>,
     job_sender: &mpsc::Sender<ObjectReference>
 ) {
+    trace_if!(
+        TRACE_GC,
+        "  follow field (offset: {}) of {} with type {:?}",
+        offset,
+        obj,
+        word_ty
+    );
     match word_ty {
         WordType::NonRef => {}
         WordType::Ref => {
             let field_addr = obj.to_address() + offset;
             let edge = unsafe { field_addr.load::<ObjectReference>() };
+
+            if edge.to_address().is_zero() {
+                return;
+            }
 
             match SpaceDescriptor::get(edge) {
                 SpaceDescriptor::ImmixTiny | SpaceDescriptor::ImmixNormal => {

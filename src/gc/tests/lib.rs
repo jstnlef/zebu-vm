@@ -15,6 +15,6 @@
 #[macro_use]
 extern crate log;
 
-mod test_gc_harness;
+mod test_immix_tiny;
 //mod test_gcbench;
 //mod test_gc_linked_list;

@@ -29,13 +29,6 @@ pub const IMMIX_SPACE_RATIO: f64 = 1.0 - LO_SPACE_RATIO;
 pub const LO_SPACE_RATIO: f64 = 0.2;
 pub const DEFAULT_HEAP_SIZE: usize = 500 << 20;
 
-lazy_static! {
-    pub static ref IMMIX_SPACE_SIZE : AtomicUsize =
-        AtomicUsize::new( (DEFAULT_HEAP_SIZE as f64 * IMMIX_SPACE_RATIO) as usize );
-    pub static ref LO_SPACE_SIZE : AtomicUsize =
-        AtomicUsize::new( (DEFAULT_HEAP_SIZE as f64 * LO_SPACE_RATIO) as usize );
-}
-
 // preallocating 16 GB for space
 pub const LOG_BYTES_PREALLOC_SPACE: usize = 34;
 pub const BYTES_PREALLOC_SPACE: ByteSize = 1 << LOG_BYTES_PREALLOC_SPACE;

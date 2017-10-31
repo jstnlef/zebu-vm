@@ -152,7 +152,7 @@ impl ImmixSpace {
         space.cur_blocks = 0;
         trace!("    initialized cur_end/size/blocks");
 
-        space.total_blocks = BLOCKS_IN_SPACE;
+        space.total_blocks = space_size >> LOG_BYTES_IN_BLOCK;
         unsafe {
             // use ptr::write to avoid destruction of the old values
             use std::ptr;
@@ -319,7 +319,11 @@ impl ImmixSpace {
     #[allow(unreachable_code)]
     pub fn get_next_usable_block(&mut self) -> Option<Raw<ImmixBlock>> {
         if TRACE_ALLOC {
-            self.trace_details();
+            debug!(
+                "{} blocks usable, {} blocks used",
+                self.n_usable_blocks(),
+                self.n_used_blocks()
+            );
         }
         let new_block = self.usable_blocks.lock().unwrap().pop_front();
         match new_block {
@@ -361,79 +365,90 @@ impl ImmixSpace {
     #[allow(unused_variables)]
     #[allow(unused_assignments)]
     pub fn sweep(&mut self) {
+        debug_assert_eq!(
+            self.n_used_blocks() + self.n_usable_blocks(),
+            self.cur_blocks
+        );
+
         // some statistics
         let mut free_lines = 0;
         let mut used_lines = 0;
-        let mut usable_blocks = 0;
-        let mut full_blocks = 0;
 
-        let mut used_blocks_lock = self.used_blocks.lock().unwrap();
-        let mut usable_blocks_lock = self.usable_blocks.lock().unwrap();
-        usable_blocks = usable_blocks_lock.len();
+        {
+            let mut used_blocks_lock = self.used_blocks.lock().unwrap();
+            let mut usable_blocks_lock = self.usable_blocks.lock().unwrap();
 
-        let mut live_blocks: LinkedList<Raw<ImmixBlock>> = LinkedList::new();
+            let mut all_blocks: LinkedList<Raw<ImmixBlock>> = {
+                let mut ret = LinkedList::new();
+                ret.append(&mut used_blocks_lock);
+                ret.append(&mut usable_blocks_lock);
+                ret
+            };
+            debug_assert_eq!(all_blocks.len(), self.cur_blocks);
 
-        while !used_blocks_lock.is_empty() {
-            let block = used_blocks_lock.pop_front().unwrap();
-            let line_index = self.get_line_mark_index(block.mem_start());
-            let block_index = self.get_block_mark_index(block.mem_start());
+            while !all_blocks.is_empty() {
+                let block = all_blocks.pop_front().unwrap();
+                let line_index = self.get_line_mark_index(block.mem_start());
+                let block_index = self.get_block_mark_index(block.mem_start());
 
-            let mut has_free_lines = false;
-            // find free lines in the block, and set their line mark as free
-            // (not zeroing the memory yet)
+                let mut has_free_lines = false;
+                // find free lines in the block, and set their line mark as free
+                // (not zeroing the memory yet)
 
-            for i in line_index..(line_index + LINES_IN_BLOCK) {
-                if self.line_mark_table[i] != LineMark::Live &&
-                    self.line_mark_table[i] != LineMark::ConservLive
-                {
-                    has_free_lines = true;
-                    self.line_mark_table[i] = LineMark::Free;
-                    free_lines += 1;
-                } else {
-                    used_lines += 1;
+                for i in line_index..(line_index + LINES_IN_BLOCK) {
+                    if self.line_mark_table[i] != LineMark::Live &&
+                        self.line_mark_table[i] != LineMark::ConservLive
+                    {
+                        has_free_lines = true;
+                        self.line_mark_table[i] = LineMark::Free;
+                        free_lines += 1;
+                    } else {
+                        used_lines += 1;
+                    }
                 }
-            }
 
-            if has_free_lines {
-                self.block_mark_table[block_index] = BlockMark::Usable;
-                usable_blocks += 1;
-                usable_blocks_lock.push_front(block);
-            } else {
-                self.block_mark_table[block_index] = BlockMark::Full;
-                full_blocks += 1;
-                live_blocks.push_front(block);
+                if has_free_lines {
+                    trace!("Block {} is usable", block.addr());
+                    self.block_mark_table[block_index] = BlockMark::Usable;
+                    usable_blocks_lock.push_front(block);
+                } else {
+                    trace!("Block {} is full", block.addr());
+                    self.block_mark_table[block_index] = BlockMark::Full;
+                    used_blocks_lock.push_front(block);
+                }
             }
         }
 
-        used_blocks_lock.append(&mut live_blocks);
-
         if cfg!(debug_assertions) {
-            debug!("=== {:?} ===", self.desc);
+            debug!("=== {:?} GC ===", self.desc);
             debug!(
                 "free lines    = {} of {} total ({} blocks)",
                 free_lines,
-                self.total_blocks * LINES_IN_BLOCK,
-                self.total_blocks
+                self.cur_blocks * LINES_IN_BLOCK,
+                self.cur_blocks
             );
             debug!(
                 "used lines    = {} of {} total ({} blocks)",
                 used_lines,
-                self.total_blocks * LINES_IN_BLOCK,
-                self.total_blocks
+                self.cur_blocks * LINES_IN_BLOCK,
+                self.cur_blocks
             );
-            debug!("usable blocks = {}", usable_blocks);
-            debug!("full blocks   = {}", full_blocks);
+            debug!("usable blocks = {}", self.n_usable_blocks());
+            debug!("full blocks   = {}", self.n_used_blocks());
         }
 
         self.last_gc_free_lines = free_lines;
         self.last_gc_used_lines = used_lines;
 
-        if full_blocks == self.total_blocks {
+        if self.n_used_blocks() == self.total_blocks && self.total_blocks != 0 {
             println!("Out of memory in Immix Space");
             process::exit(1);
         }
 
-        debug_assert!(full_blocks + usable_blocks == self.cur_blocks);
+        debug_assert_eq!(
+            self.n_used_blocks() + self.n_usable_blocks(),
+            self.cur_blocks
+        );
     }
 
     fn trace_details(&self) {
