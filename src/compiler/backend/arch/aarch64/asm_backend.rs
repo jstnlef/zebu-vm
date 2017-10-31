@@ -3636,7 +3636,8 @@ use std::collections::HashMap;
 pub fn emit_context_with_reloc(
     vm: &VM,
     symbols: HashMap<Address, MuName>,
-    fields: HashMap<Address, MuName>
+    fields: HashMap<Address, MuName>,
+    primordial_threadlocal: Option<Address>
 ) {
     use std::path;
     use std::io::prelude::*;
@@ -3662,7 +3663,7 @@ pub fn emit_context_with_reloc(
     // data
     writeln!(file, ".data").unwrap();
 
-    {
+    let primordial_threadlocal = {
         use runtime::mm;
 
         // persist globals
@@ -3778,6 +3779,11 @@ pub fn emit_context_with_reloc(
                 offset += POINTER_SIZE;
             }
         }
+        primordial_threadlocal.map(|a| relocatable_refs.get(&a).unwrap().clone())
+    };
+    {
+        let mut lock = vm.primordial_threadlocal.write().unwrap();
+        *lock = primordial_threadlocal;
     }
 
     // serialize vm
@@ -3810,7 +3816,7 @@ pub fn emit_context_with_reloc(
 }
 
 pub fn emit_context(vm: &VM) {
-    emit_context_with_reloc(vm, hashmap!{}, hashmap!{});
+    emit_context_with_reloc(vm, hashmap!{}, hashmap!{}, None);
 }
 
 fn write_data_bytes(f: &mut File, from: Address, to: Address) {
