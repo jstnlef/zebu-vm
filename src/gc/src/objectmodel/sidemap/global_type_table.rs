@@ -61,7 +61,7 @@ static global_type_table_meta: AtomicUsize = ATOMIC_USIZE_INIT;
 /// save Mmap to keep the memory map alive
 //  it is okay to use lock here, as we won't actually access this field
 lazy_static!{
-    static ref gtt_mmap: Mutex<Option<memmap::Mmap>> = Mutex::new(None);
+    static ref gtt_mmap: Mutex<Option<memmap::MmapMut>> = Mutex::new(None);
 }
 
 impl GlobalTypeTable {
@@ -72,18 +72,15 @@ impl GlobalTypeTable {
         let entry_size = mem::size_of::<TypeEncode>();
         let metadata_size = math::align_up(mem::size_of::<GlobalTypeTable>(), entry_size);
 
-        let mmap = match memmap::Mmap::anonymous(
-            metadata_size + N_TYPES * entry_size,
-            memmap::Protection::ReadWrite
-        ) {
+        let mut mmap = match memmap::MmapMut::map_anon(metadata_size + N_TYPES * entry_size) {
             Ok(m) => m,
             Err(_) => panic!("failed to mmap for global type table")
         };
 
-        info!("Global Type Table allocated at {:?}", mmap.ptr());
+        info!("Global Type Table allocated at {:?}", mmap.as_mut_ptr());
 
         // start address of metadata
-        let meta_addr = Address::from_ptr::<u8>(mmap.ptr());
+        let meta_addr = Address::from_ptr::<u8>(mmap.as_mut_ptr());
         global_type_table_meta.store(meta_addr.as_usize(), Ordering::Relaxed);
         // actual table
         let table_addr = meta_addr + metadata_size;

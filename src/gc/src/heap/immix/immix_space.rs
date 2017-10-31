@@ -28,19 +28,7 @@ use std::collections::LinkedList;
 use std::sync::Mutex;
 use std::sync::Arc;
 
-// this table will be accessed through unsafe raw pointers. since Rust doesn't provide a
-// data structure for such guarantees:
-// 1. Non-overlapping segments of this table may be accessed parallelly from different mutator
-//    threads
-// 2. One element may be written into at the same time by different gc threads during tracing
-//#[repr(C, packed)]
-///// A global large line mark table. It facilitates iterating through all the line marks.
-//pub struct GlobalLineMarkTable {
-//    space_start: Address,
-//    ptr: *mut LineMark,
-//    len: usize,
-//    mmap: memmap::Mmap
-//}
+const TRACE_ALLOC: bool = true;
 
 #[repr(C, packed)]
 #[derive(Copy, Clone)]
@@ -48,71 +36,6 @@ use std::sync::Arc;
 pub struct BlockLineMarkTable {
     ptr: *mut LineMark
 }
-
-//impl GlobalLineMarkTable {
-//    pub fn new(space_start: Address, space_end: Address) -> LineMarkTable {
-//        let line_mark_table_len = (space_end - space_start) / BYTES_IN_LINE;
-//
-//        // mmap memory for the table
-//        // we do not initialize it here
-//        // we initialize it when a block needs to take a part of it
-//        let mmap = match memmap::Mmap::anonymous(
-//            mem::size_of::<LineMark>() * line_mark_table_len,
-//            memmap::Protection::ReadWrite
-//        ) {
-//            Ok(m) => m,
-//            Err(_) => panic!("failed to mmap for immix line mark table")
-//        };
-//
-//        let ptr: *mut LineMark = mmap.ptr() as *mut LineMark;
-//
-//        LineMarkTable {
-//            space_start,
-//            ptr,
-//            len: line_mark_table_len,
-//            mmap
-//        }
-//    }
-//
-//    pub fn take_slice(&mut self, start: usize, len: usize) -> BlockLineMarkTable {
-//        BlockLineMarkTable {
-//            ptr: unsafe { self.ptr.offset(start as isize) }
-//        }
-//    }
-//
-//    #[inline(always)]
-//    #[allow(dead_code)]
-//    fn get(&self, index: usize) -> LineMark {
-//        debug_assert!(index <= self.len);
-//        unsafe { *self.ptr.offset(index as isize) }
-//    }
-//
-//    #[inline(always)]
-//    fn set(&self, index: usize, value: LineMark) {
-//        debug_assert!(index <= self.len);
-//        unsafe { *self.ptr.offset(index as isize) = value };
-//    }
-//
-//    pub fn index_to_address(&self, index: usize) -> Address {
-//        self.space_start + (index << LOG_BYTES_IN_LINE)
-//    }
-//
-//    #[inline(always)]
-//    pub fn mark_line_live(&self, addr: Address) {
-//        self.mark_line_live2(self.space_start, addr)
-//    }
-//
-//    #[inline(always)]
-//    pub fn mark_line_live2(&self, space_start: Address, addr: Address) {
-//        let line_table_index = (addr - space_start) >> LOG_BYTES_IN_LINE;
-//
-//        self.set(line_table_index, LineMark::Live);
-//
-//        if line_table_index < self.len - 1 {
-//            self.set(line_table_index + 1, LineMark::ConservLive);
-//        }
-//    }
-//}
 
 impl BlockLineMarkTable {
     #[inline(always)]
@@ -129,53 +52,73 @@ impl BlockLineMarkTable {
     }
 }
 
-const SPACE_ALIGN: usize = 1 << 19;
-
-/// An Immix space represents a piece of raw memory as Immix heap
+/// An ImmixSpace represents a memory area that is used for immix heap and also its meta data
 ///
-/// The memory layout looks like this
-///
-/// |-----------------------------------| <- aligned to 512K (1 << 19)
-/// | ImmixSpace metadata (this struct) |
-/// | ... (fields)                      |
-/// | line_mark_table                   |
-/// |-----------------------------------| <- aligned to 64K (1 << 16)
-/// | Immix Block metadata              |
-/// |- - - - - - - - - - - - - - - - - -|
-/// | block memory                      |
-/// | ...                               |
-/// | ...                               |
-/// |-----------------------------------|
-/// | Immix Block metadata              |
-/// |- - - - - - - - - - - - - - - - - -|
-/// | block memory                      |
-/// | ...                               |
-/// | ...                               |
-/// |-----------------------------------|
-///   ......
-///
+/// Memory layout
+/// |------------------| <- 16GB align
+/// | metadata         |
+/// | ...              | (64 KB)
+/// |------------------|
+/// | block mark table | (256 KB) - 256K blocks, 1 byte per block
+/// |------------------|
+/// | line mark table  | (64MB) - 64M lines, 1 byte per line
+/// |------------------|
+/// | gc byte table    | (1GB) - 1/16 of memory, 1 byte per 16 (min alignment/object size)
+/// |------------------|
+/// | type byte table  | (1GB) - 1/16 of memory, 1 byte per 16 (min alignment/object size)
+/// |------------------|
+/// | memory starts    |
+/// | ......           |
+/// | ......           |
+/// |__________________|
 #[repr(C)]
 pub struct ImmixSpace {
+    // 32 bytes - max space (as user defined)
     desc: SpaceDescriptor,
     start: Address,
     end: Address,
+    size: ByteSize,
+
+    // 32 bytes - current space (where we grow to at this point)
+    // FIXME: should always hold 'usable_blocks' lock in order to change these fields along with
+    // adding new usable blocks
+    cur_end: Address,
+    cur_size: ByteSize,
+    cur_blocks: usize,
+    // how many blocks we grow by last time
+    cur_growth_rate: usize,
 
     // lists for managing blocks in current space
+    // 88 bytes (8 + 40 * 2)
     total_blocks: usize, // for debug use
     usable_blocks: Mutex<LinkedList<Raw<ImmixBlock>>>,
     used_blocks: Mutex<LinkedList<Raw<ImmixBlock>>>,
 
-    #[allow(dead_code)]
-    mmap: memmap::Mmap,
+    // some statistics
+    // 32 bytes
+    pub last_gc_free_lines: usize,
+    pub last_gc_used_lines: usize,
 
-    // this table will be accessed through unsafe raw pointers. since Rust doesn't provide a
-    // data structure for such guarantees:
-    // 1. Non-overlapping segments of this table may be accessed parallelly from different mutator
-    //    threads
-    // 2. One element may be written into at the same time by different gc threads during tracing
-    line_mark_table_len: usize,
-    // do not directly access this field
-    line_mark_table: [LineMark; 0]
+    // 16 bytes
+    #[allow(dead_code)]
+    mmap: memmap::MmapMut,
+
+    // padding to space metadata takes 64KB
+    padding: [u64; ((BYTES_IN_BLOCK - 32 - 32 - 88 - 32 - 16) >> 3)],
+
+    // block mark table
+    block_mark_table: [BlockMark; BLOCKS_IN_SPACE],
+
+    // line mark table
+    line_mark_table: [LineMark; LINES_IN_SPACE],
+
+    // gc byte table
+    gc_byte_table: [u8; WORDS_IN_SPACE >> 1],
+    // type byte table
+    type_byte_table: [u8; WORDS_IN_SPACE >> 1],
+
+    // memory starts here
+    mem: [u8; 0]
 }
 
 impl RawMemoryMetadata for ImmixSpace {
@@ -185,23 +128,12 @@ impl RawMemoryMetadata for ImmixSpace {
     }
     #[inline(always)]
     fn mem_start(&self) -> Address {
-        self.end - (self.total_blocks << LOG_BYTES_IN_BLOCK)
+        self.start
     }
 }
 
 #[repr(C, packed)]
-pub struct ImmixBlock {
-    // a segment of the big line mark table in ImmixSpace
-    line_mark_table: BlockLineMarkTable,
-    // state of current block
-    state: BlockMark,
-    // unused bytes in the header
-    unused: [u8; 7],
-    // gc map
-    gc_map: [u8; BYTES_MEM_IN_BLOCK >> 3],
-    // type map
-    type_map: [u8; BYTES_MEM_IN_BLOCK >> 3]
-}
+pub struct ImmixBlock {}
 
 impl RawMemoryMetadata for ImmixBlock {
     #[inline(always)]
@@ -210,99 +142,201 @@ impl RawMemoryMetadata for ImmixBlock {
     }
     #[inline(always)]
     fn mem_start(&self) -> Address {
-        self.addr() + mem::size_of::<Self>()
+        self.addr()
     }
 }
 
 impl ImmixSpace {
     pub fn new(desc: SpaceDescriptor, space_size: ByteSize) -> Raw<ImmixSpace> {
         // acquire memory through mmap
-        let anon_mmap: memmap::Mmap = match memmap::Mmap::anonymous(
-            space_size + SPACE_ALIGN,
-            memmap::Protection::ReadWrite
+        let mut anon_mmap: memmap::MmapMut = match memmap::MmapMut::map_anon(
+            BYTES_PREALLOC_SPACE * 2 // for alignment
         ) {
             Ok(m) => m,
-            Err(_) => panic!("failed to call mmap")
+            Err(_) => panic!("failed to reserve addresss pace for mmap")
         };
+        let mmap_ptr = anon_mmap.as_mut_ptr();
+        trace!("    mmap ptr: {:?}", mmap_ptr);
 
-        let meta_start: Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
-        let end: Address = meta_start + space_size;
-
-        // calculate how large the line mark table is needed
-        // this memory chunk is used for
-        // * ImmixSpace meta: constant size,
-        // * line mark table: LINES_PER_BLOCK * sizeof(LineMark) (256 bytes per block)
-        // * immix blocks (64kb per block, 256 lines)
-        let n_blocks = (space_size - mem::size_of::<ImmixSpace>()) /
-            (LINES_IN_BLOCK * mem::size_of::<LineMark>() + BYTES_IN_BLOCK);
-
-        let mem_start = end - n_blocks * BYTES_IN_BLOCK;
-        assert!(mem_start.is_aligned_to(IMMIX_BLOCK_ALIGN));
+        let meta_start: Address = Address::from_ptr::<u8>(mmap_ptr).align_up(SPACE_ALIGN);
+        let mem_start: Address = meta_start + OFFSET_MEM_START;
+        let mem_end: Address = mem_start + space_size;
+        trace!("    space metadata: {}", meta_start);
+        trace!("    space: {} ~ {}", mem_start, mem_end);
 
         // initialize space metadata
         let mut space: Raw<ImmixSpace> = unsafe { Raw::from_addr(meta_start) };
+        trace!("    acquired Raw<ImmixSpace>");
 
         space.desc = desc;
         space.start = mem_start;
-        space.end = end;
-        space.total_blocks = n_blocks;
-        space.usable_blocks = Mutex::new(LinkedList::new());
-        space.used_blocks = Mutex::new(LinkedList::new());
-        space.mmap = anon_mmap;
-        space.line_mark_table_len = n_blocks * LINES_IN_BLOCK;
+        space.end = mem_end;
+        space.size = space_size;
+        trace!("    initialized desc/start/end/size");
 
+        space.cur_end = space.start;
+        space.cur_size = 0;
+        space.cur_blocks = 0;
+        trace!("    initialized cur_end/size/blocks");
+
+        space.total_blocks = BLOCKS_IN_SPACE;
+        unsafe {
+            // use ptr::write to avoid destruction of the old values
+            use std::ptr;
+            ptr::write(
+                &mut space.usable_blocks as *mut Mutex<LinkedList<Raw<ImmixBlock>>>,
+                Mutex::new(LinkedList::new())
+            );
+            ptr::write(
+                &mut space.used_blocks as *mut Mutex<LinkedList<Raw<ImmixBlock>>>,
+                Mutex::new(LinkedList::new())
+            );
+        }
+        trace!("    initialized total/usable/used blocks");
+
+        unsafe {
+            use std::ptr;
+            ptr::write(&mut space.mmap as *mut memmap::MmapMut, anon_mmap);
+        }
+        trace!("    store mmap");
+
+        space.last_gc_used_lines = 0;
+        space.last_gc_free_lines = 0;
+
+        trace!("    initializing blocks...");
         space.init_blocks();
+
+        space.trace_details();
 
         space
     }
 
     fn init_blocks(&mut self) {
-        let mut block_start = self.start();
-        let mut line = 0;
-
-        let mut usable_blocks_lock = self.usable_blocks.lock().unwrap();
-
-        while block_start + BYTES_IN_BLOCK <= self.end {
-            let mut block: Raw<ImmixBlock> = unsafe { Raw::from_addr(block_start) };
-            block.line_mark_table = self.get_block_line_mark_table(line);
-            block.state = BlockMark::Uninitialized;
-
-            usable_blocks_lock.push_back(block);
-
-            block_start = block_start + BYTES_IN_BLOCK;
-            line += LINES_IN_BLOCK;
-        }
+        const N_INITIAL_BLOCKS: usize = 64;
+        let n_blocks = if N_INITIAL_BLOCKS < self.total_blocks {
+            N_INITIAL_BLOCKS
+        } else {
+            self.total_blocks
+        };
+        self.grow_blocks(n_blocks);
     }
 
-    fn get_block_line_mark_table(&self, start_line: usize) -> BlockLineMarkTable {
-        BlockLineMarkTable {
-            ptr: self.get_line_mark_table_slot(start_line).to_ptr_mut()
-        }
-    }
+    fn grow_blocks(&mut self, n_blocks: usize) {
+        trace!("      grow space by {} blocks", n_blocks);
+        debug_assert!(self.cur_blocks + n_blocks <= self.total_blocks);
+        let mut lock = self.usable_blocks.lock().unwrap();
 
-    fn get_line_mark_table_slot(&self, index: usize) -> Address {
-        Address::from_ptr(&self.line_mark_table as *const LineMark)
-            .shift::<LineMark>(index as isize)
+        // start address
+        let mut cur_addr = self.cur_end;
+        // start line/block index
+        let line_start = (cur_addr - self.mem_start()) >> LOG_BYTES_IN_LINE;
+        let block_start = self.cur_blocks;
+
+        for i in 0..n_blocks {
+            let block: Raw<ImmixBlock> = unsafe { Raw::from_addr(cur_addr) };
+            // add to usable blocks
+            lock.push_back(block);
+
+            cur_addr += BYTES_IN_BLOCK;
+        }
+
+        // zeroing block mark table (set blocks as Uninitialized)
+        let block_table_ptr: *mut BlockMark =
+            &mut self.block_mark_table[block_start] as *mut BlockMark;
+        unsafe {
+            memsec::memzero(block_table_ptr, n_blocks);
+        }
+
+        // zeroing line mark table (set lines as Free)
+        let line_table_ptr: *mut LineMark = &mut self.line_mark_table[line_start] as *mut LineMark;
+        unsafe {
+            memsec::memzero(line_table_ptr, n_blocks * LINES_IN_BLOCK);
+        }
+
+        self.cur_end = cur_addr;
+        self.cur_size += n_blocks * BYTES_IN_BLOCK;
+        self.cur_blocks += n_blocks;
+        self.cur_growth_rate = n_blocks;
     }
 
     #[inline(always)]
-    pub fn set_line_mark(&self, index: usize, mark: LineMark) {
-        unsafe { self.get_line_mark_table_slot(index).store(mark) }
+    pub fn get(addr: Address) -> Raw<ImmixSpace> {
+        unsafe { Raw::from_addr(addr.mask(SPACE_LOWBITS_MASK)) }
+    }
+
+    // line mark table
+
+    #[inline(always)]
+    pub fn set_line_mark(&mut self, index: usize, mark: LineMark) {
+        self.line_mark_table[index] = mark;
     }
 
     #[inline(always)]
     pub fn get_line_mark(&self, index: usize) -> LineMark {
-        unsafe { self.get_line_mark_table_slot(index).load::<LineMark>() }
+        self.line_mark_table[index]
+    }
+
+    #[inline(always)]
+    pub fn get_line_mark_index(&self, addr: Address) -> usize {
+        (addr - self.mem_start()) >> LOG_BYTES_IN_LINE
     }
 
     #[inline(always)]
     pub fn mark_line_alive(addr: Address) {
-        let space: Raw<ImmixSpace> = unsafe { Raw::from_addr(addr.mask(SPACE_LOWBITS_MASK)) };
-        let index = (addr - space.mem_start()) >> LOG_BYTES_IN_LINE;
+        let mut space: Raw<ImmixSpace> = unsafe { Raw::from_addr(addr.mask(SPACE_LOWBITS_MASK)) };
+        let index = space.get_line_mark_index(addr);
         space.set_line_mark(index, LineMark::Live);
-        if index < space.line_mark_table_len - 1 {
+        if index < (space.cur_blocks << LOG_LINES_IN_BLOCK) - 1 {
             space.set_line_mark(index + 1, LineMark::ConservLive);
         }
+    }
+
+    // block mark table
+
+    #[inline(always)]
+    pub fn set_block_mark(&mut self, index: usize, mark: BlockMark) {
+        self.block_mark_table[index] = mark;
+    }
+
+    #[inline(always)]
+    pub fn get_block_mark(&self, index: usize) -> BlockMark {
+        self.block_mark_table[index]
+    }
+
+    #[inline(always)]
+    pub fn get_block_mark_index(&self, addr: Address) -> usize {
+        (addr - self.mem_start()) >> LOG_BYTES_IN_BLOCK
+    }
+
+    // gc/type byte table
+
+    #[inline(always)]
+    pub fn get_word_index(&self, addr: Address) -> usize {
+        (addr - self.mem_start()) >> LOG_POINTER_SIZE
+    }
+
+    #[inline(always)]
+    pub fn get_gc_byte_slot(&self, index: usize) -> Address {
+        Address::from_ptr(&self.gc_byte_table[index] as *const u8)
+    }
+
+    #[inline(always)]
+    pub fn get_gc_byte_slot_static(addr: Address) -> Address {
+        let space = ImmixSpace::get(addr);
+        let index = space.get_word_index(addr);
+        space.get_gc_byte_slot(index)
+    }
+
+    #[inline(always)]
+    pub fn get_type_byte_slot(&self, index: usize) -> Address {
+        Address::from_ptr(&self.type_byte_table[index] as *const u8)
+    }
+
+    #[inline(always)]
+    pub fn get_type_byte_slot_static(addr: Address) -> Address {
+        let space = ImmixSpace::get(addr);
+        let index = space.get_word_index(addr);
+        space.get_type_byte_slot(index)
     }
 
     pub fn return_used_block(&self, old: Raw<ImmixBlock>) {
@@ -310,32 +344,53 @@ impl ImmixSpace {
     }
 
     #[allow(unreachable_code)]
-    pub fn get_next_usable_block(&self) -> Option<Raw<ImmixBlock>> {
+    pub fn get_next_usable_block(&mut self) -> Option<Raw<ImmixBlock>> {
+        if TRACE_ALLOC {
+            self.trace_details();
+        }
         let new_block = self.usable_blocks.lock().unwrap().pop_front();
         match new_block {
             Some(block) => {
-                if block.state == BlockMark::Uninitialized {
-                    // we need to zero the block - zero anything other than metadata
-                    let zero_start = block.addr() + BLOCK_META;
-                    let zero_size = BYTES_IN_BLOCK - BLOCK_META;
-                    unsafe {
-                        memsec::memzero(zero_start.to_ptr_mut::<u8>(), zero_size);
-                    }
+                let block_index = self.get_block_mark_index(block.mem_start());
+                if self.block_mark_table[block_index] == BlockMark::Uninitialized {
+                    self.block_mark_table[block_index] = BlockMark::Usable;
+                    // we lazily initialize the block in allocator
                 }
                 Some(block)
             }
             None => {
-                gc::trigger_gc();
-                None
+                // check if we can grow more
+                if self.cur_blocks < self.total_blocks {
+                    let next_growth = self.cur_growth_rate << 1;
+                    let n_blocks = if self.cur_blocks + next_growth < self.total_blocks {
+                        next_growth
+                    } else {
+                        self.total_blocks - self.cur_blocks
+                    };
+                    self.grow_blocks(n_blocks);
+                    self.get_next_usable_block()
+                } else {
+                    gc::trigger_gc();
+                    None
+                }
             }
+        }
+    }
+
+    pub fn prepare_for_gc(&mut self) {
+        // erase lines marks
+        let lines = self.cur_blocks << LOG_LINES_IN_BLOCK;
+        unsafe {
+            memsec::memzero(&mut self.line_mark_table[0] as *mut LineMark, lines);
         }
     }
 
     #[allow(unused_variables)]
     #[allow(unused_assignments)]
-    pub fn sweep(&self) {
+    pub fn sweep(&mut self) {
         // some statistics
         let mut free_lines = 0;
+        let mut used_lines = 0;
         let mut usable_blocks = 0;
         let mut full_blocks = 0;
 
@@ -347,30 +402,31 @@ impl ImmixSpace {
 
         while !used_blocks_lock.is_empty() {
             let mut block = used_blocks_lock.pop_front().unwrap();
+            let line_index = self.get_line_mark_index(block.mem_start());
+            let block_index = self.get_block_mark_index(block.mem_start());
 
             let mut has_free_lines = false;
             // find free lines in the block, and set their line mark as free
             // (not zeroing the memory yet)
-            {
-                let mut cur_line_mark_table = block.line_mark_table_mut();
-                for i in 0..cur_line_mark_table.len() {
-                    if cur_line_mark_table.get(i) != LineMark::Live &&
-                        cur_line_mark_table.get(i) != LineMark::ConservLive
-                    {
-                        has_free_lines = true;
-                        cur_line_mark_table.set(i, LineMark::Free);
-                        free_lines += 1;
-                    }
+
+            for i in line_index..(line_index + LINES_IN_BLOCK) {
+                if self.line_mark_table[i] != LineMark::Live &&
+                    self.line_mark_table[i] != LineMark::ConservLive
+                {
+                    has_free_lines = true;
+                    self.line_mark_table[i] = LineMark::Free;
+                    free_lines += 1;
+                } else {
+                    used_lines += 1;
                 }
-                // release the mutable borrow of 'block'
             }
 
             if has_free_lines {
-                block.state = BlockMark::Usable;
+                self.block_mark_table[block_index] = BlockMark::Usable;
                 usable_blocks += 1;
                 usable_blocks_lock.push_front(block);
             } else {
-                block.state = BlockMark::Full;
+                self.block_mark_table[block_index] = BlockMark::Full;
                 full_blocks += 1;
                 live_blocks.push_front(block);
             }
@@ -379,10 +435,16 @@ impl ImmixSpace {
         used_blocks_lock.append(&mut live_blocks);
 
         if cfg!(debug_assertions) {
-            debug!("---immix space---");
+            debug!("=== {:?} ===", self.desc);
             debug!(
                 "free lines    = {} of {} total ({} blocks)",
                 free_lines,
+                self.total_blocks * LINES_IN_BLOCK,
+                self.total_blocks
+            );
+            debug!(
+                "used lines    = {} of {} total ({} blocks)",
+                used_lines,
                 self.total_blocks * LINES_IN_BLOCK,
                 self.total_blocks
             );
@@ -390,12 +452,65 @@ impl ImmixSpace {
             debug!("full blocks   = {}", full_blocks);
         }
 
+        self.last_gc_free_lines = free_lines;
+        self.last_gc_used_lines = used_lines;
+
         if full_blocks == self.total_blocks {
             println!("Out of memory in Immix Space");
             process::exit(1);
         }
 
-        debug_assert!(full_blocks + usable_blocks == self.total_blocks);
+        debug_assert!(full_blocks + usable_blocks == self.cur_blocks);
+    }
+
+    fn trace_details(&self) {
+        trace!("=== {:?} ===", self.desc);
+        trace!(
+            "-range: {} ~ {} (size: {})",
+            self.start,
+            self.end,
+            self.size
+        );
+        trace!(
+            "-cur  : {} ~ {} (size: {})",
+            self.start,
+            self.cur_end,
+            self.cur_size
+        );
+        trace!(
+            "-block: current {} (usable: {}, used: {}), total {}",
+            self.cur_blocks,
+            self.usable_blocks.lock().unwrap().len(),
+            self.used_blocks.lock().unwrap().len(),
+            self.total_blocks
+        );
+        trace!(
+            "-block mark table starts at {}",
+            Address::from_ptr(&self.block_mark_table as *const BlockMark)
+        );
+        trace!(
+            "-line mark table starts at {}",
+            Address::from_ptr(&self.line_mark_table as *const LineMark)
+        );
+        trace!(
+            "-gc byte table starts at {}",
+            Address::from_ptr(&self.gc_byte_table as *const u8)
+        );
+        trace!(
+            "-type byte table starts at {}",
+            Address::from_ptr(&self.type_byte_table as *const u8)
+        );
+        trace!("-memory starts at {}", self.mem_start());
+        trace!("=== {:?} ===", self.desc);
+    }
+
+    // for debug use
+    pub fn n_used_blocks(&self) -> usize {
+        self.used_blocks.lock().unwrap().len()
+    }
+
+    pub fn n_usable_blocks(&self) -> usize {
+        self.usable_blocks.lock().unwrap().len()
     }
 }
 
@@ -407,7 +522,7 @@ impl Space for ImmixSpace {
     }
     #[inline(always)]
     fn end(&self) -> Address {
-        self.end
+        self.cur_end
     }
     #[inline(always)]
     fn is_valid_object(&self, addr: Address) -> bool {
@@ -417,12 +532,16 @@ impl Space for ImmixSpace {
 }
 
 impl ImmixBlock {
-    pub fn get_next_available_line(&self, cur_line: u8) -> Option<u8> {
-        let mut i = cur_line;
-        while i < self.line_mark_table.len() {
-            match self.line_mark_table.get(i) {
+    pub fn get_next_available_line(&self, cur_line: usize) -> Option<usize> {
+        let space: Raw<ImmixSpace> = ImmixSpace::get(self.mem_start());
+        let base_line = space.get_line_mark_index(self.mem_start());
+        let base_end = base_line + LINES_IN_BLOCK;
+
+        let mut i = base_line + cur_line;
+        while i < base_end {
+            match space.get_line_mark(i) {
                 LineMark::Free => {
-                    return Some(i);
+                    return Some(i - base_line);
                 }
                 _ => {
                     i += 1;
@@ -432,66 +551,31 @@ impl ImmixBlock {
         None
     }
 
-    pub fn get_next_unavailable_line(&self, cur_line: u8) -> u8 {
-        let mut i = cur_line;
-        while i < self.line_mark_table.len() {
-            match self.line_mark_table.get(i) {
+    pub fn get_next_unavailable_line(&self, cur_line: usize) -> usize {
+        let space: Raw<ImmixSpace> = ImmixSpace::get(self.mem_start());
+        let base_line = space.get_line_mark_index(self.mem_start());
+        let base_end = base_line + LINES_IN_BLOCK;
+
+        let mut i = base_line + cur_line;
+        while i < base_end {
+            match space.get_line_mark(i) {
                 LineMark::Free => {
                     i += 1;
                 }
                 _ => {
-                    return i;
+                    return i - base_line;
                 }
             }
         }
-        i
-    }
-
-    pub fn lazy_zeroing(&mut self) {
-        let line_mark_table = self.line_mark_table();
-        for i in 0..line_mark_table.len() {
-            if line_mark_table.get(i) == LineMark::Free {
-                let line_start: Address = self.mem_start() + ((i as usize) << LOG_BYTES_IN_LINE);
-                // zero the line
-                unsafe {
-                    memsec::memzero(line_start.to_ptr_mut::<u8>(), BYTES_IN_LINE);
-                }
-            }
-        }
-    }
-    #[inline(always)]
-    pub fn line_mark_table(&self) -> &BlockLineMarkTable {
-        &self.line_mark_table
-    }
-    #[inline(always)]
-    pub fn line_mark_table_mut(&mut self) -> &mut BlockLineMarkTable {
-        &mut self.line_mark_table
+        i - base_line
     }
 
     #[inline(always)]
-    pub fn get_type_map_slot(&self, addr: Address) -> Address {
-        let index = (addr - self.mem_start()) >> 3;
-        Address::from_ptr(&self.type_map[index] as *const u8)
-    }
+    pub fn set_line_mark(&self, line: usize, mark: LineMark) {
+        let mut space: Raw<ImmixSpace> = ImmixSpace::get(self.mem_start());
+        let base_line = space.get_line_mark_index(self.mem_start());
 
-    #[inline(always)]
-    pub fn get_type_map_slot_static(addr: Address) -> Address {
-        let block_start = addr.mask(IMMIX_BLOCK_LOWBITS_MASK);
-        let block: Raw<ImmixBlock> = unsafe { Raw::from_addr(block_start) };
-        block.get_type_map_slot(addr)
-    }
-
-    #[inline(always)]
-    pub fn get_gc_map_slot(&self, addr: Address) -> Address {
-        let index = (addr - self.mem_start()) >> 3;
-        Address::from_ptr(&self.type_map[index] as *const u8)
-    }
-
-    #[inline(always)]
-    pub fn get_gc_map_slot_static(addr: Address) -> Address {
-        let block_start = addr.mask(IMMIX_BLOCK_LOWBITS_MASK);
-        let block: Raw<ImmixBlock> = unsafe { Raw::from_addr(block_start) };
-        block.get_gc_map_slot(addr)
+        space.set_line_mark(base_line + line as usize, mark);
     }
 }
 
@@ -500,7 +584,7 @@ pub fn mark_object_traced(obj: ObjectReference) {
     let obj_addr = obj.to_address();
 
     // mark object
-    let addr = ImmixBlock::get_gc_map_slot_static(obj_addr);
+    let addr = ImmixSpace::get_gc_byte_slot_static(obj_addr);
     unsafe { addr.store(1u8) }
 
     // mark line
@@ -510,7 +594,7 @@ pub fn mark_object_traced(obj: ObjectReference) {
 #[inline(always)]
 pub fn is_object_traced(obj: ObjectReference) -> bool {
     // gc byte
-    let gc_byte = unsafe { ImmixBlock::get_gc_map_slot_static(obj.to_address()).load::<u8>() };
+    let gc_byte = unsafe { ImmixSpace::get_gc_byte_slot_static(obj.to_address()).load::<u8>() };
     gc_byte == 1
 }
 
@@ -520,39 +604,3 @@ unsafe impl Sync for ImmixBlock {}
 unsafe impl Send for ImmixBlock {}
 unsafe impl Sync for ImmixSpace {}
 unsafe impl Send for ImmixSpace {}
-
-impl fmt::Display for ImmixSpace {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "ImmixSpace").unwrap();
-        writeln!(f, "  range=0x{:#X} ~ 0x{:#X}", self.start, self.end).unwrap();
-        writeln!(
-            f,
-            "  line_mark_table=0x{:?}",
-            &self.line_mark_table as *const LineMark
-        )
-    }
-}
-
-impl fmt::Display for ImmixBlock {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ImmixBlock({}, state={:?}", self.addr(), self.state)
-    }
-}
-
-impl fmt::Debug for ImmixBlock {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "ImmixBlock({}, state={:?}, line_table={:?}",
-            self.addr(),
-            self.state,
-            self.line_mark_table.ptr
-        ).unwrap();
-
-        write!(f, "[").unwrap();
-        for i in 0..self.line_mark_table.len() {
-            write!(f, "{:?},", self.line_mark_table.get(i)).unwrap();
-        }
-        write!(f, "]")
-    }
-}

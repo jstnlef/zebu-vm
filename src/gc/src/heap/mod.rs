@@ -38,11 +38,15 @@ lazy_static! {
         AtomicUsize::new( (DEFAULT_HEAP_SIZE as f64 * LO_SPACE_RATIO) as usize );
 }
 
-pub const SPACE_ALIGN: ByteSize = (1 << 19); // 512K
+// preallocating 16 GB for space
+pub const LOG_BYTES_PREALLOC_SPACE: usize = 34;
+pub const BYTES_PREALLOC_SPACE: ByteSize = 1 << LOG_BYTES_PREALLOC_SPACE;
+
+pub const SPACE_ALIGN: ByteSize = BYTES_PREALLOC_SPACE; // 16GB
 pub const SPACE_LOWBITS_MASK: usize = !(SPACE_ALIGN - 1);
 
-#[repr(u8)]
-#[derive(Copy, Clone)]
+#[repr(u64)]
+#[derive(Copy, Clone, Debug)]
 pub enum SpaceDescriptor {
     ImmixTiny,
     ImmixNormal,

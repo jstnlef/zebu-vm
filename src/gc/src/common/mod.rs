@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use utils::*;
+
 mod bitmap;
 mod address_bitmap;
 mod address_map;
@@ -21,3 +23,7 @@ pub mod objectdump;
 
 pub use self::address_bitmap::AddressBitmap;
 pub use self::address_map::AddressMap;
+
+pub const SIZE_1KB: ByteSize = 1 << 10;
+pub const SIZE_1MB: ByteSize = 1 << 20;
+pub const SIZE_1GB: ByteSize = 1 << 30;

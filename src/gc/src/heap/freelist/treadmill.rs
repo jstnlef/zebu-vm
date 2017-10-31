@@ -38,21 +38,19 @@ pub struct FreeListSpace {
     pub trace_map: Arc<AddressMap<u8>>,
 
     #[allow(dead_code)]
-    mmap: memmap::Mmap,
+    mmap: memmap::MmapMut,
 
     treadmill: Mutex<Treadmill>
 }
 
 impl FreeListSpace {
     pub fn new(space_size: usize) -> FreeListSpace {
-        let anon_mmap: memmap::Mmap = match memmap::Mmap::anonymous(
-            space_size + SPACE_ALIGN,
-            memmap::Protection::ReadWrite
-        ) {
-            Ok(m) => m,
-            Err(_) => panic!("failed to call mmap")
-        };
-        let start: Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
+        let mut anon_mmap: memmap::MmapMut =
+            match memmap::MmapMut::map_anon(space_size + SPACE_ALIGN) {
+                Ok(m) => m,
+                Err(_) => panic!("failed to call mmap")
+            };
+        let start: Address = Address::from_ptr::<u8>(anon_mmap.as_mut_ptr()).align_up(SPACE_ALIGN);
         let end: Address = start + space_size;
 
         let trace_map = AddressMap::new(start, end);

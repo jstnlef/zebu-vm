@@ -63,8 +63,8 @@ mod tests {
 
     #[test]
     fn test_primitive_to_raw() {
-        let a: Word = 0xabcd;
-        let raw = u64_to_raw(a as u64);
+        let a: u64 = 0xabcd;
+        let raw = u64_to_raw(a);
 
         assert_eq!(raw, a);
     }

@@ -273,6 +273,16 @@ mod addr_tests {
     }
 
     #[test]
+    fn test_large_align_up() {
+        let addr = Address(0x1034a9000);
+        let align = 1 << 34;
+
+        let aligned = addr.align_up(align);
+        println!("aligned = {}", aligned);
+        assert!(aligned.is_aligned_to(align));
+    }
+
+    #[test]
     fn test_is_aligned() {
         let addr = Address(0);
         assert!(addr.is_aligned_to(8));

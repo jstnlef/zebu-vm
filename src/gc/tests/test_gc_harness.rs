@@ -19,14 +19,10 @@ extern crate log;
 use self::mu_gc::*;
 use self::mu_gc::heap;
 use self::mu_gc::heap::*;
+use self::mu_gc::heap::immix::*;
 use self::mu_gc::objectmodel::sidemap::*;
 use self::mu_utils::*;
 use std::sync::atomic::Ordering;
-
-const OBJECT_SIZE: usize = 24;
-const OBJECT_ALIGN: usize = 8;
-
-const WORK_LOAD: usize = 10000;
 
 #[allow(dead_code)]
 const SPACIOUS_SPACE_SIZE: usize = 500 << 20; // 500mb
@@ -41,33 +37,97 @@ const IMMIX_SPACE_SIZE: usize = SPACIOUS_SPACE_SIZE;
 const LO_SPACE_SIZE: usize = SPACIOUS_SPACE_SIZE;
 
 #[test]
-pub fn test_exhaust_alloc() {
+pub fn test_tiny_immix_alloc() {
+    const OBJECT_SIZE: usize = 16;
+    const OBJECT_ALIGN: usize = 8;
+    const WORK_LOAD: usize = BYTES_IN_BLOCK / OBJECT_SIZE;
+    // we should see the slow paths get invoked exactly twice
+
     start_logging_trace();
     gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
+    let (tiny_space, _) = get_spaces();
     let mutator = new_mutator();
-
-    println!(
-        "Trying to allocate {} objects of (size {}, align {}). ",
-        WORK_LOAD,
-        OBJECT_SIZE,
-        OBJECT_ALIGN
-    );
-    const ACTUAL_OBJECT_SIZE: usize = OBJECT_SIZE;
-    println!(
-        "This would take {} bytes of {} bytes heap",
-        WORK_LOAD * ACTUAL_OBJECT_SIZE,
-        heap::IMMIX_SPACE_SIZE.load(Ordering::SeqCst)
-    );
-
     for _ in 0..WORK_LOAD {
         yieldpoint(mutator);
-
         let res = muentry_alloc_tiny(mutator, OBJECT_SIZE, OBJECT_ALIGN);
-        muentry_init_tiny_object(mutator, res, TinyObjectEncode::new(0u8));
     }
+    assert_eq!(tiny_space.n_used_blocks(), 0);
 
-    gc_destoy();
+    let res = muentry_alloc_tiny(mutator, OBJECT_SIZE, OBJECT_ALIGN);
+    assert_eq!(tiny_space.n_used_blocks(), 1);
 }
+
+#[test]
+pub fn test_tiny_immix_gc() {
+    const OBJECT_SIZE: usize = 16;
+    const OBJECT_ALIGN: usize = 8;
+    const WORK_LOAD: usize = BYTES_IN_BLOCK / OBJECT_SIZE;
+    // we should see the slow paths get invoked exactly twice
+
+    start_logging_trace();
+    gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, true);
+    let (tiny_space, _) = get_spaces();
+    let mutator = new_mutator();
+    let tiny_header = TinyObjectEncode::new(0b0u8);
+
+    // doing one allocation
+    let res = muentry_alloc_tiny(mutator, OBJECT_SIZE, OBJECT_ALIGN);
+    muentry_init_tiny_object(mutator, res, tiny_header);
+
+    // add the object to the root and force a gc
+    add_to_root(res);
+    force_gc(mutator);
+
+    // one line should be alive - and another line is conservatively alive
+    assert_eq!(tiny_space.last_gc_used_lines, 2);
+
+    // another allocation
+    let res2 = muentry_alloc_tiny(mutator, OBJECT_SIZE, OBJECT_ALIGN);
+    muentry_init_tiny_object(mutator, res2, tiny_header);
+
+    // remove the object, and force a gc
+    remove_root(res);
+    force_gc(mutator);
+
+    // no line should be alive
+    assert_eq!(tiny_space.last_gc_used_lines, 0);
+}
+
+//#[test]
+//pub fn test_exhaust_alloc2() {
+//    const OBJECT_SIZE: usize = 16;
+//    const OBJECT_ALIGN: usize = 8;
+//    const WORK_LOAD: usize = BYTES_IN_BLOCK * 2 / OBJECT_SIZE + 1;
+//    // we should see the slow paths get invoked exactly 3 times
+//
+//    start_logging_trace();
+//    gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
+//    let mutator = new_mutator();
+//    for _ in 0..WORK_LOAD {
+//        yieldpoint(mutator);
+//        let res = muentry_alloc_tiny(mutator, OBJECT_SIZE, OBJECT_ALIGN);
+//        muentry_init_tiny_object(mutator, res, TinyObjectEncode::new(0u8));
+//    }
+//    gc_destoy();
+//}
+//
+//#[test]
+//pub fn test_exhaust_overflow_alloc() {
+//    const OBJECT_SIZE: usize = 512;
+//    const OBJECT_ALIGN: usize = 8;
+//    const WORK_LOAD: usize = BYTES_IN_BLOCK * 2 / OBJECT_SIZE;
+//
+//    start_logging_trace();
+//    gc_init(IMMIX_SPACE_SIZE, LO_SPACE_SIZE, 8, false);
+//    let mutator = new_mutator();
+//    for _ in 0..WORK_LOAD {
+//        yieldpoint(mutator);
+//        let res = muentry_alloc_tiny(mutator, OBJECT_SIZE, OBJECT_ALIGN);
+//        muentry_init_tiny_object(mutator, res, TinyObjectEncode::new(0u8));
+//    }
+//
+//    gc_destoy();
+//}
 //
 //const LARGE_OBJECT_SIZE: usize = 256;
 //

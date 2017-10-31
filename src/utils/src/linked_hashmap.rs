@@ -17,7 +17,7 @@
 //! # Examples
 //!
 //! ```
-//! use utils::LinkedHashMap;
+//! use mu_utils::LinkedHashMap;
 //!
 //! let mut map = LinkedHashMap::new();
 //! map.insert(2, 20);
@@ -43,39 +43,6 @@ use std::marker;
 use std::mem;
 use std::ops::{Index, IndexMut};
 use std::ptr;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_serialize() {
-        let a: LinkedHashMap<usize, usize> = {
-            let mut ret = LinkedHashMap::new();
-            ret.insert(0, 0);
-            ret.insert(1, 100);
-            ret.insert(2, 200);
-            ret.insert(3, 300);
-            ret.insert(4, 400);
-            ret
-        };
-
-        println!("a = {:?}", a);
-
-        let serialized = json::encode(&a).unwrap();
-        println!("json = {:?}", serialized);
-
-        let a_: LinkedHashMap<usize, usize> = json::decode(&serialized).unwrap();
-        println!("a_ = {:?}", a_);
-
-        let serialized2 = json::encode(&a_).unwrap();
-        println!("json = {:?}", serialized2);
-
-        let a__: LinkedHashMap<usize, usize> = json::decode(&serialized2).unwrap();
-        println!("a__ = {:?}", a__);
-
-        assert!(a_ == a__);
-    }
-}
 
 struct KeyRef<K> {
     k: *const K
@@ -227,7 +194,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     ///
     /// map.insert(1, "a");
@@ -293,7 +260,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     ///
     /// map.insert(1, "a");
@@ -319,7 +286,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     ///
     /// map.insert(1, "a");
@@ -346,7 +313,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     ///
     /// map.insert(1, "a");
@@ -378,7 +345,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     ///
     /// map.insert(2, "a");
@@ -412,7 +379,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map: LinkedHashMap<i32, &str> = LinkedHashMap::new();
     /// let capacity = map.capacity();
     /// ```
@@ -427,7 +394,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     /// map.insert(1, 10);
     /// map.insert(2, 20);
@@ -457,7 +424,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     /// map.insert(1, 10);
     /// map.insert(2, 20);
@@ -481,7 +448,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     /// map.insert(1, 10);
     /// map.insert(2, 20);
@@ -511,7 +478,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     /// let mut map = LinkedHashMap::new();
     /// map.insert(1, 10);
     /// map.insert(2, 20);
@@ -563,7 +530,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     ///
     /// # Examples
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     ///
     /// let mut map = LinkedHashMap::new();
     /// map.insert("a", 10);
@@ -594,7 +561,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     /// Iterator element type is `(&'a K, &'a mut V)`
     /// # Examples
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     ///
     /// let mut map = LinkedHashMap::new();
     /// map.insert("a", 10);
@@ -628,7 +595,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     ///
     /// # Examples
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     ///
     /// let mut map = LinkedHashMap::new();
     /// map.insert('a', 10);
@@ -649,7 +616,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> LinkedHashMap<K, V, S> {
     ///
     /// # Examples
     /// ```
-    /// use utils::LinkedHashMap;
+    /// use mu_utils::LinkedHashMap;
     ///
     /// let mut map = LinkedHashMap::new();
     /// map.insert('a', 10);

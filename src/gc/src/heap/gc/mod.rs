@@ -257,6 +257,14 @@ fn gc() {
         atomic::Ordering::SeqCst
     );
 
+    // each space prepares for GC
+    {
+        let mut gccontext_guard = MY_GC.write().unwrap();
+        let mut gccontext = gccontext_guard.as_mut().unwrap();
+        gccontext.immix_tiny.prepare_for_gc();
+        gccontext.immix_normal.prepare_for_gc();
+    }
+
     trace!("GC starts");
 
     // creates root deque
@@ -278,12 +286,12 @@ fn gc() {
 
     // sweep
     {
-        let gccontext_guard = MY_GC.read().unwrap();
-        let gccontext = gccontext_guard.as_ref().unwrap();
+        let mut gccontext_guard = MY_GC.write().unwrap();
+        let mut gccontext = gccontext_guard.as_mut().unwrap();
 
         gccontext.immix_tiny.sweep();
         gccontext.immix_normal.sweep();
-        gccontext.lo.sweep();
+        //        gccontext.lo.sweep();
     }
 
     objectmodel::flip_mark_state();
@@ -389,7 +397,7 @@ pub fn steal_trace_object(
             immix::mark_object_traced(obj);
 
             let encode = unsafe {
-                ImmixBlock::get_type_map_slot_static(obj.to_address()).load::<TinyObjectEncode>()
+                ImmixSpace::get_type_byte_slot_static(obj.to_address()).load::<TinyObjectEncode>()
             };
 
             for i in 0..encode.n_fields() {
@@ -408,7 +416,7 @@ pub fn steal_trace_object(
 
             // get type encode
             let (type_encode, type_size): (&TypeEncode, ByteOffset) = {
-                let type_slot = ImmixBlock::get_type_map_slot_static(obj.to_address());
+                let type_slot = ImmixSpace::get_type_byte_slot_static(obj.to_address());
                 let encode = unsafe { type_slot.load::<MediumObjectEncode>() };
                 let (type_id, type_size) = if encode.is_medium() {
                     (encode.type_id(), encode.size())

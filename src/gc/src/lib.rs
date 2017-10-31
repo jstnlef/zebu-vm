@@ -154,15 +154,14 @@ pub extern "C" fn gc_init(immix_size: usize, lo_size: usize, n_gcthreads: usize,
     let immix_tiny = ImmixSpace::new(SpaceDescriptor::ImmixTiny, immix_size >> 1);
     trace!("  initializing normal immix space...");
     let immix_normal = ImmixSpace::new(SpaceDescriptor::ImmixNormal, immix_size >> 1);
-    trace!("  initializing large object space...");
-    let lo_space = Arc::new(FreeListSpace::new(lo_size));
+    //    trace!("  initializing large object space...");
+    //    let lo_space = Arc::new(FreeListSpace::new(lo_size));
 
     heap::gc::init(n_gcthreads);
 
     *MY_GC.write().unwrap() = Some(GC {
         immix_tiny,
         immix_normal,
-        lo: lo_space,
         gc_types: vec![],
         roots: LinkedHashSet::new()
     });
@@ -281,15 +280,12 @@ pub extern "C" fn muentry_alloc_tiny(
     size: usize,
     align: usize
 ) -> ObjectReference {
-    let addr = unsafe { &mut *mutator }.tiny.alloc(size, align);
-    trace!(
-        "muentry_alloc_tiny(mutator: {:?}, size: {}, align: {}) = {}",
-        mutator,
-        size,
-        align,
-        addr
-    );
-    unsafe { addr.to_object_reference() }
+    unsafe {
+        (&mut *mutator)
+            .tiny
+            .alloc(size, align)
+            .to_object_reference()
+    }
 }
 
 #[inline(always)]
@@ -299,15 +295,12 @@ pub extern "C" fn muentry_alloc_normal(
     size: usize,
     align: usize
 ) -> ObjectReference {
-    let addr = unsafe { &mut *mutator }.normal.alloc(size, align);
-    trace!(
-        "muentry_alloc_normal(mutator: {:?}, size: {}, align: {}) = {}",
-        mutator,
-        size,
-        align,
-        addr
-    );
-    unsafe { addr.to_object_reference() }
+    unsafe {
+        (&mut *mutator)
+            .normal
+            .alloc(size, align)
+            .to_object_reference()
+    }
 }
 
 /// allocates an object with slowpath in the immix space
@@ -318,18 +311,7 @@ pub extern "C" fn muentry_alloc_tiny_slow(
     size: usize,
     align: usize
 ) -> Address {
-    let ret = unsafe { &mut *mutator }
-        .tiny
-        .try_alloc_from_local(size, align);
-    trace!(
-        "muentry_alloc_slow(mutator: {:?}, size: {}, align: {}) = {}",
-        mutator,
-        size,
-        align,
-        ret
-    );
-
-    ret
+    unsafe { (&mut *mutator).tiny.try_alloc_from_local(size, align) }
 }
 
 /// allocates an object with slowpath in the immix space
@@ -340,18 +322,7 @@ pub extern "C" fn muentry_alloc_normal_slow(
     size: usize,
     align: usize
 ) -> Address {
-    let ret = unsafe { &mut *mutator }
-        .normal
-        .try_alloc_from_local(size, align);
-    trace!(
-        "muentry_alloc_slow(mutator: {:?}, size: {}, align: {}) = {}",
-        mutator,
-        size,
-        align,
-        ret
-    );
-
-    ret
+    unsafe { (&mut *mutator).normal.try_alloc_from_local(size, align) }
 }
 
 /// allocates an object in the freelist space (large object space)
@@ -362,21 +333,22 @@ pub extern "C" fn muentry_alloc_large(
     size: usize,
     align: usize
 ) -> ObjectReference {
-    let ret = freelist::alloc_large(
-        size,
-        align,
-        unsafe { mutator.as_mut().unwrap() },
-        MY_GC.read().unwrap().as_ref().unwrap().lo.clone()
-    );
-    trace!(
-        "muentry_alloc_large(mutator: {:?}, size: {}, align: {}) = {}",
-        mutator,
-        size,
-        align,
-        ret
-    );
-
-    unsafe { ret.to_object_reference() }
+    //    let ret = freelist::alloc_large(
+    //        size,
+    //        align,
+    //        unsafe { mutator.as_mut().unwrap() },
+    //        MY_GC.read().unwrap().as_ref().unwrap().lo.clone()
+    //    );
+    //    trace!(
+    //        "muentry_alloc_large(mutator: {:?}, size: {}, align: {}) = {}",
+    //        mutator,
+    //        size,
+    //        align,
+    //        ret
+    //    );
+    //
+    //    unsafe { ret.to_object_reference() }
+    unimplemented!()
 }
 
 #[no_mangle]
@@ -450,8 +422,9 @@ pub extern "C" fn muentry_init_hybrid(
 /// forces gc to happen
 /// (this is not a 'hint' - world will be stopped, and heap traversal will start)
 #[no_mangle]
-pub extern "C" fn force_gc() {
+pub extern "C" fn force_gc(mutator: *mut Mutator) {
     heap::gc::trigger_gc();
+    yieldpoint(mutator);
 }
 
 /// traces reachable objects and record them as a data structure
@@ -465,7 +438,7 @@ pub extern "C" fn persist_heap(roots: Vec<Address>) -> objectdump::HeapDump {
 struct GC {
     immix_tiny: Raw<ImmixSpace>,
     immix_normal: Raw<ImmixSpace>,
-    lo: Arc<FreeListSpace>,
+    //    lo: Arc<FreeListSpace>,
     gc_types: Vec<Arc<GCType>>,
     roots: LinkedHashSet<ObjectReference>
 }
@@ -476,17 +449,7 @@ lazy_static! {
 
 impl GC {
     pub fn is_heap_object(&self, addr: Address) -> bool {
-        self.immix_tiny.addr_in_space(addr) || self.immix_normal.addr_in_space(addr) ||
-            self.lo.addr_in_space(addr)
-    }
-}
-
-impl fmt::Debug for GC {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "GC\n").unwrap();
-        write!(f, "{}", self.immix_tiny).unwrap();
-        write!(f, "{}", self.immix_normal).unwrap();
-        write!(f, "{}", self.lo)
+        self.immix_tiny.addr_in_space(addr) || self.immix_normal.addr_in_space(addr)
     }
 }
 
@@ -495,19 +458,18 @@ impl fmt::Debug for GC {
 /// prints current GC context for debugging
 #[no_mangle]
 pub extern "C" fn print_gc_context() {
-    println!("{:?}", MY_GC.read().unwrap().as_ref().unwrap());
+    println!("GC CONTEXT UNKNOWN");
 }
 
 /// gets immix space and freelist space
 #[no_mangle]
-pub extern "C" fn get_spaces() -> (Raw<ImmixSpace>, Raw<ImmixSpace>, Arc<FreeListSpace>) {
+pub extern "C" fn get_spaces() -> (Raw<ImmixSpace>, Raw<ImmixSpace>) {
     let space_lock = MY_GC.read().unwrap();
     let space = space_lock.as_ref().unwrap();
 
     (
         space.immix_tiny.clone(),
-        space.immix_normal.clone(),
-        space.lo.clone()
+        space.immix_normal.clone() //        space.lo.clone()
     )
 }
 
