@@ -161,7 +161,7 @@ pub struct ImmixSpace {
     total_blocks: usize, // for debug use
 
     #[allow(dead_code)]
-    mmap: memmap::Mmap,
+    mmap: memmap::MmapMut,
     usable_blocks: Mutex<LinkedList<Box<ImmixBlock>>>,
     used_blocks: Mutex<LinkedList<Box<ImmixBlock>>>
 }
@@ -180,14 +180,12 @@ const SPACE_ALIGN: usize = 1 << 19;
 impl ImmixSpace {
     pub fn new(space_size: usize) -> ImmixSpace {
         // acquire memory through mmap
-        let anon_mmap: memmap::Mmap = match memmap::Mmap::anonymous(
-            space_size + SPACE_ALIGN,
-            memmap::Protection::ReadWrite
-        ) {
-            Ok(m) => m,
-            Err(_) => panic!("failed to call mmap")
-        };
-        let start: Address = Address::from_ptr::<u8>(anon_mmap.ptr()).align_up(SPACE_ALIGN);
+        let mut anon_mmap: memmap::MmapMut =
+            match memmap::MmapMut::map_anon(space_size + SPACE_ALIGN) {
+                Ok(m) => m,
+                Err(_) => panic!("failed to call mmap")
+            };
+        let start: Address = Address::from_ptr::<u8>(anon_mmap.as_mut_ptr()).align_up(SPACE_ALIGN);
         let end: Address = start + space_size;
 
         let line_mark_table = LineMarkTable::new(start, end);
