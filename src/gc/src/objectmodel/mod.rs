@@ -25,7 +25,17 @@ mod header;
 pub static INIT_MARK_STATE: usize = 1;
 static MARK_STATE: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 
-pub fn init() {}
+#[cfg(feature = "use-sidemap")]
+pub fn init() {
+    use objectmodel::sidemap::*;
+    GlobalTypeTable::init();
+}
+
+#[cfg(feature = "use-sidemap")]
+pub fn cleanup() {
+    use objectmodel::sidemap::*;
+    GlobalTypeTable::cleanup();
+}
 
 pub fn flip_mark_state() {
     let mark_state = MARK_STATE.load(atomic::Ordering::SeqCst);

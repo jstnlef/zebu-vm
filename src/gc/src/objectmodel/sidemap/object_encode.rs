@@ -17,6 +17,7 @@ use objectmodel::sidemap::type_encode::WordType;
 
 use utils::*;
 use std::mem::transmute;
+use std::fmt;
 
 pub const MAX_TINY_OBJECT: ByteSize = 32;
 pub const MAX_SMALL_OBJECT: ByteSize = 64;
@@ -30,7 +31,7 @@ pub const MAX_MEDIUM_OBJECT: ByteSize = 2048;
 /// u,  1 bit  - unused
 /// ri, 2 bits - ref encode for ith word
 #[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct TinyObjectEncode {
     b: u8
 }
@@ -51,8 +52,14 @@ impl TinyObjectEncode {
     }
     #[inline(always)]
     pub fn field(self, i: usize) -> WordType {
-        let f = self.b & (0b11u8 << (i << 1));
+        let f = (self.b >> (i << 1)) & 0b11u8;
         unsafe { transmute(f) }
+    }
+}
+
+impl fmt::Debug for TinyObjectEncode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "TinyObjectEncode ({:08b})", self.b)
     }
 }
 
@@ -94,7 +101,7 @@ mod tiny_object_encoding {
 /// sz, 2 bits - size encode (00: 32, 01:40, 10: 48, 11: 56)
 /// type_id, 13 bits - type id
 #[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct SmallObjectEncode {
     w: u16
 }
@@ -102,6 +109,10 @@ pub struct SmallObjectEncode {
 pub const SMALL_ID_WIDTH: usize = 13;
 
 impl SmallObjectEncode {
+    #[inline(always)]
+    pub fn new(w: u16) -> SmallObjectEncode {
+        SmallObjectEncode { w }
+    }
     #[inline(always)]
     pub fn is_small(self) -> bool {
         (self.w >> 15) == 1
@@ -115,7 +126,13 @@ impl SmallObjectEncode {
     #[inline(always)]
     pub fn type_id(self) -> TypeID {
         debug_assert!(self.is_small());
-        (self.w & (1u16 << (SMALL_ID_WIDTH + 1) - 1)) as usize
+        (self.w & ((1u16 << SMALL_ID_WIDTH) - 1)) as usize
+    }
+}
+
+impl fmt::Debug for SmallObjectEncode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "SmallObjectEncode ({:016b})", self.w)
     }
 }
 
@@ -169,12 +186,16 @@ mod small_object_encoding {
 /// type_id, 23 bits - type id
 /// size   , 8 bits  - size encode (sz -> 64 + sz * 8)
 #[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct MediumObjectEncode {
     d: u32
 }
 
 impl MediumObjectEncode {
+    #[inline(always)]
+    pub fn new(d: u32) -> MediumObjectEncode {
+        MediumObjectEncode { d }
+    }
     #[inline(always)]
     pub fn is_medium(self) -> bool {
         (self.d >> 31) == 0
@@ -189,6 +210,12 @@ impl MediumObjectEncode {
     pub fn type_id(self) -> TypeID {
         debug_assert!(self.is_medium());
         (self.d >> 8) as usize
+    }
+}
+
+impl fmt::Debug for MediumObjectEncode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "MediumObjectEncode ({:032b})", self.d)
     }
 }
 

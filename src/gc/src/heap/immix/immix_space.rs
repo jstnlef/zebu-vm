@@ -16,6 +16,7 @@ use common::ptr::*;
 use heap::*;
 use heap::immix::*;
 use heap::gc;
+use utils::*;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
@@ -232,6 +233,8 @@ impl ImmixSpace {
         self.cur_growth_rate = n_blocks;
     }
 
+    pub fn cleanup(&self) {}
+
     #[inline(always)]
     pub fn get(addr: Address) -> Raw<ImmixSpace> {
         unsafe { Raw::from_addr(addr.mask(SPACE_LOWBITS_MASK)) }
@@ -360,11 +363,18 @@ impl ImmixSpace {
         unsafe {
             memsec::memzero(&mut self.line_mark_table[0] as *mut LineMark, lines);
         }
+
+        // erase gc bytes
+        let words = self.cur_size >> LOG_POINTER_SIZE;
+        unsafe {
+            memsec::memzero(&mut self.gc_byte_table[0] as *mut u8, words);
+        }
     }
 
     #[allow(unused_variables)]
     #[allow(unused_assignments)]
     pub fn sweep(&mut self) {
+        debug!("=== {:?} Sweep ===", self.desc);
         debug_assert_eq!(
             self.n_used_blocks() + self.n_usable_blocks(),
             self.cur_blocks
@@ -420,7 +430,6 @@ impl ImmixSpace {
         }
 
         if cfg!(debug_assertions) {
-            debug!("=== {:?} GC ===", self.desc);
             debug!(
                 "free lines    = {} of {} total ({} blocks)",
                 free_lines,
@@ -449,6 +458,8 @@ impl ImmixSpace {
             self.n_used_blocks() + self.n_usable_blocks(),
             self.cur_blocks
         );
+
+        trace!("=======================");
     }
 
     fn trace_details(&self) {

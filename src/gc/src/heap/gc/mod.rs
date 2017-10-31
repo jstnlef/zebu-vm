@@ -291,7 +291,7 @@ fn gc() {
 pub const PUSH_BACK_THRESHOLD: usize = 50;
 pub static GC_THREADS: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 
-const TRACE_GC: bool = false;
+const TRACE_GC: bool = true;
 
 #[allow(unused_variables)]
 #[inline(never)]
@@ -399,27 +399,45 @@ pub fn steal_trace_object(
             let (type_encode, type_size): (&TypeEncode, ByteOffset) = {
                 let type_slot = ImmixSpace::get_type_byte_slot_static(obj.to_address());
                 let encode = unsafe { type_slot.load::<MediumObjectEncode>() };
-                let (type_id, type_size) = if encode.is_medium() {
-                    (encode.type_id(), encode.size())
+                let small_encode: &SmallObjectEncode = unsafe { transmute(&encode) };
+
+                let (type_id, type_size) = if small_encode.is_small() {
+                    trace_if!(TRACE_GC, "  trace small obj: {} ({:?})", obj, small_encode);
+                    trace_if!(
+                        TRACE_GC,
+                        "        id {}, size {}",
+                        small_encode.type_id(),
+                        small_encode.size()
+                    );
+                    (small_encode.type_id(), small_encode.size())
                 } else {
-                    let small_encode: &SmallObjectEncode = unsafe { transmute(&encode) };
-                    (small_encode.type_id(), encode.size())
+                    trace_if!(TRACE_GC, "  trace medium obj: {} ({:?})", obj, encode);
+                    trace_if!(
+                        TRACE_GC,
+                        "        id {}, size {}",
+                        encode.type_id(),
+                        encode.size()
+                    );
+                    (encode.type_id(), encode.size())
                 };
                 (&GlobalTypeTable::table()[type_id], type_size as ByteOffset)
             };
 
             let mut offset: ByteOffset = 0;
+            trace_if!(TRACE_GC, "  -fix part-");
             for i in 0..type_encode.fix_len() {
                 trace_word(type_encode.fix_ty(i), obj, offset, local_queue, job_sender);
                 offset += POINTER_SIZE as ByteOffset;
             }
             // for variable part
+            trace_if!(TRACE_GC, "  -var part-");
             while offset < type_size {
                 for i in 0..type_encode.var_len() {
                     trace_word(type_encode.var_ty(i), obj, offset, local_queue, job_sender);
                     offset += POINTER_SIZE as ByteOffset;
                 }
             }
+            trace_if!(TRACE_GC, "  -done-");
         }
         SpaceDescriptor::Freelist => unimplemented!()
     }

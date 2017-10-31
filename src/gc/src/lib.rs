@@ -202,7 +202,14 @@ pub extern "C" fn gc_init(config: GCConfig) {
 /// destroys current GC instance
 #[no_mangle]
 pub extern "C" fn gc_destroy() {
-    *MY_GC.write().unwrap() = None;
+    objectmodel::cleanup();
+    let mut gc_lock = MY_GC.write().unwrap();
+    {
+        let gc = gc_lock.as_ref().unwrap();
+        gc.immix_tiny.cleanup();
+        gc.immix_normal.cleanup();
+    }
+    *gc_lock = None;
 }
 
 /// creates a mutator

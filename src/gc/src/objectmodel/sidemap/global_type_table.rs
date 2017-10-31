@@ -96,6 +96,15 @@ impl GlobalTypeTable {
         trace!("Global Type Table initialization done");
     }
 
+    pub fn cleanup() {
+        {
+            let mut mmap_lock = GTT_MMAP.lock().unwrap();
+            *mmap_lock = None;
+        }
+        GLOBAL_TYPE_TABLE_PTR.store(0, Ordering::Relaxed);
+        GLOBAL_TYPE_TABLE_META.store(0, Ordering::Relaxed);
+    }
+
     #[inline(always)]
     fn table_meta() -> &'static mut GlobalTypeTable {
         unsafe { mem::transmute(GLOBAL_TYPE_TABLE_META.load(Ordering::Relaxed)) }

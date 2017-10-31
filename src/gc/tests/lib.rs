@@ -16,5 +16,6 @@
 extern crate log;
 
 mod test_immix_tiny;
+mod test_immix_normal;
 //mod test_gcbench;
 //mod test_gc_linked_list;
