@@ -313,8 +313,13 @@ pub extern "C" fn mu_main(
             args
         };
 
-        // FIXME: currently assumes no user defined thread local - See Issue #48
-        thread::MuThread::new_thread_normal(stack, unsafe { Address::zero() }, args, vm.clone());
+        let threadlocal = vm.primordial_threadlocal
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|name| resolve_symbol(Arc::new(name.clone())))
+            .unwrap_or(unsafe { Address::zero() });
+        thread::MuThread::new_thread_normal(stack, threadlocal, args, vm.clone());
 
         loop {
             let thread = vm.pop_join_handle();
