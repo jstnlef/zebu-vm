@@ -15,8 +15,8 @@
 use utils::*;
 use common::ptr::*;
 use heap::immix::*;
+use heap::freelist::*;
 
-use std::sync::atomic::AtomicUsize;
 use std::sync::RwLock;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -97,6 +97,7 @@ pub struct Mutator {
     id: usize,
     pub tiny: ImmixAllocator,
     pub normal: ImmixAllocator,
+    pub lo: FreelistAllocator,
     global: Arc<MutatorGlobal>
 }
 
@@ -104,6 +105,7 @@ impl Mutator {
     pub fn new(
         tiny: ImmixAllocator,
         normal: ImmixAllocator,
+        lo: FreelistAllocator,
         global: Arc<MutatorGlobal>
     ) -> Mutator {
         let mut id_lock = N_MUTATORS.write().unwrap();
@@ -117,6 +119,7 @@ impl Mutator {
             id: *id_lock,
             tiny,
             normal,
+            lo,
             global
         };
         *id_lock += 1;

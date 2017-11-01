@@ -109,7 +109,6 @@ impl FreeListSpace {
 
     #[inline(always)]
     #[cfg(feature = "use-sidemap")]
-    #[allow(unused_variables)]
     fn is_traced(&self, addr: Address, mark_state: u8) -> bool {
         unimplemented!()
     }

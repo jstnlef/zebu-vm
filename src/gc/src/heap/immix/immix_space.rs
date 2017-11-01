@@ -17,7 +17,6 @@ use heap::*;
 use heap::immix::*;
 use heap::gc;
 use objectmodel::sidemap::*;
-use utils::*;
 use utils::bit_utils;
 use utils::mem::memmap;
 use utils::mem::memsec;
@@ -525,6 +524,7 @@ impl Space for ImmixSpace {
         self.cur_end
     }
     #[inline(always)]
+    #[allow(unused_variables)]
     fn is_valid_object(&self, addr: Address) -> bool {
         // we cannot judge if it is a valid object, we always return true
         true

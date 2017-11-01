@@ -133,7 +133,7 @@ impl ImmixAllocator {
     }
 
     #[inline(always)]
-    pub fn post_alloc(&mut self, obj: Address, size: usize, align: usize) {
+    pub fn post_alloc(&mut self, obj: Address, size: usize) {
         if size > BYTES_IN_LINE {
             let index = self.space.get_word_index(obj);
             let slot = self.space.get_gc_byte_slot(index);

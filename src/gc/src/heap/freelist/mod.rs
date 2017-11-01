@@ -11,34 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use utils::Address;
-use heap::gc;
-use heap::Mutator;
+mod freelist_space;
+mod freelist_mutator;
 
-mod malloc_list;
-mod treadmill;
-
-//pub use heap::freelist::malloc_list::FreeListSpace;
-pub use heap::freelist::treadmill::FreeListSpace;
-
-use std::sync::Arc;
-
-#[inline(never)]
-pub fn alloc_large(
-    size: usize,
-    align: usize,
-    mutator: &mut Mutator,
-    space: Arc<FreeListSpace>
-) -> Address {
-    loop {
-        mutator.yieldpoint();
-
-        let ret_addr = space.alloc(size, align);
-
-        if ret_addr.is_zero() {
-            gc::trigger_gc();
-        } else {
-            return ret_addr;
-        }
-    }
-}
+pub use self::freelist_space::FreelistSpace;
+pub use self::freelist_mutator::FreelistAllocator;

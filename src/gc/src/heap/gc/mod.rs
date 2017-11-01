@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use heap::*;
+use heap::freelist::*;
 use objectmodel;
 use objectmodel::sidemap::*;
 use MY_GC;
@@ -248,6 +249,7 @@ fn gc() {
         let mut gccontext = gccontext_guard.as_mut().unwrap();
         gccontext.immix_tiny.prepare_for_gc();
         gccontext.immix_normal.prepare_for_gc();
+        gccontext.lo.prepare_for_gc();
     }
 
     trace!("GC starts");
@@ -277,7 +279,7 @@ fn gc() {
 
         gccontext.immix_tiny.sweep();
         gccontext.immix_normal.sweep();
-        //        gccontext.lo.sweep();
+        gccontext.lo.sweep();
     }
 
     objectmodel::flip_mark_state();
@@ -441,7 +443,30 @@ pub fn steal_trace_object(
             }
             trace_if!(TRACE_GC, "  -done-");
         }
-        SpaceDescriptor::Freelist => unimplemented!()
+        SpaceDescriptor::Freelist => {
+            let mut space = FreelistSpace::get(obj.to_address());
+            space.mark_object_traced(obj);
+
+            let encode = space.get_type_encode(obj);
+            let tyid = encode.type_id();
+            let ty = GlobalTypeTable::get_full_type(tyid);
+
+            let mut offset: ByteOffset = 0;
+            // fix part
+            for &word_ty in ty.fix.iter() {
+                trace_word(word_ty, obj, offset, local_queue, job_sender);
+                offset += POINTER_SIZE as ByteOffset;
+            }
+            if encode.hybrid_len() != 0 {
+                // for every hybrid element
+                for _ in 0..encode.hybrid_len() {
+                    for &word_ty in ty.var.iter() {
+                        trace_word(word_ty, obj, offset, local_queue, job_sender);
+                        offset += POINTER_SIZE as ByteOffset;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -477,11 +502,22 @@ fn trace_word(
                         steal_process_edge(edge, local_queue, job_sender);
                     }
                 }
-                SpaceDescriptor::Freelist => unimplemented!()
+                SpaceDescriptor::Freelist => {
+                    let space = FreelistSpace::get(edge.to_address());
+                    if !space.is_object_traced(edge) {
+                        debug!("edge {} is not traced, trace it", edge);
+                        steal_process_edge(edge, local_queue, job_sender);
+                    } else {
+                        debug!("edge {} is traced, skip", edge);
+                    }
+                }
             }
         }
-        WordType::WeakRef => unimplemented!(),
-        WordType::TaggedRef => unimplemented!()
+        WordType::WeakRef | WordType::TaggedRef => {
+            use std::process;
+            error!("unimplemented");
+            process::exit(1);
+        }
     }
 }
 

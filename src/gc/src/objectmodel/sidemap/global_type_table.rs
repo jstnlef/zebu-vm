@@ -13,7 +13,9 @@
 // limitations under the License.
 
 use std::sync::Mutex;
+use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
+use std::collections::HashMap;
 use std::mem;
 use utils::mem::memmap;
 use utils::math;
@@ -21,7 +23,7 @@ use utils::Address;
 
 use objectmodel::sidemap::TypeID;
 use objectmodel::sidemap::N_TYPES;
-use objectmodel::sidemap::type_encode::TypeEncode;
+use objectmodel::sidemap::type_encode::*;
 use objectmodel::sidemap::object_encode::SMALL_ID_WIDTH;
 
 /// represents a chunk of memory as global type table, which contains some metadata for the
@@ -48,7 +50,15 @@ pub struct GlobalTypeTable {
     /// current index for small entries
     small_entry_i: usize,
     /// current index for large entries
-    large_entry_i: usize
+    large_entry_i: usize,
+    /// full entries
+    full_entries: RwLock<HashMap<usize, FullTypeEntry>>
+}
+
+#[derive(Clone)]
+pub struct FullTypeEntry {
+    pub fix: Vec<WordType>,
+    pub var: Vec<WordType>
 }
 
 const SMALL_ENTRY_CAP: usize = 1 << SMALL_ID_WIDTH;
@@ -90,6 +100,13 @@ impl GlobalTypeTable {
         let meta: &mut GlobalTypeTable = unsafe { meta_addr.to_ptr_mut().as_mut().unwrap() };
         meta.small_entry_i = 0;
         meta.large_entry_i = SMALL_ENTRY_CAP;
+        unsafe {
+            use std::ptr;
+            ptr::write(
+                &mut meta.full_entries as *mut RwLock<HashMap<usize, FullTypeEntry>>,
+                RwLock::new(HashMap::new())
+            )
+        }
 
         // save mmap
         *mmap_lock = Some(mmap);
@@ -141,6 +158,23 @@ impl GlobalTypeTable {
         } else {
             panic!("large type entries overflow the global type table")
         }
+    }
+
+    pub fn insert_full_entry(entry: FullTypeEntry) -> usize {
+        let meta = GlobalTypeTable::table_meta();
+
+        let mut lock = meta.full_entries.write().unwrap();
+        let id = lock.len();
+        lock.insert(id, entry);
+
+        id
+    }
+
+    pub fn get_full_type(id: usize) -> FullTypeEntry {
+        let meta = GlobalTypeTable::table_meta();
+        let lock = meta.full_entries.read().unwrap();
+        debug_assert!(lock.contains_key(&id));
+        lock.get(&id).unwrap().clone()
     }
 }
 

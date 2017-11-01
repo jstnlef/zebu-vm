@@ -274,6 +274,14 @@ pub struct LargeObjectEncode {
 
 impl LargeObjectEncode {
     #[inline(always)]
+    pub fn new(size: u64, tyid: u32, hybrid_len: u32) -> LargeObjectEncode {
+        LargeObjectEncode {
+            size,
+            tyid,
+            hybrid_len
+        }
+    }
+    #[inline(always)]
     pub fn size(self) -> usize {
         (self.size << 8) as usize
     }

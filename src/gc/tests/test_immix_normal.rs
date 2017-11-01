@@ -62,7 +62,7 @@ pub fn test_normal_immix_linkedlist() {
     };
     println!("Small Header: {:?}", small_header);
 
-    let (_, normal_space) = get_spaces();
+    let normal_space = get_space_immix_normal();
     let mutator = new_mutator();
 
     let mut last_obj: Address = unsafe { Address::zero() };
@@ -141,7 +141,8 @@ pub fn test_normal_immix_hybrid() {
     println!("Tiny header: {:?}", tiny_header);
     println!("Hybrid header: {:?}", hybrid_header);
 
-    let (tiny_space, normal_space) = get_spaces();
+    let tiny_space = get_space_immix_tiny();
+    let normal_space = get_space_immix_normal();
     let mutator = new_mutator();
 
     // alloc 4 tiny object
@@ -209,7 +210,7 @@ pub fn test_normal_immix_straddle() {
     };
     println!("Header: {:?}", header);
 
-    let (_, normal_space) = get_spaces();
+    let normal_space = get_space_immix_normal();
     let mutator = new_mutator();
 
     // alloc 4 objects
@@ -271,7 +272,7 @@ pub fn test_normal_immix_mix() {
     println!("Straddle Header: {:?}", straddle_header);
     println!("Normal Header: {:?}", normal_header);
 
-    let (_, normal_space) = get_spaces();
+    let normal_space = get_space_immix_normal();
     let mutator = new_mutator();
 
     // alloc 4 straddle objects and 1 normal object
@@ -302,4 +303,7 @@ pub fn test_normal_immix_mix() {
     force_gc(mutator);
     assert_eq!(GC_COUNT.load(Ordering::SeqCst), 3);
     assert_eq!(normal_space.last_gc_used_lines, 0);
+
+    drop_mutator(mutator);
+    gc_destroy();
 }
