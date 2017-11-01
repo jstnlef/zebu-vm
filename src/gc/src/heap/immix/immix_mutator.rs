@@ -21,7 +21,7 @@ use utils::Address;
 use utils::ByteSize;
 use std::*;
 
-const TRACE_ALLOC: bool = false;
+const TRACE_ALLOC: bool = true;
 
 #[repr(C)]
 pub struct ImmixAllocator {
@@ -111,16 +111,7 @@ impl ImmixAllocator {
         );
 
         if end > self.limit {
-            if size > BYTES_IN_LINE {
-                trace_if!(TRACE_ALLOC, "Mutator: overflow alloc()");
-                self.overflow_alloc(size, align)
-            } else {
-                trace_if!(
-                    TRACE_ALLOC,
-                    "Mutator: fastpath alloc: try_alloc_from_local()"
-                );
-                self.try_alloc_from_local(size, align)
-            }
+            self.alloc_slow(size, align)
         } else {
             self.cursor = end;
             start
@@ -128,6 +119,28 @@ impl ImmixAllocator {
     }
 
     #[inline(never)]
+    pub fn alloc_slow(&mut self, size: usize, align: usize) -> Address {
+        if size > BYTES_IN_LINE {
+            trace_if!(TRACE_ALLOC, "Mutator: overflow alloc()");
+            self.overflow_alloc(size, align)
+        } else {
+            trace_if!(
+                TRACE_ALLOC,
+                "Mutator: fastpath alloc: try_alloc_from_local()"
+            );
+            self.try_alloc_from_local(size, align)
+        }
+    }
+
+    #[inline(always)]
+    pub fn post_alloc(&mut self, obj: Address, size: usize, align: usize) {
+        if size > BYTES_IN_LINE {
+            let index = self.space.get_word_index(obj);
+            let slot = self.space.get_gc_byte_slot(index);
+            unsafe { slot.store(slot.load::<u8>() | GC_STRADDLE_BIT) }
+        }
+    }
+
     pub fn overflow_alloc(&mut self, size: usize, align: usize) -> Address {
         let start = self.large_cursor.align_up(align);
         let end = start + size;
@@ -181,7 +194,6 @@ impl ImmixAllocator {
         }
     }
 
-    #[inline(never)]
     pub fn try_alloc_from_local(&mut self, size: usize, align: usize) -> Address {
         if self.line < LINES_IN_BLOCK {
             let opt_next_available_line = {
@@ -213,12 +225,7 @@ impl ImmixAllocator {
                         self.block().set_line_mark(line, LineMark::FreshAlloc);
                     }
 
-                    // allocate fast path
-                    let start = self.cursor.align_up(align);
-                    let end = start + size;
-
-                    self.cursor = end;
-                    start
+                    self.alloc(size, align)
                 }
                 None => self.alloc_from_global(size, align, false)
             }
@@ -246,8 +253,13 @@ impl ImmixAllocator {
 
                     if request_large {
                         self.large_cursor = b.mem_start();
-                        self.limit = b.mem_start() + BYTES_IN_BLOCK;
+                        self.large_limit = b.mem_start() + BYTES_IN_BLOCK;
                         self.large_block = Some(b);
+
+                        trace!(
+                            "Mutator: slowpath: new large_block starting from 0x{:x}",
+                            self.large_cursor
+                        );
 
                         return self.alloc(size, align);
                     } else {
@@ -261,7 +273,7 @@ impl ImmixAllocator {
                             self.cursor
                         );
 
-                        return self.try_alloc_from_local(size, align);
+                        return self.alloc(size, align);
                     }
                 }
                 None => {

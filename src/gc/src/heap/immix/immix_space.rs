@@ -16,7 +16,9 @@ use common::ptr::*;
 use heap::*;
 use heap::immix::*;
 use heap::gc;
+use objectmodel::sidemap::*;
 use utils::*;
+use utils::bit_utils;
 use utils::mem::memmap;
 use utils::mem::memsec;
 
@@ -258,12 +260,11 @@ impl ImmixSpace {
     }
 
     #[inline(always)]
-    pub fn mark_line_alive(addr: Address) {
-        let mut space: Raw<ImmixSpace> = unsafe { Raw::from_addr(addr.mask(SPACE_LOWBITS_MASK)) };
-        let index = space.get_line_mark_index(addr);
-        space.set_line_mark(index, LineMark::Live);
-        if index < (space.cur_blocks << LOG_LINES_IN_BLOCK) - 1 {
-            space.set_line_mark(index + 1, LineMark::ConservLive);
+    pub fn mark_line_conservative(&mut self, addr: Address) {
+        let index = self.get_line_mark_index(addr);
+        self.set_line_mark(index, LineMark::Live);
+        if index < (self.cur_blocks << LOG_LINES_IN_BLOCK) - 1 {
+            self.set_line_mark(index + 1, LineMark::ConservLive);
         }
     }
 
@@ -366,8 +367,8 @@ impl ImmixSpace {
 
         // erase gc bytes
         let words = self.cur_size >> LOG_POINTER_SIZE;
-        unsafe {
-            memsec::memzero(&mut self.gc_byte_table[0] as *mut u8, words);
+        for i in 0..words {
+            self.gc_byte_table[i] = bit_utils::clear_bit_u8(self.gc_byte_table[i], GC_MARK_BIT);
         }
     }
 
@@ -581,13 +582,50 @@ impl ImmixBlock {
 #[inline(always)]
 pub fn mark_object_traced(obj: ObjectReference) {
     let obj_addr = obj.to_address();
+    let mut space = ImmixSpace::get(obj_addr);
 
     // mark object
-    let addr = ImmixSpace::get_gc_byte_slot_static(obj_addr);
-    unsafe { addr.store(1u8) }
+    let obj_index = space.get_word_index(obj_addr);
+    let slot = space.get_gc_byte_slot(obj_index);
+    let gc_byte = unsafe { slot.load::<u8>() };
+    unsafe {
+        slot.store(gc_byte | GC_MARK_BIT);
+    }
 
-    // mark line
-    ImmixSpace::mark_line_alive(obj_addr);
+    if is_straddle_object(gc_byte) {
+        // we need to know object size, and mark multiple lines
+        let size = {
+            use std::mem::transmute;
+            let type_slot = space.get_type_byte_slot(obj_index);
+            let med_encode = unsafe { type_slot.load::<MediumObjectEncode>() };
+            let small_encode: &SmallObjectEncode = unsafe { transmute(&med_encode) };
+
+            if small_encode.is_small() {
+                small_encode.size()
+            } else {
+                med_encode.size()
+            }
+        };
+        let start_line = space.get_line_mark_index(obj_addr);
+        let end_line = start_line + (size >> LOG_BYTES_IN_LINE);
+        for i in start_line..end_line {
+            space.set_line_mark(i, LineMark::Live);
+        }
+        trace!(
+            "  marking line for straddle object (line {} - {} alive)",
+            start_line,
+            end_line
+        );
+    } else {
+        // mark current line, and conservatively mark the next line
+        space.mark_line_conservative(obj_addr);
+        trace!("  marking line for normal object (conservatively)");
+    }
+}
+
+#[inline(always)]
+fn is_straddle_object(gc_byte: u8) -> bool {
+    (gc_byte & GC_STRADDLE_BIT) == GC_STRADDLE_BIT
 }
 
 #[inline(always)]

@@ -294,6 +294,11 @@ pub extern "C" fn yieldpoint_slow(mutator: *mut Mutator) {
     unsafe { mutator.as_mut().unwrap() }.yieldpoint_slow()
 }
 
+#[inline(always)]
+fn mutator_ref(m: *mut Mutator) -> &'static mut Mutator {
+    unsafe { &mut *m }
+}
+
 /// allocates an object in the immix space
 #[inline(always)]
 #[no_mangle]
@@ -302,12 +307,8 @@ pub extern "C" fn muentry_alloc_tiny(
     size: usize,
     align: usize
 ) -> ObjectReference {
-    unsafe {
-        (&mut *mutator)
-            .tiny
-            .alloc(size, align)
-            .to_object_reference()
-    }
+    let m = mutator_ref(mutator);
+    unsafe { m.tiny.alloc(size, align).to_object_reference() }
 }
 
 #[inline(always)]
@@ -317,12 +318,10 @@ pub extern "C" fn muentry_alloc_normal(
     size: usize,
     align: usize
 ) -> ObjectReference {
-    unsafe {
-        (&mut *mutator)
-            .normal
-            .alloc(size, align)
-            .to_object_reference()
-    }
+    let m = mutator_ref(mutator);
+    let res = m.normal.alloc(size, align);
+    m.normal.post_alloc(res, size, align);
+    unsafe { res.to_object_reference() }
 }
 
 /// allocates an object with slowpath in the immix space
@@ -333,7 +332,8 @@ pub extern "C" fn muentry_alloc_tiny_slow(
     size: usize,
     align: usize
 ) -> Address {
-    unsafe { (&mut *mutator).tiny.try_alloc_from_local(size, align) }
+    let m = mutator_ref(mutator);
+    m.tiny.alloc_slow(size, align)
 }
 
 /// allocates an object with slowpath in the immix space
@@ -344,7 +344,10 @@ pub extern "C" fn muentry_alloc_normal_slow(
     size: usize,
     align: usize
 ) -> Address {
-    unsafe { (&mut *mutator).normal.try_alloc_from_local(size, align) }
+    let m = mutator_ref(mutator);
+    let res = m.normal.alloc_slow(size, align);
+    m.normal.post_alloc(res, size, align);
+    res
 }
 
 /// allocates an object in the freelist space (large object space)

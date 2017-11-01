@@ -184,3 +184,122 @@ pub fn test_normal_immix_hybrid() {
     drop_mutator(mutator);
     gc_destroy();
 }
+
+#[test]
+pub fn test_normal_immix_straddle() {
+    const IMMIX_SPACE_SIZE: usize = SMALL_SPACE_SIZE;
+    const OBJECT_SIZE: usize = 1024; // 4 lines
+    const OBJECT_ALIGN: usize = 8;
+    const WORK_LOAD: usize = 4;
+
+    start_logging_trace();
+    gc_init(GCConfig {
+        immix_tiny_size: 0,
+        immix_normal_size: IMMIX_SPACE_SIZE,
+        lo_size: 0,
+        n_gcthreads: 1,
+        enable_gc: true
+    });
+
+    let header = {
+        let ty_encode = TypeEncode::new(64, [0; 63], 0, [0; 63]);
+        let id = GlobalTypeTable::insert_large_entry(ty_encode);
+        let raw_encode = ((id << 8) | 0b1111000usize) as u32;
+        MediumObjectEncode::new(raw_encode)
+    };
+    println!("Header: {:?}", header);
+
+    let (_, normal_space) = get_spaces();
+    let mutator = new_mutator();
+
+    // alloc 4 objects
+    let mut objects = vec![];
+    for _ in 0..WORK_LOAD {
+        let res = muentry_alloc_normal(mutator, OBJECT_SIZE, OBJECT_ALIGN);
+        muentry_init_medium_object(mutator, res, header);
+        objects.push(res);
+    }
+
+    for obj in objects.iter() {
+        add_to_root(*obj);
+    }
+    force_gc(mutator);
+    assert_eq!(GC_COUNT.load(Ordering::SeqCst), 1);
+    assert_eq!(normal_space.last_gc_used_lines, 16);
+
+    force_gc(mutator);
+    assert_eq!(GC_COUNT.load(Ordering::SeqCst), 2);
+    assert_eq!(normal_space.last_gc_used_lines, 16);
+
+    for obj in objects.iter() {
+        remove_root(*obj);
+    }
+    force_gc(mutator);
+    assert_eq!(GC_COUNT.load(Ordering::SeqCst), 3);
+    assert_eq!(normal_space.last_gc_used_lines, 0);
+}
+
+#[test]
+pub fn test_normal_immix_mix() {
+    const IMMIX_SPACE_SIZE: usize = SMALL_SPACE_SIZE;
+    const STRADDLE_OBJECT_SIZE: usize = 1024; // 4 lines
+    const NORMAL_OBJECT_SIZE: usize = 64;
+    const OBJECT_ALIGN: usize = 8;
+    const WORK_LOAD: usize = 4;
+
+    start_logging_trace();
+    gc_init(GCConfig {
+        immix_tiny_size: 0,
+        immix_normal_size: IMMIX_SPACE_SIZE,
+        lo_size: 0,
+        n_gcthreads: 1,
+        enable_gc: true
+    });
+
+    let straddle_header = {
+        let ty_encode = TypeEncode::new(64, [0; 63], 0, [0; 63]);
+        let id = GlobalTypeTable::insert_large_entry(ty_encode);
+        let raw_encode = ((id << 8) | 0b1111000usize) as u32;
+        MediumObjectEncode::new(raw_encode)
+    };
+    let normal_header = {
+        let ty_encode = TypeEncode::new(8, [0; 63], 0, [0; 63]);
+        let id = GlobalTypeTable::insert_large_entry(ty_encode);
+        let raw_encode = ((id << 8) | 0usize) as u32;
+        MediumObjectEncode::new(raw_encode)
+    };
+    println!("Straddle Header: {:?}", straddle_header);
+    println!("Normal Header: {:?}", normal_header);
+
+    let (_, normal_space) = get_spaces();
+    let mutator = new_mutator();
+
+    // alloc 4 straddle objects and 1 normal object
+    let mut objects = vec![];
+    for _ in 0..WORK_LOAD {
+        let res = muentry_alloc_normal(mutator, STRADDLE_OBJECT_SIZE, OBJECT_ALIGN);
+        muentry_init_medium_object(mutator, res, straddle_header);
+        objects.push(res);
+    }
+    let res = muentry_alloc_normal(mutator, NORMAL_OBJECT_SIZE, OBJECT_ALIGN);
+    muentry_init_medium_object(mutator, res, normal_header);
+    objects.push(res);
+
+    for obj in objects.iter() {
+        add_to_root(*obj);
+    }
+    force_gc(mutator);
+    assert_eq!(GC_COUNT.load(Ordering::SeqCst), 1);
+    assert_eq!(normal_space.last_gc_used_lines, 18);
+
+    force_gc(mutator);
+    assert_eq!(GC_COUNT.load(Ordering::SeqCst), 2);
+    assert_eq!(normal_space.last_gc_used_lines, 18);
+
+    for obj in objects.iter() {
+        remove_root(*obj);
+    }
+    force_gc(mutator);
+    assert_eq!(GC_COUNT.load(Ordering::SeqCst), 3);
+    assert_eq!(normal_space.last_gc_used_lines, 0);
+}

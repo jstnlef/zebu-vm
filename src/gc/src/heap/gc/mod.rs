@@ -430,11 +430,13 @@ pub fn steal_trace_object(
                 offset += POINTER_SIZE as ByteOffset;
             }
             // for variable part
-            trace_if!(TRACE_GC, "  -var part-");
-            while offset < type_size {
-                for i in 0..type_encode.var_len() {
-                    trace_word(type_encode.var_ty(i), obj, offset, local_queue, job_sender);
-                    offset += POINTER_SIZE as ByteOffset;
+            if type_encode.var_len() != 0 {
+                trace_if!(TRACE_GC, "  -var part-");
+                while offset < type_size {
+                    for i in 0..type_encode.var_len() {
+                        trace_word(type_encode.var_ty(i), obj, offset, local_queue, job_sender);
+                        offset += POINTER_SIZE as ByteOffset;
+                    }
                 }
             }
             trace_if!(TRACE_GC, "  -done-");

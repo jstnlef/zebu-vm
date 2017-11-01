@@ -45,8 +45,6 @@ pub use self::immix_space::is_object_traced;
 // | ......           |
 // |__________________|
 
-
-
 // 64KB Immix Block
 pub const LOG_BYTES_IN_BLOCK: usize = 16;
 pub const BYTES_IN_BLOCK: ByteSize = 1 << LOG_BYTES_IN_BLOCK;
@@ -85,6 +83,9 @@ pub const OFFSET_META_TYPE_TABLE: ByteOffset =
     OFFSET_META_GC_TABLE + BYTES_META_GC_TABLE as ByteOffset;
 pub const OFFSET_MEM_START: ByteOffset =
     OFFSET_META_TYPE_TABLE + BYTES_META_TYPE_TABLE as ByteOffset;
+
+pub const GC_STRADDLE_BIT: u8 = 0b1000_0000u8;
+pub const GC_MARK_BIT: u8 = 0b0000_0001u8;
 
 #[repr(u8)]
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
