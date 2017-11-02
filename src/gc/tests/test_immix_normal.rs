@@ -238,6 +238,9 @@ pub fn test_normal_immix_straddle() {
     force_gc(mutator);
     assert_eq!(GC_COUNT.load(Ordering::SeqCst), 3);
     assert_eq!(normal_space.last_gc_used_lines, 0);
+
+    drop_mutator(mutator);
+    gc_destroy();
 }
 
 #[test]

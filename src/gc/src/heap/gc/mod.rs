@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use heap::*;
-use heap::freelist::*;
 use objectmodel;
 use objectmodel::sidemap::*;
 use MY_GC;
@@ -375,11 +374,14 @@ pub fn steal_trace_object(
 ) {
     match SpaceDescriptor::get(obj) {
         SpaceDescriptor::ImmixTiny => {
+            let mut space = ImmixSpace::get::<ImmixSpace>(obj.to_address());
             // mark current object traced
-            immix::mark_object_traced(obj);
+            space.mark_object_traced(obj);
 
             let encode = unsafe {
-                ImmixSpace::get_type_byte_slot_static(obj.to_address()).load::<TinyObjectEncode>()
+                space
+                    .get_type_byte_slot(space.get_word_index(obj.to_address()))
+                    .load::<TinyObjectEncode>()
             };
 
             trace_if!(TRACE_GC, "  trace tiny obj: {} ({:?})", obj, encode);
@@ -394,12 +396,13 @@ pub fn steal_trace_object(
             }
         }
         SpaceDescriptor::ImmixNormal => {
+            let mut space = ImmixSpace::get::<ImmixSpace>(obj.to_address());
             //mark current object traced
-            immix::mark_object_traced(obj);
+            space.mark_object_traced(obj);
 
             // get type encode
             let (type_encode, type_size): (&TypeEncode, ByteOffset) = {
-                let type_slot = ImmixSpace::get_type_byte_slot_static(obj.to_address());
+                let type_slot = space.get_type_byte_slot(space.get_word_index(obj.to_address()));
                 let encode = unsafe { type_slot.load::<MediumObjectEncode>() };
                 let small_encode: &SmallObjectEncode = unsafe { transmute(&encode) };
 
@@ -444,7 +447,7 @@ pub fn steal_trace_object(
             trace_if!(TRACE_GC, "  -done-");
         }
         SpaceDescriptor::Freelist => {
-            let mut space = FreelistSpace::get(obj.to_address());
+            let mut space = FreelistSpace::get::<FreelistSpace>(obj.to_address());
             space.mark_object_traced(obj);
 
             let encode = space.get_type_encode(obj);
@@ -498,12 +501,13 @@ fn trace_word(
 
             match SpaceDescriptor::get(edge) {
                 SpaceDescriptor::ImmixTiny | SpaceDescriptor::ImmixNormal => {
-                    if !immix::is_object_traced(edge) {
+                    let space = ImmixSpace::get::<ImmixSpace>(edge.to_address());
+                    if !space.is_object_traced(edge) {
                         steal_process_edge(edge, local_queue, job_sender);
                     }
                 }
                 SpaceDescriptor::Freelist => {
-                    let space = FreelistSpace::get(edge.to_address());
+                    let space = FreelistSpace::get::<FreelistSpace>(edge.to_address());
                     if !space.is_object_traced(edge) {
                         debug!("edge {} is not traced, trace it", edge);
                         steal_process_edge(edge, local_queue, job_sender);

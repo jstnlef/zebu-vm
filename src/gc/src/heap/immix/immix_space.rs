@@ -107,6 +107,183 @@ impl RawMemoryMetadata for ImmixSpace {
     }
 }
 
+impl Space for ImmixSpace {
+    #[inline(always)]
+    fn start(&self) -> Address {
+        self.start
+    }
+
+    #[inline(always)]
+    fn end(&self) -> Address {
+        self.cur_end
+    }
+
+    #[inline(always)]
+    #[allow(unused_variables)]
+    fn is_valid_object(&self, addr: Address) -> bool {
+        // we cannot judge if it is a valid object, we always return true
+        true
+    }
+
+    fn destroy(&mut self) {}
+
+    fn prepare_for_gc(&mut self) {
+        // erase lines marks
+        let lines = self.cur_blocks << LOG_LINES_IN_BLOCK;
+        unsafe {
+            memsec::memzero(&mut self.line_mark_table[0] as *mut LineMark, lines);
+        }
+
+        // erase gc bytes
+        let words = self.cur_size >> LOG_POINTER_SIZE;
+        for i in 0..words {
+            self.gc_byte_table[i] = bit_utils::clear_bit_u8(self.gc_byte_table[i], GC_MARK_BIT);
+        }
+    }
+
+    #[allow(unused_variables)]
+    #[allow(unused_assignments)]
+    fn sweep(&mut self) {
+        debug!("=== {:?} Sweep ===", self.desc);
+        debug_assert_eq!(
+            self.n_used_blocks() + self.n_usable_blocks(),
+            self.cur_blocks
+        );
+
+        // some statistics
+        let mut free_lines = 0;
+        let mut used_lines = 0;
+
+        {
+            let mut used_blocks_lock = self.used_blocks.lock().unwrap();
+            let mut usable_blocks_lock = self.usable_blocks.lock().unwrap();
+
+            let mut all_blocks: LinkedList<Raw<ImmixBlock>> = {
+                let mut ret = LinkedList::new();
+                ret.append(&mut used_blocks_lock);
+                ret.append(&mut usable_blocks_lock);
+                ret
+            };
+            debug_assert_eq!(all_blocks.len(), self.cur_blocks);
+
+            while !all_blocks.is_empty() {
+                let block = all_blocks.pop_front().unwrap();
+                let line_index = self.get_line_mark_index(block.mem_start());
+                let block_index = self.get_block_mark_index(block.mem_start());
+
+                let mut has_free_lines = false;
+                // find free lines in the block, and set their line mark as free
+                // (not zeroing the memory yet)
+
+                for i in line_index..(line_index + LINES_IN_BLOCK) {
+                    if self.line_mark_table[i] != LineMark::Live &&
+                        self.line_mark_table[i] != LineMark::ConservLive
+                    {
+                        has_free_lines = true;
+                        self.line_mark_table[i] = LineMark::Free;
+                        free_lines += 1;
+                    } else {
+                        used_lines += 1;
+                    }
+                }
+
+                if has_free_lines {
+                    trace!("Block {} is usable", block.addr());
+                    self.block_mark_table[block_index] = BlockMark::Usable;
+                    usable_blocks_lock.push_front(block);
+                } else {
+                    trace!("Block {} is full", block.addr());
+                    self.block_mark_table[block_index] = BlockMark::Full;
+                    used_blocks_lock.push_front(block);
+                }
+            }
+        }
+
+        if cfg!(debug_assertions) {
+            debug!(
+                "free lines    = {} of {} total ({} blocks)",
+                free_lines,
+                self.cur_blocks * LINES_IN_BLOCK,
+                self.cur_blocks
+            );
+            debug!(
+                "used lines    = {} of {} total ({} blocks)",
+                used_lines,
+                self.cur_blocks * LINES_IN_BLOCK,
+                self.cur_blocks
+            );
+            debug!("usable blocks = {}", self.n_usable_blocks());
+            debug!("full blocks   = {}", self.n_used_blocks());
+        }
+
+        self.last_gc_free_lines = free_lines;
+        self.last_gc_used_lines = used_lines;
+
+        if self.n_used_blocks() == self.total_blocks && self.total_blocks != 0 {
+            println!("Out of memory in Immix Space");
+            process::exit(1);
+        }
+
+        debug_assert_eq!(
+            self.n_used_blocks() + self.n_usable_blocks(),
+            self.cur_blocks
+        );
+
+        trace!("=======================");
+    }
+
+    #[inline(always)]
+    fn mark_object_traced(&mut self, obj: ObjectReference) {
+        let obj_addr = obj.to_address();
+
+        // mark object
+        let obj_index = self.get_word_index(obj_addr);
+        let slot = self.get_gc_byte_slot(obj_index);
+        let gc_byte = unsafe { slot.load::<u8>() };
+        unsafe {
+            slot.store(gc_byte | GC_MARK_BIT);
+        }
+
+        if is_straddle_object(gc_byte) {
+            // we need to know object size, and mark multiple lines
+            let size = {
+                use std::mem::transmute;
+                let type_slot = self.get_type_byte_slot(obj_index);
+                let med_encode = unsafe { type_slot.load::<MediumObjectEncode>() };
+                let small_encode: &SmallObjectEncode = unsafe { transmute(&med_encode) };
+
+                if small_encode.is_small() {
+                    small_encode.size()
+                } else {
+                    med_encode.size()
+                }
+            };
+            let start_line = self.get_line_mark_index(obj_addr);
+            let end_line = start_line + (size >> LOG_BYTES_IN_LINE);
+            for i in start_line..end_line {
+                self.set_line_mark(i, LineMark::Live);
+            }
+            trace!(
+                "  marking line for straddle object (line {} - {} alive)",
+                start_line,
+                end_line
+            );
+        } else {
+            // mark current line, and conservatively mark the next line
+            self.mark_line_conservative(obj_addr);
+            trace!("  marking line for normal object (conservatively)");
+        }
+    }
+
+    #[inline(always)]
+    fn is_object_traced(&self, obj: ObjectReference) -> bool {
+        // gc byte
+        let index = self.get_word_index(obj.to_address());
+        let gc_byte = unsafe { self.get_gc_byte_slot(index).load::<u8>() };
+        bit_utils::test_bit_u8(gc_byte, GC_MARK_BIT)
+    }
+}
+
 #[repr(C, packed)]
 pub struct ImmixBlock {}
 
@@ -234,13 +411,6 @@ impl ImmixSpace {
         self.cur_growth_rate = n_blocks;
     }
 
-    pub fn cleanup(&self) {}
-
-    #[inline(always)]
-    pub fn get(addr: Address) -> Raw<ImmixSpace> {
-        unsafe { Raw::from_addr(addr.mask(SPACE_LOWBITS_MASK)) }
-    }
-
     // line mark table
 
     #[inline(always)]
@@ -298,7 +468,7 @@ impl ImmixSpace {
 
     #[inline(always)]
     pub fn get_gc_byte_slot_static(addr: Address) -> Address {
-        let space = ImmixSpace::get(addr);
+        let space = ImmixSpace::get::<ImmixSpace>(addr);
         let index = space.get_word_index(addr);
         space.get_gc_byte_slot(index)
     }
@@ -310,7 +480,7 @@ impl ImmixSpace {
 
     #[inline(always)]
     pub fn get_type_byte_slot_static(addr: Address) -> Address {
-        let space = ImmixSpace::get(addr);
+        let space = ImmixSpace::get::<ImmixSpace>(addr);
         let index = space.get_word_index(addr);
         space.get_type_byte_slot(index)
     }
@@ -355,111 +525,6 @@ impl ImmixSpace {
                 }
             }
         }
-    }
-
-    pub fn prepare_for_gc(&mut self) {
-        // erase lines marks
-        let lines = self.cur_blocks << LOG_LINES_IN_BLOCK;
-        unsafe {
-            memsec::memzero(&mut self.line_mark_table[0] as *mut LineMark, lines);
-        }
-
-        // erase gc bytes
-        let words = self.cur_size >> LOG_POINTER_SIZE;
-        for i in 0..words {
-            self.gc_byte_table[i] = bit_utils::clear_bit_u8(self.gc_byte_table[i], GC_MARK_BIT);
-        }
-    }
-
-    #[allow(unused_variables)]
-    #[allow(unused_assignments)]
-    pub fn sweep(&mut self) {
-        debug!("=== {:?} Sweep ===", self.desc);
-        debug_assert_eq!(
-            self.n_used_blocks() + self.n_usable_blocks(),
-            self.cur_blocks
-        );
-
-        // some statistics
-        let mut free_lines = 0;
-        let mut used_lines = 0;
-
-        {
-            let mut used_blocks_lock = self.used_blocks.lock().unwrap();
-            let mut usable_blocks_lock = self.usable_blocks.lock().unwrap();
-
-            let mut all_blocks: LinkedList<Raw<ImmixBlock>> = {
-                let mut ret = LinkedList::new();
-                ret.append(&mut used_blocks_lock);
-                ret.append(&mut usable_blocks_lock);
-                ret
-            };
-            debug_assert_eq!(all_blocks.len(), self.cur_blocks);
-
-            while !all_blocks.is_empty() {
-                let block = all_blocks.pop_front().unwrap();
-                let line_index = self.get_line_mark_index(block.mem_start());
-                let block_index = self.get_block_mark_index(block.mem_start());
-
-                let mut has_free_lines = false;
-                // find free lines in the block, and set their line mark as free
-                // (not zeroing the memory yet)
-
-                for i in line_index..(line_index + LINES_IN_BLOCK) {
-                    if self.line_mark_table[i] != LineMark::Live &&
-                        self.line_mark_table[i] != LineMark::ConservLive
-                    {
-                        has_free_lines = true;
-                        self.line_mark_table[i] = LineMark::Free;
-                        free_lines += 1;
-                    } else {
-                        used_lines += 1;
-                    }
-                }
-
-                if has_free_lines {
-                    trace!("Block {} is usable", block.addr());
-                    self.block_mark_table[block_index] = BlockMark::Usable;
-                    usable_blocks_lock.push_front(block);
-                } else {
-                    trace!("Block {} is full", block.addr());
-                    self.block_mark_table[block_index] = BlockMark::Full;
-                    used_blocks_lock.push_front(block);
-                }
-            }
-        }
-
-        if cfg!(debug_assertions) {
-            debug!(
-                "free lines    = {} of {} total ({} blocks)",
-                free_lines,
-                self.cur_blocks * LINES_IN_BLOCK,
-                self.cur_blocks
-            );
-            debug!(
-                "used lines    = {} of {} total ({} blocks)",
-                used_lines,
-                self.cur_blocks * LINES_IN_BLOCK,
-                self.cur_blocks
-            );
-            debug!("usable blocks = {}", self.n_usable_blocks());
-            debug!("full blocks   = {}", self.n_used_blocks());
-        }
-
-        self.last_gc_free_lines = free_lines;
-        self.last_gc_used_lines = used_lines;
-
-        if self.n_used_blocks() == self.total_blocks && self.total_blocks != 0 {
-            println!("Out of memory in Immix Space");
-            process::exit(1);
-        }
-
-        debug_assert_eq!(
-            self.n_used_blocks() + self.n_usable_blocks(),
-            self.cur_blocks
-        );
-
-        trace!("=======================");
     }
 
     fn trace_details(&self) {
@@ -513,24 +578,6 @@ impl ImmixSpace {
     }
 }
 
-use heap::Space;
-impl Space for ImmixSpace {
-    #[inline(always)]
-    fn start(&self) -> Address {
-        self.start
-    }
-    #[inline(always)]
-    fn end(&self) -> Address {
-        self.cur_end
-    }
-    #[inline(always)]
-    #[allow(unused_variables)]
-    fn is_valid_object(&self, addr: Address) -> bool {
-        // we cannot judge if it is a valid object, we always return true
-        true
-    }
-}
-
 impl ImmixBlock {
     pub fn get_next_available_line(&self, cur_line: usize) -> Option<usize> {
         let space: Raw<ImmixSpace> = ImmixSpace::get(self.mem_start());
@@ -580,59 +627,8 @@ impl ImmixBlock {
 }
 
 #[inline(always)]
-pub fn mark_object_traced(obj: ObjectReference) {
-    let obj_addr = obj.to_address();
-    let mut space = ImmixSpace::get(obj_addr);
-
-    // mark object
-    let obj_index = space.get_word_index(obj_addr);
-    let slot = space.get_gc_byte_slot(obj_index);
-    let gc_byte = unsafe { slot.load::<u8>() };
-    unsafe {
-        slot.store(gc_byte | GC_MARK_BIT);
-    }
-
-    if is_straddle_object(gc_byte) {
-        // we need to know object size, and mark multiple lines
-        let size = {
-            use std::mem::transmute;
-            let type_slot = space.get_type_byte_slot(obj_index);
-            let med_encode = unsafe { type_slot.load::<MediumObjectEncode>() };
-            let small_encode: &SmallObjectEncode = unsafe { transmute(&med_encode) };
-
-            if small_encode.is_small() {
-                small_encode.size()
-            } else {
-                med_encode.size()
-            }
-        };
-        let start_line = space.get_line_mark_index(obj_addr);
-        let end_line = start_line + (size >> LOG_BYTES_IN_LINE);
-        for i in start_line..end_line {
-            space.set_line_mark(i, LineMark::Live);
-        }
-        trace!(
-            "  marking line for straddle object (line {} - {} alive)",
-            start_line,
-            end_line
-        );
-    } else {
-        // mark current line, and conservatively mark the next line
-        space.mark_line_conservative(obj_addr);
-        trace!("  marking line for normal object (conservatively)");
-    }
-}
-
-#[inline(always)]
 fn is_straddle_object(gc_byte: u8) -> bool {
-    (gc_byte & GC_STRADDLE_BIT) == GC_STRADDLE_BIT
-}
-
-#[inline(always)]
-pub fn is_object_traced(obj: ObjectReference) -> bool {
-    // gc byte
-    let gc_byte = unsafe { ImmixSpace::get_gc_byte_slot_static(obj.to_address()).load::<u8>() };
-    gc_byte == 1
+    bit_utils::test_bit_u8(gc_byte, GC_STRADDLE_BIT)
 }
 
 /// Using raw pointers forbid the struct being shared between threads

@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use heap::Mutator;
-use heap::immix::*;
+use heap::*;
 use heap::immix::ImmixSpace;
 use heap::immix::immix_space::ImmixBlock;
 use objectmodel;
@@ -46,49 +45,27 @@ lazy_static! {
     pub static ref LIMIT_OFFSET  : usize = offset_of!(ImmixAllocator=>limit).get_byte_offset();
 }
 
-impl ImmixAllocator {
-    pub fn reset(&mut self) -> () {
-        unsafe {
-            // should not use Address::zero() other than initialization
-            self.cursor = Address::zero();
-            self.limit = Address::zero();
-            self.large_cursor = Address::zero();
-            self.large_limit = Address::zero();
-        }
-        self.line = LINES_IN_BLOCK;
-        self.block = None;
-        self.large_block = None;
-    }
-
-    pub fn reset_after_gc(&mut self) {
+impl Allocator for ImmixAllocator {
+    fn reset_after_gc(&mut self) {
         self.reset();
     }
 
-    pub fn new(space: Raw<ImmixSpace>) -> ImmixAllocator {
-        ImmixAllocator {
-            cursor: unsafe { Address::zero() },
-            limit: unsafe { Address::zero() },
-            line: LINES_IN_BLOCK,
-            block: None,
-            large_cursor: unsafe { Address::zero() },
-            large_limit: unsafe { Address::zero() },
-            large_block: None,
-            space,
-            mutator: ptr::null_mut()
-        }
+    fn prepare_for_gc(&mut self) {
+        self.return_block(true);
+        self.return_block(false);
     }
 
-    pub fn set_mutator(&mut self, mutator: *mut Mutator) {
+    fn set_mutator(&mut self, mutator: *mut Mutator) {
         self.mutator = mutator;
     }
 
-    pub fn destroy(&mut self) {
+    fn destroy(&mut self) {
         self.return_block(true);
         self.return_block(false);
     }
 
     #[inline(always)]
-    pub fn alloc(&mut self, size: usize, align: usize) -> Address {
+    fn alloc(&mut self, size: usize, align: usize) -> Address {
         // this part of code will slow down allocation
         let align = objectmodel::check_alignment(align);
         // end
@@ -115,6 +92,35 @@ impl ImmixAllocator {
         } else {
             self.cursor = end;
             start
+        }
+    }
+}
+
+impl ImmixAllocator {
+    fn reset(&mut self) -> () {
+        unsafe {
+            // should not use Address::zero() other than initialization
+            self.cursor = Address::zero();
+            self.limit = Address::zero();
+            self.large_cursor = Address::zero();
+            self.large_limit = Address::zero();
+        }
+        self.line = LINES_IN_BLOCK;
+        self.block = None;
+        self.large_block = None;
+    }
+
+    pub fn new(space: Raw<ImmixSpace>) -> ImmixAllocator {
+        ImmixAllocator {
+            cursor: unsafe { Address::zero() },
+            limit: unsafe { Address::zero() },
+            line: LINES_IN_BLOCK,
+            block: None,
+            large_cursor: unsafe { Address::zero() },
+            large_limit: unsafe { Address::zero() },
+            large_block: None,
+            space,
+            mutator: ptr::null_mut()
         }
     }
 
@@ -283,10 +289,7 @@ impl ImmixAllocator {
         }
     }
 
-    pub fn prepare_for_gc(&mut self) {
-        self.return_block(true);
-        self.return_block(false);
-    }
+
 
     fn return_block(&mut self, request_large: bool) {
         if request_large {

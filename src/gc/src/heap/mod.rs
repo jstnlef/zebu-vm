@@ -61,9 +61,20 @@ pub trait Space {
     fn end(&self) -> Address;
     #[inline(always)]
     fn is_valid_object(&self, addr: Address) -> bool;
+    fn destroy(&mut self);
+    fn prepare_for_gc(&mut self);
+    fn sweep(&mut self);
+    #[inline(always)]
+    fn mark_object_traced(&mut self, obj: ObjectReference);
+    #[inline(always)]
+    fn is_object_traced(&self, obj: ObjectReference) -> bool;
     #[inline(always)]
     fn addr_in_space(&self, addr: Address) -> bool {
         addr >= self.start() && addr < self.end()
+    }
+    #[inline(always)]
+    fn get<T: RawMemoryMetadata + Sized>(addr: Address) -> Raw<T> {
+        unsafe { Raw::from_addr(addr.mask(SPACE_LOWBITS_MASK)) }
     }
 }
 
@@ -131,18 +142,16 @@ impl Mutator {
         self.id
     }
 
-    pub fn reset(&mut self) {
-        self.tiny.reset();
-        self.normal.reset();
-    }
-
     pub fn reset_after_gc(&mut self) {
-        self.reset()
+        self.tiny.reset_after_gc();
+        self.normal.reset_after_gc();
+        self.lo.reset_after_gc();
     }
 
     pub fn prepare_for_gc(&mut self) {
         self.tiny.prepare_for_gc();
         self.normal.prepare_for_gc();
+        self.lo.prepare_for_gc();
     }
 
     pub fn destroy(&mut self) {
@@ -174,6 +183,15 @@ impl Mutator {
         trace!("Mutator{}: yieldpoint triggered, slow path", self.id);
         gc::sync_barrier(self);
     }
+}
+
+pub trait Allocator {
+    fn reset_after_gc(&mut self);
+    fn prepare_for_gc(&mut self);
+    fn set_mutator(&mut self, mutator: *mut Mutator);
+    fn destroy(&mut self);
+    #[inline(always)]
+    fn alloc(&mut self, size: ByteSize, align: ByteSize) -> Address;
 }
 
 pub struct MutatorGlobal {

@@ -23,19 +23,16 @@ pub struct FreelistAllocator {
     mutator: *mut Mutator
 }
 
-impl FreelistAllocator {
-    pub fn new(space: Raw<FreelistSpace>) -> FreelistAllocator {
-        FreelistAllocator {
-            space,
-            mutator: ptr::null_mut()
-        }
-    }
+impl Allocator for FreelistAllocator {
+    fn prepare_for_gc(&mut self) {}
+    fn reset_after_gc(&mut self) {}
+    fn destroy(&mut self) {}
 
-    pub fn set_mutator(&mut self, mutator: *mut Mutator) {
+    fn set_mutator(&mut self, mutator: *mut Mutator) {
         self.mutator = mutator;
     }
 
-    pub fn alloc(&mut self, size: ByteSize, align: ByteSize) -> Address {
+    fn alloc(&mut self, size: ByteSize, align: ByteSize) -> Address {
         loop {
             unsafe { &mut *self.mutator }.yieldpoint();
 
@@ -46,6 +43,15 @@ impl FreelistAllocator {
             } else {
                 return ret;
             }
+        }
+    }
+}
+
+impl FreelistAllocator {
+    pub fn new(space: Raw<FreelistSpace>) -> FreelistAllocator {
+        FreelistAllocator {
+            space,
+            mutator: ptr::null_mut()
         }
     }
 

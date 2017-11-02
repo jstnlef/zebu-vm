@@ -207,9 +207,10 @@ pub extern "C" fn gc_destroy() {
     objectmodel::cleanup();
     let mut gc_lock = MY_GC.write().unwrap();
     {
-        let gc = gc_lock.as_ref().unwrap();
-        gc.immix_tiny.cleanup();
-        gc.immix_normal.cleanup();
+        let mut gc = gc_lock.as_mut().unwrap();
+        gc.immix_tiny.destroy();
+        gc.immix_normal.destroy();
+        gc.lo.destroy();
     }
     *gc_lock = None;
 }

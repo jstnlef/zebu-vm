@@ -15,7 +15,6 @@
 use common::ptr::*;
 use heap::*;
 use objectmodel::sidemap::*;
-use utils::*;
 use utils::mem::memmap;
 use utils::mem::memsec::memzero;
 
@@ -72,6 +71,99 @@ impl RawMemoryMetadata for FreelistSpace {
     #[inline(always)]
     fn mem_start(&self) -> Address {
         self.start
+    }
+}
+
+impl Space for FreelistSpace {
+    #[inline(always)]
+    fn start(&self) -> Address {
+        self.start
+    }
+
+    #[inline(always)]
+    fn end(&self) -> Address {
+        self.cur_end
+    }
+
+    #[inline(always)]
+    #[allow(unused_variables)]
+    fn is_valid_object(&self, addr: Address) -> bool {
+        true
+    }
+
+    fn destroy(&mut self) {}
+
+    fn prepare_for_gc(&mut self) {
+        // erase page mark
+        unsafe {
+            memzero(
+                &mut self.page_mark_table[0] as *mut PageMark,
+                self.cur_pages
+            );
+        }
+    }
+
+    fn sweep(&mut self) {
+        debug!("=== {:?} Sweep ===", self.desc);
+        debug_assert_eq!(self.n_used_pages() + self.n_usable_pages(), self.cur_pages);
+
+        let mut free_pages = 0;
+        let mut used_pages = 0;
+
+        {
+            let mut used_nodes = self.used_nodes.lock().unwrap();
+            let mut usable_nodes = self.usable_nodes.lock().unwrap();
+
+            let mut all_nodes: Vec<FreelistNode> = {
+                let mut ret = vec![];
+                ret.append(&mut used_nodes);
+                ret.append(&mut usable_nodes);
+                ret
+            };
+            debug_assert_eq!(all_nodes.len(), self.cur_pages);
+
+            while !all_nodes.is_empty() {
+                let node: FreelistNode = all_nodes.pop().unwrap();
+                let index = self.get_page_index(node.addr);
+                if self.page_mark_table[index] == PageMark::Live {
+                    used_pages += node.size >> LOG_BYTES_IN_PAGE;
+                    used_nodes.push(node);
+                } else {
+                    free_pages += node.size >> LOG_BYTES_IN_PAGE;
+                    usable_nodes.push(node);
+                }
+            }
+        }
+
+        if cfg!(debug_assertions) {
+            debug!("free pages = {} of {} total", free_pages, self.cur_pages);
+            debug!("used pages = {} of {} total", used_pages, self.cur_pages);
+        }
+
+        self.last_gc_free_pages = free_pages;
+        self.last_gc_used_pages = used_pages;
+
+        if self.n_used_pages() == self.total_pages && self.total_pages != 0 {
+            use std::process;
+            println!("Out of memory in Freelist Space");
+            process::exit(1);
+        }
+
+        debug_assert_eq!(self.n_used_pages() + self.n_usable_pages(), self.cur_pages);
+
+        trace!("=======================");
+    }
+
+    #[inline(always)]
+    fn mark_object_traced(&mut self, obj: ObjectReference) {
+        let index = self.get_page_index(obj.to_address());
+        self.page_mark_table[index] = PageMark::Live;
+    }
+
+    #[inline(always)]
+    fn is_object_traced(&self, obj: ObjectReference) -> bool {
+        let index = self.get_page_index(obj.to_address());
+        self.page_mark_table[index] == PageMark::Live
     }
 }
 
@@ -135,23 +227,6 @@ impl FreelistSpace {
         space.trace_details();
 
         space
-    }
-
-    pub fn cleanup(&self) {}
-
-    #[inline(always)]
-    pub fn get(addr: Address) -> Raw<FreelistSpace> {
-        unsafe { Raw::from_addr(addr.mask(SPACE_LOWBITS_MASK)) }
-    }
-
-    pub fn prepare_for_gc(&mut self) {
-        // erase page mark
-        unsafe {
-            memzero(
-                &mut self.page_mark_table[0] as *mut PageMark,
-                self.cur_pages
-            );
-        }
     }
 
     #[inline(always)]
@@ -228,69 +303,6 @@ impl FreelistSpace {
         ret
     }
 
-    pub fn sweep(&mut self) {
-        debug!("=== {:?} Sweep ===", self.desc);
-        debug_assert_eq!(self.n_used_pages() + self.n_usable_pages(), self.cur_pages);
-
-        let mut free_pages = 0;
-        let mut used_pages = 0;
-
-        {
-            let mut used_nodes = self.used_nodes.lock().unwrap();
-            let mut usable_nodes = self.usable_nodes.lock().unwrap();
-
-            let mut all_nodes: Vec<FreelistNode> = {
-                let mut ret = vec![];
-                ret.append(&mut used_nodes);
-                ret.append(&mut usable_nodes);
-                ret
-            };
-            debug_assert_eq!(all_nodes.len(), self.cur_pages);
-
-            while !all_nodes.is_empty() {
-                let node: FreelistNode = all_nodes.pop().unwrap();
-                let index = self.get_page_index(node.addr);
-                if self.page_mark_table[index] == PageMark::Live {
-                    used_pages += (node.size >> LOG_BYTES_IN_PAGE);
-                    used_nodes.push(node);
-                } else {
-                    free_pages += (node.size >> LOG_BYTES_IN_PAGE);
-                    usable_nodes.push(node);
-                }
-            }
-        }
-
-        if cfg!(debug_assertions) {
-            debug!("free pages = {} of {} total", free_pages, self.cur_pages);
-            debug!("used pages = {} of {} total", used_pages, self.cur_pages);
-        }
-
-        self.last_gc_free_pages = free_pages;
-        self.last_gc_used_pages = used_pages;
-
-        if self.n_used_pages() == self.total_pages && self.total_pages != 0 {
-            use std::process;
-            println!("Out of memory in Freelist Space");
-            process::exit(1);
-        }
-
-        debug_assert_eq!(self.n_used_pages() + self.n_usable_pages(), self.cur_pages);
-
-        trace!("=======================");
-    }
-
-    #[inline(always)]
-    pub fn mark_object_traced(&mut self, obj: ObjectReference) {
-        let index = self.get_page_index(obj.to_address());
-        self.page_mark_table[index] = PageMark::Live;
-    }
-
-    #[inline(always)]
-    pub fn is_object_traced(&self, obj: ObjectReference) -> bool {
-        let index = self.get_page_index(obj.to_address());
-        self.page_mark_table[index] == PageMark::Live
-    }
-
     pub fn get_type_encode(&self, obj: ObjectReference) -> LargeObjectEncode {
         let index = self.get_page_index(obj.to_address());
         self.page_encode_table[index]
@@ -335,22 +347,6 @@ impl FreelistSpace {
     }
 }
 
-impl Space for FreelistSpace {
-    #[inline(always)]
-    fn start(&self) -> Address {
-        self.start
-    }
-    #[inline(always)]
-    fn end(&self) -> Address {
-        self.cur_end
-    }
-    #[inline(always)]
-    #[allow(unused_variables)]
-    fn is_valid_object(&self, addr: Address) -> bool {
-        true
-    }
-}
-
 #[repr(C)]
 pub struct FreelistNode {
     size: ByteSize,
@@ -359,6 +355,7 @@ pub struct FreelistNode {
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
+#[allow(dead_code)] // we do not explicitly use Free, but we zero the page marks
 pub enum PageMark {
     Free = 0,
     Live

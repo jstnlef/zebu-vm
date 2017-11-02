@@ -24,9 +24,6 @@ pub use self::immix_mutator::ImmixAllocator;
 pub use self::immix_mutator::CURSOR_OFFSET;
 pub use self::immix_mutator::LIMIT_OFFSET;
 
-pub use self::immix_space::mark_object_traced;
-pub use self::immix_space::is_object_traced;
-
 // Immix space
 // |------------------| <- 16GB align
 // | metadata         |
