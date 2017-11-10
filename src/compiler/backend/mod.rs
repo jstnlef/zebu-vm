@@ -24,10 +24,9 @@ pub mod peephole_opt;
 pub mod code_emission;
 
 use std;
-use utils::ByteSize;
+use utils::*;
 use utils::math::align_up;
-use runtime::mm;
-use runtime::mm::common::gctype::{GCType, RefPattern, GCTYPE_INIT_ID};
+use runtime::mm::*;
 use num::integer::lcm;
 
 /// for ahead-of-time compilation (boot image making), the file contains a persisted VM,
@@ -202,21 +201,24 @@ use ast::ir::*;
 /// We are compatible with C ABI, so that Mu objects can be accessed from
 /// native without extra steps (though they need to be pinned first)
 ///
-//  GCType is a temporary design, we will rewrite GC (Issue#12)
 #[derive(Clone, Debug)]
 pub struct BackendType {
+    pub ty: P<MuType>,
     pub size: ByteSize,
     pub alignment: ByteSize,
     /// struct layout of the type, None if this is not a struct/hybrid type
     pub struct_layout: Option<Vec<ByteSize>>,
     /// element size for hybrid/array type
     pub elem_size: Option<ByteSize>,
-    /// GC type, containing information for GC (this is a temporary design)
-    /// See Issue#12
-    pub gc_type: P<GCType>
+    /// GC type, containing information for GC
+    pub gc_type: Option<TypeEncode>,
+    /// GC type for full encoding of hybrid types, as hybrid types can be arbitrarily long,
+    /// and we need a full encoding
+    pub gc_type_hybrid_full: Option<TypeEncode>
 }
 
 rodal_struct!(BackendType {
+    ty,
     size,
     alignment,
     struct_layout,
@@ -235,58 +237,240 @@ impl BackendType {
         }
     }
 
+    pub fn resolve_gc_type(&mut self, vm: &VM) {
+        // if we have resolved gc type for this type, just return
+        debug_assert!(self.gc_type.is_none());
+
+        let mut hybrid_full_encode = None;
+        let encode = match self.ty.v {
+            // integer
+            MuType_::Int(size_in_bit) => {
+                match size_in_bit {
+                    1...64 => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
+                    128 => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 2),
+                    _ => unimplemented!()
+                }
+            }
+            // ref
+            MuType_::Ref(_) | MuType_::IRef(_) => TypeEncode::short_ref(),
+            // weakref
+            MuType_::WeakRef(_) => TypeEncode::short_weakref(),
+            // native pointer or opaque ref
+            MuType_::UPtr(_) |
+            MuType_::UFuncPtr(_) |
+            MuType_::FuncRef(_) |
+            MuType_::ThreadRef |
+            MuType_::StackRef => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
+            // tag ref
+            MuType_::Tagref64 => TypeEncode::short_tagref(),
+            // floating point
+            MuType_::Float | MuType_::Double => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
+            // struct and array
+            MuType_::Struct(_) | MuType_::Array(_, _) => {
+                let mut word_tys = vec![];
+                BackendType::append_word_ty(&mut word_tys, 0, &self.ty, vm);
+                debug_assert_eq!(
+                    math::align_up(self.size, POINTER_SIZE) / POINTER_SIZE,
+                    word_tys.len()
+                );
+                if self.size > MAX_MEDIUM_OBJECT {
+                    TypeEncode::full(check_alignment(self.alignment), word_tys, vec![])
+                } else {
+                    TypeEncode::short_aggregate_fix(check_alignment(self.alignment), word_tys)
+                }
+            }
+            // hybrid
+            MuType_::Hybrid(ref name) => {
+                let lock = HYBRID_TAG_MAP.read().unwrap();
+                let hybrid = lock.get(name).unwrap();
+
+                // for fix types
+                let fix_tys = hybrid.get_fix_tys();
+                let fix_ty_offsets = self.struct_layout.as_ref().unwrap();
+                let mut fix_word_tys = vec![];
+                for i in 0..fix_tys.len() {
+                    let next_offset = BackendType::append_word_ty(
+                        &mut fix_word_tys,
+                        fix_ty_offsets[i],
+                        &fix_tys[i],
+                        vm
+                    );
+
+                    if cfg!(debug_assertions) && i != fix_tys.len() - 1 {
+                        assert!(next_offset <= fix_ty_offsets[i + 1]);
+                    }
+                }
+
+                let var_ty = hybrid.get_var_ty();
+                let mut var_word_tys = vec![];
+                BackendType::append_word_ty(&mut var_word_tys, self.size, &var_ty, vm);
+
+                hybrid_full_encode = Some(TypeEncode::full(
+                    check_alignment(self.alignment),
+                    fix_word_tys.clone(),
+                    var_word_tys.clone()
+                ));
+                TypeEncode::short_hybrid(
+                    check_alignment(self.alignment),
+                    fix_word_tys,
+                    var_word_tys
+                )
+            }
+            _ => unimplemented!()
+        };
+
+        self.gc_type = Some(encode);
+        if hybrid_full_encode.is_some() {
+            self.gc_type_hybrid_full = hybrid_full_encode;
+        }
+    }
+
+    /// finish current type, and returns new offset
+    fn append_word_ty(
+        res: &mut Vec<WordType>,
+        cur_offset: ByteSize,
+        cur_ty: &P<MuType>,
+        vm: &VM
+    ) -> ByteSize {
+        debug!(
+            "append_word_ty(): cur_offset={}, cur_ty={}",
+            cur_offset,
+            cur_ty
+        );
+        let cur_backend_ty = BackendType::resolve(cur_ty, vm);
+        let cur_offset = math::align_up(cur_offset, cur_backend_ty.alignment);
+        let pointer_aligned = cur_offset % POINTER_SIZE == 0;
+        match cur_ty.v {
+            MuType_::Int(_) => {
+                if pointer_aligned {
+                    res.push(WordType::NonRef);
+                }
+            }
+            MuType_::Ref(_) | MuType_::IRef(_) => {
+                debug_assert!(pointer_aligned);
+                res.push(WordType::Ref);
+            }
+            MuType_::WeakRef(_) => {
+                debug_assert!(pointer_aligned);
+                res.push(WordType::WeakRef);
+            }
+            MuType_::UPtr(_) |
+            MuType_::UFuncPtr(_) |
+            MuType_::FuncRef(_) |
+            MuType_::ThreadRef |
+            MuType_::StackRef => {
+                debug_assert!(pointer_aligned);
+                res.push(WordType::NonRef);
+            }
+            MuType_::Tagref64 => {
+                debug_assert!(pointer_aligned);
+                res.push(WordType::TaggedRef);
+            }
+            MuType_::Float => {
+                if pointer_aligned {
+                    res.push(WordType::NonRef);
+                }
+            }
+            MuType_::Double => {
+                debug_assert!(pointer_aligned);
+                res.push(WordType::NonRef);
+            }
+            MuType_::Struct(ref name) => {
+                let struct_tys = {
+                    let lock = STRUCT_TAG_MAP.read().unwrap();
+                    let struc = lock.get(name).unwrap();
+                    struc.get_tys().to_vec()
+                };
+                debug_assert!(cur_backend_ty.struct_layout.is_some());
+                let struct_ty_offsets = cur_backend_ty.struct_layout.as_ref().unwrap();
+                debug_assert_eq!(struct_tys.len(), struct_ty_offsets.len());
+                for i in 0..struct_tys.len() {
+                    let next_offset =
+                        BackendType::append_word_ty(res, struct_ty_offsets[i], &struct_tys[i], vm);
+
+                    if cfg!(debug_assertions) && i != struct_tys.len() - 1 {
+                        assert!(next_offset <= struct_ty_offsets[i + 1]);
+                    }
+                }
+            }
+            MuType_::Array(ref ty, len) => {
+                let backend_ty = BackendType::resolve(cur_ty, vm);
+                for i in 0..len {
+                    let offset = backend_ty.elem_size.unwrap() * i;
+                    let next_offset = BackendType::append_word_ty(res, offset, ty, vm);
+                    debug_assert!((next_offset - offset) <= backend_ty.elem_size.unwrap());
+                }
+            }
+            MuType_::Hybrid(_) => unreachable!(),
+            _ => unimplemented!()
+        }
+        cur_offset + cur_backend_ty.size
+    }
+
     /// resolves a MuType to a BackendType
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    pub fn resolve(ty: &MuType, vm: &VM) -> BackendType {
+    pub fn resolve(ty: &P<MuType>, vm: &VM) -> BackendType {
         match ty.v {
             // integer
             MuType_::Int(size_in_bit) => {
                 match size_in_bit {
                     1...8 => BackendType {
+                        ty: ty.clone(),
                         size: 1,
                         alignment: 1,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(1, 1))
+                        gc_type: None,
+                        gc_type_hybrid_full: None
                     },
                     9...16 => BackendType {
+                        ty: ty.clone(),
                         size: 2,
                         alignment: 2,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(2, 2))
+                        gc_type: None,
+                        gc_type_hybrid_full: None
                     },
                     17...32 => BackendType {
+                        ty: ty.clone(),
                         size: 4,
                         alignment: 4,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
+                        gc_type: None,
+                        gc_type_hybrid_full: None
                     },
                     33...64 => BackendType {
+                        ty: ty.clone(),
                         size: 8,
                         alignment: 8,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
+                        gc_type: None,
+                        gc_type_hybrid_full: None
                     },
                     128 => BackendType {
+                        ty: ty.clone(),
                         size: 16,
                         alignment: 16,
                         struct_layout: None,
                         elem_size: None,
-                        gc_type: mm::add_gc_type(GCType::new_noreftype(16, 16))
+                        gc_type: None,
+                        gc_type_hybrid_full: None
                     },
                     _ => unimplemented!()
                 }
             }
             // reference of any type
             MuType_::Ref(_) | MuType_::IRef(_) | MuType_::WeakRef(_) => BackendType {
+                ty: ty.clone(),
                 size: 8,
                 alignment: 8,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_reftype())
+                gc_type: None,
+                gc_type_hybrid_full: None
             },
             // pointer/opque ref
             MuType_::UPtr(_) |
@@ -294,41 +478,49 @@ impl BackendType {
             MuType_::FuncRef(_) |
             MuType_::ThreadRef |
             MuType_::StackRef => BackendType {
+                ty: ty.clone(),
                 size: 8,
                 alignment: 8,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
+                gc_type: None,
+                gc_type_hybrid_full: None
             },
             // tagref
             MuType_::Tagref64 => BackendType {
+                ty: ty.clone(),
                 size: 8,
                 alignment: 8,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_reftype())
+                gc_type: None,
+                gc_type_hybrid_full: None
             },
             // floating point
             MuType_::Float => BackendType {
+                ty: ty.clone(),
                 size: 4,
                 alignment: 4,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(4, 4))
+                gc_type: None,
+                gc_type_hybrid_full: None
             },
             MuType_::Double => BackendType {
+                ty: ty.clone(),
                 size: 8,
                 alignment: 8,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(8, 8))
+                gc_type: None,
+                gc_type_hybrid_full: None
             },
             // array
-            MuType_::Array(ref ty, len) => {
-                let ele_ty = vm.get_backend_type_info(ty.id());
-                let elem_size = ele_ty.size;
-                let size = ele_ty.size * len;
-                let align = ele_ty.alignment;
+            MuType_::Array(ref ele_ty, len) => {
+                let ele_backend_ty = vm.get_backend_type_info(ele_ty.id());
+                let elem_size = ele_backend_ty.size;
+                let size = ele_backend_ty.size * len;
+                let align = ele_backend_ty.alignment;
 
                 // Acording to the AMD64 SYSV ABI Version 0.99.8,
                 // a 'local or global array variable of at least 16 bytes ... always has
@@ -339,19 +531,13 @@ impl BackendType {
                 // a local or global so this is unlikely to break anything).
 
                 BackendType {
-                    size: size,
+                    ty: ty.clone(),
+                    size,
                     alignment: align,
                     struct_layout: None,
                     elem_size: Some(elem_size),
-                    gc_type: mm::add_gc_type(GCType::new_fix(
-                        GCTYPE_INIT_ID,
-                        size,
-                        align,
-                        Some(RefPattern::Repeat {
-                            pattern: Box::new(RefPattern::NestedType(vec![ele_ty.gc_type])),
-                            count: len
-                        })
-                    ))
+                    gc_type: None,
+                    gc_type_hybrid_full: None
                 }
             }
             // struct
@@ -361,7 +547,7 @@ impl BackendType {
                 let tys = struc.get_tys();
 
                 trace!("layout struct: {}", struc);
-                BackendType::layout_struct(tys, vm)
+                BackendType::layout_struct(ty, tys, vm)
             }
             // hybrid
             // - align is the most strict aligned element (from all fix tys and var ty)
@@ -375,7 +561,7 @@ impl BackendType {
                 let var_ty = hybrid.get_var_ty();
 
                 // treat fix_tys as struct
-                let mut ret = BackendType::layout_struct(fix_tys, vm);
+                let mut ret = BackendType::layout_struct(ty, fix_tys, vm);
 
                 // treat var_ty as array (getting its alignment)
                 let var_ele_ty = vm.get_backend_type_info(var_ty.id());
@@ -385,20 +571,18 @@ impl BackendType {
 
                 ret.alignment = lcm(ret.alignment, var_align);
                 ret.size = align_up(ret.size, ret.alignment);
-                let mut gctype = ret.gc_type.as_ref().clone();
-                gctype.var_refs = Some(RefPattern::NestedType(vec![var_ele_ty.gc_type.clone()]));
-                gctype.var_size = Some(var_size);
-                ret.gc_type = mm::add_gc_type(gctype);
 
                 ret
             }
             // void
             MuType_::Void => BackendType {
+                ty: ty.clone(),
                 size: 0,
                 alignment: 1,
                 struct_layout: None,
                 elem_size: None,
-                gc_type: mm::add_gc_type(GCType::new_noreftype(0, 1))
+                gc_type: None,
+                gc_type_hybrid_full: None
             },
             // vector
             MuType_::Vector(_, _) => unimplemented!()
@@ -407,15 +591,27 @@ impl BackendType {
 
     /// layouts struct fields
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    fn layout_struct(tys: &Vec<P<MuType>>, vm: &VM) -> BackendType {
+    fn layout_struct(main_ty: &P<MuType>, tys: &Vec<P<MuType>>, vm: &VM) -> BackendType {
+        let (size, alignment, offsets) = BackendType::sequential_layout(tys, vm);
+
+        BackendType {
+            ty: main_ty.clone(),
+            size,
+            alignment,
+            struct_layout: Some(offsets),
+            elem_size: None,
+            gc_type: None,
+            gc_type_hybrid_full: None
+        }
+    }
+
+    /// sequentially layout a few Mu types as if they are fields in a struct.
+    /// Returns a triple of (size, alignment, offsets of each type)
+    /// (when dealing with call convention, we use this function to layout stack arguments)
+    pub fn sequential_layout(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, ByteSize, Vec<ByteSize>) {
         let mut offsets: Vec<ByteSize> = vec![];
         let mut cur: ByteSize = 0;
         let mut struct_align: ByteSize = 1;
-
-        // for gc type
-        let mut use_ref_offsets = true;
-        let mut ref_offsets = vec![];
-        let mut gc_types = vec![];
 
         for ty in tys.iter() {
             let ty_info = vm.get_backend_type_info(ty.id());
@@ -427,54 +623,13 @@ impl BackendType {
             offsets.push(cur);
             trace!("aligned to {}", cur);
 
-            // for convenience, if the struct contains other struct/array
-            // we do not use reference map
-            if ty.is_aggregate() {
-                use_ref_offsets = false;
-            }
-
-            // if this type is reference type, we store its offsets
-            // we may not use this ref map though
-            if ty.is_heap_reference() {
-                ref_offsets.push(cur);
-            }
-            // always store its gc type (we may not use it as well)
-            gc_types.push(ty_info.gc_type.clone());
-
             cur += ty_info.size;
         }
 
         // if we need padding at the end
         let size = align_up(cur, struct_align);
 
-        BackendType {
-            size: size,
-            alignment: struct_align,
-            struct_layout: Some(offsets),
-            elem_size: None,
-            gc_type: mm::add_gc_type(GCType::new_fix(
-                GCTYPE_INIT_ID,
-                size,
-                struct_align,
-                Some(if use_ref_offsets {
-                    RefPattern::Map {
-                        offsets: ref_offsets,
-                        size: size
-                    }
-                } else {
-                    RefPattern::NestedType(gc_types)
-                })
-            ))
-        }
-    }
-
-    /// sequentially layout a few Mu types as if they are fields in a struct.
-    /// Returns a triple of (size, alignment, offsets of each type)
-    /// (when dealing with call convention, we use this function to layout stack arguments)
-    pub fn sequential_layout(tys: &Vec<P<MuType>>, vm: &VM) -> (ByteSize, ByteSize, Vec<ByteSize>) {
-        let ret = BackendType::layout_struct(tys, vm);
-
-        (ret.size, ret.alignment, ret.struct_layout.unwrap())
+        (size, struct_align, offsets)
     }
 }
 

@@ -41,7 +41,8 @@ pub const SPACE_LOWBITS_MASK: usize = !(SPACE_ALIGN - 1);
 pub enum SpaceDescriptor {
     ImmixTiny,
     ImmixNormal,
-    Freelist
+    Freelist,
+    Immortal
 }
 
 impl SpaceDescriptor {
@@ -136,6 +137,12 @@ impl Mutator {
         *id_lock += 1;
 
         ret
+    }
+
+    pub fn update_mutator_ptr(&mut self, mutator: *mut Mutator) {
+        self.tiny.set_mutator(mutator);
+        self.normal.set_mutator(mutator);
+        self.lo.set_mutator(mutator);
     }
 
     pub fn id(&self) -> usize {

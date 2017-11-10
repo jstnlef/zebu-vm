@@ -12,8 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod test_threadlocal;
-mod test_entry_offset;
-mod test_mem_layout;
-mod test_address;
-mod test_gc_encode;
+use objectmodel::*;
+use utils::*;
+
+pub const IMMORTAL_OBJECT_HEADER_SIZE: ByteSize = 32;
+
+/// We use a 32-bytes header for immortal objects, and the header is
+/// put immediately before the object.
+#[repr(C, packed)]
+pub struct ImmortalObjectHeader {
+    pub encode: ObjectEncode,
+    pub gc_byte: u8
+}

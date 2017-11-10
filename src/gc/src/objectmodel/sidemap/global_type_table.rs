@@ -28,23 +28,6 @@ use objectmodel::sidemap::object_encode::SMALL_ID_WIDTH;
 
 /// represents a chunk of memory as global type table, which contains some metadata for the
 /// type table and all the type encoding entries.
-///
-/// The memory looks like this
-///
-/// |----------------|
-/// | metadata(this) |
-/// | ...            |
-/// |----------------| <- global_type_table points to this
-/// |                |    at next 128 bytes alignment (size of TypeEncoding)
-/// | small entries  |
-/// | ...            |
-/// | ...            |
-/// |----------------| (8192 entries = 1 << 13 (SMALL_ID_WIDTH) )
-/// | large entries  |
-/// | ...            |
-/// | ...            |
-/// |________________|
-///
 #[repr(C, packed)]
 pub struct GlobalTypeTable {
     /// current index for small entries
@@ -52,13 +35,13 @@ pub struct GlobalTypeTable {
     /// current index for large entries
     large_entry_i: usize,
     /// full entries
-    full_entries: RwLock<HashMap<usize, FullTypeEntry>>
-}
+    full_entry_i: usize,
+    full_entries: RwLock<HashMap<usize, FullTypeEncode>>,
 
-#[derive(Clone)]
-pub struct FullTypeEntry {
-    pub fix: Vec<WordType>,
-    pub var: Vec<WordType>
+    #[allow(dead_code)]
+    mmap: memmap::MmapMut,
+
+    table: [ShortTypeEncode; N_TYPES]
 }
 
 const SMALL_ENTRY_CAP: usize = 1 << SMALL_ID_WIDTH;
@@ -68,21 +51,11 @@ const LARGE_ENTRY_CAP: usize = N_TYPES;
 static GLOBAL_TYPE_TABLE_PTR: AtomicUsize = ATOMIC_USIZE_INIT;
 /// storing a pointer to the metadata of the type table
 static GLOBAL_TYPE_TABLE_META: AtomicUsize = ATOMIC_USIZE_INIT;
-/// save Mmap to keep the memory map alive
-//  it is okay to use lock here, as we won't actually access this field
-lazy_static!{
-    static ref GTT_MMAP: Mutex<Option<memmap::MmapMut>> = Mutex::new(None);
-}
 
 impl GlobalTypeTable {
     pub fn init() {
-        let mut mmap_lock = GTT_MMAP.lock().unwrap();
-        assert!(mmap_lock.is_none());
-
-        let entry_size = mem::size_of::<TypeEncode>();
-        let metadata_size = math::align_up(mem::size_of::<GlobalTypeTable>(), entry_size);
-
-        let mut mmap = match memmap::MmapMut::map_anon(metadata_size + N_TYPES * entry_size) {
+        debug!("Init GlobalTypeTable...");
+        let mut mmap = match memmap::MmapMut::map_anon(mem::size_of::<GlobalTypeTable>()) {
             Ok(m) => m,
             Err(_) => panic!("failed to mmap for global type table")
         };
@@ -92,32 +65,34 @@ impl GlobalTypeTable {
         // start address of metadata
         let meta_addr = Address::from_ptr::<u8>(mmap.as_mut_ptr());
         GLOBAL_TYPE_TABLE_META.store(meta_addr.as_usize(), Ordering::Relaxed);
+
+        let mut meta: &mut GlobalTypeTable = unsafe { meta_addr.to_ref_mut() };
+
         // actual table
-        let table_addr = meta_addr + metadata_size;
+        let table_addr = Address::from_ptr(&meta.table as *const [ShortTypeEncode; N_TYPES]);
         GLOBAL_TYPE_TABLE_PTR.store(table_addr.as_usize(), Ordering::Relaxed);
 
         // initialize meta
-        let meta: &mut GlobalTypeTable = unsafe { meta_addr.to_ptr_mut().as_mut().unwrap() };
         meta.small_entry_i = 0;
         meta.large_entry_i = SMALL_ENTRY_CAP;
+        meta.full_entry_i = 0;
         unsafe {
             use std::ptr;
             ptr::write(
-                &mut meta.full_entries as *mut RwLock<HashMap<usize, FullTypeEntry>>,
+                &mut meta.full_entries as *mut RwLock<HashMap<usize, FullTypeEncode>>,
                 RwLock::new(HashMap::new())
             )
         }
+        unsafe {
+            use std::ptr;
+            ptr::write(&mut meta.mmap as *mut memmap::MmapMut, mmap);
+        }
 
         // save mmap
-        *mmap_lock = Some(mmap);
         trace!("Global Type Table initialization done");
     }
 
     pub fn cleanup() {
-        {
-            let mut mmap_lock = GTT_MMAP.lock().unwrap();
-            *mmap_lock = None;
-        }
         GLOBAL_TYPE_TABLE_PTR.store(0, Ordering::Relaxed);
         GLOBAL_TYPE_TABLE_META.store(0, Ordering::Relaxed);
     }
@@ -128,11 +103,11 @@ impl GlobalTypeTable {
     }
 
     #[inline(always)]
-    pub fn table() -> &'static mut [TypeEncode; N_TYPES] {
+    pub fn table() -> &'static mut [ShortTypeEncode; N_TYPES] {
         unsafe { mem::transmute(GLOBAL_TYPE_TABLE_PTR.load(Ordering::Relaxed)) }
     }
 
-    pub fn insert_small_entry(entry: TypeEncode) -> TypeID {
+    pub fn insert_small_entry(entry: ShortTypeEncode) -> TypeID {
         let mut meta = GlobalTypeTable::table_meta();
         let mut table = GlobalTypeTable::table();
 
@@ -146,7 +121,7 @@ impl GlobalTypeTable {
         }
     }
 
-    pub fn insert_large_entry(entry: TypeEncode) -> TypeID {
+    pub fn insert_large_entry(entry: ShortTypeEncode) -> TypeID {
         let mut meta = GlobalTypeTable::table_meta();
         let mut table = GlobalTypeTable::table();
 
@@ -160,17 +135,51 @@ impl GlobalTypeTable {
         }
     }
 
-    pub fn insert_full_entry(entry: FullTypeEntry) -> usize {
+    pub fn force_set_short_entry(index: TypeID, entry: ShortTypeEncode) {
+        let mut meta = GlobalTypeTable::table_meta();
+        let mut table = GlobalTypeTable::table();
+
+        table[index] = entry;
+
+        if index < SMALL_ENTRY_CAP {
+            if meta.small_entry_i < index {
+                meta.small_entry_i = index;
+            }
+        } else if index < LARGE_ENTRY_CAP {
+            if meta.large_entry_i < index {
+                meta.large_entry_i = index;
+            }
+        } else {
+            panic!(
+                "TypeID {} exceeds LARGE_ENTRY_CAP, try use insert_full_entry() instead",
+                index
+            )
+        }
+    }
+
+    pub fn insert_full_entry(entry: FullTypeEncode) -> TypeID {
         let meta = GlobalTypeTable::table_meta();
 
         let mut lock = meta.full_entries.write().unwrap();
-        let id = lock.len();
+        let id = meta.full_entry_i;
         lock.insert(id, entry);
+        meta.full_entry_i += 1;
 
         id
     }
 
-    pub fn get_full_type(id: usize) -> FullTypeEntry {
+    pub fn force_set_full_entry(index: TypeID, entry: FullTypeEncode) {
+        let mut meta = GlobalTypeTable::table_meta();
+        let mut lock = meta.full_entries.write().unwrap();
+        assert!(!lock.contains_key(&index));
+        lock.insert(index, entry);
+
+        if meta.full_entry_i < index {
+            meta.full_entry_i = index;
+        }
+    }
+
+    pub fn get_full_type(id: usize) -> FullTypeEncode {
         let meta = GlobalTypeTable::table_meta();
         let lock = meta.full_entries.read().unwrap();
         debug_assert!(lock.contains_key(&id));
@@ -194,7 +203,7 @@ mod global_type_table_test {
             fix_ty[0] = 0b11100100u8;
             fix_ty[1] = 0b00011011u8;
             fix_ty[2] = 0b11100100u8;
-            TypeEncode::new(12, fix_ty, 0, [0; 63])
+            ShortTypeEncode::new(8, 12, fix_ty, 0, [0; 63])
         };
         let tyid = GlobalTypeTable::insert_small_entry(ty) as usize;
 

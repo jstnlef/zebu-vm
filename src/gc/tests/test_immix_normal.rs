@@ -55,7 +55,9 @@ pub fn test_normal_immix_linkedlist() {
             ret[0] = 0b00000001u8;
             ret
         };
-        let id = GlobalTypeTable::insert_small_entry(TypeEncode::new(4, fix_ty, 0, [0; 63]));
+        let id = GlobalTypeTable::insert_small_entry(
+            ShortTypeEncode::new(OBJECT_ALIGN, 4, fix_ty, 0, [0; 63])
+        );
         println!("type id = {}", id);
         let raw_encode = 0b1000_0000_0000_0000u16 | ((id & 0b0001_1111_1111_1111usize) as u16);
         SmallObjectEncode::new(raw_encode)
@@ -63,7 +65,7 @@ pub fn test_normal_immix_linkedlist() {
     println!("Small Header: {:?}", small_header);
 
     let normal_space = get_space_immix_normal();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
 
     let mut last_obj: Address = unsafe { Address::zero() };
     for _ in 0..WORK_LOAD {
@@ -127,7 +129,8 @@ pub fn test_normal_immix_hybrid() {
             ret[0] = 0b01u8;
             ret
         };
-        let encode = TypeEncode::new(
+        let encode = ShortTypeEncode::new(
+            OBJECT_ALIGN,
             (HYBRID_FIX_SIZE >> LOG_POINTER_SIZE) as u8,
             [0; 63],
             (HYBRID_VAR_SIZE >> LOG_POINTER_SIZE) as u8,
@@ -143,7 +146,7 @@ pub fn test_normal_immix_hybrid() {
 
     let tiny_space = get_space_immix_tiny();
     let normal_space = get_space_immix_normal();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
 
     // alloc 4 tiny object
     let mut tiny_objects = vec![];
@@ -203,7 +206,7 @@ pub fn test_normal_immix_straddle() {
     });
 
     let header = {
-        let ty_encode = TypeEncode::new(64, [0; 63], 0, [0; 63]);
+        let ty_encode = ShortTypeEncode::new(OBJECT_ALIGN, 64, [0; 63], 0, [0; 63]);
         let id = GlobalTypeTable::insert_large_entry(ty_encode);
         let raw_encode = ((id << 8) | 0b1111000usize) as u32;
         MediumObjectEncode::new(raw_encode)
@@ -211,7 +214,7 @@ pub fn test_normal_immix_straddle() {
     println!("Header: {:?}", header);
 
     let normal_space = get_space_immix_normal();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
 
     // alloc 4 objects
     let mut objects = vec![];
@@ -261,13 +264,13 @@ pub fn test_normal_immix_mix() {
     });
 
     let straddle_header = {
-        let ty_encode = TypeEncode::new(64, [0; 63], 0, [0; 63]);
+        let ty_encode = ShortTypeEncode::new(OBJECT_ALIGN, 64, [0; 63], 0, [0; 63]);
         let id = GlobalTypeTable::insert_large_entry(ty_encode);
         let raw_encode = ((id << 8) | 0b1111000usize) as u32;
         MediumObjectEncode::new(raw_encode)
     };
     let normal_header = {
-        let ty_encode = TypeEncode::new(8, [0; 63], 0, [0; 63]);
+        let ty_encode = ShortTypeEncode::new(OBJECT_ALIGN, 8, [0; 63], 0, [0; 63]);
         let id = GlobalTypeTable::insert_large_entry(ty_encode);
         let raw_encode = ((id << 8) | 0usize) as u32;
         MediumObjectEncode::new(raw_encode)
@@ -276,7 +279,7 @@ pub fn test_normal_immix_mix() {
     println!("Normal Header: {:?}", normal_header);
 
     let normal_space = get_space_immix_normal();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
 
     // alloc 4 straddle objects and 1 normal object
     let mut objects = vec![];

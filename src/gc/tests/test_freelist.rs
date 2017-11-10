@@ -51,13 +51,17 @@ pub fn test_freelist_linkedlist() {
     let header = {
         let mut fix = vec![WordType::NonRef; 512];
         fix[0] = WordType::Ref;
-        let id = GlobalTypeTable::insert_full_entry(FullTypeEntry { fix, var: vec![] });
-        LargeObjectEncode::new(OBJECT_SIZE as u64, id as u32, 0)
+        let id = GlobalTypeTable::insert_full_entry(FullTypeEncode {
+            align: 8,
+            fix,
+            var: vec![]
+        });
+        LargeObjectEncode::new(OBJECT_SIZE, id)
     };
     println!("Header: {:?}", header);
 
     let lo_space = get_space_freelist();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
 
     let mut last_obj: Address = unsafe { Address::zero() };
     for _ in 0..WORK_LOAD {

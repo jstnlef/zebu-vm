@@ -26,6 +26,7 @@ use compiler::backend::x86_64::check_op_len;
 use compiler::machine_code::MachineCode;
 use vm::VM;
 use runtime::ValueLocation;
+use runtime::mm::*;
 
 use utils::vec_utils;
 use utils::string_utils;
@@ -42,6 +43,8 @@ use std::ops;
 use std::collections::HashSet;
 use std::sync::{RwLock, Arc};
 use std::any::Any;
+use std::path;
+use std::io::prelude::*;
 
 /// ASMCode represents a segment of assembly machine code. Usually it is machine code for
 /// a Mu function, but it could simply be a sequence of machine code.
@@ -3787,9 +3790,6 @@ use std::fs::File;
 
 /// emit assembly file for a function version
 pub fn emit_code(fv: &mut MuFunctionVersion, vm: &VM) {
-    use std::io::prelude::*;
-    use std::path;
-
     // acquire lock and function
     let funcs = vm.funcs().read().unwrap();
     let func = funcs.get(&fv.func_id).unwrap().read().unwrap();
@@ -4034,10 +4034,6 @@ fn mangle_all(name_vec: &mut Vec<String>) {
 
 #[cfg(feature = "sel4-rumprun")]
 pub fn emit_sym_table(vm: &VM) {
-
-    use std::path;
-    use std::io::Write;
-
     // Here goes the code to generate an asm file to resolve symbol addresses at link time
     // in this stage, a single sym_file is generated for the test
     // these sym_files will be compiled in build.rs in the parent directory of sel4 side
@@ -4167,9 +4163,6 @@ pub fn emit_context_with_reloc(
     symbols: HashMap<Address, MuName>,
     fields: HashMap<Address, MuName>
 ) {
-    use std::path;
-    use std::io::prelude::*;
-
     // creates emit directy, and file
     debug!("---Emit VM Context---");
     create_emit_directory(vm);
@@ -4228,15 +4221,16 @@ pub fn emit_context_with_reloc(
 
         // for all the reachable object, we write them to the boot image
         for obj_dump in objects.values() {
-            write_align(&mut file, 8);
-
             // write object metadata
-            // .bytes xx,xx,xx,xx (between mem_start to reference_addr)
-            write_data_bytes(&mut file, obj_dump.mem_start, obj_dump.reference_addr);
+            write_align(&mut file, 8);
+            write_obj_header(&mut file, &obj_dump.encode);
+
+            // write alignment for the object
+            write_align(&mut file, obj_dump.align);
 
             // if this object is a global cell, we add labels so it can be accessed
-            if global_addr_id_map.contains_key(&obj_dump.reference_addr) {
-                let global_id = global_addr_id_map.get(&obj_dump.reference_addr).unwrap();
+            if global_addr_id_map.contains_key(&obj_dump.addr) {
+                let global_id = global_addr_id_map.get(&obj_dump.addr).unwrap();
                 let global_value = global_lock.get(global_id).unwrap();
 
                 // .globl global_cell_name
@@ -4259,20 +4253,17 @@ pub fn emit_context_with_reloc(
             }
 
             // put dump_label for this object (so it can be referred to from other dumped objects)
-            let dump_label = symbol(&&relocatable_refs
-                .get(&obj_dump.reference_addr)
-                .unwrap()
-                .clone());
+            let dump_label = symbol(&&relocatable_refs.get(&obj_dump.addr).unwrap().clone());
             file.write_fmt(format_args!("{}:\n", dump_label)).unwrap();
 
             // get ready to go through from the object start (not mem_start) to the end
-            let base = obj_dump.reference_addr;
-            let end = obj_dump.mem_start + obj_dump.mem_size;
+            let base = obj_dump.addr;
+            let end = obj_dump.addr + obj_dump.size;
             assert!(base.is_aligned_to(POINTER_SIZE));
 
             // offset as cursor
             let mut offset = 0;
-            while offset < obj_dump.mem_size {
+            while offset < obj_dump.size {
                 let cur_addr = base + offset;
 
                 if obj_dump.reference_offsets.contains(&offset) {
@@ -4356,6 +4347,16 @@ pub fn emit_context_with_reloc(
 /// without consideration about relocation symbols/fields from the client
 pub fn emit_context(vm: &VM) {
     emit_context_with_reloc(vm, hashmap!{}, hashmap!{});
+}
+
+/// writes header for a dumped object
+fn write_obj_header(f: &mut File, obj: &ObjectEncode) {
+    // header is 8 bytes aligned, and takes 24 bytes
+    write_align(f, 8);
+    let hdr = obj.as_raw();
+    f.write_fmt(format_args!("\t.quad {}\n", hdr[0])).unwrap();
+    f.write_fmt(format_args!("\t.quad {}\n", hdr[1])).unwrap();
+    f.write_fmt(format_args!("\t.quad {}\n", hdr[2])).unwrap();
 }
 
 /// writes raw bytes from memory between from_address (inclusive) to to_address (exclusive)

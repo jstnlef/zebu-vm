@@ -21,22 +21,18 @@ use ast::types::*;
 use vm::VM;
 use runtime::mm;
 use runtime::mm::OBJECT_HEADER_SIZE;
-use runtime::mm::OBJECT_HEADER_OFFSET;
 use runtime::ValueLocation;
 use runtime::thread;
 use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
 
-use compiler::CompilerPass;
-use compiler::backend::RegGroup;
 use compiler::PROLOGUE_BLOCK_NAME;
+use compiler::CompilerPass;
+use compiler::backend::*;
 use compiler::backend::x86_64;
-use compiler::backend::x86_64::CodeGenerator;
-use compiler::backend::x86_64::ASMCodeGen;
+use compiler::backend::x86_64::*;
 use compiler::backend::x86_64::callconv;
 use compiler::backend::x86_64::callconv::CallConvResult;
-use compiler::backend::x86_64::CALLEE_SAVED_COUNT;
-use compiler::backend::make_block_name;
 use compiler::machine_code::CompiledFunction;
 use compiler::frame::Frame;
 
@@ -1724,28 +1720,16 @@ impl<'a> InstructionSelection {
                         let ty_info = vm.get_backend_type_info(ty.id());
                         let size = ty_info.size;
                         let ty_align = ty_info.alignment;
-                        let const_size = self.make_int_const(size as u64, vm);
 
                         // get allocator
                         let tmp_allocator = self.emit_get_allocator(node, f_content, f_context, vm);
-                        // allocate
-                        let tmp_res = self.emit_alloc_sequence(
-                            tmp_allocator.clone(),
-                            const_size,
+                        // allocate and init
+                        self.emit_alloc_const_size(
+                            &tmp_allocator,
+                            size,
                             ty_align,
                             node,
-                            f_content,
-                            f_context,
-                            vm
-                        );
-                        // muentry_init_object(%allocator, %tmp_res, %encode)
-                        let encode =
-                            self.make_int_const(mm::get_gc_type_encode(ty_info.gc_type.id), vm);
-                        self.emit_runtime_entry(
-                            &entrypoints::INIT_OBJ,
-                            vec![tmp_allocator.clone(), tmp_res.clone(), encode],
-                            None,
-                            Some(node),
+                            &ty_info,
                             f_content,
                             f_context,
                             vm
@@ -1766,92 +1750,60 @@ impl<'a> InstructionSelection {
                             }
                         };
 
-                        // compute actual size (size = fix_part_size + var_ty_size * len)
-                        let (actual_size, length) = {
-                            let ref ops = inst.ops;
-                            let ref var_len = ops[var_len];
-
-                            if self.match_iimm(var_len) {
-                                // if varpart length is a constant, we can compute it
-                                // at compile time
-                                let var_len = self.node_iimm_to_i32(var_len);
-                                let actual_size = fix_part_size + var_ty_size * (var_len as usize);
-
-                                (
-                                    self.make_int_const(actual_size as u64, vm),
-                                    self.make_int_const(var_len as u64, vm)
-                                )
-                            } else {
-                                // otherwise we need compute it at runtime
-                                let tmp_actual_size =
-                                    self.make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                                let tmp_var_len = self.emit_ireg(var_len, f_content, f_context, vm);
-
-                                match math::is_power_of_two(var_ty_size) {
-                                    Some(shift) => {
-                                        // if the varpart type size is power of two, we can use
-                                        // shift to compute the size
-
-                                        // use tmp_actual_size as result
-                                        // we do not want to change tmp_var_len
-                                        self.backend.emit_mov_r_r(&tmp_actual_size, &tmp_var_len);
-
-                                        if shift != 0 {
-                                            // a shift-left will get the total size of var part
-                                            self.backend
-                                                .emit_shl_r_imm8(&tmp_actual_size, shift as i8);
-                                        }
-
-                                        // add with fix-part size
-                                        self.backend
-                                            .emit_add_r_imm(&tmp_actual_size, fix_part_size as i32);
-                                    }
-                                    None => {
-                                        // otherwise we need to do a multiply
-
-                                        // mov var_ty_size -> rax
-                                        self.backend
-                                            .emit_mov_r_imm(&x86_64::RAX, var_ty_size as i32);
-
-                                        // mul tmp_var_len, rax -> rdx:rax
-                                        self.backend.emit_mul_r(&tmp_var_len);
-
-                                        // add with fix-part size
-                                        self.backend
-                                            .emit_add_r_imm(&x86_64::RAX, fix_part_size as i32);
-
-                                        // mov result to tmp_actual_size
-                                        self.backend.emit_mov_r_r(&tmp_actual_size, &x86_64::RAX);
-                                    }
-                                }
-
-                                (tmp_actual_size, tmp_var_len)
-                            }
-                        };
-
+                        let ref ops = inst.ops;
+                        let ref op_var_len = ops[var_len];
                         let tmp_allocator = self.emit_get_allocator(node, f_content, f_context, vm);
-                        let tmp_res = self.emit_alloc_sequence(
-                            tmp_allocator.clone(),
-                            actual_size,
-                            ty_align,
-                            node,
-                            f_content,
-                            f_context,
-                            vm
-                        );
+                        // size is known at compile time
+                        if self.match_iconst_any(op_var_len) {
+                            let const_var_len = op_var_len.as_value().extract_int_const().unwrap();
+                            let const_size = mm::check_hybrid_size(
+                                fix_part_size + var_ty_size * (const_var_len as usize)
+                            );
+                            self.emit_alloc_const_size(
+                                &tmp_allocator,
+                                const_size,
+                                ty_align,
+                                node,
+                                &ty_info,
+                                f_content,
+                                f_context,
+                                vm
+                            );
+                        } else {
+                            debug_assert!(self.match_ireg(op_var_len));
+                            let tmp_var_len = op_var_len.as_value().clone();
 
-                        // muentry_init_object(%allocator, %tmp_res, %encode)
-                        let encode =
-                            self.make_int_const(mm::get_gc_type_encode(ty_info.gc_type.id), vm);
-                        self.emit_runtime_entry(
-                            &entrypoints::INIT_HYBRID,
-                            vec![tmp_allocator.clone(), tmp_res.clone(), encode, length],
-                            None,
-                            Some(node),
-                            f_content,
-                            f_context,
-                            vm
-                        );
+                            let tmp_fix_size = self.make_int64_const(fix_part_size as u64, vm);
+                            let tmp_var_size = self.make_int64_const(var_ty_size as u64, vm);
+                            let tmp_align = self.make_int64_const(ty_align as u64, vm);
+                            let tmp_tyid = {
+                                let enc = ty_info.gc_type.as_ref().unwrap();
+                                let id = vm.get_gc_type_id(enc);
+                                self.make_int64_const(id as u64, vm)
+                            };
+                            let tmp_full_tyid = {
+                                let enc = ty_info.gc_type_hybrid_full.as_ref().unwrap();
+                                let id = vm.get_gc_type_id(enc);
+                                self.make_int64_const(id as u64, vm)
+                            };
+                            let tmp_res = self.get_result_value(node);
+                            self.emit_runtime_entry(
+                                &entrypoints::ALLOC_VAR_SIZE,
+                                vec![
+                                    tmp_fix_size,
+                                    tmp_var_size,
+                                    tmp_var_len,
+                                    tmp_align,
+                                    tmp_tyid,
+                                    tmp_full_tyid,
+                                ],
+                                Some(vec![tmp_res].clone()),
+                                Some(node),
+                                f_content,
+                                f_context,
+                                vm
+                            );
+                        }
                     }
 
                     /*Instruction_::AllocA(ref ty) => {
@@ -1909,7 +1861,7 @@ impl<'a> InstructionSelection {
                         let tmp_stack_arg_size = {
                             use compiler::backend::x86_64::callconv::swapstack;
                             let (size, _) = swapstack::compute_stack_args(&sig.arg_tys, vm);
-                            self.make_int_const(size as u64, vm)
+                            self.make_int64_const(size as u64, vm)
                         };
 
                         self.emit_runtime_entry(
@@ -2001,7 +1953,7 @@ impl<'a> InstructionSelection {
                                 }
 
                                 // for arguments that are not used, we push a 0
-                                let zero = self.make_int_const(0, vm);
+                                let zero = self.make_int64_const(0, vm);
                                 let mut word_pushed = 0;
                                 for i in 0..ARGUMENT_FPRS.len() {
                                     let val = {
@@ -2228,7 +2180,7 @@ impl<'a> InstructionSelection {
             ty: ty.clone(),
             v: Value_::Memory(MemoryLocation::Address {
                 base: base.clone(),
-                offset: Some(self.make_int_const(offset as u64, vm)),
+                offset: Some(self.make_int64_const(offset as u64, vm)),
                 index: None,
                 scale: None
             })
@@ -2370,10 +2322,19 @@ impl<'a> InstructionSelection {
     }
 
     /// makes an integer constant P<Value>
-    fn make_int_const(&mut self, val: u64, vm: &VM) -> P<Value> {
+    fn make_int64_const(&mut self, val: u64, vm: &VM) -> P<Value> {
         P(Value {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             ty: UINT64_TYPE.clone(),
+            v: Value_::Constant(Constant::Int(val))
+        })
+    }
+
+    /// makes an integer constant P<Value>
+    fn make_int_const(&mut self, val: u64, ty: P<MuType>, vm: &VM) -> P<Value> {
+        P(Value {
+            hdr: MuEntityHeader::unnamed(vm.next_id()),
+            ty,
             v: Value_::Constant(Constant::Int(val))
         })
     }
@@ -3521,59 +3482,117 @@ impl<'a> InstructionSelection {
     ///   large objects
     /// * if the size is not known at compile time, emits a branch to check the size at runtime,
     ///   and call corresponding allocation
-    fn emit_alloc_sequence(
+    fn emit_alloc_const_size(
         &mut self,
-        tmp_allocator: P<Value>,
-        size: P<Value>,
-        align: usize,
+        tmp_allocator: &P<Value>,
+        size: ByteSize,
+        align: ByteSize,
         node: &TreeNode,
+        backend_ty: &BackendType,
         f_content: &FunctionContent,
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> P<Value> {
-        if size.is_int_const() {
-            // size known at compile time, we can choose to emit alloc_small or large now
-            let size_i = size.extract_int_const().unwrap();
+        let size = math::align_up(size + OBJECT_HEADER_SIZE, POINTER_SIZE);
+        let encode = mm::gen_object_encode(backend_ty, size, vm);
 
-            if size_i + OBJECT_HEADER_SIZE as u64 > mm::LARGE_OBJECT_THRESHOLD as u64 {
-                self.emit_alloc_sequence_large(
-                    tmp_allocator,
-                    size,
-                    align,
-                    node,
-                    f_content,
-                    f_context,
-                    vm
-                )
-            } else {
-                self.emit_alloc_sequence_small(
-                    tmp_allocator,
-                    size,
-                    align,
-                    node,
-                    f_content,
-                    f_context,
-                    vm
-                )
-            }
-        } else {
-            // directly call 'alloc'
-            let tmp_res = self.get_result_value(node);
+        let tmp_res = self.get_result_value(node);
+        let tmp_align = self.make_int64_const(align as u64, vm);
+        let tmp_size = self.make_int64_const(size as u64, vm);
 
-            let const_align = self.make_int_const(align as u64, vm);
-
+        if size <= mm::MAX_TINY_OBJECT {
+            // alloc tiny
             self.emit_runtime_entry(
-                &entrypoints::ALLOC_ANY,
-                vec![tmp_allocator.clone(), size.clone(), const_align],
+                &entrypoints::ALLOC_TINY,
+                vec![tmp_allocator.clone(), tmp_size.clone(), tmp_align],
                 Some(vec![tmp_res.clone()]),
                 Some(node),
                 f_content,
                 f_context,
                 vm
             );
+            // init object
+            let tmp_encode = self.make_int_const(encode.tiny().as_u64(), UINT8_TYPE.clone(), vm);
+            self.emit_runtime_entry(
+                &entrypoints::INIT_TINY,
+                vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
+                None,
+                Some(node),
+                f_content,
+                f_context,
+                vm
+            );
+        } else if size <= mm::MAX_MEDIUM_OBJECT {
+            // this could be either a small object or a medium object
 
-            tmp_res
+            // alloc normal
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_NORMAL,
+                vec![tmp_allocator.clone(), tmp_size.clone(), tmp_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node),
+                f_content,
+                f_context,
+                vm
+            );
+            // init object
+            if size < mm::MAX_SMALL_OBJECT {
+                let tmp_encode =
+                    self.make_int_const(encode.small().as_u64(), UINT16_TYPE.clone(), vm);
+                self.emit_runtime_entry(
+                    &entrypoints::INIT_SMALL,
+                    vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
+                    None,
+                    Some(node),
+                    f_content,
+                    f_context,
+                    vm
+                );
+            } else {
+                let tmp_encode =
+                    self.make_int_const(encode.medium().as_u64(), UINT32_TYPE.clone(), vm);
+                self.emit_runtime_entry(
+                    &entrypoints::INIT_MEDIUM,
+                    vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
+                    None,
+                    Some(node),
+                    f_content,
+                    f_context,
+                    vm
+                );
+            };
+        } else {
+            // large allocation
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_LARGE,
+                vec![tmp_allocator.clone(), tmp_size.clone(), tmp_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node),
+                f_content,
+                f_context,
+                vm
+            );
+            // init object
+            let encode = encode.large();
+            let tmp_encode1 = self.make_int64_const(encode.size() as u64, vm);
+            let tmp_encode2 = self.make_int64_const(encode.type_id() as u64, vm);
+            self.emit_runtime_entry(
+                &entrypoints::INIT_LARGE,
+                vec![
+                    tmp_allocator.clone(),
+                    tmp_res.clone(),
+                    tmp_encode1,
+                    tmp_encode2,
+                ],
+                None,
+                Some(node),
+                f_content,
+                f_context,
+                vm
+            );
         }
+
+        tmp_res
     }
 
     /// emits code to get allocator for current thread
@@ -3609,7 +3628,7 @@ impl<'a> InstructionSelection {
         let tmp_res = self.get_result_value(node);
 
         // ASM: %tmp_res = call muentry_alloc_large(%allocator, size, align)
-        let const_align = self.make_int_const(align as u64, vm);
+        let const_align = self.make_int64_const(align as u64, vm);
 
         self.emit_runtime_entry(
             &entrypoints::ALLOC_LARGE,
@@ -3622,158 +3641,6 @@ impl<'a> InstructionSelection {
         );
 
         tmp_res
-    }
-
-    /// emits code for small object allocation
-    fn emit_alloc_sequence_small(
-        &mut self,
-        tmp_allocator: P<Value>,
-        size: P<Value>,
-        align: usize,
-        node: &TreeNode,
-        f_content: &FunctionContent,
-        f_context: &mut FunctionContext,
-        vm: &VM
-    ) -> P<Value> {
-        if INLINE_FASTPATH {
-            //  this function needs to generate exact same code as alloc() in immix_mutator.rs in GC
-            //  FIXME: currently it is not, and may not be correct
-            //  FIXME: do not turn on INLINE_FASTPATH
-
-            // ASM: %tl = get_thread_local()
-            let tmp_tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
-
-            // ASM: mov [%tl + allocator_offset + cursor_offset] -> %cursor
-            let cursor_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_CURSOR_OFFSET;
-            let tmp_cursor = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-            self.emit_load_base_offset(&tmp_cursor, &tmp_tl, cursor_offset as i32, vm);
-
-            // alignup cursor (cursor + align - 1 & !(align - 1))
-            // ASM: lea align-1(%cursor) -> %start
-            let align = align as i32;
-            let tmp_start = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-            self.emit_lea_base_offset(&tmp_start, &tmp_cursor, align - 1, vm);
-            // ASM: and %start, !(align-1) -> %start
-            self.backend.emit_and_r_imm(&tmp_start, !(align - 1) as i32);
-
-            // bump cursor
-            // ASM: add %size, %start -> %end
-            // or lea size(%start) -> %end
-            let tmp_end = self.make_temporary(f_context, ADDRESS_TYPE.clone(), vm);
-            let size = if size.is_int_const() {
-                let mut offset = size.extract_int_const().unwrap() as i32;
-
-                if OBJECT_HEADER_SIZE != 0 {
-                    offset += OBJECT_HEADER_SIZE as i32;
-                }
-
-                self.emit_lea_base_offset(&tmp_end, &tmp_start, offset, vm);
-
-                self.make_int_const(offset as u64, vm)
-            } else {
-                self.backend.emit_mov_r_r(&tmp_end, &tmp_start);
-                if OBJECT_HEADER_SIZE != 0 {
-                    // ASM: add %size, HEADER_SIZE -> %size
-                    self.backend
-                        .emit_add_r_imm(&size, OBJECT_HEADER_SIZE as i32);
-                }
-                self.backend.emit_add_r_r(&tmp_end, &size);
-
-                size
-            };
-
-            // check with limit
-            // ASM: cmp %end, [%tl + allocator_offset + limit_offset]
-            let limit_offset = *thread::ALLOCATOR_OFFSET + *mm::ALLOCATOR_LIMIT_OFFSET;
-            let mem_limit = self.make_memory_op_base_offset(
-                &tmp_tl,
-                limit_offset as i32,
-                ADDRESS_TYPE.clone(),
-                vm
-            );
-            self.backend.emit_cmp_mem_r(&mem_limit, &tmp_end);
-
-            // branch to slow path if end > limit (end - limit > 0)
-            // ASM: jg alloc_slow
-            let slowpath = make_block_name(&node.name(), "allocslow");
-            self.backend.emit_jg(slowpath.clone());
-
-            // finish current block
-            self.finish_block();
-            let block_name = make_block_name(&node.name(), "updatecursor");
-            self.start_block(block_name);
-
-            // update cursor
-            // ASM: mov %end -> [%tl + allocator_offset + cursor_offset]
-            self.emit_store_base_offset(&tmp_tl, cursor_offset as i32, &tmp_end, vm);
-
-            // put start as result
-            let tmp_res = self.get_result_value(node);
-            if OBJECT_HEADER_OFFSET != 0 {
-                // ASM: lea -HEADER_OFFSET(%start) -> %result
-                self.emit_lea_base_offset(&tmp_res, &tmp_start, -OBJECT_HEADER_OFFSET as i32, vm);
-            } else {
-                // ASM: mov %start -> %result
-                self.backend.emit_mov_r_r(&tmp_res, &tmp_start);
-            }
-
-            // ASM jmp alloc_end
-            let allocend = make_block_name(&node.name(), "alloc_small_end");
-            self.backend.emit_jmp(allocend.clone());
-
-            // finishing current block
-            self.finish_block();
-
-            // alloc_slow:
-            // call alloc_slow(size, align) -> %ret
-            // new block (no livein)
-            self.start_block(slowpath.clone());
-
-            // arg1: allocator address
-            // arg2: size
-            // arg3: align
-            let const_align = self.make_int_const(align as u64, vm);
-
-            self.emit_runtime_entry(
-                &entrypoints::ALLOC_SLOW,
-                vec![tmp_allocator.clone(), size.clone(), const_align],
-                Some(vec![tmp_res.clone()]),
-                Some(node),
-                f_content,
-                f_context,
-                vm
-            );
-
-            if OBJECT_HEADER_OFFSET != 0 {
-                // ASM: lea -HEADER_OFFSET(%res) -> %result
-                self.emit_lea_base_offset(&tmp_res, &tmp_res, -OBJECT_HEADER_OFFSET as i32, vm);
-            }
-
-            // end block (no liveout other than result)
-            self.finish_block();
-
-            // block: alloc_end
-            self.start_block(allocend.clone());
-
-            tmp_res
-        } else {
-            // directly call 'alloc'
-            let tmp_res = self.get_result_value(node);
-
-            let const_align = self.make_int_const(align as u64, vm);
-
-            self.emit_runtime_entry(
-                &entrypoints::ALLOC_FAST,
-                vec![tmp_allocator.clone(), size.clone(), const_align],
-                Some(vec![tmp_res.clone()]),
-                Some(node),
-                f_content,
-                f_context,
-                vm
-            );
-
-            tmp_res
-        }
     }
 
     /// emits a load instruction of address [base + offset]
@@ -5561,6 +5428,14 @@ impl<'a> InstructionSelection {
         }
     }
 
+    /// matches an integer const value
+    fn match_iconst_any(&self, op: &TreeNode) -> bool {
+        match op.v {
+            TreeNode_::Value(ref pv) if pv.is_int_const() => true,
+            _ => false
+        }
+    }
+
     /// matches an integer const zero
     fn match_iconst_zero(&mut self, op: &TreeNode) -> bool {
         match op.v {
@@ -5991,7 +5866,7 @@ impl<'a> InstructionSelection {
 
                 MemoryLocation::Address {
                     base: base,
-                    offset: Some(self.make_int_const(new_offset, vm)),
+                    offset: Some(self.make_int64_const(new_offset, vm)),
                     index: index,
                     scale: scale
                 }

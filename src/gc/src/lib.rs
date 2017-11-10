@@ -80,7 +80,6 @@ extern crate crossbeam;
 #[macro_use]
 extern crate field_offset;
 
-use common::gctype::GCType;
 use common::objectdump;
 use common::ptr::*;
 use heap::*;
@@ -124,6 +123,8 @@ pub const LARGE_OBJECT_THRESHOLD: usize = BYTES_IN_LINE;
 /// Most interface functions provided by the GC require a pointer to this mutator.
 pub use heap::Mutator;
 
+pub use objectmodel::*;
+
 //  these two offsets help user's compiler to generate inlined fastpath code
 
 /// offset to the immix allocator cursor from its pointer
@@ -135,7 +136,6 @@ struct GC {
     immix_tiny: Raw<ImmixSpace>,
     immix_normal: Raw<ImmixSpace>,
     lo: Raw<FreelistSpace>,
-    gc_types: Vec<Arc<GCType>>,
     roots: LinkedHashSet<ObjectReference>
 }
 
@@ -183,7 +183,6 @@ pub extern "C" fn gc_init(config: GCConfig) {
         immix_tiny,
         immix_normal,
         lo,
-        gc_types: vec![],
         roots: LinkedHashSet::new()
     });
     heap::gc::ENABLE_GC.store(config.enable_gc, Ordering::Relaxed);
@@ -204,20 +203,29 @@ pub extern "C" fn gc_init(config: GCConfig) {
 /// destroys current GC instance
 #[no_mangle]
 pub extern "C" fn gc_destroy() {
+    debug!("cleanup for GC...");
     objectmodel::cleanup();
     let mut gc_lock = MY_GC.write().unwrap();
-    {
-        let mut gc = gc_lock.as_mut().unwrap();
-        gc.immix_tiny.destroy();
-        gc.immix_normal.destroy();
-        gc.lo.destroy();
+
+    if gc_lock.is_some() {
+        {
+            let mut gc = gc_lock.as_mut().unwrap();
+            gc.immix_tiny.destroy();
+            gc.immix_normal.destroy();
+            gc.lo.destroy();
+        }
+        *gc_lock = None;
+    } else {
+        warn!(
+            "GC has been cleaned up before (probably multiple \
+             Zebu instances are running, and getting destroyed at the same time?"
+        );
     }
-    *gc_lock = None;
 }
 
 /// creates a mutator
 #[no_mangle]
-pub extern "C" fn new_mutator() -> *mut Mutator {
+pub extern "C" fn new_mutator_ptr() -> *mut Mutator {
     let gc_lock = MY_GC.read().unwrap();
     let gc: &GC = gc_lock.as_ref().unwrap();
 
@@ -237,12 +245,26 @@ pub extern "C" fn new_mutator() -> *mut Mutator {
     m
 }
 
+/// we need to set mutator for each allocator manually
+#[no_mangle]
+pub extern "C" fn new_mutator() -> Mutator {
+    let gc_lock = MY_GC.read().unwrap();
+    let gc: &GC = gc_lock.as_ref().unwrap();
+
+    let global = Arc::new(MutatorGlobal::new());
+    Mutator::new(
+        ImmixAllocator::new(gc.immix_tiny.clone()),
+        ImmixAllocator::new(gc.immix_normal.clone()),
+        FreelistAllocator::new(gc.lo.clone()),
+        global
+    )
+}
+
 /// destroys a mutator
 /// Note the user has to explicitly drop mutator that they are not using, otherwise
 /// the GC may not be able to stop all the mutators before GC, and ends up in an endless
 /// pending status
 #[no_mangle]
-#[allow(unused_variables)]
 pub extern "C" fn drop_mutator(mutator: *mut Mutator) {
     unsafe { mutator.as_mut().unwrap() }.destroy();
 
@@ -256,7 +278,6 @@ pub use heap::gc::set_low_water_mark;
 
 /// adds an object reference to the root set
 #[no_mangle]
-#[inline(always)]
 pub extern "C" fn add_to_root(obj: ObjectReference) {
     let mut gc = MY_GC.write().unwrap();
     gc.as_mut().unwrap().roots.insert(obj);
@@ -264,7 +285,6 @@ pub extern "C" fn add_to_root(obj: ObjectReference) {
 
 /// removes an object reference from the root set
 #[no_mangle]
-#[inline(always)]
 pub extern "C" fn remove_root(obj: ObjectReference) {
     let mut gc = MY_GC.write().unwrap();
     gc.as_mut().unwrap().roots.remove(&obj);
@@ -285,7 +305,6 @@ pub extern "C" fn muentry_unpin_object(obj: Address) {
 
 /// a regular check to see if the mutator should stop for synchronisation
 #[no_mangle]
-#[inline(always)]
 pub extern "C" fn yieldpoint(mutator: *mut Mutator) {
     unsafe { mutator.as_mut().unwrap() }.yieldpoint();
 }
@@ -305,7 +324,6 @@ fn mutator_ref(m: *mut Mutator) -> &'static mut Mutator {
 }
 
 /// allocates an object in the immix space
-#[inline(always)]
 #[no_mangle]
 pub extern "C" fn muentry_alloc_tiny(
     mutator: *mut Mutator,
@@ -316,7 +334,6 @@ pub extern "C" fn muentry_alloc_tiny(
     unsafe { m.tiny.alloc(size, align).to_object_reference() }
 }
 
-#[inline(always)]
 #[no_mangle]
 pub extern "C" fn muentry_alloc_normal(
     mutator: *mut Mutator,
@@ -358,7 +375,6 @@ pub extern "C" fn muentry_alloc_normal_slow(
 /// allocates an object in the freelist space (large object space)
 #[no_mangle]
 #[inline(never)]
-#[allow(unused_variables)]
 pub extern "C" fn muentry_alloc_large(
     mutator: *mut Mutator,
     size: usize,
@@ -369,26 +385,8 @@ pub extern "C" fn muentry_alloc_large(
     unsafe { res.to_object_reference() }
 }
 
-#[no_mangle]
-//  size doesn't include HEADER_SIZE
-pub extern "C" fn muentry_alloc_any(
-    mutator: *mut Mutator,
-    size: usize,
-    align: usize
-) -> ObjectReference {
-    let size = size + OBJECT_HEADER_SIZE;
-    if size < MAX_TINY_OBJECT {
-        muentry_alloc_tiny(mutator, size, align)
-    } else if size < MAX_MEDIUM_OBJECT {
-        muentry_alloc_normal(mutator, size, align)
-    } else {
-        muentry_alloc_large(mutator, size, align)
-    }
-}
-
 /// initializes a fix-sized object
 #[no_mangle]
-#[inline(always)]
 pub extern "C" fn muentry_init_tiny_object(
     mutator: *mut Mutator,
     obj: ObjectReference,
@@ -401,7 +399,6 @@ pub extern "C" fn muentry_init_tiny_object(
 
 /// initializes a fix-sized object
 #[no_mangle]
-#[inline(always)]
 pub extern "C" fn muentry_init_small_object(
     mutator: *mut Mutator,
     obj: ObjectReference,
@@ -414,7 +411,6 @@ pub extern "C" fn muentry_init_small_object(
 
 /// initializes a fix-sized object
 #[no_mangle]
-#[inline(always)]
 pub extern "C" fn muentry_init_medium_object(
     mutator: *mut Mutator,
     obj: ObjectReference,
@@ -426,7 +422,6 @@ pub extern "C" fn muentry_init_medium_object(
 }
 
 #[no_mangle]
-#[inline(always)]
 pub extern "C" fn muentry_init_large_object(
     mutator: *mut Mutator,
     obj: ObjectReference,
@@ -435,18 +430,6 @@ pub extern "C" fn muentry_init_large_object(
     unsafe { &mut *mutator }
         .lo
         .init_object(obj.to_address(), encode);
-}
-
-/// initializes a hybrid type object
-#[no_mangle]
-#[inline(never)]
-pub extern "C" fn muentry_init_hybrid(
-    mutator: *mut ImmixAllocator,
-    obj: ObjectReference,
-    encode: u64,
-    length: u64
-) {
-    unsafe { &mut *mutator }.init_hybrid(obj.to_address(), encode, length);
 }
 
 /// forces gc to happen
@@ -485,35 +468,6 @@ pub extern "C" fn get_space_freelist() -> Raw<FreelistSpace> {
     let space_lock = MY_GC.read().unwrap();
     let space = space_lock.as_ref().unwrap();
     space.lo.clone()
-}
-
-/// informs GC of a GCType
-#[no_mangle]
-pub extern "C" fn add_gc_type(mut ty: GCType) -> Arc<GCType> {
-    let mut gc_guard = MY_GC.write().unwrap();
-    let mut gc = gc_guard.as_mut().unwrap();
-
-    let index = gc.gc_types.len() as u32;
-    ty.id = index;
-
-    let ty = Arc::new(ty);
-
-    gc.gc_types.push(ty.clone());
-
-    ty
-}
-
-/// gets the encoding for a given GC type (by ID)
-#[no_mangle]
-pub extern "C" fn get_gc_type_encode(id: u32) -> u64 {
-    let gc_lock = MY_GC.read().unwrap();
-    let ref gctype = gc_lock.as_ref().unwrap().gc_types[id as usize];
-
-    if gctype.is_hybrid() {
-        objectmodel::gen_hybrid_gctype_encode(gctype, 0) // fake length
-    } else {
-        objectmodel::gen_gctype_encode(gctype)
-    }
 }
 
 pub fn start_logging_trace() {

@@ -48,7 +48,7 @@ pub fn test_tiny_immix_alloc() {
         enable_gc: false
     });
     let tiny_space = get_space_immix_tiny();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
     for _ in 0..WORK_LOAD {
         yieldpoint(mutator);
         let res = muentry_alloc_tiny(mutator, OBJECT_SIZE, OBJECT_ALIGN);
@@ -79,7 +79,7 @@ pub fn test_tiny_immix_gc() {
         enable_gc: true
     });
     let tiny_space = get_space_immix_tiny();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
     let tiny_header = TinyObjectEncode::new(0b0u8);
 
     // doing one allocation
@@ -126,7 +126,7 @@ pub fn test_tiny_immix_exhaust() {
     });
 
     let tiny_space = get_space_immix_tiny();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
     let tiny_header = TinyObjectEncode::new(0b0u8);
 
     for _ in 0..WORK_LOAD {
@@ -158,7 +158,7 @@ pub fn test_tiny_immix_linkedlist() {
     });
 
     let tiny_space = get_space_immix_tiny();
-    let mutator = new_mutator();
+    let mutator = new_mutator_ptr();
     // first field is a reference, size 16
     let header = TinyObjectEncode::new(0b00000001u8);
 

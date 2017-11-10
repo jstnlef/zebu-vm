@@ -16,7 +16,7 @@ use common::ptr::*;
 use heap::*;
 use heap::immix::*;
 use heap::gc;
-use objectmodel::sidemap::*;
+use objectmodel::*;
 use utils::bit_utils;
 use utils::mem::memmap;
 use utils::mem::memsec;

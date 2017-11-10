@@ -15,35 +15,20 @@
 use std::sync::atomic;
 use utils::ByteSize;
 
-#[cfg(feature = "use-sidemap")]
 pub mod sidemap;
-#[cfg(not(feature = "use-sidemap"))]
-mod header;
+pub use self::sidemap::*;
 
-// mark state
+pub mod immortal;
+pub use self::immortal::*;
 
-pub static INIT_MARK_STATE: usize = 1;
-static MARK_STATE: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
-
-#[cfg(feature = "use-sidemap")]
 pub fn init() {
     use objectmodel::sidemap::*;
     GlobalTypeTable::init();
 }
 
-#[cfg(feature = "use-sidemap")]
 pub fn cleanup() {
     use objectmodel::sidemap::*;
     GlobalTypeTable::cleanup();
-}
-
-pub fn flip_mark_state() {
-    let mark_state = MARK_STATE.load(atomic::Ordering::SeqCst);
-    MARK_STATE.store(mark_state ^ 1, atomic::Ordering::SeqCst);
-}
-
-pub fn load_mark_state() -> u8 {
-    MARK_STATE.load(atomic::Ordering::SeqCst) as u8
 }
 
 #[inline(always)]
@@ -54,80 +39,3 @@ pub fn check_alignment(align: ByteSize) -> ByteSize {
         align
     }
 }
-
-// --- sidemap object model ---
-
-#[cfg(feature = "use-sidemap")]
-pub use self::sidemap::gen_gctype_encode;
-#[cfg(feature = "use-sidemap")]
-pub use self::sidemap::gen_hybrid_gctype_encode;
-
-#[cfg(feature = "use-sidemap")]
-pub use self::sidemap::MINIMAL_ALIGNMENT;
-#[cfg(feature = "use-sidemap")]
-pub use self::sidemap::OBJECT_HEADER_SIZE;
-#[cfg(feature = "use-sidemap")]
-pub use self::sidemap::OBJECT_HEADER_OFFSET;
-
-#[cfg(feature = "use-sidemap")]
-pub use self::sidemap::print_object;
-
-// --- header ----
-
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::gen_gctype_encode;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::gen_hybrid_gctype_encode;
-
-// flag bit
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::BIT_HAS_REF_MAP;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::BIT_IS_TRACED;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::BIT_IS_FIX_SIZE;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::BIT_IS_OBJ_START;
-
-// field mask
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::MASK_GCTYPE_ID;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::MASK_HYBRID_LENGTH;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::MASK_REF_MAP;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::REF_MAP_LENGTH;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::SHR_HYBRID_LENGTH;
-
-// header location/size
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::MINIMAL_ALIGNMENT;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::OBJECT_HEADER_SIZE;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::OBJECT_HEADER_OFFSET;
-
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::print_object;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::mark_as_traced;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::mark_as_untraced;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::is_traced;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::header_is_fix_size;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::header_has_ref_map;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::header_is_object_start;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::header_get_gctype_id;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::header_get_ref_map;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::header_get_object_size;
-#[cfg(not(feature = "use-sidemap"))]
-pub use self::header::header_get_hybrid_length;

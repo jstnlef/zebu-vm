@@ -79,7 +79,6 @@
 //!                  4 bytes - type ID
 //!                  4 bytes - unused
 
-use common::gctype::GCType;
 use utils::*;
 
 pub const MINIMAL_ALIGNMENT: ByteSize = 16;
@@ -99,18 +98,3 @@ mod global_type_table;
 pub use objectmodel::sidemap::object_encode::*;
 pub use objectmodel::sidemap::type_encode::*;
 pub use objectmodel::sidemap::global_type_table::*;
-
-#[allow(unused_variables)]
-pub fn gen_gctype_encode(ty: &GCType) -> u64 {
-    unimplemented!()
-}
-
-#[allow(unused_variables)]
-pub fn gen_hybrid_gctype_encode(ty: &GCType, length: u32) -> u64 {
-    unimplemented!()
-}
-
-#[allow(unused_variables)]
-pub fn print_object(obj: Address, space_start: Address, trace_map: *mut u8, alloc_map: *mut u8) {
-    unimplemented!()
-}

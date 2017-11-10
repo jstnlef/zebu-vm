@@ -99,7 +99,7 @@ pub struct MuStack {
 
     /// the Mmap that keeps this memory alive
     #[allow(dead_code)]
-    mmap: Option<memmap::Mmap>
+    mmap: Option<memmap::MmapMut>
 }
 lazy_static!{
     pub static ref MUSTACK_SP_OFFSET : usize =
@@ -109,16 +109,16 @@ impl MuStack {
     /// creates a new MuStack for given entry function and function address
     pub fn new(id: MuID, func_addr: Address, stack_arg_size: usize) -> MuStack {
         // allocate memory for the stack
-        let anon_mmap = {
+        let mut anon_mmap = {
             // reserve two guard pages more than we need for the stack
             let total_size = PAGE_SIZE * 2 + STACK_SIZE;
-            match memmap::Mmap::anonymous(total_size, memmap::Protection::ReadWrite) {
+            match memmap::MmapMut::map_anon(total_size) {
                 Ok(m) => m,
                 Err(_) => panic!("failed to mmap for a stack")
             }
         };
 
-        let mmap_start = Address::from_ptr(anon_mmap.ptr());
+        let mmap_start = Address::from_ptr(anon_mmap.as_mut_ptr());
         debug_assert!(mmap_start.is_aligned_to(PAGE_SIZE));
 
         // calculate the addresses
@@ -474,11 +474,14 @@ impl MuThread {
     ) -> (JoinHandle<()>, *mut MuThread) {
         let new_sp = stack.sp;
 
-        // The conversions between boxes and ptrs are needed here as a '*mut MuThread* can't be
-        // sent between threads but a Box can. Also converting a Box to a ptr consumes it.
-        let muthread_ptr = Box::into_raw(Box::new(
-            MuThread::new(id, mm::new_mutator(), stack, user_tls, vm)
-        ));
+        let mut thread = Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls, vm));
+        {
+            // set mutator for each allocator
+            let mutator_ptr = &mut thread.allocator as *mut mm::Mutator;
+            thread.allocator.update_mutator_ptr(mutator_ptr);
+        }
+        // we need to return the pointer, but we cannot send it to other thread
+        let muthread_ptr = Box::into_raw(thread);
         let muthread = unsafe { Box::from_raw(muthread_ptr) };
 
         (
@@ -521,11 +524,11 @@ impl MuThread {
     ) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
-            allocator: allocator,
+            allocator,
             stack: Box::into_raw(stack),
             native_sp_loc: unsafe { Address::zero() },
-            user_tls: user_tls,
-            vm: vm,
+            user_tls,
+            vm,
             exception_obj: unsafe { Address::zero() }
         }
     }
@@ -594,7 +597,7 @@ impl MuThread {
         });
 
         // fake a thread for current thread
-        let fake_mu_thread = MuThread {
+        let mut fake_mu_thread = Box::new(MuThread {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             // we need a valid allocator and stack
             allocator: mm::new_mutator(),
@@ -603,12 +606,16 @@ impl MuThread {
             native_sp_loc: Address::zero(),
             // valid thread local from user
             user_tls: threadlocal,
-            vm: vm,
+            vm,
             exception_obj: Address::zero()
-        };
+        });
+        {
+            let mutator_ptr = &mut fake_mu_thread.allocator as *mut mm::Mutator;
+            fake_mu_thread.allocator.update_mutator_ptr(mutator_ptr);
+        }
 
         // set thread local
-        let ptr_fake_mu_thread: *mut MuThread = Box::into_raw(Box::new(fake_mu_thread));
+        let ptr_fake_mu_thread: *mut MuThread = Box::into_raw(fake_mu_thread);
         set_thread_local(ptr_fake_mu_thread);
 
         true

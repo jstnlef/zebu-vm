@@ -22,8 +22,7 @@ build = "build.rs"
 crate-type = ["rlib"]
 
 [features]
-default = ["use-sidemap"]
-use-sidemap = []
+default = []
 sel4-rumprun = []
 sel4-rumprun-target-side = []
 

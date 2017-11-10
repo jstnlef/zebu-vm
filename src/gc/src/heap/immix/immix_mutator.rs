@@ -167,36 +167,10 @@ impl ImmixAllocator {
     }
 
     #[inline(always)]
-    #[cfg(feature = "use-sidemap")]
     pub fn init_object<T>(&mut self, addr: Address, encode: T) {
         let map_slot = ImmixSpace::get_type_byte_slot_static(addr);
         unsafe {
             map_slot.store(encode);
-        }
-    }
-
-    #[inline(always)]
-    #[cfg(not(feature = "use-sidemap"))]
-    pub fn init_object(&mut self, addr: Address, encode: u64) {
-        unsafe {
-            (addr + objectmodel::OBJECT_HEADER_OFFSET).store(encode);
-        }
-    }
-
-    #[inline(always)]
-    #[cfg(feature = "use-sidemap")]
-    #[allow(unused_variables)]
-    pub fn init_hybrid<T>(&mut self, addr: Address, encode: T, len: u64) {
-        unimplemented!()
-    }
-
-    #[inline(always)]
-    #[cfg(not(feature = "use-sidemap"))]
-    pub fn init_hybrid(&mut self, addr: Address, encode: u64, len: u64) {
-        let encode =
-            encode | ((len << objectmodel::SHR_HYBRID_LENGTH) & objectmodel::MASK_HYBRID_LENGTH);
-        unsafe {
-            (addr + objectmodel::OBJECT_HEADER_OFFSET).store(encode);
         }
     }
 

@@ -31,6 +31,7 @@ use utils::ByteSize;
 use utils::BitSize;
 use utils::Address;
 use runtime::mm as gc;
+use self::gc::*;
 use vm::handle::*;
 use vm::vm_options::VMOptions;
 use vm::vm_options::MuLogLevel;
@@ -89,6 +90,9 @@ pub struct VM {
     funcs: RwLock<HashMap<MuID, RwLock<MuFunction>>>,
     /// primordial function that is set to make boot image
     primordial: RwLock<Option<PrimordialThreadInfo>>,
+    /// gc types declared
+    gc_type_map: RwLock<HashMap<TypeEncode, TypeID>>,
+    gc_id_map: RwLock<HashMap<TypeID, TypeEncode>>,
 
     /// current options for this VM
     pub vm_options: VMOptions, // +624
@@ -141,6 +145,8 @@ unsafe impl rodal::Dump for VM {
         dumper.dump_object(&self.func_sigs);
         dumper.dump_object(&self.funcs);
         dumper.dump_object(&self.primordial);
+        dumper.dump_object(&self.gc_type_map);
+        dumper.dump_object(&self.gc_id_map);
         dumper.dump_object(&self.vm_options);
         dumper.dump_object(&self.compiled_funcs);
         dumper.dump_object(&self.callsite_table);
@@ -238,6 +244,8 @@ impl<'a> VM {
             compiled_funcs: RwLock::new(HashMap::new()),
             callsite_table: RwLock::new(HashMap::new()),
             primordial: RwLock::new(None),
+            gc_type_map: RwLock::new(HashMap::new()),
+            gc_id_map: RwLock::new(HashMap::new()),
             aot_pending_funcref_store: RwLock::new(HashMap::new()),
             compiled_callsite_table: RwLock::new(HashMap::new()),
             callsite_count: ATOMIC_USIZE_INIT,
@@ -318,16 +326,16 @@ impl<'a> VM {
 
     /// initializes runtime
     fn init_runtime(&self) {
+        let ref options = self.vm_options;
+
         // init gc
-        {
-            let ref options = self.vm_options;
-            gc::gc_init(
-                options.flag_gc_immixspace_size,
-                options.flag_gc_lospace_size,
-                options.flag_gc_nthreads,
-                !options.flag_gc_disable_collection
-            );
-        }
+        gc::gc_init(GCConfig {
+            immix_tiny_size: options.flag_gc_immixspace_size / 2,
+            immix_normal_size: options.flag_gc_immixspace_size / 2,
+            lo_size: options.flag_gc_lospace_size,
+            n_gcthreads: options.flag_gc_nthreads,
+            enable_gc: !options.flag_gc_disable_collection
+        });
     }
 
     /// starts logging based on MuLogLevel flag
@@ -385,7 +393,7 @@ impl<'a> VM {
 
     /// cleans up currenet VM
     fn destroy(&mut self) {
-        gc::gc_destoy();
+        gc::gc_destroy();
     }
 
     /// adds an exception callsite and catch block
@@ -411,40 +419,22 @@ impl<'a> VM {
         // initialize runtime
         vm.init_runtime();
 
-        // construct exception table
-        vm.build_callsite_table();
-
         // restore gc types
         {
-            let type_info_guard = vm.backend_type_info.read().unwrap();
-            let mut type_info_vec: Vec<Box<BackendType>> =
-                type_info_guard.values().map(|x| x.clone()).collect();
-            type_info_vec.sort_by(|a, b| a.gc_type.id.cmp(&b.gc_type.id));
+            let lock = vm.gc_type_map.read().unwrap();
 
-            let mut expect_id = 0;
-            for ty_info in type_info_vec.iter() {
-                use runtime::mm;
-
-                let ref gc_type = ty_info.gc_type;
-
-                if gc_type.id != expect_id {
-                    debug_assert!(expect_id < gc_type.id);
-
-                    while expect_id < gc_type.id {
-                        use runtime::mm::common::gctype::GCType;
-
-                        mm::add_gc_type(GCType::new_noreftype(0, 8));
-                        expect_id += 1;
+            for (gc_type, type_id) in lock.iter() {
+                match gc_type {
+                    &TypeEncode::Short(ref enc) => {
+                        GlobalTypeTable::force_set_short_entry(*type_id, enc.clone());
+                    }
+                    &TypeEncode::Full(ref enc) => {
+                        GlobalTypeTable::force_set_full_entry(*type_id, enc.clone());
                     }
                 }
-
-                // now expect_id == gc_type.id
-                debug_assert!(expect_id == gc_type.id);
-
-                mm::add_gc_type(gc_type.as_ref().clone());
-                expect_id += 1;
             }
         }
+
         // construct exception table
         vm.build_callsite_table();
         vm
@@ -626,7 +616,7 @@ impl<'a> VM {
         val: P<Value>
     ) {
         let backend_ty = self.get_backend_type_info(val.ty.get_referent_ty().unwrap().id());
-        let loc = gc::allocate_global(val, backend_ty);
+        let loc = gc::allocate_global(val, backend_ty, self);
         trace!("allocate global #{} as {}", id, loc);
         global_locs.insert(id, loc);
     }
@@ -925,7 +915,6 @@ impl<'a> VM {
         // if we already resolved this type, return the BackendType
         {
             let read_lock = self.backend_type_info.read().unwrap();
-
             match read_lock.get(&tyid) {
                 Some(info) => {
                     return info.clone();
@@ -940,13 +929,64 @@ impl<'a> VM {
             Some(ty) => ty,
             None => panic!("invalid type id during get_backend_type_info(): {}", tyid)
         };
-        let resolved = Box::new(backend::BackendType::resolve(ty, self));
+        let mut resolved = Box::new(backend::BackendType::resolve(ty, self));
+        resolved.resolve_gc_type(self);
 
-        // insert the type so later we do not need to resolve it again
+        // if we haven't insert a gc same type, we insert to gc's type table,
+        // and hash the type in our type map
+        let mut type_map = self.gc_type_map.write().unwrap();
+        let mut id_map = self.gc_id_map.write().unwrap();
         let mut write_lock = self.backend_type_info.write().unwrap();
+        {
+            let gc_type = resolved.gc_type.as_ref().unwrap().clone();
+            if !type_map.contains_key(&gc_type) {
+                let id = match gc_type {
+                    TypeEncode::Short(ref enc) => {
+                        if resolved.size < MAX_SMALL_OBJECT {
+                            GlobalTypeTable::insert_small_entry(enc.clone())
+                        } else {
+                            GlobalTypeTable::insert_large_entry(enc.clone())
+                        }
+                    }
+                    TypeEncode::Full(ref enc) => GlobalTypeTable::insert_full_entry(enc.clone())
+                };
+                type_map.insert(gc_type.clone(), id);
+                id_map.insert(id, gc_type);
+            }
+        }
+        // if the type has an full type encoding (hybrid types), we do a same thing
+        {
+            match resolved.gc_type_hybrid_full {
+                Some(ref enc) => {
+                    if !type_map.contains_key(enc) {
+                        let id = GlobalTypeTable::insert_full_entry(enc.as_full().clone());
+                        type_map.insert(enc.clone(), id);
+                        id_map.insert(id, enc.clone());
+                    }
+                }
+                None => {}
+            }
+        }
+        // add the backend type
         write_lock.insert(tyid, resolved.clone());
 
         resolved
+    }
+
+    pub fn get_gc_type_id(&self, enc: &TypeEncode) -> TypeID {
+        let lock = self.gc_type_map.read().unwrap();
+        match lock.get(enc) {
+            Some(id) => *id,
+            None => panic!("cannot find id for gc encode: {:?}", enc)
+        }
+    }
+
+    pub fn get_gc_type(&self, id: TypeID) -> TypeEncode {
+        let lock = self.gc_id_map.read().unwrap();
+        match lock.get(&id) {
+            Some(enc) => enc.clone(),
+            None => panic!("cannot find type for gc type ID: {}", id)
+        }
     }
 
     /// gets the backend/storage type size for a given Mu type (by ID)
@@ -1260,7 +1300,7 @@ impl<'a> VM {
         assert!(!ty.is_hybrid());
 
         let backend_ty = self.get_backend_type_info(tyid);
-        let addr = gc::allocate_fixed(ty.clone(), backend_ty);
+        let addr = gc::allocate_fixed(ty.clone(), backend_ty, self);
         trace!("API: allocated fixed type {} at {}", ty, addr);
 
         self.new_handle(APIHandle {
@@ -1274,10 +1314,10 @@ impl<'a> VM {
         let ty = self.get_type(tyid);
         assert!(ty.is_hybrid());
 
-        let len = self.handle_to_uint64(length);
+        let len = self.handle_to_uint64(length) as usize;
 
         let backend_ty = self.get_backend_type_info(tyid);
-        let addr = gc::allocate_hybrid(ty.clone(), len, backend_ty);
+        let addr = gc::allocate_hybrid(ty.clone(), len, backend_ty, self);
         trace!(
             "API: allocated hybrid type {} of length {} at {}",
             ty,
