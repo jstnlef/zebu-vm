@@ -223,7 +223,8 @@ rodal_struct!(BackendType {
     alignment,
     struct_layout,
     elem_size,
-    gc_type
+    gc_type,
+    gc_type_hybrid_full
 });
 
 impl BackendType {

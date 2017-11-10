@@ -477,6 +477,29 @@ impl MuType {
             _ => None
         }
     }
+
+    /// prints a struct type
+    pub fn print_details(&self) -> String {
+        match self.v {
+            MuType_::Struct(ref tag) => {
+                let lock = STRUCT_TAG_MAP.read().unwrap();
+                format!("{} = {}", tag, lock.get(tag).unwrap())
+            }
+            MuType_::Hybrid(ref tag) => {
+                let lock = HYBRID_TAG_MAP.read().unwrap();
+                format!("{} = {}", tag, lock.get(tag).unwrap())
+            }
+            _ => format!("{}", self)
+        }
+    }
+
+    /// prints a struct type
+    pub fn print_hybrid(&self) -> String {
+        match self.v {
+
+            _ => panic!()
+        }
+    }
 }
 
 pub type StructTag = MuName;

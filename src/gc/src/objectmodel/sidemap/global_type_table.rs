@@ -46,6 +46,7 @@ pub struct GlobalTypeTable {
 
 const SMALL_ENTRY_CAP: usize = 1 << SMALL_ID_WIDTH;
 const LARGE_ENTRY_CAP: usize = N_TYPES;
+const FULL_ENTRY_START: usize = LARGE_ENTRY_CAP + 1;
 
 /// storing a pointer to the actual type table
 static GLOBAL_TYPE_TABLE_PTR: AtomicUsize = ATOMIC_USIZE_INIT;
@@ -75,7 +76,7 @@ impl GlobalTypeTable {
         // initialize meta
         meta.small_entry_i = 0;
         meta.large_entry_i = SMALL_ENTRY_CAP;
-        meta.full_entry_i = 0;
+        meta.full_entry_i = FULL_ENTRY_START;
         unsafe {
             use std::ptr;
             ptr::write(

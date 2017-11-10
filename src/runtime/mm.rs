@@ -67,7 +67,7 @@ pub fn gen_object_encode_internal(
     let size = math::align_up(size, POINTER_SIZE);
     if size <= MAX_TINY_OBJECT {
         if !is_hybrid {
-            let size = if size < 16 {
+            let size = if size <= 16 {
                 16
             } else {
                 assert!(size <= 24);
@@ -107,6 +107,7 @@ pub fn gen_object_encode_internal(
     }
 }
 
+#[no_mangle]
 pub extern "C" fn muentry_alloc_var_size(
     fix_size: ByteSize,
     var_size: ByteSize,
