@@ -92,13 +92,15 @@ impl GlobalTypeTable {
 
     pub fn cleanup() {
         // unmap the table
-        let mmap_start = GlobalTypeTable::table_meta().mmap_start;
-        let mmap_size = GlobalTypeTable::table_meta().mmap_size;
-        munmap(mmap_start, mmap_size);
+        if GLOBAL_TYPE_TABLE_META.load(Ordering::SeqCst) != 0 {
+            let mmap_start = GlobalTypeTable::table_meta().mmap_start;
+            let mmap_size = GlobalTypeTable::table_meta().mmap_size;
+            munmap(mmap_start, mmap_size);
 
-        // set pointers to zero
-        GLOBAL_TYPE_TABLE_PTR.store(0, Ordering::Relaxed);
-        GLOBAL_TYPE_TABLE_META.store(0, Ordering::Relaxed);
+            // set pointers to zero
+            GLOBAL_TYPE_TABLE_PTR.store(0, Ordering::Relaxed);
+            GLOBAL_TYPE_TABLE_META.store(0, Ordering::Relaxed);
+        }
     }
 
     #[inline(always)]

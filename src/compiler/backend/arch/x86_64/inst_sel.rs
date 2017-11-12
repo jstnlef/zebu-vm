@@ -1714,7 +1714,7 @@ impl<'a> InstructionSelection {
                     }
 
                     Instruction_::New(ref ty) => {
-                        trace!("instsel on NEW");
+                        trace!("instsel on NEW: {}", ty.print_details());
                         assert!(!ty.is_hybrid());
 
                         let ty_info = vm.get_backend_type_info(ty.id());
@@ -1737,7 +1737,7 @@ impl<'a> InstructionSelection {
                     }
 
                     Instruction_::NewHybrid(ref ty, var_len) => {
-                        trace!("instsel on NEWHYBRID");
+                        trace!("instsel on NEWHYBRID: {}", ty.print_details());
                         assert!(ty.is_hybrid());
 
                         let ty_info = vm.get_backend_type_info(ty.id());
@@ -3536,7 +3536,7 @@ impl<'a> InstructionSelection {
                 vm
             );
             // init object
-            if size < mm::MAX_SMALL_OBJECT {
+            if size <= mm::MAX_SMALL_OBJECT {
                 let tmp_encode =
                     self.make_int_const(encode.small().as_u64(), UINT16_TYPE.clone(), vm);
                 self.emit_runtime_entry(

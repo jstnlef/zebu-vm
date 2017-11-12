@@ -252,6 +252,8 @@ impl BackendType {
                     _ => unimplemented!()
                 }
             }
+            // void
+            MuType_::Void => TypeEncode::short_noref(MINIMAL_ALIGNMENT, 1),
             // ref
             MuType_::Ref(_) | MuType_::IRef(_) => TypeEncode::short_ref(),
             // weakref
@@ -343,6 +345,11 @@ impl BackendType {
         let pointer_aligned = cur_offset % POINTER_SIZE == 0;
         match cur_ty.v {
             MuType_::Int(_) => {
+                if pointer_aligned {
+                    res.push(WordType::NonRef);
+                }
+            }
+            MuType_::Void => {
                 if pointer_aligned {
                     res.push(WordType::NonRef);
                 }
@@ -575,10 +582,10 @@ impl BackendType {
 
                 ret
             }
-            // void
+            // void - one byte
             MuType_::Void => BackendType {
                 ty: ty.clone(),
-                size: 0,
+                size: 1,
                 alignment: 1,
                 struct_layout: None,
                 elem_size: None,

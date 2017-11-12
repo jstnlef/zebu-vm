@@ -942,7 +942,7 @@ impl<'a> VM {
             if !type_map.contains_key(&gc_type) {
                 let id = match gc_type {
                     TypeEncode::Short(ref enc) => {
-                        if resolved.size < MAX_SMALL_OBJECT {
+                        if resolved.size <= MAX_SMALL_OBJECT {
                             GlobalTypeTable::insert_small_entry(enc.clone())
                         } else {
                             GlobalTypeTable::insert_large_entry(enc.clone())
@@ -950,6 +950,7 @@ impl<'a> VM {
                     }
                     TypeEncode::Full(ref enc) => GlobalTypeTable::insert_full_entry(enc.clone())
                 };
+                debug!("ENCODE: {} = {:?}", id, gc_type);
                 type_map.insert(gc_type.clone(), id);
                 id_map.insert(id, gc_type);
             }
@@ -960,6 +961,7 @@ impl<'a> VM {
                 Some(ref enc) => {
                     if !type_map.contains_key(enc) {
                         let id = GlobalTypeTable::insert_full_entry(enc.as_full().clone());
+                        debug!("ENCODE: (hybrid full) {} = {:?}", id, enc);
                         type_map.insert(enc.clone(), id);
                         id_map.insert(id, enc.clone());
                     }

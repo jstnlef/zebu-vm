@@ -183,6 +183,7 @@ impl Eq for ShortTypeEncode {}
 use std::hash::*;
 impl Hash for ShortTypeEncode {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        self.align.hash(state);
         self.fix_len.hash(state);
         self.fix_ty.hash(state);
         self.var_len.hash(state);

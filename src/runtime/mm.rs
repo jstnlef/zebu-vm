@@ -54,6 +54,13 @@ pub fn gen_object_encode(backend_ty: &BackendType, size: ByteSize, vm: &VM) -> O
         }
     };
 
+    debug!(
+        "ENCODE: gen_object_encode: {:?}, size: {}",
+        backend_ty,
+        size
+    );
+    debug!("ENCODE: gc_ty: {}, full_gc_ty: {}", gc_tyid, full_tyid);
+
     gen_object_encode_internal(is_hybrid, gc_tyid, full_tyid, size, vm)
 }
 
