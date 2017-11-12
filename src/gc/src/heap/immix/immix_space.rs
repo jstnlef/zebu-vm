@@ -18,7 +18,7 @@ use heap::immix::*;
 use heap::gc;
 use objectmodel::*;
 use utils::bit_utils;
-use utils::mem::memmap;
+use utils::mem::*;
 use utils::mem::memsec;
 
 use std::*;
@@ -75,8 +75,8 @@ pub struct ImmixSpace {
     pub last_gc_used_lines: usize,
 
     // 16 bytes
-    #[allow(dead_code)]
-    mmap: memmap::MmapMut,
+    mmap_start: Address,
+    mmap_size: ByteSize,
 
     // padding to space metadata takes 64KB
     padding: [u64; ((BYTES_IN_BLOCK - 32 - 32 - 88 - 32 - 16) >> 3)],
@@ -125,7 +125,9 @@ impl Space for ImmixSpace {
         true
     }
 
-    fn destroy(&mut self) {}
+    fn destroy(&mut self) {
+        munmap(self.mmap_start, self.size);
+    }
 
     fn prepare_for_gc(&mut self) {
         // erase lines marks
@@ -301,16 +303,11 @@ impl RawMemoryMetadata for ImmixBlock {
 impl ImmixSpace {
     pub fn new(desc: SpaceDescriptor, space_size: ByteSize) -> Raw<ImmixSpace> {
         // acquire memory through mmap
-        let mut anon_mmap: memmap::MmapMut = match memmap::MmapMut::map_anon(
-            BYTES_PREALLOC_SPACE * 2 // for alignment
-        ) {
-            Ok(m) => m,
-            Err(_) => panic!("failed to reserve addresss pace for mmap")
-        };
-        let mmap_ptr = anon_mmap.as_mut_ptr();
-        trace!("    mmap ptr: {:?}", mmap_ptr);
+        let mmap_size = BYTES_PREALLOC_SPACE * 2;
+        let mmap_start = mmap_large(mmap_size);
+        trace!("    mmap ptr: {}", mmap_start);
 
-        let meta_start: Address = Address::from_ptr::<u8>(mmap_ptr).align_up(SPACE_ALIGN);
+        let meta_start: Address = mmap_start.align_up(SPACE_ALIGN);
         let mem_start: Address = meta_start + OFFSET_MEM_START;
         let mem_end: Address = mem_start + space_size;
         trace!("    space metadata: {}", meta_start);
@@ -346,10 +343,8 @@ impl ImmixSpace {
         }
         trace!("    initialized total/usable/used blocks");
 
-        unsafe {
-            use std::ptr;
-            ptr::write(&mut space.mmap as *mut memmap::MmapMut, anon_mmap);
-        }
+        space.mmap_start = mmap_start;
+        space.mmap_size = mmap_size;
         trace!("    store mmap");
 
         space.last_gc_used_lines = 0;

@@ -15,7 +15,7 @@
 use common::ptr::*;
 use heap::*;
 use objectmodel::sidemap::*;
-use utils::mem::memmap;
+use utils::mem::*;
 use utils::mem::memsec::memzero;
 
 use std::sync::Mutex;
@@ -51,8 +51,8 @@ pub struct FreelistSpace {
     pub last_gc_used_pages: usize,
 
     // 16 bytes
-    #[allow(dead_code)]
-    mmap: memmap::MmapMut,
+    mmap_start: Address,
+    mmap_size: ByteSize,
 
     padding: [u64; (BYTES_IN_PAGE - 32 - 24 - 88 - 32) >> 3],
 
@@ -91,7 +91,9 @@ impl Space for FreelistSpace {
         true
     }
 
-    fn destroy(&mut self) {}
+    fn destroy(&mut self) {
+        munmap(self.mmap_start, self.mmap_size);
+    }
 
     fn prepare_for_gc(&mut self) {
         // erase page mark
@@ -169,18 +171,13 @@ impl Space for FreelistSpace {
 
 impl FreelistSpace {
     pub fn new(desc: SpaceDescriptor, space_size: ByteSize) -> Raw<FreelistSpace> {
-        let mut anon_mmap = match memmap::MmapMut::map_anon(
-            BYTES_PREALLOC_SPACE * 2 // for alignment
-        ) {
-            Ok(m) => m,
-            Err(_) => panic!("failed to reserve address space for mmap")
-        };
-        let mmap_ptr = anon_mmap.as_mut_ptr();
-        trace!("    mmap ptr: {:?}", mmap_ptr);
+        let mmap_size = BYTES_PREALLOC_SPACE * 2;
+        let mmap_start = mmap_large(mmap_size);
+        trace!("    mmap ptr: {}", mmap_start);
 
         let space_size = math::align_up(space_size, BYTES_IN_PAGE);
 
-        let meta_start = Address::from_ptr::<u8>(mmap_ptr).align_up(SPACE_ALIGN);
+        let meta_start = mmap_start.align_up(SPACE_ALIGN);
         let mem_start = meta_start + BYTES_IN_PAGE +
             mem::size_of::<LargeObjectEncode>() * PAGES_IN_SPACE +
             mem::size_of::<PageMark>() * PAGES_IN_SPACE;
@@ -216,10 +213,8 @@ impl FreelistSpace {
         }
         trace!("    initialized total/usable/used_nodes");
 
-        unsafe {
-            use std::ptr;
-            ptr::write(&mut space.mmap as *mut memmap::MmapMut, anon_mmap);
-        }
+        space.mmap_start = mmap_start;
+        space.mmap_size = mmap_size;
         trace!("    store mmap");
 
         debug_assert_eq!(Address::from_ptr(&space.mem as *const [u8; 0]), mem_start);

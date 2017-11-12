@@ -17,9 +17,9 @@ use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::collections::HashMap;
 use std::mem;
-use utils::mem::memmap;
+use utils::mem::*;
 use utils::math;
-use utils::Address;
+use utils::*;
 
 use objectmodel::sidemap::TypeID;
 use objectmodel::sidemap::N_TYPES;
@@ -39,7 +39,8 @@ pub struct GlobalTypeTable {
     full_entries: RwLock<HashMap<usize, FullTypeEncode>>,
 
     #[allow(dead_code)]
-    mmap: memmap::MmapMut,
+    mmap_start: Address,
+    mmap_size: ByteSize,
 
     table: [ShortTypeEncode; N_TYPES]
 }
@@ -56,15 +57,13 @@ static GLOBAL_TYPE_TABLE_META: AtomicUsize = ATOMIC_USIZE_INIT;
 impl GlobalTypeTable {
     pub fn init() {
         debug!("Init GlobalTypeTable...");
-        let mut mmap = match memmap::MmapMut::map_anon(mem::size_of::<GlobalTypeTable>()) {
-            Ok(m) => m,
-            Err(_) => panic!("failed to mmap for global type table")
-        };
+        let mmap_size = mem::size_of::<GlobalTypeTable>();
+        let mmap = mmap_large(mmap_size);
 
-        info!("Global Type Table allocated at {:?}", mmap.as_mut_ptr());
+        info!("Global Type Table allocated at {}", mmap);
 
         // start address of metadata
-        let meta_addr = Address::from_ptr::<u8>(mmap.as_mut_ptr());
+        let meta_addr = mmap;
         GLOBAL_TYPE_TABLE_META.store(meta_addr.as_usize(), Ordering::Relaxed);
 
         let mut meta: &mut GlobalTypeTable = unsafe { meta_addr.to_ref_mut() };
@@ -84,16 +83,20 @@ impl GlobalTypeTable {
                 RwLock::new(HashMap::new())
             )
         }
-        unsafe {
-            use std::ptr;
-            ptr::write(&mut meta.mmap as *mut memmap::MmapMut, mmap);
-        }
+        meta.mmap_start = mmap;
+        meta.mmap_size = mmap_size;
 
         // save mmap
         trace!("Global Type Table initialization done");
     }
 
     pub fn cleanup() {
+        // unmap the table
+        let mmap_start = GlobalTypeTable::table_meta().mmap_start;
+        let mmap_size = GlobalTypeTable::table_meta().mmap_size;
+        munmap(mmap_start, mmap_size);
+
+        // set pointers to zero
         GLOBAL_TYPE_TABLE_PTR.store(0, Ordering::Relaxed);
         GLOBAL_TYPE_TABLE_META.store(0, Ordering::Relaxed);
     }

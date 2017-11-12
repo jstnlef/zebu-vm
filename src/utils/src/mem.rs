@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate libc;
+
 /// cross-platform mmap crate
 pub extern crate memmap;
 /// secured memory operations: memset, memzero, etc.
@@ -19,6 +21,47 @@ pub extern crate memsec;
 
 #[allow(unused_imports)] // import both endianness (we may not use big endian though)
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt, WriteBytesExt, ByteOrder};
+
+use Address;
+use ByteSize;
+use std::ptr;
+
+#[cfg(target_os = "macos")]
+fn mmap_flags() -> libc::c_int {
+    libc::MAP_ANON | libc::MAP_PRIVATE | libc::MAP_NORESERVE
+}
+#[cfg(target_os = "linux")]
+fn mmap_flags() -> libc::c_int {
+    libc::MAP_ANONYMOUS | libc::MAP_PRIVATE | libc::MAP_NORESERVE
+}
+
+pub fn mmap_large(size: ByteSize) -> Address {
+    use self::libc::*;
+
+    let ret = unsafe {
+        mmap(
+            ptr::null_mut(),
+            size as size_t,
+            PROT_READ | PROT_WRITE,
+            mmap_flags(),
+            -1,
+            0
+        )
+    };
+
+    if ret == MAP_FAILED {
+        panic!("failed to mmap {} bytes", size);
+    }
+
+    Address::from_mut_ptr(ret)
+}
+
+pub fn munmap(addr: Address, size: ByteSize) {
+    use self::libc::*;
+    unsafe {
+        munmap(addr.to_ptr_mut() as *mut c_void, size as size_t);
+    }
+}
 
 /// malloc's and zeroes the memory
 pub unsafe fn malloc_zero(size: usize) -> *mut u8 {
