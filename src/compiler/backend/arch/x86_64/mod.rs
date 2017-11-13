@@ -648,6 +648,17 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         CmpOp(_, _, _) => 1,
         ConvOp { .. } => 0,
 
+        CommonInst_Tr64IsFp(_) |
+        CommonInst_Tr64IsInt(_) |
+        CommonInst_Tr64IsRef(_) |
+        CommonInst_Tr64FromFp(_) |
+        CommonInst_Tr64FromInt(_) |
+        CommonInst_Tr64FromRef(_, _) |
+        CommonInst_Tr64ToFp(_) |
+        CommonInst_Tr64ToInt(_) |
+        CommonInst_Tr64ToRef(_) |
+        CommonInst_Tr64ToTag(_) => 3,
+
         // control flow
         Branch1(_) => 1,
         Branch2 { .. } => 1,
@@ -685,14 +696,14 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         Throw(_) => 10,
         SwapStackExpr { .. } | SwapStackExc { .. } | SwapStackKill { .. } => 10,
         CommonInst_GetThreadLocal | CommonInst_SetThreadLocal(_) => 10,
-        CommonInst_Pin(_) | CommonInst_Unpin(_) => 10,
+        CommonInst_Pin(_) | CommonInst_Unpin(_) | CommonInst_GetAddr(_) => 10,
 
         // others
         Move(_) => 0,
         PrintHex(_) => 10,
         SetRetval(_) => 10,
-        ExnInstruction { ref inner, .. } => estimate_insts_for_ir(&inner),
-        _ => unimplemented!()
+        GetVMThreadLocal => 10,
+        ExnInstruction { ref inner, .. } => estimate_insts_for_ir(&inner)
     }
 }
 
