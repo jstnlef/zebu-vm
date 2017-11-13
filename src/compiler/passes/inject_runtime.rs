@@ -216,7 +216,7 @@ fn gen_allocation_sequence(
         ops: vec![tmp_cursor_loc_u64.clone()],
         v: Instruction_::Load {
             is_ptr: true,
-            order: MemoryOrder::SeqCst,
+            order: MemoryOrder::NotAtomic,
             mem_loc: 0
         }
     }));
@@ -299,7 +299,7 @@ fn gen_allocation_sequence(
         ops: vec![tmp_limit_loc_u64.clone()],
         v: Instruction_::Load {
             is_ptr: true,
-            order: MemoryOrder::SeqCst,
+            order: MemoryOrder::NotAtomic,
             mem_loc: 0
         }
     }));
@@ -346,7 +346,7 @@ fn gen_allocation_sequence(
                     ops: vec![tmp_cursor_loc_u64.clone(), tmp_end.clone()],
                     v: Instruction_::Store {
                         is_ptr: true,
-                        order: MemoryOrder::SeqCst,
+                        order: MemoryOrder::NotAtomic,
                         mem_loc: 0,
                         value: 1
                     }
