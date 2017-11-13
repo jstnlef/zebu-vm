@@ -1604,6 +1604,12 @@ impl<'a> InstructionSelection {
                         );
                     }
 
+                    Instruction_::GetVMThreadLocal => {
+                        trace!("instsel on GETVMTHREADLOCAL");
+                        let tl = self.emit_get_threadlocal(Some(node), f_content, f_context, vm);
+                        let tmp_res = self.get_result_value(node);
+                        self.backend.emit_mov_r_r(&tmp_res, &tl);
+                    }
                     Instruction_::CommonInst_GetThreadLocal => {
                         trace!("instsel on GETTHREADLOCAL");
                         // get thread local
@@ -3493,7 +3499,7 @@ impl<'a> InstructionSelection {
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> P<Value> {
-        let size = math::align_up(size + OBJECT_HEADER_SIZE, POINTER_SIZE);
+        let size = math::align_up(mm::check_size(size), POINTER_SIZE);
         let encode = mm::gen_object_encode(backend_ty, size, vm);
 
         let tmp_res = self.get_result_value(node);

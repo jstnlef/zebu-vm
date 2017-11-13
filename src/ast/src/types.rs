@@ -75,6 +75,14 @@ lazy_static! {
         MuType::new(new_internal_id(), MuType_::iref(VOID_TYPE.clone()))
     );
 
+    pub static ref UPTR_U8_TYPE: P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::uptr(UINT8_TYPE.clone()))
+    );
+
+    pub static ref UPTR_U64_TYPE: P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::uptr(UINT64_TYPE.clone()))
+    );
+
     pub static ref STACKREF_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::StackRef)
     );
@@ -99,6 +107,8 @@ lazy_static! {
         IREF_VOID_TYPE.clone(),
         STACKREF_TYPE.clone(),
         THREADREF_TYPE.clone(),
+        UPTR_U8_TYPE.clone(),
+        UPTR_U64_TYPE.clone()
     ];
 }
 

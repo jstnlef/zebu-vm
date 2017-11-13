@@ -218,7 +218,7 @@ impl FrameSlot {
             ty: ty.clone(),
             v: Value_::Memory(MemoryLocation::Address {
                 base: x86_64::RBP.clone(),
-                offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
+                offset: Some(Value::make_int32_const(vm.next_id(), self.offset as u64)),
                 index: None,
                 scale: None
             })
@@ -234,7 +234,7 @@ impl FrameSlot {
             ty: ty.clone(),
             v: Value_::Memory(MemoryLocation::VirtualAddress {
                 base: aarch64::FP.clone(),
-                offset: Some(Value::make_int_const(vm.next_id(), self.offset as u64)),
+                offset: Some(Value::make_int32_const(vm.next_id(), self.offset as u64)),
                 scale: 1,
                 signed: true
             })

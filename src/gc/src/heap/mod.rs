@@ -113,6 +113,13 @@ pub struct Mutator {
     global: Arc<MutatorGlobal>
 }
 
+lazy_static! {
+    pub static ref TINY_ALLOCATOR_OFFSET: ByteSize =
+        offset_of!(Mutator=>tiny).get_byte_offset();
+    pub static ref NORMAL_ALLOCATOR_OFFSET: ByteSize =
+        offset_of!(Mutator=>normal).get_byte_offset();
+}
+
 impl Mutator {
     pub fn new(
         tiny: ImmixAllocator,

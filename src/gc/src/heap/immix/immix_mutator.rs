@@ -41,8 +41,8 @@ pub struct ImmixAllocator {
 }
 
 lazy_static! {
-    pub static ref CURSOR_OFFSET : usize = offset_of!(ImmixAllocator=>cursor).get_byte_offset();
-    pub static ref LIMIT_OFFSET  : usize = offset_of!(ImmixAllocator=>limit).get_byte_offset();
+    pub static ref CURSOR_OFFSET : ByteSize = offset_of!(ImmixAllocator=>cursor).get_byte_offset();
+    pub static ref LIMIT_OFFSET  : ByteSize = offset_of!(ImmixAllocator=>limit).get_byte_offset();
 }
 
 impl Allocator for ImmixAllocator {

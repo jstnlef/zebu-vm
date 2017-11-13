@@ -39,3 +39,12 @@ pub fn check_alignment(align: ByteSize) -> ByteSize {
         align
     }
 }
+
+#[inline(always)]
+pub fn check_size(size: ByteSize) -> ByteSize {
+    if size < MINIMAL_OBJECT_SIZE {
+        MINIMAL_OBJECT_SIZE
+    } else {
+        size
+    }
+}

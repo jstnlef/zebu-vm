@@ -108,6 +108,7 @@ impl Instruction {
             Move(_) |
             PrintHex(_) |
             SetRetval(_) |
+            GetVMThreadLocal |
             KillStack(_) |
             CurrentStack |
             SwapStackExpr { .. } => false
@@ -185,7 +186,8 @@ impl Instruction {
             CommonInst_Tr64ToRef(_) |
             CommonInst_Tr64ToTag(_) |
             Move(_) |
-            CurrentStack => false
+            CurrentStack |
+            GetVMThreadLocal => false
         }
     }
 
@@ -250,6 +252,7 @@ impl Instruction {
             Move(_) |
             PrintHex(_) |
             SetRetval(_) |
+            GetVMThreadLocal |
             KillStack(_) |
             CurrentStack |
             SwapStackExpr { .. } |
@@ -322,6 +325,7 @@ impl Instruction {
             Move(_) |
             PrintHex(_) |
             SetRetval(_) |
+            GetVMThreadLocal |
             KillStack(_) |
             CurrentStack |
             SwapStackExpr { .. } |
@@ -395,6 +399,7 @@ impl Instruction {
             Move(_) |
             PrintHex(_) |
             SetRetval(_) |
+            GetVMThreadLocal |
             KillStack(_) |
             CurrentStack |
             SwapStackKill { .. } => false,
@@ -820,7 +825,9 @@ impl Instruction {
             // print hex
             &Instruction_::PrintHex(i) => format!("PRINTHEX<{}> {}", ops[i].ty(), ops[i]),
             // set retval
-            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val])
+            &Instruction_::SetRetval(val) => format!("SETRETVAL {}", ops[val]),
+            // get vm thread local
+            &Instruction_::GetVMThreadLocal => format!("GETVMTHREADLOCAL")
         }
     }
 }
@@ -1118,7 +1125,9 @@ pub enum Instruction_ {
     /// internal use: print op as hex value
     PrintHex(OpIndex),
     /// internal use: set return value for main
-    SetRetval(OpIndex)
+    SetRetval(OpIndex),
+    /// internal use: get zebu thread local
+    GetVMThreadLocal
 }
 
 fn format_value_types(value: &Option<Vec<P<Value>>>) -> String {

@@ -104,6 +104,7 @@ impl Default for CompilerPolicy {
         // ir level passes
         passes.push(Box::new(passes::RetSink::new()));
         passes.push(Box::new(passes::Inlining::new()));
+        passes.push(Box::new(passes::InjectRuntime::new()));
         passes.push(Box::new(passes::DefUse::new()));
         passes.push(Box::new(passes::TreeGen::new()));
         passes.push(Box::new(passes::GenMovPhi::new()));

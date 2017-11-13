@@ -566,6 +566,14 @@ impl Block {
         }
     }
 
+    pub fn clear_insts(&mut self) {
+        self.content.as_mut().unwrap().body.clear();
+    }
+
+    pub fn append_inst(&mut self, inst: P<TreeNode>) {
+        self.content.as_mut().unwrap().body.push(inst);
+    }
+
     /// does this block have an exception arguments?
     pub fn is_receiving_exception_arg(&self) -> bool {
         return self.content.as_ref().unwrap().exn_arg.is_some();
@@ -859,6 +867,30 @@ impl TreeNode {
         })
     }
 
+    /// is instruction
+    pub fn is_inst(&self) -> bool {
+        match self.v {
+            TreeNode_::Instruction(_) => true,
+            _ => false
+        }
+    }
+
+    /// is value
+    pub fn is_value(&self) -> bool {
+        match self.v {
+            TreeNode_::Value(_) => true,
+            _ => false
+        }
+    }
+
+    /// is constant value
+    pub fn is_const_value(&self) -> bool {
+        match self.v {
+            TreeNode_::Value(ref val) => val.is_const(),
+            _ => false
+        }
+    }
+
     /// extracts the MuID of an SSA TreeNode
     /// if the node is not an SSA, returns None
     pub fn extract_ssa_id(&self) -> Option<MuID> {
@@ -975,8 +1007,12 @@ rodal_struct!(Value { hdr, ty, v });
 
 impl Value {
     /// creates an int constant value
-    pub fn make_int_const(id: MuID, val: u64) -> P<Value> {
+    pub fn make_int32_const(id: MuID, val: u64) -> P<Value> {
         Value::make_int_const_ty(id, UINT32_TYPE.clone(), val)
+    }
+
+    pub fn make_int64_const(id: MuID, val: u64) -> P<Value> {
+        Value::make_int_const_ty(id, UINT64_TYPE.clone(), val)
     }
 
     pub fn make_int_const_ty(id: MuID, ty: P<MuType>, val: u64) -> P<Value> {

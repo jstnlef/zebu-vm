@@ -89,8 +89,18 @@ lazy_static! {
         vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
         vec![ADDRESS_TYPE.clone()]
     );
+    pub static ref ALLOC_TINY_SLOW: RuntimeEntrypoint = RuntimeEntrypoint::new(
+        "muentry_alloc_tiny_slow",
+        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![ADDRESS_TYPE.clone()]
+    );
     pub static ref ALLOC_NORMAL: RuntimeEntrypoint = RuntimeEntrypoint::new(
         "muentry_alloc_normal",
+        vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
+        vec![ADDRESS_TYPE.clone()]
+    );
+    pub static ref ALLOC_NORMAL_SLOW: RuntimeEntrypoint = RuntimeEntrypoint::new(
+        "muentry_alloc_normal_slow",
         vec![ADDRESS_TYPE.clone(), UINT64_TYPE.clone(), UINT64_TYPE.clone()],
         vec![ADDRESS_TYPE.clone()]
     );

@@ -121,7 +121,7 @@ pub const LARGE_OBJECT_THRESHOLD: usize = BYTES_IN_LINE;
 
 /// the mutator that the user is supposed to put to every mutator thread
 /// Most interface functions provided by the GC require a pointer to this mutator.
-pub use heap::Mutator;
+pub use heap::*;
 
 pub use objectmodel::*;
 
