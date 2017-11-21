@@ -964,7 +964,8 @@ pub fn estimate_insts_for_ir(inst: &Instruction) -> usize {
         PrintHex(_) => 10,
         SetRetval(_) => 10,
         ExnInstruction { ref inner, .. } => estimate_insts_for_ir(&inner),
-        _ => unimplemented!()
+        GetVMThreadLocal => 10,
+        _ => 1
     }
 }
 
