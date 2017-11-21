@@ -1718,7 +1718,7 @@ impl ASMCodeGen {
 
         // merge use vec
         if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
+            let locs = uses.get_mut(&id1).unwrap();
             vec_utils::add_unique(locs, loc1.clone());
         } else {
             uses.insert(id1, vec![loc1]);
@@ -1738,7 +1738,7 @@ impl ASMCodeGen {
         let (mem, mut uses) = self.prepare_mem(op2, inst.len() + 1 + reg.len() + 1);
 
         if uses.contains_key(&id) {
-            let mut locs = uses.get_mut(&id).unwrap();
+            let locs = uses.get_mut(&id).unwrap();
             vec_utils::add_unique(locs, loc.clone());
         } else {
             uses.insert(id, vec![loc.clone()]);
@@ -1844,7 +1844,7 @@ impl ASMCodeGen {
         let (reg, id1, loc1) = self.prepare_reg(dest, inst.len() + 1 + mem.len() + 1);
 
         if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
+            let locs = uses.get_mut(&id1).unwrap();
             vec_utils::add_unique(locs, loc1.clone());
         } else {
             uses.insert(id1, vec![loc1.clone()]);
@@ -2082,7 +2082,7 @@ impl ASMCodeGen {
         // the register we used for the memory location is counted as 'use'
         // use the vec from mem as 'use' (push use reg from src to it)
         if uses.contains_key(&id1) {
-            let mut locs = uses.get_mut(&id1).unwrap();
+            let locs = uses.get_mut(&id1).unwrap();
             vec_utils::add_unique(locs, loc1);
         } else {
             uses.insert(id1, vec![loc1]);

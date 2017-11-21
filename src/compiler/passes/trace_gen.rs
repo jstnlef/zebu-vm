@@ -304,7 +304,7 @@ fn branch_adjustment(func: &mut MuFunctionVersion, vm: &VM) {
     let mut f_content = func.content.take().unwrap();
     let mut new_blocks: Vec<Block> = vec![];
 
-    for (blk_id, mut block) in f_content.blocks.iter_mut() {
+    for (blk_id, block) in f_content.blocks.iter_mut() {
         trace_if!(LOG_TRACE_SCHEDULE, "block: {} #{}", block, blk_id);
 
         let next_block_in_trace: Option<usize> = {

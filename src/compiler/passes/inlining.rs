@@ -158,7 +158,7 @@ impl Inlining {
 
         let call_edges = func.get_static_call_edges();
 
-        let mut f_content = func.content.as_mut().unwrap();
+        let f_content = func.content.as_mut().unwrap();
         let ref mut f_context = func.context;
 
         let mut new_blocks: Vec<Block> = vec![];

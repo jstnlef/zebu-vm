@@ -47,7 +47,7 @@ pub fn init(n_gcthreads: usize) {
 pub fn trigger_gc() {
     trace!("Triggering GC...");
 
-    for mut m in MUTATORS.write().unwrap().iter_mut() {
+    for m in MUTATORS.write().unwrap().iter_mut() {
         if m.is_some() {
             m.as_mut().unwrap().set_take_yield(true);
         }
@@ -193,7 +193,7 @@ pub fn sync_barrier(mutator: &mut Mutator) {
 
         // mutators will resume
         CONTROLLER.store(NO_CONTROLLER, Ordering::SeqCst);
-        for mut t in MUTATORS.write().unwrap().iter_mut() {
+        for t in MUTATORS.write().unwrap().iter_mut() {
             if t.is_some() {
                 let t_mut = t.as_mut().unwrap();
                 t_mut.set_take_yield(false);
@@ -243,7 +243,7 @@ fn gc() {
     // each space prepares for GC
     {
         let mut gccontext_guard = MY_GC.write().unwrap();
-        let mut gccontext = gccontext_guard.as_mut().unwrap();
+        let gccontext = gccontext_guard.as_mut().unwrap();
         gccontext.immix_tiny.prepare_for_gc();
         gccontext.immix_normal.prepare_for_gc();
         gccontext.lo.prepare_for_gc();
@@ -272,7 +272,7 @@ fn gc() {
     // sweep
     {
         let mut gccontext_guard = MY_GC.write().unwrap();
-        let mut gccontext = gccontext_guard.as_mut().unwrap();
+        let gccontext = gccontext_guard.as_mut().unwrap();
 
         gccontext.immix_tiny.sweep();
         gccontext.immix_normal.sweep();
@@ -333,8 +333,6 @@ pub fn start_trace(work_stack: &mut Vec<ObjectReference>) {
 
 #[allow(unused_variables)]
 fn start_steal_trace(stealer: Stealer<ObjectReference>, job_sender: mpsc::Sender<ObjectReference>) {
-    use objectmodel;
-
     let mut local_queue = vec![];
 
     loop {

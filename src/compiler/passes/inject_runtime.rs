@@ -48,6 +48,7 @@ impl CompilerPass for InjectRuntime {
         self
     }
 
+    #[allow(unused_variables)]
     fn finish_function(&mut self, vm: &VM, func: &mut MuFunctionVersion) {
         debug!("after inject runtime: ");
 
@@ -61,7 +62,7 @@ impl CompilerPass for InjectRuntime {
 
         let mut new_blocks = vec![];
 
-        for (_, mut block) in blocks.into_iter() {
+        for (_, block) in blocks.into_iter() {
             // get all the instructions of this block, so we can iterate through them
             let body_copy = block.content.as_ref().unwrap().body.clone();
 

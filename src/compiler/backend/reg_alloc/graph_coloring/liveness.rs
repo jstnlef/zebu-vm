@@ -758,7 +758,7 @@ fn global_liveness_analysis(
 
             // in <- use + (out - def)
             {
-                let mut inset = livein.get_mut(node).unwrap();
+                let inset = livein.get_mut(node).unwrap();
 
                 inset.clear();
 
@@ -776,7 +776,7 @@ fn global_liveness_analysis(
 
             // out[n] <- union(in[s] for every successor s of n)
             {
-                let mut outset = liveout.get_mut(node).unwrap();
+                let outset = liveout.get_mut(node).unwrap();
                 outset.clear();
 
                 for s in cfg_node.succ.iter() {

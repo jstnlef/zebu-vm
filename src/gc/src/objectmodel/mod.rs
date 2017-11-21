@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::atomic;
 use utils::ByteSize;
 
 pub mod sidemap;

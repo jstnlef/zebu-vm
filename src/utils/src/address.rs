@@ -207,12 +207,12 @@ impl Address {
 
     #[inline(always)]
     pub unsafe fn to_ref<T>(&self) -> &'static T {
-        unsafe { mem::transmute(self.0) }
+        mem::transmute(self.0)
     }
 
     #[inline(always)]
     pub unsafe fn to_ref_mut<T>(&self) -> &'static mut T {
-        unsafe { mem::transmute(self.0) }
+        mem::transmute(self.0)
     }
 
     /// converts the Address to a pointer-sized integer

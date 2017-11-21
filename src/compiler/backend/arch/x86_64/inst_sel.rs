@@ -20,7 +20,6 @@ use ast::op::*;
 use ast::types::*;
 use vm::VM;
 use runtime::mm;
-use runtime::mm::OBJECT_HEADER_SIZE;
 use runtime::ValueLocation;
 use runtime::thread;
 use runtime::entrypoints;

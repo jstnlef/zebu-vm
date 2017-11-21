@@ -128,7 +128,7 @@ impl PeepholeOptimization {
     }
 
     fn remove_unnecessary_jump(&mut self, inst: usize, cf: &mut CompiledFunction) {
-        let mut mc = cf.mc_mut();
+        let mc = cf.mc_mut();
 
         // if this is last instruction, return
         if inst == mc.number_of_insts() - 1 {
@@ -158,7 +158,7 @@ impl PeepholeOptimization {
     }
 
     fn remove_jump_to_jump(&mut self, inst: usize, cf: &mut CompiledFunction) {
-        let mut mc = cf.mc_mut();
+        let mc = cf.mc_mut();
 
         // the instruction that we may rewrite
         let orig_inst = inst;

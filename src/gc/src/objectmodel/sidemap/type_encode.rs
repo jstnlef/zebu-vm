@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use objectmodel::*;
-use utils::*;
 use std;
 use std::mem::transmute;
 
@@ -196,9 +195,9 @@ impl fmt::Debug for ShortTypeEncode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ShortTypeEncode {{ ").unwrap();
         write!(f, "fix_len: {:?}, fix_ty: ", self.fix_len).unwrap();
-        self.fix_ty[0..self.fix_len as usize].fmt(f);
+        self.fix_ty[0..self.fix_len as usize].fmt(f).unwrap();
         write!(f, ", var_len: {:?}, var_ty: ", self.var_len).unwrap();
-        self.var_ty[0..self.var_len as usize].fmt(f);
+        self.var_ty[0..self.var_len as usize].fmt(f).unwrap();
         write!(f, "}}")
     }
 }

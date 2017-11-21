@@ -124,7 +124,7 @@ pub extern "C" fn muentry_alloc_var_size(
     full_tyid: TypeID
 ) -> ObjectReference {
     debug_assert!(MuThread::has_current());
-    let mut cur_thread = MuThread::current_mut();
+    let cur_thread = MuThread::current_mut();
     let mutator: *mut Mutator = &mut cur_thread.allocator as *mut Mutator;
     let size = check_hybrid_size(fix_size + var_size * var_len);
 
@@ -142,7 +142,7 @@ pub extern "C" fn muentry_alloc_var_size(
     let encode = gen_object_encode_internal(true, tyid, full_tyid, size, vm);
 
     match encode {
-        ObjectEncode::Tiny(enc) => unreachable!(),
+        ObjectEncode::Tiny(_) => unreachable!(),
         ObjectEncode::Small(enc) => muentry_init_small_object(mutator, res, enc),
         ObjectEncode::Medium(enc) => muentry_init_medium_object(mutator, res, enc),
         ObjectEncode::Large(enc) => muentry_init_large_object(mutator, res, enc)
@@ -214,14 +214,6 @@ pub fn allocate_hybrid(
     backendtype: Box<BackendType>,
     vm: &VM
 ) -> Address {
-    let gc_type = {
-        let gctype = backendtype.gc_type.as_ref().unwrap();
-        vm.get_gc_type_id(gctype)
-    };
-    let gc_hybrid_full_type = match backendtype.gc_type_hybrid_full {
-        Some(ref enc) => vm.get_gc_type_id(enc),
-        None => 0
-    };
     let size = check_hybrid_size(backendtype.size + backendtype.elem_size.unwrap() * len);
     let encode = gen_object_encode(&backendtype, size, vm);
 

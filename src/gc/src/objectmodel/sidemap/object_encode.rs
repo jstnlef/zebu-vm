@@ -66,12 +66,9 @@ impl ObjectEncode {
 }
 
 mod object_encoding {
-    use super::*;
-    use std::mem;
-
     #[test]
     fn struct_size() {
-        println!("{:?}", mem::size_of::<ObjectEncode>());
+        println!("{:?}", size_of::<ObjectEncode>());
     }
 }
 

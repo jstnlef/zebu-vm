@@ -57,7 +57,7 @@ impl CompilerPass for GenMovPhi {
         let mut new_blocks_to_insert: Vec<IntermediateBlockInfo> = vec![];
 
         // first step - collects info on intermediate blocks
-        for (blk_id, mut block) in f_content.blocks.iter_mut() {
+        for (blk_id, block) in f_content.blocks.iter_mut() {
             trace!("block: {}", blk_id);
 
             // old block content
@@ -313,7 +313,7 @@ impl CompilerPass for GenMovPhi {
                     block_info.blk_name.clone()
                 ));
 
-                let mut target_block = f_content.get_block_mut(target_id);
+                let target_block = f_content.get_block_mut(target_id);
                 assert!(target_block.content.is_some());
 
                 // if target_block is an exception block,

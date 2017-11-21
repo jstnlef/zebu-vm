@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::Mutex;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
 use std::collections::HashMap;
 use std::mem;
 use utils::mem::*;
-use utils::math;
 use utils::*;
 
 use objectmodel::sidemap::TypeID;
@@ -66,7 +64,7 @@ impl GlobalTypeTable {
         let meta_addr = mmap;
         GLOBAL_TYPE_TABLE_META.store(meta_addr.as_usize(), Ordering::Relaxed);
 
-        let mut meta: &mut GlobalTypeTable = unsafe { meta_addr.to_ref_mut() };
+        let meta: &mut GlobalTypeTable = unsafe { meta_addr.to_ref_mut() };
 
         // actual table
         let table_addr = Address::from_ptr(&meta.table as *const [ShortTypeEncode; N_TYPES]);
@@ -114,8 +112,8 @@ impl GlobalTypeTable {
     }
 
     pub fn insert_small_entry(entry: ShortTypeEncode) -> TypeID {
-        let mut meta = GlobalTypeTable::table_meta();
-        let mut table = GlobalTypeTable::table();
+        let meta = GlobalTypeTable::table_meta();
+        let table = GlobalTypeTable::table();
 
         if meta.small_entry_i < SMALL_ENTRY_CAP {
             let id = meta.small_entry_i;
@@ -128,8 +126,8 @@ impl GlobalTypeTable {
     }
 
     pub fn insert_large_entry(entry: ShortTypeEncode) -> TypeID {
-        let mut meta = GlobalTypeTable::table_meta();
-        let mut table = GlobalTypeTable::table();
+        let meta = GlobalTypeTable::table_meta();
+        let table = GlobalTypeTable::table();
 
         if meta.large_entry_i < LARGE_ENTRY_CAP {
             let id = meta.large_entry_i;
@@ -142,8 +140,8 @@ impl GlobalTypeTable {
     }
 
     pub fn force_set_short_entry(index: TypeID, entry: ShortTypeEncode) {
-        let mut meta = GlobalTypeTable::table_meta();
-        let mut table = GlobalTypeTable::table();
+        let meta = GlobalTypeTable::table_meta();
+        let table = GlobalTypeTable::table();
 
         table[index] = entry;
 
@@ -175,7 +173,7 @@ impl GlobalTypeTable {
     }
 
     pub fn force_set_full_entry(index: TypeID, entry: FullTypeEncode) {
-        let mut meta = GlobalTypeTable::table_meta();
+        let meta = GlobalTypeTable::table_meta();
         let mut lock = meta.full_entries.write().unwrap();
         assert!(!lock.contains_key(&index));
         lock.insert(index, entry);

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use objectmodel::*;
-use utils::*;
 
 pub const IMMORTAL_OBJECT_HEADER_SIZE: ByteSize = 32;
 

@@ -82,11 +82,9 @@ extern crate field_offset;
 
 use common::objectdump;
 use common::ptr::*;
-use heap::*;
 use heap::immix::*;
 use heap::freelist::*;
 use utils::*;
-use objectmodel::sidemap::*;
 
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -209,7 +207,7 @@ pub extern "C" fn gc_destroy() {
 
     if gc_lock.is_some() {
         {
-            let mut gc = gc_lock.as_mut().unwrap();
+            let gc = gc_lock.as_mut().unwrap();
             gc.immix_tiny.destroy();
             gc.immix_normal.destroy();
             gc.lo.destroy();
