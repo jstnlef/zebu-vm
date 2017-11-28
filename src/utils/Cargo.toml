@@ -21,6 +21,7 @@ authors = ["qinsoon <qinsoon@gmail.com>"]
 crate-type = ["rlib"]
 
 [dependencies]
+libc="*"
 memmap = "*"
 memsec = "0.1.9"
 byteorder = "*"

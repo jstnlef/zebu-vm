@@ -88,7 +88,8 @@ fn is_suitable_child(inst: &Instruction) -> bool {
         CommonInst_GetAddr(_) |
         CmpXchg { .. } |
         AtomicRMW { .. } |
-        Store { .. } => false,
+        Store { .. } |
+        GetVMThreadLocal => false,
 
         BinOp(_, _, _) | BinOpWithStatus(_, _, _, _) | CommonInst_GetThreadLocal | Move(_) => false,
 

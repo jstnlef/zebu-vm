@@ -195,7 +195,7 @@ fn dfs(cur: MuID, stack: &mut Vec<MuID>, visited: &mut Vec<MuID>, func: &mut MuF
                                                   target: MuID,
                                                   prob: f32| {
                                 if map.contains_key(&target) {
-                                    let mut edge : &mut BlockEdge = map.get_mut(&target).unwrap();
+                                    let edge: &mut BlockEdge = map.get_mut(&target).unwrap();
                                     edge.probability += prob;
                                 } else {
                                     map.insert(

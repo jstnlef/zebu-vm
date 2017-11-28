@@ -474,11 +474,14 @@ impl MuThread {
     ) -> (JoinHandle<()>, *mut MuThread) {
         let new_sp = stack.sp;
 
-        // The conversions between boxes and ptrs are needed here as a '*mut MuThread* can't be
-        // sent between threads but a Box can. Also converting a Box to a ptr consumes it.
-        let muthread_ptr = Box::into_raw(Box::new(
-            MuThread::new(id, mm::new_mutator(), stack, user_tls, vm)
-        ));
+        let mut thread = Box::new(MuThread::new(id, mm::new_mutator(), stack, user_tls, vm));
+        {
+            // set mutator for each allocator
+            let mutator_ptr = &mut thread.allocator as *mut mm::Mutator;
+            thread.allocator.update_mutator_ptr(mutator_ptr);
+        }
+        // we need to return the pointer, but we cannot send it to other thread
+        let muthread_ptr = Box::into_raw(thread);
         let muthread = unsafe { Box::from_raw(muthread_ptr) };
 
         (
@@ -521,11 +524,11 @@ impl MuThread {
     ) -> MuThread {
         MuThread {
             hdr: MuEntityHeader::unnamed(id),
-            allocator: allocator,
+            allocator,
             stack: Box::into_raw(stack),
             native_sp_loc: unsafe { Address::zero() },
-            user_tls: user_tls,
-            vm: vm,
+            user_tls,
+            vm,
             exception_obj: unsafe { Address::zero() }
         }
     }
@@ -594,7 +597,7 @@ impl MuThread {
         });
 
         // fake a thread for current thread
-        let fake_mu_thread = MuThread {
+        let mut fake_mu_thread = Box::new(MuThread {
             hdr: MuEntityHeader::unnamed(vm.next_id()),
             // we need a valid allocator and stack
             allocator: mm::new_mutator(),
@@ -603,12 +606,16 @@ impl MuThread {
             native_sp_loc: Address::zero(),
             // valid thread local from user
             user_tls: threadlocal,
-            vm: vm,
+            vm,
             exception_obj: Address::zero()
-        };
+        });
+        {
+            let mutator_ptr = &mut fake_mu_thread.allocator as *mut mm::Mutator;
+            fake_mu_thread.allocator.update_mutator_ptr(mutator_ptr);
+        }
 
         // set thread local
-        let ptr_fake_mu_thread: *mut MuThread = Box::into_raw(Box::new(fake_mu_thread));
+        let ptr_fake_mu_thread: *mut MuThread = Box::into_raw(fake_mu_thread);
         set_thread_local(ptr_fake_mu_thread);
 
         true

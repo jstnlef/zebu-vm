@@ -25,6 +25,21 @@ pub fn lower_bits_u8(value: u8, len: usize) -> u8 {
     value & ((1 << len) - 1)
 }
 
+#[inline(always)]
+pub fn set_bit_u8(val: u8, mask: u8) -> u8 {
+    val | mask
+}
+
+#[inline(always)]
+pub fn clear_bit_u8(val: u8, mask: u8) -> u8 {
+    val & !mask
+}
+
+#[inline(always)]
+pub fn test_bit_u8(val: u8, mask: u8) -> bool {
+    (val & mask) == mask
+}
+
 /// sets the nth bit (count from least significant bit) as val
 /// (treat the val as boolean, either 1 or 0)
 #[inline(always)]
@@ -65,8 +80,21 @@ mod tests {
         let value: u8 = 0b1100_0011;
 
         assert_eq!(test_nth_bit_u8(value, 6, 1), true);
-
         assert_eq!(lower_bits_u8(value, 6), 0b00_0011);
+    }
+
+    #[test]
+    pub fn test_u8_bits2() {
+        let mut val = 0u8;
+        let mask = 0b0000_0001u8;
+
+        val = set_bit_u8(val, mask);
+        assert_eq!(val, 1);
+        assert!(test_bit_u8(val, mask));
+
+        val = clear_bit_u8(val, mask);
+        assert_eq!(val, 0);
+        assert!(!test_bit_u8(val, mask));
     }
 
     #[test]

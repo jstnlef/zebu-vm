@@ -75,6 +75,14 @@ lazy_static! {
         MuType::new(new_internal_id(), MuType_::iref(VOID_TYPE.clone()))
     );
 
+    pub static ref UPTR_U8_TYPE: P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::uptr(UINT8_TYPE.clone()))
+    );
+
+    pub static ref UPTR_U64_TYPE: P<MuType> = P(
+        MuType::new(new_internal_id(), MuType_::uptr(UINT64_TYPE.clone()))
+    );
+
     pub static ref STACKREF_TYPE : P<MuType> = P(
         MuType::new(new_internal_id(), MuType_::StackRef)
     );
@@ -99,6 +107,8 @@ lazy_static! {
         IREF_VOID_TYPE.clone(),
         STACKREF_TYPE.clone(),
         THREADREF_TYPE.clone(),
+        UPTR_U8_TYPE.clone(),
+        UPTR_U64_TYPE.clone()
     ];
 }
 
@@ -475,6 +485,29 @@ impl MuType {
             FuncRef(_) |
             UFuncPtr(_) => Some(64),
             _ => None
+        }
+    }
+
+    /// prints a struct type
+    pub fn print_details(&self) -> String {
+        match self.v {
+            MuType_::Struct(ref tag) => {
+                let lock = STRUCT_TAG_MAP.read().unwrap();
+                format!("{} = {}", tag, lock.get(tag).unwrap())
+            }
+            MuType_::Hybrid(ref tag) => {
+                let lock = HYBRID_TAG_MAP.read().unwrap();
+                format!("{} = {}", tag, lock.get(tag).unwrap())
+            }
+            _ => format!("{}", self)
+        }
+    }
+
+    /// prints a struct type
+    pub fn print_hybrid(&self) -> String {
+        match self.v {
+
+            _ => panic!()
         }
     }
 }

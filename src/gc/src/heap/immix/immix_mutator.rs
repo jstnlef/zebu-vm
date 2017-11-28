@@ -12,266 +12,189 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use heap::immix;
+use heap::*;
 use heap::immix::ImmixSpace;
 use heap::immix::immix_space::ImmixBlock;
-use heap::gc;
 use objectmodel;
 use utils::Address;
 use utils::ByteSize;
-
 use std::*;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::sync::atomic::{AtomicBool, Ordering};
 
-const MAX_MUTATORS: usize = 1024;
-lazy_static! {
-    pub static ref MUTATORS : RwLock<Vec<Option<Arc<ImmixMutatorGlobal>>>> = {
-        let mut ret = Vec::with_capacity(MAX_MUTATORS);
-        for _ in 0..MAX_MUTATORS {
-            ret.push(None);
-        }
-        RwLock::new(ret)
-    };
-
-    pub static ref N_MUTATORS : RwLock<usize> = RwLock::new(0);
-}
-
-const TRACE_ALLOC_FASTPATH: bool = true;
+const TRACE_ALLOC: bool = true;
 
 #[repr(C)]
-pub struct ImmixMutatorLocal {
-    id: usize,
-
-    // use raw pointer here instead of AddressMapTable
-    // to avoid indirection in fast path
-    alloc_map: *mut u8,
-    trace_map: *mut u8,
-    space_start: Address,
-
+pub struct ImmixAllocator {
     // cursor might be invalid, but Option<Address> is expensive here
     // after every GC, we set both cursor and limit
     // to Address::zero() so that alloc will branch to slow path
     cursor: Address,
     limit: Address,
     line: usize,
+    block: Option<Raw<ImmixBlock>>,
 
-    // globally accessible per-thread fields
-    pub global: Arc<ImmixMutatorGlobal>,
+    large_cursor: Address,
+    large_limit: Address,
+    large_block: Option<Raw<ImmixBlock>>,
 
-    space: Arc<ImmixSpace>,
-    block: Option<Box<ImmixBlock>>,
-
-    mark_state: u8
+    space: Raw<ImmixSpace>,
+    mutator: *mut Mutator
 }
 
 lazy_static! {
-    pub static ref CURSOR_OFFSET : usize = offset_of!(ImmixMutatorLocal=>cursor).get_byte_offset();
-    pub static ref LIMIT_OFFSET  : usize = offset_of!(ImmixMutatorLocal=>limit).get_byte_offset();
+    pub static ref CURSOR_OFFSET : ByteSize = offset_of!(ImmixAllocator=>cursor).get_byte_offset();
+    pub static ref LIMIT_OFFSET  : ByteSize = offset_of!(ImmixAllocator=>limit).get_byte_offset();
 }
 
-pub struct ImmixMutatorGlobal {
-    take_yield: AtomicBool,
-    still_blocked: AtomicBool
-}
-
-impl ImmixMutatorLocal {
-    pub fn reset(&mut self) -> () {
-        unsafe {
-            // should not use Address::zero() other than initialization
-            self.cursor = Address::zero();
-            self.limit = Address::zero();
-        }
-        self.line = immix::LINES_IN_BLOCK;
-
-        self.block = None;
-    }
-
-    pub fn reset_after_gc(&mut self) {
+impl Allocator for ImmixAllocator {
+    fn reset_after_gc(&mut self) {
         self.reset();
-        self.mark_state ^= 1;
     }
 
-    pub fn new(space: Arc<ImmixSpace>) -> ImmixMutatorLocal {
-        let global = Arc::new(ImmixMutatorGlobal::new());
-
-        let mut id_lock = N_MUTATORS.write().unwrap();
-        {
-            let mut mutators_lock = MUTATORS.write().unwrap();
-            mutators_lock.remove(*id_lock);
-            mutators_lock.insert(*id_lock, Some(global.clone()));
-        }
-
-        let ret = ImmixMutatorLocal {
-            id: *id_lock,
-            cursor: unsafe { Address::zero() },
-            limit: unsafe { Address::zero() },
-            line: immix::LINES_IN_BLOCK,
-            block: None,
-            alloc_map: space.alloc_map.ptr,
-            trace_map: space.trace_map.ptr,
-            space_start: space.start(),
-            global: global,
-            space: space,
-            mark_state: objectmodel::INIT_MARK_STATE as u8
-        };
-        *id_lock += 1;
-
-        ret
+    fn prepare_for_gc(&mut self) {
+        self.return_block(true);
+        self.return_block(false);
     }
 
-    pub fn destroy(&mut self) {
-        {
-            self.return_block();
-        }
+    fn set_mutator(&mut self, mutator: *mut Mutator) {
+        self.mutator = mutator;
+    }
 
-        let mut mutator_count_lock = N_MUTATORS.write().unwrap();
-
-        let mut mutators_lock = MUTATORS.write().unwrap();
-        mutators_lock.push(None);
-        mutators_lock.swap_remove(self.id);
-
-        *mutator_count_lock = *mutator_count_lock - 1;
-
-        if cfg!(debug_assertions) {
-            debug!(
-                "destroy mutator. Now live mutators = {}",
-                *mutator_count_lock
-            );
-        }
+    fn destroy(&mut self) {
+        self.return_block(true);
+        self.return_block(false);
     }
 
     #[inline(always)]
-    pub fn yieldpoint(&mut self) {
-        if self.global.take_yield() {
-            self.yieldpoint_slow();
-        }
-    }
-
-    #[inline(never)]
-    pub fn yieldpoint_slow(&mut self) {
-        trace!("Mutator{}: yieldpoint triggered, slow path", self.id);
-        gc::sync_barrier(self);
-    }
-
-    #[inline(always)]
-    pub fn alloc(&mut self, size: usize, align: usize) -> Address {
+    fn alloc(&mut self, size: usize, align: usize) -> Address {
         // this part of code will slow down allocation
         let align = objectmodel::check_alignment(align);
-        let size = size + objectmodel::OBJECT_HEADER_SIZE;
         // end
 
-        if TRACE_ALLOC_FASTPATH {
-            trace!(
-                "Mutator{}: fastpath alloc: size={}, align={}",
-                self.id,
-                size,
-                align
-            );
-        }
+        trace_if!(
+            TRACE_ALLOC,
+            "Mutator: fastpath alloc: size={}, align={}",
+            size,
+            align
+        );
 
         let start = self.cursor.align_up(align);
         let end = start + size;
 
-        if TRACE_ALLOC_FASTPATH {
-            trace!(
-                "Mutator{}: fastpath alloc: start=0x{:x}, end=0x{:x}",
-                self.id,
-                start,
-                end
-            );
-        }
+        trace_if!(
+            TRACE_ALLOC,
+            "Mutator: fastpath alloc: start=0x{:x}, end=0x{:x}",
+            start,
+            end
+        );
 
         if end > self.limit {
-            let ret = self.try_alloc_from_local(size, align);
-            if TRACE_ALLOC_FASTPATH {
-                trace!(
-                    "Mutator{}: fastpath alloc: try_alloc_from_local()=0x{:x}",
-                    self.id,
-                    ret
-                );
-            }
-
-            if cfg!(debug_assertions) {
-                if !ret.is_aligned_to(align) {
-                    use std::process;
-                    println!("wrong alignment on 0x{:x}, expected align: {}", ret, align);
-                    process::exit(102);
-                }
-            }
-
-            // this offset should be removed as well (for performance)
-            ret + (-objectmodel::OBJECT_HEADER_OFFSET)
+            self.alloc_slow(size, align)
         } else {
-            if cfg!(debug_assertions) {
-                if !start.is_aligned_to(align) {
-                    use std::process;
-                    println!(
-                        "wrong alignment on 0x{:x}, expected align: {}",
-                        start,
-                        align
-                    );
-                    process::exit(102);
-                }
-            }
             self.cursor = end;
-
-            start + (-objectmodel::OBJECT_HEADER_OFFSET)
+            start
         }
     }
+}
 
-    #[inline(always)]
-    #[cfg(feature = "use-sidemap")]
-    pub fn init_object(&mut self, addr: Address, encode: u64) {
-        //        unsafe {
-        //            *self.alloc_map.offset(
-        //            (addr.diff(self.space_start) >> LOG_POINTER_SIZE) as isize) = encode as u8;
-        //            objectmodel::mark_as_untraced(
-        //            self.trace_map, self.space_start, addr, self.mark_state);
-        //        }
-
-        unimplemented!()
-    }
-    #[inline(always)]
-    #[cfg(not(feature = "use-sidemap"))]
-    pub fn init_object(&mut self, addr: Address, encode: u64) {
+impl ImmixAllocator {
+    fn reset(&mut self) -> () {
         unsafe {
-            (addr + objectmodel::OBJECT_HEADER_OFFSET).store(encode);
+            // should not use Address::zero() other than initialization
+            self.cursor = Address::zero();
+            self.limit = Address::zero();
+            self.large_cursor = Address::zero();
+            self.large_limit = Address::zero();
         }
+        self.line = LINES_IN_BLOCK;
+        self.block = None;
+        self.large_block = None;
     }
 
-    #[inline(always)]
-    #[cfg(feature = "use-sidemap")]
-    pub fn init_hybrid(&mut self, addr: Address, encode: u64, len: u64) {
-        unimplemented!()
-    }
-    #[inline(always)]
-    #[cfg(not(feature = "use-sidemap"))]
-    pub fn init_hybrid(&mut self, addr: Address, encode: u64, len: u64) {
-        let encode =
-            encode | ((len << objectmodel::SHR_HYBRID_LENGTH) & objectmodel::MASK_HYBRID_LENGTH);
-        unsafe {
-            (addr + objectmodel::OBJECT_HEADER_OFFSET).store(encode);
+    pub fn new(space: Raw<ImmixSpace>) -> ImmixAllocator {
+        ImmixAllocator {
+            cursor: unsafe { Address::zero() },
+            limit: unsafe { Address::zero() },
+            line: LINES_IN_BLOCK,
+            block: None,
+            large_cursor: unsafe { Address::zero() },
+            large_limit: unsafe { Address::zero() },
+            large_block: None,
+            space,
+            mutator: ptr::null_mut()
         }
     }
 
     #[inline(never)]
+    pub fn alloc_slow(&mut self, size: usize, align: usize) -> Address {
+        if size > BYTES_IN_LINE {
+            trace_if!(TRACE_ALLOC, "Mutator: overflow alloc()");
+            self.overflow_alloc(size, align)
+        } else {
+            trace_if!(
+                TRACE_ALLOC,
+                "Mutator: fastpath alloc: try_alloc_from_local()"
+            );
+            self.try_alloc_from_local(size, align)
+        }
+    }
+
+    #[inline(always)]
+    pub fn post_alloc(&mut self, obj: Address, size: usize) {
+        if size > BYTES_IN_LINE {
+            let index = self.space.get_word_index(obj);
+            let slot = self.space.get_gc_byte_slot(index);
+            unsafe { slot.store(slot.load::<u8>() | GC_STRADDLE_BIT) }
+        }
+    }
+
+    pub fn overflow_alloc(&mut self, size: usize, align: usize) -> Address {
+        let start = self.large_cursor.align_up(align);
+        let end = start + size;
+
+        trace_if!(
+            TRACE_ALLOC,
+            "Mutator: overflow alloc: start={}, end={}",
+            start,
+            end
+        );
+
+        if end > self.large_limit {
+            self.alloc_from_global(size, align, true)
+        } else {
+            self.large_cursor = end;
+            start
+        }
+    }
+
+    #[inline(always)]
+    pub fn init_object<T>(&mut self, addr: Address, encode: T) {
+        let map_slot = ImmixSpace::get_type_byte_slot_static(addr);
+        unsafe {
+            map_slot.store(encode);
+        }
+    }
+
     pub fn try_alloc_from_local(&mut self, size: usize, align: usize) -> Address {
-        if self.line < immix::LINES_IN_BLOCK {
+        if self.line < LINES_IN_BLOCK {
             let opt_next_available_line = {
                 let cur_line = self.line;
                 self.block().get_next_available_line(cur_line)
             };
+            trace_if!(
+                TRACE_ALLOC,
+                "Mutator: alloc from local, next available line: {:?}",
+                opt_next_available_line
+            );
 
             match opt_next_available_line {
                 Some(next_available_line) => {
                     // we can alloc from local blocks
                     let end_line = self.block().get_next_unavailable_line(next_available_line);
 
-                    self.cursor =
-                        self.block().start() + (next_available_line << immix::LOG_BYTES_IN_LINE);
-                    self.limit = self.block().start() + (end_line << immix::LOG_BYTES_IN_LINE);
+                    self.cursor = self.block().mem_start() +
+                        ((next_available_line as usize) << LOG_BYTES_IN_LINE);
+                    self.limit =
+                        self.block().mem_start() + ((end_line as usize) << LOG_BYTES_IN_LINE);
                     self.line = end_line;
 
                     unsafe {
@@ -279,36 +202,28 @@ impl ImmixMutatorLocal {
                     }
 
                     for line in next_available_line..end_line {
-                        self.block()
-                            .line_mark_table_mut()
-                            .set(line, immix::LineMark::FreshAlloc);
+                        self.block().set_line_mark(line, LineMark::FreshAlloc);
                     }
 
-                    // allocate fast path
-                    let start = self.cursor.align_up(align);
-                    let end = start + size;
-
-                    self.cursor = end;
-                    start
+                    self.alloc(size, align)
                 }
-                None => self.alloc_from_global(size, align)
+                None => self.alloc_from_global(size, align, false)
             }
         } else {
             // we need to alloc from global space
-            self.alloc_from_global(size, align)
+            self.alloc_from_global(size, align, false)
         }
     }
 
-    fn alloc_from_global(&mut self, size: usize, align: usize) -> Address {
-        trace!("Mutator{}: slowpath: alloc_from_global", self.id);
-
-        self.return_block();
+    fn alloc_from_global(&mut self, size: usize, align: usize, request_large: bool) -> Address {
+        trace!("Mutator: slowpath: alloc_from_global()");
+        self.return_block(request_large);
 
         loop {
             // check if yield
-            self.yieldpoint();
+            unsafe { &mut *self.mutator }.yieldpoint();
 
-            let new_block: Option<Box<ImmixBlock>> = self.space.get_next_usable_block();
+            let new_block: Option<Raw<ImmixBlock>> = self.space.get_next_usable_block();
 
             match new_block {
                 Some(b) => {
@@ -316,18 +231,30 @@ impl ImmixMutatorLocal {
                     // we zero lines that get used in try_alloc_from_local()
                     //                    b.lazy_zeroing();
 
-                    self.block = Some(b);
-                    self.cursor = self.block().start();
-                    self.limit = self.block().start();
-                    self.line = 0;
+                    if request_large {
+                        self.large_cursor = b.mem_start();
+                        self.large_limit = b.mem_start() + BYTES_IN_BLOCK;
+                        self.large_block = Some(b);
 
-                    trace!(
-                        "Mutator{}: slowpath: new block starting from 0x{:x}",
-                        self.id,
-                        self.cursor
-                    );
+                        trace!(
+                            "Mutator: slowpath: new large_block starting from 0x{:x}",
+                            self.large_cursor
+                        );
 
-                    return self.try_alloc_from_local(size, align);
+                        return self.alloc(size, align);
+                    } else {
+                        self.cursor = b.mem_start();
+                        self.limit = b.mem_start();
+                        self.line = 0;
+                        self.block = Some(b);
+
+                        trace!(
+                            "Mutator: slowpath: new block starting from 0x{:x}",
+                            self.cursor
+                        );
+
+                        return self.alloc(size, align);
+                    }
                 }
                 None => {
                     continue;
@@ -336,41 +263,32 @@ impl ImmixMutatorLocal {
         }
     }
 
-    pub fn prepare_for_gc(&mut self) {
-        self.return_block();
-    }
 
-    pub fn id(&self) -> usize {
-        self.id
-    }
 
-    fn return_block(&mut self) {
-        if self.block.is_some() {
-            trace!("finishing block {:?}", self.block.as_ref().unwrap());
-
-            if cfg!(debug_assertions) {
-                let block = self.block.as_ref().unwrap();
-                ImmixMutatorLocal::sanity_check_finished_block(block);
+    fn return_block(&mut self, request_large: bool) {
+        if request_large {
+            if self.large_block.is_some() {
+                trace!(
+                    "finishing large block {}",
+                    self.large_block.as_ref().unwrap().addr()
+                );
+                self.space
+                    .return_used_block(self.large_block.take().unwrap());
             }
-
-            self.space.return_used_block(self.block.take().unwrap());
+        } else {
+            if self.block.is_some() {
+                trace!("finishing block {}", self.block.as_ref().unwrap().addr());
+                self.space.return_used_block(self.block.take().unwrap());
+            }
         }
     }
-
-    #[cfg(feature = "use-sidemap")]
-    #[allow(unused_variables)]
-    fn sanity_check_finished_block(block: &ImmixBlock) {}
-
-    #[cfg(not(feature = "use-sidemap"))]
-    #[allow(unused_variables)]
-    fn sanity_check_finished_block(block: &ImmixBlock) {}
 
     fn block(&mut self) -> &mut ImmixBlock {
         self.block.as_mut().unwrap()
     }
 
     pub fn print_object(&self, obj: Address, length: usize) {
-        ImmixMutatorLocal::print_object_static(obj, length);
+        ImmixAllocator::print_object_static(obj, length);
     }
 
     pub fn print_object_static(obj: Address, length: usize) {
@@ -387,41 +305,18 @@ impl ImmixMutatorLocal {
     }
 }
 
-impl ImmixMutatorGlobal {
-    pub fn new() -> ImmixMutatorGlobal {
-        ImmixMutatorGlobal {
-            take_yield: AtomicBool::new(false),
-            still_blocked: AtomicBool::new(false)
-        }
-    }
-
-    #[inline(always)]
-    pub fn is_still_blocked(&self) -> bool {
-        self.still_blocked.load(Ordering::SeqCst)
-    }
-    pub fn set_still_blocked(&self, b: bool) {
-        self.still_blocked.store(b, Ordering::SeqCst);
-    }
-
-    pub fn set_take_yield(&self, b: bool) {
-        self.take_yield.store(b, Ordering::SeqCst);
-    }
-    #[inline(always)]
-    pub fn take_yield(&self) -> bool {
-        self.take_yield.load(Ordering::SeqCst)
-    }
-}
-
-impl fmt::Display for ImmixMutatorLocal {
+impl fmt::Display for ImmixAllocator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.cursor.is_zero() {
-            write!(f, "Mutator (not initialized)")
+            write!(f, "Mutator (not initialized)").unwrap();
         } else {
             write!(f, "Mutator:\n").unwrap();
             write!(f, "cursor= {:#X}\n", self.cursor).unwrap();
             write!(f, "limit = {:#X}\n", self.limit).unwrap();
             write!(f, "line  = {}\n", self.line).unwrap();
-            write!(f, "block = {}", self.block.as_ref().unwrap())
+            write!(f, "large cursor = {}\n", self.large_cursor).unwrap();
+            write!(f, "large limit  = {}\n", self.large_limit).unwrap();
         }
+        Ok(())
     }
 }

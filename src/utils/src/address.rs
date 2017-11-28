@@ -126,6 +126,12 @@ impl Address {
         self + mem::size_of::<T>() as isize * offset
     }
 
+    /// bit ands the address with the usize
+    #[inline(always)]
+    pub fn mask(self, mask: usize) -> Address {
+        Address(self.0 & mask)
+    }
+
     /// loads a value of type T from the address
     #[inline(always)]
     pub unsafe fn load<T: Copy>(&self) -> T {
@@ -199,6 +205,16 @@ impl Address {
         unsafe { mem::transmute(self.0) }
     }
 
+    #[inline(always)]
+    pub unsafe fn to_ref<T>(&self) -> &'static T {
+        mem::transmute(self.0)
+    }
+
+    #[inline(always)]
+    pub unsafe fn to_ref_mut<T>(&self) -> &'static mut T {
+        mem::transmute(self.0)
+    }
+
     /// converts the Address to a pointer-sized integer
     #[inline(always)]
     pub fn as_usize(&self) -> usize {
@@ -264,6 +280,16 @@ mod addr_tests {
         let aligned = addr.align_up(8);
 
         assert!(addr == aligned);
+    }
+
+    #[test]
+    fn test_large_align_up() {
+        let addr = Address(0x1034a9000);
+        let align = 1 << 34;
+
+        let aligned = addr.align_up(align);
+        println!("aligned = {}", aligned);
+        assert!(aligned.is_aligned_to(align));
     }
 
     #[test]

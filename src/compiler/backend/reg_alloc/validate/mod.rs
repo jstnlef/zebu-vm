@@ -194,7 +194,7 @@ pub fn validate_regalloc(
 
         if visited.contains_key(&block) {
             // if current block exists in visited, intersect with current
-            let mut old = visited.get_mut(&block).unwrap();
+            let old = visited.get_mut(&block).unwrap();
             let changed = old.intersect(&alive);
 
             if changed {

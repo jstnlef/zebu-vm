@@ -27,6 +27,10 @@ pub use compiler::passes::inlining::Inlining;
 mod ret_sink;
 pub use compiler::passes::ret_sink::RetSink;
 
+/// A pass to inject runtime fastpath into Mu IR
+mod inject_runtime;
+pub use compiler::passes::inject_runtime::InjectRuntime;
+
 /// A Def-Use pass. Getting use info and count for SSA variables in the IR
 mod def_use;
 pub use compiler::passes::def_use::DefUse;

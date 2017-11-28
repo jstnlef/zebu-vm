@@ -88,7 +88,7 @@ impl CompilerPass for RetSink {
         // rewrite existing RET instruction to a BRANCH
         // use RET values as BRANCH's goto values
         let mut has_ret: bool = false;
-        for (blk_id, mut block) in f_content.blocks.iter_mut() {
+        for (blk_id, block) in f_content.blocks.iter_mut() {
             trace!("block: {}", blk_id);
 
             // old block content

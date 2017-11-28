@@ -16,3 +16,4 @@ mod test_threadlocal;
 mod test_entry_offset;
 mod test_mem_layout;
 mod test_address;
+mod test_gc_encode;

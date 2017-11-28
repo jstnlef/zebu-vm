@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use utils::Address;
-use utils::ByteSize;
-use utils::POINTER_SIZE;
-use common::gctype::*;
-
-use MY_GC;
-use objectmodel;
+use utils::*;
+use objectmodel::*;
+use heap::*;
+use heap::immix::*;
+use heap::freelist::*;
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::mem::transmute;
 
 pub struct HeapDump {
     pub objects: HashMap<Address, ObjectDump>,
@@ -29,10 +27,10 @@ pub struct HeapDump {
 }
 
 pub struct ObjectDump {
-    pub mem_start: Address,
-    pub mem_size: ByteSize,
-
-    pub reference_addr: Address,
+    pub addr: Address,
+    pub size: ByteSize,
+    pub align: ByteSize,
+    pub encode: ObjectEncode,
     pub reference_offsets: Vec<ByteSize> // based on reference_addr
 }
 
@@ -62,77 +60,116 @@ impl HeapDump {
         heap
     }
 
+    #[allow(unused_variables)]
     fn persist_object(&self, obj: Address) -> ObjectDump {
         trace!("dump object: {}", obj);
-        let hdr_addr = obj + objectmodel::OBJECT_HEADER_OFFSET;
-        let hdr = unsafe { hdr_addr.load::<u64>() };
 
-        if objectmodel::header_is_fix_size(hdr) {
-            // fix sized type
-            if objectmodel::header_has_ref_map(hdr) {
-                // has ref map
-                let ref_map = objectmodel::header_get_ref_map(hdr);
-
-                trace!("fix sized, ref map as {:b}", ref_map);
-
-                let mut offsets = vec![];
-                let mut i = 0;
-                while i < objectmodel::REF_MAP_LENGTH {
-                    let has_ref: bool = ((ref_map >> i) & 1) == 1;
-
-                    if has_ref {
-                        offsets.push(i * POINTER_SIZE);
+        match SpaceDescriptor::get(unsafe { obj.to_object_reference() }) {
+            SpaceDescriptor::ImmixTiny => {
+                let space = ImmixSpace::get::<ImmixSpace>(obj);
+                let encode: TinyObjectEncode = unsafe {
+                    space
+                        .get_type_byte_slot(space.get_word_index(obj))
+                        .load::<TinyObjectEncode>()
+                };
+                // get a vector of all reference offsets
+                let mut ref_offsets = vec![];
+                for i in 0..encode.n_fields() {
+                    if encode.field(i) != WordType::NonRef {
+                        ref_offsets.push(i * POINTER_SIZE);
                     }
-
-                    i += 1;
                 }
-
                 ObjectDump {
-                    reference_addr: obj,
-                    mem_start: hdr_addr,
-                    mem_size: objectmodel::header_get_object_size(hdr) as usize +
-                        objectmodel::OBJECT_HEADER_SIZE,
-                    reference_offsets: offsets
-                }
-            } else {
-                // by type ID
-                let gctype_id = objectmodel::header_get_gctype_id(hdr);
-
-                trace!("fix size, type id as {}", gctype_id);
-
-                let gc_lock = MY_GC.read().unwrap();
-                let gctype: Arc<GCType> =
-                    gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
-
-                ObjectDump {
-                    reference_addr: obj,
-                    mem_start: hdr_addr,
-                    mem_size: gctype.size() + objectmodel::OBJECT_HEADER_SIZE,
-                    reference_offsets: gctype.gen_ref_offsets()
+                    addr: obj,
+                    size: encode.size(),
+                    align: MINIMAL_ALIGNMENT,
+                    encode: ObjectEncode::Tiny(encode),
+                    reference_offsets: ref_offsets
                 }
             }
-        } else {
-            // hybrids - same as above
-            let gctype_id = objectmodel::header_get_gctype_id(hdr);
-            let var_length = objectmodel::header_get_hybrid_length(hdr);
+            SpaceDescriptor::ImmixNormal => {
+                let space = ImmixSpace::get::<ImmixSpace>(obj);
+                let encode: MediumObjectEncode = unsafe {
+                    space
+                        .get_type_byte_slot(space.get_word_index(obj))
+                        .load::<MediumObjectEncode>()
+                };
+                let small_encode: &SmallObjectEncode = unsafe { transmute(&encode) };
 
-            trace!("var sized, type id as {}", gctype_id);
+                // get type id
+                let (type_id, type_size) = if small_encode.is_small() {
+                    (small_encode.type_id(), small_encode.size())
+                } else {
+                    (encode.type_id(), encode.size())
+                };
 
-            let gc_lock = MY_GC.read().unwrap();
-            let gctype: Arc<GCType> =
-                gc_lock.as_ref().unwrap().gc_types[gctype_id as usize].clone();
-
-            ObjectDump {
-                reference_addr: obj,
-                mem_start: hdr_addr,
-                mem_size: gctype.size_hybrid(var_length) + objectmodel::OBJECT_HEADER_SIZE,
-                reference_offsets: gctype.gen_hybrid_ref_offsets(var_length)
+                // get type encode, and find all references
+                let type_encode: &ShortTypeEncode = &GlobalTypeTable::table()[type_id];
+                let mut ref_offsets = vec![];
+                let mut offset = 0;
+                for i in 0..type_encode.fix_len() {
+                    if type_encode.fix_ty(i) != WordType::NonRef {
+                        ref_offsets.push(offset);
+                    }
+                    offset += POINTER_SIZE;
+                }
+                if type_encode.var_len() != 0 {
+                    while offset < type_size {
+                        for i in 0..type_encode.var_len() {
+                            if type_encode.var_ty(i) != WordType::NonRef {
+                                ref_offsets.push(offset);
+                            }
+                            offset += POINTER_SIZE;
+                        }
+                    }
+                }
+                ObjectDump {
+                    addr: obj,
+                    size: type_size,
+                    align: type_encode.align(),
+                    encode: if small_encode.is_small() {
+                        ObjectEncode::Small(small_encode.clone())
+                    } else {
+                        ObjectEncode::Medium(encode)
+                    },
+                    reference_offsets: ref_offsets
+                }
             }
+            SpaceDescriptor::Freelist => {
+                let space = FreelistSpace::get::<FreelistSpace>(obj);
+                let encode = unsafe { space.get_type_encode_slot(obj).load::<LargeObjectEncode>() };
+                let ty_encode = GlobalTypeTable::get_full_type(encode.type_id());
+
+                let mut ref_offsets = vec![];
+                let mut offset: ByteSize = 0;
+                for &word in ty_encode.fix.iter() {
+                    if word != WordType::NonRef {
+                        ref_offsets.push(offset);
+                    }
+                    offset += POINTER_SIZE;
+                }
+                while offset < encode.size() {
+                    for &word in ty_encode.var.iter() {
+                        if word != WordType::NonRef {
+                            ref_offsets.push(offset);
+                        }
+                        offset += POINTER_SIZE;
+                    }
+                }
+                ObjectDump {
+                    addr: obj,
+                    size: encode.size(),
+                    align: ty_encode.align,
+                    encode: ObjectEncode::Large(encode),
+                    reference_offsets: ref_offsets
+                }
+            }
+            SpaceDescriptor::Immortal => unimplemented!()
         }
     }
 
     fn keep_tracing(&self, obj_dump: &ObjectDump, work_queue: &mut Vec<Address>) {
-        let base = obj_dump.reference_addr;
+        let base = obj_dump.addr;
 
         for offset in obj_dump.reference_offsets.iter() {
             let field_addr = base + *offset;
@@ -169,10 +206,10 @@ impl fmt::Debug for ObjectDump {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "PersistedObject({}, {} bytes from {}, offsets at {:?})",
-            self.reference_addr,
-            self.mem_size,
-            self.mem_start,
+            "PersistedObject({}, {} bytes, {} bytes aligned, refs at {:?})",
+            self.addr,
+            self.size,
+            self.align,
             self.reference_offsets
         )
     }

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+ 
 [package]
 name = "mu"
 version = "0.0.1"
@@ -61,19 +61,19 @@ num-traits = "*"
 #built = "0.1"
 
 [target.aarch64-unknown-linux-gnu.dependencies]
-mu_gc = { path = "src/gc", default-features = false}
+mu_gc = { path = "src/gc"}
 built = "0.1"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-mu_gc = { path = "src/gc", default-features = false}
+mu_gc = { path = "src/gc"}
 built = "0.1"
 
 [target.x86_64-apple-darwin.dependencies]
-mu_gc = { path = "src/gc", default-features = false}
+mu_gc = { path = "src/gc"}
 built = "0.1"
 
 [target.x86_64-rumprun-netbsd.dependencies]
-mu_gc = { path = "src/gc", default-features = false, features = ["sel4-rumprun-target-side"], target = "x86_64-rumprun-netbsd"}
+mu_gc = { path = "src/gc", features = ["sel4-rumprun-target-side"], target = "x86_64-rumprun-netbsd"}
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
 built = "0.1"

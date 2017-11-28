@@ -23,7 +23,6 @@ crate-type = ["rlib"]
 
 [features]
 default = []
-use-sidemap = []
 sel4-rumprun = []
 sel4-rumprun-target-side = []
 
@@ -35,7 +34,7 @@ mu_utils = {path = "../utils"}
 time = "*"
 lazy_static = "*"
 log = "*"
-simple_logger = "*"
+stderrlog = "*"
 aligned_alloc = "*"
 crossbeam = "*"
 field-offset = "*"

@@ -14,6 +14,7 @@
 
 #![warn(unused_imports)]
 #![warn(unreachable_code)]
+#![warn(dead_code)]
 
 use ast::ir::*;
 use ast::ptr::*;
@@ -21,19 +22,17 @@ use ast::inst::*;
 use ast::op;
 use ast::op::*;
 use ast::types::*;
-use utils::math::align_up;
 use utils::POINTER_SIZE;
 use utils::WORD_SIZE;
 use vm::VM;
 use runtime::mm;
-use runtime::mm::OBJECT_HEADER_SIZE;
 
 use runtime::ValueLocation;
 use runtime::thread;
 use runtime::entrypoints;
 use runtime::entrypoints::RuntimeEntrypoint;
 use compiler::CompilerPass;
-
+use compiler::backend::BackendType;
 use compiler::PROLOGUE_BLOCK_NAME;
 
 use compiler::backend::aarch64::*;
@@ -46,8 +45,6 @@ use std::collections::LinkedList;
 use std::mem;
 use std::any::Any;
 use num::integer::lcm;
-
-const INLINE_FASTPATH: bool = false;
 
 pub struct InstructionSelection {
     name: &'static str,
@@ -1503,6 +1500,12 @@ impl<'a> InstructionSelection {
                             vm
                         );
                     }
+                    Instruction_::GetVMThreadLocal => {
+                        trace!("instsel on GETVMTHREADLOCAL");
+                        let tl = self.emit_get_threadlocal(f_context, vm);
+                        let tmp_res = self.get_result_value(node, 0);
+                        self.backend.emit_mov(&tmp_res, &tl);
+                    }
                     Instruction_::CommonInst_GetThreadLocal => {
                         trace!("instsel on GETTHREADLOCAL");
                         // get thread local
@@ -1579,120 +1582,93 @@ impl<'a> InstructionSelection {
                     }
 
                     Instruction_::New(ref ty) => {
-                        trace!("instsel on NEW");
-                        if cfg!(debug_assertions) {
-                            match ty.v {
-                                MuType_::Hybrid(_) => {
-                                    panic!("cannot use NEW for hybrid, use NEWHYBRID instead")
-                                }
-                                _ => {}
-                            }
-                        }
+                        trace!("instsel on NEW: {}", ty.print_details());
+                        assert!(!ty.is_hybrid());
 
                         let ty_info = vm.get_backend_type_info(ty.id());
                         let size = ty_info.size;
                         let ty_align = ty_info.alignment;
 
-                        let const_size = make_value_int_const(size as u64, vm);
-
+                        // get allocator
                         let tmp_allocator = self.emit_get_allocator(f_context, vm);
-                        let tmp_res = self.emit_alloc_sequence(
-                            tmp_allocator.clone(),
-                            const_size,
+                        // allocate and init
+                        self.emit_alloc_const_size(
+                            &tmp_allocator,
+                            size,
                             ty_align,
                             node,
-                            f_context,
-                            vm
-                        );
-
-                        // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
-                        let encode =
-                            make_value_int_const(mm::get_gc_type_encode(ty_info.gc_type.id), vm);
-                        self.emit_runtime_entry(
-                            &entrypoints::INIT_OBJ,
-                            vec![tmp_allocator.clone(), tmp_res.clone(), encode],
-                            None,
-                            Some(node),
+                            &ty_info,
                             f_context,
                             vm
                         );
                     }
 
                     Instruction_::NewHybrid(ref ty, var_len) => {
-                        trace!("instsel on NEWHYBRID");
-                        if cfg!(debug_assertions) {
-                            match ty.v {
-                                MuType_::Hybrid(_) => {}
-                                _ => {
-                                    panic!(
-                                        "NEWHYBRID is only for allocating hybrid types, \
-                                         use NEW for others"
-                                    )
-                                }
-                            }
-                        }
+                        trace!("instsel on NEWHYBRID: {}", ty.print_details());
+                        assert!(ty.is_hybrid());
 
                         let ty_info = vm.get_backend_type_info(ty.id());
                         let ty_align = ty_info.alignment;
                         let fix_part_size = ty_info.size;
-                        let var_ty_size = ty_info.elem_size.unwrap();
-
-                        // actual size = fix_part_size + var_ty_size * len
-                        let (actual_size, length) = {
-                            let ref ops = inst.ops;
-                            let ref var_len = ops[var_len];
-
-                            if match_node_int_imm(var_len) {
-                                let var_len = node_imm_to_u64(var_len);
-                                let actual_size = fix_part_size + var_ty_size * (var_len as usize);
-                                (
-                                    make_value_int_const(actual_size as u64, vm),
-                                    make_value_int_const(var_len as u64, vm)
-                                )
-                            } else {
-                                let tmp_actual_size =
-                                    make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                                let tmp_var_len = self.emit_ireg(var_len, f_content, f_context, vm);
-
-                                // tmp_actual_size = tmp_var_len*var_ty_size
-                                emit_mul_u64(
-                                    self.backend.as_mut(),
-                                    &tmp_actual_size,
-                                    &tmp_var_len,
-                                    var_ty_size as u64
-                                );
-                                // tmp_actual_size = tmp_var_len*var_ty_size + fix_part_size
-                                emit_add_u64(
-                                    self.backend.as_mut(),
-                                    &tmp_actual_size,
-                                    &tmp_actual_size,
-                                    fix_part_size as u64
-                                );
-                                (tmp_actual_size, tmp_var_len)
+                        let var_ty_size = match ty_info.elem_size {
+                            Some(sz) => sz,
+                            None => {
+                                panic!("expect HYBRID type here with elem_size, found {}", ty_info)
                             }
                         };
 
+                        let ref ops = inst.ops;
+                        let ref op_var_len = ops[var_len];
                         let tmp_allocator = self.emit_get_allocator(f_context, vm);
-                        let tmp_res = self.emit_alloc_sequence(
-                            tmp_allocator.clone(),
-                            actual_size,
-                            ty_align,
-                            node,
-                            f_context,
-                            vm
-                        );
+                        // size is known at compile time
+                        if match_node_int_imm(op_var_len) {
+                            let const_var_len = op_var_len.as_value().extract_int_const().unwrap();
+                            let const_size = mm::check_hybrid_size(
+                                fix_part_size + var_ty_size * (const_var_len as usize)
+                            );
+                            self.emit_alloc_const_size(
+                                &tmp_allocator,
+                                const_size,
+                                ty_align,
+                                node,
+                                &ty_info,
+                                f_context,
+                                vm
+                            );
+                        } else {
+                            debug_assert!(self.match_ireg(op_var_len));
+                            let tmp_var_len = op_var_len.as_value().clone();
 
-                        // ASM: call muentry_init_object(%allocator, %tmp_res, %encode)
-                        let encode =
-                            make_value_int_const(mm::get_gc_type_encode(ty_info.gc_type.id), vm);
-                        self.emit_runtime_entry(
-                            &entrypoints::INIT_HYBRID,
-                            vec![tmp_allocator.clone(), tmp_res.clone(), encode, length],
-                            None,
-                            Some(node),
-                            f_context,
-                            vm
-                        );
+                            let tmp_fix_size = make_value_int_const(fix_part_size as u64, vm);
+                            let tmp_var_size = make_value_int_const(var_ty_size as u64, vm);
+                            let tmp_align = make_value_int_const(ty_align as u64, vm);
+                            let tmp_tyid = {
+                                let enc = ty_info.gc_type.as_ref().unwrap();
+                                let id = vm.get_gc_type_id(enc);
+                                make_value_int_const(id as u64, vm)
+                            };
+                            let tmp_full_tyid = {
+                                let enc = ty_info.gc_type_hybrid_full.as_ref().unwrap();
+                                let id = vm.get_gc_type_id(enc);
+                                make_value_int_const(id as u64, vm)
+                            };
+                            let tmp_res = self.get_result_value(node, 0);
+                            self.emit_runtime_entry(
+                                &entrypoints::ALLOC_VAR_SIZE,
+                                vec![
+                                    tmp_fix_size,
+                                    tmp_var_size,
+                                    tmp_var_len,
+                                    tmp_align,
+                                    tmp_tyid,
+                                    tmp_full_tyid,
+                                ],
+                                Some(vec![tmp_res].clone()),
+                                Some(node),
+                                f_context,
+                                vm
+                            );
+                        }
                     }
 
                     Instruction_::AllocA(ref ty) => {
@@ -3598,90 +3574,122 @@ impl<'a> InstructionSelection {
             self.backend.emit_mov(&SP, &res);
         };
     }
-    fn emit_alloc_sequence(
+
+    /// emits the allocation sequence
+    /// * if the size is known at compile time, either emits allocation for small objects or
+    ///   large objects
+    /// * if the size is not known at compile time, emits a branch to check the size at runtime,
+    ///   and call corresponding allocation
+    fn emit_alloc_const_size(
         &mut self,
-        tmp_allocator: P<Value>,
-        size: P<Value>,
-        align: usize,
+        tmp_allocator: &P<Value>,
+        size: ByteSize,
+        align: ByteSize,
         node: &TreeNode,
+        backend_ty: &BackendType,
         f_context: &mut FunctionContext,
         vm: &VM
     ) -> P<Value> {
-        if size.is_int_const() {
-            // size known at compile time, we can choose to emit alloc_small or large now
-            let size_i = size.extract_int_const().unwrap();
+        let size = align_up(mm::check_size(size), POINTER_SIZE);
+        let encode = mm::gen_object_encode(backend_ty, size, vm);
 
-            if size_i + OBJECT_HEADER_SIZE as u64 > mm::LARGE_OBJECT_THRESHOLD as u64 {
-                self.emit_alloc_sequence_large(tmp_allocator, size, align, node, f_context, vm)
-            } else {
-                self.emit_alloc_sequence_small(tmp_allocator, size, align, node, f_context, vm)
-            }
-        } else {
-            // size is unknown at compile time
-            // we need to emit both alloc small and alloc large,
-            // and it is decided at runtime
+        let tmp_res = self.get_result_value(node, 0);
+        let tmp_align = make_value_int_const(align as u64, vm);
+        let tmp_size = make_value_int_const(size as u64, vm);
 
-            // emit: CMP size, THRESHOLD
-            // emit: B.GT ALLOC_LARGE
-            // emit: >> small object alloc
-            // emit: B ALLOC_LARGE_END
-            // emit: ALLOC_LARGE:
-            // emit: >> large object alloc
-            // emit: ALLOC_LARGE_END:
-            let blk_alloc_large = make_block_name(&node.name(), "alloc_large");
-            let blk_alloc_large_end = make_block_name(&node.name(), "alloc_large_end");
-
-            if OBJECT_HEADER_SIZE != 0 {
-                let size_with_hdr = make_temporary(f_context, UINT64_TYPE.clone(), vm);
-                emit_add_u64(
-                    self.backend.as_mut(),
-                    &size_with_hdr,
-                    &size,
-                    OBJECT_HEADER_SIZE as u64
-                );
-                emit_cmp_u64(
-                    self.backend.as_mut(),
-                    &size_with_hdr,
-                    f_context,
-                    vm,
-                    mm::LARGE_OBJECT_THRESHOLD as u64
-                );
-            } else {
-                emit_cmp_u64(
-                    self.backend.as_mut(),
-                    &size,
-                    f_context,
-                    vm,
-                    mm::LARGE_OBJECT_THRESHOLD as u64
-                );
-            }
-            self.backend.emit_b_cond("GT", blk_alloc_large.clone());
-            self.finish_block();
-
-            let block_name = make_block_name(&node.name(), "allocsmall");
-            self.start_block(block_name);
-            self.emit_alloc_sequence_small(
-                tmp_allocator.clone(),
-                size.clone(),
-                align,
-                node,
+        if size <= mm::MAX_TINY_OBJECT {
+            // alloc tiny
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_TINY,
+                vec![tmp_allocator.clone(), tmp_size.clone(), tmp_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node),
                 f_context,
                 vm
             );
-            self.backend.emit_b(blk_alloc_large_end.clone());
+            // init object
+            let tmp_encode = cast_value(
+                &make_value_int_const(encode.tiny().as_u64(), vm),
+                &UINT8_TYPE
+            );
+            self.emit_runtime_entry(
+                &entrypoints::INIT_TINY,
+                vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
+                None,
+                Some(node),
+                f_context,
+                vm
+            );
+        } else if size <= mm::MAX_MEDIUM_OBJECT {
+            // this could be either a small object or a medium object
 
-            self.finish_block();
-
-            // alloc_large:
-            self.start_block(blk_alloc_large.clone());
-            self.emit_alloc_sequence_large(tmp_allocator.clone(), size, align, node, f_context, vm);
-            self.finish_block();
-
-            // alloc_large_end:
-            self.start_block(blk_alloc_large_end.clone());
-
-            self.get_result_value(node, 0)
+            // alloc normal
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_NORMAL,
+                vec![tmp_allocator.clone(), tmp_size.clone(), tmp_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node),
+                f_context,
+                vm
+            );
+            // init object
+            if size <= mm::MAX_SMALL_OBJECT {
+                let tmp_encode = cast_value(
+                    &make_value_int_const(encode.small().as_u64(), vm),
+                    &UINT16_TYPE
+                );
+                self.emit_runtime_entry(
+                    &entrypoints::INIT_SMALL,
+                    vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
+                    None,
+                    Some(node),
+                    f_context,
+                    vm
+                );
+            } else {
+                let tmp_encode = cast_value(
+                    &make_value_int_const(encode.medium().as_u64(), vm),
+                    &UINT32_TYPE
+                );
+                self.emit_runtime_entry(
+                    &entrypoints::INIT_MEDIUM,
+                    vec![tmp_allocator.clone(), tmp_res.clone(), tmp_encode],
+                    None,
+                    Some(node),
+                    f_context,
+                    vm
+                );
+            };
+        } else {
+            // large allocation
+            self.emit_runtime_entry(
+                &entrypoints::ALLOC_LARGE,
+                vec![tmp_allocator.clone(), tmp_size.clone(), tmp_align],
+                Some(vec![tmp_res.clone()]),
+                Some(node),
+                f_context,
+                vm
+            );
+            // init object
+            let encode = encode.large();
+            let tmp_encode1 = make_value_int_const(encode.size() as u64, vm);
+            let tmp_encode2 = make_value_int_const(encode.type_id() as u64, vm);
+            self.emit_runtime_entry(
+                &entrypoints::INIT_LARGE,
+                vec![
+                    tmp_allocator.clone(),
+                    tmp_res.clone(),
+                    tmp_encode1,
+                    tmp_encode2,
+                ],
+                None,
+                Some(node),
+                f_context,
+                vm
+            );
         }
+
+        tmp_res
     }
 
     fn emit_get_allocator(&mut self, f_context: &mut FunctionContext, vm: &VM) -> P<Value> {
@@ -3700,61 +3708,6 @@ impl<'a> InstructionSelection {
         tmp_allocator
     }
 
-    fn emit_alloc_sequence_large(
-        &mut self,
-        tmp_allocator: P<Value>,
-        size: P<Value>,
-        align: usize,
-        node: &TreeNode,
-        f_context: &mut FunctionContext,
-        vm: &VM
-    ) -> P<Value> {
-        let tmp_res = self.get_result_value(node, 0);
-
-        // ASM: %tmp_res = call muentry_alloc_large(%allocator, size, align)
-        let const_align = make_value_int_const(align as u64, vm);
-
-        self.emit_runtime_entry(
-            &entrypoints::ALLOC_LARGE,
-            vec![tmp_allocator.clone(), size.clone(), const_align],
-            Some(vec![tmp_res.clone()]),
-            Some(node),
-            f_context,
-            vm
-        );
-
-        tmp_res
-    }
-
-    fn emit_alloc_sequence_small(
-        &mut self,
-        tmp_allocator: P<Value>,
-        size: P<Value>,
-        align: usize,
-        node: &TreeNode,
-        f_context: &mut FunctionContext,
-        vm: &VM
-    ) -> P<Value> {
-        if INLINE_FASTPATH {
-            unimplemented!(); // (inline the generated code in alloc() in immix_mutator.rs??)
-        } else {
-            // directly call 'alloc'
-            let tmp_res = self.get_result_value(node, 0);
-
-            let const_align = make_value_int_const(align as u64, vm);
-
-            self.emit_runtime_entry(
-                &entrypoints::ALLOC_FAST,
-                vec![tmp_allocator.clone(), size.clone(), const_align],
-                Some(vec![tmp_res.clone()]),
-                Some(node),
-                f_context,
-                vm
-            );
-
-            tmp_res
-        }
-    }
 
     // This generates code identical to (though it may use different registers)
     // the function muentry_get_thread_local

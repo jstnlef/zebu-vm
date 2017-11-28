@@ -424,7 +424,7 @@ impl<'a> GraphColoring<'a> {
     ) {
         trace!("  add {:?} to movelist[{}]", mov, reg);
         if movelist.contains_key(&reg) {
-            let mut list = movelist.get_mut(&reg).unwrap();
+            let list = movelist.get_mut(&reg).unwrap();
             list.insert(mov);
         } else {
             let mut list = LinkedHashSet::new();
