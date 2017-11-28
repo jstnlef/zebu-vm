@@ -4161,7 +4161,8 @@ use std::collections::HashMap;
 pub fn emit_context_with_reloc(
     vm: &VM,
     symbols: HashMap<Address, MuName>,
-    fields: HashMap<Address, MuName>
+    fields: HashMap<Address, MuName>,
+    primordial_threadlocal: Option<Address>
 ) {
     // creates emit directy, and file
     debug!("---Emit VM Context---");
@@ -4188,7 +4189,7 @@ pub fn emit_context_with_reloc(
     file.write("\t.data\n".as_bytes()).unwrap();
 
     // persist heap - we traverse the heap from globals
-    {
+    let primordial_threadlocal = {
         use runtime::mm;
 
         let global_locs_lock = vm.global_locations().read().unwrap();
@@ -4314,8 +4315,13 @@ pub fn emit_context_with_reloc(
                 offset += POINTER_SIZE;
             }
         }
-    }
 
+        primordial_threadlocal.map(|a| relocatable_refs.get(&a).unwrap().clone())
+    };
+    {
+        let mut lock = vm.primordial_threadlocal.write().unwrap();
+        *lock = primordial_threadlocal;
+    }
     // serialize vm, and put it to boot image
     // currently using rustc_serialize to persist vm as json string.
     // Deserializing from this is extremely slow, we need to fix this. See Issue #41
@@ -4346,7 +4352,7 @@ pub fn emit_context_with_reloc(
 /// emit vm context for current session,
 /// without consideration about relocation symbols/fields from the client
 pub fn emit_context(vm: &VM) {
-    emit_context_with_reloc(vm, hashmap!{}, hashmap!{});
+    emit_context_with_reloc(vm, hashmap!{}, hashmap!{}, None);
 }
 
 /// writes header for a dumped object

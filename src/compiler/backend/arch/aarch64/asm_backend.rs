@@ -3638,7 +3638,8 @@ use std::collections::HashMap;
 pub fn emit_context_with_reloc(
     vm: &VM,
     symbols: HashMap<Address, MuName>,
-    fields: HashMap<Address, MuName>
+    fields: HashMap<Address, MuName>,
+    primordial_threadlocal: Option<Address>
 ) {
     use std::path;
     use std::io::prelude::*;
@@ -3664,23 +3665,24 @@ pub fn emit_context_with_reloc(
     // data
     writeln!(file, ".data").unwrap();
 
-    // persist heap - we traverse the heap from globals
-    {
+    let primordial_threadlocal = {
         use runtime::mm;
 
+        // persist globals
         let global_locs_lock = vm.global_locations().read().unwrap();
         let global_lock = vm.globals().read().unwrap();
 
-        // a map from address to ID
         let global_addr_id_map = {
             let mut map: LinkedHashMap<Address, MuID> = LinkedHashMap::new();
+
             for (id, global_loc) in global_locs_lock.iter() {
                 map.insert(global_loc.to_address(), *id);
             }
+
             map
         };
 
-        // get address of all globals so we can traverse heap from them
+        // dump heap from globals
         let global_addrs: Vec<Address> =
             global_locs_lock.values().map(|x| x.to_address()).collect();
         debug!("going to dump these globals: {:?}", global_addrs);
@@ -3789,6 +3791,11 @@ pub fn emit_context_with_reloc(
                 offset += POINTER_SIZE;
             }
         }
+        primordial_threadlocal.map(|a| relocatable_refs.get(&a).unwrap().clone())
+    };
+    {
+        let mut lock = vm.primordial_threadlocal.write().unwrap();
+        *lock = primordial_threadlocal;
     }
 
     // serialize vm
@@ -3830,7 +3837,7 @@ fn write_obj_header(f: &mut File, obj: &ObjectEncode) {
 }
 
 pub fn emit_context(vm: &VM) {
-    emit_context_with_reloc(vm, hashmap!{}, hashmap!{});
+    emit_context_with_reloc(vm, hashmap!{}, hashmap!{}, None);
 }
 
 fn write_data_bytes(f: &mut File, from: Address, to: Address) {

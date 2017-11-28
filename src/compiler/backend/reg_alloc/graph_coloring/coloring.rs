@@ -454,6 +454,43 @@ impl<'a> GraphColoring<'a> {
         } else {
             trace!("Coalescing disabled...");
         }
+
+        trace!("Build freeze cost for each node...");
+        // we try to avoid freeze a node that is involved in many moves
+        for n in self.ig.nodes() {
+            // freeze_cost(n) = SUM ((spill_cost(src) + spill_cost(dst)) for m (mov src->dst)
+            // in movelist[n])
+            let closure = {
+                let mut ret = LinkedHashSet::new();
+                let mut worklist = LinkedHashSet::new();
+                worklist.insert(n);
+
+                while !worklist.is_empty() {
+                    let n = worklist.pop_front().unwrap();
+                    for m in self.get_movelist(n).iter() {
+                        if !ret.contains(&m.from) {
+                            ret.insert(m.from);
+                            worklist.insert(m.from);
+                        }
+                        if !ret.contains(&m.to) {
+                            ret.insert(m.to);
+                            worklist.insert(m.to);
+                        }
+                    }
+                }
+
+                ret
+            };
+
+            let mut freeze_cost = 0f32;
+            for related_node in closure.iter() {
+                freeze_cost += self.ig.get_spill_cost(*related_node);
+            }
+
+            self.ig.set_freeze_cost(n, freeze_cost);
+            trace!("  {} closure: {:?}", n, closure);
+            trace!("     freeze cost = {}", freeze_cost);
+        }
     }
 
     fn make_work_list(&mut self) {
@@ -836,13 +873,7 @@ impl<'a> GraphColoring<'a> {
         let mut candidate = None;
         let mut candidate_cost = f32::MAX;
         for &n in self.worklist_freeze.iter() {
-            // freeze_cost(n) = SUM ((spill_cost(src) + spill_cost(dst)) for m (mov src->dst)
-            // in movelist[n])
-            let mut freeze_cost = 0f32;
-            for m in self.get_movelist(n).iter() {
-                freeze_cost += self.ig.get_spill_cost(m.from);
-                freeze_cost += self.ig.get_spill_cost(m.to);
-            }
+            let freeze_cost = self.ig.get_freeze_cost(n);
 
             if freeze_cost < candidate_cost {
                 candidate = Some(n);
