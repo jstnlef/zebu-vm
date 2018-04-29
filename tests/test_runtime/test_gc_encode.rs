@@ -14,9 +14,7 @@
 
 use mu::ast::ir::*;
 use mu::ast::types::*;
-use mu::ast::ptr::*;
 use mu::vm::*;
-use mu::compiler::backend::*;
 use mu::runtime::mm::*;
 
 #[test]
