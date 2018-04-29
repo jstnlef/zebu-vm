@@ -1,4 +1,5 @@
-.gitignore
+.idea
+
 **/target/*
 **/__pycache__/*
 **/.cache/*
